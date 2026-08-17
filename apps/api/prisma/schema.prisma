@@ -1,0 +1,703 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Identity & Auth ───────────────────────────────────────────────
+
+enum UserRole {
+  CORE_PARTNER
+  TEMP_INVESTOR
+  ADMIN_SUPPORT
+  SHOP_OWNER_PORTAL
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  role          UserRole
+  status        UserStatus @default(ACTIVE)
+  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz()
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  version       Int       @default(1)
+
+  partner                        Partner?
+  auditLogs                      AuditLog[]
+  notifications                  Notification[]
+  cyclePartnerEntries            CycleParticipant[] @relation("CyclePartnerUser")
+  cycleInvestorEntries           CycleParticipant[] @relation("CycleInvestorUser")
+  saleOrders                     SaleOrder[]        @relation("CreatedSaleOrderUser")
+  payments                       Payment[]          @relation("CreatedPaymentUser")
+  productRequests                ProductRequest[]   @relation("CreatedProductRequestUser")
+  financialTransactions          FinancialTransaction[]
+  inventoryMovements             InventoryMovement[]
+
+  @@map("users")
+}
+
+model Partner {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  displayName String   @map("display_name")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int      @default(1)
+
+  user                 User                 @relation(fields: [userId], references: [id])
+
+  @@map("partners")
+}
+
+// ─── Catalog ───────────────────────────────────────────────────────
+
+model Supplier {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  country     String
+  contactJson Json?    @map("contact_json")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int      @default(1)
+
+  products       ProductSupplier[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  parentId  String?  @map("parent_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version   Int      @default(1)
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  sku         String   @unique
+  name        String
+  categoryId  String?  @map("category_id") @db.Uuid
+  description String?
+  barcode     String?
+  status      String   @default("ACTIVE")
+  minStock    Decimal? @map("min_stock") @db.Decimal(18, 3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int      @default(1)
+
+  category         Category?            @relation(fields: [categoryId], references: [id])
+  suppliers        ProductSupplier[]
+  compatibilities  ProductCompatibility[]
+  prices           ProductPrice[]
+  purchaseOrderItems PurchaseOrderItem[]
+  inventoryBatches InventoryBatch[]
+  saleItems        SaleItem[]
+  productRequests  ProductRequest[]
+  fileAssets       FileAsset[]
+
+  @@map("products")
+}
+
+model ProductSupplier {
+  id          String  @id @default(uuid()) @db.Uuid
+  productId   String  @map("product_id") @db.Uuid
+  supplierId  String  @map("supplier_id") @db.Uuid
+  supplierSku String? @map("supplier_sku")
+  sourceUrl   String? @map("source_url")
+  preferred   Boolean @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  product  Product  @relation(fields: [productId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([productId, supplierId, supplierSku])
+  @@map("product_suppliers")
+}
+
+model MotorcycleModel {
+  id        String   @id @default(uuid()) @db.Uuid
+  make      String
+  model     String
+  yearFrom  Int?     @map("year_from")
+  yearTo    Int?     @map("year_to")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  compatibilities ProductCompatibility[]
+
+  @@map("motorcycle_models")
+}
+
+model ProductCompatibility {
+  id               String @id @default(uuid()) @db.Uuid
+  productId        String @map("product_id") @db.Uuid
+  motorcycleModelId String @map("motorcycle_model_id") @db.Uuid
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  product         Product         @relation(fields: [productId], references: [id])
+  motorcycleModel MotorcycleModel @relation(fields: [motorcycleModelId], references: [id])
+
+  @@unique([productId, motorcycleModelId])
+  @@map("product_compatibilities")
+}
+
+model ProductPrice {
+  id          String   @id @default(uuid()) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  channel     String
+  currency    String
+  amount      Decimal  @db.Decimal(18, 2)
+  effectiveFrom DateTime @map("effective_from") @db.Timestamptz()
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamptz()
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy   String?  @map("created_by") @db.Uuid
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("product_prices")
+}
+
+model FileAsset {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerType String   @map("owner_type")
+  ownerId   String   @map("owner_id") @db.Uuid
+  objectKey String   @map("object_key")
+  mimeType  String   @map("mime_type")
+  sizeBytes Int      @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  product Product? @relation(fields: [ownerId], references: [id])
+
+  @@map("file_assets")
+}
+
+// ─── Supply Chain ──────────────────────────────────────────────────
+
+enum CycleOriginType {
+  CHINA
+  UAE_DIRECT
+}
+
+enum CycleStatus {
+  PLANNING
+  FUNDING
+  PURCHASING
+  IN_TRANSIT
+  ARRIVED_UAE
+  IN_TRANSIT_TO_EGYPT
+  ARRIVED_EGYPT
+  VERIFICATION
+  SELLING
+  SETTLEMENT
+  CLOSED
+}
+
+model ImportCycle {
+  id         String         @id @default(uuid()) @db.Uuid
+  code       String         @unique
+  status     CycleStatus    @default(PLANNING)
+  originType CycleOriginType @map("origin_type")
+  currency   String
+  startedOn  DateTime?      @map("started_on") @db.Date
+  closedOn   DateTime?      @map("closed_on") @db.Date
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz()
+  version    Int            @default(1)
+
+  participants      CycleParticipant[]
+  purchaseOrders    PurchaseOrder[]
+  shippingLegs      ShippingLeg[]
+  inventoryBatches  InventoryBatch[]
+  financialTransactions FinancialTransaction[]
+  settlements       Settlement[]
+
+  @@map("import_cycles")
+}
+
+model CycleParticipant {
+  id                String   @id @default(uuid()) @db.Uuid
+  cycleId           String   @map("cycle_id") @db.Uuid
+  participantType   String   @map("participant_type")
+  partnerUserId     String?  @map("partner_user_id") @db.Uuid
+  investorUserId    String?  @map("investor_user_id") @db.Uuid
+  contributionAmount Decimal @map("contribution_amount") @db.Decimal(18, 2)
+  customProfitPct   Decimal? @map("custom_profit_pct") @db.Decimal(8, 4)
+  investorFeePct    Decimal? @map("investor_fee_pct") @db.Decimal(8, 4)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version           Int      @default(1)
+
+  cycle           ImportCycle  @relation(fields: [cycleId], references: [id])
+  partner         User?        @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
+  investor        User?        @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
+  settlementLines SettlementLine[]
+
+  @@map("cycle_participants")
+}
+
+model PurchaseOrder {
+  id          String   @id @default(uuid()) @db.Uuid
+  cycleId     String   @map("cycle_id") @db.Uuid
+  supplierId  String   @map("supplier_id") @db.Uuid
+  reference   String
+  currency    String
+  fxRateToEgp Decimal  @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  orderedOn   DateTime @map("ordered_on") @db.Date
+  status      String   @default("DRAFT")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int      @default(1)
+
+  cycle              ImportCycle        @relation(fields: [cycleId], references: [id])
+  supplier           Supplier           @relation(fields: [supplierId], references: [id])
+  items              PurchaseOrderItem[]
+  supplierRefunds    SupplierRefund[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  purchaseOrderId String   @map("purchase_order_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  orderedQty      Decimal  @map("ordered_qty") @db.Decimal(18, 3)
+  receivedQty     Decimal? @map("received_qty") @db.Decimal(18, 3)
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(18, 4)
+  discount        Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal       Decimal  @map("line_total") @db.Decimal(18, 2)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  product       Product        @relation(fields: [productId], references: [id])
+  inventoryBatch InventoryBatch?
+
+  @@map("purchase_order_items")
+}
+
+model SupplierRefund {
+  id              String   @id @default(uuid()) @db.Uuid
+  purchaseOrderId String   @map("purchase_order_id") @db.Uuid
+  amount          Decimal  @db.Decimal(18, 2)
+  currency        String
+  fxRateToEgp     Decimal  @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  reason          String?
+  recordedOn      DateTime @map("recorded_on") @db.Date
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy       String?  @map("created_by") @db.Uuid
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  @@map("supplier_refunds")
+}
+
+model ShippingLeg {
+  id          String    @id @default(uuid()) @db.Uuid
+  cycleId     String    @map("cycle_id") @db.Uuid
+  sequence    Int
+  origin      String
+  destination String
+  provider    String?
+  trackingRef String?   @map("tracking_ref")
+  status      String    @default("PENDING")
+  departedOn  DateTime? @map("departed_on") @db.Timestamptz()
+  arrivedOn   DateTime? @map("arrived_on") @db.Timestamptz()
+  amount      Decimal?  @db.Decimal(18, 2)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int       @default(1)
+
+  cycle ImportCycle @relation(fields: [cycleId], references: [id])
+
+  @@unique([cycleId, sequence])
+  @@map("shipping_legs")
+}
+
+// ─── Inventory ─────────────────────────────────────────────────────
+
+enum InventoryMovementType {
+  RECEIVE
+  RESERVE
+  RELEASE
+  SALE
+  RETURN
+  ADJUSTMENT
+  WRITE_OFF
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model InventoryBatch {
+  id                String   @id @default(uuid()) @db.Uuid
+  cycleId           String   @map("cycle_id") @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  sourcePoItemId    String?  @unique @map("source_po_item_id") @db.Uuid
+  receivedQty       Decimal  @map("received_qty") @db.Decimal(18, 3)
+  remainingQty      Decimal  @map("remaining_qty") @db.Decimal(18, 3)
+  reservedQty       Decimal  @default(0) @map("reserved_qty") @db.Decimal(18, 3)
+  saleableQty       Decimal  @map("saleable_qty") @db.Decimal(18, 3)
+  landedUnitCostEgp Decimal  @map("landed_unit_cost_egp") @db.Decimal(18, 4)
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version           Int      @default(1)
+
+  cycle              ImportCycle          @relation(fields: [cycleId], references: [id])
+  product            Product              @relation(fields: [productId], references: [id])
+  sourcePoItem       PurchaseOrderItem?   @relation(fields: [sourcePoItemId], references: [id])
+  movements          InventoryMovement[]
+  reservations       InventoryReservation[]
+  saleItemAllocations SaleItemAllocation[]
+
+  @@map("inventory_batches")
+}
+
+model InventoryMovement {
+  id            String              @id @default(uuid()) @db.Uuid
+  batchId       String              @map("batch_id") @db.Uuid
+  movementType  InventoryMovementType @map("movement_type")
+  qtyDelta      Decimal             @map("qty_delta") @db.Decimal(18, 3)
+  referenceType String?             @map("reference_type")
+  referenceId   String?             @map("reference_id") @db.Uuid
+  occurredAt    DateTime            @default(now()) @map("occurred_at") @db.Timestamptz()
+  createdBy     String?             @map("created_by") @db.Uuid
+
+  batch InventoryBatch @relation(fields: [batchId], references: [id])
+  actor User?          @relation(fields: [createdBy], references: [id])
+
+  @@map("inventory_movements")
+}
+
+model InventoryReservation {
+  id           String   @id @default(uuid()) @db.Uuid
+  batchId      String   @map("batch_id") @db.Uuid
+  saleOrderId  String   @map("sale_order_id") @db.Uuid
+  qty          Decimal  @db.Decimal(18, 3)
+  status       String   @default("ACTIVE")
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz()
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  batch     InventoryBatch @relation(fields: [batchId], references: [id])
+  saleOrder SaleOrder      @relation(fields: [saleOrderId], references: [id])
+
+  @@map("inventory_reservations")
+}
+
+// ─── Sales & Customers ─────────────────────────────────────────────
+
+enum CustomerType {
+  B2B
+  B2C
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  RETURNED
+}
+
+model Customer {
+  id                 String   @id @default(uuid()) @db.Uuid
+  type               CustomerType
+  displayName        String   @map("display_name")
+  phone              String?
+  email              String?
+  shopOwnerUserId    String?  @map("shop_owner_user_id") @db.Uuid
+  verificationStatus String   @default("UNVERIFIED") @map("verification_status")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version            Int      @default(1)
+
+  saleOrders      SaleOrder[]
+  payments        Payment[]
+  productRequests ProductRequest[]
+
+  @@map("customers")
+}
+
+model SaleOrder {
+  id          String      @id @default(uuid()) @db.Uuid
+  orderNo     String      @unique
+  customerId  String      @map("customer_id") @db.Uuid
+  channel     String
+  status      OrderStatus @default(DRAFT)
+  currency    String
+  subtotal    Decimal     @db.Decimal(18, 2)
+  discount    Decimal     @default(0) @db.Decimal(18, 2)
+  total       Decimal     @db.Decimal(18, 2)
+  outstanding Decimal     @db.Decimal(18, 2)
+  orderedAt   DateTime    @default(now()) @map("ordered_at") @db.Timestamptz()
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int         @default(1)
+
+  customer           Customer           @relation(fields: [customerId], references: [id])
+  creator            User?              @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
+  createdBy          String?            @map("created_by") @db.Uuid
+  items              SaleItem[]
+  reservations       InventoryReservation[]
+  paymentAllocations PaymentAllocation[]
+
+  @@map("sale_orders")
+}
+
+model SaleItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  saleOrderId  String  @map("sale_order_id") @db.Uuid
+  productId    String  @map("product_id") @db.Uuid
+  quantity     Decimal @db.Decimal(18, 3)
+  unitPrice    Decimal @map("unit_price") @db.Decimal(18, 2)
+  discount     Decimal @default(0) @db.Decimal(18, 2)
+  lineTotal    Decimal @map("line_total") @db.Decimal(18, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  saleOrder   SaleOrder          @relation(fields: [saleOrderId], references: [id])
+  product     Product            @relation(fields: [productId], references: [id])
+  allocations SaleItemAllocation[]
+
+  @@map("sale_items")
+}
+
+model SaleItemAllocation {
+  id              String  @id @default(uuid()) @db.Uuid
+  saleItemId      String  @map("sale_item_id") @db.Uuid
+  inventoryBatchId String @map("inventory_batch_id") @db.Uuid
+  qty             Decimal @db.Decimal(18, 3)
+  unitCostEgp     Decimal @map("unit_cost_egp") @db.Decimal(18, 4)
+  cogsEgp         Decimal @map("cogs_egp") @db.Decimal(18, 2)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  saleItem      SaleItem        @relation(fields: [saleItemId], references: [id])
+  inventoryBatch InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
+
+  @@map("sale_item_allocations")
+}
+
+model Payment {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  amount     Decimal  @db.Decimal(18, 2)
+  currency   String
+  receivedOn DateTime @map("received_on") @db.Date
+  method     String?
+  reference  String?
+  status     String   @default("RECORDED")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy  String?  @map("created_by") @db.Uuid
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version    Int      @default(1)
+
+  customer   Customer            @relation(fields: [customerId], references: [id])
+  creator    User?               @relation("CreatedPaymentUser", fields: [createdBy], references: [id])
+  allocations PaymentAllocation[]
+
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  paymentId   String   @map("payment_id") @db.Uuid
+  saleOrderId String   @map("sale_order_id") @db.Uuid
+  amount      Decimal  @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  payment   Payment   @relation(fields: [paymentId], references: [id])
+  saleOrder SaleOrder @relation(fields: [saleOrderId], references: [id])
+
+  @@map("payment_allocations")
+}
+
+// ─── Finance & Ledger ──────────────────────────────────────────────
+
+enum TransactionDirection {
+  INFLOW
+  OUTFLOW
+}
+
+model FinancialTransaction {
+  id              String              @id @default(uuid()) @db.Uuid
+  type            String
+  category        String
+  direction       TransactionDirection
+  amount          Decimal             @db.Decimal(18, 2)
+  currency        String
+  fxRateToEgp     Decimal?            @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  accountId       String?             @map("account_id") @db.Uuid
+  cycleId         String?             @map("cycle_id") @db.Uuid
+  relatedType     String?             @map("related_type")
+  relatedId       String?             @map("related_id") @db.Uuid
+  reversalOfId    String?             @map("reversal_of_id") @db.Uuid
+  reason          String?
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy       String?             @map("created_by") @db.Uuid
+
+  cycle    ImportCycle?       @relation(fields: [cycleId], references: [id])
+  actor    User?              @relation(fields: [createdBy], references: [id])
+  account  MoneyAccount?      @relation(fields: [accountId], references: [id])
+
+  @@map("financial_transactions")
+}
+
+model MoneyAccount {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  accountType String   @map("account_type")
+  currency    String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  transactions    FinancialTransaction[]
+  reconciliationEntries ReconciliationEntry[]
+
+  @@map("money_accounts")
+}
+
+model ReconciliationEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  status    String
+  reconciledOn DateTime? @map("reconciled_on") @db.Timestamptz()
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  account MoneyAccount @relation(fields: [accountId], references: [id])
+
+  @@map("reconciliation_entries")
+}
+
+// ─── Settlement ────────────────────────────────────────────────────
+
+enum SettlementStatus {
+  DRAFT
+  APPROVED
+  PAID
+  REVERSED
+}
+
+model Settlement {
+  id            String          @id @default(uuid()) @db.Uuid
+  cycleId       String          @map("cycle_id") @db.Uuid
+  status        SettlementStatus @default(DRAFT)
+  calculatedAt  DateTime?       @map("calculated_at") @db.Timestamptz()
+  approvedAt    DateTime?       @map("approved_at") @db.Timestamptz()
+  paidAt        DateTime?       @map("paid_at") @db.Timestamptz()
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
+  version       Int             @default(1)
+
+  cycle ImportCycle      @relation(fields: [cycleId], references: [id])
+  lines SettlementLine[]
+
+  @@map("settlements")
+}
+
+model SettlementLine {
+  id                   String   @id @default(uuid()) @db.Uuid
+  settlementId         String   @map("settlement_id") @db.Uuid
+  participantId        String   @map("participant_id") @db.Uuid
+  component            String
+  amount               Decimal  @db.Decimal(18, 2)
+  feeAmount            Decimal? @map("fee_amount") @db.Decimal(18, 2)
+  recipientParticipantId String? @map("recipient_participant_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  settlement Settlement     @relation(fields: [settlementId], references: [id])
+  participant CycleParticipant @relation(fields: [participantId], references: [id])
+
+  @@map("settlement_lines")
+}
+
+// ─── Notifications ─────────────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  eventType String    @map("event_type")
+  title     String
+  payloadJson Json?   @map("payload_json")
+  readAt    DateTime? @map("read_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─── Audit ─────────────────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  actorUserId   String?  @map("actor_user_id") @db.Uuid
+  action        String
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  beforeJson    Json?    @map("before_json")
+  afterJson     Json?    @map("after_json")
+  correlationId String?  @map("correlation_id") @db.Uuid
+  sourceIp      String?  @map("source_ip")
+  userAgent     String?  @map("user_agent")
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz()
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([occurredAt])
+  @@map("audit_logs")
+}
+
+// ─── Product Requests (Phase 2) ────────────────────────────────────
+
+model ProductRequest {
+  id               String   @id @default(uuid()) @db.Uuid
+  customerId       String   @map("customer_id") @db.Uuid
+  productName      String   @map("product_name")
+  compatibilityText String? @map("compatibility_text")
+  quantity         Decimal? @db.Decimal(18, 3)
+  notes            String?
+  assetId          String?  @map("asset_id") @db.Uuid
+  supplierUrl      String?  @map("supplier_url")
+  status           String   @default("PENDING")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  creator  User?    @relation("CreatedProductRequestUser", fields: [createdBy], references: [id])
+  createdBy String? @map("created_by") @db.Uuid
+  product  Product? @relation(fields: [productId], references: [id])
+  productId String? @map("product_id") @db.Uuid
+
+  @@map("product_requests")
+}
