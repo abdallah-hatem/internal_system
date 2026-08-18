@@ -62,6 +62,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const [currentStep, setCurrentStep] = useState(0);
   const [cycleId, setCycleId] = useState<string | null>(existingCycleId ?? null);
   const [cycleCode, setCycleCode] = useState<string | null>(null);
+  const [originType, setOriginType] = useState<string>('');
   const [poId, setPoId] = useState<string | null>(null);
   const [poReference, setPoReference] = useState<string | null>(null);
 
@@ -89,6 +90,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // Step 4 local loading state
   const [isStep4Processing, setIsStep4Processing] = useState(false);
 
+  // Shipping leg ID for back-navigation duplicate prevention
+  const [shippingLegId, setShippingLegId] = useState<string | null>(null);
+
   // Resume loading state
   const [isResuming, setIsResuming] = useState(!!existingCycleId);
 
@@ -108,6 +112,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
     setCycleId(existingCycle.id);
     setCycleCode(existingCycle.code);
+    setOriginType(existingCycle.originType ?? '');
 
     const hasPO = existingCycle.purchaseOrders && existingCycle.purchaseOrders.length > 0;
     const hasShipping = existingCycle.shippingLegs && existingCycle.shippingLegs.length > 0;
@@ -133,6 +138,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         setShippingDepartedOn(sl.departedOn ? new Date(sl.departedOn).toISOString().split('T')[0] : '');
         setShippingArrivedOn(sl.arrivedOn ? new Date(sl.arrivedOn).toISOString().split('T')[0] : '');
         setShippingAmount(String(sl.amount ?? ''));
+        setShippingLegId(sl.id ?? null);
       }
       setCurrentStep(4);
     } else if (hasPO && hasShipping) {
@@ -162,6 +168,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       setShippingDepartedOn(sl.departedOn ? new Date(sl.departedOn).toISOString().split('T')[0] : '');
       setShippingArrivedOn(sl.arrivedOn ? new Date(sl.arrivedOn).toISOString().split('T')[0] : '');
       setShippingAmount(String(sl.amount ?? ''));
+      setShippingLegId(sl.id ?? null);
       setCurrentStep(3);
     } else if (hasPO) {
       // Has PO but no shipping → step 3
@@ -258,7 +265,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   const createShippingMutation = useMutation({
     mutationFn: (data: any) => api.post(`/cycles/${cycleId}/shipping-legs`, data),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      const result = res.data.data ?? res.data;
+      setShippingLegId(result.id ?? null);
       setCurrentStep(3);
       toast.success('Shipping leg created');
     },
@@ -285,6 +294,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const handleStep1Submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    setOriginType(fd.get('originType') as string);
     createCycleMutation.mutate({
       originType: fd.get('originType'),
       currency: fd.get('currency'),
@@ -295,6 +305,19 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const handleStep2Submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    // Save form values for back-navigation
+    setPoSupplierId(String(fd.get('supplierId') || ''));
+    setPoCurrency(String(fd.get('currency') || ''));
+    setPoFxRate(String(fd.get('fxRateToEgp') || ''));
+    setPoOrderedOn(String(fd.get('orderedOn') || ''));
+
+    // If PO already exists (going back), just advance to next step
+    if (poId) {
+      setCurrentStep(2);
+      return;
+    }
+
     createPoMutation.mutate({
       supplierId: fd.get('supplierId'),
       currency: fd.get('currency'),
@@ -324,6 +347,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     setShippingArrivedOn(arrivedOn);
     setShippingAmount(amount);
 
+    // If shipping leg already exists (going back), just advance
+    if (shippingLegId) {
+      setCurrentStep(3);
+      return;
+    }
+
     createShippingMutation.mutate({
       sequence: 1,
       origin,
@@ -339,12 +368,15 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const handleStep4Submit = async () => {
     setIsStep4Processing(true);
     try {
-      // Get current cycle status to only apply needed transitions
       const cycleRes = await api.get(`/cycles/${cycleId}`);
       const currentStatus = (cycleRes.data.data ?? cycleRes.data).status;
+      const cycleOriginType = (cycleRes.data.data ?? cycleRes.data).originType;
 
-      // Full chain: PLANNING → FUNDING → PURCHASING → IN_TRANSIT → ARRIVED_UAE → IN_TRANSIT_TO_EGYPT → ARRIVED_EGYPT → VERIFICATION
-      const allTransitions = ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION'];
+      // CHINA: PLANNING → FUNDING → PURCHASING → IN_TRANSIT → ARRIVED_UAE → IN_TRANSIT_TO_EGYPT → ARRIVED_EGYPT → VERIFICATION
+      // UAE_DIRECT: PLANNING → FUNDING → PURCHASING → ARRIVED_UAE → IN_TRANSIT_TO_EGYPT → ARRIVED_EGYPT → VERIFICATION
+      const chinaTransitions = ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION'];
+      const uaeTransitions = ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION'];
+      const allTransitions = cycleOriginType === 'UAE_DIRECT' ? uaeTransitions : chinaTransitions;
       const allStatuses = ['PLANNING', ...allTransitions];
       const startIdx = allStatuses.indexOf(currentStatus);
 
@@ -355,7 +387,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         }
       }
 
-      // Now verify inventory
       await verifyInventoryMutation.mutateAsync({
         cycleId,
         items: receiveItems.map((item) => ({
@@ -439,6 +470,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     setShippingDepartedOn('');
     setShippingArrivedOn('');
     setShippingAmount('');
+    setShippingLegId(null);
   };
 
   // ---------------------------------------------------------------------------
