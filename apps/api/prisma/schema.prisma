@@ -315,6 +315,21 @@ model SupplierRefund {
   @@map("supplier_refunds")
 }
 
+model Provider {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String
+  contactPerson String?   @map("contact_person")
+  phone         String?
+  email         String?
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  shippingLegs ShippingLeg[]
+
+  @@map("providers")
+}
+
 model ShippingLeg {
   id          String    @id @default(uuid()) @db.Uuid
   cycleId     String    @map("cycle_id") @db.Uuid
@@ -322,6 +337,7 @@ model ShippingLeg {
   origin      String
   destination String
   provider    String?
+  providerId  String?   @map("provider_id") @db.Uuid
   trackingRef String?   @map("tracking_ref")
   status      String    @default("PENDING")
   departedOn  DateTime? @map("departed_on") @db.Timestamptz()
@@ -331,7 +347,8 @@ model ShippingLeg {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   version     Int       @default(1)
 
-  cycle ImportCycle @relation(fields: [cycleId], references: [id])
+  cycle    ImportCycle @relation(fields: [cycleId], references: [id])
+  providerRecord Provider? @relation(fields: [providerId], references: [id])
 
   @@unique([cycleId, sequence])
   @@map("shipping_legs")

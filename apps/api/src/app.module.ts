@@ -18,6 +18,7 @@ import { SettlementsModule } from './modules/settlements/settlements.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FilesModule } from './modules/files/files.module';
+import { ProvidersModule } from './modules/providers/providers.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { FilesModule } from './modules/files/files.module';
     NotificationsModule,
     AnalyticsModule,
     FilesModule,
+    ProvidersModule,
   ],
 })
 export class AppModule {}

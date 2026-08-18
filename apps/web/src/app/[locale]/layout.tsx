@@ -4,6 +4,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, usePathname } from '../../i18n/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
+import { ToastProvider, ToastBridge } from '../../components/ui/toast';
 import {
   LayoutDashboard, Route, ShoppingCart, Truck, Package, Boxes,
   BadgePercent, Users, CreditCard, BookOpen, BarChart3,
@@ -16,6 +17,7 @@ const navItems = [
   { key: 'cycles', icon: Route, href: '/cycles' },
   { key: 'purchases', icon: ShoppingCart, href: '/purchases' },
   { key: 'shipments', icon: Truck, href: '/shipments' },
+  { key: 'providers', icon: Truck, href: '/providers' },
   { key: 'products', icon: Package, href: '/products' },
   { key: 'inventory', icon: Boxes, href: '/inventory' },
   { key: 'sales', icon: BadgePercent, href: '/sales' },
@@ -57,11 +59,18 @@ export default function AppLayout({
 
   // Login page renders without chrome
   if (isLoginPage) {
-    return <>{children}</>;
+    return (
+      <ToastProvider>
+        <ToastBridge />
+        {children}
+      </ToastProvider>
+    );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <ToastProvider>
+      <ToastBridge />
+      <div className="flex h-screen overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -181,5 +190,6 @@ export default function AppLayout({
         </main>
       </div>
     </div>
+    </ToastProvider>
   );
 }

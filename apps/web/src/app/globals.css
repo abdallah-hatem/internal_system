@@ -41,6 +41,16 @@
     border-color: theme(colors.gray.200);
   }
 
+  /* Buttons & interactive elements default to pointer cursor */
+  button, a, [role="button"], select, [onclick], label:has(input[type="radio"]), label:has(input[type="checkbox"]) {
+    cursor: pointer;
+  }
+
+  /* Disabled elements keep default cursor */
+  button:disabled, a:disabled, [role="button"]:disabled, [disabled] {
+    cursor: not-allowed;
+  }
+
   body {
     background-color: theme(colors.gray.50);
     color: theme(colors.gray.900);
@@ -65,4 +75,30 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+/* Hide number input spin arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Toast animation */
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-slide-in {
+  animation: toast-slide-in 0.3s ease-out;
 }
