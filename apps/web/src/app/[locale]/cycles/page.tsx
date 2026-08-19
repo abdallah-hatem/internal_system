@@ -117,15 +117,22 @@ export default function CyclesPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    PLANNING: ['FUNDING', 'CANCELLED'],
+    FUNDING: ['PURCHASING', 'PLANNING', 'CANCELLED'],
+    PURCHASING: ['IN_TRANSIT', 'ARRIVED_UAE', 'CANCELLED'],
+    IN_TRANSIT: ['ARRIVED_UAE', 'ARRIVED_EGYPT'],
+    ARRIVED_UAE: ['IN_TRANSIT_TO_EGYPT'],
+    IN_TRANSIT_TO_EGYPT: ['ARRIVED_EGYPT'],
+    ARRIVED_EGYPT: ['VERIFICATION'],
+    VERIFICATION: ['SELLING', 'ARRIVED_EGYPT'],
+    SELLING: ['SETTLEMENT'],
+    SETTLEMENT: ['CLOSED', 'SELLING'],
+    CLOSED: [],
+  };
+
   const getNextStatuses = (currentStatus: string) => {
-    const idx = STATUS_ORDER.indexOf(currentStatus);
-    if (idx < 0) return [];
-    const next: string[] = [];
-    // allow next status
-    if (idx + 1 < STATUS_ORDER.length) next.push(STATUS_ORDER[idx + 1]);
-    // can always cancel if not closed/cancelled
-    if (currentStatus !== 'CLOSED' && currentStatus !== 'CANCELLED') next.push('CANCELLED');
-    return next;
+    return VALID_TRANSITIONS[currentStatus] ?? [];
   };
 
   // ── Render ────────────────────────────────────────────────────────

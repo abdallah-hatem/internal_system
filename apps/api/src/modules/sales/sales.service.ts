@@ -82,6 +82,41 @@ export class SalesService {
     },
     actorId: string,
   ) {
+    // Validate customer exists
+    if (!data.customerId) {
+      throw new BadRequestException('customerId is required');
+    }
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: data.customerId },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer not found: ${data.customerId}`);
+    }
+
+    // Validate items array
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException('Order must contain at least one item');
+    }
+
+    // Validate each item
+    for (const item of data.items) {
+      if (!item.productId) {
+        throw new BadRequestException('Each item must have a productId');
+      }
+      const product = await this.prisma.product.findUnique({
+        where: { id: item.productId },
+      });
+      if (!product) {
+        throw new NotFoundException(`Product not found: ${item.productId}`);
+      }
+      if (!item.quantity || item.quantity <= 0) {
+        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be greater than 0`);
+      }
+      if (item.unitPrice == null || item.unitPrice < 0) {
+        throw new BadRequestException(`Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
+      }
+    }
+
     // Generate order number: ORD-YYYY-XXXXX
     const year = new Date().getFullYear();
     const count = await this.prisma.saleOrder.count({

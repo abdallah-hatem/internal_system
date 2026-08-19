@@ -105,6 +105,26 @@ export class PurchasesService {
     });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
+    // Validate items
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException('Purchase order must contain at least one item');
+    }
+    for (const item of data.items) {
+      if (!item.productId) {
+        throw new BadRequestException('Each item must have a productId');
+      }
+      const product = await this.prisma.product.findUnique({ where: { id: item.productId } });
+      if (!product) {
+        throw new NotFoundException(`Product not found: ${item.productId}`);
+      }
+      if (!item.orderedQty || item.orderedQty <= 0) {
+        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be greater than 0`);
+      }
+      if (item.unitPrice == null || item.unitPrice < 0) {
+        throw new BadRequestException(`Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
+      }
+    }
+
     // Generate reference: PO-YYYY-XXXX
     const year = new Date().getFullYear();
     const count = await this.prisma.purchaseOrder.count({
