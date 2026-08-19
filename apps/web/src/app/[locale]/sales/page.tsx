@@ -26,7 +26,14 @@ interface SaleOrder {
   version: number;
   createdAt: string;
   items?: SaleOrderItem[];
-  payments?: PaymentRecord[];
+  paymentAllocations?: PaymentAllocation[];
+}
+
+interface PaymentAllocation {
+  id: string;
+  paymentId: string;
+  amount: number;
+  payment?: PaymentRecord;
 }
 
 interface SaleOrderItem {
@@ -565,16 +572,17 @@ export default function SalesPage() {
             {/* Payment History */}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('paymentHistory')}</h3>
-              {(detail.payments ?? []).length === 0 ? (
+              {(detail.paymentAllocations ?? []).length === 0 ? (
                 <p className="text-sm text-gray-400">{tc('noData')}</p>
               ) : (
                 <div className="space-y-2">
-                  {(detail.payments ?? []).map((payment: any) => {
+                  {(detail.paymentAllocations ?? []).map((alloc: any) => {
+                    const payment = alloc?.payment ?? alloc;
                     if (!payment) return null;
                     return (
-                      <div key={payment.id} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-3 text-sm">
+                      <div key={alloc.id ?? payment.id} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-3 text-sm">
                         <div>
-                          <p className="font-medium text-gray-900">{Number(payment.amount)?.toLocaleString()} {detail.currency}</p>
+                          <p className="font-medium text-gray-900">{Number(alloc.amount ?? payment.amount)?.toLocaleString()} {detail.currency}</p>
                           <p className="text-xs text-gray-500">{payment.method} · {payment.reference ?? '—'}</p>
                         </div>
                         <span className="text-xs text-gray-500">{formatDate(payment.receivedOn)}</span>
@@ -628,14 +636,14 @@ export default function SalesPage() {
 // ─── Helpers ──────────────────────────────────────────────────────────
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
       </div>
     </div>
   );
