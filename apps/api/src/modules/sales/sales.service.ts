@@ -186,9 +186,12 @@ export class SalesService {
       let totalCogs = new Prisma.Decimal(0);
 
       for (const item of order.items) {
-        let remainingQty = Number(item.quantity);
+        // Quantities and costs stay in Decimal: this COGS is written to the
+        // allocation and is what cycle profit is later calculated from, so a
+        // float rounding drift here would quietly misstate every settlement.
+        let remainingQty = new Prisma.Decimal(item.quantity);
 
-        // FIFO: get verified, saleable batches ordered by received date ASC
+        // FIFO: oldest verified receipt first, batch id breaking any tie.
         const batches = await tx.inventoryBatch.findMany({
           where: {
             productId: item.productId,
@@ -199,11 +202,11 @@ export class SalesService {
         });
 
         for (const batch of batches) {
-          if (remainingQty <= 0) break;
-          const available = Number(batch.saleableQty);
-          const allocQty = Math.min(remainingQty, available);
+          if (remainingQty.lte(0)) break;
+          const available = new Prisma.Decimal(batch.saleableQty);
+          const allocQty = Prisma.Decimal.min(remainingQty, available);
 
-          if (allocQty <= 0) continue;
+          if (allocQty.lte(0)) continue;
 
           // Update batch: reduce saleable, increase reserved
           await tx.inventoryBatch.update({
@@ -219,15 +222,15 @@ export class SalesService {
             data: {
               batchId: batch.id,
               movementType: 'RESERVE',
-              qtyDelta: -allocQty,
+              qtyDelta: allocQty.neg(),
               referenceType: 'SALE_ORDER',
               referenceId: id,
               createdBy: actorId,
             },
           });
 
-          const unitCost = Number(batch.landedUnitCostEgp);
-          const cogs = allocQty * unitCost;
+          const unitCost = new Prisma.Decimal(batch.landedUnitCostEgp);
+          const cogs = allocQty.mul(unitCost).toDecimalPlaces(2);
           totalCogs = totalCogs.add(cogs);
 
           // Create allocation
@@ -242,12 +245,12 @@ export class SalesService {
           });
 
           allocations.push(allocation);
-          remainingQty -= allocQty;
+          remainingQty = remainingQty.sub(allocQty);
         }
 
-        if (remainingQty > 0) {
+        if (remainingQty.gt(0)) {
           throw new BadRequestException(
-            `Insufficient stock for ${item.product.name}. Missing: ${remainingQty}`,
+            `Insufficient stock for ${item.product.name}. Missing: ${remainingQty.toFixed(3)}`,
           );
         }
       }
