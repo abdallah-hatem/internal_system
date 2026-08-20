@@ -27,6 +27,22 @@ async function token(request: any) {
   return (await auth.json()).data.accessToken;
 }
 
+
+/**
+ * Choose from a searchable Select by its hidden input's name.
+ *
+ * The entity pickers are no longer native <select>, so selectOption() does not
+ * apply to them. Short fixed enums (origin type, currency) are still native and
+ * keep using selectOption.
+ */
+async function pickByName(page: Page, name: string, index = 0) {
+  const trigger = page.locator(`input[type="hidden"][name="${name}"]`).locator('..').getByRole('button');
+  await trigger.click();
+  await page.getByRole('listbox').waitFor({ state: 'visible' });
+  await page.getByRole('listbox').getByRole('option').nth(index).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+}
+
 test.describe('Shipment costing', () => {
   test('TC-COST-01: New leg form offers per piece, per weight and flat', async ({ page }) => {
     await login(page);
@@ -86,16 +102,18 @@ test.describe('Shipment costing', () => {
     await page.getByRole('button', { name: /save & continue/i }).click();
 
     // Step 2 — minimal purchase order
-    const supplier = page.locator('select[name="supplierId"]');
-    await expect(supplier).toBeVisible({ timeout: 10000 });
-    await supplier.selectOption({ index: 1 });
+    await expect(page.locator('input[type="hidden"][name="supplierId"]')).toBeAttached({ timeout: 10000 });
+    await pickByName(page, 'supplierId');
     await page.locator('select[name="currency"]').selectOption('USD');
     await page.locator('input[name="fxRateToEgp"]').fill('48.5');
     await page.locator('input[name="orderedOn"]').fill('2026-08-20');
     await page.getByRole('button', { name: /add item/i }).click();
 
-    const row = page.locator('select').last();
-    await row.selectOption({ index: 1 });
+    // The product picker is the line item's own searchable Select.
+    const productTrigger = page.getByRole('button', { name: /select product/i }).last();
+    await productTrigger.click();
+    await page.getByRole('listbox').getByRole('option').first().click();
+
     const numbers = page.locator('input[type="number"]');
     await numbers.nth(1).fill('100');
     await numbers.nth(2).fill('5');

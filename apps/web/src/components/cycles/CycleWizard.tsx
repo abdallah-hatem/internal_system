@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../ui/select';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -764,20 +765,18 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Supplier <span className="text-red-500">*</span>
                 </label>
-                <select
+                <Select
                   key={poSupplierId || 'empty-supplier'}
                   name="supplierId"
                   required
                   defaultValue={poSupplierId}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Select supplier</option>
-                  {supplierList.map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select supplier"
+                  options={supplierList.map((s: any) => ({
+                    value: s.id,
+                    label: s.name,
+                    hint: s.contactPerson ?? undefined,
+                  }))}
+                />
               </div>
 
               <div>
@@ -858,19 +857,17 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         <label className="block text-xs text-gray-500 mb-1">
                           Product
                         </label>
-                        <select
+                        <Select
                           value={item.productId}
-                          onChange={(e) => updateLineItem(idx, 'productId', e.target.value)}
+                          onChange={(v) => updateLineItem(idx, 'productId', v)}
                           required
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        >
-                          <option value="">Select product</option>
-                          {productList.map((p: any) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.sku})
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select product"
+                          options={productList.map((p: any) => ({
+                            value: p.id,
+                            label: p.name,
+                            hint: p.sku,
+                          }))}
+                        />
                       </div>
 
                       <div className="w-20">
@@ -993,19 +990,17 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Provider <span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <Select
                         name={`${prefix}provider`}
                         required
                         defaultValue={existing?.provider ?? ''}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="">Select provider</option>
-                        {(Array.isArray(providers) ? providers : []).map((pr: any) => (
-                          <option key={pr.id} value={pr.name}>
-                            {pr.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Select provider"
+                        options={(Array.isArray(providers) ? providers : []).map((pr: any) => ({
+                          value: pr.name,
+                          label: pr.name,
+                          hint: pr.contactPerson ?? undefined,
+                        }))}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

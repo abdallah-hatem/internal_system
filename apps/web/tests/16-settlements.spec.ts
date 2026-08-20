@@ -43,7 +43,7 @@ async function pickCycle(page: Page, code: string) {
   await page.locator('#cycle-select').click();
   await page.getByRole('listbox').waitFor({ state: 'visible' });
   await page.locator('#cycle-select').locator('..').getByPlaceholder(/search/i).fill(code);
-  await page.getByRole('option', { name: new RegExp(code) }).first().click();
+  await page.getByRole('listbox').getByRole('option', { name: new RegExp(code) }).first().click();
   await expect(page.locator('#cycle-select')).toContainText(code);
 }
 
@@ -68,7 +68,7 @@ test.describe('Settlements', () => {
 
     await page.goto(`${BASE}/en/settlements`);
     await page.locator('#cycle-select').click();
-    const options = page.getByRole('option');
+    const options = page.getByRole('listbox').getByRole('option');
     // The custom picker has no placeholder row, so the counts match exactly.
     await expect.poll(() => options.count(), { timeout: 10000 }).toBe(total);
   });

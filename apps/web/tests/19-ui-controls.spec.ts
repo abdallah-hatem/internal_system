@@ -35,12 +35,12 @@ test.describe('Searchable select', () => {
     await page.goto(`${BASE}/en/settlements`);
     await page.locator('#cycle-select').click();
 
-    const before = await page.getByRole('option').count();
+    const before = await page.getByRole('listbox').getByRole('option').count();
     expect(before).toBeGreaterThan(1);
 
     await page.getByPlaceholder(/search/i).last().fill('DEMO-001');
-    await expect.poll(() => page.getByRole('option').count()).toBeLessThan(before);
-    await expect(page.getByRole('option').first()).toContainText('CYC-DEMO-001');
+    await expect.poll(() => page.getByRole('listbox').getByRole('option').count()).toBeLessThan(before);
+    await expect(page.getByRole('listbox').getByRole('option').first()).toContainText('CYC-DEMO-001');
   });
 
   test('TC-UI-03: a search matching nothing says so instead of showing an empty box', async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe('Searchable select', () => {
     await page.locator('#cycle-select').click();
     await page.getByPlaceholder(/search/i).last().fill('zzzz-no-such-cycle');
 
-    await expect(page.getByRole('option')).toHaveCount(0);
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(0);
     await expect(page.getByText(/no matches/i)).toBeVisible();
   });
 

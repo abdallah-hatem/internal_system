@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
@@ -63,6 +64,13 @@ export default function InventoryPage() {
   const { data: inventory = [], isLoading } = useQuery({
     queryKey: ['inventory'],
     queryFn: () => api.get('/inventory').then((r) => r.data.data ?? r.data),
+  });
+
+  // The verify-stock picker previously rendered an empty dropdown — the
+  // options were never fetched, so a cycle could not be chosen at all.
+  const { data: cycles = [] } = useQuery({
+    queryKey: ['cycles'],
+    queryFn: () => api.get('/cycles?limit=200').then((r) => r.data.data ?? r.data),
   });
 
   const { data: movements = [] } = useQuery({
@@ -407,9 +415,17 @@ export default function InventoryPage() {
           >
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
-              <select name="cycleId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">—</option>
-              </select>
+              <Select
+                name="cycleId"
+                required
+                placeholder={t('cycle')}
+                searchPlaceholder={tc('search')}
+                options={(Array.isArray(cycles) ? cycles : []).map((c: any) => ({
+                  value: c.id,
+                  label: c.code,
+                  hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                }))}
+              />
             </div>
 
             <div>

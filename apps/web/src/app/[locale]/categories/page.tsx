@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -311,15 +312,16 @@ export default function CategoriesPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('parentCategory')} <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>
               </label>
-              <select
+              <Select
                 name="parentId"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">{t('noParent')}</option>
-                {categoryList.filter((c) => !c.parentId).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                placeholder={t('noParent')}
+                searchPlaceholder={tc('search')}
+                clearable
+                options={categoryList.filter((c) => !c.parentId).map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
+              />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -341,19 +343,17 @@ export default function CategoriesPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('parentCategory')} <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>
               </label>
-              <select
-                key={editingCategory.parentId || 'none'}
+              <Select
                 name="parentId"
                 defaultValue={editingCategory.parentId || ''}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">{t('noParent')}</option>
-                {categoryList
-                  .filter((c) => c.id !== editingCategory.id && !c.parentId)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-              </select>
+                placeholder={t('noParent')}
+                searchPlaceholder={tc('search')}
+                clearable
+                options={categoryList.filter((c) => !c.parentId).map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
+              />
             </div>
             {editingCategory._count && (editingCategory._count.products > 0 || editingCategory._count.children > 0) && (
               <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

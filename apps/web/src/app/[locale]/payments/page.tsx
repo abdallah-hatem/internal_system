@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -353,12 +354,16 @@ export default function PaymentsPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')}</label>
-              <select name="customerId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">—</option>
-                {customerList.map((c) => (
-                   <option key={c.id} value={c.id}>{c.displayName}</option>
-                ))}
-              </select>
+              <Select
+                name="customerId"
+                required
+                placeholder={t('customer')}
+                searchPlaceholder={tc('search')}
+                options={customerList.map((c) => ({
+                  value: c.id,
+                  label: c.displayName,
+                }))}
+              />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
@@ -406,14 +411,20 @@ export default function PaymentsPage() {
             </p>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('selectOrder')}</label>
-              <select name="saleId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">—</option>
-                {orderList.map((o: SaleOrder) => (
-                  <option key={o.id} value={o.id}>
-                    {o.orderNo} — {t('outstanding')}: <Money value={o.outstanding} currency={o.currency} />
-                  </option>
-                ))}
-              </select>
+              <Select
+                name="saleId"
+                required
+                placeholder={t('saleOrder')}
+                searchPlaceholder={tc('search')}
+                options={orderList.map((o: SaleOrder) => ({
+                  value: o.id,
+                  label: o.orderNo,
+                  hint: `${t('outstanding')}: ${Number(o.outstanding).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} ${o.currency}`,
+                }))}
+              />
             </div>
             <InputField label={t('allocateAmount')} name="allocateAmount" type="number" required placeholder="0" />
             <div className="flex justify-end gap-3 pt-2">

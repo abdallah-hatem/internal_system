@@ -379,12 +379,17 @@ export default function ShipmentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('provider')}</label>
-                <select name="provider" defaultValue={editingShipment.provider} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="">—</option>
-                  {providerList.map((p: any) => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
+                <Select
+                  name="provider"
+                  defaultValue={editingShipment.provider}
+                  placeholder={t('provider')}
+                  searchPlaceholder={tc('search')}
+                  options={providerList.map((p: any) => ({
+                    value: p.name,
+                    label: p.name,
+                    hint: p.contactPerson ?? undefined,
+                  }))}
+                />
               </div>
               <InputField label={t('trackingRef')} name="trackingRef" defaultValue={editingShipment.trackingRef} />
             </div>

@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -367,12 +368,12 @@ export default function ProductsPage() {
             <InputField label={t('name')} name="name" required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('category')}</label>
-              <select name="category" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">—</option>
-                {categoryList.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
+              <Select
+                name="category"
+                placeholder={t('category')}
+                searchPlaceholder={tc('search')}
+                options={categoryList.map((cat) => ({ value: cat.id, label: cat.name }))}
+              />
             </div>
             <InputField label={t('description')} name="description" />
             <InputField label={t('barcode')} name="barcode" />
@@ -397,12 +398,13 @@ export default function ProductsPage() {
             <InputField label={t('name')} name="name" defaultValue={editingProduct.name} required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('category')}</label>
-              <select name="category" defaultValue={editingProduct.categoryId} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">—</option>
-                {categoryList.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
+              <Select
+                name="category"
+                defaultValue={editingProduct.categoryId}
+                placeholder={t('category')}
+                searchPlaceholder={tc('search')}
+                options={categoryList.map((cat) => ({ value: cat.id, label: cat.name }))}
+              />
             </div>
             <InputField label={t('description')} name="description" defaultValue={editingProduct.description} />
             <InputField label={t('barcode')} name="barcode" defaultValue={editingProduct.barcode} />
