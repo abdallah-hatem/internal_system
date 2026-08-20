@@ -1,4 +1,6 @@
 'use client';
+import { BatchRef } from '../../../components/ui/batch-ref';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -204,10 +206,10 @@ export default function InventoryPage() {
                                       <tbody className="divide-y divide-gray-100">
                                          {(item.batches ?? []).map((batch: any) => (
                                           <tr key={batch.id} className="hover:bg-white">
-                                            <td className="py-2 font-mono text-xs text-gray-600">#{batch.id.slice(0, 8)}</td>
+                                            <td className="py-2 font-mono text-xs text-gray-600"><BatchRef id={batch.id} /></td>
                                             <td className="py-2 text-gray-600">{batch.cycle?.code ?? '—'}</td>
                                              <td className="py-2 font-medium text-gray-900">{batch.remainingQty}</td>
-                                            <td className="py-2 text-gray-600">£ {Number(batch.landedUnitCostEgp).toLocaleString()}</td>
+                                            <td className="py-2 text-gray-600"><Money value={batch.landedUnitCostEgp} /></td>
                                             <td className="py-2">
                                               <VerificationBadge status={batch.verificationStatus} />
                                             </td>
@@ -317,7 +319,7 @@ export default function InventoryPage() {
                       {(item.batches ?? []).map((batch: any) => (
                         <div key={batch.id} className="bg-white rounded-lg p-3 text-sm">
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs text-gray-500">#{batch.id.slice(0, 8)}</span>
+                            <BatchRef id={batch.id} className="font-mono text-xs text-gray-500" />
                             <VerificationBadge status={batch.verificationStatus} />
                           </div>
                           <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
@@ -331,7 +333,7 @@ export default function InventoryPage() {
                             </div>
                             <div>
                               <span className="text-gray-500">{t('landedCost')}:</span>{' '}
-                              <span className="font-medium">£ {Number(batch.landedUnitCostEgp).toLocaleString()}</span>
+                              <span className="font-medium"><Money value={batch.landedUnitCostEgp} /></span>
                             </div>
                           </div>
                           <button
@@ -446,16 +448,17 @@ export default function InventoryPage() {
 import { Fragment } from 'react';
 
 function VerificationBadge({ status }: { status: string }) {
+  const t = useTranslations('inventory');
   if (status === 'VERIFIED') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-        <CheckCircle2 className="h-3 w-3" /> Verified
+        <CheckCircle2 className="h-3 w-3" /> {t('verified')}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-      <Clock className="h-3 w-3" /> Pending
+      <Clock className="h-3 w-3" /> {t('pending')}
     </span>
   );
 }

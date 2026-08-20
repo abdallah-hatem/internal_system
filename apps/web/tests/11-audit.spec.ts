@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 
 const BASE = 'http://localhost:3000';
+const API = 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 
@@ -58,12 +59,23 @@ test.describe('Audit Logs Flow', () => {
     expect(body).toMatch(/partner|Partner|admin|Admin|motoparts/i);
   });
 
-  test('TC-AUDIT-06: Audit logs are formatted with dates', async ({ page }) => {
+  test('TC-AUDIT-06: Audit logs are formatted with dates', async ({ page, request }) => {
+    // The seed writes through Prisma directly, so a fresh database has no audit
+    // entries. Perform one auditable action first rather than depending on
+    // whatever happens to be left over from earlier runs.
+    const auth = await request.post(`${API}/auth/login`, {
+      data: { email: EMAIL, password: PASSWORD },
+    });
+    const token = (await auth.json()).data.accessToken;
+    await request.post(`${API}/providers`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name: `Audit probe ${Date.now()}` },
+    });
+
     await login(page);
     await page.goto(`${BASE}/en/audit-logs`);
     await page.waitForTimeout(2000);
     const body = await page.textContent('body');
-    // Should show formatted dates
     expect(body).toMatch(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}/);
   });
 

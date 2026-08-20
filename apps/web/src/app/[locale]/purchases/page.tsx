@@ -1,4 +1,5 @@
 'use client';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -484,7 +485,7 @@ export default function PurchasesPage() {
                   {(poDetail?.refunds ?? []).map((refund: any) => (
                     <div key={refund.id} className="flex items-center justify-between bg-red-50 rounded-lg px-4 py-3 text-sm">
                       <div>
-                        <p className="font-medium text-gray-900">£ {refund.amount?.toLocaleString()}</p>
+                        <p className="font-medium text-gray-900"><Money value={refund.amount} /></p>
                         <p className="text-xs text-gray-500">{refund.reason ?? '—'}</p>
                       </div>
                        <span className="text-xs text-gray-500">{refund.recordedOn ?? '—'}</span>

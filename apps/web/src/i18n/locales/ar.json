@@ -233,7 +233,10 @@
     "cancelled": "ملغى",
     "returned": "مرتجع",
     "addItem": "إضافة صنف",
-    "search": "بحث في المبيعات..."
+    "search": "بحث في المبيعات...",
+    "batch": "دفعة",
+    "perUnitCost": "/وحدة",
+    "cogs": "تكلفة البضاعة"
   },
   "customers": {
     "title": "العملاء",

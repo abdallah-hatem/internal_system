@@ -79,20 +79,20 @@ async function main() {
   // Create some suppliers
   const suppliers = await Promise.all([
     prisma.supplier.upsert({
-      where: { id: '00000000-0000-0000-0000-000000000001' },
+      where: { id: '00000000-0000-4000-8000-000000000001' },
       update: {},
       create: {
-        id: '00000000-0000-0000-0000-000000000001',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Alibaba Supplier - Hangzhou Parts Co.',
         country: 'China',
         contactJson: { phone: '+86-571-12345678', wechat: 'hzparts' },
       },
     }),
     prisma.supplier.upsert({
-      where: { id: '00000000-0000-0000-0000-000000000002' },
+      where: { id: '00000000-0000-4000-8000-000000000002' },
       update: {},
       create: {
-        id: '00000000-0000-0000-0000-000000000002',
+        id: '00000000-0000-4000-8000-000000000002',
         name: 'Gulf Trading - Dubai',
         country: 'UAE',
         contactJson: { phone: '+971-4-1234567', whatsapp: '+971501234567' },
@@ -105,10 +105,10 @@ async function main() {
   // Create some motorcycle models
   const models = await Promise.all([
     prisma.motorcycleModel.upsert({
-      where: { id: '00000000-0000-0000-0000-000000000010' },
+      where: { id: '00000000-0000-4000-8000-000000000010' },
       update: {},
       create: {
-        id: '00000000-0000-0000-0000-000000000010',
+        id: '00000000-0000-4000-8000-000000000010',
         make: 'Honda',
         model: 'CBR 600',
         yearFrom: 2005,
@@ -116,10 +116,10 @@ async function main() {
       },
     }),
     prisma.motorcycleModel.upsert({
-      where: { id: '00000000-0000-0000-0000-000000000011' },
+      where: { id: '00000000-0000-4000-8000-000000000011' },
       update: {},
       create: {
-        id: '00000000-0000-0000-0000-000000000011',
+        id: '00000000-0000-4000-8000-000000000011',
         make: 'Yamaha',
         model: 'R1',
         yearFrom: 2004,
@@ -127,10 +127,10 @@ async function main() {
       },
     }),
     prisma.motorcycleModel.upsert({
-      where: { id: '00000000-0000-0000-0000-000000000012' },
+      where: { id: '00000000-0000-4000-8000-000000000012' },
       update: {},
       create: {
-        id: '00000000-0000-0000-0000-000000000012',
+        id: '00000000-0000-4000-8000-000000000012',
         make: 'Kawasaki',
         model: 'Z800',
         yearFrom: 2013,
@@ -143,10 +143,10 @@ async function main() {
 
   // Create a money account
   await prisma.moneyAccount.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000020' },
+    where: { id: '00000000-0000-4000-8000-000000000020' },
     update: {},
     create: {
-      id: '00000000-0000-0000-0000-000000000020',
+      id: '00000000-0000-4000-8000-000000000020',
       name: 'Home Storage Room Cash',
       accountType: 'CASH',
       currency: 'EGP',
@@ -154,10 +154,10 @@ async function main() {
   });
 
   await prisma.moneyAccount.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000021' },
+    where: { id: '00000000-0000-4000-8000-000000000021' },
     update: {},
     create: {
-      id: '00000000-0000-0000-0000-000000000021',
+      id: '00000000-0000-4000-8000-000000000021',
       name: 'Business Bank Account',
       accountType: 'BANK',
       currency: 'EGP',
@@ -176,7 +176,10 @@ async function main() {
   //  Cycle 2 (UAE direct): the single-leg route.
   // ───────────────────────────────────────────────────────────────────────
   const D = (v: number | string) => new Prisma.Decimal(v);
-  const id = (n: string) => `00000000-0000-0000-0000-0000000000${n}`;
+  // Deterministic but RFC-valid: version nibble 4, variant nibble 8. Ids with
+  // a 0 version nibble are not valid UUIDs and get rejected by validation
+  // even though Postgres stores them.
+  const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
 
   const provider = await prisma.provider.upsert({
     where: { id: id('30') },
@@ -365,12 +368,86 @@ async function main() {
     await prisma.shippingLeg.create({
       data: {
         cycleId: uae.id, sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
-        provider: provider.name, providerId: provider.id, status: 'PENDING',
+        provider: provider.name, providerId: provider.id, status: 'ARRIVED',
         costBasis: 'PER_WEIGHT', ratePerUnit: D(22), chargeableWeightKg: D(180),
         currency: 'EGP', fxRateToEgp: D(1), amount: D(3960), amountEgp: D(3960),
       },
     });
-    console.log('✅ Created demo UAE-direct cycle CYC-DEMO-002 with a weight-charged leg');
+
+    // Carry this cycle far enough to settle, so the temporary-investor fee is
+    // exercised against real numbers rather than only in unit tests. Fee is
+    // taken from the investor's profit and never from their capital (BRD 8).
+    const uaePo = await prisma.purchaseOrder.create({
+      data: {
+        cycleId: uae.id,
+        supplierId: suppliers[1]?.id ?? suppliers[0].id,
+        reference: 'UAE-2026-0001',
+        currency: 'AED',
+        fxRateToEgp: D(13.2),
+        orderedOn: new Date('2026-08-11'),
+        status: 'CONFIRMED',
+        items: {
+          create: [
+            { productId: helmet.id, orderedQty: D(40), receivedQty: D(40), unitPrice: D(100), lineTotal: D(4000) },
+          ],
+        },
+      },
+      include: { items: true },
+    });
+
+    // Goods 4,000 AED x 13.2 = 52,800 EGP over 40 units = 1,320/unit;
+    // shipping 3,960 over 40 pieces = 99/unit; landed 1,419.
+    const uaeBatch = await prisma.inventoryBatch.create({
+      data: {
+        cycleId: uae.id, productId: helmet.id, sourcePoItemId: uaePo.items[0].id,
+        receivedQty: D(40), remainingQty: D(20), reservedQty: D(0), saleableQty: D(20),
+        landedUnitCostEgp: D('1419.0000'), verificationStatus: 'VERIFIED',
+      },
+    });
+    await prisma.financialTransaction.create({
+      data: {
+        type: 'PURCHASE_COST', category: 'purchase', direction: 'OUTFLOW',
+        amount: D(56760), currency: 'EGP', cycleId: uae.id,
+        reason: 'Landed cost of verified stock', createdBy: partnerA.id,
+      },
+    });
+
+    const uaeSale = await prisma.saleOrder.create({
+      data: {
+        orderNo: 'SO-DEMO-0002', customerId: customer.id, channel: 'B2B',
+        status: 'PAID', currency: 'EGP',
+        subtotal: D(40000), discount: D(0), total: D(40000), outstanding: D(0),
+        createdBy: partnerA.id,
+        items: { create: [{ productId: helmet.id, quantity: D(20), unitPrice: D(2000), lineTotal: D(40000) }] },
+      },
+      include: { items: true },
+    });
+    await prisma.saleItemAllocation.create({
+      data: {
+        saleItemId: uaeSale.items[0].id, inventoryBatchId: uaeBatch.id,
+        qty: D(20), unitCostEgp: D('1419.0000'), cogsEgp: D('28380.00'),
+      },
+    });
+    await prisma.inventoryMovement.create({
+      data: {
+        batchId: uaeBatch.id, movementType: 'SALE', qtyDelta: D(-20),
+        referenceType: 'SALE_ORDER', referenceId: uaeSale.id, createdBy: partnerA.id,
+      },
+    });
+    await prisma.financialTransaction.create({
+      data: {
+        type: 'SALE_REVENUE', category: 'revenue', direction: 'INFLOW',
+        amount: D(40000), currency: 'EGP', cycleId: uae.id,
+        relatedType: 'SALE_ORDER', relatedId: uaeSale.id, createdBy: partnerA.id,
+      },
+    });
+
+    await prisma.importCycle.update({
+      where: { id: uae.id },
+      data: { status: 'SELLING' },
+    });
+
+    console.log('✅ Created demo UAE-direct cycle CYC-DEMO-002: weight-charged leg, sale, temporary investor on a 15% fee');
   } else {
     console.log('ℹ️  Demo cycles already present — skipping');
   }

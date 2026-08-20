@@ -233,7 +233,10 @@
     "cancelled": "Cancelled",
     "returned": "Returned",
     "addItem": "Add Item",
-    "search": "Search sales..."
+    "search": "Search sales...",
+    "batch": "Batch",
+    "perUnitCost": "/unit",
+    "cogs": "COGS"
   },
   "customers": {
     "title": "Customers",

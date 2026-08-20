@@ -20,6 +20,13 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
 
+async function token(request: any) {
+  const auth = await request.post(`${API}/auth/login`, {
+    data: { email: EMAIL, password: PASSWORD },
+  });
+  return (await auth.json()).data.accessToken;
+}
+
 /** Read a money cell like "50,000.00 EGP" as a number. */
 const money = (text: string | null) =>
   Number((text ?? '').replace(/[^0-9.-]/g, ''));
@@ -31,22 +38,32 @@ test.describe('Settlements', () => {
     await expect(page.getByRole('heading', { name: /settlements/i })).toBeVisible();
   });
 
-  test('TC-SET-02: Cycle picker lists cycles beyond the first page', async ({ page }) => {
+  test('TC-SET-02: Cycle picker lists every cycle, not just the first page', async ({ page, request }) => {
     await login(page);
+
+    // Compare the picker against the API rather than a fixed count: the point
+    // is that nothing is truncated at the default page size, and that has to
+    // hold whether the database has two cycles or two hundred.
+    const t = await token(request);
+    const res = await request.get(`${API}/cycles?limit=200`, {
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    const total = ((await res.json()).data ?? []).length;
+
     await page.goto(`${BASE}/en/settlements`);
     const options = page.locator('#cycle-select option');
-    // More than the default page size of 20 means the picker is not truncated.
-    await expect.poll(() => options.count(), { timeout: 10000 }).toBeGreaterThan(21);
+    // +1 for the placeholder option.
+    await expect.poll(() => options.count(), { timeout: 10000 }).toBe(total + 1);
   });
 
   test('TC-SET-03: Calculating a cycle shows its profit and loss', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
 
-    await page.locator('#cycle-select').selectOption({ label: 'CYC-2026-0001' });
+    await page.locator('#cycle-select').selectOption({ label: 'CYC-DEMO-001' });
     await page.getByRole('button', { name: /calculate/i }).click();
 
-    const card = page.locator('div').filter({ hasText: /CYC-2026-0001/ }).first();
+    const card = page.locator('div').filter({ hasText: /CYC-DEMO-001/ }).first();
     await expect(page.getByText('Revenue').first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('COGS').first()).toBeVisible();
     await expect(page.getByText(/Profit/).first()).toBeVisible();
@@ -64,7 +81,7 @@ test.describe('Settlements', () => {
   test('TC-SET-05: Payout equals capital plus net profit plus fee received', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
-    await page.locator('#cycle-select').selectOption({ label: 'CYC-2026-0001' });
+    await page.locator('#cycle-select').selectOption({ label: 'CYC-DEMO-001' });
     await page.getByRole('button', { name: /calculate/i }).click();
     await page.waitForTimeout(1500);
 
@@ -91,7 +108,7 @@ test.describe('Settlements', () => {
   test('TC-SET-06: Unsold stock is flagged and excluded from profit', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
-    await page.locator('#cycle-select').selectOption({ label: 'CYC-2026-0001' });
+    await page.locator('#cycle-select').selectOption({ label: 'CYC-DEMO-001' });
     await page.getByRole('button', { name: /calculate/i }).click();
     await expect(
       page.getByText(/still in stock/i).first(),
@@ -107,7 +124,7 @@ test.describe('Settlements', () => {
     const cycles = await request.get(`${API}/cycles?limit=200`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const cycle = (await cycles.json()).data.find((c: any) => c.code === 'CYC-2026-0001');
+    const cycle = (await cycles.json()).data.find((c: any) => c.code === 'CYC-DEMO-001');
     expect(cycle).toBeTruthy();
 
     const res = await request.post(`${API}/settlements/calculate/${cycle.id}`, {

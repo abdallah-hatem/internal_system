@@ -1,4 +1,5 @@
 'use client';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -377,7 +378,7 @@ export default function CyclesPage() {
                       <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 text-sm">
                         <div>
                           <p className="font-medium text-gray-900">{p.partner?.displayName ?? p.partnerId}</p>
-                          <p className="text-xs text-gray-500">{t('contribution')}: £ {(p.contributionAmount ?? 0).toLocaleString()}</p>
+                          <p className="text-xs text-gray-500">{t('contribution')}: <Money value={p.contributionAmount} /></p>
                         </div>
                       </div>
                     ))}

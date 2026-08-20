@@ -56,7 +56,7 @@ export class PaymentsService {
       customerId: string;
       amount: number;
       currency: string;
-      receivedOn: string;
+      receivedOn?: string;
       method?: string;
       reference?: string;
     },
@@ -76,7 +76,10 @@ export class PaymentsService {
         customerId: data.customerId,
         amount: data.amount,
         currency: data.currency,
-        receivedOn: new Date(data.receivedOn),
+        // A payment with no stated date is one received today; without this
+        // an omitted value became an Invalid Date and Prisma rejected the
+        // write as an opaque 500.
+        receivedOn: data.receivedOn ? new Date(data.receivedOn) : new Date(),
         method: data.method,
         reference: data.reference || idempotencyKey,
         status: 'RECORDED',

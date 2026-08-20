@@ -6,10 +6,10 @@ export class AddParticipantDto {
   @IsEnum(ParticipantType)
   participantType: ParticipantType;
 
-  @IsOptional() @IsUUID()
+  @IsOptional() @IsUUID('all')
   partnerUserId?: string;
 
-  @IsOptional() @IsUUID()
+  @IsOptional() @IsUUID('all')
   investorUserId?: string;
 
   @IsNumber() @Min(0) @Type(() => Number)

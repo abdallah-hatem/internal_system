@@ -21,7 +21,7 @@ interface Line {
     id: string;
     participantType: string;
     partner?: { email?: string; partner?: { displayName?: string } } | null;
-    investor?: { email?: string } | null;
+    investor?: { email?: string; partner?: { displayName?: string } } | null;
   };
 }
 
@@ -57,8 +57,11 @@ const COMPONENT_LABEL: Record<string, string> = {
 const isBlank = (v: unknown) =>
   v === null || v === undefined || !Number.isFinite(Number(v));
 
+// Prefer a real name over a login address, whichever role the participant
+// holds; an investor may also have a partner record.
 const nameOf = (l: Line) =>
   l.participant?.partner?.partner?.displayName ||
+  l.participant?.investor?.partner?.displayName ||
   l.participant?.partner?.email ||
   l.participant?.investor?.email ||
   'Unknown';

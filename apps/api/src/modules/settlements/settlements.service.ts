@@ -31,7 +31,16 @@ const SETTLEMENT_INCLUDE = {
               partner: { select: { id: true, displayName: true } },
             },
           },
-          investor: { select: { id: true, email: true } },
+          investor: {
+                  select: {
+                    id: true,
+                    email: true,
+                    // An investor may also hold a partner record; prefer that
+                    // name so the settlement table does not show a bare email
+                    // next to properly named partners.
+                    partner: { select: { id: true, displayName: true } },
+                  },
+                },
         },
       },
     },
@@ -76,7 +85,16 @@ export class SettlementsService {
                     partner: { select: { id: true, displayName: true } },
                   },
                 },
-                investor: { select: { id: true, email: true } },
+                investor: {
+                  select: {
+                    id: true,
+                    email: true,
+                    // An investor may also hold a partner record; prefer that
+                    // name so the settlement table does not show a bare email
+                    // next to properly named partners.
+                    partner: { select: { id: true, displayName: true } },
+                  },
+                },
               },
             },
           },
@@ -111,7 +129,16 @@ export class SettlementsService {
                     partner: { select: { id: true, displayName: true } },
                   },
                 },
-                investor: { select: { id: true, email: true } },
+                investor: {
+                  select: {
+                    id: true,
+                    email: true,
+                    // An investor may also hold a partner record; prefer that
+                    // name so the settlement table does not show a bare email
+                    // next to properly named partners.
+                    partner: { select: { id: true, displayName: true } },
+                  },
+                },
               },
             },
           },

@@ -1,4 +1,6 @@
 'use client';
+import { BatchRef } from '../../../components/ui/batch-ref';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -44,7 +46,14 @@ interface SaleOrderItem {
   unitPrice: number;
   discount: number;
   allocatedQty: number;
-  allocations?: { id: string; inventoryBatchId?: string; qty: number; batch?: { batchNo: string } }[];
+  allocations?: {
+    id: string;
+    inventoryBatchId?: string;
+    qty: number;
+    unitCostEgp?: number | string;
+    cogsEgp?: number | string;
+    batch?: { batchNo: string };
+  }[];
 }
 
 interface PaymentRecord {
@@ -553,15 +562,35 @@ export default function SalesPage() {
                 <div className="space-y-2">
                   {(detail.items ?? []).flatMap((item: SaleOrderItem) =>
                     (item.allocations ?? []).map((alloc) => (
-                      <div key={alloc.id} className="flex items-center justify-between bg-blue-50 rounded-lg px-4 py-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 text-blue-500" />
-                          <div>
-                            <p className="font-medium text-gray-900">{item.product?.name ?? '—'}</p>
-                            <p className="text-xs text-gray-500">Batch #{alloc.inventoryBatchId?.slice(0, 8) ?? '—'}</p>
+                      <div key={alloc.id} className="flex items-center justify-between bg-blue-50 rounded-lg px-4 py-3 text-sm gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Package className="h-4 w-4 text-blue-500 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{item.product?.name ?? '—'}</p>
+                            <p className="text-xs text-gray-500">
+                              {t('batch')} <BatchRef id={alloc.inventoryBatchId} />
+                              {alloc.unitCostEgp != null && (
+                                <>
+                                  {' · '}
+                                  <Money value={alloc.unitCostEgp} />
+                                  {' '}
+                                  {t('perUnitCost')}
+                                </>
+                              )}
+                            </p>
                           </div>
                         </div>
-                        <span className="font-medium text-gray-900">× {alloc.qty}</span>
+                        {/* The batch cost is the whole point of tracking batches:
+                            it is the COGS this sale is charged and can never be
+                            recomputed from today's prices. */}
+                        <div className="text-end shrink-0">
+                          <p className="font-medium text-gray-900">× {alloc.qty}</p>
+                          {alloc.cogsEgp != null && (
+                            <p className="text-xs text-gray-500">
+                              <Money value={alloc.cogsEgp} /> {t('cogs')}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}

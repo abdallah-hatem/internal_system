@@ -17,7 +17,7 @@ export class CreateShippingLegDto {
   @IsOptional() @IsString()
   provider?: string;
 
-  @IsOptional() @IsUUID()
+  @IsOptional() @IsUUID('all')
   providerId?: string;
 
   @IsOptional() @IsString()
@@ -66,7 +66,7 @@ export class UpdateShippingLegDto {
   @IsOptional() @IsString()
   provider?: string;
 
-  @IsOptional() @IsUUID()
+  @IsOptional() @IsUUID('all')
   providerId?: string;
 
   @IsOptional() @IsString()

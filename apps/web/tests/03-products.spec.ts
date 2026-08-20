@@ -46,7 +46,9 @@ test.describe('Products Management Flow', () => {
     await searchInput.fill('helmet');
     await page.waitForTimeout(500);
     const body = await page.textContent('body');
-    expect(body).toContain('helmet');
+    // Match case-insensitively: the product is displayed with its own casing
+    // ("Full Face Helmet"), and the search itself is case-insensitive.
+    expect(body).toMatch(/helmet/i);
   });
 
   test('TC-PROD-04: Category filter works', async ({ page }) => {

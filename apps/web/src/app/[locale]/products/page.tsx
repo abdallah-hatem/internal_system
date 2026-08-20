@@ -1,4 +1,5 @@
 'use client';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -260,10 +261,10 @@ export default function ProductsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        {product.b2bPrice != null ? `£ ${product.b2bPrice.toLocaleString()}` : '—'}
+                        {product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        {product.b2cPrice != null ? `£ ${product.b2cPrice.toLocaleString()}` : '—'}
+                        {product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {product.minStock}
@@ -327,11 +328,11 @@ export default function ProductsPage() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-gray-500">{t('b2bPrice')}:</span>{' '}
-                    <span className="font-medium">{product.b2bPrice != null ? `£ ${product.b2bPrice.toLocaleString()}` : '—'}</span>
+                    <span className="font-medium">{product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}</span>
                   </div>
                   <div>
                     <span className="text-gray-500">{t('b2cPrice')}:</span>{' '}
-                    <span className="font-medium">{product.b2cPrice != null ? `£ ${product.b2cPrice.toLocaleString()}` : '—'}</span>
+                    <span className="font-medium">{product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-100">

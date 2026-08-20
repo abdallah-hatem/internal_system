@@ -40,8 +40,9 @@ test.describe('Inventory Management Flow', () => {
     await page.goto(`${BASE}/en/inventory`);
     await page.waitForTimeout(2000);
     const body = await page.textContent('body');
-    // Should have batch data
-    expect(body).toMatch(/PRD-|helmet|Front Brake Disc|CYC-/);
+    // Assert on the shape of the page rather than one product's name, so the
+    // test survives the seed changing what it stocks.
+    expect(body).toMatch(/brake pad|helmet|PRD-|CYC-/i);
   });
 
   test('TC-INV-04: Inventory search works', async ({ page }) => {
@@ -53,7 +54,7 @@ test.describe('Inventory Management Flow', () => {
       await searchInput.fill('helmet');
       await page.waitForTimeout(500);
       const body = await page.textContent('body');
-      expect(body).toContain('helmet');
+      expect(body).toMatch(/helmet/i);
     }
   });
 

@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { CreatePaymentDto, AllocatePaymentDto } from './dto/payment.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -41,7 +42,7 @@ export class PaymentsController {
   @Post()
   @ApiOperation({ summary: 'Record a payment (idempotent via Idempotency-Key header)' })
   create(
-    @Body() body: any,
+    @Body() body: CreatePaymentDto,
     @CurrentUser() user: any,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
@@ -52,7 +53,7 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Allocate a payment to a sale order' })
   allocateToOrder(
     @Param('id') id: string,
-    @Body() body: { saleOrderId: string; amount: number },
+    @Body() body: AllocatePaymentDto,
     @CurrentUser() user: any,
   ) {
     return this.paymentsService.allocateToOrder(
