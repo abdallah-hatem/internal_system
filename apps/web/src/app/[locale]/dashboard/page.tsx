@@ -13,6 +13,8 @@ import {
 interface DashboardData {
   totalRevenue: number;
   totalExpenses: number;
+  totalCogs?: number;
+  totalCashOut?: number;
   netProfit: number;
   activeCycles: number;
   inventoryValue: number;
@@ -39,6 +41,14 @@ interface TopProduct {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────
+
+/** Money tiles read as money: always two decimals, grouped thousands. */
+const egp = (v: number | undefined) =>
+  `${Number(v ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} EGP`;
+
 export default function DashboardPage() {
   const t = useTranslations();
 
@@ -60,6 +70,8 @@ export default function DashboardPage() {
   const data: DashboardData = dashData ?? {
     totalRevenue: 0,
     totalExpenses: 0,
+    totalCogs: 0,
+    totalCashOut: 0,
     netProfit: 0,
     activeCycles: 0,
     inventoryValue: 0,
@@ -75,11 +87,13 @@ export default function DashboardPage() {
   const isLoading = loadingDash || loadingAudit || loadingProducts;
 
   const stats = [
-    { key: 'revenue', value: `${data.totalRevenue?.toLocaleString() ?? 0} EGP`, icon: DollarSign, color: 'bg-green-500' },
-    { key: 'netProfit', value: `${data.netProfit?.toLocaleString() ?? 0} EGP`, icon: TrendingUp, color: 'bg-blue-500' },
+    { key: 'revenue', value: egp(data.totalRevenue), icon: DollarSign, color: 'bg-green-500' },
+    { key: 'cogs', value: egp(data.totalCogs), icon: Package, color: 'bg-slate-500' },
+    { key: 'netProfit', value: egp(data.netProfit), icon: TrendingUp, color: 'bg-blue-500' },
+    { key: 'cashOut', value: egp(data.totalCashOut), icon: DollarSign, color: 'bg-teal-600' },
     { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
-    { key: 'inventoryValue', value: `${data.inventoryValue?.toLocaleString() ?? 0} EGP`, icon: Package, color: 'bg-orange-500' },
-    { key: 'receivables', value: `${data.receivables?.toLocaleString() ?? 0} EGP`, icon: ShoppingCart, color: 'bg-yellow-500' },
+    { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
+    { key: 'receivables', value: egp(data.receivables), icon: ShoppingCart, color: 'bg-yellow-500' },
     { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
   ];
 

@@ -71,7 +71,9 @@
     "receivables": "Receivables",
     "activeCycles": "Active Cycles",
     "lowStockAlerts": "Low Stock Alerts",
-    "cashFlow": "Cash Flow"
+    "cashFlow": "Cash Flow",
+    "cogs": "Cost of Goods Sold",
+    "cashOut": "Cash Paid Out"
   },
   "products": {
     "title": "Products",
@@ -465,5 +467,29 @@
     "cycleCode": "Cycle Code",
     "purchaseRef": "Purchase Reference",
     "supplier": "Supplier"
+  },
+  "settlementsPage": {
+    "title": "Settlements",
+    "selectCycle": "Select a cycle…",
+    "calculate": "Calculate",
+    "empty": "No settlements yet.",
+    "emptyHint": "Pick a cycle above and calculate one.",
+    "revenue": "Revenue",
+    "cogs": "COGS",
+    "expenses": "Expenses",
+    "profit": "Profit",
+    "unsoldStock": "Unsold stock",
+    "units": "units",
+    "participant": "Participant",
+    "capital": "Capital",
+    "netProfit": "Profit (net)",
+    "fee": "Fee",
+    "payout": "Payout",
+    "investor": "investor",
+    "approve": "Approve",
+    "markPaid": "Mark paid",
+    "reverse": "Reverse",
+    "unsoldWarning": "Profit covers sold units only — {units} units are still in stock and their cost stays with this cycle.",
+    "footnote": "Capital return and profit are separate. A temporary investor's fee is taken from their profit, never their capital, and is already reflected in the net profit shown."
   }
 }

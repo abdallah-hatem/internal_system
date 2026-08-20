@@ -7,25 +7,53 @@ export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
   async getDashboardKPIs() {
-    // Total revenue: confirmed+paid sales orders total
+    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+
+    // Realised sales: goods have left the business, so the revenue is earned
+    // whether or not the customer has finished paying.
+    const REALISED = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
+
     const revenueAgg = await this.prisma.saleOrder.aggregate({
-      where: { status: { in: ['CONFIRMED', 'PAID'] } },
+      where: { status: { in: [...REALISED] } },
       _sum: { total: true },
     });
-    const totalRevenue = Number(revenueAgg._sum.total ?? 0);
+    const revenue = D(revenueAgg._sum.total);
 
-    // Total expenses: OUTFLOW FinancialTransactions where category is purchase/shipping/fees
-    // (money going out to pay for goods, shipping, and customs fees)
-    const expenseAgg = await this.prisma.financialTransaction.aggregate({
+    // Cost of the units actually sold, taken from the batch allocation made at
+    // the time of sale, so historical costs are never re-priced.
+    const cogsAgg = await this.prisma.saleItemAllocation.aggregate({
+      where: { saleItem: { saleOrder: { status: { in: [...REALISED] } } } },
+      _sum: { cogsEgp: true },
+    });
+    const cogs = D(cogsAgg._sum.cogsEgp);
+
+    // Buying stock is not an expense -- it converts cash into inventory, and
+    // becomes a cost only when the goods sell. Goods and shipping are already
+    // capitalised into batch landed cost, so only other outflows are expenses.
+    const operatingAgg = await this.prisma.financialTransaction.aggregate({
       where: {
         direction: 'OUTFLOW',
-        category: { in: ['purchase', 'shipping', 'fees'] },
+        category: { notIn: ['purchase', 'shipping'] },
       },
       _sum: { amount: true },
     });
-    const totalExpenses = Number(expenseAgg._sum.amount ?? 0);
+    const operatingExpenses = D(operatingAgg._sum.amount);
 
-    const netProfit = totalRevenue - totalExpenses;
+    const netProfit = revenue.sub(cogs).sub(operatingExpenses);
+
+    // Cash actually paid out, reported separately from accounting profit
+    // (BRD 11).
+    const cashOutAgg = await this.prisma.financialTransaction.aggregate({
+      where: { direction: 'OUTFLOW' },
+      _sum: { amount: true },
+    });
+    const cashOut = D(cashOutAgg._sum.amount);
+
+    const totalRevenue = money(revenue);
+    const totalCogs = money(cogs);
+    const totalExpenses = money(operatingExpenses);
+    const totalCashOut = money(cashOut);
 
     // Active cycles: status NOT IN ('CLOSED', 'CANCELLED')
     const activeCycles = await this.prisma.importCycle.count({
@@ -84,8 +112,10 @@ export class AnalyticsService {
     return {
       data: {
         totalRevenue,
+        totalCogs,
         totalExpenses,
-        netProfit,
+        totalCashOut,
+        netProfit: money(netProfit),
         activeCycles,
         inventoryValue,
         receivables,

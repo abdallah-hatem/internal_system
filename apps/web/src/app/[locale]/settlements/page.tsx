@@ -1,9 +1,11 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
+import { Money } from '../../../components/ui/money';
 import {
   Scale, Loader2, AlertTriangle, TrendingUp, TrendingDown,
   CheckCircle2, Wallet, RotateCcw, Calculator,
@@ -52,14 +54,8 @@ const COMPONENT_LABEL: Record<string, string> = {
   INVESTOR_FEE_RECEIVED: 'Fee received',
 };
 
-const egp = (v: unknown) => {
-  const n = Number(v ?? 0);
-  if (!Number.isFinite(n)) return '—';
-  return `${n.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} EGP`;
-};
+const isBlank = (v: unknown) =>
+  v === null || v === undefined || !Number.isFinite(Number(v));
 
 const nameOf = (l: Line) =>
   l.participant?.partner?.partner?.displayName ||
@@ -69,6 +65,7 @@ const nameOf = (l: Line) =>
 
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function SettlementsPage() {
+  const t = useTranslations('settlementsPage');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [selectedCycle, setSelectedCycle] = useState('');
@@ -126,12 +123,12 @@ export default function SettlementsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Scale className="h-6 w-6 text-primary-600" /> Settlements
+          <Scale className="h-6 w-6 text-primary-600" /> {t('title')}
         </h1>
 
         <div className="flex items-center gap-2">
           <label htmlFor="cycle-select" className="sr-only">
-            Cycle to settle
+            {t('selectCycle')}
           </label>
           <select
             id="cycle-select"
@@ -139,7 +136,7 @@ export default function SettlementsPage() {
             onChange={(e) => setSelectedCycle(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">Select a cycle…</option>
+            <option value="">{t('selectCycle')}</option>
             {cycleList.map((c: any) => (
               <option key={c.id} value={c.id}>
                 {c.code}
@@ -156,7 +153,7 @@ export default function SettlementsPage() {
             ) : (
               <Calculator className="h-4 w-4" />
             )}
-            Calculate
+            {t('calculate')}
           </button>
         </div>
       </div>
@@ -182,9 +179,9 @@ export default function SettlementsPage() {
       ) : list.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Scale className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No settlements yet.</p>
+          <p className="text-gray-500">{t('empty')}</p>
           <p className="text-sm text-gray-400 mt-1">
-            Pick a cycle above and calculate one.
+            {t('emptyHint')}
           </p>
         </div>
       ) : (
@@ -193,6 +190,7 @@ export default function SettlementsPage() {
             <SettlementCard
               key={s.id}
               settlement={s}
+              t={t}
               onAction={(action) =>
                 actionMutation.mutate({ id: s.id, action })
               }
@@ -210,10 +208,12 @@ function SettlementCard({
   settlement: s,
   onAction,
   busy,
+  t,
 }: {
   settlement: Settlement;
   onAction: (action: string) => void;
   busy: boolean;
+  t: (key: string, values?: Record<string, string | number | Date>) => string;
 }) {
   const profit = Number(s.grossProfitEgp ?? 0);
   const remaining = Number(s.unitsRemaining ?? 0);
@@ -244,12 +244,12 @@ function SettlementCard({
         <div className="flex items-center gap-2">
           {s.status === 'DRAFT' && (
             <ActionButton onClick={() => onAction('approve')} busy={busy} icon={CheckCircle2}>
-              Approve
+              {t('approve')}
             </ActionButton>
           )}
           {s.status === 'APPROVED' && (
             <ActionButton onClick={() => onAction('pay')} busy={busy} icon={Wallet}>
-              Mark paid
+              {t('markPaid')}
             </ActionButton>
           )}
           {s.status !== 'REVERSED' && (
@@ -259,7 +259,7 @@ function SettlementCard({
               icon={RotateCcw}
               tone="danger"
             >
-              Reverse
+              {t('reverse')}
             </ActionButton>
           )}
         </div>
@@ -267,26 +267,25 @@ function SettlementCard({
 
       {/* P&L strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 border-b border-gray-100">
-        <Metric label="Revenue" value={egp(s.revenueEgp)} />
-        <Metric label="COGS" value={egp(s.cogsEgp)} />
-        <Metric label="Expenses" value={egp(s.expensesEgp)} />
+        <Metric label={t('revenue')} value={s.revenueEgp} />
+        <Metric label={t('cogs')} value={s.cogsEgp} />
+        <Metric label={t('expenses')} value={s.expensesEgp} />
         <Metric
-          label="Profit"
-          value={egp(s.grossProfitEgp)}
+          label={t('profit')}
+          value={s.grossProfitEgp}
           tone={profit >= 0 ? 'good' : 'bad'}
           icon={profit >= 0 ? TrendingUp : TrendingDown}
         />
         <Metric
-          label="Unsold stock"
-          value={egp(s.unsoldValueEgp)}
-          hint={remaining > 0 ? `${remaining.toLocaleString()} units` : undefined}
+          label={t('unsoldStock')}
+          value={s.unsoldValueEgp}
+          hint={remaining > 0 ? `${remaining.toLocaleString()} ${t('units')}` : undefined}
         />
       </div>
 
       {remaining > 0 && (
         <p className="px-5 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
-          Profit covers sold units only — {remaining.toLocaleString()} units are
-          still in stock and their cost stays with this cycle.
+          {t('unsoldWarning', { units: remaining.toLocaleString() })}
         </p>
       )}
 
@@ -294,15 +293,15 @@ function SettlementCard({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <caption className="sr-only">
-            Settlement breakdown per participant for cycle {s.cycle?.code}
+            {t('participant')} — {s.cycle?.code}
           </caption>
           <thead className="bg-gray-50 text-xs text-gray-500">
             <tr>
-              <th scope="col" className="text-start px-5 py-2 font-medium">Participant</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium">Capital</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium">Profit (net)</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium">Fee</th>
-              <th scope="col" className="text-end px-5 py-2 font-medium">Payout</th>
+              <th scope="col" className="text-start px-5 py-2 font-medium">{t('participant')}</th>
+              <th scope="col" className="text-end px-4 py-2 font-medium">{t('capital')}</th>
+              <th scope="col" className="text-end px-4 py-2 font-medium">{t('netProfit')}</th>
+              <th scope="col" className="text-end px-4 py-2 font-medium">{t('fee')}</th>
+              <th scope="col" className="text-end px-5 py-2 font-medium">{t('payout')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -327,12 +326,16 @@ function SettlementCard({
                     <span className="text-gray-800">{nameOf(lines[0])}</span>
                     {isInvestor && (
                       <span className="ms-2 text-[11px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
-                        investor
+                        {t('investor')}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-end text-gray-600 tabular-nums">{egp(capital)}</td>
-                  <td className="px-4 py-3 text-end text-gray-800 tabular-nums">{egp(share)}</td>
+                  <td className="px-4 py-3 text-end text-gray-600 tabular-nums">
+                    <Money value={capital} />
+                  </td>
+                  <td className="px-4 py-3 text-end text-gray-800 tabular-nums">
+                    <Money value={share} />
+                  </td>
                   <td
                     className={`px-4 py-3 text-end tabular-nums ${
                       feeDisplay < 0
@@ -347,10 +350,10 @@ function SettlementCard({
                         : undefined
                     }
                   >
-                    {feeDisplay === 0 ? '—' : egp(feeDisplay)}
+                    {feeDisplay === 0 ? '—' : <Money value={feeDisplay} />}
                   </td>
                   <td className="px-5 py-3 text-end font-semibold text-gray-900 tabular-nums">
-                    {egp(payout)}
+                    <Money value={payout} />
                   </td>
                 </tr>
               );
@@ -360,9 +363,7 @@ function SettlementCard({
       </div>
 
       <p className="px-5 py-2 text-[11px] text-gray-400 border-t border-gray-100">
-        Capital return and profit are separate. A temporary investor&apos;s fee is
-        taken from their profit, never their capital, and is already reflected in
-        the net profit shown.
+        {t('footnote')}
       </p>
     </div>
   );
@@ -372,7 +373,7 @@ function Metric({
   label, value, tone, icon: Icon, hint,
 }: {
   label: string;
-  value: string;
+  value: number | string | null | undefined;
   tone?: 'good' | 'bad';
   icon?: React.ComponentType<{ className?: string }>;
   hint?: string;
@@ -384,7 +385,7 @@ function Metric({
       <p className="text-xs text-gray-500 mb-0.5">{label}</p>
       <p className={`text-sm font-semibold tabular-nums flex items-center gap-1 ${color}`}>
         {Icon && <Icon className="h-3.5 w-3.5" />}
-        {value}
+        {isBlank(value) ? '—' : <Money value={value as number} />}
       </p>
       {hint && <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p>}
     </div>
