@@ -35,7 +35,15 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
-# ── 3. Free the ports ────────────────────────────────────────────────────
+# ── 3. Close windows from a previous run ─────────────────────────────────
+# This must come before freeing the ports: the windows are identified by the
+# project processes running in them, and killing those first would leave the
+# windows behind as anonymous idle shells that pile up run after run.
+say "Closing windows left by a previous run"
+"$ROOT/scripts/close-dev-windows.sh" >/dev/null 2>&1 || true
+sleep 1
+
+# ── 4. Free the ports ────────────────────────────────────────────────────
 for port in $API_PORT $WEB_PORT; do
   pids=$(lsof -ti:"$port" 2>/dev/null || true)
   if [ -n "$pids" ]; then
@@ -45,17 +53,23 @@ for port in $API_PORT $WEB_PORT; do
   fi
 done
 
-# ── 4. Servers, each in its own visible Terminal window ──────────────────
+# ── 5. Servers, each in its own visible Terminal window ──────────────────
+# Windows opened by this script are titled so a later run can close its own
+# leftovers instead of stacking up a new pair every time.
+TAG="motoparts-dev"
+
 say "Opening API and web in Terminal windows"
 osascript >/dev/null <<APPLESCRIPT
 tell application "Terminal"
-  do script "cd '$ROOT/apps/api' && npm run start:dev"
-  do script "cd '$ROOT/apps/web' && npm run dev"
+  set apiTab to do script "cd '$ROOT/apps/api' && npm run start:dev"
+  set custom title of apiTab to "$TAG — api"
+  set webTab to do script "cd '$ROOT/apps/web' && npm run dev"
+  set custom title of webTab to "$TAG — web"
   activate
 end tell
 APPLESCRIPT
 
-# ── 5. Wait until both answer ────────────────────────────────────────────
+# ── 6. Wait until both answer ────────────────────────────────────────────
 wait_for() {
   local url=$1 name=$2
   for _ in $(seq 1 40); do

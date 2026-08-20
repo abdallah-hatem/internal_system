@@ -5,7 +5,7 @@
   "description": "Internal operations system for the motorcycle parts importing business",
   "scripts": {
     "dev": "./scripts/dev.sh",
-    "stop": "lsof -ti:3000,3001 | xargs -r kill -9 2>/dev/null; docker compose stop",
+    "stop": "./scripts/stop.sh",
     "db:up": "docker compose up -d",
     "db:studio": "cd apps/api && npm run db:studio",
     "test": "npm run test:api && npm run test:web",
