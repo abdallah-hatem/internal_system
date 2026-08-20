@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
@@ -320,10 +321,10 @@ export default function SalesPage() {
                           {t(STATUS_KEYS[order.status] ?? order.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-900 font-medium">{order.total?.toLocaleString()} {order.currency}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium"><Money value={order.total} currency={order.currency} /></td>
                       <td className="px-4 py-3">
                         <span className={`font-medium ${order.outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {order.outstanding?.toLocaleString()} {order.currency}
+                          <Money value={order.outstanding} currency={order.currency} />
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.createdAt)}</td>
@@ -369,12 +370,12 @@ export default function SalesPage() {
                   }`}>
                     {order.channel === 'B2B' ? t('b2b') : t('b2c')}
                   </span>
-                  <span className="font-medium text-gray-900">{order.total?.toLocaleString()} {order.currency}</span>
+                  <span className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></span>
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                   <span>{formatDate(order.createdAt)}</span>
                   <span className={`font-medium ${order.outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {t('outstanding')}: {order.outstanding?.toLocaleString()} {order.currency}
+                    {t('outstanding')}: <Money value={order.outstanding} currency={order.currency} />
                   </span>
                 </div>
               </div>
@@ -395,12 +396,17 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')}</label>
-                <select name="customerId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="">—</option>
-                  {customerList.map((c) => (
-                    <option key={c.id} value={c.id}>{c.displayName}</option>
-                  ))}
-                </select>
+                <Select
+                  name="customerId"
+                  required
+                  placeholder={t('customer')}
+                  searchPlaceholder={tc('search')}
+                  options={customerList.map((c) => ({
+                    value: c.id,
+                    label: c.displayName,
+                    hint: c.type,
+                  }))}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('channel')}</label>
@@ -438,16 +444,17 @@ export default function SalesPage() {
                     <div key={idx} className="flex items-end gap-2 bg-gray-50 rounded-lg p-3">
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">{t('product')}</label>
-                        <select
+                        <Select
                           value={item.productId}
-                          onChange={(e) => updateLineItem(idx, 'productId', e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        >
-                          <option value="">—</option>
-                          {productList.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
-                          ))}
-                        </select>
+                          onChange={(v) => updateLineItem(idx, 'productId', v)}
+                          placeholder={t('product')}
+                          searchPlaceholder={tc('search')}
+                          options={productList.map((p) => ({
+                            value: p.id,
+                            label: p.name,
+                            hint: p.sku,
+                          }))}
+                        />
                       </div>
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">{t('quantity')}</label>
@@ -509,8 +516,8 @@ export default function SalesPage() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={detail.customer?.displayName ?? '—'} />
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
-              <Detail label={t('total')} value={`${detail.total?.toLocaleString()} ${detail.currency}`} />
-              <Detail label={t('outstanding')} value={`${detail.outstanding?.toLocaleString()} ${detail.currency}`} />
+              <Detail label={t('total')} value={<Money value={detail.total} currency={detail.currency} />} />
+              <Detail label={t('outstanding')} value={<Money value={detail.outstanding} currency={detail.currency} />} />
               <Detail label={t('date')} value={formatDate(detail.createdAt)} />
               <Detail label={tc('status')} value={t(STATUS_KEYS[detail.status] ?? detail.status)} />
             </div>
@@ -611,7 +618,7 @@ export default function SalesPage() {
                     return (
                       <div key={alloc.id ?? payment.id} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-3 text-sm">
                         <div>
-                          <p className="font-medium text-gray-900">{Number(alloc.amount ?? payment.amount)?.toLocaleString()} {detail.currency}</p>
+                          <p className="font-medium text-gray-900"><Money value={alloc.amount ?? payment.amount} currency={detail.currency} /></p>
                           <p className="text-xs text-gray-500">{payment.method} · {payment.reference ?? '—'}</p>
                         </div>
                         <span className="text-xs text-gray-500">{formatDate(payment.receivedOn)}</span>
@@ -678,7 +685,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <span className="text-gray-500 text-xs">{label}</span>

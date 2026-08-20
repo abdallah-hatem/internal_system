@@ -31,6 +31,22 @@ async function token(request: any) {
 const money = (text: string | null) =>
   Number((text ?? '').replace(/[^0-9.-]/g, ''));
 
+
+/**
+ * Pick a cycle from the searchable Select.
+ *
+ * The picker is no longer a native <select>, so selectOption() does not apply.
+ * Open it, type enough to filter, then click the row — which is also what a
+ * user does, so the test exercises the real interaction.
+ */
+async function pickCycle(page: Page, code: string) {
+  await page.locator('#cycle-select').click();
+  await page.getByRole('listbox').waitFor({ state: 'visible' });
+  await page.locator('#cycle-select').locator('..').getByPlaceholder(/search/i).fill(code);
+  await page.getByRole('option', { name: new RegExp(code) }).first().click();
+  await expect(page.locator('#cycle-select')).toContainText(code);
+}
+
 test.describe('Settlements', () => {
   test('TC-SET-01: Settlements page loads', async ({ page }) => {
     await login(page);
@@ -51,16 +67,17 @@ test.describe('Settlements', () => {
     const total = ((await res.json()).data ?? []).length;
 
     await page.goto(`${BASE}/en/settlements`);
-    const options = page.locator('#cycle-select option');
-    // +1 for the placeholder option.
-    await expect.poll(() => options.count(), { timeout: 10000 }).toBe(total + 1);
+    await page.locator('#cycle-select').click();
+    const options = page.getByRole('option');
+    // The custom picker has no placeholder row, so the counts match exactly.
+    await expect.poll(() => options.count(), { timeout: 10000 }).toBe(total);
   });
 
   test('TC-SET-03: Calculating a cycle shows its profit and loss', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
 
-    await page.locator('#cycle-select').selectOption({ label: 'CYC-DEMO-001' });
+    await pickCycle(page, 'CYC-DEMO-001');
     await page.getByRole('button', { name: /calculate/i }).click();
 
     const card = page.locator('div').filter({ hasText: /CYC-DEMO-001/ }).first();
@@ -81,7 +98,7 @@ test.describe('Settlements', () => {
   test('TC-SET-05: Payout equals capital plus net profit plus fee received', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
-    await page.locator('#cycle-select').selectOption({ label: 'CYC-DEMO-001' });
+    await pickCycle(page, 'CYC-DEMO-001');
     await page.getByRole('button', { name: /calculate/i }).click();
     await page.waitForTimeout(1500);
 
@@ -108,7 +125,7 @@ test.describe('Settlements', () => {
   test('TC-SET-06: Unsold stock is flagged and excluded from profit', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
-    await page.locator('#cycle-select').selectOption({ label: 'CYC-DEMO-001' });
+    await pickCycle(page, 'CYC-DEMO-001');
     await page.getByRole('button', { name: /calculate/i }).click();
     await expect(
       page.getByText(/still in stock/i).first(),

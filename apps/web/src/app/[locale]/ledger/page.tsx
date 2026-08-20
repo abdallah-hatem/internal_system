@@ -1,4 +1,5 @@
 'use client';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -238,7 +239,7 @@ export default function LedgerPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900">
-                        {entry.amount?.toLocaleString()} {entry.currency}
+                        <Money value={entry.amount} currency={entry.currency} />
                       </td>
                       <td className="px-4 py-3 text-gray-600">{entry.account?.name ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{entry.cycle?.code ?? '—'}</td>
@@ -288,7 +289,7 @@ export default function LedgerPage() {
                     {entry.direction === 'INFLOW' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                     {t(entry.direction?.toLowerCase() ?? entry.direction)}
                   </span>
-                  <span className="font-medium text-gray-900">{entry.amount?.toLocaleString()} {entry.currency}</span>
+                  <span className="font-medium text-gray-900"><Money value={entry.amount} currency={entry.currency} /></span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                   <span>{t(TYPE_KEYS[entry.type] ?? entry.type)}</span>
@@ -378,7 +379,7 @@ export default function LedgerPage() {
         <Modal title={t('reverse')} onClose={() => { setShowReverseModal(false); setSelectedEntry(null); }}>
           <form onSubmit={handleReverse} className="space-y-4">
             <p className="text-sm text-gray-600">
-              {t('amount')}: <span className="font-medium text-gray-900">{selectedEntry.amount?.toLocaleString()} {selectedEntry.currency}</span>
+              {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedEntry.amount} currency={selectedEntry.currency} /></span>
             </p>
             <InputField label={t('reverseReason')} name="reason" required />
             <div className="flex justify-end gap-3 pt-2">
@@ -406,7 +407,7 @@ export default function LedgerPage() {
                   </span>
                 }
               />
-              <Detail label={t('amount')} value={`${detail.amount?.toLocaleString()} ${detail.currency}`} />
+              <Detail label={t('amount')} value={<Money value={detail.amount} currency={detail.currency} />} />
               <Detail label={t('fxRate')} value={detail.fxRateToEgp?.toString() ?? '—'} />
               <Detail label={t('account')} value={detail.account?.name ?? '—'} />
               <Detail label={t('cycle')} value={detail.cycle?.code ?? '—'} />

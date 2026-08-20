@@ -1,4 +1,5 @@
 'use client';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -378,7 +379,7 @@ export default function CustomersPage() {
                         <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
                       </div>
                       <div className="text-end">
-                        <p className="font-medium text-gray-900">{order.total?.toLocaleString()} {order.currency}</p>
+                        <p className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></p>
                         <span className={`text-xs font-medium ${order.status === 'PAID' ? 'text-green-600' : 'text-orange-600'}`}>
                           {order.status}
                         </span>
@@ -424,7 +425,7 @@ function InputField({ label, name, type = 'text', defaultValue, required, placeh
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <span className="text-gray-500 text-xs">{label}</span>

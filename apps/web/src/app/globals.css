@@ -24,7 +24,8 @@
   --color-accent-800: #9a3412;
   --color-accent-900: #7c2d12;
 
-  --font-sans: "Inter", "Noto Sans Arabic", sans-serif;
+  --font-sans: var(--font-plex-sans), var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
 
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
@@ -55,6 +56,75 @@
     background-color: theme(colors.gray.50);
     color: theme(colors.gray.900);
   }
+
+  /* Money and quantities are read in columns and compared down the page, so
+     digits must occupy identical width. Proportional figures make a total of
+     1,111.00 look narrower than 8,888.00 and the column stops aligning. */
+  table, .tabular-nums, [data-tabular] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+
+/* ── Selects ────────────────────────────────────────────────────────────
+   A native select keeps its OS chrome — on macOS a grey bevelled button that
+   ignores the border radius and sits at a different height to the text inputs
+   beside it. Strip the chrome and draw our own chevron so a select reads as a
+   sibling of the inputs around it. The chevron is an inline SVG data URI so it
+   needs no network request and inherits nothing that could fail to load. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1rem;
+  padding-right: 2.25rem;
+  background-color: #fff;
+}
+
+/* Mirror the chevron for Arabic. */
+[dir="rtl"] select {
+  background-position: left 0.7rem center;
+  padding-right: 0.75rem;
+  padding-left: 2.25rem;
+}
+
+select:hover:not(:disabled) {
+  border-color: theme(colors.gray.300);
+}
+
+select:disabled {
+  background-color: theme(colors.gray.50);
+  color: theme(colors.gray.400);
+  cursor: not-allowed;
+}
+
+/* A select showing its placeholder should read as empty, like a text input
+   showing placeholder text — not as a confident choice the user has made. */
+select:has(option[value=""]:checked) {
+  color: theme(colors.gray.400);
+}
+select option {
+  color: theme(colors.gray.900);
+}
+select option[value=""] {
+  color: theme(colors.gray.400);
+}
+
+/* ── Focus ──────────────────────────────────────────────────────────────
+   One focus treatment for every control, so keyboard users see the same
+   signal everywhere instead of three different rings. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid theme(colors.primary.500);
+  outline-offset: 1px;
 }
 
 /* RTL support */

@@ -236,7 +236,8 @@
     "search": "Search sales...",
     "batch": "Batch",
     "perUnitCost": "/unit",
-    "cogs": "COGS"
+    "cogs": "COGS",
+    "currency": "Currency"
   },
   "customers": {
     "title": "Customers",
@@ -272,7 +273,8 @@
     "cash": "Cash",
     "bankTransfer": "Bank Transfer",
     "mobileWallet": "Mobile Wallet",
-    "search": "Search payments..."
+    "search": "Search payments...",
+    "outstanding": "Outstanding"
   },
   "ledger": {
     "title": "Financial Ledger",

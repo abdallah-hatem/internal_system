@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -289,12 +290,17 @@ export default function ShipmentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
-                <select name="cycleId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="">—</option>
-                  {cycleList.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.code}</option>
-                  ))}
-                </select>
+                <Select
+                  name="cycleId"
+                  required
+                  placeholder={t('cycle')}
+                  searchPlaceholder={tc('search')}
+                  options={cycleList.map((c: any) => ({
+                    value: c.id,
+                    label: c.code,
+                    hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                  }))}
+                />
               </div>
               <InputField label={t('sequence')} name="sequence" type="number" required placeholder="0" />
             </div>
@@ -309,12 +315,17 @@ export default function ShipmentsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('provider')}<span className="text-red-500 ms-1">*</span>
                 </label>
-                <select name="provider" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="">—</option>
-                  {providerList.map((p: any) => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
+                <Select
+                  name="provider"
+                  required
+                  placeholder={t('provider')}
+                  searchPlaceholder={tc('search')}
+                  options={providerList.map((p: any) => ({
+                    value: p.name,
+                    label: p.name,
+                    hint: p.contactPerson ?? undefined,
+                  }))}
+                />
               </div>
               <InputField label={t('trackingRef')} name="trackingRef" />
             </div>

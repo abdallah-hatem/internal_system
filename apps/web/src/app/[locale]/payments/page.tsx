@@ -1,4 +1,5 @@
 'use client';
+import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -245,7 +246,7 @@ export default function PaymentsPage() {
                     paginated.map((payment) => (
                       <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-900 font-medium">{payment.customer?.displayName ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium">{payment.amount?.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium"><Money value={payment.amount} /></td>
                       <td className="px-4 py-3 text-gray-600">{payment.currency}</td>
                       <td className="px-4 py-3 text-gray-600">{t(METHOD_KEYS[payment.method] ?? payment.method)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(payment.receivedOn)}</td>
@@ -312,7 +313,7 @@ export default function PaymentsPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-sm mb-2">
-                  <span className="font-medium text-gray-900">{payment.amount?.toLocaleString()} {payment.currency}</span>
+                  <span className="font-medium text-gray-900"><Money value={payment.amount} currency={payment.currency} /></span>
                   <span className="text-gray-500">{t(METHOD_KEYS[payment.method] ?? payment.method)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500">
@@ -401,7 +402,7 @@ export default function PaymentsPage() {
               {t('customer')}: <span className="font-medium text-gray-900">{selectedPayment.customer?.displayName ?? '—'}</span>
             </p>
             <p className="text-sm text-gray-600">
-              {t('amount')}: <span className="font-medium text-gray-900">{selectedPayment.amount?.toLocaleString()} {selectedPayment.currency}</span>
+              {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedPayment.amount} currency={selectedPayment.currency} /></span>
             </p>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('selectOrder')}</label>
@@ -409,7 +410,7 @@ export default function PaymentsPage() {
                 <option value="">—</option>
                 {orderList.map((o: SaleOrder) => (
                   <option key={o.id} value={o.id}>
-                    {o.orderNo} — {t('outstanding')}: {o.outstanding?.toLocaleString()} {o.currency}
+                    {o.orderNo} — {t('outstanding')}: <Money value={o.outstanding} currency={o.currency} />
                   </option>
                 ))}
               </select>
@@ -434,7 +435,7 @@ export default function PaymentsPage() {
               {t('customer')}: <span className="font-medium text-gray-900">{selectedPayment.customer?.displayName ?? '—'}</span>
             </p>
             <p className="text-sm text-gray-600">
-              {t('amount')}: <span className="font-medium text-gray-900">{selectedPayment.amount?.toLocaleString()} {selectedPayment.currency}</span>
+              {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedPayment.amount} currency={selectedPayment.currency} /></span>
             </p>
             <InputField label={t('reverseReason')} name="reason" required />
             <div className="flex justify-end gap-3 pt-2">
@@ -454,7 +455,7 @@ export default function PaymentsPage() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={viewingPayment.customer?.displayName ?? '—'} />
-              <Detail label={t('amount')} value={`${viewingPayment.amount?.toLocaleString()} ${viewingPayment.currency}`} />
+              <Detail label={t('amount')} value={<Money value={viewingPayment.amount} currency={viewingPayment.currency} />} />
               <Detail label={t('method')} value={t(METHOD_KEYS[viewingPayment.method] ?? viewingPayment.method)} />
               <Detail label={t('receivedOn')} value={formatDate(viewingPayment.receivedOn)} />
               <Detail label={t('reference')} value={viewingPayment.reference ?? '—'} />
@@ -496,7 +497,7 @@ function InputField({ label, name, type = 'text', defaultValue, required, placeh
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <span className="text-gray-500 text-xs">{label}</span>

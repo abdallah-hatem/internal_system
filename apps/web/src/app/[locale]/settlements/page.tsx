@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -69,6 +70,7 @@ const nameOf = (l: Line) =>
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function SettlementsPage() {
   const t = useTranslations('settlementsPage');
+  const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [selectedCycle, setSelectedCycle] = useState('');
@@ -133,19 +135,19 @@ export default function SettlementsPage() {
           <label htmlFor="cycle-select" className="sr-only">
             {t('selectCycle')}
           </label>
-          <select
+          <Select
             id="cycle-select"
+            className="w-64"
             value={selectedCycle}
-            onChange={(e) => setSelectedCycle(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">{t('selectCycle')}</option>
-            {cycleList.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.code}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedCycle}
+            placeholder={t('selectCycle')}
+            searchPlaceholder={tc('search')}
+            options={cycleList.map((c: any) => ({
+              value: c.id,
+              label: c.code,
+              hint: [c.originType, c.status].filter(Boolean).join(' · '),
+            }))}
+          />
           <button
             onClick={() => calcMutation.mutate(selectedCycle)}
             disabled={!selectedCycle || calcMutation.isPending}

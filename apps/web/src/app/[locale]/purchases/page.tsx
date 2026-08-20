@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '../../../components/ui/select';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -298,21 +299,31 @@ export default function PurchasesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
-                <select name="cycleId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="">—</option>
-                  {cycleList.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.code}</option>
-                  ))}
-                </select>
+                <Select
+                  name="cycleId"
+                  required
+                  placeholder={t('cycle')}
+                  searchPlaceholder={tc('search')}
+                  options={cycleList.map((c: any) => ({
+                    value: c.id,
+                    label: c.code,
+                    hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                  }))}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')}</label>
-                <select name="supplierId" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="">—</option>
-                  {supplierList.map((s: any) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                <Select
+                  name="supplierId"
+                  required
+                  placeholder={t('supplier')}
+                  searchPlaceholder={tc('search')}
+                  options={supplierList.map((sup: any) => ({
+                    value: sup.id,
+                    label: sup.name,
+                    hint: sup.contactPerson ?? undefined,
+                  }))}
+                />
               </div>
             </div>
 
@@ -350,16 +361,17 @@ export default function PurchasesPage() {
                     <div key={idx} className="flex items-end gap-2 bg-gray-50 rounded-lg p-3">
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">{t('product')}</label>
-                        <select
+                        <Select
                           value={item.productId}
-                          onChange={(e) => updateLineItem(idx, 'productId', e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        >
-                          <option value="">—</option>
-                          {productList.map((p: any) => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
-                          ))}
-                        </select>
+                          onChange={(v) => updateLineItem(idx, 'productId', v)}
+                          placeholder={t('product')}
+                          searchPlaceholder={tc('search')}
+                          options={productList.map((p: any) => ({
+                            value: p.id,
+                            label: p.name,
+                            hint: p.sku,
+                          }))}
+                        />
                       </div>
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">{t('orderedQty')}</label>
