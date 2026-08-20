@@ -9,7 +9,8 @@ import {
   LayoutDashboard, Route, ShoppingCart, Truck, Package, Boxes,
   BadgePercent, Users, CreditCard, BookOpen, BarChart3,
   Bell, ShieldCheck, Settings, Menu, X, ChevronDown,
-  Globe, LogOut
+  Globe, LogOut, Tag,
+  Scale,
 } from 'lucide-react';
 
 const navItems = [
@@ -19,12 +20,14 @@ const navItems = [
   { key: 'shipments', icon: Truck, href: '/shipments' },
   { key: 'providers', icon: Truck, href: '/providers' },
   { key: 'products', icon: Package, href: '/products' },
+  { key: 'categories', icon: Tag, href: '/categories' },
   { key: 'inventory', icon: Boxes, href: '/inventory' },
   { key: 'sales', icon: BadgePercent, href: '/sales' },
   { key: 'customers', icon: Users, href: '/customers' },
   { key: 'payments', icon: CreditCard, href: '/payments' },
   { key: 'ledger', icon: BookOpen, href: '/ledger' },
   { key: 'partners', icon: Users, href: '/partners' },
+  { key: 'settlements', icon: Scale, href: '/settlements' },
   { key: 'analytics', icon: BarChart3, href: '/analytics' },
   { key: 'notifications', icon: Bell, href: '/notifications' },
   { key: 'auditLogs', icon: ShieldCheck, href: '/audit-logs' },

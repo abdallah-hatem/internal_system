@@ -1,3 +1,4 @@
+import { pageSize } from '../../common/dto/pagination.dto';
 import {
   Injectable,
   NotFoundException,
@@ -14,7 +15,8 @@ export class PaymentsService {
   ) {}
 
   async findAll(pagination: { cursor?: string; limit?: number; customerId?: string }) {
-    const { cursor, limit = 20, customerId } = pagination;
+    const { cursor, limit: rawLimit = 20, customerId } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (customerId) where.customerId = customerId;
 

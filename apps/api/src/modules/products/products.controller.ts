@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -90,11 +91,33 @@ export class CategoriesController {
     return this.productsService.findCategories();
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get category by ID' })
+  findCategoryById(@Param('id') id: string) {
+    return this.productsService.findCategoryById(id);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Create a category (CORE_PARTNER only)' })
   createCategory(@Body() body: { name: string; parentId?: string }, @CurrentUser() user: any) {
     return this.productsService.createCategory(body, user.id);
+  }
+
+  @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Update a category (CORE_PARTNER only)' })
+  updateCategory(@Param('id') id: string, @Body() body: { name?: string; parentId?: string | null }, @CurrentUser() user: any) {
+    return this.productsService.updateCategory(id, body, user.id);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Delete a category (CORE_PARTNER only)' })
+  removeCategory(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.productsService.removeCategory(id, user.id);
   }
 }

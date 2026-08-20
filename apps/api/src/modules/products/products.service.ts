@@ -2,11 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class ProductsService {
@@ -23,7 +24,8 @@ export class ProductsService {
       search?: string;
     },
   ) {
-    const { cursor, limit = 20, categoryId, status, search } = pagination;
+    const { cursor, limit: rawLimit = 20, categoryId, status, search } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (categoryId) where.categoryId = categoryId;
     if (status) where.status = status;
@@ -183,6 +185,79 @@ export class ProductsService {
     });
 
     return { data: category };
+  }
+
+  async findCategoryById(id: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      include: { children: true, parent: true, _count: { select: { products: true, children: true } } },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+    return { data: category };
+  }
+
+  async updateCategory(
+    id: string,
+    data: { name?: string; parentId?: string | null },
+    actorId: string,
+  ) {
+    const existing = await this.prisma.category.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Category not found');
+
+    // Check name uniqueness if changing
+    if (data.name && data.name !== existing.name) {
+      const dup = await this.prisma.category.findUnique({ where: { name: data.name } });
+      if (dup) throw new ConflictException('Category with this name already exists');
+    }
+
+    // Prevent setting self as parent
+    if (data.parentId === id) {
+      throw new BadRequestException('Category cannot be its own parent');
+    }
+
+    const updated = await this.prisma.category.update({ where: { id }, data });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'UPDATE',
+      entityType: 'Category',
+      entityId: id,
+      beforeJson: existing,
+      afterJson: updated,
+    });
+
+    return { data: updated };
+  }
+
+  async removeCategory(id: string, actorId: string) {
+    const existing = await this.prisma.category.findUnique({
+      where: { id },
+      include: { _count: { select: { products: true, children: true } } },
+    });
+    if (!existing) throw new NotFoundException('Category not found');
+
+    if (existing._count.products > 0) {
+      throw new BadRequestException(
+        `Cannot delete category with ${existing._count.products} product(s). Reassign or remove them first.`,
+      );
+    }
+    if (existing._count.children > 0) {
+      throw new BadRequestException(
+        `Cannot delete category with ${existing._count.children} subcategory(ies). Delete or reassign them first.`,
+      );
+    }
+
+    await this.prisma.category.delete({ where: { id } });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'DELETE',
+      entityType: 'Category',
+      entityId: id,
+      beforeJson: existing,
+    });
+
+    return { data: { success: true } };
   }
 
   // ─── Price Management (append-only history) ────────────────────

@@ -5,10 +5,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Package, Plus, Search, Edit, Eye, DollarSign, Tag,
-  X, Filter, ChevronDown, AlertTriangle, Loader2,
+  Plus, Search, Edit, Eye, Tag,
+  X, Filter, ChevronDown, Loader2,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -39,13 +40,6 @@ interface Product {
   b2cPrice?: number;
 }
 
-interface PriceEntry {
-  id: string;
-  channel: string;
-  amount: number;
-  effectiveFrom: string;
-}
-
 // ─── Status badge ─────────────────────────────────────────────────────
 function StatusBadge({ active }: { active: boolean }) {
   return (
@@ -65,14 +59,14 @@ export default function ProductsPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const router = useRouter();
+  const { locale } = useParams();
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
-  const [showPriceModal, setShowPriceModal] = useState(false);
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search, categoryFilter]);
@@ -86,15 +80,6 @@ export default function ProductsPage() {
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: priceHistory = [] } = useQuery({
-    queryKey: ['priceHistory', viewingProduct?.id],
-    queryFn: () =>
-      api
-        .get(`/products/${viewingProduct!.id}/prices`)
-        .then((r) => r.data.data ?? r.data),
-    enabled: !!viewingProduct,
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
@@ -120,19 +105,6 @@ export default function ProductsPage() {
     },
     onError: (error: any) => {
       toast(error?.response?.data?.message || error.message || 'Failed to update product', 'error');
-    },
-  });
-
-  const setPriceMutation = useMutation({
-    mutationFn: (data: { productId: string; channel: string; currency: string; amount: number }) =>
-      api.post(`/products/${data.productId}/prices`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['priceHistory'] });
-      setShowPriceModal(false);
-      toast('Price updated successfully', 'success');
-    },
-    onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to set price', 'error');
     },
   });
 
@@ -302,7 +274,7 @@ export default function ProductsPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => setViewingProduct(product)}
+                            onClick={() => router.push(`/${locale}/products/${product.id}`)}
                             className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                             title={tc('view')}
                           >
@@ -364,7 +336,7 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-100">
                   <button
-                    onClick={() => setViewingProduct(product)}
+                    onClick={() => router.push(`/${locale}/products/${product.id}`)}
                     className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary-600 px-2 py-1 rounded"
                   >
                     <Eye className="h-3.5 w-3.5" /> {tc('view')}
@@ -447,98 +419,6 @@ export default function ProductsPage() {
         </Modal>
       )}
 
-      {/* ─── View / Price History Modal ────────────────────────────── */}
-      {viewingProduct && (
-        <Modal title={viewingProduct.name} onClose={() => setViewingProduct(null)}>
-          <div className="space-y-6">
-            {/* Product details */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <Detail label={t('sku')} value={viewingProduct.sku} />
-              <Detail label={t('category')} value={viewingProduct.categoryName || '—'} />
-              <Detail label={t('barcode')} value={viewingProduct.barcode || '—'} />
-              <Detail label={t('minStock')} value={String(viewingProduct.minStock)} />
-              <Detail label={t('b2bPrice')} value={viewingProduct.b2bPrice != null ? `£ ${viewingProduct.b2bPrice.toLocaleString()}` : '—'} />
-              <Detail label={t('b2cPrice')} value={viewingProduct.b2cPrice != null ? `£ ${viewingProduct.b2cPrice.toLocaleString()}` : '—'} />
-            </div>
-
-            {/* Price History */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-900">{t('priceHistory')}</h3>
-                <button
-                  onClick={() => setShowPriceModal(true)}
-                  className="inline-flex items-center gap-1 text-xs bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg hover:bg-primary-100"
-                >
-                  <DollarSign className="h-3.5 w-3.5" />
-                  {t('setPrice')}
-                </button>
-              </div>
-              {priceHistory.length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
-              ) : (
-                <div className="space-y-2">
-                  {priceHistory.map((entry: PriceEntry) => (
-                    <div key={entry.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                      <div>
-                        <span className="inline-flex items-center gap-1 bg-primary-100 text-primary-700 rounded-full px-2 py-0.5 text-xs font-medium">
-                          {entry.channel}
-                        </span>
-                      </div>
-                      <span className="font-medium">£ {entry.amount.toLocaleString()}</span>
-                      <span className="text-gray-500 text-xs">{entry.effectiveFrom}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ─── Set Price Modal ───────────────────────────────────────── */}
-      {showPriceModal && viewingProduct && (
-        <Modal title={t('setPrice')} onClose={() => setShowPriceModal(false)}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              setPriceMutation.mutate({
-                productId: viewingProduct.id,
-                channel: fd.get('channel') as string,
-                currency: fd.get('currency') as string,
-                amount: Number(fd.get('amount')),
-              });
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('channel')}</label>
-              <select name="channel" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="B2B">B2B</option>
-                <option value="B2C">B2C</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-              <select name="currency" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="EGP">EGP</option>
-                <option value="USD">USD</option>
-                <option value="AED">AED</option>
-              </select>
-            </div>
-            <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowPriceModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
-                {tc('cancel')}
-              </button>
-              <button type="submit" disabled={setPriceMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {setPriceMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 }
@@ -588,15 +468,6 @@ function InputField({
         placeholder={placeholder}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
       />
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="text-gray-500 text-xs">{label}</span>
-      <p className="font-medium text-gray-900">{value}</p>
     </div>
   );
 }

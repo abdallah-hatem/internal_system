@@ -9,7 +9,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
@@ -33,7 +33,7 @@ export class AuditController {
   ) {
     const {
       cursor,
-      limit = 20,
+      limit: rawLimit = 20,
       entityType,
       entityId,
       actorUserId,
@@ -41,6 +41,7 @@ export class AuditController {
       from,
       to,
     } = query;
+    const limit = pageSize(rawLimit);
 
     const where: any = {};
     if (entityType) where.entityType = entityType;

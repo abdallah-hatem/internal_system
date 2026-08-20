@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class LedgerService {
@@ -17,7 +17,8 @@ export class LedgerService {
       to?: string;
     },
   ) {
-    const { cursor, limit = 20, cycleId, accountId, type, category, direction, from, to } = query;
+    const { cursor, limit: rawLimit = 20, cycleId, accountId, type, category, direction, from, to } = query;
+    const limit = pageSize(rawLimit);
 
     const where: any = {};
     if (cycleId) where.cycleId = cycleId;

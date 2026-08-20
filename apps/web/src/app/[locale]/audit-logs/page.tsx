@@ -23,7 +23,7 @@ interface AuditLog {
   afterJson?: any;
   ipAddress?: string;
   userAgent?: string;
-  createdAt: string;
+  occurredAt: string;
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -149,7 +149,7 @@ export default function AuditLogsPage() {
                 ) : (
                   paginated.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(log.createdAt, { includeTime: true })}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(log.occurredAt, { includeTime: true })}</td>
                       <td className="px-4 py-3 text-gray-700">{log.actor?.email ?? log.actorUserId ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -192,7 +192,7 @@ export default function AuditLogsPage() {
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
                     {log.action}
                   </span>
-                  <span className="text-xs text-gray-400">{formatDate(log.createdAt)}</span>
+                  <span className="text-xs text-gray-400">{formatDate(log.occurredAt)}</span>
                 </div>
                 <p className="text-sm font-medium text-gray-900 mb-1">{log.entityType}</p>
                 <p className="text-xs text-gray-500">{log.actor?.email ?? '—'}</p>
@@ -212,7 +212,7 @@ export default function AuditLogsPage() {
         <Modal title={`${t('action')}: ${detail.action}`} onClose={() => setViewingLog(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <Detail label={t('timestamp')} value={formatDate(detail.createdAt, { includeTime: true })} />
+              <Detail label={t('timestamp')} value={formatDate(detail.occurredAt, { includeTime: true })} />
               <Detail label={t('actor')} value={detail.actor?.email ?? detail.actorUserId ?? '—'} />
               <Detail label={t('action')} value={detail.action} />
               <Detail label={t('entity')} value={detail.entityType} />

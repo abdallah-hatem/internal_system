@@ -1,3 +1,4 @@
+import { pageSize } from '../../common/dto/pagination.dto';
 import {
   Injectable,
   NotFoundException,
@@ -22,7 +23,8 @@ export class SalesService {
     status?: string;
     channel?: string;
   }) {
-    const { cursor, limit = 20, customerId, status, channel } = pagination;
+    const { cursor, limit: rawLimit = 20, customerId, status, channel } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (customerId) where.customerId = customerId;
     if (status) where.status = status;

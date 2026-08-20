@@ -7,8 +7,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import { Prisma } from '@prisma/client';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import { Prisma, ParticipantType } from '@prisma/client';
 
 // Valid state transitions per the spec
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -25,6 +25,15 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   CLOSED: [],
 };
 
+
+/** Accept only the two participant kinds the business recognises. */
+function assertParticipantType(value: string): ParticipantType {
+  if (value === 'CORE_PARTNER' || value === 'TEMP_INVESTOR') return value;
+  throw new BadRequestException(
+    `participantType must be CORE_PARTNER or TEMP_INVESTOR (received "${value}")`,
+  );
+}
+
 @Injectable()
 export class CyclesService {
   constructor(
@@ -34,7 +43,8 @@ export class CyclesService {
   ) {}
 
   async findAll(pagination: PaginationDto & { status?: string }) {
-    const { cursor, limit = 20, status } = pagination;
+    const { cursor, limit: rawLimit = 20, status } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (status) where.status = status;
 
@@ -89,7 +99,7 @@ export class CyclesService {
       currency?: string;
       startedOn?: string;
       participants?: Array<{
-        participantType: string;
+        participantType: ParticipantType;
         partnerUserId?: string;
         investorUserId?: string;
         contributionAmount: number;
@@ -133,7 +143,7 @@ export class CyclesService {
         const participant = await this.prisma.cycleParticipant.create({
           data: {
             cycleId: cycle.id,
-            participantType: p.participantType,
+            participantType: assertParticipantType(p.participantType),
             partnerUserId: p.partnerUserId,
             investorUserId: p.investorUserId,
             contributionAmount: p.contributionAmount,
@@ -253,7 +263,7 @@ export class CyclesService {
   async addParticipant(
     cycleId: string,
     data: {
-      participantType: string;
+      participantType: ParticipantType;
       partnerUserId?: string;
       investorUserId?: string;
       contributionAmount: number;
@@ -274,12 +284,36 @@ export class CyclesService {
       );
     }
 
+    const type = assertParticipantType(data.participantType);
+    const userId =
+      type === 'TEMP_INVESTOR' ? data.investorUserId : data.partnerUserId;
+    if (!userId) {
+      throw new BadRequestException(
+        type === 'TEMP_INVESTOR'
+          ? 'investorUserId is required for a temporary investor'
+          : 'partnerUserId is required for a core partner',
+      );
+    }
+
+    // Adding the same person twice would dilute everyone else's profit share.
+    const already = await this.prisma.cycleParticipant.findFirst({
+      where:
+        type === 'TEMP_INVESTOR'
+          ? { cycleId, investorUserId: userId }
+          : { cycleId, partnerUserId: userId },
+    });
+    if (already) {
+      throw new BadRequestException(
+        'This person is already a participant in this cycle',
+      );
+    }
+
     const participant = await this.prisma.cycleParticipant.create({
       data: {
         cycleId,
-        participantType: data.participantType,
-        partnerUserId: data.partnerUserId,
-        investorUserId: data.investorUserId,
+        participantType: type,
+        partnerUserId: type === 'TEMP_INVESTOR' ? undefined : userId,
+        investorUserId: type === 'TEMP_INVESTOR' ? userId : undefined,
         contributionAmount: data.contributionAmount,
         customProfitPct: data.customProfitPct,
         investorFeePct: data.investorFeePct,

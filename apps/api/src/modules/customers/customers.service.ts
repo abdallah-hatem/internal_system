@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class CustomersService {
@@ -19,7 +19,8 @@ export class CustomersService {
       search?: string;
     },
   ) {
-    const { cursor, limit = 20, type, search } = pagination;
+    const { cursor, limit: rawLimit = 20, type, search } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (type) where.type = type;
     if (search) {

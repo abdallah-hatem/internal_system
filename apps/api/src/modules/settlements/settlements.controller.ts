@@ -10,6 +10,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SettlementsService } from './settlements.service';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Settlements')
@@ -39,8 +40,8 @@ export class SettlementsController {
 
   @Post('calculate/:cycleId')
   @ApiOperation({ summary: 'Calculate settlement for a cycle' })
-  calculate(@Param('cycleId') cycleId: string) {
-    return this.settlementsService.calculate(cycleId);
+  calculate(@Param('cycleId') cycleId: string, @CurrentUser() user: any) {
+    return this.settlementsService.calculate(cycleId, user?.id);
   }
 
   @Post(':id/approve')

@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { CostingService } from '../costing/costing.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
@@ -20,7 +20,8 @@ export class ShippingService {
   ) {}
 
   async findAll(pagination: PaginationDto & { cycleId?: string }) {
-    const { cursor, limit = 20, cycleId } = pagination;
+    const { cursor, limit: rawLimit = 20, cycleId } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (cycleId) where.cycleId = cycleId;
 

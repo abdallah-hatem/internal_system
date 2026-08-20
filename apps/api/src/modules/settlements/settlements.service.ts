@@ -1,11 +1,49 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import {
+  distributeCycleProfit,
+  summarizeCyclePnl,
+  ParticipantInput,
+} from './settlement-math';
+
+/** Sale states whose stock has genuinely left the business. */
+const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
+
+/**
+ * Ledger categories already capitalised into batch landed cost. Counting them
+ * as period expenses too would charge the cycle twice.
+ */
+const CAPITALISED_CATEGORIES = ['purchase', 'shipping'];
+
+const SETTLEMENT_INCLUDE = {
+  cycle: { select: { id: true, code: true, status: true } },
+  lines: {
+    include: {
+      participant: {
+        include: {
+          partner: {
+            select: {
+              id: true,
+              email: true,
+              partner: { select: { id: true, displayName: true } },
+            },
+          },
+          investor: { select: { id: true, email: true } },
+        },
+      },
+    },
+  },
+} as const;
 
 @Injectable()
 export class SettlementsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async findAll(
     query: PaginationDto & {
@@ -13,7 +51,8 @@ export class SettlementsService {
       status?: string;
     },
   ) {
-    const { cursor, limit = 20, cycleId, status } = query;
+    const { cursor, limit: rawLimit = 20, cycleId, status } = query;
+    const limit = pageSize(rawLimit);
 
     const where: any = {};
     if (cycleId) where.cycleId = cycleId;
@@ -83,128 +122,224 @@ export class SettlementsService {
     return { data: settlement };
   }
 
-  async calculate(cycleId: string) {
+  /**
+   * Work out what each participant is owed for a cycle.
+   *
+   * Revenue and COGS are taken from the units actually drawn out of this
+   * cycle's batches, so a sale spanning several cycles credits each one for
+   * the part it supplied. Capital and profit stay separate components, and a
+   * temporary investor's fee comes out of that investor's profit.
+   */
+  async calculate(cycleId: string, actorId?: string) {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
     if (!cycle) throw new NotFoundException('Cycle not found');
 
-    // Get cycle participants
     const participants = await this.prisma.cycleParticipant.findMany({
       where: { cycleId },
+      orderBy: { createdAt: 'asc' },
     });
     if (participants.length === 0) {
       throw new BadRequestException('No participants found for this cycle');
     }
 
-    // Get cycle financial transactions to compute totals
-    const transactions = await this.prisma.financialTransaction.findMany({
-      where: { cycleId },
+    // A settled cycle must not be silently recalculated underneath the
+    // partners; only a draft may be superseded.
+    const locked = await this.prisma.settlement.findFirst({
+      where: { cycleId, status: { in: ['APPROVED', 'PAID'] } },
+    });
+    if (locked) {
+      throw new BadRequestException(
+        `Cycle already has a ${locked.status} settlement. Reverse it before recalculating.`,
+      );
+    }
+
+    // --- Revenue and COGS from this cycle's batches ------------------------
+    const allocations = await this.prisma.saleItemAllocation.findMany({
+      where: {
+        inventoryBatch: { cycleId },
+        saleItem: {
+          saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } },
+        },
+      },
+      include: { saleItem: true },
     });
 
-    // Aggregate totals by category
-    const purchaseTotal = transactions
-      .filter((t) => t.category === 'purchase' && t.direction === 'OUTFLOW')
-      .reduce((sum, t) => sum.add(t.amount), new Prisma.Decimal(0));
+    const allocationInputs = allocations.map((a) => {
+      const qty = new Prisma.Decimal(a.qty);
+      const itemQty = new Prisma.Decimal(a.saleItem.quantity);
+      // Use the line total so a line-level discount is reflected in revenue.
+      const unitPrice = itemQty.gt(0)
+        ? new Prisma.Decimal(a.saleItem.lineTotal).div(itemQty)
+        : new Prisma.Decimal(0);
+      return { qty, unitPrice, cogs: new Prisma.Decimal(a.cogsEgp) };
+    });
 
-    const shippingTotal = transactions
-      .filter((t) => t.category === 'shipping' && t.direction === 'OUTFLOW')
-      .reduce((sum, t) => sum.add(t.amount), new Prisma.Decimal(0));
-
-    const feesTotal = transactions
-      .filter((t) => t.category === 'fees' && t.direction === 'OUTFLOW')
-      .reduce((sum, t) => sum.add(t.amount), new Prisma.Decimal(0));
-
-    const totalCost = purchaseTotal.add(shippingTotal).add(feesTotal);
-
-    // Compute total contribution
-    const totalContribution = participants.reduce(
-      (sum, p) => sum.add(p.contributionAmount),
+    // --- Stock still on the shelf -----------------------------------------
+    const batches = await this.prisma.inventoryBatch.findMany({
+      where: { cycleId },
+      select: { remainingQty: true, landedUnitCostEgp: true },
+    });
+    const unitsRemaining = batches.reduce(
+      (s, b) => s.add(b.remainingQty),
+      new Prisma.Decimal(0),
+    );
+    const unsoldValue = batches.reduce(
+      (s, b) => s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
       new Prisma.Decimal(0),
     );
 
-    // Calculate the settlement lines per participant
-    const settlementLines = participants.map((participant) => {
-      const pct = totalContribution.gt(0)
-        ? participant.contributionAmount.div(totalContribution)
-        : new Prisma.Decimal(0);
+    // --- Expenses not already inside landed cost ---------------------------
+    const expenseTxns = await this.prisma.financialTransaction.findMany({
+      where: {
+        cycleId,
+        direction: 'OUTFLOW',
+        category: { notIn: CAPITALISED_CATEGORIES },
+      },
+      select: { amount: true },
+    });
+    const expenses = expenseTxns.reduce(
+      (s, t) => s.add(t.amount),
+      new Prisma.Decimal(0),
+    );
 
-      const purchaseShare = purchaseTotal.mul(pct);
-      const shippingShare = shippingTotal.mul(pct);
-      const feesShare = feesTotal.mul(pct);
-
-      return {
-        participantId: participant.id,
-        purchaseShare: Number(purchaseShare),
-        shippingShare: Number(shippingShare),
-        feesShare: Number(feesShare),
-        totalShare: Number(purchaseShare.add(shippingShare).add(feesShare)),
-      };
+    const pnl = summarizeCyclePnl({
+      allocations: allocationInputs,
+      expenses,
+      unsoldValue,
+      unitsRemaining,
     });
 
-    // Create settlement with lines using a transaction
+    // --- Distribute -------------------------------------------------------
+    const participantInputs: ParticipantInput[] = participants.map((p) => ({
+      id: p.id,
+      type: p.participantType === 'TEMP_INVESTOR' ? 'TEMP_INVESTOR' : 'CORE_PARTNER',
+      contribution: new Prisma.Decimal(p.contributionAmount),
+      customProfitPct: p.customProfitPct ? new Prisma.Decimal(p.customProfitPct) : null,
+      investorFeePct: p.investorFeePct ? new Prisma.Decimal(p.investorFeePct) : null,
+    }));
+
+    const distribution = distributeCycleProfit(participantInputs, pnl.grossProfit);
+
+    const warnings: string[] = [];
+    if (!pnl.fullySold) {
+      warnings.push(
+        `${unitsRemaining.toFixed(3)} units are still in stock (${pnl.unsoldValue.toFixed(2)} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.`,
+      );
+    }
+    if (allocationInputs.length === 0) {
+      warnings.push('This cycle has no realised sales yet.');
+    }
+
+    // --- Persist -----------------------------------------------------------
     const settlement = await this.prisma.$transaction(async (tx) => {
+      // Supersede any existing draft rather than stacking duplicates.
+      const drafts = await tx.settlement.findMany({
+        where: { cycleId, status: 'DRAFT' },
+        select: { id: true },
+      });
+      if (drafts.length > 0) {
+        const ids = drafts.map((d) => d.id);
+        await tx.settlementLine.deleteMany({ where: { settlementId: { in: ids } } });
+        await tx.settlement.deleteMany({ where: { id: { in: ids } } });
+      }
+
       const created = await tx.settlement.create({
         data: {
           cycleId,
           status: 'DRAFT',
           calculatedAt: new Date(),
+          revenueEgp: pnl.revenue,
+          cogsEgp: pnl.cogs,
+          expensesEgp: pnl.expenses,
+          grossProfitEgp: pnl.grossProfit,
+          unsoldValueEgp: pnl.unsoldValue,
+          unitsSold: pnl.unitsSold,
+          unitsRemaining: pnl.unitsRemaining,
         },
       });
 
-      for (const line of settlementLines) {
-        // Create one line per component
+      for (const line of distribution.lines) {
         await tx.settlementLine.create({
           data: {
             settlementId: created.id,
             participantId: line.participantId,
-            component: 'purchase',
-            amount: line.purchaseShare,
+            component: 'CAPITAL_RETURN',
+            amount: line.capitalReturn,
           },
         });
         await tx.settlementLine.create({
           data: {
             settlementId: created.id,
             participantId: line.participantId,
-            component: 'shipping',
-            amount: line.shippingShare,
+            component: 'PROFIT_SHARE',
+            amount: line.netProfit,
           },
         });
-        await tx.settlementLine.create({
-          data: {
-            settlementId: created.id,
-            participantId: line.participantId,
-            component: 'fees',
-            amount: line.feesShare,
-          },
-        });
+        if (line.investorFee.gt(0)) {
+          await tx.settlementLine.create({
+            data: {
+              settlementId: created.id,
+              participantId: line.participantId,
+              component: 'INVESTOR_FEE',
+              amount: line.investorFee.neg(),
+              feeAmount: line.investorFee,
+            },
+          });
+        }
+        if (line.feeReceived.gt(0)) {
+          await tx.settlementLine.create({
+            data: {
+              settlementId: created.id,
+              participantId: line.participantId,
+              component: 'INVESTOR_FEE_RECEIVED',
+              amount: line.feeReceived,
+              feeAmount: line.feeReceived,
+            },
+          });
+        }
       }
 
       return tx.settlement.findUnique({
         where: { id: created.id },
-        include: {
-          cycle: { select: { id: true, code: true, status: true } },
-          lines: {
-            include: {
-              participant: {
-                include: {
-                  partner: {
-                    select: {
-                      id: true,
-                      email: true,
-                      partner: { select: { id: true, displayName: true } },
-                    },
-                  },
-                  investor: { select: { id: true, email: true } },
-                },
-              },
-            },
-          },
-        },
+        include: SETTLEMENT_INCLUDE,
       });
     });
 
-    return { data: settlement };
+    if (actorId) {
+      await this.audit.log({
+        actorUserId: actorId,
+        action: 'CALCULATE',
+        entityType: 'Settlement',
+        entityId: settlement!.id,
+        afterJson: {
+          cycleId,
+          revenue: pnl.revenue.toFixed(2),
+          cogs: pnl.cogs.toFixed(2),
+          expenses: pnl.expenses.toFixed(2),
+          grossProfit: pnl.grossProfit.toFixed(2),
+        },
+      });
+    }
+
+    return {
+      data: settlement,
+      summary: {
+        revenueEgp: pnl.revenue.toFixed(2),
+        cogsEgp: pnl.cogs.toFixed(2),
+        expensesEgp: pnl.expenses.toFixed(2),
+        grossProfitEgp: pnl.grossProfit.toFixed(2),
+        unsoldValueEgp: pnl.unsoldValue.toFixed(2),
+        unitsSold: pnl.unitsSold.toFixed(3),
+        unitsRemaining: pnl.unitsRemaining.toFixed(3),
+        fullySold: pnl.fullySold,
+        capitalReturned: distribution.totals.capitalReturned.toFixed(2),
+        feesRedistributed: distribution.totals.feesRedistributed.toFixed(2),
+        totalPayout: distribution.totals.payout.toFixed(2),
+      },
+      warnings,
+    };
   }
 
   async approve(id: string) {

@@ -40,6 +40,7 @@
     "shipments": "Shipments",
     "providers": "Providers",
     "products": "Products",
+    "categories": "Categories",
     "inventory": "Inventory",
     "sales": "Sales",
     "customers": "Customers",
@@ -50,7 +51,8 @@
     "notifications": "Notifications",
     "auditLogs": "Audit Logs",
     "settings": "Settings",
-    "logout": "Logout"
+    "logout": "Logout",
+    "settlements": "Settlements"
   },
   "auth": {
     "login": "Login",
@@ -93,7 +95,19 @@
     "channel": "Channel",
     "amount": "Amount",
     "effectiveFrom": "Effective From",
-    "search": "Search products..."
+    "search": "Search products...",
+    "totalStock": "Total Stock",
+    "available": "Available",
+    "reserved": "Reserved",
+    "createdAt": "Created",
+    "inventoryBatches": "Inventory Batches",
+    "movementHistory": "Movement History",
+    "currentPrices": "Current Prices",
+    "receivedQty": "Received",
+    "remainingQty": "Remaining",
+    "landedCost": "Landed Cost",
+    "batchNo": "Batch",
+    "cycle": "Cycle"
   },
   "cycles": {
     "title": "Import Cycles",
@@ -406,6 +420,23 @@
     "deleteSuccess": "Provider deleted successfully",
     "createSuccess": "Provider created successfully",
     "updateSuccess": "Provider updated successfully"
+  },
+  "categories": {
+    "title": "Product Categories",
+    "create": "New Category",
+    "edit": "Edit Category",
+    "delete": "Delete Category",
+    "name": "Name",
+    "parentCategory": "Parent Category",
+    "noParent": "None (Top-level)",
+    "search": "Search categories...",
+    "noData": "No categories found",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "confirmDelete": "Are you sure you want to delete this category?",
+    "deleteSuccess": "Category deleted successfully",
+    "createSuccess": "Category created successfully",
+    "updateSuccess": "Category updated successfully"
   },
   "wizard": {
     "title": "New Import Cycle",

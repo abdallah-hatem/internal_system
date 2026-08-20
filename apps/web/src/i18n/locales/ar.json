@@ -49,7 +49,8 @@
     "notifications": "الإشعارات",
     "auditLogs": "سجلات التدقيق",
     "settings": "الإعدادات",
-    "logout": "تسجيل الخروج"
+    "logout": "تسجيل الخروج",
+    "settlements": "التسويات"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -92,7 +93,19 @@
     "channel": "القناة",
     "amount": "المبلغ",
     "effectiveFrom": "ساري من",
-    "search": "بحث في المنتجات..."
+    "search": "بحث في المنتجات...",
+    "totalStock": "إجمالي المخزون",
+    "available": "متاح",
+    "reserved": "محجوز",
+    "createdAt": "تاريخ الإنشاء",
+    "inventoryBatches": "دفعات المخزون",
+    "movementHistory": "سجل الحركات",
+    "currentPrices": "الأسعار الحالية",
+    "receivedQty": "الكمية المستلمة",
+    "remainingQty": "الكمية المتبقية",
+    "landedCost": "التكلفة الإجمالية",
+    "batchNo": "الدفعة",
+    "cycle": "الدورة"
   },
   "cycles": {
     "title": "دورات الاستيراد",

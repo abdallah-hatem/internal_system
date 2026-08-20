@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class SuppliersService {
@@ -11,7 +11,8 @@ export class SuppliersService {
   ) {}
 
   async findAll(pagination: PaginationDto & { search?: string }) {
-    const { cursor, limit = 20, search } = pagination;
+    const { cursor, limit: rawLimit = 20, search } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (search) {
       where.OR = [

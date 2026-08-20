@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(userId: string, pagination: PaginationDto & { unreadOnly?: boolean }) {
-    const { cursor, limit = 20, unreadOnly } = pagination;
+    const { cursor, limit: rawLimit = 20, unreadOnly } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = { userId };
     if (unreadOnly) where.readAt = null;
 

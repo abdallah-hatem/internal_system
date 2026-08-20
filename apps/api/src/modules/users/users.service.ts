@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(pagination: PaginationDto & { role?: string; status?: string }) {
-    const { cursor, limit = 20, role, status } = pagination;
+    const { cursor, limit: rawLimit = 20, role, status } = pagination;
+    const limit = pageSize(rawLimit);
     const where: any = {};
     if (role) where.role = role;
     if (status) where.status = status;
