@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { ShippingCostFields, readShippingCostFields } from '../shipping/ShippingCostFields';
 import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
 import {
@@ -92,9 +93,20 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   // Shipping leg ID for back-navigation duplicate prevention
   const [shippingLegId, setShippingLegId] = useState<string | null>(null);
+  const [isCreatingLegs, setIsCreatingLegs] = useState(false);
+  const [costingWarnings, setCostingWarnings] = useState<string[]>([]);
+  const receiveInitRef = useRef<string | null>(null);
+
+  // Track the furthest step reached so step buttons allow both forward and backward navigation
+  const [maxStepReached, setMaxStepReached] = useState(0);
 
   // Resume loading state
   const [isResuming, setIsResuming] = useState(!!existingCycleId);
+
+  // Track the furthest step reached so the progress bar allows forward+backward navigation
+  useEffect(() => {
+    setMaxStepReached((prev) => Math.max(prev, currentStep));
+  }, [currentStep]);
 
   // ---------------------------------------------------------------------------
   // Fetch existing cycle data for resume
@@ -295,6 +307,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setOriginType(fd.get('originType') as string);
+
+    // If cycle already exists (navigating back from step 2+), just advance
+    if (cycleId) {
+      setCurrentStep(1);
+      return;
+    }
+
     createCycleMutation.mutate({
       originType: fd.get('originType'),
       currency: fd.get('currency'),
@@ -318,6 +337,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       return;
     }
 
+    // Require at least one line item
+    if (lineItems.length === 0) {
+      toast.error('Please add at least one line item before submitting');
+      return;
+    }
+
     createPoMutation.mutate({
       supplierId: fd.get('supplierId'),
       currency: fd.get('currency'),
@@ -327,42 +352,68 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     });
   };
 
-  const handleStep3Submit = (e: React.FormEvent<HTMLFormElement>) => {
+  // A China cycle moves in two legs (China->UAE, then UAE->Egypt); a UAE-direct
+  // cycle has only the UAE->Egypt leg. Each leg carries its own cost.
+  const legPlan =
+    originType === 'UAE_DIRECT'
+      ? [{ sequence: 1, label: 'UAE to Egypt', origin: 'Dubai, UAE', destination: 'Cairo, Egypt' }]
+      : [
+          { sequence: 1, label: 'China to UAE', origin: 'Guangzhou, CN', destination: 'Dubai, UAE' },
+          { sequence: 2, label: 'UAE to Egypt', origin: 'Dubai, UAE', destination: 'Cairo, Egypt' },
+        ];
+
+  const handleStep3Submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const origin = String(fd.get('origin') || '');
-    const destination = String(fd.get('destination') || '');
-    const provider = String(fd.get('provider') || '');
-    const trackingRef = String(fd.get('trackingRef') || '');
-    const departedOn = String(fd.get('departedOn') || '');
-    const arrivedOn = String(fd.get('arrivedOn') || '');
-    const amount = String(fd.get('amount') || '');
 
-    // Save form values for back-navigation
-    setShippingOrigin(origin);
-    setShippingDestination(destination);
-    setShippingProvider(provider);
-    setShippingTrackingRef(trackingRef);
-    setShippingDepartedOn(departedOn);
-    setShippingArrivedOn(arrivedOn);
-    setShippingAmount(amount);
-
-    // If shipping leg already exists (going back), just advance
+    // Already created on a previous pass through this step - just advance.
     if (shippingLegId) {
       setCurrentStep(3);
       return;
     }
 
-    createShippingMutation.mutate({
-      sequence: 1,
-      origin,
-      destination,
-      provider,
-      trackingRef: trackingRef || undefined,
-      departedOn: departedOn || undefined,
-      arrivedOn: arrivedOn || undefined,
-      amount: amount ? Number(amount) : undefined,
+    const payloads = legPlan.map((leg) => {
+      const prefix = `leg${leg.sequence}_`;
+      const str = (k: string) => String(fd.get(`${prefix}${k}`) || '');
+      return {
+        sequence: leg.sequence,
+        origin: str('origin'),
+        destination: str('destination'),
+        provider: str('provider'),
+        trackingRef: str('trackingRef') || undefined,
+        departedOn: str('departedOn') || undefined,
+        arrivedOn: str('arrivedOn') || undefined,
+        ...readShippingCostFields(fd, prefix),
+      };
     });
+
+    // Keep the first leg's values for back-navigation display.
+    setShippingOrigin(payloads[0].origin);
+    setShippingDestination(payloads[payloads.length - 1].destination);
+    setShippingProvider(payloads[0].provider);
+
+    setIsCreatingLegs(true);
+    try {
+      let firstId: string | null = null;
+      for (const body of payloads) {
+        const res = await api.post(`/cycles/${cycleId}/shipping-legs`, body);
+        const created = res.data.data ?? res.data;
+        if (!firstId) firstId = created.id;
+      }
+      setShippingLegId(firstId);
+      toast.success(
+        payloads.length > 1 ? 'Shipping legs created' : 'Shipping leg created',
+      );
+      setCurrentStep(3);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error?.message ||
+          err?.response?.data?.message ||
+          'Failed to create shipping legs',
+      );
+    } finally {
+      setIsCreatingLegs(false);
+    }
   };
 
   const handleStep4Submit = async () => {
@@ -429,17 +480,46 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (currentStep === 3 && poDetail?.items && receiveItems.length === 0) {
-      setReceiveItems(
-        poDetail.items.map((item: any) => ({
-          purchaseOrderItemId: item.id,
-          productId: item.productId,
-          receivedQty: item.orderedQty,
-          landedUnitCostEgp: item.unitPrice,
-        })),
-      );
-    }
-  }, [currentStep, poDetail, receiveItems.length]);
+    if (currentStep !== 3 || !poDetail?.items) return;
+    // Guard with a ref, not receiveItems.length: seeding the rows would
+    // re-run this effect and its cleanup would cancel the in-flight fetch.
+    if (receiveInitRef.current === poId) return;
+    receiveInitRef.current = poId;
+
+    // Seed with the goods price, then replace with the landed cost once the
+    // API has spread this cycle's shipping across the purchased items.
+    const seed = poDetail.items.map((item: any) => ({
+      purchaseOrderItemId: item.id,
+      productId: item.productId,
+      receivedQty: item.orderedQty,
+      landedUnitCostEgp: item.unitPrice,
+    }));
+    setReceiveItems(seed);
+
+    api
+      .get(`/costing/cycles/${cycleId}/landed-cost`)
+      .then((res) => {
+        const payload = res.data.data ?? res.data;
+        const byItem = new Map<string, string>(
+          (payload.items ?? []).map((i: any) => [
+            i.purchaseOrderItemId,
+            i.landedUnitCostEgp,
+          ]),
+        );
+        setReceiveItems((prev) =>
+          prev.map((it) => {
+            const landed = byItem.get(it.purchaseOrderItemId);
+            if (landed === undefined) return it;
+            const n = Number(landed);
+            return Number.isFinite(n) ? { ...it, landedUnitCostEgp: n } : it;
+          }),
+        );
+        setCostingWarnings(payload.warnings ?? []);
+      })
+      .catch(() => {
+        /* keep the goods-price seed if costing is unavailable */
+      });
+  }, [currentStep, poDetail, poId, cycleId]);
 
   const updateReceiveItem = (idx: number, field: keyof ReceiveItem, value: any) => {
     setReceiveItems((prev) =>
@@ -484,7 +564,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // Step 1 query-level loading
   const isStep1Loading = createCycleMutation.isPending;
   const isStep2Loading = createPoMutation.isPending;
-  const isStep3Loading = createShippingMutation.isPending;
+  const isStep3Loading = createShippingMutation.isPending || isCreatingLegs;
 
   // ---------------------------------------------------------------------------
   // Loading state for resume
@@ -566,7 +646,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           {STEPS.map((step, idx) => {
             const isCompleted = idx < currentStep;
             const isCurrent = idx === currentStep;
-            const isClickable = idx < currentStep;
+            const isClickable = idx <= maxStepReached;
 
             return (
               <button
@@ -618,9 +698,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 Origin Type <span className="text-red-500">*</span>
               </label>
               <select
+                key={originType || 'empty-origin'}
                 name="originType"
                 required
-                defaultValue={existingCycle?.originType ?? ''}
+                defaultValue={originType || existingCycle?.originType || ''}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">Select origin type</option>
@@ -634,9 +715,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 Currency <span className="text-red-500">*</span>
               </label>
               <select
+                key={poCurrency || 'empty-currency'}
                 name="currency"
                 required
-                defaultValue={existingCycle?.currency ?? ''}
+                defaultValue={poCurrency || existingCycle?.currency || ''}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">Select currency</option>
@@ -653,6 +735,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               <input
                 type="date"
                 name="startedOn"
+                key={existingCycle?.startedOn || ''}
                 defaultValue={existingCycle?.startedOn ? new Date(existingCycle.startedOn).toISOString().split('T')[0] : ''}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
@@ -875,116 +958,142 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           </form>
         )}
 
-        {/* Step 3 — Shipping Leg */}
+        {/* Step 3 — Shipping Legs */}
         {currentStep === 2 && (
-          <form key={`step3-${shippingProvider}-${shippingOrigin}`} onSubmit={handleStep3Submit} className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Shipping Leg</h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Provider <span className="text-red-500">*</span>
-                </label>
-                <select
-                  key={shippingProvider || 'empty-provider'}
-                  name="provider"
-                  required
-                  defaultValue={shippingProvider || (existingCycle?.shippingLegs?.[0]?.provider ?? '')}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Select provider</option>
-                  {(Array.isArray(providers) ? providers : []).map((p: any) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Origin <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="origin"
-                  required
-                  placeholder="e.g. Guangzhou, CN"
-                  defaultValue={shippingOrigin || (existingCycle?.shippingLegs?.[0]?.origin ?? '')}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Destination <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="destination"
-                  required
-                  placeholder="e.g. Dubai, UAE"
-                  defaultValue={shippingDestination || (existingCycle?.shippingLegs?.[0]?.destination ?? '')}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-
+          <form onSubmit={handleStep3Submit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tracking Reference <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-              </label>
-              <input
-                type="text"
-                name="trackingRef"
-                placeholder="Tracking number"
-                defaultValue={shippingTrackingRef || (existingCycle?.shippingLegs?.[0]?.trackingRef ?? '')}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
+              <h2 className="text-lg font-semibold text-gray-900">Shipping</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {originType === 'UAE_DIRECT'
+                  ? 'This cycle ships directly from UAE to Egypt.'
+                  : 'This cycle ships in two legs. Record the cost of each one.'}
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Departed On <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="date"
-                  name="departedOn"
-                  defaultValue={shippingDepartedOn || existingCycle?.shippingLegs?.[0]?.departedOn ? new Date(existingCycle.shippingLegs[0].departedOn).toISOString().split('T')[0] : ''}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
+            {legPlan.map((leg) => {
+              const prefix = `leg${leg.sequence}_`;
+              const existing = existingCycle?.shippingLegs?.find(
+                (l: any) => l.sequence === leg.sequence,
+              );
+              return (
+                <div
+                  key={leg.sequence}
+                  data-testid={`wizard-leg-${leg.sequence}`}
+                  className="rounded-xl border border-gray-200 p-4 space-y-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-white text-xs font-semibold">
+                      {leg.sequence}
+                    </span>
+                    <h3 className="text-sm font-semibold text-gray-900">{leg.label}</h3>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Arrived On <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="date"
-                  name="arrivedOn"
-                  defaultValue={shippingArrivedOn || existingCycle?.shippingLegs?.[0]?.arrivedOn ? new Date(existingCycle.shippingLegs[0].arrivedOn).toISOString().split('T')[0] : ''}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Provider <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name={`${prefix}provider`}
+                        required
+                        defaultValue={existing?.provider ?? ''}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">Select provider</option>
+                        {(Array.isArray(providers) ? providers : []).map((pr: any) => (
+                          <option key={pr.id} value={pr.name}>
+                            {pr.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tracking Reference{' '}
+                        <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        name={`${prefix}trackingRef`}
+                        defaultValue={existing?.trackingRef ?? ''}
+                        placeholder="Tracking number"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Shipping Cost <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="number"
-                  name="amount"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  defaultValue={shippingAmount || (existingCycle?.shippingLegs?.[0]?.amount ?? '')}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Origin <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name={`${prefix}origin`}
+                        required
+                        defaultValue={existing?.origin ?? leg.origin}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Destination <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name={`${prefix}destination`}
+                        required
+                        defaultValue={existing?.destination ?? leg.destination}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Departed On{' '}
+                        <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="date"
+                        name={`${prefix}departedOn`}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Arrived On{' '}
+                        <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="date"
+                        name={`${prefix}arrivedOn`}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
+
+                  <ShippingCostFields
+                    namePrefix={prefix}
+                    title={`${leg.label} cost`}
+                    defaults={
+                      existing
+                        ? {
+                            costBasis: existing.costBasis ?? 'PER_PIECE',
+                            ratePerUnit: existing.ratePerUnit ?? '',
+                            chargeablePieces: existing.chargeablePieces ?? '',
+                            chargeableWeightKg: existing.chargeableWeightKg ?? '',
+                            amount: existing.amount ?? '',
+                            currency: existing.currency ?? 'EGP',
+                            fxRateToEgp: existing.fxRateToEgp ?? 1,
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
+              );
+            })}
 
             <div className="flex items-center justify-between pt-2">
               <button
@@ -1009,7 +1118,21 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         {/* Step 4 — Receive Inventory */}
         {currentStep === 3 && (
           <div className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Receive Inventory</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Receive Inventory</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Landed unit cost includes this cycle&apos;s shipping, spread across the
+              items it moved. Edit a value to override it.
+            </p>
+
+            {costingWarnings.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
+                {costingWarnings.map((w, i) => (
+                  <p key={i} className="text-xs text-amber-800">
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {receiveItems.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8 border border-dashed border-gray-200 rounded-lg">

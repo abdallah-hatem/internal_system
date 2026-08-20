@@ -27,7 +27,17 @@ const num = (v: unknown) => {
  * and handling). The rate-based options derive the total instead of asking for
  * it, so the per-piece rate itself stays on the record.
  */
-export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaults }) {
+export function ShippingCostFields({
+  defaults,
+  namePrefix = '',
+  title = 'Shipment Cost',
+}: {
+  defaults?: ShippingCostDefaults;
+  /** Namespace for field names so several legs can share one form. */
+  namePrefix?: string;
+  title?: string;
+}) {
+  const n = (field: string) => `${namePrefix}${field}`;
   const [basis, setBasis] = useState<CostBasis>(defaults?.costBasis ?? 'PER_PIECE');
   const [rate, setRate] = useState(String(defaults?.ratePerUnit ?? ''));
   const [pieces, setPieces] = useState(String(defaults?.chargeablePieces ?? ''));
@@ -51,14 +61,14 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 p-4 bg-gray-50/60">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">Shipment Cost</h3>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
         <span className="text-xs text-gray-500">How this leg is charged</span>
       </div>
 
       <div>
         <label className={label}>Charged by</label>
         <select
-          name="costBasis"
+          {...{ name: n('costBasis') }}
           value={basis}
           onChange={(e) => setBasis(e.target.value as CostBasis)}
           className={input}
@@ -77,7 +87,7 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
             </label>
             <input
               type="number" step="0.0001" min="0" required
-              name="ratePerUnit" value={rate} onChange={(e) => setRate(e.target.value)}
+              {...{ name: n('ratePerUnit') }} value={rate} onChange={(e) => setRate(e.target.value)}
               placeholder="0.0000" className={input}
             />
           </div>
@@ -87,7 +97,7 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
             </label>
             <input
               type="number" step="0.001" min="0" required
-              name="chargeablePieces" value={pieces} onChange={(e) => setPieces(e.target.value)}
+              {...{ name: n('chargeablePieces') }} value={pieces} onChange={(e) => setPieces(e.target.value)}
               placeholder="0" className={input}
             />
           </div>
@@ -102,7 +112,7 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
             </label>
             <input
               type="number" step="0.0001" min="0" required
-              name="ratePerUnit" value={rate} onChange={(e) => setRate(e.target.value)}
+              {...{ name: n('ratePerUnit') }} value={rate} onChange={(e) => setRate(e.target.value)}
               placeholder="0.0000" className={input}
             />
           </div>
@@ -112,7 +122,7 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
             </label>
             <input
               type="number" step="0.001" min="0" required
-              name="chargeableWeightKg" value={weight} onChange={(e) => setWeight(e.target.value)}
+              {...{ name: n('chargeableWeightKg') }} value={weight} onChange={(e) => setWeight(e.target.value)}
               placeholder="0.000" className={input}
             />
           </div>
@@ -126,7 +136,7 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
           </label>
           <input
             type="number" step="0.01" min="0" required
-            name="amount" value={amount} onChange={(e) => setAmount(e.target.value)}
+            {...{ name: n('amount') }} value={amount} onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00" className={input}
           />
         </div>
@@ -136,7 +146,7 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
         <div>
           <label className={label}>Currency</label>
           <select
-            name="currency" value={currency}
+            {...{ name: n('currency') }} value={currency}
             onChange={(e) => {
               setCurrency(e.target.value);
               if (e.target.value === 'EGP') setFx('1');
@@ -156,16 +166,16 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
             </label>
             <input
               type="number" step="0.0001" min="0" required
-              name="fxRateToEgp" value={fx} onChange={(e) => setFx(e.target.value)}
+              {...{ name: n('fxRateToEgp') }} value={fx} onChange={(e) => setFx(e.target.value)}
               className={input}
             />
           </div>
         )}
       </div>
-      {currency === 'EGP' && <input type="hidden" name="fxRateToEgp" value="1" />}
+      {currency === 'EGP' && <input type="hidden" {...{ name: n('fxRateToEgp') }} value="1" />}
 
       <div
-        data-testid="leg-cost-preview"
+        data-testid={`leg-cost-preview${namePrefix ? "-" + namePrefix.replace(/\W/g, "") : ""}`}
         className="flex items-center justify-between rounded-lg bg-white border border-gray-200 px-3 py-2"
       >
         <span className="text-sm text-gray-600">Leg total</span>
@@ -183,10 +193,11 @@ export function ShippingCostFields({ defaults }: { defaults?: ShippingCostDefaul
 }
 
 /** Pull the cost fields out of a submitted form into an API payload. */
-export function readShippingCostFields(fd: FormData) {
-  const basis = String(fd.get('costBasis') || 'FLAT') as CostBasis;
+export function readShippingCostFields(fd: FormData, namePrefix = '') {
+  const g = (k: string) => fd.get(`${namePrefix}${k}`);
+  const basis = String(g('costBasis') || 'FLAT') as CostBasis;
   const opt = (k: string) => {
-    const v = fd.get(k);
+    const v = g(k);
     return v === null || v === '' ? undefined : Number(v);
   };
   return {
@@ -195,7 +206,7 @@ export function readShippingCostFields(fd: FormData) {
     chargeablePieces: opt('chargeablePieces'),
     chargeableWeightKg: opt('chargeableWeightKg'),
     amount: opt('amount'),
-    currency: String(fd.get('currency') || 'EGP'),
+    currency: String(g('currency') || 'EGP'),
     fxRateToEgp: opt('fxRateToEgp') ?? 1,
   };
 }
