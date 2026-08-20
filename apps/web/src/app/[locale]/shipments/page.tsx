@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
+import { ShippingCostFields, readShippingCostFields } from '../../../components/shipping/ShippingCostFields';
 import {
   Truck, Plus, Search, Edit, X, Loader2, MapPin, Package, Calendar,
   ArrowRight,
@@ -24,7 +25,14 @@ interface Shipment {
   status: string;
   departedOn?: string;
   arrivedOn?: string;
-  amount?: number;
+  amount?: number | string | null;
+  costBasis?: 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
+  ratePerUnit?: number | string | null;
+  chargeablePieces?: number | string | null;
+  chargeableWeightKg?: number | string | null;
+  currency?: string;
+  fxRateToEgp?: number | string | null;
+  amountEgp?: number | string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -195,7 +203,7 @@ export default function ShipmentsPage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{ship.departedOn ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{ship.arrivedOn ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-700">
-                        {ship.amount != null ? `£ ${ship.amount.toLocaleString()}` : '—'}
+                        <LegCost ship={ship} />
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -245,7 +253,7 @@ export default function ShipmentsPage() {
                   <span>{ship.departedOn ?? '—'}</span>
                   <span>{ship.arrivedOn ?? '—'}</span>
                   <span className="font-medium text-gray-700">
-                    {ship.amount != null ? `£ ${ship.amount.toLocaleString()}` : '—'}
+                    <LegCost ship={ship} />
                   </span>
                 </div>
               </div>
@@ -273,6 +281,7 @@ export default function ShipmentsPage() {
                 destination: fd.get('destination'),
                 provider: fd.get('provider'),
                 trackingRef: fd.get('trackingRef'),
+                ...readShippingCostFields(fd),
               });
             }}
             className="space-y-4"
@@ -310,6 +319,8 @@ export default function ShipmentsPage() {
               <InputField label={t('trackingRef')} name="trackingRef" />
             </div>
 
+            <ShippingCostFields />
+
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={createMutation.isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -333,9 +344,9 @@ export default function ShipmentsPage() {
                 status: fd.get('status'),
                 departedOn: fd.get('departedOn') || null,
                 arrivedOn: fd.get('arrivedOn') || null,
-                amount: Number(fd.get('amount') || 0),
                 provider: fd.get('provider'),
                 trackingRef: fd.get('trackingRef'),
+                ...readShippingCostFields(fd),
               });
             }}
             className="space-y-4"
@@ -367,7 +378,17 @@ export default function ShipmentsPage() {
               <InputField label={t('trackingRef')} name="trackingRef" defaultValue={editingShipment.trackingRef} />
             </div>
 
-            <InputField label={t('amount')} name="amount" type="number" defaultValue={String(editingShipment.amount ?? '')} placeholder="0" />
+            <ShippingCostFields
+              defaults={{
+                costBasis: editingShipment.costBasis ?? 'FLAT',
+                ratePerUnit: editingShipment.ratePerUnit ?? '',
+                chargeablePieces: editingShipment.chargeablePieces ?? '',
+                chargeableWeightKg: editingShipment.chargeableWeightKg ?? '',
+                amount: editingShipment.amount ?? '',
+                currency: editingShipment.currency ?? 'EGP',
+                fxRateToEgp: editingShipment.fxRateToEgp ?? 1,
+              }}
+            />
 
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setEditingShipment(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -380,6 +401,33 @@ export default function ShipmentsPage() {
         </Modal>
       )}
     </div>
+  );
+}
+
+
+/** Leg cost in EGP, with the rate that produced it. */
+function LegCost({ ship }: { ship: Shipment }) {
+  const egp = ship.amountEgp ?? ship.amount;
+  if (egp === null || egp === undefined || egp === '') return <span>—</span>;
+
+  const value = Number(egp);
+  if (!Number.isFinite(value)) return <span>—</span>;
+
+  const rate = ship.ratePerUnit != null ? Number(ship.ratePerUnit) : null;
+  const basisHint =
+    ship.costBasis === 'PER_PIECE' && rate != null
+      ? `${rate.toLocaleString(undefined, { maximumFractionDigits: 4 })} x ${Number(ship.chargeablePieces ?? 0).toLocaleString()} pcs`
+      : ship.costBasis === 'PER_WEIGHT' && rate != null
+        ? `${rate.toLocaleString(undefined, { maximumFractionDigits: 4 })} x ${Number(ship.chargeableWeightKg ?? 0).toLocaleString()} kg`
+        : null;
+
+  return (
+    <span className="inline-flex flex-col leading-tight">
+      <span className="font-medium text-gray-800">
+        {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
+      </span>
+      {basisHint && <span className="text-[11px] text-gray-400">{basisHint}</span>}
+    </span>
   );
 }
 

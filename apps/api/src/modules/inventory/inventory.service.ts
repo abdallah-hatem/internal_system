@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { CostingService } from '../costing/costing.service';
 
 @Injectable()
 export class InventoryService {
@@ -15,6 +16,7 @@ export class InventoryService {
     private prisma: PrismaService,
     private audit: AuditService,
     private notifications: NotificationsService,
+    private costing: CostingService,
   ) {}
 
   async verifyStock(
@@ -24,7 +26,8 @@ export class InventoryService {
         purchaseOrderItemId: string;
         productId: string;
         receivedQty: number;
-        landedUnitCostEgp: number;
+        /** Optional manual override; computed from cycle costing when omitted. */
+        landedUnitCostEgp?: number;
       }>;
     },
     actorId: string,
@@ -39,6 +42,20 @@ export class InventoryService {
         `Cycle must be in VERIFICATION status to verify stock. Current: ${cycle.status}`,
       );
     }
+
+    // Derive landed unit costs for this cycle using the quantities being
+    // verified now, so shipping recorded on the cycle's legs (China->UAE and
+    // UAE->Egypt, or UAE->Egypt alone) is spread across the goods it moved.
+    const qtyOverrides: Record<string, number> = {};
+    for (const item of data.items) {
+      qtyOverrides[item.purchaseOrderItemId] = item.receivedQty;
+    }
+    const costing = await this.costing.computeCycleLandedCosts(cycleId, {
+      qtyOverrides,
+    });
+    const costByPoItem = new Map(
+      costing.items.map((i) => [i.purchaseOrderItemId, i.landedUnitCostEgp]),
+    );
 
     // All in a single Prisma transaction
     return this.prisma.$transaction(async (tx) => {
@@ -72,6 +89,18 @@ export class InventoryService {
           );
         }
 
+        // Manual override wins; otherwise use the computed landed cost.
+        const resolvedUnitCost =
+          item.landedUnitCostEgp !== undefined && item.landedUnitCostEgp !== null
+            ? new Prisma.Decimal(item.landedUnitCostEgp)
+            : costByPoItem.get(item.purchaseOrderItemId);
+
+        if (resolvedUnitCost === undefined) {
+          throw new BadRequestException(
+            `Could not determine landed unit cost for purchase order item ${item.purchaseOrderItemId}`,
+          );
+        }
+
         const batch = await tx.inventoryBatch.create({
           data: {
             cycleId,
@@ -80,7 +109,7 @@ export class InventoryService {
             receivedQty: item.receivedQty,
             remainingQty: item.receivedQty,
             saleableQty: item.receivedQty,
-            landedUnitCostEgp: item.landedUnitCostEgp,
+            landedUnitCostEgp: resolvedUnitCost,
             verificationStatus: 'VERIFIED',
           },
         });
@@ -105,7 +134,7 @@ export class InventoryService {
         batches.push(batch);
 
         // Auto-create financial transaction for purchase cost
-        const purchaseCost = item.receivedQty * item.landedUnitCostEgp;
+        const purchaseCost = resolvedUnitCost.mul(item.receivedQty).toDecimalPlaces(2);
         await tx.financialTransaction.create({
           data: {
             type: 'PURCHASE_COST',
@@ -116,7 +145,7 @@ export class InventoryService {
             cycleId,
             relatedType: 'PURCHASE_ORDER_ITEM',
             relatedId: item.purchaseOrderItemId,
-            reason: `Auto: ${item.receivedQty} units received at ${item.landedUnitCostEgp} EGP/unit`,
+            reason: `Auto: ${item.receivedQty} units received at ${resolvedUnitCost.toFixed(4)} EGP/unit landed`,
             createdBy: actorId,
           },
         });

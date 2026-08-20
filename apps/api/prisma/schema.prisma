@@ -103,6 +103,7 @@ model Product {
   barcode     String?
   status      String   @default("ACTIVE")
   minStock    Decimal? @map("min_stock") @db.Decimal(18, 3)
+  unitWeightKg Decimal? @map("unit_weight_kg") @db.Decimal(18, 3)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
   version     Int      @default(1)
@@ -196,6 +197,12 @@ model FileAsset {
 }
 
 // ─── Supply Chain ──────────────────────────────────────────────────
+
+enum ShippingCostBasis {
+  PER_PIECE
+  PER_WEIGHT
+  FLAT
+}
 
 enum CycleOriginType {
   CHINA
@@ -342,7 +349,15 @@ model ShippingLeg {
   status      String    @default("PENDING")
   departedOn  DateTime? @map("departed_on") @db.Timestamptz()
   arrivedOn   DateTime? @map("arrived_on") @db.Timestamptz()
+  // Costing basis: shipping is usually charged per piece, sometimes by weight.
+  costBasis          ShippingCostBasis @default(FLAT) @map("cost_basis")
+  ratePerUnit        Decimal? @map("rate_per_unit") @db.Decimal(18, 4)
+  chargeablePieces   Decimal? @map("chargeable_pieces") @db.Decimal(18, 3)
+  chargeableWeightKg Decimal? @map("chargeable_weight_kg") @db.Decimal(18, 3)
+  currency           String   @default("EGP")
+  fxRateToEgp        Decimal  @default(1) @map("fx_rate_to_egp") @db.Decimal(18, 4)
   amount      Decimal?  @db.Decimal(18, 2)
+  amountEgp          Decimal? @map("amount_egp") @db.Decimal(18, 2)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   version     Int       @default(1)
