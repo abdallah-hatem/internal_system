@@ -42,7 +42,9 @@ const money = (text: string | null) =>
 async function pickCycle(page: Page, code: string) {
   await page.locator('#cycle-select').click();
   await page.getByRole('listbox').waitFor({ state: 'visible' });
-  await page.locator('#cycle-select').locator('..').getByPlaceholder(/search/i).fill(code);
+  // Radix portals the popover to document.body, so the search box is not a
+  // descendant of the trigger — look it up at page level.
+  await page.getByPlaceholder(/search/i).last().fill(code);
   await page.getByRole('listbox').getByRole('option', { name: new RegExp(code) }).first().click();
   await expect(page.locator('#cycle-select')).toContainText(code);
 }

@@ -24,6 +24,45 @@
   --color-accent-800: #9a3412;
   --color-accent-900: #7c2d12;
 
+
+  /* ── shadcn semantic tokens ───────────────────────────────────────────
+     Mapped onto this app's existing greys and blues rather than shadcn's
+     slate defaults, so a Radix popover reads as part of the product instead
+     of a component library bolted on.
+
+     Note `accent`: shadcn means "subtle hover background" by it, while this
+     project's --color-accent-* scale is the orange used for highlights. Both
+     resolve fine (bg-accent vs bg-accent-500) but they are unrelated ideas. */
+  --color-background: #ffffff;
+  --color-foreground: #111827;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #111827;
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #111827;
+
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+
+  --color-accent: #f3f4f6;
+  --color-accent-foreground: #111827;
+
+  --color-secondary: #f3f4f6;
+  --color-secondary-foreground: #111827;
+
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
+
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+
+  --color-border: #e5e7eb;
+  --color-input: #e5e7eb;
+  --color-ring: #3b82f6;
+
+  --radius: 0.75rem;
+
   --font-sans: var(--font-plex-sans), var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
 

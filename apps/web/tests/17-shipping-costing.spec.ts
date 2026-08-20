@@ -36,7 +36,12 @@ async function token(request: any) {
  * keep using selectOption.
  */
 async function pickByName(page: Page, name: string, index = 0) {
-  const trigger = page.locator(`input[type="hidden"][name="${name}"]`).locator('..').getByRole('button');
+  // The trigger sits beside the hidden input that carries the value; the panel
+  // itself is portaled to document.body by Radix.
+  const trigger = page
+    .locator(`input[type="hidden"][name="${name}"]`)
+    .locator('..')
+    .getByRole('combobox');
   await trigger.click();
   await page.getByRole('listbox').waitFor({ state: 'visible' });
   await page.getByRole('listbox').getByRole('option').nth(index).click();
@@ -110,7 +115,9 @@ test.describe('Shipment costing', () => {
     await page.getByRole('button', { name: /add item/i }).click();
 
     // The product picker is the line item's own searchable Select.
-    const productTrigger = page.getByRole('button', { name: /select product/i }).last();
+    // The line-item picker is controlled by value/onChange, so it has no name
+    // to anchor on — locate it by the placeholder text on its trigger.
+    const productTrigger = page.locator('[role="combobox"]', { hasText: 'Select product' }).last();
     await productTrigger.click();
     await page.getByRole('listbox').getByRole('option').first().click();
 
