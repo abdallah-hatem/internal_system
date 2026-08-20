@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ShippingService } from './shipping.service';
+import { CreateShippingLegDto, UpdateShippingLegDto } from './dto/shipping-leg.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -34,7 +35,7 @@ export class ShippingController {
   @ApiOperation({ summary: 'Update a shipping leg' })
   updateLeg(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateShippingLegDto,
     @CurrentUser() user: any,
   ) {
     return this.shippingService.updateLeg(id, body, user.id);
@@ -60,7 +61,7 @@ export class CycleShippingController {
   @ApiOperation({ summary: 'Create a shipping leg for a cycle' })
   createLeg(
     @Param('cycleId') cycleId: string,
-    @Body() body: any,
+    @Body() body: CreateShippingLegDto,
     @CurrentUser() user: any,
   ) {
     return this.shippingService.createLeg(cycleId, body, user.id);

@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, UserRole, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -163,6 +163,219 @@ async function main() {
       currency: 'EGP',
     },
   });
+
+
+  // ───────────────────────────────────────────────────────────────────────
+  //  A worked example of the business, so a fresh database is usable and the
+  //  test suite does not depend on data someone happened to click together.
+  //
+  //  Cycle 1 (China): two legs — China→UAE charged per piece, UAE→Egypt a flat
+  //  combined payment — a purchase order, verified stock at landed cost, three
+  //  partners and one temporary investor on a 15% fee, and a confirmed sale so
+  //  the cycle has real revenue, COGS and profit to settle.
+  //  Cycle 2 (UAE direct): the single-leg route.
+  // ───────────────────────────────────────────────────────────────────────
+  const D = (v: number | string) => new Prisma.Decimal(v);
+  const id = (n: string) => `00000000-0000-0000-0000-0000000000${n}`;
+
+  const provider = await prisma.provider.upsert({
+    where: { id: id('30') },
+    update: {},
+    create: { id: id('30'), name: 'Gulf Freight', contactPerson: 'Sami', phone: '+971500000000' },
+  });
+  await prisma.provider.upsert({
+    where: { id: id('31') },
+    update: {},
+    create: { id: id('31'), name: 'Nile Customs Clearance', contactPerson: 'Hoda' },
+  });
+
+  const brakePad = await prisma.product.upsert({
+    where: { sku: 'PRD-000001' },
+    update: {},
+    create: {
+      id: id('40'),
+      sku: 'PRD-000001',
+      name: 'Honda CBR Brake Pad',
+      categoryId: categories[0].id,
+      minStock: D(20),
+      unitWeightKg: D(0.4),
+    },
+  });
+  const helmet = await prisma.product.upsert({
+    where: { sku: 'PRD-000002' },
+    update: {},
+    create: {
+      id: id('41'),
+      sku: 'PRD-000002',
+      name: 'Full Face Helmet',
+      categoryId: categories[1]?.id ?? categories[0].id,
+      minStock: D(10),
+      unitWeightKg: D(1.6),
+    },
+  });
+
+  const customer = await prisma.customer.upsert({
+    where: { id: id('50') },
+    update: {},
+    create: {
+      id: id('50'),
+      displayName: 'El-Sayed Motorcycle Parts',
+      type: 'B2B',
+      phone: '+201000000001',
+    },
+  });
+
+  // ── Cycle 1 — China route ───────────────────────────────────────────────
+  const existingCycle = await prisma.importCycle.findUnique({ where: { code: 'CYC-DEMO-001' } });
+  if (!existingCycle) {
+    const cycle = await prisma.importCycle.create({
+      data: {
+        id: id('60'),
+        code: 'CYC-DEMO-001',
+        originType: 'CHINA',
+        currency: 'USD',
+        status: 'SELLING',
+        startedOn: new Date('2026-07-01'),
+      },
+    });
+
+    // Contributions 80k / 100k / 120k reproduce the BRD's 26.67 / 33.33 / 40
+    // split, plus an investor on a 15% fee.
+    await prisma.cycleParticipant.createMany({
+      data: [
+        { cycleId: cycle.id, participantType: 'CORE_PARTNER', partnerUserId: partnerA.id, contributionAmount: D(80000) },
+        { cycleId: cycle.id, participantType: 'CORE_PARTNER', partnerUserId: partnerB.id, contributionAmount: D(100000) },
+        { cycleId: cycle.id, participantType: 'CORE_PARTNER', partnerUserId: partnerC.id, contributionAmount: D(120000) },
+      ],
+    });
+
+    const po = await prisma.purchaseOrder.create({
+      data: {
+        cycleId: cycle.id,
+        supplierId: suppliers[0].id,
+        reference: 'ALI-2026-0001',
+        currency: 'USD',
+        fxRateToEgp: D(48.5),
+        orderedOn: new Date('2026-07-03'),
+        status: 'CONFIRMED',
+        items: {
+          create: [
+            { productId: brakePad.id, orderedQty: D(300), receivedQty: D(300), unitPrice: D(1.8), lineTotal: D(540) },
+            { productId: helmet.id, orderedQty: D(100), receivedQty: D(100), unitPrice: D(12), lineTotal: D(1200) },
+          ],
+        },
+      },
+      include: { items: true },
+    });
+
+    // Two legs: per-piece for the merchant run, one combined payment for the
+    // shipping company (BRD 7).
+    await prisma.shippingLeg.createMany({
+      data: [
+        {
+          cycleId: cycle.id, sequence: 1, origin: 'Guangzhou, CN', destination: 'Dubai, UAE',
+          provider: provider.name, providerId: provider.id, status: 'ARRIVED',
+          costBasis: 'PER_PIECE', ratePerUnit: D(6), chargeablePieces: D(400),
+          currency: 'EGP', fxRateToEgp: D(1), amount: D(2400), amountEgp: D(2400),
+        },
+        {
+          cycleId: cycle.id, sequence: 2, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+          provider: 'Nile Customs Clearance', providerId: id('31'), status: 'ARRIVED',
+          costBasis: 'FLAT', currency: 'EGP', fxRateToEgp: D(1),
+          amount: D(9600), amountEgp: D(9600),
+        },
+      ],
+    });
+
+    // Landed cost = goods + shipping spread by piece over 400 pieces (30 EGP
+    // each): brake pad 87.30 + 30 = 117.30, helmet 582 + 30 = 612.
+    const pad = po.items.find((i) => i.productId === brakePad.id)!;
+    const hel = po.items.find((i) => i.productId === helmet.id)!;
+
+    const padBatch = await prisma.inventoryBatch.create({
+      data: {
+        cycleId: cycle.id, productId: brakePad.id, sourcePoItemId: pad.id,
+        receivedQty: D(300), remainingQty: D(260), reservedQty: D(0), saleableQty: D(260),
+        landedUnitCostEgp: D('117.3000'), verificationStatus: 'VERIFIED',
+      },
+    });
+    await prisma.inventoryBatch.create({
+      data: {
+        cycleId: cycle.id, productId: helmet.id, sourcePoItemId: hel.id,
+        receivedQty: D(100), remainingQty: D(100), reservedQty: D(0), saleableQty: D(100),
+        landedUnitCostEgp: D('612.0000'), verificationStatus: 'VERIFIED',
+      },
+    });
+
+    await prisma.financialTransaction.create({
+      data: {
+        type: 'PURCHASE_COST', category: 'purchase', direction: 'OUTFLOW',
+        amount: D(96390), currency: 'EGP', cycleId: cycle.id,
+        reason: 'Landed cost of verified stock', createdBy: partnerA.id,
+      },
+    });
+
+    // A confirmed sale: 40 brake pads at 180 EGP, drawn from the batch above.
+    const sale = await prisma.saleOrder.create({
+      data: {
+        orderNo: 'SO-DEMO-0001', customerId: customer.id, channel: 'B2B',
+        status: 'PARTIALLY_PAID', currency: 'EGP',
+        subtotal: D(7200), discount: D(0), total: D(7200), outstanding: D(2200),
+        createdBy: partnerA.id,
+        items: { create: [{ productId: brakePad.id, quantity: D(40), unitPrice: D(180), lineTotal: D(7200) }] },
+      },
+      include: { items: true },
+    });
+
+    await prisma.saleItemAllocation.create({
+      data: {
+        saleItemId: sale.items[0].id, inventoryBatchId: padBatch.id,
+        qty: D(40), unitCostEgp: D('117.3000'), cogsEgp: D('4692.00'),
+      },
+    });
+    await prisma.inventoryMovement.create({
+      data: {
+        batchId: padBatch.id, movementType: 'SALE', qtyDelta: D(-40),
+        referenceType: 'SALE_ORDER', referenceId: sale.id, createdBy: partnerA.id,
+      },
+    });
+    await prisma.financialTransaction.create({
+      data: {
+        type: 'SALE_REVENUE', category: 'revenue', direction: 'INFLOW',
+        amount: D(7200), currency: 'EGP', cycleId: cycle.id,
+        relatedType: 'SALE_ORDER', relatedId: sale.id, createdBy: partnerA.id,
+      },
+    });
+
+    console.log('✅ Created demo China cycle CYC-DEMO-001 with two costed legs, stock and a sale');
+
+    // ── Cycle 2 — UAE direct, still in planning ──────────────────────────
+    const uae = await prisma.importCycle.create({
+      data: {
+        id: id('61'), code: 'CYC-DEMO-002', originType: 'UAE_DIRECT',
+        currency: 'AED', status: 'PLANNING', startedOn: new Date('2026-08-10'),
+      },
+    });
+    await prisma.cycleParticipant.createMany({
+      data: [
+        { cycleId: uae.id, participantType: 'CORE_PARTNER', partnerUserId: partnerA.id, contributionAmount: D(50000) },
+        { cycleId: uae.id, participantType: 'TEMP_INVESTOR', investorUserId: partnerC.id, contributionAmount: D(50000), investorFeePct: D(15) },
+      ],
+    });
+    await prisma.shippingLeg.create({
+      data: {
+        cycleId: uae.id, sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+        provider: provider.name, providerId: provider.id, status: 'PENDING',
+        costBasis: 'PER_WEIGHT', ratePerUnit: D(22), chargeableWeightKg: D(180),
+        currency: 'EGP', fxRateToEgp: D(1), amount: D(3960), amountEgp: D(3960),
+      },
+    });
+    console.log('✅ Created demo UAE-direct cycle CYC-DEMO-002 with a weight-charged leg');
+  } else {
+    console.log('ℹ️  Demo cycles already present — skipping');
+  }
+
+  console.log('✅ Created products, provider, customer and demo cycles');
 
   console.log('✅ Created money accounts');
   console.log('🎉 Seeding complete!');

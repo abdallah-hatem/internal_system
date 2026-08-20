@@ -27,3 +27,6 @@ npm-debug.log*
 
 # test
 TEST_CREDENTIALS.md
+
+# Local database dumps
+.backups/
