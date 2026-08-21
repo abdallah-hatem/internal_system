@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages } from 'next-intl/server';
+import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { AuthProvider } from '../lib/auth-context';
 import { QueryProvider } from '../lib/query-provider';
@@ -39,9 +39,17 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const messages = await getMessages();
+  const locale = await getLocale();
+  const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   return (
+    // lang and dir belong on <html>: assistive technology reads them from
+    // there, and anything portaled to document.body — Radix popovers included —
+    // sits outside the layout's own dir wrapper and would otherwise fall back
+    // to left-to-right in an Arabic session.
     <html
+      lang={locale}
+      dir={dir}
       suppressHydrationWarning
       className={`${sans.variable} ${arabic.variable} ${mono.variable}`}
     >

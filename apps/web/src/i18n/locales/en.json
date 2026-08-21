@@ -364,7 +364,9 @@
     "totalCost": "Total Cost",
     "profit": "Profit",
     "margin": "Margin",
-    "noData": "No analytics data available yet"
+    "noData": "No analytics data available yet",
+    "unsoldStock": "Unsold stock",
+    "noRevenueInPeriod": "No sales recorded in this period yet."
   },
   "notifications": {
     "title": "Notifications",

@@ -51,12 +51,19 @@ export default function AppLayout({
 
   useEffect(() => {
     if (!isLoading && !user && !isLoginPage) {
-      router.push('/login');
+      // This router is next-intl's, so it adds the locale prefix itself —
+      // passing one in the path yields /en/en/login. It resolves the locale
+      // from the cookie though, which is stale after switching language, so an
+      // Arabic session could land on the English login page. Name it instead.
+      router.push('/login', { locale });
     }
-  }, [user, isLoading, router, isLoginPage]);
+  }, [user, isLoading, router, isLoginPage, locale]);
 
   const switchLocale = (newLocale: string) => {
-    document.cookie = `locale=${newLocale};path=/;max-age=31536000`;
+    // next-intl reads NEXT_LOCALE. Writing `locale` meant the choice was never
+    // persisted: switching language only worked because of the hard navigation
+    // below, and any later redirect fell back to the default locale.
+    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000;samesite=lax`;
     window.location.href = `/${newLocale}${pathname}`;
   };
 

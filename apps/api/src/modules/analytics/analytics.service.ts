@@ -2,6 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 
+/**
+ * Sale states whose revenue is realised: the goods have left the business, so
+ * the sale counts whether or not the customer has finished paying.
+ *
+ * Draft and cancelled orders must never be counted — a draft is a quote that
+ * has reserved nothing, and including them inflates every figure on the page.
+ */
+const REALISED_SALE_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
@@ -10,9 +19,7 @@ export class AnalyticsService {
     const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
-    // Realised sales: goods have left the business, so the revenue is earned
-    // whether or not the customer has finished paying.
-    const REALISED = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
+    const REALISED = REALISED_SALE_STATUSES;
 
     const revenueAgg = await this.prisma.saleOrder.aggregate({
       where: { status: { in: [...REALISED] } },
@@ -132,7 +139,9 @@ export class AnalyticsService {
 
     const orders = await this.prisma.saleOrder.findMany({
       where: {
-        status: { in: ['CONFIRMED', 'PAID'] },
+        // Was CONFIRMED/PAID only, so a partially paid order was missing here
+        // while the dashboard counted it — the two totals disagreed.
+        status: { in: [...REALISED_SALE_STATUSES] },
         orderedAt: { gte: since },
       },
       select: { orderedAt: true, total: true },
@@ -159,64 +168,160 @@ export class AnalyticsService {
   }
 
   async getTopProducts(limit: number = 10) {
+    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+
     const products = await this.prisma.product.findMany({
       where: { status: 'ACTIVE' },
       select: {
         id: true,
         name: true,
         sku: true,
-        saleItems: { select: { quantity: true } },
+        saleItems: {
+          // Without this filter every draft counts, including abandoned ones,
+          // which is how a product showed three million units sold.
+          where: { saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } } },
+          select: {
+            quantity: true,
+            lineTotal: true,
+            allocations: { select: { cogsEgp: true } },
+          },
+        },
       },
     });
 
     const ranked = products
-      .map((p) => ({
-        productId: p.id,
-        name: p.name,
-        sku: p.sku,
-        totalQuantitySold: p.saleItems.reduce(
-          (sum, item) => sum + Number(item.quantity),
-          0,
-        ),
-      }))
-      .sort((a, b) => b.totalQuantitySold - a.totalQuantitySold)
+      .map((p) => {
+        const units = p.saleItems.reduce((sum, i) => sum.add(D(i.quantity)), D(0));
+        const revenue = p.saleItems.reduce((sum, i) => sum.add(D(i.lineTotal)), D(0));
+        const cogs = p.saleItems.reduce(
+          (sum, i) => i.allocations.reduce((s2, a) => s2.add(D(a.cogsEgp)), sum),
+          D(0),
+        );
+        const profit = revenue.sub(cogs);
+
+        return {
+          productId: p.id,
+          name: p.name,
+          sku: p.sku,
+          totalQuantitySold: Number(units.toDecimalPlaces(3)),
+          revenueEgp: money(revenue),
+          cogsEgp: money(cogs),
+          profitEgp: money(profit),
+          // Margin is meaningless without revenue to divide by.
+          marginPct: revenue.gt(0)
+            ? Number(profit.div(revenue).mul(100).toDecimalPlaces(1))
+            : null,
+        };
+      })
+      .sort((a, b) => b.revenueEgp - a.revenueEgp)
       .slice(0, limit);
 
     return { data: ranked };
   }
 
+  /**
+   * Per-cycle economics, for comparing cycles against each other (BRD 11).
+   *
+   * Revenue and cost are attributed through batch allocations, not through the
+   * cycle's own financial transactions: a sale draws stock by FIFO and can span
+   * batches from several cycles, so its revenue is deliberately recorded
+   * without a cycleId. Reading INFLOW transactions per cycle therefore reported
+   * zero revenue for every cycle, including closed ones.
+   *
+   * Every cycle that has bought something is included. Restricting this to
+   * CLOSED cycles made the comparison permanently empty, which defeats the
+   * purpose of comparing cycles while they are still running.
+   */
   async getCycleProfitability() {
+    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+
     const cycles = await this.prisma.importCycle.findMany({
-      where: { status: 'CLOSED' },
       select: {
+        id: true,
         code: true,
+        status: true,
+        originType: true,
         financialTransactions: {
           select: { amount: true, direction: true, category: true },
         },
-        settlements: {
-          select: { lines: { select: { amount: true, feeAmount: true } } },
+        inventoryBatches: {
+          select: {
+            receivedQty: true,
+            remainingQty: true,
+            landedUnitCostEgp: true,
+            saleItemAllocations: {
+              where: {
+                saleItem: {
+                  saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } },
+                },
+              },
+              select: {
+                qty: true,
+                cogsEgp: true,
+                saleItem: { select: { quantity: true, lineTotal: true } },
+              },
+            },
+          },
         },
       },
+      orderBy: { code: 'asc' },
     });
 
-    const result = cycles.map((cycle) => {
-      // Total cost = sum of OUTFLOW transactions (purchases, shipping, fees)
-      const totalCost = cycle.financialTransactions
-        .filter((t) => t.direction === 'OUTFLOW')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+    const result = cycles
+      .filter((c) => c.inventoryBatches.length > 0)
+      .map((cycle) => {
+        let revenue = D(0);
+        let cogs = D(0);
+        let unitsSold = D(0);
+        let unsoldValue = D(0);
+        let unitsRemaining = D(0);
 
-      // Total revenue = sum of INFLOW transactions
-      const totalRevenue = cycle.financialTransactions
-        .filter((t) => t.direction === 'INFLOW')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+        for (const batch of cycle.inventoryBatches) {
+          unitsRemaining = unitsRemaining.add(D(batch.remainingQty));
+          unsoldValue = unsoldValue.add(
+            D(batch.remainingQty).mul(D(batch.landedUnitCostEgp)),
+          );
 
-      return {
-        cycleCode: cycle.code,
-        totalCost,
-        totalRevenue,
-        profit: totalRevenue - totalCost,
-      };
-    });
+          for (const alloc of batch.saleItemAllocations) {
+            const qty = D(alloc.qty);
+            unitsSold = unitsSold.add(qty);
+            cogs = cogs.add(D(alloc.cogsEgp));
+
+            // Price per unit from the line it was sold on, so a line discount
+            // is reflected and a part-allocated line is only counted pro rata.
+            const lineQty = D(alloc.saleItem.quantity);
+            if (lineQty.gt(0)) {
+              revenue = revenue.add(D(alloc.saleItem.lineTotal).div(lineQty).mul(qty));
+            }
+          }
+        }
+
+        // What the cycle consumed in cash: goods, shipping and any fees.
+        const investment = cycle.financialTransactions
+          .filter((t) => t.direction === 'OUTFLOW')
+          .reduce((sum, t) => sum.add(D(t.amount)), D(0));
+
+        const profit = revenue.sub(cogs);
+
+        return {
+          cycleCode: cycle.code,
+          status: cycle.status,
+          originType: cycle.originType,
+          investment: money(investment),
+          totalCost: money(cogs),
+          totalRevenue: money(revenue),
+          profit: money(profit),
+          // Return on the cost of goods actually sold; meaningless with no sales.
+          roiPct: cogs.gt(0)
+            ? Number(profit.div(cogs).mul(100).toDecimalPlaces(1))
+            : null,
+          unitsSold: Number(unitsSold.toDecimalPlaces(3)),
+          unitsRemaining: Number(unitsRemaining.toDecimalPlaces(3)),
+          unsoldValueEgp: money(unsoldValue),
+        };
+      });
 
     return { data: result };
   }
