@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { ToastProvider, ToastBridge } from '../ui/toast';
+import { NotificationBell } from './notification-bell';
 import {
   LayoutDashboard, Route, ShoppingCart, Truck, Package, Boxes,
   BadgePercent, Users, CreditCard, BookOpen, BarChart3,
@@ -45,6 +46,10 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const displayName = user?.partner?.displayName ?? user?.email ?? '';
+  const roleLabel = user?.role
+    ? user.role.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    : '';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
 
@@ -181,18 +186,18 @@ export function AppShell({
               )}
             </div>
 
-            <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-0.5 -end-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">3</span>
-            </button>
+            <NotificationBell />
 
             <div className="flex items-center gap-2 ps-3 border-s border-gray-200">
-              <div className="h-8 w-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold">
-                A
+              {/* Was a hardcoded "A / Admin / Core Partner", so every partner
+                  saw the same name and could not tell whose session they were
+                  in — on a system where every action is attributed. */}
+              <div className="h-8 w-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold uppercase">
+                {(displayName || user?.email || '?').charAt(0)}
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">Admin</p>
-                <p className="text-xs text-gray-500">Core Partner</p>
+                <p className="text-sm font-medium text-gray-900">{displayName || user?.email}</p>
+                <p className="text-xs text-gray-500">{roleLabel}</p>
               </div>
             </div>
           </div>

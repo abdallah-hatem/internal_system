@@ -397,7 +397,10 @@
     "noNotifications": "No notifications",
     "unreadCount": "{count} unread",
     "event": "Event",
-    "time": "Time"
+    "time": "Time",
+    "unread": "unread",
+    "viewAll": "View all",
+    "noData": "Nothing yet"
   },
   "auditLogs": {
     "title": "Audit Logs",
