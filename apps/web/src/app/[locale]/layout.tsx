@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter, usePathname } from '../../i18n/navigation';
+import { usePathname } from '../../i18n/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { ToastProvider, ToastBridge } from '../../components/ui/toast';
@@ -51,11 +52,14 @@ export default function AppLayout({
 
   useEffect(() => {
     if (!isLoading && !user && !isLoginPage) {
-      // This router is next-intl's, so it adds the locale prefix itself —
-      // passing one in the path yields /en/en/login. It resolves the locale
-      // from the cookie though, which is stale after switching language, so an
-      // Arabic session could land on the English login page. Name it instead.
-      router.push('/login', { locale });
+      // Deliberately the plain Next router with an explicit prefix. The
+      // locale-aware one infers the locale (from a cookie that may be stale or
+      // absent) and sent signed-out Arabic users to the English login page.
+      // Naming the path removes the inference entirely.
+      //
+      // replace, not push: the page they could not see should not sit in
+      // history for the back button to return to.
+      router.replace(`/${locale}/login`);
     }
   }, [user, isLoading, router, isLoginPage, locale]);
 

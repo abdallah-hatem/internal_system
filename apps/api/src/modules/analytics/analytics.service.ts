@@ -41,7 +41,9 @@ export class AnalyticsService {
     const operatingAgg = await this.prisma.financialTransaction.aggregate({
       where: {
         direction: 'OUTFLOW',
-        category: { notIn: ['purchase', 'shipping'] },
+        // Settlement payouts distribute profit already earned; counting them
+        // as expenses would subtract the same money twice.
+        category: { notIn: ['purchase', 'shipping', 'settlement'] },
       },
       _sum: { amount: true },
     });

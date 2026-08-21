@@ -13,10 +13,17 @@ import {
 const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
 
 /**
- * Ledger categories already capitalised into batch landed cost. Counting them
- * as period expenses too would charge the cycle twice.
+ * Ledger categories that are not operating expenses of the cycle.
+ *
+ * `purchase` and `shipping` are already capitalised into batch landed cost, so
+ * counting them again would charge the cycle twice.
+ *
+ * `settlement` is the distribution of profit already earned, plus any reversal
+ * of one. Treating a payout as an expense re-charges the cycle for its own
+ * profit: a settled cycle recalculated afterwards turned an 11,620 profit into
+ * a 100,871 loss, and every later settlement would inherit the error.
  */
-const CAPITALISED_CATEGORIES = ['purchase', 'shipping'];
+const CAPITALISED_CATEGORIES = ['purchase', 'shipping', 'settlement'];
 
 const SETTLEMENT_INCLUDE = {
   cycle: { select: { id: true, code: true, status: true } },
@@ -369,63 +376,228 @@ export class SettlementsService {
     };
   }
 
-  async approve(id: string) {
+  /**
+   * Approve the figures. The cycle moves to SETTLEMENT so it is visibly no
+   * longer trading while the payout is arranged.
+   */
+  async approve(id: string, actorId?: string) {
     const settlement = await this.prisma.settlement.findUnique({ where: { id } });
     if (!settlement) throw new NotFoundException('Settlement not found');
     if (settlement.status !== 'DRAFT') {
       throw new BadRequestException('Only DRAFT settlements can be approved');
     }
 
-    const updated = await this.prisma.settlement.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        approvedAt: new Date(),
-      },
-      include: {
-        cycle: { select: { id: true, code: true, status: true } },
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Update the cycle first: the settlement is read back with its cycle
+      // included, so doing it the other way round returns a stale status.
+      await tx.importCycle.update({
+        where: { id: settlement.cycleId },
+        data: { status: 'SETTLEMENT' },
+      });
+
+      return tx.settlement.update({
+        where: { id },
+        data: { status: 'APPROVED', approvedAt: new Date() },
+        include: SETTLEMENT_INCLUDE,
+      });
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'APPROVE',
+      entityType: 'Settlement',
+      entityId: id,
+      beforeJson: { status: 'DRAFT' },
+      afterJson: { status: 'APPROVED' },
     });
 
     return { data: updated };
   }
 
-  async markPaid(id: string) {
-    const settlement = await this.prisma.settlement.findUnique({ where: { id } });
+  /**
+   * Record that the participants have been paid, and close the cycle.
+   *
+   * Marking a settlement paid used to flip a status and nothing else, so the
+   * money left the business without ever appearing in the ledger. Each
+   * participant's capital return and profit share are written as outflows, in
+   * the same transaction as the status change, so the two can never disagree.
+   *
+   * The cycle closes here. Unsold stock keeps its cost with the cycle, so
+   * closing while stock remains understates what the cycle really cost;
+   * `acceptRemainingStock` makes that an explicit decision rather than an
+   * accident (BRD 19 leaves the policy open).
+   */
+  async markPaid(
+    id: string,
+    actorId?: string,
+    opts: { acceptRemainingStock?: boolean } = {},
+  ) {
+    const settlement = await this.prisma.settlement.findUnique({
+      where: { id },
+      include: {
+        lines: { include: { participant: true } },
+        cycle: { select: { id: true, code: true, currency: true } },
+      },
+    });
     if (!settlement) throw new NotFoundException('Settlement not found');
     if (settlement.status !== 'APPROVED') {
       throw new BadRequestException('Only APPROVED settlements can be marked as paid');
     }
 
-    const updated = await this.prisma.settlement.update({
-      where: { id },
-      data: {
+    const unitsRemaining = new Prisma.Decimal(settlement.unitsRemaining ?? 0);
+    if (unitsRemaining.gt(0) && !opts.acceptRemainingStock) {
+      throw new BadRequestException(
+        `Cycle ${settlement.cycle.code} still holds ${unitsRemaining.toFixed(3)} units ` +
+          `worth ${new Prisma.Decimal(settlement.unsoldValueEgp ?? 0).toFixed(2)} EGP at landed cost. ` +
+          'Closing now writes that cost off against this cycle. ' +
+          'Sell the remaining stock first, or confirm explicitly to accept it.',
+      );
+    }
+
+    // What each participant actually receives: capital back, their profit share
+    // (already net of any fee charged to them), and any fee they receive.
+    //
+    // The INVESTOR_FEE line is a memo of what was deducted — the deduction is
+    // already inside that participant's PROFIT_SHARE. Counting it again here
+    // makes the payouts disagree with both the settlement screen and
+    // settlement-math, and the total stops reconciling to capital plus profit.
+    const PAYABLE_COMPONENTS = ['CAPITAL_RETURN', 'PROFIT_SHARE', 'INVESTOR_FEE_RECEIVED'];
+
+    const payouts = new Map<string, Prisma.Decimal>();
+    for (const line of settlement.lines) {
+      if (!PAYABLE_COMPONENTS.includes(line.component)) continue;
+      const key = line.participantId;
+      payouts.set(
+        key,
+        (payouts.get(key) ?? new Prisma.Decimal(0)).add(new Prisma.Decimal(line.amount)),
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      for (const [participantId, amount] of payouts) {
+        if (amount.isZero()) continue;
+        const participant = settlement.lines.find(
+          (l) => l.participantId === participantId,
+        )?.participant;
+
+        await tx.financialTransaction.create({
+          data: {
+            type: 'SETTLEMENT_PAYOUT',
+            category: 'settlement',
+            // A negative net would be the participant owing the business.
+            direction: amount.gt(0) ? 'OUTFLOW' : 'INFLOW',
+            amount: amount.abs().toDecimalPlaces(2),
+            currency: 'EGP',
+            cycleId: settlement.cycleId,
+            relatedType: 'SETTLEMENT',
+            relatedId: settlement.id,
+            reason:
+              `Settlement of ${settlement.cycle.code}: capital and profit paid to ` +
+              `${participant?.participantType === 'TEMP_INVESTOR' ? 'investor' : 'partner'}`,
+            createdBy: actorId,
+          },
+        });
+      }
+
+      await tx.importCycle.update({
+        where: { id: settlement.cycleId },
+        data: { status: 'CLOSED', closedOn: new Date() },
+      });
+
+      return tx.settlement.update({
+        where: { id },
+        data: { status: 'PAID', paidAt: new Date() },
+        include: SETTLEMENT_INCLUDE,
+      });
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'PAY',
+      entityType: 'Settlement',
+      entityId: id,
+      beforeJson: { status: 'APPROVED' },
+      afterJson: {
         status: 'PAID',
-        paidAt: new Date(),
-      },
-      include: {
-        cycle: { select: { id: true, code: true, status: true } },
+        cycleClosed: true,
+        payouts: [...payouts.entries()].map(([participantId, amount]) => ({
+          participantId,
+          amount: amount.toFixed(2),
+        })),
+        acceptedRemainingStock: opts.acceptRemainingStock ?? false,
       },
     });
 
     return { data: updated };
   }
 
-  async reverse(id: string, reason: string) {
-    const settlement = await this.prisma.settlement.findUnique({ where: { id } });
+  /**
+   * Undo a settlement.
+   *
+   * Financial history is never rewritten (BRD 10), so this writes reversing
+   * entries against whatever was paid rather than deleting or editing the
+   * originals, and reopens the cycle for selling.
+   */
+  async reverse(id: string, reason: string, actorId?: string) {
+    const settlement = await this.prisma.settlement.findUnique({
+      where: { id },
+      include: { cycle: { select: { id: true, code: true } } },
+    });
     if (!settlement) throw new NotFoundException('Settlement not found');
     if (settlement.status === 'REVERSED') {
       throw new BadRequestException('Settlement is already reversed');
     }
+    if (!reason?.trim()) {
+      throw new BadRequestException('A reason is required to reverse a settlement');
+    }
 
-    const updated = await this.prisma.settlement.update({
-      where: { id },
-      data: {
-        status: 'REVERSED',
+    const paid = await this.prisma.financialTransaction.findMany({
+      where: {
+        relatedType: 'SETTLEMENT',
+        relatedId: settlement.id,
+        type: 'SETTLEMENT_PAYOUT',
       },
-      include: {
-        cycle: { select: { id: true, code: true, status: true } },
-      },
+    });
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      for (const original of paid) {
+        await tx.financialTransaction.create({
+          data: {
+            type: 'SETTLEMENT_REVERSAL',
+            category: 'settlement',
+            // Mirror the original so the pair nets to zero.
+            direction: original.direction === 'OUTFLOW' ? 'INFLOW' : 'OUTFLOW',
+            amount: original.amount,
+            currency: original.currency,
+            cycleId: original.cycleId,
+            relatedType: 'SETTLEMENT',
+            relatedId: settlement.id,
+            reason: `Reversal of ${settlement.cycle.code} settlement: ${reason}`,
+            createdBy: actorId,
+          },
+        });
+      }
+
+      // A reversed settlement means the cycle is trading again.
+      await tx.importCycle.update({
+        where: { id: settlement.cycleId },
+        data: { status: 'SELLING', closedOn: null },
+      });
+
+      return tx.settlement.update({
+        where: { id },
+        data: { status: 'REVERSED' },
+        include: SETTLEMENT_INCLUDE,
+      });
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'REVERSE',
+      entityType: 'Settlement',
+      entityId: id,
+      beforeJson: { status: settlement.status },
+      afterJson: { status: 'REVERSED', reason, entriesReversed: paid.length },
     });
 
     return { data: updated };

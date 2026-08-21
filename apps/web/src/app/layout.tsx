@@ -54,7 +54,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${sans.variable} ${arabic.variable} ${mono.variable}`}
     >
       <body className="min-h-screen bg-gray-50 font-sans antialiased">
-        <NextIntlClientProvider messages={messages}>
+        {/* The locale must be passed explicitly. Without it the client falls
+            back to the default, so useLocale() returned "en" on an /ar/ route
+            and every locale-aware redirect sent Arabic users to English. */}
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
             <AuthProvider>
               {children}

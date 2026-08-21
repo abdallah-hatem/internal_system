@@ -10,6 +10,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SettlementsService } from './settlements.service';
+import { MarkSettlementPaidDto, ReverseSettlementDto } from './dto/settlement.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
@@ -45,23 +46,34 @@ export class SettlementsController {
   }
 
   @Post(':id/approve')
-  @ApiOperation({ summary: 'Approve a settlement' })
-  approve(@Param('id') id: string) {
-    return this.settlementsService.approve(id);
+  @ApiOperation({ summary: 'Approve a settlement and move the cycle to SETTLEMENT' })
+  approve(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.settlementsService.approve(id, user?.id);
   }
 
   @Post(':id/pay')
-  @ApiOperation({ summary: 'Mark a settlement as paid' })
-  markPaid(@Param('id') id: string) {
-    return this.settlementsService.markPaid(id);
+  @ApiOperation({
+    summary:
+      'Record the payout, write it to the ledger, and close the cycle. ' +
+      'Pass acceptRemainingStock to close while stock is still on the shelf.',
+  })
+  markPaid(
+    @Param('id') id: string,
+    @Body() body: MarkSettlementPaidDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.settlementsService.markPaid(id, user?.id, {
+      acceptRemainingStock: body?.acceptRemainingStock,
+    });
   }
 
   @Post(':id/reverse')
-  @ApiOperation({ summary: 'Reverse a settlement' })
+  @ApiOperation({ summary: 'Reverse a settlement with balancing ledger entries' })
   reverse(
     @Param('id') id: string,
-    @Body() body: { reason: string },
+    @Body() body: ReverseSettlementDto,
+    @CurrentUser() user: any,
   ) {
-    return this.settlementsService.reverse(id, body.reason);
+    return this.settlementsService.reverse(id, body.reason, user?.id);
   }
 }
