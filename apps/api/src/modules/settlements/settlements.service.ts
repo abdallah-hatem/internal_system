@@ -225,7 +225,13 @@ export class SettlementsService {
     // stock never went back on the shelf: cogsReversedEgp is zero for those,
     // and the cost stays spent as a write-off.
     const returnItems = await this.prisma.saleReturnItem.findMany({
-      where: { inventoryBatch: { cycleId } },
+      where: {
+        inventoryBatch: { cycleId },
+        // Must match the allocation filter above: a fully returned order is no
+        // longer realised, so its revenue is already excluded and netting its
+        // return too would subtract the same money twice.
+        saleItem: { saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } } },
+      },
       select: { qty: true, unitPrice: true, cogsReversedEgp: true },
     });
 

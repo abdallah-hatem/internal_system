@@ -310,7 +310,17 @@ export class AnalyticsService {
               },
             },
             // Goods returned out of this batch, netted off below.
+            //
+            // Same status filter as the allocations above. A fully returned
+            // order leaves the realised set, so its revenue is already absent
+            // — netting its return as well subtracted the same money twice and
+            // put cycle revenue 3,000 below the dashboard.
             returnItems: {
+              where: {
+                saleItem: {
+                  saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } },
+                },
+              },
               select: { qty: true, unitPrice: true, cogsReversedEgp: true },
             },
           },

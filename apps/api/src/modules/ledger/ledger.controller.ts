@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LedgerService } from './ledger.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ReverseTransactionDto } from './dto/ledger.dto';
 
 @ApiTags('Ledger')
 @ApiBearerAuth()
@@ -53,7 +54,7 @@ export class LedgerController {
   @ApiOperation({ summary: 'Reverse a financial transaction' })
   reverse(
     @Param('id') id: string,
-    @Body() body: { reason: string },
+    @Body() body: ReverseTransactionDto,
     @CurrentUser() user: any,
   ) {
     return this.ledgerService.reverse(id, body.reason, user.id);

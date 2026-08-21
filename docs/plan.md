@@ -69,17 +69,30 @@ revenue by month (in the month they came back, so a reported month does not
 move) and top products. Missing any one of those made two pages disagree about
 the same sales, which is how the reconciliation tests earn their keep.
 
-### 2b. Supplier refunds  ← still open
+### 2b. Supplier refunds  ← DONE 2026-08-21
 
-The `SupplierRefund` table exists and is unused. A refund reduces the cycle's
-landed cost, so batches already costed need an adjustment entry rather than a
-silent re-price. Not started.
+The endpoint and UI already existed but the refund was inert — a row and an
+audit entry, nothing more. It now reaches the ledger as an inflow on the cycle
+and nets off cycle investment and settlement expenses.
 
-### 3. Ledger reversals
+It deliberately does not re-price batches: units already sold keep the cost they
+were sold at, and a settlement may already be agreed on it. Refunding more than
+the order was worth is refused.
 
-The BRD forbids hard deletion of financial records and asks for
-reversal/cancellation. The ledger can create entries but not reverse them, so
-the only way to fix a mistake today is to edit history.
+### 3. Ledger reversals  ← DONE 2026-08-21
+
+My earlier note here was wrong: the reversal endpoint already existed and
+already wrote a balancing entry. What was missing were the guards, and without
+them the feature was a way to corrupt the ledger rather than correct it.
+
+- Reversing twice is refused; two balancing entries against one original
+  double-count the correction.
+- A reversal cannot itself be reversed — that chain nets to nothing while
+  obscuring what happened.
+- An entry raised by a flow (a settlement payout, a sale's revenue, a payment)
+  cannot be reversed on its own: the ledger and the record it describes would
+  stop agreeing. Those have their own reversal paths, and the error says so.
+- A reason is required, and the reversal is audited.
 
 ### 4. Stock reservation
 
