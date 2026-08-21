@@ -53,16 +53,27 @@ the default on an `/ar/` route and every locale-aware redirect sends a
 signed-out Arabic user to the English login page. Covered by TC-AUTH-08, marked
 fixme rather than deleted.
 
-### 2. Returns, refunds and adjustments
+### 2. Customer returns  ← DONE 2026-08-21
 
-BRD 9 requires them and requires history to survive. There is no path at all
-today. For a parts business this is a weekly event, not an edge case.
+Goods go back to the batch they were sold from, at the cost they left at,
+because the same product sits in several batches at different landed costs and
+restocking "the product" would quietly re-price inventory.
 
-- Customer return: reverse the sale line, decide restock per policy, write a
-  reversing COGS entry so cycle profit corrects itself.
-- Supplier refund against a purchase: the `SupplierRefund` table exists and is
-  unused. A refund reduces the cycle's landed cost, so batches already costed
-  need an adjustment entry rather than a silent re-price.
+The original sale is never edited: a return is its own record, and what changes
+is derived — the customer owes less, the stock is back, the COGS is reversed.
+Damaged goods are refunded but written off rather than restocked. Credit note
+by default, cash refund on request.
+
+Returns net off every profit figure: cycle profitability, the dashboard,
+revenue by month (in the month they came back, so a reported month does not
+move) and top products. Missing any one of those made two pages disagree about
+the same sales, which is how the reconciliation tests earn their keep.
+
+### 2b. Supplier refunds  ← still open
+
+The `SupplierRefund` table exists and is unused. A refund reduces the cycle's
+landed cost, so batches already costed need an adjustment entry rather than a
+silent re-price. Not started.
 
 ### 3. Ledger reversals
 

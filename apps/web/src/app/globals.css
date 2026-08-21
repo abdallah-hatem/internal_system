@@ -166,6 +166,14 @@ a:focus-visible,
   outline-offset: 1px;
 }
 
+/* The search box inside a dropdown is the only focusable thing in an already
+   highlighted popover, so a ring around it just boxes in the panel. */
+[cmdk-input]:focus,
+[cmdk-input]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* RTL support */
 [dir="rtl"] {
   text-align: right;

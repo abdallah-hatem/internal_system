@@ -44,6 +44,8 @@ model User {
   financialTransactions          FinancialTransaction[]
   inventoryMovements             InventoryMovement[]
 
+  createdSaleReturns SaleReturn[] @relation("CreatedSaleReturnUser")
+
   @@map("users")
 }
 
@@ -331,6 +333,57 @@ model SupplierRefund {
   @@map("supplier_refunds")
 }
 
+enum RefundMethod {
+  /** Reduces what the customer owes. The default: most returns are from shops
+      with a running balance, and no cash needs to move. */
+  CREDIT_NOTE
+  /** Money actually leaves, so it reaches the ledger as an outflow. */
+  CASH
+}
+
+model SaleReturn {
+  id           String       @id @default(uuid()) @db.Uuid
+  saleOrderId  String       @map("sale_order_id") @db.Uuid
+  reference    String       @unique
+  returnedOn   DateTime     @map("returned_on") @db.Date
+  reason       String
+  refundMethod RefundMethod @default(CREDIT_NOTE) @map("refund_method")
+  /** Sum of the refunded line amounts. */
+  refundEgp    Decimal      @map("refund_egp") @db.Decimal(18, 2)
+  /** COGS put back, so cycle profit corrects itself. */
+  cogsReversedEgp Decimal   @map("cogs_reversed_egp") @db.Decimal(18, 2)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy    String?      @map("created_by") @db.Uuid
+
+  saleOrder SaleOrder        @relation(fields: [saleOrderId], references: [id])
+  creator   User?            @relation("CreatedSaleReturnUser", fields: [createdBy], references: [id])
+  items     SaleReturnItem[]
+
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  saleReturnId   String  @map("sale_return_id") @db.Uuid
+  saleItemId     String  @map("sale_item_id") @db.Uuid
+  /** The batch the units came from, so they go back at the cost they left at
+      rather than at today's price. */
+  inventoryBatchId String @map("inventory_batch_id") @db.Uuid
+  qty            Decimal @db.Decimal(18, 3)
+  unitPrice      Decimal @map("unit_price") @db.Decimal(18, 2)
+  refundEgp      Decimal @map("refund_egp") @db.Decimal(18, 2)
+  unitCostEgp    Decimal @map("unit_cost_egp") @db.Decimal(18, 4)
+  cogsReversedEgp Decimal @map("cogs_reversed_egp") @db.Decimal(18, 2)
+  /** False when goods come back damaged and are written off instead. */
+  restocked      Boolean @default(true)
+
+  saleReturn     SaleReturn     @relation(fields: [saleReturnId], references: [id])
+  saleItem       SaleItem       @relation(fields: [saleItemId], references: [id])
+  inventoryBatch InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
+
+  @@map("sale_return_items")
+}
+
 model Provider {
   id            String    @id @default(uuid()) @db.Uuid
   name          String
@@ -417,6 +470,7 @@ model InventoryBatch {
   movements          InventoryMovement[]
   reservations       InventoryReservation[]
   saleItemAllocations SaleItemAllocation[]
+  returnItems        SaleReturnItem[]
 
   @@map("inventory_batches")
 }
@@ -511,6 +565,8 @@ model SaleOrder {
   reservations       InventoryReservation[]
   paymentAllocations PaymentAllocation[]
 
+  returns         SaleReturn[]
+
   @@map("sale_orders")
 }
 
@@ -527,6 +583,7 @@ model SaleItem {
   saleOrder   SaleOrder          @relation(fields: [saleOrderId], references: [id])
   product     Product            @relation(fields: [productId], references: [id])
   allocations SaleItemAllocation[]
+  returnItems SaleReturnItem[]
 
   @@map("sale_items")
 }

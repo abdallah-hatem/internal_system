@@ -210,6 +210,26 @@ export class SettlementsService {
       return { qty, unitPrice, cogs: new Prisma.Decimal(a.cogsEgp) };
     });
 
+    // Goods that came back. Netted as negative allocations rather than by
+    // editing the sale, so history survives (BRD 9) and the arithmetic stays
+    // in one place.
+    //
+    // A damaged return reverses the revenue but reverses no cost, because the
+    // stock never went back on the shelf: cogsReversedEgp is zero for those,
+    // and the cost stays spent as a write-off.
+    const returnItems = await this.prisma.saleReturnItem.findMany({
+      where: { inventoryBatch: { cycleId } },
+      select: { qty: true, unitPrice: true, cogsReversedEgp: true },
+    });
+
+    for (const r of returnItems) {
+      allocationInputs.push({
+        qty: new Prisma.Decimal(r.qty).neg(),
+        unitPrice: new Prisma.Decimal(r.unitPrice),
+        cogs: new Prisma.Decimal(r.cogsReversedEgp).neg(),
+      });
+    }
+
     // --- Stock still on the shelf -----------------------------------------
     const batches = await this.prisma.inventoryBatch.findMany({
       where: { cycleId },

@@ -237,7 +237,17 @@
     "batch": "Batch",
     "perUnitCost": "/unit",
     "cogs": "COGS",
-    "currency": "Currency"
+    "currency": "Currency",
+    "recordReturn": "Record return",
+    "returnRecorded": "Return recorded",
+    "returnHelp": "Enter how many of each line came back. Stock returns to the batch it was sold from, at the cost it left at.",
+    "returnNeedsQuantity": "Enter a quantity for at least one line",
+    "putBackInStock": "Put back in stock (uncheck if damaged)",
+    "refundMethod": "Refund",
+    "creditNote": "Credit against balance",
+    "cashRefund": "Cash refund",
+    "reasonPlaceholder": "Why did the goods come back?",
+    "reason": "Reason"
   },
   "customers": {
     "title": "Customers",
@@ -274,7 +284,8 @@
     "bankTransfer": "Bank Transfer",
     "mobileWallet": "Mobile Wallet",
     "search": "Search payments...",
-    "outstanding": "Outstanding"
+    "outstanding": "Outstanding",
+    "saleOrder": "Sale order"
   },
   "ledger": {
     "title": "Financial Ledger",

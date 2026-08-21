@@ -29,19 +29,30 @@ test.describe('FIFO allocation', () => {
 
     const batchRes = await request.get(`${API}/inventory?limit=100`, { headers: h });
     const inventory = (await batchRes.json()).data ?? [];
-    const pad = inventory.find((p: any) => p.productId === BRAKE_PAD || p.product?.id === BRAKE_PAD);
-    test.skip(!pad, 'brake pad stock not present in this database');
 
-    // Sell more than the oldest batch holds so the allocation must span batches.
-    const available = Number(pad.availableQty ?? pad.totalStock ?? 0);
-    test.skip(available < 2, 'not enough stock to span batches');
+    // Prefer a product held in more than one batch — spanning batches is the
+    // whole point — and fall back to any product with saleable stock.
+    const verified = (p: any) =>
+      (p.batches ?? []).filter((b: any) => b.verificationStatus === 'VERIFIED' && Number(b.saleableQty) > 0);
+    const multi = inventory.filter((p: any) => verified(p).length > 1);
+    const target = multi[0] ?? inventory.find((p: any) => verified(p).length > 0);
+    test.skip(!target, 'no product with saleable verified stock');
 
-    const qty = Math.min(available, 41);
+    // availableStock is what FIFO can actually take: totalStock includes units
+    // already reserved against other orders, and confirming against it fails.
+    const available = Number(target.availableStock ?? 0);
+    test.skip(available < 2, 'not enough saleable stock to allocate');
+
+    const productId = target.productId;
+    // Enough to cross a batch boundary when there is one.
+    const firstBatchQty = Number(verified(target)[0]?.saleableQty ?? 0);
+    const qty = Math.min(available, Math.max(2, firstBatchQty + 1));
+
     const create = await request.post(`${API}/sales/orders`, {
       headers: h,
       data: {
         customerId: CUSTOMER, channel: 'B2B', currency: 'EGP',
-        items: [{ productId: BRAKE_PAD, quantity: qty, unitPrice: 200 }],
+        items: [{ productId, quantity: qty, unitPrice: 200 }],
       },
     });
     const order = (await create.json()).data;

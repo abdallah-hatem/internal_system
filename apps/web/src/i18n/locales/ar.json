@@ -237,7 +237,17 @@
     "batch": "دفعة",
     "perUnitCost": "/وحدة",
     "cogs": "تكلفة البضاعة",
-    "currency": "العملة"
+    "currency": "العملة",
+    "recordReturn": "تسجيل مرتجع",
+    "returnRecorded": "تم تسجيل المرتجع",
+    "returnHelp": "أدخل الكمية المرتجعة لكل بند. يعود المخزون إلى نفس الدفعة التي بيع منها وبنفس التكلفة.",
+    "returnNeedsQuantity": "أدخل كمية لبند واحد على الأقل",
+    "putBackInStock": "إعادة إلى المخزون (ألغِ التحديد إذا كان تالفًا)",
+    "refundMethod": "طريقة الاسترداد",
+    "creditNote": "خصم من الرصيد",
+    "cashRefund": "استرداد نقدي",
+    "reasonPlaceholder": "ما سبب إرجاع البضاعة؟",
+    "reason": "السبب"
   },
   "customers": {
     "title": "العملاء",
@@ -274,7 +284,8 @@
     "bankTransfer": "تحويل بنكي",
     "mobileWallet": "محفظة إلكترونية",
     "search": "بحث في المدفوعات...",
-    "outstanding": "المستحق"
+    "outstanding": "المستحق",
+    "saleOrder": "أمر بيع"
   },
   "ledger": {
     "title": "دفتر الأستاذ المالي",

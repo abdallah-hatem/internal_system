@@ -20,6 +20,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FilesModule } from './modules/files/files.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { CostingModule } from './modules/costing/costing.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CostingModule } from './modules/costing/costing.module';
     FilesModule,
     ProvidersModule,
     CostingModule,
+    ReturnsModule,
   ],
 })
 export class AppModule {}

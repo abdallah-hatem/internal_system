@@ -25,7 +25,16 @@ export class AnalyticsService {
       where: { status: { in: [...REALISED] } },
       _sum: { total: true },
     });
-    const revenue = D(revenueAgg._sum.total);
+
+    // Less what came back. Netting returns off cycle profitability but not
+    // here left the dashboard and the cycle comparison disagreeing about the
+    // same sales.
+    const returnsAgg = await this.prisma.saleReturn.aggregate({
+      where: { saleOrder: { status: { in: [...REALISED] } } },
+      _sum: { refundEgp: true, cogsReversedEgp: true },
+    });
+
+    const revenue = D(revenueAgg._sum.total).sub(D(returnsAgg._sum.refundEgp));
 
     // Cost of the units actually sold, taken from the batch allocation made at
     // the time of sale, so historical costs are never re-priced.
@@ -33,7 +42,9 @@ export class AnalyticsService {
       where: { saleItem: { saleOrder: { status: { in: [...REALISED] } } } },
       _sum: { cogsEgp: true },
     });
-    const cogs = D(cogsAgg._sum.cogsEgp);
+    // Damaged goods reverse no cost, so cogsReversedEgp is zero for those and
+    // their cost correctly stays spent.
+    const cogs = D(cogsAgg._sum.cogsEgp).sub(D(returnsAgg._sum.cogsReversedEgp));
 
     // Buying stock is not an expense -- it converts cash into inventory, and
     // becomes a cost only when the goods sell. Goods and shipping are already
@@ -157,6 +168,21 @@ export class AnalyticsService {
       revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) + Number(order.total);
     }
 
+    // Returns reduce the month they came back in, not the month of the sale:
+    // a past month that has already been reported should not change.
+    const returns = await this.prisma.saleReturn.findMany({
+      where: {
+        returnedOn: { gte: since },
+        saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } },
+      },
+      select: { returnedOn: true, refundEgp: true },
+    });
+
+    for (const ret of returns) {
+      const monthKey = ret.returnedOn.toISOString().slice(0, 7);
+      revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) - Number(ret.refundEgp);
+    }
+
     // Fill in missing months with 0
     const result: { month: string; revenue: number }[] = [];
     const cursor = new Date(since);
@@ -187,6 +213,7 @@ export class AnalyticsService {
             quantity: true,
             lineTotal: true,
             allocations: { select: { cogsEgp: true } },
+            returnItems: { select: { qty: true, unitPrice: true, cogsReversedEgp: true } },
           },
         },
       },
@@ -194,10 +221,27 @@ export class AnalyticsService {
 
     const ranked = products
       .map((p) => {
-        const units = p.saleItems.reduce((sum, i) => sum.add(D(i.quantity)), D(0));
-        const revenue = p.saleItems.reduce((sum, i) => sum.add(D(i.lineTotal)), D(0));
+        // Sales less what came back: a product with heavy returns is not a
+        // top seller, and counting the gross figure would say it was.
+        const units = p.saleItems.reduce(
+          (sum, i) =>
+            i.returnItems.reduce((s2, r) => s2.sub(D(r.qty)), sum.add(D(i.quantity))),
+          D(0),
+        );
+        const revenue = p.saleItems.reduce(
+          (sum, i) =>
+            i.returnItems.reduce(
+              (s2, r) => s2.sub(D(r.unitPrice).mul(D(r.qty))),
+              sum.add(D(i.lineTotal)),
+            ),
+          D(0),
+        );
         const cogs = p.saleItems.reduce(
-          (sum, i) => i.allocations.reduce((s2, a) => s2.add(D(a.cogsEgp)), sum),
+          (sum, i) =>
+            i.returnItems.reduce(
+              (s2, r) => s2.sub(D(r.cogsReversedEgp)),
+              i.allocations.reduce((s2, a) => s2.add(D(a.cogsEgp)), sum),
+            ),
           D(0),
         );
         const profit = revenue.sub(cogs);
@@ -265,6 +309,10 @@ export class AnalyticsService {
                 saleItem: { select: { quantity: true, lineTotal: true } },
               },
             },
+            // Goods returned out of this batch, netted off below.
+            returnItems: {
+              select: { qty: true, unitPrice: true, cogsReversedEgp: true },
+            },
           },
         },
       },
@@ -285,6 +333,16 @@ export class AnalyticsService {
           unsoldValue = unsoldValue.add(
             D(batch.remainingQty).mul(D(batch.landedUnitCostEgp)),
           );
+
+          // A return reverses the sale it came from: fewer units sold, less
+          // revenue, and the cost back — except for damaged goods, whose
+          // cogsReversedEgp is zero because they never returned to stock.
+          for (const ret of batch.returnItems) {
+            const qty = D(ret.qty);
+            unitsSold = unitsSold.sub(qty);
+            revenue = revenue.sub(D(ret.unitPrice).mul(qty));
+            cogs = cogs.sub(D(ret.cogsReversedEgp));
+          }
 
           for (const alloc of batch.saleItemAllocations) {
             const qty = D(alloc.qty);

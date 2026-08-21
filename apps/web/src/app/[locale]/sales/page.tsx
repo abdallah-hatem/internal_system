@@ -13,6 +13,7 @@ import { useToast } from '../../../components/ui/toast';
 import {
   BadgePercent, Plus, Search, Eye, X, MinusCircle, Loader2,
   ChevronRight, DollarSign, CheckCircle, Ban, Package,
+  Undo2,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -162,6 +163,33 @@ export default function SalesPage() {
     },
     onError: (error: any) => {
       addToast(error?.response?.data?.message || error?.message || 'Operation failed', 'error');
+    },
+  });
+
+  // Returns are recorded against a confirmed sale, per line.
+  const [returningOrder, setReturningOrder] = useState<any | null>(null);
+  const [returnQty, setReturnQty] = useState<Record<string, string>>({});
+  const [returnRestock, setReturnRestock] = useState<Record<string, boolean>>({});
+
+  const returnMutation = useMutation({
+    mutationFn: (data: any) => api.post('/returns', data),
+    onSuccess: () => {
+      addToast(t('returnRecorded'), 'success');
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['sale'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      setReturningOrder(null);
+      setReturnQty({});
+      setReturnRestock({});
+    },
+    onError: (error: any) => {
+      addToast(
+        error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          'Failed to record the return',
+        'error',
+      );
     },
   });
 
@@ -651,6 +679,15 @@ export default function SalesPage() {
                   </button>
                 </>
               )}
+              {['CONFIRMED', 'PARTIALLY_PAID', 'PAID'].includes(detail.status) && (
+                <button
+                  onClick={() => setReturningOrder(detail)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  <Undo2 className="h-4 w-4" />
+                  {t('recordReturn')}
+                </button>
+              )}
               {detail.status === 'PARTIALLY_PAID' && (
                 <button
                   onClick={() => cancelMutation.mutate(detail.id)}
@@ -663,6 +700,127 @@ export default function SalesPage() {
               )}
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* ─── Return Modal ──────────────────────────────────────────── */}
+      {returningOrder && (
+        <Modal
+          title={`${t('recordReturn')} — ${returningOrder.orderNo}`}
+          onClose={() => setReturningOrder(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const items = (returningOrder.items ?? [])
+                .map((it: any) => ({
+                  saleItemId: it.id,
+                  qty: Number(returnQty[it.id] ?? 0),
+                  restock: returnRestock[it.id] !== false,
+                }))
+                .filter((i: any) => i.qty > 0);
+
+              if (items.length === 0) {
+                addToast(t('returnNeedsQuantity'), 'error');
+                return;
+              }
+
+              returnMutation.mutate({
+                saleOrderId: returningOrder.id,
+                reason: String(fd.get('reason') || ''),
+                refundMethod: String(fd.get('refundMethod') || 'CREDIT_NOTE'),
+                items,
+              });
+            }}
+            className="space-y-4"
+          >
+            <p className="text-sm text-gray-600">{t('returnHelp')}</p>
+
+            <div className="space-y-2">
+              {(returningOrder.items ?? []).map((it: any) => (
+                <div key={it.id} className="rounded-lg border border-gray-200 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{it.product?.name ?? '—'}</p>
+                      <p className="text-xs text-gray-500">
+                        {t('quantity')}: {it.quantity} · <Money value={it.unitPrice} currency={returningOrder.currency} />
+                      </p>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      max={Number(it.quantity)}
+                      step="0.001"
+                      placeholder="0"
+                      value={returnQty[it.id] ?? ''}
+                      onChange={(e) => setReturnQty((q) => ({ ...q, [it.id]: e.target.value }))}
+                      className="w-24 shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-end focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  {Number(returnQty[it.id] ?? 0) > 0 && (
+                    <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={returnRestock[it.id] !== false}
+                        onChange={(e) =>
+                          setReturnRestock((r) => ({ ...r, [it.id]: e.target.checked }))
+                        }
+                      />
+                      {/* Unchecked means damaged: refunded, but written off
+                          rather than put back on the shelf. */}
+                      {t('putBackInStock')}
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('refundMethod')}
+              </label>
+              <select
+                name="refundMethod"
+                defaultValue="CREDIT_NOTE"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="CREDIT_NOTE">{t('creditNote')}</option>
+                <option value="CASH">{t('cashRefund')}</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('reason')}<span className="text-red-500 ms-1">*</span>
+              </label>
+              <input
+                name="reason"
+                required
+                minLength={3}
+                placeholder={t('reasonPlaceholder')}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setReturningOrder(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={returnMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {returnMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('recordReturn')}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>
