@@ -13,6 +13,7 @@ import {
   Bell, ShieldCheck, Settings, Menu, X, ChevronDown,
   Globe, LogOut, Tag,
   Scale,
+  CalendarClock,
 } from 'lucide-react';
 
 const navItems = [
@@ -27,6 +28,7 @@ const navItems = [
   { key: 'sales', icon: BadgePercent, href: '/sales' },
   { key: 'customers', icon: Users, href: '/customers' },
   { key: 'payments', icon: CreditCard, href: '/payments' },
+  { key: 'paymentPlans', icon: CalendarClock, href: '/payment-plans' },
   { key: 'ledger', icon: BookOpen, href: '/ledger' },
   { key: 'partners', icon: Users, href: '/partners' },
   { key: 'settlements', icon: Scale, href: '/settlements' },

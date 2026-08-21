@@ -57,7 +57,8 @@
     "auditLogs": "Audit Logs",
     "settings": "Settings",
     "logout": "Logout",
-    "settlements": "Settlements"
+    "settlements": "Settlements",
+    "paymentPlans": "Payment Plans"
   },
   "auth": {
     "login": "Login",
@@ -522,6 +523,45 @@
     "markPaid": "Mark paid",
     "reverse": "Reverse",
     "unsoldWarning": "Profit covers sold units only — {units} units are still in stock and their cost stays with this cycle.",
-    "footnote": "Capital return and profit are separate. A temporary investor's fee is taken from their profit, never their capital, and is already reflected in the net profit shown."
+    "footnote": "Capital return and profit are separate. A temporary investor's fee is taken from their profit, never their capital, and is already reflected in the net profit shown.",
+    "reverseReason": "Why is this being reversed?",
+    "reverseReasonHint": "e.g. costing correction — a supplier invoice arrived late",
+    "acceptRemainingStockHint": "Closing now writes off the cost of the unsold stock against this cycle. That cannot be undone without reversing the settlement.",
+    "closeAnyway": "Close anyway"
+  },
+  "paymentPlans": {
+    "title": "Payment Plans",
+    "subtitle": "Agreed schedules for clearing shop balances",
+    "create": "New Plan",
+    "created": "Plan agreed",
+    "createFailed": "Could not agree the plan",
+    "cancelled": "Plan cancelled",
+    "cancelFailed": "Could not cancel the plan",
+    "cancelPlan": "Cancel plan",
+    "cancelReason": "Why is this plan being cancelled?",
+    "noData": "No payment plans yet",
+    "overdue": "Overdue",
+    "behind": "behind",
+    "paidSoFar": "paid so far",
+    "overdueBanner": "Behind across all plans:",
+    "nextDue": "Next due",
+    "remaining": "Remaining",
+    "of": "of",
+    "customer": "Customer",
+    "instalments": "Instalments",
+    "addInstalment": "Add instalment",
+    "dueOn": "Due",
+    "amount": "Amount",
+    "paid": "Paid",
+    "planTotal": "Plan total",
+    "agree": "Agree plan",
+    "notePlaceholder": "Note (optional)",
+    "needCustomer": "Choose a customer",
+    "needInstalment": "Add at least one instalment with an amount",
+    "amountsNote": "Amounts are whatever you agreed — they need not be equal. Dates default to the next Sundays.",
+    "cumulativeNote": "Payments clear the earliest instalment first, so paying early covers what comes next.",
+    "paid_": "Paid",
+    "due": "Due",
+    "upcoming": "Upcoming"
   }
 }
