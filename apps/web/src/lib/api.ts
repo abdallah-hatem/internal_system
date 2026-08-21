@@ -25,7 +25,20 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/en/login';
+
+      // Keep the locale the user is actually in. This was hardcoded to
+      // /en/login, and because a signed-out page fires queries that 401, this
+      // hard navigation overrode the route guard's correct destination — an
+      // Arabic session was thrown to the English login page no matter what the
+      // guard did.
+      const [, maybeLocale] = window.location.pathname.split('/');
+      const locale = ['en', 'ar'].includes(maybeLocale) ? maybeLocale : 'en';
+      const target = `/${locale}/login`;
+
+      // Already there: replacing again would loop while the queries settle.
+      if (window.location.pathname !== target) {
+        window.location.replace(target);
+      }
     }
     return Promise.reject(error);
   }

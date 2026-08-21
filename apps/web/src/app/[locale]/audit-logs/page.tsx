@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 import { formatDate } from '../../../lib/dates';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Select } from '../../../components/ui/select';
 import {
   ShieldCheck, Search, Eye, X, Loader2,
   ChevronDown, ChevronRight,
@@ -109,16 +110,14 @@ export default function AuditLogsPage() {
             className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        <select
+        <Select
+          className="w-full sm:w-52"
           value={entityFilter}
-          onChange={(e) => setEntityFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="">{t('filter')}</option>
-          {ENTITY_TYPES.map((type) => (
-            <option key={type} value={type}>{type}</option>
-          ))}
-        </select>
+          onChange={setEntityFilter}
+          clearable
+          placeholder={t('filter')}
+          options={ENTITY_TYPES.map((type) => ({ value: type, label: type }))}
+        />
       </div>
 
       {/* Loading */}

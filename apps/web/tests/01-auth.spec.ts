@@ -108,18 +108,15 @@ test.describe('Authentication', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
-  // KNOWN BUG, not yet fixed: a signed-out Arabic user is sent to the English
-  // login page. useLocale() resolves to the default on an /ar/ route because
-  // <html> and NextIntlClientProvider live in the root layout, which sits
-  // outside the [locale] segment and so never sees the route's locale. The fix
-  // is to move the document shell into app/[locale]/layout.tsx, which is a
-  // structural change rather than a patch. Marked fixme so it stays visible
-  // instead of being quietly deleted.
-  test.fixme('TC-AUTH-08: the guard keeps the chosen locale', async ({ page }) => {
+  test('TC-AUTH-08: the guard keeps the chosen locale', async ({ page }) => {
     await page.goto(`${BASE}/ar/login`);
     await page.evaluate(() => window.localStorage.clear());
 
     await page.goto(`${BASE}/ar/settlements`);
+    // Two things used to break this: the document shell sat outside the
+    // [locale] segment so useLocale() returned the default, and the API
+    // client's 401 handler hard-navigated to a hardcoded /en/login, which
+    // overrode the guard on any signed-out page whose queries 401.
     // Being bounced to the English login would silently switch language.
     // The guard and the locale middleware can each move the URL, so wait for
     // it to settle rather than sampling it mid-flight.

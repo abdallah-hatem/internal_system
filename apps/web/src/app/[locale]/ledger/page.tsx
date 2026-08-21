@@ -1,5 +1,6 @@
 'use client';
 import { Money } from '../../../components/ui/money';
+import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -47,7 +48,22 @@ const TYPE_KEYS: Record<string, string> = {
   ADJUSTMENT: 'adjustment',
   INVESTMENT: 'investment',
   SETTLEMENT: 'settlement',
+  SETTLEMENT_PAYOUT: 'settlementPayout',
+  SETTLEMENT_REVERSAL: 'settlementReversal',
+  SUPPLIER_REFUND: 'supplierRefund',
+  SALE_RETURN: 'saleReturn',
+  REFUND_PAID: 'refundPaid',
+  EXPENSE: 'expense',
 };
+
+/** One option per distinct label — several entry types share a translation. */
+const ENTRY_TYPE_OPTIONS = Object.entries(TYPE_KEYS).reduce<{ key: string; label: string }[]>(
+  (acc, [key, label]) => {
+    if (!acc.some((a) => a.label === label)) acc.push({ key, label });
+    return acc;
+  },
+  [],
+);
 
 const DIRECTION_COLORS: Record<string, string> = {
   INFLOW: 'bg-green-100 text-green-700',
@@ -58,6 +74,10 @@ const DIRECTION_COLORS: Record<string, string> = {
 export default function LedgerPage() {
   const t = useTranslations('ledger');
   const tc = useTranslations('common');
+
+  // `type` is a free-form column: fall back to the raw value rather than
+  // asking next-intl for a message key that does not exist.
+  const typeLabel = (type: string) => (TYPE_KEYS[type] ? t(TYPE_KEYS[type]) : type);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -178,25 +198,29 @@ export default function LedgerPage() {
             className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        <select
+        <Select
+          className="w-full sm:w-44"
           value={directionFilter}
-          onChange={(e) => setDirectionFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="">{t('allDirections')}</option>
-          <option value="INFLOW">{t('inflow')}</option>
-          <option value="OUTFLOW">{t('outflow')}</option>
-        </select>
-        <select
+          onChange={setDirectionFilter}
+          clearable
+          placeholder={t('allDirections')}
+          options={[
+            { value: 'INFLOW', label: t('inflow') },
+            { value: 'OUTFLOW', label: t('outflow') },
+          ]}
+        />
+        <Select
+          className="w-full sm:w-52"
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        >
-          <option value="">{t('allTypes')}</option>
-          {[...new Set(Object.values(TYPE_KEYS))].map((label) => (
-            <option key={label} value={label}>{t(label)}</option>
-          ))}
-        </select>
+          onChange={setTypeFilter}
+          clearable
+          placeholder={t('allTypes')}
+          searchPlaceholder={t('allTypes')}
+          options={[...new Set(Object.values(TYPE_KEYS))].map((label) => ({
+            value: label,
+            label: t(label),
+          }))}
+        />
       </div>
 
       {/* Loading */}
@@ -230,7 +254,7 @@ export default function LedgerPage() {
                   paginated.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(entry.createdAt)}</td>
-                      <td className="px-4 py-3 text-gray-600">{t(TYPE_KEYS[entry.type] ?? entry.type)}</td>
+                      <td className="px-4 py-3 text-gray-600">{typeLabel(entry.type)}</td>
                       <td className="px-4 py-3 text-gray-600">{entry.category ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${DIRECTION_COLORS[entry.direction] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -292,7 +316,7 @@ export default function LedgerPage() {
                   <span className="font-medium text-gray-900"><Money value={entry.amount} currency={entry.currency} /></span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                  <span>{t(TYPE_KEYS[entry.type] ?? entry.type)}</span>
+                  <span>{typeLabel(entry.type)}</span>
                   <span className="text-gray-400">•</span>
                   <span>{entry.category ?? '—'}</span>
                 </div>
@@ -328,14 +352,12 @@ export default function LedgerPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('type')}</label>
-                <select name="type" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  {Object.entries(TYPE_KEYS).reduce<{ key: string; label: string }[]>((acc, [key, label]) => {
-                    if (!acc.some((a) => a.label === label)) acc.push({ key, label });
-                    return acc;
-                  }, []).map(({ key, label }) => (
-                    <option key={key} value={key}>{t(label)}</option>
-                  ))}
-                </select>
+                <Select
+                  name="type"
+                  required
+                  defaultValue={ENTRY_TYPE_OPTIONS[0]?.key}
+                  options={ENTRY_TYPE_OPTIONS.map(({ key, label }) => ({ value: key, label: t(label) }))}
+                />
               </div>
               <InputField label={t('category')} name="category" required />
             </div>
@@ -356,11 +378,11 @@ export default function LedgerPage() {
               <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-                <select name="currency" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="EGP">EGP</option>
-                  <option value="USD">USD</option>
-                  <option value="AED">AED</option>
-                </select>
+                <Select
+                  name="currency"
+                  defaultValue="EGP"
+                  options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
             <InputField label={t('fxRate')} name="fxRateToEgp" type="number" placeholder="0" />
@@ -392,11 +414,11 @@ export default function LedgerPage() {
 
       {/* ─── View Entry Detail ─────────────────────────────────────── */}
       {viewingEntry && detail && (
-        <Modal title={`${t('type')}: ${t(TYPE_KEYS[detail.type] ?? detail.type)}`} onClose={() => setViewingEntry(null)}>
+        <Modal title={`${t('type')}: ${typeLabel(detail.type)}`} onClose={() => setViewingEntry(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('date')} value={formatDate(detail.createdAt)} />
-              <Detail label={t('type')} value={t(TYPE_KEYS[detail.type] ?? detail.type)} />
+              <Detail label={t('type')} value={typeLabel(detail.type)} />
               <Detail label={t('category')} value={detail.category ?? '—'} />
               <Detail
                 label={t('direction')}

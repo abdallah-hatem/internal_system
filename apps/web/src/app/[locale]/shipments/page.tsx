@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { DatePicker } from '../../../components/ui/date-picker';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -364,11 +365,15 @@ export default function ShipmentsPage() {
           >
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('status')}</label>
-              <select name="status" defaultValue={editingShipment.status} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="PENDING">{t('pending')}</option>
-                <option value="IN_TRANSIT">{t('inTransit')}</option>
-                <option value="ARRIVED">{t('arrived')}</option>
-              </select>
+              <Select
+                name="status"
+                defaultValue={editingShipment.status}
+                options={[
+                  { value: 'PENDING', label: t('pending') },
+                  { value: 'IN_TRANSIT', label: t('inTransit') },
+                  { value: 'ARRIVED', label: t('arrived') },
+                ]}
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -481,8 +486,12 @@ function InputField({ label, name, type = 'text', defaultValue, required, placeh
         {label}
         {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
       </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+      {type === 'date' ? (
+        <DatePicker name={name} defaultValue={defaultValue} required={required} placeholder={placeholder} />
+      ) : (
+        <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+      )}
     </div>
   );
 }

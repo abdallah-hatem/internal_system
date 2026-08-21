@@ -45,13 +45,25 @@ later cycle:
   recalculation, turning an 11,620 profit into a 100,871 loss. Paying out
   distributes profit already earned; it is not a cost of earning it.
 
-### 1b. Move the document shell into the locale segment  ← small, known bug
+### 1b. The Arabic login redirect  ← DONE 2026-08-21
 
-`<html>` and `NextIntlClientProvider` live in `app/layout.tsx`, outside the
-`[locale]` segment, so they never see the route's locale: `useLocale()` returns
-the default on an `/ar/` route and every locale-aware redirect sends a
-signed-out Arabic user to the English login page. Covered by TC-AUTH-08, marked
-fixme rather than deleted.
+Two separate causes, and I had only diagnosed one.
+
+The document shell did sit outside the `[locale]` segment, so `useLocale()`
+returned the default and `<html lang>`/`dir` were wrong. Moving it into
+`app/[locale]/layout.tsx` fixed that — and immediately surfaced three whole
+namespaces with no Arabic at all (providers, categories, wizard), which had been
+masked while the locale never really resolved. Those are translated now, and
+the two files are at full parity.
+
+But the redirect itself had a different cause: the API client's 401 handler
+hard-navigated to a hardcoded `/en/login`. A signed-out page fires queries, they
+401, and that navigation overrode whatever the route guard had correctly
+decided. It now keeps the locale from the current path.
+
+Worth remembering: the structural fix alone would not have fixed the reported
+bug, and the one-line fix alone would have left lang, dir and the missing
+translations broken.
 
 ### 2. Customer returns  ← DONE 2026-08-21
 

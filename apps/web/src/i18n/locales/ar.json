@@ -31,7 +31,12 @@
     "reset": "إعادة تعيين",
     "view": "عرض",
     "details": "التفاصيل",
-    "overview": "نظرة عامة"
+    "overview": "نظرة عامة",
+    "pickDate": "اختر تاريخًا",
+    "today": "اليوم",
+    "clear": "مسح",
+    "previousMonth": "الشهر السابق",
+    "nextMonth": "الشهر التالي"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -322,7 +327,13 @@
     "settlement": "تسوية",
     "purchaseCost": "تكلفة الشراء",
     "saleRevenue": "إيرادات المبيعات",
-    "paymentReceived": "دفعة مستلمة"
+    "paymentReceived": "دفعة مستلمة",
+    "settlementPayout": "صرف التسوية",
+    "settlementReversal": "عكس التسوية",
+    "supplierRefund": "استرداد من المورد",
+    "saleReturn": "مرتجع مبيعات",
+    "refundPaid": "استرداد مدفوع",
+    "expense": "مصروف"
   },
   "settlements": {
     "title": "التسويات",

@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { DatePicker } from '../../../components/ui/date-picker';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -369,21 +370,26 @@ export default function PaymentsPage() {
               <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-                <select name="currency" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="EGP">EGP</option>
-                  <option value="USD">USD</option>
-                  <option value="AED">AED</option>
-                </select>
+                <Select
+                  name="currency"
+                  defaultValue="EGP"
+                  options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('method')}</label>
-                <select name="method" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="CASH">{t('cash')}</option>
-                  <option value="BANK_TRANSFER">{t('bankTransfer')}</option>
-                  <option value="MOBILE_WALLET">{t('mobileWallet')}</option>
-                </select>
+                <Select
+                  name="method"
+                  required
+                  defaultValue="CASH"
+                  options={[
+                    { value: 'CASH', label: t('cash') },
+                    { value: 'BANK_TRANSFER', label: t('bankTransfer') },
+                    { value: 'MOBILE_WALLET', label: t('mobileWallet') },
+                  ]}
+                />
               </div>
               <InputField label={t('receivedOn')} name="receivedOn" type="date" required />
             </div>
@@ -502,8 +508,12 @@ function InputField({ label, name, type = 'text', defaultValue, required, placeh
         {label}
         {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
       </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+      {type === 'date' ? (
+        <DatePicker name={name} defaultValue={defaultValue} required={required} placeholder={placeholder} />
+      ) : (
+        <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+      )}
     </div>
   );
 }

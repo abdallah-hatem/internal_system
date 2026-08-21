@@ -31,7 +31,12 @@
     "reset": "Reset",
     "view": "View",
     "details": "Details",
-    "overview": "Overview"
+    "overview": "Overview",
+    "pickDate": "Pick a date",
+    "today": "Today",
+    "clear": "Clear",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -322,7 +327,13 @@
     "settlement": "Settlement",
     "purchaseCost": "Purchase Cost",
     "saleRevenue": "Sale Revenue",
-    "paymentReceived": "Payment Received"
+    "paymentReceived": "Payment Received",
+    "settlementPayout": "Settlement Payout",
+    "settlementReversal": "Settlement Reversal",
+    "supplierRefund": "Supplier Refund",
+    "saleReturn": "Sale Return",
+    "refundPaid": "Refund Paid",
+    "expense": "Expense"
   },
   "settlements": {
     "title": "Settlements",

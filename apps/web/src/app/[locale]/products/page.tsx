@@ -11,7 +11,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
   Plus, Search, Edit, Eye, Tag,
-  X, Filter, ChevronDown, Loader2,
+  X, Loader2,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -202,20 +202,15 @@ export default function ProductsPage() {
               className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-          <div className="relative">
-            <Filter className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="ps-10 pe-8 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none"
-            >
-              <option value="">{t('category')} ({tc('filter')})</option>
-              {categoryList.map((cat) => (
-                <option key={cat.id} value={cat.name}>{cat.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          </div>
+          <Select
+            className="w-full sm:w-56"
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            clearable
+            placeholder={`${t('category')} (${tc('filter')})`}
+            searchPlaceholder={t('category')}
+            options={categoryList.map((cat) => ({ value: cat.name, label: cat.name }))}
+          />
         </div>
       </div>
 

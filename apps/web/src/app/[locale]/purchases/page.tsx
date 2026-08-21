@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { DatePicker } from '../../../components/ui/date-picker';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -329,12 +330,11 @@ export default function PurchasesPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-              <select name="currency" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="CNY">CNY</option>
-                <option value="AED">AED</option>
-                <option value="USD">USD</option>
-                <option value="EGP">EGP</option>
-              </select>
+              <Select
+                name="currency"
+                defaultValue="CNY"
+                options={['CNY', 'AED', 'USD', 'EGP'].map((c) => ({ value: c, label: c }))}
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -564,8 +564,12 @@ function InputField({ label, name, type = 'text', defaultValue, required, placeh
         {label}
         {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
       </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+      {type === 'date' ? (
+        <DatePicker name={name} defaultValue={defaultValue} required={required} placeholder={placeholder} />
+      ) : (
+        <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+      )}
     </div>
   );
 }

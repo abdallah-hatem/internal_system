@@ -1,5 +1,6 @@
 'use client';
 import { Money } from '../../../components/ui/money';
+import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +13,8 @@ import {
   Users, Plus, Search, Eye, Edit, X, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
 } from 'lucide-react';
+
+const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface Customer {
@@ -298,10 +301,12 @@ export default function CustomersPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('type')}<span className="text-red-500 ms-1">*</span>
               </label>
-              <select name="type" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="B2B">{t('b2b')}</option>
-                <option value="B2C">{t('b2c')}</option>
-              </select>
+              <Select
+                name="type"
+                required
+                defaultValue="B2B"
+                options={CUSTOMER_TYPES.map((v) => ({ value: v, label: t(v.toLowerCase()) }))}
+              />
             </div>
             <InputField label={t('phone')} name="phone" type="tel" />
             <InputField label={t('email')} name="email" type="email" />
@@ -325,10 +330,12 @@ export default function CustomersPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('type')}<span className="text-red-500 ms-1">*</span>
               </label>
-              <select name="type" defaultValue={editingCustomer.type} required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="B2B">{t('b2b')}</option>
-                <option value="B2C">{t('b2c')}</option>
-              </select>
+              <Select
+                name="type"
+                required
+                defaultValue={editingCustomer.type}
+                options={CUSTOMER_TYPES.map((v) => ({ value: v, label: t(v.toLowerCase()) }))}
+              />
             </div>
             <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingCustomer.phone} />
             <InputField label={t('email')} name="email" type="email" defaultValue={editingCustomer.email} />

@@ -438,18 +438,23 @@ export default function SalesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('channel')}</label>
-                <select name="channel" required className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="B2B">{t('b2b')}</option>
-                  <option value="B2C">{t('b2c')}</option>
-                </select>
+                <Select
+                  name="channel"
+                  required
+                  defaultValue="B2B"
+                  options={[
+                    { value: 'B2B', label: t('b2b') },
+                    { value: 'B2C', label: t('b2c') },
+                  ]}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-                <select name="currency" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  <option value="EGP">EGP</option>
-                  <option value="USD">USD</option>
-                  <option value="AED">AED</option>
-                </select>
+                <Select
+                  name="currency"
+                  defaultValue="EGP"
+                  options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
 
@@ -780,14 +785,14 @@ export default function SalesPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('refundMethod')}
               </label>
-              <select
+              <Select
                 name="refundMethod"
                 defaultValue="CREDIT_NOTE"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="CREDIT_NOTE">{t('creditNote')}</option>
-                <option value="CASH">{t('cashRefund')}</option>
-              </select>
+                options={[
+                  { value: 'CREDIT_NOTE', label: t('creditNote') },
+                  { value: 'CASH', label: t('cashRefund') },
+                ]}
+              />
             </div>
 
             <div>
