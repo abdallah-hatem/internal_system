@@ -94,11 +94,26 @@ them the feature was a way to corrupt the ledger rather than correct it.
   stop agreeing. Those have their own reversal paths, and the error says so.
 - A reason is required, and the reversal is audited.
 
-### 4. Stock reservation
+### 4. Stock quantities  ← DONE 2026-08-21
 
-`InventoryReservation` exists in the schema and nothing drives it. Confirming a
-sale moves quantity to reserved, but nothing releases it, expires it, or shows
-it. Until then "available" is only accidentally correct.
+This turned out to be a correctness bug rather than a missing feature.
+
+Confirming a sale moved saleable to reserved and never reduced remainingQty,
+and nothing ever released the reservation. remainingQty therefore still counted
+goods that had left the building, which inflated inventory value on the
+dashboard and the unsold-stock figure a cycle is closed on — the figure that
+decides whether closing is even allowed. Returns then added to remainingQty,
+so a batch could hold more units than ever arrived; one held 122 of 100.
+
+Confirming a sale is now the point the goods leave, because these are counter
+sales to shops and marketplace sales with no separate dispatch step. Remaining
+falls on confirm and is restored on cancel or return. A migration rebuilds the
+three quantities on existing batches from the movements that actually happened.
+
+`InventoryReservation` is still unused. It is the right home for holding stock
+against a quote, which is a genuine feature — but it is not what was breaking
+the numbers, and reserved is now honestly zero rather than a growing figure
+nobody could clear.
 
 ### 5. Notifications that reach someone
 

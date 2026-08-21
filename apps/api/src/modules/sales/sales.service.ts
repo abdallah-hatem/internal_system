@@ -208,12 +208,20 @@ export class SalesService {
 
           if (allocQty.lte(0)) continue;
 
-          // Update batch: reduce saleable, increase reserved
+          // Confirming is the point the goods leave: these are counter sales
+          // to shops and marketplace sales, with no separate dispatch step.
+          //
+          // remainingQty is what is physically in the room and must fall too.
+          // Previously only saleable moved to reserved, so remainingQty never
+          // dropped and nothing ever released the reservation — inventory
+          // value and unsold-stock-at-close were overstated by everything ever
+          // sold, and a returned unit could push a batch above the quantity
+          // that arrived.
           await tx.inventoryBatch.update({
             where: { id: batch.id },
             data: {
               saleableQty: { decrement: allocQty },
-              reservedQty: { increment: allocQty },
+              remainingQty: { decrement: allocQty },
             },
           });
 
@@ -221,7 +229,7 @@ export class SalesService {
           await tx.inventoryMovement.create({
             data: {
               batchId: batch.id,
-              movementType: 'RESERVE',
+              movementType: 'SALE',
               qtyDelta: allocQty.neg(),
               referenceType: 'SALE_ORDER',
               referenceId: id,
@@ -321,7 +329,7 @@ export class SalesService {
             where: { id: alloc.inventoryBatchId },
             data: {
               saleableQty: { increment: Number(alloc.qty) },
-              reservedQty: { decrement: Number(alloc.qty) },
+              remainingQty: { increment: Number(alloc.qty) },
             },
           });
 
