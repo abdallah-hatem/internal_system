@@ -163,10 +163,11 @@ scavenging from each other within a run.
 
 ## Two things worth doing early because they get harder later
 
-**Decide the TBDs.** The BRD leaves four open and the code currently guesses at
-all of them: the Sunday installment and overdue rules, the return policy,
-what happens to unsold stock when a cycle closes, and how the partners split a
-temporary investor's fee. Each guess is now embedded in behaviour and tests.
+**Decide the TBDs.** Three of the four are now settled and written down in
+`business-rules.md`: the instalment and overdue rules, the return policy, and
+what happens to unsold stock at close. Still open: how the partners split a
+temporary investor's fee. `business-rules.md` marks every remaining guess as a
+guess so none of them is mistaken for an agreement.
 
 **Prove CI.** The workflow exists but has never run against a real push. It is
 worth confirming before it is needed.

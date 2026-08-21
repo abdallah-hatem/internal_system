@@ -46,6 +46,8 @@ model User {
 
   createdSaleReturns SaleReturn[] @relation("CreatedSaleReturnUser")
 
+  createdPaymentPlans PaymentPlan[] @relation("CreatedPaymentPlanUser")
+
   @@map("users")
 }
 
@@ -384,6 +386,57 @@ model SaleReturnItem {
   @@map("sale_return_items")
 }
 
+enum PaymentPlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * An agreed schedule for clearing a shop's running balance.
+ *
+ * The plan is per customer, not per sale: a shop thinks in terms of what it
+ * owes you in total, and pays against that. Instalment amounts are whatever was
+ * agreed — 20,000 might be settled as 10,000 up front then 1,000, 5,000 and
+ * 4,000 on the next three Sundays — so nothing here divides evenly or assumes a
+ * fixed weekly figure.
+ */
+model PaymentPlan {
+  id         String            @id @default(uuid()) @db.Uuid
+  customerId String            @map("customer_id") @db.Uuid
+  reference  String            @unique
+  /** The balance this plan was agreed to cover. */
+  totalEgp   Decimal           @map("total_egp") @db.Decimal(18, 2)
+  agreedOn   DateTime          @map("agreed_on") @db.Date
+  status     PaymentPlanStatus @default(ACTIVE)
+  note       String?
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy  String?           @map("created_by") @db.Uuid
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
+
+  customer    Customer                @relation(fields: [customerId], references: [id])
+  creator     User?                   @relation("CreatedPaymentPlanUser", fields: [createdBy], references: [id])
+  instalments PaymentPlanInstalment[]
+
+  @@map("payment_plans")
+}
+
+model PaymentPlanInstalment {
+  id       String   @id @default(uuid()) @db.Uuid
+  planId   String   @map("plan_id") @db.Uuid
+  sequence Int
+  /** Usually a Sunday, but nothing enforces that — an upfront payment is just
+      the first instalment dated on the day the plan was agreed. */
+  dueOn    DateTime @map("due_on") @db.Date
+  amount   Decimal  @db.Decimal(18, 2)
+  note     String?
+
+  plan PaymentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, sequence])
+  @@map("payment_plan_instalments")
+}
+
 model Provider {
   id            String    @id @default(uuid()) @db.Uuid
   name          String
@@ -538,6 +591,8 @@ model Customer {
   saleOrders      SaleOrder[]
   payments        Payment[]
   productRequests ProductRequest[]
+
+  paymentPlans    PaymentPlan[]
 
   @@map("customers")
 }
