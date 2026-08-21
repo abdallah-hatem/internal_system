@@ -127,17 +127,39 @@ against a quote, which is a genuine feature — but it is not what was breaking
 the numbers, and reserved is now honestly zero rather than a growing figure
 nobody could clear.
 
-### 5. Notifications that reach someone
+### 5. Notifications  ← DONE 2026-08-21
 
-Notifications are written to the table on low stock and arrival, but the centre
-is not somewhere anyone looks. Either surface them where the work happens or
-accept they are an audit trail, not an alert.
+The events were being raised all along and reached nobody: the header bell
+showed a hardcoded 3 and did nothing when clicked.
+
+It now shows the real unread count, opens the recent items with mark-read and
+mark-all, and links to the full list. No badge when nothing is unread. The user
+chip beside it was hardcoded too — every partner saw "Admin" on a system whose
+point is that actions are attributable.
+
+Still in-app only, as the BRD scopes for V1. Email and WhatsApp remain
+deliberately out.
 
 ### 6. Phase 2 customer portal — not before the above
 
 A portal that shows a shop owner a balance derived from settlement logic that
 cannot settle, or stock counts that ignore reservations, is worse than no
 portal. Hold it.
+
+## Test isolation  ← DONE 2026-08-21
+
+The suite shares one API and one database, and ten spec files pick "the first
+confirmed order" or "a batch with stock", so what they found depended on what
+earlier runs had left behind. Three tests in one day passed alone and failed in
+a full run, each costing a diagnosis before establishing the code was fine.
+
+globalSetup now snapshots the developer's database, resets to the seeded state,
+and restores the snapshot afterwards — the development database is also the
+test database, so a run must not cost anyone their data. Two consecutive full
+runs now give identical results.
+
+Still to do: per-test fixtures that create their own data, so tests stop
+scavenging from each other within a run.
 
 ## Two things worth doing early because they get harder later
 
