@@ -358,18 +358,31 @@ export class AnalyticsService {
           }
         }
 
-        // What the cycle consumed in cash: goods, shipping and any fees.
+        // What the cycle consumed in cash: goods, shipping and fees, less
+        // anything a supplier gave back.
         const investment = cycle.financialTransactions
           .filter((t) => t.direction === 'OUTFLOW')
+          .reduce((sum, t) => sum.add(D(t.amount)), D(0))
+          .sub(
+            cycle.financialTransactions
+              .filter((t) => t.direction === 'INFLOW' && t.category === 'supplier_refund')
+              .reduce((sum, t) => sum.add(D(t.amount)), D(0)),
+          );
+
+        // A refund recovers cost, so it improves the cycle's result even though
+        // it changes no batch cost.
+        const supplierRefunds = cycle.financialTransactions
+          .filter((t) => t.direction === 'INFLOW' && t.category === 'supplier_refund')
           .reduce((sum, t) => sum.add(D(t.amount)), D(0));
 
-        const profit = revenue.sub(cogs);
+        const profit = revenue.sub(cogs).add(supplierRefunds);
 
         return {
           cycleCode: cycle.code,
           status: cycle.status,
           originType: cycle.originType,
           investment: money(investment),
+          supplierRefundsEgp: money(supplierRefunds),
           totalCost: money(cogs),
           totalRevenue: money(revenue),
           profit: money(profit),

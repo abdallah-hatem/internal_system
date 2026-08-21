@@ -276,6 +276,15 @@ export class PurchasesService {
     return { data: updated };
   }
 
+  /**
+   * Record money a supplier has given back, against the order it relates to.
+   *
+   * The refund recovers cost, so it lands on the cycle as an inflow and the
+   * cycle's profit improves by that amount. It deliberately does not re-price
+   * the batches: units already sold were costed at what they cost at the time,
+   * and rewriting that would change the COGS of sales already made and the
+   * profit of a settlement possibly already agreed (BRD 6, 10).
+   */
   async recordRefund(
     purchaseOrderId: string,
     data: {
@@ -283,25 +292,74 @@ export class PurchasesService {
       currency: string;
       fxRateToEgp: number;
       reason?: string;
-      recordedOn: string;
+      recordedOn?: string;
     },
     actorId: string,
   ) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
+      include: {
+        items: true,
+        supplierRefunds: true,
+        cycle: { select: { id: true, code: true } },
+      },
     });
     if (!po) throw new NotFoundException('Purchase order not found');
 
-    const refund = await this.prisma.supplierRefund.create({
-      data: {
-        purchaseOrderId,
-        amount: data.amount,
-        currency: data.currency,
-        fxRateToEgp: data.fxRateToEgp,
-        reason: data.reason,
-        recordedOn: new Date(data.recordedOn),
-        createdBy: actorId,
-      },
+    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+
+    const amountEgp = D(data.amount).mul(D(data.fxRateToEgp)).toDecimalPlaces(2);
+    const orderValueEgp = po.items
+      .reduce((s, i) => s.add(D(i.lineTotal)), D(0))
+      .mul(D(po.fxRateToEgp));
+    const alreadyRefundedEgp = po.supplierRefunds.reduce(
+      (s, r) => s.add(D(r.amount).mul(D(r.fxRateToEgp))),
+      D(0),
+    );
+
+    // A supplier cannot give back more than was paid; a figure above that is a
+    // data-entry slip that would show the cycle a profit it never made.
+    if (alreadyRefundedEgp.add(amountEgp).gt(orderValueEgp)) {
+      throw new BadRequestException(
+        `Refund of ${amountEgp.toFixed(2)} EGP exceeds what is left on ${po.reference}: ` +
+          `order ${orderValueEgp.toFixed(2)} EGP, already refunded ${alreadyRefundedEgp.toFixed(2)} EGP.`,
+      );
+    }
+
+    const refund = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.supplierRefund.create({
+        data: {
+          purchaseOrderId,
+          amount: data.amount,
+          currency: data.currency,
+          fxRateToEgp: data.fxRateToEgp,
+          reason: data.reason,
+          recordedOn: data.recordedOn ? new Date(data.recordedOn) : new Date(),
+          createdBy: actorId,
+        },
+      });
+
+      // Without this the refund was recorded but had no financial effect: the
+      // ledger never showed the money coming back and the cycle's cost never
+      // dropped, so its profit stayed understated.
+      await tx.financialTransaction.create({
+        data: {
+          type: 'SUPPLIER_REFUND',
+          category: 'supplier_refund',
+          direction: 'INFLOW',
+          amount: amountEgp,
+          currency: 'EGP',
+          cycleId: po.cycleId,
+          relatedType: 'SUPPLIER_REFUND',
+          relatedId: created.id,
+          reason:
+            `Supplier refund against ${po.reference}` +
+            (data.reason ? `: ${data.reason}` : ''),
+          createdBy: actorId,
+        },
+      });
+
+      return created;
     });
 
     await this.audit.log({
@@ -309,7 +367,7 @@ export class PurchasesService {
       action: 'RECORD_REFUND',
       entityType: 'SupplierRefund',
       entityId: refund.id,
-      afterJson: refund,
+      afterJson: { ...refund, amountEgp: amountEgp.toFixed(2), cycle: po.cycle?.code },
     });
 
     return { data: refund };

@@ -25,6 +25,13 @@ const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const
  */
 const CAPITALISED_CATEGORIES = ['purchase', 'shipping', 'settlement'];
 
+/**
+ * Money recovered from a supplier. It does not re-price batches already costed
+ * — units sold keep the cost they were sold at — so it lands as a reduction of
+ * the cycle's expenses, which is to say a gain.
+ */
+const COST_RECOVERY_CATEGORIES = ['supplier_refund'];
+
 const SETTLEMENT_INCLUDE = {
   cycle: { select: { id: true, code: true, status: true } },
   lines: {
@@ -253,10 +260,21 @@ export class SettlementsService {
       },
       select: { amount: true },
     });
-    const expenses = expenseTxns.reduce(
-      (s, t) => s.add(t.amount),
-      new Prisma.Decimal(0),
-    );
+    // Money recovered from suppliers reduces what the cycle cost. It is netted
+    // here rather than by re-pricing batches: units already sold keep the cost
+    // they were sold at, and a settlement may already have been agreed on it.
+    const recoveryTxns = await this.prisma.financialTransaction.findMany({
+      where: {
+        cycleId,
+        direction: 'INFLOW',
+        category: { in: COST_RECOVERY_CATEGORIES },
+      },
+      select: { amount: true },
+    });
+
+    const expenses = expenseTxns
+      .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
+      .sub(recoveryTxns.reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0)));
 
     const pnl = summarizeCyclePnl({
       allocations: allocationInputs,

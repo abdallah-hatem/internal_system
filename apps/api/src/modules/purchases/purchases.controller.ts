@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PurchasesService } from './purchases.service';
+import { RecordSupplierRefundDto } from './dto/refund.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -70,7 +71,7 @@ export class PurchasesController {
   @ApiOperation({ summary: 'Record a supplier refund' })
   recordRefund(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: RecordSupplierRefundDto,
     @CurrentUser() user: any,
   ) {
     return this.purchasesService.recordRefund(id, body, user.id);
