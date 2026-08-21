@@ -41,11 +41,18 @@ const money = (text: string | null) =>
  */
 async function pickCycle(page: Page, code: string) {
   await page.locator('#cycle-select').click();
-  await page.getByRole('listbox').waitFor({ state: 'visible' });
-  // Radix portals the popover to document.body, so the search box is not a
-  // descendant of the trigger — look it up at page level.
-  await page.getByPlaceholder(/search/i).last().fill(code);
-  await page.getByRole('listbox').getByRole('option', { name: new RegExp(code) }).first().click();
+  const list = page.getByRole('listbox');
+  await list.waitFor({ state: 'visible' });
+
+  // The Select only shows a search box once the list is long enough to need
+  // one, so a short list has none — and reaching for a "search" placeholder
+  // then finds the page's own search field and types into that instead.
+  const search = list.locator('[cmdk-input]');
+  if (await search.count()) {
+    await search.fill(code);
+  }
+
+  await list.getByRole('option', { name: new RegExp(code) }).first().click();
   await expect(page.locator('#cycle-select')).toContainText(code);
 }
 
