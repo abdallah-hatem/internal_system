@@ -1,15 +1,17 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
+import { Money } from '../../../../components/ui/money';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../../lib/api';
+import { useToast } from '../../../../components/ui/toast';
 import { formatDate } from '../../../../lib/dates';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft, Package, Tag, Barcode, DollarSign, TrendingUp, TrendingDown,
   Boxes, AlertTriangle, ShoppingCart, Truck, Store, Loader2, ChevronDown,
-  ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight,
+  ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -313,8 +315,8 @@ export default function ProductDetailPage() {
                             {t('remainingQty')}: {batch.remainingQty}
                           </span>
                           <span className="text-gray-600">
-                            {t('landedCost')}: EGP{' '}
-                            {Number(batch.landedUnitCostEgp).toLocaleString()}
+                            {t('landedCost')}:{' '}
+                            <Money value={batch.landedUnitCostEgp} />
                           </span>
                         </div>
                         {isExpanded ? (
@@ -449,34 +451,22 @@ export default function ProductDetailPage() {
               <DollarSign className="h-4 w-4 text-gray-400" />
               {t('currentPrices') ?? 'Current Prices'}
             </h2>
-            {activePrices.length === 0 ? (
-              <p className="text-sm text-gray-400">{tc('noData')}</p>
-            ) : (
-              <div className="space-y-3">
-                {activeB2B && (
-                  <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium text-gray-700">{t('b2bPrice')}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {activeB2B.currency} {activeB2B.amount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {activeB2C && (
-                  <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Store className="h-4 w-4 text-primary-500" />
-                      <span className="text-sm font-medium text-gray-700">{t('b2cPrice')}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {activeB2C.currency} {activeB2C.amount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="space-y-3">
+              <PriceRow
+                productId={productId}
+                channel="B2B"
+                label={t('b2bPrice')}
+                icon={<Truck className="h-4 w-4 text-blue-500" />}
+                current={activeB2B}
+              />
+              <PriceRow
+                productId={productId}
+                channel="B2C"
+                label={t('b2cPrice')}
+                icon={<Store className="h-4 w-4 text-primary-500" />}
+                current={activeB2C}
+              />
+            </div>
           </div>
 
           {/* ── Price History ──────────────────────────────────────── */}
@@ -627,6 +617,97 @@ function DetailItem({
     <div className={full ? 'col-span-2 md:col-span-3' : ''}>
       <span className="text-xs text-gray-500 block mb-0.5">{label}</span>
       <p className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>{value}</p>
+    </div>
+  );
+}
+
+/**
+ * The selling price for one channel.
+ *
+ * Setting a price closes the previous one and opens a new one rather than
+ * editing it, so what a product sold at last month stays answerable — the price
+ * list below this is that history. The API does the closing; this only sends
+ * the new amount.
+ *
+ * The prices were displayed on three screens and settable on none, so the
+ * columns had read "—" since the product was created.
+ */
+function PriceRow({
+  productId,
+  channel,
+  label,
+  icon,
+  current,
+}: {
+  productId: string;
+  channel: 'B2B' | 'B2C';
+  label: string;
+  icon: React.ReactNode;
+  current?: { amount: number; currency: string };
+}) {
+  const tc = useTranslations('common');
+  const { addToast } = useToast();
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState(current ? String(current.amount) : '');
+
+  // A price saved elsewhere, or the first load finishing, should show here.
+  useEffect(() => {
+    setValue(current ? String(current.amount) : '');
+  }, [current?.amount]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.post(`/products/${productId}/prices`, {
+        channel,
+        currency: current?.currency ?? 'EGP',
+        amount: Number(value),
+      }),
+    onSuccess: () => {
+      // Both the product (which carries the active prices) and the history
+      // list below it are now stale.
+      queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      queryClient.invalidateQueries({ queryKey: ['priceHistory', productId] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      addToast(`${label} updated`, 'success');
+    },
+    onError: (e: any) =>
+      addToast(
+        e?.response?.data?.error?.message || e?.response?.data?.message || 'Could not save the price',
+        'error',
+      ),
+  });
+
+  const changed = value !== '' && Number(value) !== Number(current?.amount ?? NaN);
+  const valid = value !== '' && Number(value) > 0;
+
+  return (
+    <div className="rounded-lg bg-gray-50 px-4 py-3">
+      <div className="mb-2 flex items-center gap-2">
+        {icon}
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+        {!current && <span className="text-xs text-gray-400">not set</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-400">{current?.currency ?? 'EGP'}</span>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="0.00"
+          className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+        <button
+          type="button"
+          onClick={() => save.mutate()}
+          disabled={!changed || !valid || save.isPending}
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-40"
+        >
+          {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          {tc('save')}
+        </button>
+      </div>
     </div>
   );
 }
