@@ -265,7 +265,8 @@
     "creditNote": "خصم من الرصيد",
     "cashRefund": "استرداد نقدي",
     "reasonPlaceholder": "ما سبب إرجاع البضاعة؟",
-    "reason": "السبب"
+    "reason": "السبب",
+    "inStock": "متاح"
   },
   "customers": {
     "title": "العملاء",

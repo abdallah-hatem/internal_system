@@ -178,7 +178,10 @@ test.describe('A shop cannot pay more than it owes', () => {
 
 test.describe('An order cannot be worth less than nothing', () => {
   test('TC-INV-07: a discount larger than the line is refused', async ({ request }) => {
-    const { headers, customer, product } = await ctx(request);
+    // Real stock, so the order is refused for its discount rather than for
+    // having nothing to sell — otherwise this passes on the wrong rule.
+    const { headers, customer, product, stockUp } = await ctx(request);
+    await stockUp(10);
     const r = await attempt(request, headers, 'sales/orders', {
       customerId: customer.id, channel: 'B2B', currency: 'EGP',
       items: [{ productId: product.id, quantity: 1, unitPrice: 100, discount: 9999 }],
@@ -188,7 +191,8 @@ test.describe('An order cannot be worth less than nothing', () => {
   });
 
   test('TC-INV-08: negative quantities and prices are refused', async ({ request }) => {
-    const { headers, customer, product } = await ctx(request);
+    const { headers, customer, product, stockUp } = await ctx(request);
+    await stockUp(10);
 
     const qty = await attempt(request, headers, 'sales/orders', {
       customerId: customer.id, channel: 'B2B', currency: 'EGP',
@@ -284,5 +288,73 @@ test.describe('Revenue is counted once, when the money arrives', () => {
 
     const applied = await dash();
     expect(Number(sold.receivables) - Number(applied.receivables)).toBe(400);
+  });
+});
+
+test.describe('You cannot sell what you do not have', () => {
+  test('TC-INV-12: an order for more than is in stock is refused', async ({ request }) => {
+    // Only confirming checked this. An order for 600 against 60 in stock was
+    // built, priced at 720,000 and saved, and objected to nowhere.
+    const { headers, customer, product, stockUp } = await ctx(request);
+    await stockUp(60);
+
+    const r = await attempt(request, headers, 'sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 600, unitPrice: 1200, discount: 0 }],
+    });
+    expect(r.status, r.message).toBe(400);
+    expect(r.message).toMatch(/in stock/i);
+  });
+
+  test('TC-INV-13: two lines of the same product are counted together', async ({ request }) => {
+    // 40 and 40 against 60 is 80. Checked line by line, each looks fine — which
+    // is exactly how a per-item guard lets an over-sale through.
+    const { headers, customer, product, stockUp } = await ctx(request);
+    await stockUp(60);
+
+    const r = await attempt(request, headers, 'sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [
+        { productId: product.id, quantity: 40, unitPrice: 1200, discount: 0 },
+        { productId: product.id, quantity: 40, unitPrice: 1200, discount: 0 },
+      ],
+    });
+    expect(r.status, r.message).toBe(400);
+    expect(r.message).toMatch(/80/);
+  });
+
+  test('TC-INV-14: selling exactly what is there is allowed', async ({ request }) => {
+    // The guard must stop at the boundary, not before it — refusing the last
+    // 60 units of 60 would make stock unsellable.
+    const { headers, customer, product, stockUp } = await ctx(request);
+    await stockUp(60);
+
+    const r = await attempt(request, headers, 'sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 60, unitPrice: 1200, discount: 0 }],
+    });
+    expect(r.status, r.message).toBeLessThan(400);
+  });
+
+  test('TC-INV-15: stock already sold is no longer available to sell again', async ({
+    request,
+  }) => {
+    // The second order must see what the first one took. Availability read from
+    // received rather than saleable quantity would let the same units go twice.
+    const { headers, mk, customer, product, stockUp } = await ctx(request);
+    await stockUp(60);
+
+    const first = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 50, unitPrice: 1200, discount: 0 }],
+    });
+    await mk(`sales/orders/${first.id}/confirm`, { version: first.version });
+
+    const r = await attempt(request, headers, 'sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 20, unitPrice: 1200, discount: 0 }],
+    });
+    expect(r.status, r.message).toBe(400);
+    expect(r.message).toMatch(/10\.000/);
   });
 });

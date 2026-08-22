@@ -81,6 +81,17 @@ A sale is drafted, then confirmed. Confirming allocates stock by FIFO and is the
 point the goods and the revenue are real. A draft reserves nothing and counts
 for nothing — it appears in no revenue, profit or top-product figure.
 
+**DECIDED 2026-08-22 — an order cannot be created for more than is in stock.**
+Only confirming used to check, so an order for 600 units against 60 on the
+shelf was built, priced at 720,000 and saved, and nothing objected until the
+last step. The quantity available is shown in the product picker and the line
+turns red as it is exceeded, so the limit is visible before it is reached
+rather than explained afterwards.
+
+Quantities are summed per product across the order: two lines of 40 against 60
+in stock is 80, and checking each line alone would let it through. A product
+with no stock cannot be put on an order at all.
+
 Selling more than is available is refused, and the whole confirmation rolls
 back: no partial allocation is ever left behind.
 

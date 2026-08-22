@@ -11,6 +11,7 @@
  *  kept slipping past real bugs.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { apiCtx, giveStock } from './support/fixtures';
 
 const BASE = 'http://localhost:3000';
 const API = 'http://localhost:3001/api/v1';
@@ -70,6 +71,12 @@ async function pricedProductAndCustomer(request: APIRequestContext) {
     });
     expect(res.ok(), await res.text()).toBeTruthy();
   }
+
+  // Both products need stock: one with none cannot be put on an order, so the
+  // picker disables it and none of the pricing below could be exercised.
+  const { mk } = await apiCtx(request);
+  await giveStock(request, headers, mk, product.id, `Priced ${stamp}`, 500);
+  await giveStock(request, headers, mk, other.id, `Other ${stamp}`, 500);
 
   const custRes = await request.post(`${API}/customers`, {
     headers,
@@ -199,6 +206,12 @@ test.describe('Sale line pricing', () => {
       data: { name: `Unpriced Part ${stamp}`, minStock: 0 },
     });
     expect(res.ok(), await res.text()).toBeTruthy();
+    const unpriced = (await res.json()).data;
+
+    // Stocked, because this test is about a missing price and not a missing
+    // product — without stock the picker disables it and the point is lost.
+    const { mk } = await apiCtx(request);
+    await giveStock(request, headers, mk, unpriced.id, `Unpriced ${stamp}`, 50);
 
     await login(page);
     await openOrderForm(page);

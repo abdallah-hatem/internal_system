@@ -15,7 +15,7 @@ CONTAINER=${CONTAINER:-motorcycle_parts_db}
 docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 <<'SQL'
 \pset border 2
 SELECT check_name, count FROM (
-  SELECT 1 AS ord, 'ledger points at a payment that does not exist' AS check_name,
+  SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS check_name,
          count(*) FROM financial_transactions f
    WHERE f.related_type='PAYMENT'
      AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.id=f.related_id)
@@ -37,6 +37,11 @@ SELECT check_name, count FROM (
          count(*) FROM inventory_batches WHERE remaining_qty > received_qty
   UNION ALL SELECT 7, 'batch holds a negative quantity',
          count(*) FROM inventory_batches WHERE remaining_qty < 0
+  UNION ALL SELECT 7.1, 'batch: sellable plus held does not equal what is there',
+         count(*) FROM inventory_batches
+   WHERE saleable_qty + reserved_qty <> remaining_qty
+  UNION ALL SELECT 7.2, 'batch: sellable quantity is negative',
+         count(*) FROM inventory_batches WHERE saleable_qty < 0
   UNION ALL SELECT 8, 'sale order worth less than nothing',
          count(*) FROM sale_orders WHERE total < 0
   UNION ALL SELECT 9, 'payment received on a date that has not arrived',

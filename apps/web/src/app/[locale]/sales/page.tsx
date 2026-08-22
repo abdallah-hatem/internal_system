@@ -147,6 +147,13 @@ export default function SalesPage() {
     queryFn: () => api.get('/products').then((r) => r.data.data ?? r.data),
   });
 
+  // What is actually on the shelf, so the form can say so before a quantity is
+  // typed rather than refusing after one has been priced and built.
+  const { data: stockLevels = [] } = useQuery({
+    queryKey: ['inventory'],
+    queryFn: () => api.get('/inventory').then((r) => r.data.data ?? r.data),
+  });
+
   const { data: orderDetail } = useQuery({
     queryKey: ['sale', viewingOrder?.id],
     queryFn: () =>
@@ -227,6 +234,14 @@ export default function SalesPage() {
   // ── Derived ───────────────────────────────────────────────────────
   const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
   const customerList: Customer[] = Array.isArray(customers) ? customers : [];
+
+  /** Units of a product available to sell right now. */
+  const stockFor = (productId: string): number => {
+    const row: any = (Array.isArray(stockLevels) ? stockLevels : []).find(
+      (r: any) => r.productId === productId,
+    );
+    return row ? Number(row.availableStock ?? 0) : 0;
+  };
 
   /** The product's current price for a channel, or null if none is set. */
   const priceFor = (productId: string, ch: string): number | null => {
@@ -580,11 +595,17 @@ export default function SalesPage() {
                           }}
                           placeholder={t('product')}
                           searchPlaceholder={tc('search')}
-                          options={productList.map((p) => ({
-                            value: p.id,
-                            label: p.name,
-                            hint: p.sku,
-                          }))}
+                          options={productList.map((p) => {
+                            const inStock = stockFor(p.id);
+                            return {
+                              value: p.id,
+                              label: p.name,
+                              // The count belongs where the product is chosen,
+                              // not in an error after the order is built.
+                              hint: `${p.sku} · ${inStock.toLocaleString()} ${t('inStock')}`,
+                              disabled: inStock <= 0,
+                            };
+                          })}
                         />
                       </div>
                       <div className="w-20">
@@ -595,8 +616,17 @@ export default function SalesPage() {
                           value={item.quantity}
                           onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))}
                           {...selectOnFocus}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 ${
+                            item.productId && item.quantity > stockFor(item.productId)
+                              ? 'border-red-300 focus:ring-red-400'
+                              : 'border-gray-200 focus:ring-primary-500'
+                          }`}
                         />
+                        {item.productId && item.quantity > stockFor(item.productId) && (
+                          <p className="mt-1 text-[10px] text-red-600">
+                            {stockFor(item.productId).toLocaleString()} {t('inStock')}
+                          </p>
+                        )}
                       </div>
                       <div className="w-24">
                         <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>

@@ -39,6 +39,43 @@ export async function apiCtx(request: APIRequestContext) {
   return { headers, mk };
 }
 
+/**
+ * Put `qty` units of an existing product into stock.
+ *
+ * A product with none cannot be put on an order at all now — the picker
+ * disables it and the server refuses — so any fixture that builds a product
+ * and then sells it has to bring it into existence properly first.
+ */
+export async function giveStock(
+  request: APIRequestContext,
+  headers: any,
+  mk: Mk,
+  productId: string,
+  label: string,
+  qty = 100,
+) {
+  const supplier = await mk('suppliers', { name: `${label} Supplier`, country: 'AE' });
+  const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+  await mk(`cycles/${cycle.id}/purchases`, {
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+    items: [{ productId, orderedQty: qty, unitPrice: 10 }],
+  });
+  await mk(`cycles/${cycle.id}/shipping-legs`, {
+    sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+    provider: `${label} Freight`, costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+  });
+  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    await mk(`cycles/${cycle.id}/transition`, { status });
+  }
+  const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+  const poItem = (full.data ?? full).purchaseOrders[0].items[0];
+  await mk('receipts/verify', {
+    cycleId: cycle.id,
+    items: [{ purchaseOrderItemId: poItem.id, productId, receivedQty: qty }],
+  });
+  return { supplier, cycle };
+}
+
 /** A product with `qty` units genuinely received into stock. */
 export async function stockedProduct(
   request: APIRequestContext,

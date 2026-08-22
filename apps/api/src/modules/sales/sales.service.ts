@@ -100,6 +100,26 @@ export class SalesService {
       throw new BadRequestException('Order must contain at least one item');
     }
 
+    // What can be sold right now: the saleable quantity across this product's
+    // verified batches. Same definition confirming uses to allocate, so the
+    // two cannot drift into disagreeing about what is on the shelf.
+    const availableFor = async (productId: string) => {
+      const agg = await this.prisma.inventoryBatch.aggregate({
+        where: { productId, verificationStatus: 'VERIFIED' },
+        _sum: { saleableQty: true },
+      });
+      return new Prisma.Decimal(agg._sum.saleableQty ?? 0);
+    };
+
+    // Summed per product, not checked line by line: two lines of 40 against 60
+    // in stock is 80, and checking each alone would wave it through.
+    const wantedPerProduct = new Map<string, Prisma.Decimal>();
+    for (const item of data.items) {
+      if (!item.productId || !item.quantity) continue;
+      const soFar = wantedPerProduct.get(item.productId) ?? new Prisma.Decimal(0);
+      wantedPerProduct.set(item.productId, soFar.add(item.quantity));
+    }
+
     // Validate each item
     for (const item of data.items) {
       if (!item.productId) {
@@ -116,6 +136,23 @@ export class SalesService {
       }
       if (item.unitPrice == null || item.unitPrice < 0) {
         throw new BadRequestException(`Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
+      }
+    }
+
+    // You cannot sell what is not there — and you should be told now, not at
+    // the end. Only confirming checked this, so an order for 600 against 60 in
+    // stock was built, priced and saved before anything objected.
+    for (const [productId, wanted] of wantedPerProduct) {
+      const available = await availableFor(productId);
+      if (wanted.gt(available)) {
+        const product = await this.prisma.product.findUnique({
+          where: { id: productId },
+          select: { name: true },
+        });
+        throw new BadRequestException(
+          `Only ${available.toFixed(3)} of ${product?.name ?? 'that product'} ` +
+            `is in stock, so ${wanted.toFixed(3)} cannot be sold.`,
+        );
       }
     }
 

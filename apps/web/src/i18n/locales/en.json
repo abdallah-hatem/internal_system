@@ -265,7 +265,8 @@
     "creditNote": "Credit against balance",
     "cashRefund": "Cash refund",
     "reasonPlaceholder": "Why did the goods come back?",
-    "reason": "Reason"
+    "reason": "Reason",
+    "inStock": "in stock"
   },
   "customers": {
     "title": "Customers",
