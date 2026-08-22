@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../../common/references';
 import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -132,10 +133,12 @@ export class PurchasesService {
 
     // Generate reference: PO-YYYY-XXXX
     const year = new Date().getFullYear();
-    const count = await this.prisma.purchaseOrder.count({
+    const last = await this.prisma.purchaseOrder.findFirst({
       where: { reference: { startsWith: `PO-${year}` } },
+      orderBy: { reference: 'desc' },
+      select: { reference: true },
     });
-    const reference = `PO-${year}-${String(count + 1).padStart(4, '0')}`;
+    const reference = `PO-${year}-${pad(nextReferenceNumber(last?.reference, 4), 4)}`;
 
     // Create PO with items in a transaction
     const result = await this.prisma.$transaction(async (tx) => {

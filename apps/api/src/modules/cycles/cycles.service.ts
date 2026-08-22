@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
@@ -131,10 +132,12 @@ export class CyclesService {
     let code = data.code;
     if (!code) {
       const year = new Date().getFullYear();
-      const count = await this.prisma.importCycle.count({
+      const last = await this.prisma.importCycle.findFirst({
         where: { code: { startsWith: `CYC-${year}` } },
+        orderBy: { code: 'desc' },
+        select: { code: true },
       });
-      code = `CYC-${year}-${String(count + 1).padStart(4, '0')}`;
+      code = `CYC-${year}-${pad(nextReferenceNumber(last?.code, 4), 4)}`;
     }
 
     const cycle = await this.prisma.importCycle.create({
@@ -150,6 +153,36 @@ export class CyclesService {
         startedOn: data.startedOn ? new Date(data.startedOn) : new Date(),
       },
     });
+
+    // The three partners fund a cycle equally unless someone says otherwise,
+    // so a new cycle starts with them on it. Before this, every cycle began
+    // with nobody on it and settling reported "No participants found" — the
+    // common case took the most work and the default was to get it wrong.
+    //
+    // Contributions start at zero because the capital is not known yet: a
+    // cycle costs what its goods and shipping come to, which is decided over
+    // the next few steps. "Split equally" on the cycle fills them in once it
+    // is. Equal contributions give an equal split by construction, which is
+    // why the profit percentage is left alone — three explicit 33.33s add up
+    // to 99.99 and are rejected, and picking which partner absorbs the extra
+    // 0.01 is not a decision worth encoding.
+    if (!data.participants || data.participants.length === 0) {
+      const partners = await this.prisma.user.findMany({
+        where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      for (const partner of partners) {
+        await this.prisma.cycleParticipant.create({
+          data: {
+            cycleId: cycle.id,
+            participantType: 'CORE_PARTNER',
+            partnerUserId: partner.id,
+            contributionAmount: 0,
+          },
+        });
+      }
+    }
 
     // Create inline participants if provided
     if (data.participants && data.participants.length > 0) {

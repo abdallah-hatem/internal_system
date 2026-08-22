@@ -46,9 +46,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Anything else is a genuine fault. The client is told nothing useful on
     // purpose, so the correlation id has to be findable in the logs alongside
     // the real cause — otherwise it correlates to nothing.
-    const error = exception as Error;
+    const error = exception as Error & { code?: string; meta?: unknown };
+
+    // A Prisma failure puts almost nothing in `message` and everything in
+    // `code` and `meta` — P2002 with the constraint that rejected the write,
+    // P2003 with the foreign key. Logging only the message produced
+    // "PrismaClientKnownRequestError:" and a stack, which says a database rule
+    // was broken but not which one, and cost an hour finding a duplicate key.
+    const prismaDetail = error?.code
+      ? ` [${error.code}${error.meta ? ` ${JSON.stringify(error.meta)}` : ''}]`
+      : '';
+
     this.logger.error(
-      `${correlationId} 500 ${where} — ${error?.message ?? String(exception)}`,
+      `${correlationId} 500 ${where} — ${error?.message || error?.constructor?.name || String(exception)}${prismaDetail}`,
       error?.stack,
     );
 

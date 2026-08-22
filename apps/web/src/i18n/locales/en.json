@@ -178,7 +178,8 @@
     "investorFeePct": "Fee %",
     "fee": "fee",
     "feeFromProfit": "Taken from their profit, not their capital.",
-    "settlement": "Settlement"
+    "settlement": "Settlement",
+    "splitEqually": "Split equally"
   },
   "purchases": {
     "title": "Purchases",

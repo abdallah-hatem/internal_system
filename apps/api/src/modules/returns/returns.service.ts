@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma, RefundMethod } from '@prisma/client';
@@ -187,11 +188,16 @@ export class ReturnsService {
     const refundMethod = dto.refundMethod ?? RefundMethod.CREDIT_NOTE;
 
     const created = await this.prisma.$transaction(async (tx) => {
-      const seq = await tx.saleReturn.count();
+      const year = new Date().getFullYear();
+      const last = await tx.saleReturn.findFirst({
+        where: { reference: { startsWith: `RET-${year}` } },
+        orderBy: { reference: 'desc' },
+        select: { reference: true },
+      });
       const saleReturn = await tx.saleReturn.create({
         data: {
           saleOrderId: order.id,
-          reference: `RET-${new Date().getFullYear()}-${String(seq + 1).padStart(5, '0')}`,
+          reference: `RET-${year}-${pad(nextReferenceNumber(last?.reference, 5), 5)}`,
           returnedOn: dto.returnedOn ? new Date(dto.returnedOn) : new Date(),
           reason: dto.reason,
           refundMethod,

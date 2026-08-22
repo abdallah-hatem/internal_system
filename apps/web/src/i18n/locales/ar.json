@@ -178,7 +178,8 @@
     "investorFeePct": "نسبة الرسوم %",
     "fee": "رسوم",
     "feeFromProfit": "تُخصم من ربحه وليس من رأس ماله.",
-    "settlement": "التسوية"
+    "settlement": "التسوية",
+    "splitEqually": "تقسيم بالتساوي"
   },
   "purchases": {
     "title": "المشتريات",

@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
 
@@ -158,10 +159,12 @@ export class SalesService {
 
     // Generate order number: ORD-YYYY-XXXXX
     const year = new Date().getFullYear();
-    const count = await this.prisma.saleOrder.count({
+    const last = await this.prisma.saleOrder.findFirst({
       where: { orderNo: { startsWith: `ORD-${year}` } },
+      orderBy: { orderNo: 'desc' },
+      select: { orderNo: true },
     });
-    const orderNo = `ORD-${year}-${String(count + 1).padStart(5, '0')}`;
+    const orderNo = `ORD-${year}-${pad(nextReferenceNumber(last?.orderNo, 5), 5)}`;
 
     // Calculate totals using Decimal arithmetic
     let subtotal = new Prisma.Decimal(0);

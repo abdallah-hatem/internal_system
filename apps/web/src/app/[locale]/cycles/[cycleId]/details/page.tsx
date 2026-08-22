@@ -70,6 +70,57 @@ export default function CycleDetailsPage() {
       ),
   });
 
+  /**
+   * Give each partner an equal share of what the cycle actually cost.
+   *
+   * The three of them fund a cycle equally by default, but the amount is not
+   * known until the goods and shipping are recorded — so this is the moment it
+   * can be filled in rather than guessed at creation.
+   *
+   * Split to the piastre: thirds of 75,645.50 do not divide evenly, so the
+   * last partner absorbs the residual and the parts re-sum to the total
+   * exactly. Left uneven, capital returned at settlement would not match
+   * capital put in.
+   *
+   * Temporary investors are untouched — they put in a specific amount that is
+   * theirs, not a share of the whole.
+   */
+  const splitEqually = useMutation({
+    mutationFn: async () => {
+      const partners = participants.filter((p) => p.participantType === 'CORE_PARTNER');
+      if (partners.length === 0) throw new Error('no partners on this cycle');
+
+      const investors = participants
+        .filter((p) => p.participantType !== 'CORE_PARTNER')
+        .reduce((sum, p) => sum + num(p.contributionAmount), 0);
+
+      // What the partners are funding: the cycle's cost less whatever an
+      // investor already put in.
+      const total = Math.max(num(costing?.totals?.landedEgp) - investors, 0);
+      const cents = Math.round(total * 100);
+      const each = Math.floor(cents / partners.length);
+
+      for (let i = 0; i < partners.length; i++) {
+        const isLast = i === partners.length - 1;
+        const amount = (isLast ? cents - each * (partners.length - 1) : each) / 100;
+        await api.put(`/cycles/participants/${partners[i].id}`, {
+          contributionAmount: amount,
+        });
+      }
+      return total;
+    },
+    onSuccess: (total) => {
+      queryClient.invalidateQueries({ queryKey: ['cycle', id] });
+      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      addToast(`${t('splitEqually')} — ${total.toLocaleString()} EGP`, 'success');
+    },
+    onError: (e: any) =>
+      addToast(
+        e?.response?.data?.error?.message || e?.message || tc('error'),
+        'error',
+      ),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-500">
@@ -119,7 +170,7 @@ export default function CycleDetailsPage() {
         <Tile label={t('purchases')} value={String(orders.length)} />
         <Tile
           label={t('landedCost')}
-          value={<Money value={num(costing?.totals?.totalLandedCostEgp)} />}
+          value={<Money value={num(costing?.totals?.landedEgp)} />}
         />
       </div>
 
@@ -167,12 +218,29 @@ export default function CycleDetailsPage() {
               onSubmit={(body) => addParticipant.mutate(body)}
             />
           ) : (
-            <button
-              onClick={() => setAdding(true)}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
-            >
-              <Plus className="h-4 w-4" /> {t('addParticipant')}
-            </button>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => setAdding(true)}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
+              >
+                <Plus className="h-4 w-4" /> {t('addParticipant')}
+              </button>
+              {participants.some((p) => p.participantType === 'CORE_PARTNER') &&
+                num(costing?.totals?.landedEgp) > 0 && (
+                  <button
+                    onClick={() => splitEqually.mutate()}
+                    disabled={splitEqually.isPending}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                  >
+                    {splitEqually.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Scale className="h-4 w-4" />
+                    )}
+                    {t('splitEqually')}
+                  </button>
+                )}
+            </div>
           )
         )}
       </Card>

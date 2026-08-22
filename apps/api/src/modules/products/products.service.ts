@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
@@ -85,8 +86,12 @@ export class ProductsService {
     actorId: string,
   ) {
     // Generate SKU: PRD-XXXXXX
-    const count = await this.prisma.product.count();
-    const sku = `PRD-${String(count + 1).padStart(6, '0')}`;
+    const last = await this.prisma.product.findFirst({
+      where: { sku: { startsWith: 'PRD-' } },
+      orderBy: { sku: 'desc' },
+      select: { sku: true },
+    });
+    const sku = `PRD-${pad(nextReferenceNumber(last?.sku, 6), 6)}`;
 
     const product = await this.prisma.product.create({
       data: {

@@ -4,11 +4,13 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { CreatePaymentPlanDto } from './dto/payment-plan.dto';
+import { formatMoney } from '../../common/money';
 
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -225,17 +227,22 @@ export class PaymentPlansService {
     const owed = D(owedAgg._sum?.outstanding);
     if (owed.gt(0) && total.gt(owed)) {
       throw new BadRequestException(
-        `The instalments total ${total.toFixed(2)} EGP but ${customer.displayName} ` +
-          `only owes ${owed.toFixed(2)} EGP.`,
+        `The instalments total ${formatMoney(total)} EGP but ${customer.displayName} ` +
+          `only owes ${formatMoney(owed)} EGP.`,
       );
     }
 
     const plan = await this.prisma.$transaction(async (tx) => {
-      const seq = await tx.paymentPlan.count();
+      const year = new Date().getFullYear();
+      const last = await tx.paymentPlan.findFirst({
+        where: { reference: { startsWith: `PLAN-${year}` } },
+        orderBy: { reference: 'desc' },
+        select: { reference: true },
+      });
       return tx.paymentPlan.create({
         data: {
           customerId: dto.customerId,
-          reference: `PLAN-${new Date().getFullYear()}-${String(seq + 1).padStart(4, '0')}`,
+          reference: `PLAN-${year}-${pad(nextReferenceNumber(last?.reference, 4), 4)}`,
           totalEgp: money(total),
           agreedOn,
           note: dto.note,
@@ -333,7 +340,7 @@ export class PaymentPlansService {
         await this.notifications.createForMultipleUsers(notifyUserIds, {
           eventType: 'PAYMENT_OVERDUE',
           title:
-            `${p.plan.customer.displayName} is ${p.overdueEgp} EGP behind on ${p.plan.reference}`,
+            `${p.plan.customer.displayName} is ${formatMoney(p.overdueEgp)} EGP behind on ${p.plan.reference}`,
           payload: {
             planId: p.plan.id,
             customerId: p.plan.customerId,

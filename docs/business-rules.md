@@ -224,6 +224,20 @@ several cycles, so a sale's revenue is deliberately recorded without a cycle.
 **Unsold stock keeps its cost with the cycle.** Profit therefore covers sold
 units only, and the settlement screen says so.
 
+**DECIDED 2026-08-23 — the three partners fund a cycle equally by default.**
+A new cycle starts with all active core partners on it. Their contributions
+begin at zero because the capital is not known yet — a cycle costs what its
+goods and shipping come to — and "Split equally" fills them in from the landed
+cost once it is, to the piastre, with the last partner absorbing the residual
+so capital returned matches capital put in. A temporary investor's own money is
+excluded from that split; the partners cover the remainder.
+
+Equal contributions produce an equal split by construction, which is why no
+profit percentage is set: three explicit 33.33s total 99.99 and are rejected,
+and choosing which partner absorbs the extra 0.01 is not worth encoding.
+
+Naming participants when creating a cycle overrides the default entirely.
+
 **Distribution defaults to actual contribution.** 80k / 100k / 120k gives
 26.67% / 33.33% / 40%. A custom split can be agreed per cycle.
 
