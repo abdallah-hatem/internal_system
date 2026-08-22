@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-08-21.
+Last updated 2026-08-22.
 
 ---
 
@@ -163,6 +163,42 @@ A plan cannot promise more than the shop actually owes.
 
 ---
 
+## 7a. What cannot be recorded
+
+**DECIDED 2026-08-22**, after each of these was found to be possible.
+
+**A shop cannot pay more than it owes.** A payment is refused when it exceeds
+the customer's total outstanding across confirmed orders. Taking 500 against a
+300 balance leaves 200 attached to no order: it clears nothing, still reads as
+collected, and overstates what has been received. In practice it is a typo, and
+the moment to catch a typo is before it is written down.
+
+An earlier version kept the surplus as unallocated credit. That was not agreed
+with anyone and is reversed. If taking a genuine deposit before an order exists
+is ever needed, it is a separate thing and needs its own decision — see below.
+
+**Only confirmed orders owe anything.** A draft reserves nothing and counts for
+nothing (§4), so it is not part of a balance and cannot be paid against.
+
+**Money cannot be dated forward.** A payment cannot be received, and a purchase
+order cannot be placed, on a date that has not arrived. Dating either forward
+puts revenue or cash into a period that has not happened, so a report run today
+already contains next month. Instalment due dates are the exception and are
+meant to be in the future.
+
+**A discount cannot exceed what a line is worth.** A 100 line discounted by
+9,999 produced an order totalling -9,899 — a sale owing money to the customer,
+which would have counted as revenue.
+
+**A payment can only pay the customer who made it.** Allocation checks the
+order belongs to the payer. It did not, and the picker offered every order in
+the system by number, so one shop's money could clear another's debt.
+
+**A record must point at something that exists.** A payment for an unknown
+customer is a clear refusal, not a 500.
+
+---
+
 ## 8. Cycle profit and settlement
 
 **Profit is revenue less the cost of what actually sold**, plus anything a
@@ -254,6 +290,7 @@ mistakes it for an agreement.
 | Whether leftover stock can move from a closed cycle to general inventory | It cannot. Batches stay owned by their source cycle. |
 | Payment account and reconciliation workflow | One cash account, no reconciliation. `MoneyAccount` exists for more later. |
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
+| Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |
 
 ---

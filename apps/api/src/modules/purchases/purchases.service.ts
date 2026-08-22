@@ -4,10 +4,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { formatMoney } from '../../common/money';
 
 @Injectable()
 export class PurchasesService {
@@ -89,6 +91,8 @@ export class PurchasesService {
     },
     actorId: string,
   ) {
+    assertNotFuture(data.orderedOn, 'The date an order was placed');
+
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
@@ -321,8 +325,8 @@ export class PurchasesService {
     // data-entry slip that would show the cycle a profit it never made.
     if (alreadyRefundedEgp.add(amountEgp).gt(orderValueEgp)) {
       throw new BadRequestException(
-        `Refund of ${amountEgp.toFixed(2)} EGP exceeds what is left on ${po.reference}: ` +
-          `order ${orderValueEgp.toFixed(2)} EGP, already refunded ${alreadyRefundedEgp.toFixed(2)} EGP.`,
+        `Refund of ${formatMoney(amountEgp)} EGP exceeds what is left on ${po.reference}: ` +
+          `order ${formatMoney(orderValueEgp)} EGP, already refunded ${formatMoney(alreadyRefundedEgp)} EGP.`,
       );
     }
 

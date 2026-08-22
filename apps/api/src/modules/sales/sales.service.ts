@@ -129,14 +129,26 @@ export class SalesService {
     // Calculate totals using Decimal arithmetic
     let subtotal = new Prisma.Decimal(0);
     const itemsData = data.items.map((item) => {
-      const lineTotal =
-        item.unitPrice * item.quantity - (item.discount || 0);
+      const gross = item.unitPrice * item.quantity;
+      const discount = item.discount || 0;
+
+      // A discount cannot exceed what the line is worth. Without this the line
+      // went negative and took the order with it: a 100 line discounted by
+      // 9,999 produced an order totalling -9,899 — a sale that owes money to
+      // the customer, and one that would have been counted as revenue.
+      if (discount > gross) {
+        throw new BadRequestException(
+          `Discount ${discount.toFixed(2)} is more than the line is worth (${gross.toFixed(2)}).`,
+        );
+      }
+
+      const lineTotal = gross - discount;
       subtotal = subtotal.add(lineTotal);
       return {
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        discount: item.discount || 0,
+        discount,
         lineTotal,
       };
     });

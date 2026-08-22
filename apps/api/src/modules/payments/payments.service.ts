@@ -5,7 +5,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
+
+/** Orders whose balance is genuinely outstanding; a draft owes nothing yet. */
+const OWED_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID'] as const;
 
 @Injectable()
 export class PaymentsService {
@@ -63,6 +67,34 @@ export class PaymentsService {
     actorId: string,
     idempotencyKey?: string,
   ) {
+    assertNotFuture(data.receivedOn, 'The date a payment was received');
+
+    // The customer must exist. Without this the foreign key failed deep in
+    // Prisma and surfaced as a 500 "An unexpected error occurred", which tells
+    // whoever typed the id nothing at all.
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: data.customerId },
+      select: { id: true, displayName: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    // A shop cannot pay more than it owes. Taking 500 against a 300 balance
+    // leaves 200 attached to nobody: it clears no order, shows as paid, and
+    // quietly overstates what has been collected. In practice it is a typo,
+    // and the moment to catch a typo is before it is written down.
+    const owedAgg = await this.prisma.saleOrder.aggregate({
+      where: { customerId: data.customerId, status: { in: [...OWED_STATUSES] } },
+      _sum: { outstanding: true },
+    });
+    const owed = Number(owedAgg._sum?.outstanding ?? 0);
+    if (data.amount > owed) {
+      throw new BadRequestException(
+        owed <= 0
+          ? `${customer.displayName} does not owe anything, so there is nothing to pay.`
+          : `${customer.displayName} owes ${owed.toFixed(2)}, so ${Number(data.amount).toFixed(2)} cannot be received against it.`,
+      );
+    }
+
     // Check idempotency
     if (idempotencyKey) {
       const existing = await this.prisma.payment.findFirst({

@@ -93,10 +93,17 @@ export default function CustomerPage() {
 
   // Oldest first: money clears the oldest debt, which is both what shops
   // expect and the rule the instalment logic already follows.
+  //
+  // Confirmed orders only. A draft is not a sale yet — it reserves nothing and
+  // counts for nothing — so paying against one would attach money to something
+  // that may never happen. The server counts what is owed the same way, and
+  // allocating here to an order it did not count would strand the difference.
   const openOrders = useMemo(
     () =>
       orderList
-        .filter((o) => num(o.outstanding) > 0)
+        .filter(
+          (o) => num(o.outstanding) > 0 && ['CONFIRMED', 'PARTIALLY_PAID'].includes(o.status),
+        )
         .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
     [orderList],
   );
@@ -112,8 +119,12 @@ export default function CustomerPage() {
    * This was three steps on two screens: create the payment, find it again,
    * then allocate it to an order picked from a list of every order in the
    * system. Nobody takes money from a shop and thinks of it that way — they
-   * think "he paid 5,000 off what he owes". Anything left over after the open
-   * orders are cleared simply stays on the payment, unallocated, as credit.
+   * think "he paid 5,000 off what he owes".
+   *
+   * More than is owed is refused outright by the server rather than left over
+   * as credit. That was my call originally and it was wrong: money attached to
+   * no order clears nothing, still reads as collected, and is almost always a
+   * typo — which is exactly the moment to catch it.
    */
   const pay = useMutation({
     mutationFn: async (form: { amount: number; method: string; receivedOn: string; reference?: string }) => {
@@ -140,19 +151,14 @@ export default function CustomerPage() {
       }
       return left;
     },
-    onSuccess: (left) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer', id] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['paymentPlans'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setShowPay(false);
-      addToast(
-        left > 0
-          ? `Payment recorded — ${left.toLocaleString()} left as credit`
-          : 'Payment recorded and applied',
-        'success',
-      );
+      addToast('Payment recorded and applied', 'success');
     },
     onError: (e: any) =>
       addToast(

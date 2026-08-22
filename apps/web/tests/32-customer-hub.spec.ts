@@ -32,7 +32,13 @@ async function token(request: APIRequestContext) {
   return (await auth.json()).data.accessToken;
 }
 
-/** A shop owing two orders: an older 500 and a newer 800. */
+/**
+ * A shop genuinely owing two orders: an older 500 and a newer 800.
+ *
+ * The orders are confirmed, which means real stock has to exist behind them —
+ * an unconfirmed order is a draft and owes nothing, so a fixture that skipped
+ * this was testing against balances the business does not recognise.
+ */
 async function shopOwingTwoOrders(request: APIRequestContext) {
   const t = await token(request);
   const headers = { Authorization: `Bearer ${t}` };
@@ -47,17 +53,42 @@ async function shopOwingTwoOrders(request: APIRequestContext) {
 
   const customer = await mk('customers', { displayName: `Hub Shop ${stamp}`, type: 'B2B' });
   const product = await mk('products', { name: `Hub Part ${stamp}`, minStock: 0 });
+  const supplier = await mk('suppliers', { name: `Hub Sup ${stamp}`, country: 'AE' });
 
-  const order = (qty: number, price: number) =>
-    mk('sales/orders', {
-      customerId: customer.id,
-      channel: 'B2B',
-      currency: 'EGP',
-      items: [{ productId: product.id, quantity: qty, unitPrice: price, discount: 0 }],
+  const today = new Date();
+  const iso = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+
+  // Stock, via the only route that creates any.
+  const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+  await mk(`cycles/${cycle.id}/purchases`, {
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: iso,
+    items: [{ productId: product.id, orderedQty: 100, unitPrice: 10 }],
+  });
+  await mk(`cycles/${cycle.id}/shipping-legs`, {
+    sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+    provider: 'Hub Freight', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+  });
+  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    await mk(`cycles/${cycle.id}/transition`, { status });
+  }
+  const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+  const poItem = (full.data ?? full).purchaseOrders[0].items[0];
+  await mk('receipts/verify', {
+    cycleId: cycle.id,
+    items: [{ purchaseOrderItemId: poItem.id, productId: product.id, receivedQty: 100 }],
+  });
+
+  const confirmedOrder = async (amount: number) => {
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 1, unitPrice: amount, discount: 0 }],
     });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+    return order;
+  };
 
-  const older = await order(1, 500);
-  const newer = await order(1, 800);
+  const older = await confirmedOrder(500);
+  const newer = await confirmedOrder(800);
 
   return { headers, customer, older, newer };
 }
@@ -102,12 +133,15 @@ test.describe('Customer page', () => {
     expect(await outstanding(request, headers, newer.id)).toBe(600);
   });
 
-  test('TC-HUB-03: money beyond what is owed stays as credit rather than failing', async ({
+  test('TC-HUB-03: more than the shop owes is refused, not banked as credit', async ({
     page,
     request,
   }) => {
-    // A shop paying round numbers ("here's 2,000") must not hit an error
-    // because it exceeds the orders on file.
+    // This test previously asserted the opposite — that a surplus was kept as
+    // credit — because that is what I built. It was the wrong call: money
+    // attached to no order clears nothing, still counts as collected, and is
+    // almost always a typo. The owner's words: paying 500 against 300 owed
+    // "worked", and that is not logical.
     const { headers, customer, older, newer } = await shopOwingTwoOrders(request);
     await login(page);
     await page.goto(`${BASE}/en/customers/${customer.id}`);
@@ -116,16 +150,12 @@ test.describe('Customer page', () => {
     await page.locator('input[name="amount"]').fill('2000');
     await page.getByRole('button', { name: /save/i }).click();
 
-    await expect
-      .poll(() => outstanding(request, headers, older.id), { timeout: 15000 })
-      .toBe(0);
-    expect(await outstanding(request, headers, newer.id)).toBe(0);
+    // Refused, and said why.
+    await expect(page.getByText(/owes/i).first()).toBeVisible({ timeout: 15000 });
 
-    // The extra 700 is recorded but applied to nothing.
-    const res = await request.get(`${API}/payments?customerId=${customer.id}&limit=10`, { headers });
-    const payments = (await res.json()).data ?? [];
-    const total = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
-    expect(total).toBe(2000);
+    // Nothing moved: both orders still owe exactly what they did.
+    expect(await outstanding(request, headers, older.id)).toBe(500);
+    expect(await outstanding(request, headers, newer.id)).toBe(800);
   });
 
   test('TC-HUB-04: New Order opens the form on that shop, already chosen', async ({

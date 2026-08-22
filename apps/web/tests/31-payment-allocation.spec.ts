@@ -9,50 +9,31 @@
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
 
-const API = 'http://localhost:3001/api/v1';
-const EMAIL = 'partner.a@motoparts.com';
-const PASSWORD = 'password123';
+import { apiCtx, stockedProduct, owedOrder, API } from './support/fixtures';
 
-async function token(request: APIRequestContext) {
-  const auth = await request.post(`${API}/auth/login`, {
-    data: { email: EMAIL, password: PASSWORD },
-  });
-  return (await auth.json()).data.accessToken;
-}
-
-/** Two unrelated shops, one order owed by the second, one payment from the first. */
+/**
+ * Two unrelated shops: the second genuinely owes 500, the first has paid 500.
+ *
+ * The orders are confirmed and the stock is real, because a draft owes nothing
+ * and a payment against nothing is now refused before allocation is ever
+ * reached — an earlier version of this fixture tested neither rule.
+ */
 async function twoShops(request: APIRequestContext) {
-  const t = await token(request);
-  const headers = { Authorization: `Bearer ${t}` };
+  const { headers, mk } = await apiCtx(request);
   const stamp = Date.now();
-
-  const mk = async (path: string, data: any) => {
-    const res = await request.post(`${API}/${path}`, { headers, data });
-    expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
-    const body = await res.json();
-    return body.data ?? body;
-  };
 
   const payer = await mk('customers', { displayName: `Payer ${stamp}`, type: 'B2B' });
   const other = await mk('customers', { displayName: `Other ${stamp}`, type: 'B2B' });
-  const product = await mk('products', { name: `Alloc Part ${stamp}`, minStock: 0 });
+  const { product } = await stockedProduct(request, headers, mk, `Alloc ${stamp}`);
 
-  const othersOrder = await mk('sales/orders', {
-    customerId: other.id,
-    channel: 'B2B',
-    currency: 'EGP',
-    items: [{ productId: product.id, quantity: 1, unitPrice: 500, discount: 0 }],
-  });
+  const othersOrder = await owedOrder(mk, other.id, product.id, 500);
+  const payersOrder = await owedOrder(mk, payer.id, product.id, 500);
 
   const payment = await mk('payments', {
-    customerId: payer.id,
-    amount: 500,
-    currency: 'EGP',
-    method: 'CASH',
-    receivedOn: '2026-08-22',
+    customerId: payer.id, amount: 500, currency: 'EGP', method: 'CASH', receivedOn: undefined,
   });
 
-  return { headers, payer, other, payment, othersOrder };
+  return { headers, mk, payer, other, product, payment, othersOrder, payersOrder };
 }
 
 test.describe('Payment allocation', () => {
@@ -75,34 +56,17 @@ test.describe('Payment allocation', () => {
     expect(Number(order.outstanding)).toBe(500);
   });
 
-  test('TC-ALLOC-02: the payer\'s own order still allocates normally', async ({ request }) => {
+  test("TC-ALLOC-02: the payer's own order still allocates normally", async ({ request }) => {
     // The guard must refuse the wrong customer without breaking the right one.
-    const { headers, payer, payment } = await twoShops(request);
-    const stamp = Date.now();
-
-    const prodRes = await request.post(`${API}/products`, {
-      headers, data: { name: `Own Part ${stamp}`, minStock: 0 },
-    });
-    const product = (await prodRes.json()).data;
-
-    const ownRes = await request.post(`${API}/sales/orders`, {
-      headers,
-      data: {
-        customerId: payer.id,
-        channel: 'B2B',
-        currency: 'EGP',
-        items: [{ productId: product.id, quantity: 1, unitPrice: 500, discount: 0 }],
-      },
-    });
-    const own = (await ownRes.json()).data;
+    const { headers, payment, payersOrder } = await twoShops(request);
 
     const res = await request.post(`${API}/payments/${payment.id}/allocations`, {
       headers,
-      data: { saleOrderId: own.id, amount: 500 },
+      data: { saleOrderId: payersOrder.id, amount: 500 },
     });
     expect(res.ok(), await res.text()).toBeTruthy();
 
-    const after = await request.get(`${API}/sales/orders/${own.id}`, { headers });
+    const after = await request.get(`${API}/sales/orders/${payersOrder.id}`, { headers });
     expect(Number(((await after.json()).data ?? {}).outstanding)).toBe(0);
   });
 });
