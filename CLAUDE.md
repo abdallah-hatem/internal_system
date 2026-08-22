@@ -91,3 +91,15 @@ a uniform.
 not a licence to run tests while someone is entering real records: a failed run
 once left the seeded state behind and the next run snapshotted *that* over the
 only copy, and a morning's data entry was lost for good. Ask first.
+
+## 7. Check the data, not only the code
+
+Guards stop new bad records; they do nothing about what is already stored.
+`scripts/check-data.sh` looks for records the business could not have produced
+— money dated forward, a batch holding more than it received, an order worth
+less than nothing, ledger rows pointing at things that were deleted. Every
+count should be zero.
+
+Run it after a data fix, after restoring a backup, and whenever a figure on
+screen looks wrong. It found five orphaned ledger rows that a cleanup of mine
+had left behind, which no test would ever have noticed.
