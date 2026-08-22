@@ -130,6 +130,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     enabled: !!existingCycleId,
   });
 
+  // Stock already received for this cycle, keyed by the purchase order item it
+  // came from. A batch keeps the landed cost it was received at for good — the
+  // same rule that stops a supplier refund re-pricing sold goods — so these
+  // rows are history, not something the wizard offers to redo.
+  const receivedByPoItem = new Map<string, any>(
+    (existingCycle?.inventoryBatches ?? []).map((b: any) => [b.sourcePoItemId, b]),
+  );
+
   // The currency the purchase order step is showing: the one already chosen on
   // this order, or failing that the cycle's own.
   const effectivePoCurrency = poCurrency || existingCycle?.currency || '';
@@ -496,9 +504,31 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         }
       }
 
+      // The loop above has already walked the cycle to VERIFICATION, which is
+      // what takes it off the "resume" list — so a cycle whose stock is all in
+      // still finishes here rather than dead-ending.
+      //
+      // Only what has not been received yet is sent. An already-received item
+      // is refused outright by the server (one batch per purchase order item),
+      // and that refusal used to fail the whole step at the last click.
+      const outstanding = receiveItems.filter(
+        (item) => !receivedByPoItem.has(item.purchaseOrderItemId),
+      );
+
+      if (outstanding.length === 0) {
+        await refetchCycle();
+        toast.success(
+          currentStatus === 'VERIFICATION'
+            ? 'Stock is already received — nothing left to enter'
+            : 'Stock was already received — cycle moved on to verification',
+        );
+        router.push(`/${locale}/cycles`);
+        return;
+      }
+
       await verifyInventoryMutation.mutateAsync({
         cycleId,
-        items: receiveItems.map((item) => ({
+        items: outstanding.map((item) => ({
           purchaseOrderItemId: item.purchaseOrderItemId,
           productId: item.productId,
           receivedQty: item.receivedQty,
@@ -1182,9 +1212,44 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               </div>
             )}
 
+            {receiveItems.some((i) => receivedByPoItem.has(i.purchaseOrderItemId)) && (
+              <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-xs font-medium text-green-800">
+                  Already received into stock — recorded at the cost it was received at,
+                  and not re-costed by later changes.
+                </p>
+                {receiveItems
+                  .filter((i) => receivedByPoItem.has(i.purchaseOrderItemId))
+                  .map((i) => {
+                    const batch = receivedByPoItem.get(i.purchaseOrderItemId);
+                    return (
+                      <div
+                        key={i.purchaseOrderItemId}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm text-green-900"
+                      >
+                        <span className="font-medium">{batch?.product?.name ?? 'Product'}</span>
+                        <span className="text-xs">
+                          {Number(batch?.receivedQty ?? 0)} received @{' '}
+                          {Number(batch?.landedUnitCostEgp ?? 0).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          EGP
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
             {receiveItems.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8 border border-dashed border-gray-200 rounded-lg">
                 No purchase order items found.
+              </p>
+            ) : receiveItems.every((i) => receivedByPoItem.has(i.purchaseOrderItemId)) ? (
+              <p className="text-sm text-gray-500 text-center py-6 border border-dashed border-gray-200 rounded-lg">
+                Everything on this cycle has been received. There is nothing left to
+                enter here.
               </p>
             ) : (
               <div className="space-y-4">
@@ -1196,6 +1261,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 </div>
 
                 {receiveItems.map((item, idx) => {
+                  if (receivedByPoItem.has(item.purchaseOrderItemId)) return null;
                   const poItem = poItems.find((pi: any) => pi.id === item.purchaseOrderItemId);
                   return (
                     <div
@@ -1267,7 +1333,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isStep4Processing && <Loader2 className="h-4 w-4 animate-spin" />}
-                Complete
+                {receiveItems.length > 0 &&
+                receiveItems.every((i) => receivedByPoItem.has(i.purchaseOrderItemId))
+                  ? 'Done'
+                  : 'Complete'}
               </button>
             </div>
           </div>

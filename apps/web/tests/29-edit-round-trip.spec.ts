@@ -349,4 +349,67 @@ test.describe('FX rates reach the forms', () => {
     await expect(fx).not.toHaveValue(String(rates.AED));
   });
 
+  test('TC-RT-08: a cycle whose stock is already in does not dead-end on step 4', async ({
+    page,
+    request,
+  }) => {
+    // Going back to ARRIVED_EGYPT is the only way into the wizard to correct a
+    // shipping leg, so the list offers "Resume" — but stock can only be
+    // received once, and pressing Complete used to fail at the last click with
+    // "Stock already verified". Step 4 now says what is already in and
+    // finishes the cycle instead of refusing.
+    const { headers, cycleId } = await cycleWithALeg(request);
+
+    // Walk it through to VERIFICATION and receive the stock.
+    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+      const res = await request.post(`${API}/cycles/${cycleId}/transition`, {
+        headers, data: { status },
+      });
+      expect(res.ok(), `${status}: ${await res.text()}`).toBeTruthy();
+    }
+
+    const cyc = await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json();
+    const poItem = (cyc.data ?? cyc).purchaseOrders[0].items[0];
+    const verified = await request.post(`${API}/receipts/verify`, {
+      headers,
+      data: {
+        cycleId,
+        items: [{
+          purchaseOrderItemId: poItem.id,
+          productId: poItem.productId,
+          receivedQty: Number(poItem.orderedQty),
+        }],
+      },
+    });
+    expect(verified.ok(), await verified.text()).toBeTruthy();
+
+    // Back a step, the way someone does to fix a shipping cost.
+    const back = await request.post(`${API}/cycles/${cycleId}/transition`, {
+      headers, data: { status: 'ARRIVED_EGYPT' },
+    });
+    expect(back.ok(), await back.text()).toBeTruthy();
+
+    await login(page);
+    await page.goto(`${BASE}/en/cycles/${cycleId}`);
+
+    // Step 4 states what is already in stock rather than offering it again.
+    await expect(page.getByText(/already received into stock/i)).toBeVisible({ timeout: 15000 });
+    const done = page.getByRole('button', { name: /^done$/i });
+    await expect(done).toBeVisible();
+    await done.click();
+
+    // It finishes: the cycle moves on rather than erroring, and no second
+    // batch is created for the same purchase order item.
+    await expect
+      .poll(
+        async () =>
+          ((await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json()).data ?? {})
+            .status,
+        { timeout: 15000 },
+      )
+      .toBe('VERIFICATION');
+
+    const after = await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json();
+    expect((after.data ?? after).inventoryBatches).toHaveLength(1);
+  });
 });
