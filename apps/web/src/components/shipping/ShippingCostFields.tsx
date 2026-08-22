@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { Select } from '../ui/select';
+import { useCurrencyRates } from '../../lib/currency-rates';
 
 export type CostBasis = 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
 
@@ -31,20 +33,34 @@ export function ShippingCostFields({
   defaults,
   namePrefix = '',
   title = 'Shipment Cost',
+  orderedPieces,
 }: {
   defaults?: ShippingCostDefaults;
   /** Namespace for field names so several legs can share one form. */
   namePrefix?: string;
   title?: string;
+  /**
+   * Total quantity ordered on the cycle, used to seed the piece count.
+   *
+   * It is a starting value, not the answer: this field is what the forwarder
+   * billed for, which is often cartons rather than units, and a leg may carry
+   * only part of the order. Those cases are the reason the number is asked for
+   * at all — but the common case is "all of it, billed per unit", and there is
+   * no sense making someone retype a number the order already carries.
+   */
+  orderedPieces?: number;
 }) {
   const n = (field: string) => `${namePrefix}${field}`;
   const [basis, setBasis] = useState<CostBasis>(defaults?.costBasis ?? 'PER_PIECE');
   const [rate, setRate] = useState(String(defaults?.ratePerUnit ?? ''));
-  const [pieces, setPieces] = useState(String(defaults?.chargeablePieces ?? ''));
+  const [pieces, setPieces] = useState(
+    String(defaults?.chargeablePieces ?? (orderedPieces ? orderedPieces : '')),
+  );
   const [weight, setWeight] = useState(String(defaults?.chargeableWeightKg ?? ''));
   const [amount, setAmount] = useState(String(defaults?.amount ?? ''));
   const [currency, setCurrency] = useState(defaults?.currency ?? 'EGP');
   const [fx, setFx] = useState(String(defaults?.fxRateToEgp ?? '1'));
+  const rates = useCurrencyRates();
 
   const native =
     basis === 'PER_PIECE'
@@ -67,16 +83,16 @@ export function ShippingCostFields({
 
       <div>
         <label className={label}>Charged by</label>
-        <select
-          {...{ name: n('costBasis') }}
+        <Select
+          name={n('costBasis')}
           value={basis}
-          onChange={(e) => setBasis(e.target.value as CostBasis)}
-          className={input}
-        >
-          <option value="PER_PIECE">Per piece</option>
-          <option value="PER_WEIGHT">Per weight (kg)</option>
-          <option value="FLAT">Flat total</option>
-        </select>
+          onChange={(v) => setBasis(v as CostBasis)}
+          options={[
+            { value: 'PER_PIECE', label: 'Per piece' },
+            { value: 'PER_WEIGHT', label: 'Per weight (kg)' },
+            { value: 'FLAT', label: 'Flat total' },
+          ]}
+        />
       </div>
 
       {basis === 'PER_PIECE' && (
@@ -100,6 +116,24 @@ export function ShippingCostFields({
               {...{ name: n('chargeablePieces') }} value={pieces} onChange={(e) => setPieces(e.target.value)}
               placeholder="0" className={input}
             />
+            {orderedPieces ? (
+              <p className="mt-1 text-xs text-gray-500">
+                {num(pieces) === orderedPieces ? (
+                  <>Pieces the forwarder billed for — prefilled from the {orderedPieces} ordered. Change it if they charged by carton.</>
+                ) : (
+                  <>
+                    The order has {orderedPieces} pieces.{' '}
+                    <button
+                      type="button"
+                      onClick={() => setPieces(String(orderedPieces))}
+                      className="font-medium text-primary-600 underline underline-offset-2 hover:text-primary-700"
+                    >
+                      Use that
+                    </button>
+                  </>
+                )}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -145,19 +179,21 @@ export function ShippingCostFields({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={label}>Currency</label>
-          <select
-            {...{ name: n('currency') }} value={currency}
-            onChange={(e) => {
-              setCurrency(e.target.value);
-              if (e.target.value === 'EGP') setFx('1');
+          <Select
+            name={n('currency')}
+            value={currency}
+            onChange={(v) => {
+              setCurrency(v);
+              // Fill in the current rate. It stays editable: a leg should be
+              // costed at the rate the shipment was actually paid at.
+              setFx(v === 'EGP' ? '1' : rates[v] != null ? String(rates[v]) : '');
             }}
-            className={input}
-          >
-            <option value="EGP">EGP</option>
-            <option value="USD">USD</option>
-            <option value="AED">AED</option>
-            <option value="CNY">CNY</option>
-          </select>
+            options={['EGP', 'USD', 'AED', 'CNY'].map((c) => ({
+              value: c,
+              label: c,
+              hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : 'no rate set',
+            }))}
+          />
         </div>
         {currency !== 'EGP' && (
           <div>
@@ -169,6 +205,11 @@ export function ShippingCostFields({
               {...{ name: n('fxRateToEgp') }} value={fx} onChange={(e) => setFx(e.target.value)}
               className={input}
             />
+            <p className="mt-1 text-xs text-gray-400">
+              {rates[currency] != null
+                ? `Current rate: 1 ${currency} = ${rates[currency]} EGP`
+                : `No rate recorded for ${currency} — enter the rate used`}
+            </p>
           </div>
         )}
       </div>

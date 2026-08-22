@@ -1,5 +1,7 @@
 'use client';
 import { Select } from '../ui/select';
+import { DatePicker } from '../ui/date-picker';
+import { useCurrencyRates } from '../../lib/currency-rates';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -78,6 +80,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const [poSupplierId, setPoSupplierId] = useState('');
   const [poCurrency, setPoCurrency] = useState('');
   const [poFxRate, setPoFxRate] = useState('');
+  const rates = useCurrencyRates();
   const [poOrderedOn, setPoOrderedOn] = useState('');
 
   // Step 3 form state for back-navigation pre-population
@@ -315,10 +318,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       return;
     }
 
+    // No start date is asked for: a cycle starts when it is set up, and the
+    // API dates it today when the field is omitted. Leaving it blank was
+    // already what nearly every cycle did.
     createCycleMutation.mutate({
       originType: fd.get('originType'),
       currency: fd.get('currency'),
-      startedOn: fd.get('startedOn') || undefined,
     });
   };
 
@@ -362,6 +367,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           { sequence: 1, label: 'China to UAE', origin: 'Guangzhou, CN', destination: 'Dubai, UAE' },
           { sequence: 2, label: 'UAE to Egypt', origin: 'Dubai, UAE', destination: 'Cairo, Egypt' },
         ];
+
+  // What the cycle actually bought, used to prefill each leg's piece count.
+  const orderedPieces = lineItems.reduce((sum, item) => sum + Number(item.orderedQty || 0), 0);
 
   const handleStep3Submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -698,47 +706,37 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Origin Type <span className="text-red-500">*</span>
               </label>
-              <select
+              <Select
                 key={originType || 'empty-origin'}
                 name="originType"
                 required
                 defaultValue={originType || existingCycle?.originType || ''}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Select origin type</option>
-                <option value="CHINA">China</option>
-                <option value="UAE_DIRECT">UAE Direct</option>
-              </select>
+                placeholder="Select origin type"
+                options={[
+                  { value: 'CHINA', label: 'China' },
+                  { value: 'UAE_DIRECT', label: 'UAE Direct' },
+                ]}
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Currency <span className="text-red-500">*</span>
               </label>
-              <select
+              <Select
                 key={poCurrency || 'empty-currency'}
                 name="currency"
                 required
                 defaultValue={poCurrency || existingCycle?.currency || ''}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Select currency</option>
-                <option value="CNY">CNY (&#165;)</option>
-                <option value="AED">AED</option>
-                <option value="USD">USD ($)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-              </label>
-              <input
-                type="date"
-                name="startedOn"
-                key={existingCycle?.startedOn || ''}
-                defaultValue={existingCycle?.startedOn ? new Date(existingCycle.startedOn).toISOString().split('T')[0] : ''}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Select currency"
+                options={[
+                  { value: 'CNY', label: 'CNY (\u00A5)' },
+                  { value: 'AED', label: 'AED' },
+                  { value: 'USD', label: 'USD ($)' },
+                ].map((o) => ({
+                  ...o,
+                  hint: rates[o.value] != null ? `${rates[o.value]} EGP` : 'no rate set',
+                }))}
               />
             </div>
 
@@ -783,19 +781,24 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Currency <span className="text-red-500">*</span>
                 </label>
-                <select
+                <Select
                   key={poCurrency || 'empty-currency'}
                   name="currency"
                   required
                   defaultValue={poCurrency || (existingCycle?.currency ?? '')}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Select currency</option>
-                  <option value="CNY">CNY</option>
-                  <option value="AED">AED</option>
-                  <option value="USD">USD</option>
-                  <option value="EGP">EGP</option>
-                </select>
+                  placeholder="Select currency"
+                  onChange={(v) => {
+                    setPoCurrency(v);
+                    // Fill the rate in from the currency. It stays editable —
+                    // the order is costed at the rate it was actually agreed at.
+                    setPoFxRate(v === 'EGP' ? '1' : rates[v] != null ? String(rates[v]) : '');
+                  }}
+                  options={['CNY', 'AED', 'USD', 'EGP'].map((c) => ({
+                    value: c,
+                    label: c,
+                    hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : 'no rate set',
+                  }))}
+                />
               </div>
             </div>
 
@@ -805,27 +808,29 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   FX Rate to EGP <span className="text-red-500">*</span>
                 </label>
                 <input
+                  key={poFxRate}
                   type="number"
                   name="fxRateToEgp"
                   required
-                  step="0.01"
+                  step="0.0001"
                   placeholder="0"
-                  defaultValue={Number(poFxRate).toFixed(4)}
+                  defaultValue={poFxRate ? Number(poFxRate).toFixed(4) : ''}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
+                <p className="mt-1 text-xs text-gray-400">
+                  {poCurrency && rates[poCurrency] != null
+                    ? `Current rate: 1 ${poCurrency} = ${rates[poCurrency]} EGP`
+                    : poCurrency
+                      ? `No rate recorded for ${poCurrency} — enter the rate used`
+                      : 'Pick a currency to fill this in'}
+                </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ordered Date <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
-                  name="orderedOn"
-                  required
-                  defaultValue={poOrderedOn}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
+                <DatePicker name="orderedOn" required defaultValue={poOrderedOn} />
               </div>
             </div>
 
@@ -988,13 +993,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Provider <span className="text-red-500">*</span>
+                        Shipping Provider <span className="text-red-500">*</span>
                       </label>
                       <Select
                         name={`${prefix}provider`}
                         required
                         defaultValue={existing?.provider ?? ''}
-                        placeholder="Select provider"
+                        placeholder="Select shipping provider"
                         options={(Array.isArray(providers) ? providers : []).map((pr: any) => ({
                           value: pr.name,
                           label: pr.name,
@@ -1050,28 +1055,21 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         Departed On{' '}
                         <span className="text-gray-400 text-xs font-normal">(Optional)</span>
                       </label>
-                      <input
-                        type="date"
-                        name={`${prefix}departedOn`}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
+                      <DatePicker name={`${prefix}departedOn`} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Arrived On{' '}
                         <span className="text-gray-400 text-xs font-normal">(Optional)</span>
                       </label>
-                      <input
-                        type="date"
-                        name={`${prefix}arrivedOn`}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
+                      <DatePicker name={`${prefix}arrivedOn`} />
                     </div>
                   </div>
 
                   <ShippingCostFields
                     namePrefix={prefix}
                     title={`${leg.label} cost`}
+                    orderedPieces={orderedPieces}
                     defaults={
                       existing
                         ? {
