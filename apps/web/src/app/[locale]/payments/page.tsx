@@ -37,6 +37,7 @@ interface Customer {
 interface SaleOrder {
   id: string;
   orderNo: string;
+  customerId: string;
   outstanding: number;
   currency: string;
 }
@@ -423,14 +424,24 @@ export default function PaymentsPage() {
                 required
                 placeholder={t('saleOrder')}
                 searchPlaceholder={tc('search')}
-                options={orderList.map((o: SaleOrder) => ({
-                  value: o.id,
-                  label: o.orderNo,
-                  hint: `${t('outstanding')}: ${Number(o.outstanding).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })} ${o.currency}`,
-                }))}
+                options={orderList
+                  // This payer's orders only, and only ones still owing. The
+                  // list was every order in the system by number, which made
+                  // paying off the wrong shop a slip of one click.
+                  .filter(
+                    (o: SaleOrder) =>
+                      o.customerId === selectedPayment?.customerId &&
+                      Number(o.outstanding) > 0,
+                  )
+                  .map((o: SaleOrder) => ({
+                    value: o.id,
+                    label: o.orderNo,
+                    hint: `${t('outstanding')}: ${Number(o.outstanding).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })} ${o.currency}`,
+                  }))}
+                emptyText={t('noOpenOrders') ?? 'No open orders for this customer'}
               />
             </div>
             <InputField label={t('allocateAmount')} name="allocateAmount" type="number" required placeholder="0" />

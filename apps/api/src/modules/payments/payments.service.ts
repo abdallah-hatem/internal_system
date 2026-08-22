@@ -146,6 +146,17 @@ export class PaymentsService {
         where: { id: saleOrderId },
       });
       if (!order) throw new NotFoundException('Order not found');
+
+      // The order must belong to whoever paid. Nothing checked this, and the
+      // allocate picker offered every order in the system by number, so one
+      // shop's money could clear another shop's debt — leaving both balances
+      // wrong and no sign of it anywhere.
+      if (order.customerId !== payment.customerId) {
+        throw new BadRequestException(
+          `Order ${order.orderNo} belongs to a different customer than this payment.`,
+        );
+      }
+
       if (Number(order.outstanding) < amount) {
         throw new BadRequestException(
           `Order outstanding is ${order.outstanding}, cannot allocate ${amount}`,
