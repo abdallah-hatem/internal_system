@@ -10,6 +10,7 @@ import { formatDate } from '../../../lib/dates';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
+import { TextareaField } from '../../../components/ui/textarea-field';
 import {
   BadgePercent, Plus, Search, Eye, X, MinusCircle, Loader2,
   ChevronRight, DollarSign, CheckCircle, Ban, Package,
@@ -795,18 +796,13 @@ export default function SalesPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('reason')}<span className="text-red-500 ms-1">*</span>
-              </label>
-              <input
-                name="reason"
-                required
-                minLength={3}
-                placeholder={t('reasonPlaceholder')}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
+            <TextareaField
+              label={t('reason')}
+              name="reason"
+              required
+              minLength={3}
+              placeholder={t('reasonPlaceholder')}
+            />
 
             <div className="flex justify-end gap-3 pt-2">
               <button

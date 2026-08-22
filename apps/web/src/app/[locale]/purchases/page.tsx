@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
+import { TextareaField } from '../../../components/ui/textarea-field';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
@@ -465,10 +466,17 @@ export default function PurchasesPage() {
                           </td>
                           <td className="py-2 text-gray-600">{item.orderedQty}</td>
                           <td className="py-2 text-gray-600">{item.receivedQty}</td>
-                          <td className="py-2 text-gray-600">{item.unitPrice.toLocaleString()}</td>
-                          <td className="py-2 text-gray-600">{item.discount > 0 ? `- ${item.discount.toLocaleString()}` : '—'}</td>
+                          <td className="py-2 text-gray-600">
+                            <Money value={item.unitPrice} currency={viewingPO.currency} />
+                          </td>
+                          <td className="py-2 text-gray-600">
+                            {item.discount > 0 ? <Money value={-item.discount} currency={viewingPO.currency} /> : '—'}
+                          </td>
                           <td className="py-2 font-medium text-gray-900">
-                            {((item.orderedQty * item.unitPrice) - item.discount).toLocaleString()}
+                            <Money
+                              value={item.orderedQty * item.unitPrice - item.discount}
+                              currency={viewingPO.currency}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -528,7 +536,7 @@ export default function PurchasesPage() {
             className="space-y-4"
           >
             <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
-            <InputField label={t('reason')} name="reason" />
+            <TextareaField label={t('reason')} name="reason" />
             <InputField label={tc('date')} name="recordedOn" type="date" required />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowRefundModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>

@@ -10,6 +10,7 @@ import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { formatDate } from '../../../lib/dates';
+import { TextareaField } from '../../../components/ui/textarea-field';
 import {
   CreditCard, Plus, Search, Eye, X, Loader2,
   ChevronRight, ArrowRightLeft, Ban, RotateCcw,
@@ -454,7 +455,7 @@ export default function PaymentsPage() {
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedPayment.amount} currency={selectedPayment.currency} /></span>
             </p>
-            <InputField label={t('reverseReason')} name="reason" required />
+            <TextareaField label={t('reverseReason')} name="reason" required minLength={3} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowReverseModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={reverseMutation.isPending} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2">

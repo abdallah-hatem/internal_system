@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { TextareaField } from '../../../components/ui/textarea-field';
 import {
   Truck, Plus, Search, Edit, X, Loader2, Phone, Mail, User, Trash2,
 } from 'lucide-react';
@@ -285,7 +286,7 @@ export default function ProvidersPage() {
               <InputField label={t('phone')} name="phone" type="tel" />
               <InputField label={t('email')} name="email" type="email" />
             </div>
-            <InputField label={t('notes')} name="notes" placeholder="Additional notes..." />
+            <TextareaField label={t('notes')} name="notes" placeholder="Additional notes..." />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
@@ -307,7 +308,7 @@ export default function ProvidersPage() {
               <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingProvider.phone} />
               <InputField label={t('email')} name="email" type="email" defaultValue={editingProvider.email} />
             </div>
-            <InputField label={t('notes')} name="notes" defaultValue={editingProvider.notes} placeholder="Additional notes..." />
+            <TextareaField label={t('notes')} name="notes" defaultValue={editingProvider.notes} placeholder="Additional notes..." />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setEditingProvider(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
+import { TextareaField } from '../../../components/ui/textarea-field';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -387,7 +388,7 @@ export default function LedgerPage() {
             </div>
             <InputField label={t('fxRate')} name="fxRateToEgp" type="number" placeholder="0" />
             <InputField label={t('cycle') + ' ID'} name="cycleId" />
-            <InputField label={t('reason')} name="reason" />
+            <TextareaField label={t('reason')} name="reason" />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
@@ -403,7 +404,7 @@ export default function LedgerPage() {
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedEntry.amount} currency={selectedEntry.currency} /></span>
             </p>
-            <InputField label={t('reverseReason')} name="reason" required />
+            <TextareaField label={t('reverseReason')} name="reason" required minLength={3} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowReverseModal(false); setSelectedEntry(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{t('reverse')}</button>

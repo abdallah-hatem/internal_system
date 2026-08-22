@@ -9,6 +9,7 @@ import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { TextareaField } from '../../../components/ui/textarea-field';
 import {
   Plus, Search, Edit, Eye, Tag,
   X, Loader2,
@@ -203,6 +204,7 @@ export default function ProductsPage() {
             />
           </div>
           <Select
+            id="category-filter"
             className="w-full sm:w-56"
             value={categoryFilter}
             onChange={setCategoryFilter}
@@ -370,7 +372,7 @@ export default function ProductsPage() {
                 options={categoryList.map((cat) => ({ value: cat.id, label: cat.name }))}
               />
             </div>
-            <InputField label={t('description')} name="description" />
+            <TextareaField label={t('description')} name="description" />
             <InputField label={t('barcode')} name="barcode" />
             <InputField label={t('minStock')} name="minStock" type="number" placeholder="0" />
             <div className="flex justify-end gap-3 pt-2">
@@ -401,7 +403,7 @@ export default function ProductsPage() {
                 options={categoryList.map((cat) => ({ value: cat.id, label: cat.name }))}
               />
             </div>
-            <InputField label={t('description')} name="description" defaultValue={editingProduct.description} />
+            <TextareaField label={t('description')} name="description" defaultValue={editingProduct.description} />
             <InputField label={t('barcode')} name="barcode" defaultValue={editingProduct.barcode} />
             <InputField label={t('minStock')} name="minStock" type="number" defaultValue={String(editingProduct.minStock)} placeholder="0" />
             <div className="flex justify-end gap-3 pt-2">
