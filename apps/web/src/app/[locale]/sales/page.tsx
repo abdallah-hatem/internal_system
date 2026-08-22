@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { CustomerLink, ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
@@ -12,6 +13,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
+import { selectOnFocus } from '../../../lib/select-on-focus';
 import {
   BadgePercent, Plus, Search, Eye, X, MinusCircle, Loader2,
   ChevronRight, DollarSign, CheckCircle, Ban, Package,
@@ -414,7 +416,9 @@ export default function SalesPage() {
                   paginated.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs font-medium text-primary-600">{order.orderNo}</td>
-                      <td className="px-4 py-3 text-gray-900">{order.customer?.displayName ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-900">
+                        <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           order.channel === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
@@ -469,7 +473,9 @@ export default function SalesPage() {
                     {t(STATUS_KEYS[order.status] ?? order.status)}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700">{order.customer?.displayName ?? '—'}</p>
+                <p className="text-sm text-gray-700">
+                  <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+                </p>
                 <div className="flex items-center gap-3 mt-2 text-sm">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                     order.channel === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
@@ -588,6 +594,7 @@ export default function SalesPage() {
                           placeholder="0"
                           value={item.quantity}
                           onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))}
+                          {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
@@ -599,6 +606,7 @@ export default function SalesPage() {
                           step="0.01"
                           value={item.unitPrice}
                           onChange={(e) => updateLineItem(idx, 'unitPrice', Number(e.target.value))}
+                          {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                         {item.productId &&
@@ -629,6 +637,7 @@ export default function SalesPage() {
                           step="0.01"
                           value={item.discount}
                           onChange={(e) => updateLineItem(idx, 'discount', Number(e.target.value))}
+                          {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
@@ -687,7 +696,9 @@ export default function SalesPage() {
                       {(detail.items ?? []).map((item: SaleOrderItem) => (
                         <tr key={item.id}>
                           <td className="py-2">
-                            <p className="font-medium text-gray-900">{item.product?.name ?? '—'}</p>
+                            <p className="font-medium text-gray-900">
+                              <ProductLink id={item.productId} name={item.product?.name} />
+                            </p>
                             <p className="text-xs text-gray-500">{item.product?.sku}</p>
                           </td>
                           <td className="py-2 text-gray-600">{item.quantity}</td>
@@ -717,7 +728,9 @@ export default function SalesPage() {
                         <div className="flex items-center gap-2 min-w-0">
                           <Package className="h-4 w-4 text-blue-500 shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{item.product?.name ?? '—'}</p>
+                            <p className="font-medium text-gray-900 truncate">
+                              <ProductLink id={item.productId} name={item.product?.name} />
+                            </p>
                             <p className="text-xs text-gray-500">
                               {t('batch')} <BatchRef id={alloc.inventoryBatchId} />
                               {alloc.unitCostEgp != null && (
@@ -858,7 +871,9 @@ export default function SalesPage() {
                 <div key={it.id} className="rounded-lg border border-gray-200 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{it.product?.name ?? '—'}</p>
+                      <p className="font-medium text-gray-900 truncate">
+                        <ProductLink id={it.productId} name={it.product?.name} />
+                      </p>
                       <p className="text-xs text-gray-500">
                         {t('quantity')}: {it.quantity} · <Money value={it.unitPrice} currency={returningOrder.currency} />
                       </p>

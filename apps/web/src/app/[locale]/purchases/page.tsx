@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { ProductLink } from '../../../components/ui/entity-link';
 import { DatePicker } from '../../../components/ui/date-picker';
 import { Money } from '../../../components/ui/money';
 
@@ -16,6 +17,7 @@ import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
+import { selectOnFocus } from '../../../lib/select-on-focus';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
@@ -378,6 +380,7 @@ export default function PurchasesPage() {
                           placeholder="0"
                           value={item.orderedQty}
                           onChange={(e) => updateLineItem(idx, 'orderedQty', Number(e.target.value))}
+                          {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
@@ -389,6 +392,7 @@ export default function PurchasesPage() {
                           step="0.01"
                           value={item.unitPrice}
                           onChange={(e) => updateLineItem(idx, 'unitPrice', Number(e.target.value))}
+                          {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
@@ -400,6 +404,7 @@ export default function PurchasesPage() {
                           step="0.01"
                           value={item.discount}
                           onChange={(e) => updateLineItem(idx, 'discount', Number(e.target.value))}
+                          {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
@@ -458,7 +463,9 @@ export default function PurchasesPage() {
                       {(poDetail?.items ?? viewingPO.items ?? []).map((item: POItem) => (
                         <tr key={item.id}>
                           <td className="py-2">
-                            <p className="font-medium text-gray-900">{item.product?.name ?? '—'}</p>
+                            <p className="font-medium text-gray-900">
+                              <ProductLink id={item.productId} name={item.product?.name} />
+                            </p>
                             <p className="text-xs text-gray-500">{item.product?.sku}</p>
                           </td>
                           <td className="py-2 text-gray-600">{item.orderedQty}</td>

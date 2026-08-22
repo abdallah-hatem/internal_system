@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShippingCostFields, readShippingCostFields } from '../shipping/ShippingCostFields';
 import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
+import { selectOnFocus } from '../../lib/select-on-focus';
 import {
   Route,
   ShoppingCart,
@@ -982,6 +983,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           onChange={(e) =>
                             updateLineItem(idx, 'orderedQty', Number(e.target.value))
                           }
+                          {...selectOnFocus}
                           required
                           min="1"
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -1000,6 +1002,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           onChange={(e) =>
                             updateLineItem(idx, 'unitPrice', Number(e.target.value))
                           }
+                          {...selectOnFocus}
                           required
                           min="0"
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -1018,6 +1021,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           onChange={(e) =>
                             updateLineItem(idx, 'discount', Number(e.target.value))
                           }
+                          {...selectOnFocus}
                           min="0"
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -1306,6 +1310,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           onChange={(e) =>
                             updateReceiveItem(idx, 'receivedQty', Number(e.target.value))
                           }
+                          {...selectOnFocus}
                           min="0"
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -1325,6 +1330,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                               Number(e.target.value),
                             )
                           }
+                          {...selectOnFocus}
                           min="0"
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
