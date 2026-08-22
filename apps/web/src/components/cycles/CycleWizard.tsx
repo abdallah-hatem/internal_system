@@ -81,6 +81,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const [poCurrency, setPoCurrency] = useState('');
   const [poFxRate, setPoFxRate] = useState('');
   const rates = useCurrencyRates();
+  // Which saved leg each sequence maps to, so a second pass through step 3
+  // updates the legs instead of trying to create them again.
+  const [legIds, setLegIds] = useState<Record<number, string>>({});
   const [poOrderedOn, setPoOrderedOn] = useState('');
 
   // Step 3 form state for back-navigation pre-population
@@ -116,7 +119,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // Fetch existing cycle data for resume
   // ---------------------------------------------------------------------------
 
-  const { data: existingCycle, isLoading: isLoadingCycle } = useQuery({
+  const {
+    data: existingCycle,
+    isLoading: isLoadingCycle,
+    refetch: refetchCycle,
+  } = useQuery({
     queryKey: ['cycle', existingCycleId],
     queryFn: () => api.get(`/cycles/${existingCycleId}`).then((r) => r.data.data ?? r.data),
     enabled: !!existingCycleId,
@@ -375,11 +382,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
-    // Already created on a previous pass through this step - just advance.
-    if (shippingLegId) {
-      setCurrentStep(3);
-      return;
-    }
 
     const payloads = legPlan.map((leg) => {
       const prefix = `leg${leg.sequence}_`;
@@ -404,21 +406,51 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     setIsCreatingLegs(true);
     try {
       let firstId: string | null = null;
+      const savedIds: Record<number, string> = {};
+      let updated = false;
+
       for (const body of payloads) {
-        const res = await api.post(`/cycles/${cycleId}/shipping-legs`, body);
-        const created = res.data.data ?? res.data;
-        if (!firstId) firstId = created.id;
+        // A leg already saved for this sequence is edited, not recreated.
+        // Returning early here instead — which is what this did — threw away
+        // every change made on a second visit: dates, provider, costs, all of
+        // it, with a success step and no warning.
+        const existingId =
+          legIds[body.sequence] ??
+          existingCycle?.shippingLegs?.find((l: any) => l.sequence === body.sequence)?.id;
+
+        // `sequence` identifies the leg and is uniquely constrained, so an
+        // update must not carry it — the endpoint rejects it outright.
+        const { sequence: _seq, ...updatable } = body;
+        const res = existingId
+          ? await api.put(`/shipping/legs/${existingId}`, updatable)
+          : await api.post(`/cycles/${cycleId}/shipping-legs`, body);
+
+        if (existingId) updated = true;
+        const saved = res.data.data ?? res.data;
+        savedIds[body.sequence] = saved.id ?? existingId;
+        if (!firstId) firstId = saved.id ?? existingId;
       }
+
+      setLegIds((prev) => ({ ...prev, ...savedIds }));
       setShippingLegId(firstId);
+      // The cycle query holds the legs the form reads back; without this the
+      // next visit would show what was on screen before this save.
+      await refetchCycle();
       toast.success(
-        payloads.length > 1 ? 'Shipping legs created' : 'Shipping leg created',
+        updated
+          ? payloads.length > 1
+            ? 'Shipping legs updated'
+            : 'Shipping leg updated'
+          : payloads.length > 1
+            ? 'Shipping legs created'
+            : 'Shipping leg created',
       );
       setCurrentStep(3);
     } catch (err: any) {
       toast.error(
         err?.response?.data?.error?.message ||
           err?.response?.data?.message ||
-          'Failed to create shipping legs',
+          'Failed to save shipping legs',
       );
     } finally {
       setIsCreatingLegs(false);
@@ -1055,14 +1087,20 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         Departed On{' '}
                         <span className="text-gray-400 text-xs font-normal">(Optional)</span>
                       </label>
-                      <DatePicker name={`${prefix}departedOn`} />
+                      <DatePicker
+                        name={`${prefix}departedOn`}
+                        defaultValue={existing?.departedOn?.slice(0, 10)}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Arrived On{' '}
                         <span className="text-gray-400 text-xs font-normal">(Optional)</span>
                       </label>
-                      <DatePicker name={`${prefix}arrivedOn`} />
+                      <DatePicker
+                        name={`${prefix}arrivedOn`}
+                        defaultValue={existing?.arrivedOn?.slice(0, 10)}
+                      />
                     </div>
                   </div>
 

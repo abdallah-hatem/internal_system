@@ -142,6 +142,8 @@ export class ShippingService {
   async updateLeg(
     id: string,
     data: {
+      origin?: string;
+      destination?: string;
       status?: string;
       departedOn?: string;
       arrivedOn?: string;
@@ -178,6 +180,8 @@ export class ShippingService {
     const updated = await this.prisma.shippingLeg.update({
       where: { id },
       data: {
+        origin: data.origin,
+        destination: data.destination,
         status: data.status,
         departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
         arrivedOn: data.arrivedOn ? new Date(data.arrivedOn) : undefined,

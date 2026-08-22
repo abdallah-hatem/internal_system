@@ -54,6 +54,16 @@ export class CreateShippingLegDto {
 }
 
 export class UpdateShippingLegDto {
+  // `sequence` is deliberately absent: it identifies the leg within its cycle
+  // and is uniquely constrained, so it is not a thing an edit may change.
+  // Origin and destination are editable in the form, and leaving them out of
+  // this DTO meant a correction to either was silently dropped.
+  @IsOptional() @IsString()
+  origin?: string;
+
+  @IsOptional() @IsString()
+  destination?: string;
+
   @IsOptional() @IsString()
   status?: string;
 
