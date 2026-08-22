@@ -6,7 +6,7 @@ import { useCurrencyRates } from '../../lib/currency-rates';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShippingCostFields, readShippingCostFields } from '../shipping/ShippingCostFields';
 import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
@@ -59,6 +59,19 @@ interface ReceiveItem {
 
 export default function CycleWizard({ existingCycleId }: { existingCycleId?: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  /**
+   * Drop the cached cycle lists.
+   *
+   * The wizard writes cycles but never told the cache, so leaving it landed
+   * on a list still showing the state from before — the change was saved and
+   * invisible until a manual refresh.
+   */
+  const refreshCycleCaches = () => {
+    queryClient.invalidateQueries({ queryKey: ['cycles'] });
+    queryClient.invalidateQueries({ queryKey: ['cycle'] });
+  };
   const locale = useLocale();
   const toast = useToast();
 
@@ -285,6 +298,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       setCycleId(result.id);
       setCycleCode(result.code);
       setCurrentStep(1);
+      refreshCycleCaches();
       toast.success('Cycle created');
     },
     onError: (err: any) => {
@@ -328,6 +342,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     mutationFn: (data: any) => api.post('/receipts/verify', data),
     onSuccess: () => {
       setCurrentStep(4);
+      refreshCycleCaches();
       toast.success('Inventory verified');
     },
     onError: (err: any) => {
@@ -458,6 +473,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
       setLegIds((prev) => ({ ...prev, ...savedIds }));
       setShippingLegId(firstId);
+      refreshCycleCaches();
       // The cycle query holds the legs the form reads back; without this the
       // next visit would show what was on screen before this save.
       await refetchCycle();
@@ -517,6 +533,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
       if (outstanding.length === 0) {
         await refetchCycle();
+        refreshCycleCaches();
         toast.success(
           currentStatus === 'VERIFICATION'
             ? 'Stock is already received — nothing left to enter'

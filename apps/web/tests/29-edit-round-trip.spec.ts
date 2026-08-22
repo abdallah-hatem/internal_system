@@ -369,6 +369,7 @@ test.describe('FX rates reach the forms', () => {
     }
 
     const cyc = await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json();
+    const code = (cyc.data ?? cyc).code;
     const poItem = (cyc.data ?? cyc).purchaseOrders[0].items[0];
     const verified = await request.post(`${API}/receipts/verify`, {
       headers,
@@ -390,7 +391,18 @@ test.describe('FX rates reach the forms', () => {
     expect(back.ok(), await back.text()).toBeTruthy();
 
     await login(page);
-    await page.goto(`${BASE}/en/cycles/${cycleId}`);
+
+    // Reach the cycle the way a person does: from the list, by clicking. Both
+    // halves matter. Visiting the list first is what puts it in the cache, and
+    // CLICKING through keeps that cache alive — page.goto() is a full load that
+    // wipes it, so a test that navigates by URL can never see a stale list no
+    // matter what the code does.
+    await page.goto(`${BASE}/en/cycles`);
+    const listRow = page.locator('tr', { hasText: code });
+    await expect(listRow).toContainText(/arrived/i, { timeout: 15000 });
+    await expect(listRow).toContainText(/resume/i);
+    await listRow.click();
+    await expect(page).toHaveURL(new RegExp(cycleId), { timeout: 15000 });
 
     // Step 4 states what is already in stock rather than offering it again.
     await expect(page.getByText(/already received into stock/i)).toBeVisible({ timeout: 15000 });
@@ -398,18 +410,19 @@ test.describe('FX rates reach the forms', () => {
     await expect(done).toBeVisible();
     await done.click();
 
-    // It finishes: the cycle moves on rather than erroring, and no second
-    // batch is created for the same purchase order item.
-    await expect
-      .poll(
-        async () =>
-          ((await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json()).data ?? {})
-            .status,
-        { timeout: 15000 },
-      )
-      .toBe('VERIFICATION');
+    // It finishes and lands back on the list — and the list must SHOW the new
+    // state. Asserting the API alone passed while the page still displayed the
+    // old status from cache, which is what the owner actually hit: saved,
+    // navigated, and no visible change until a manual refresh.
+    await expect(page).toHaveURL(/\/cycles$/, { timeout: 15000 });
 
+    const row = page.locator('tr', { hasText: code });
+    await expect(row).toContainText(/verification/i, { timeout: 15000 });
+    await expect(row).not.toContainText(/resume/i);
+
+    // The server agrees, and no second batch was created for the same item.
     const after = await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json();
+    expect((after.data ?? after).status).toBe('VERIFICATION');
     expect((after.data ?? after).inventoryBatches).toHaveLength(1);
   });
 });
