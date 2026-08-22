@@ -112,6 +112,10 @@ export default function SalesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingOrder, setViewingOrder] = useState<SaleOrder | null>(null);
   const [lineItems, setLineItems] = useState<Array<{ productId: string; quantity: number; unitPrice: number; discount: number }>>([]);
+  // Controlled so the customer can set the channel and the channel can price
+  // the lines. Both still carry their `name`, so the form submits unchanged.
+  const [customerId, setCustomerId] = useState('');
+  const [channel, setChannel] = useState('B2B');
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search]);
@@ -146,6 +150,8 @@ export default function SalesPage() {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       setShowCreateModal(false);
       setLineItems([]);
+      setCustomerId('');
+      setChannel('B2B');
       addToast('Order created successfully', 'success');
     },
     onError: (error: any) => {
@@ -210,6 +216,50 @@ export default function SalesPage() {
   // ── Derived ───────────────────────────────────────────────────────
   const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
   const customerList: Customer[] = Array.isArray(customers) ? customers : [];
+
+  /** The product's current price for a channel, or null if none is set. */
+  const priceFor = (productId: string, ch: string): number | null => {
+    const product: any = productList.find((p: any) => p.id === productId);
+    const active = product?.prices?.find(
+      (pr: any) => pr.channel === ch && !pr.effectiveTo,
+    );
+    return active ? Number(active.amount) : null;
+  };
+
+  /**
+   * Choosing a customer sets the channel to the kind of customer they are.
+   *
+   * A shop is B2B and a walk-in is B2C; asking for both was asking the same
+   * question twice and letting the answers disagree. It stays changeable —
+   * a shop occasionally buys at retail.
+   */
+  const onCustomerChange = (id: string) => {
+    setCustomerId(id);
+    const customer = customerList.find((c) => c.id === id);
+    if (customer?.type === 'B2B' || customer?.type === 'B2C') {
+      applyChannel(customer.type);
+    }
+  };
+
+  /**
+   * Switch channel and re-price the lines that are still at list price.
+   *
+   * A price the seller typed is theirs and is left alone; one that is still
+   * whatever the old channel quoted is stale under the new one. Same rule as
+   * the FX rate: fill what nobody has touched, never overwrite a decision.
+   */
+  const applyChannel = (next: string) => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (!item.productId) return item;
+        const previousList = priceFor(item.productId, channel);
+        const untouched = !item.unitPrice || item.unitPrice === previousList;
+        if (!untouched) return item;
+        return { ...item, unitPrice: priceFor(item.productId, next) ?? item.unitPrice };
+      }),
+    );
+    setChannel(next);
+  };
   const productList: Product[] = Array.isArray(products) ? products : [];
 
   const filtered = orderList.filter((o) => {
@@ -420,7 +470,7 @@ export default function SalesPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => { setShowCreateModal(false); setLineItems([]); }}>
+        <Modal title={t('create')} onClose={() => { setShowCreateModal(false); setLineItems([]); setCustomerId(''); setChannel('B2B'); }}>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
@@ -428,6 +478,8 @@ export default function SalesPage() {
                 <Select
                   name="customerId"
                   required
+                  value={customerId}
+                  onChange={onCustomerChange}
                   placeholder={t('customer')}
                   searchPlaceholder={tc('search')}
                   options={customerList.map((c) => ({
@@ -442,7 +494,8 @@ export default function SalesPage() {
                 <Select
                   name="channel"
                   required
-                  defaultValue="B2B"
+                  value={channel}
+                  onChange={applyChannel}
                   options={[
                     { value: 'B2B', label: t('b2b') },
                     { value: 'B2C', label: t('b2c') },
@@ -480,7 +533,18 @@ export default function SalesPage() {
                         <label className="block text-xs text-gray-500 mb-1">{t('product')}</label>
                         <Select
                           value={item.productId}
-                          onChange={(v) => updateLineItem(idx, 'productId', v)}
+                          onChange={(v) => {
+                            // Price the line from the chosen channel. Left
+                            // editable — a negotiated price is still a price.
+                            const listPrice = priceFor(v, channel);
+                            setLineItems((prev) =>
+                              prev.map((it, i) =>
+                                i === idx
+                                  ? { ...it, productId: v, unitPrice: listPrice ?? it.unitPrice }
+                                  : it,
+                              ),
+                            );
+                          }}
                           placeholder={t('product')}
                           searchPlaceholder={tc('search')}
                           options={productList.map((p) => ({
@@ -510,6 +574,25 @@ export default function SalesPage() {
                           onChange={(e) => updateLineItem(idx, 'unitPrice', Number(e.target.value))}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
+                        {item.productId &&
+                          (() => {
+                            const list = priceFor(item.productId, channel);
+                            if (list == null) {
+                              return (
+                                <p className="mt-1 text-[10px] text-amber-600">
+                                  No {channel} price set
+                                </p>
+                              );
+                            }
+                            // Only worth saying when it differs; repeating the
+                            // number under itself is noise.
+                            if (Number(item.unitPrice) === list) return null;
+                            return (
+                              <p className="mt-1 text-[10px] text-gray-400">
+                                {channel} {list.toLocaleString()}
+                              </p>
+                            );
+                          })()}
                       </div>
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
