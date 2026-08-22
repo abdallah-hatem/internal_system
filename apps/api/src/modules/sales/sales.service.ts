@@ -282,21 +282,17 @@ export class SalesService {
         include: { items: true },
       });
 
-      // Auto-create financial transaction for sale revenue
-      // Note: cycleId omitted because a sale may span inventory from multiple cycles
-      await tx.financialTransaction.create({
-        data: {
-          type: 'SALE_REVENUE',
-          category: 'revenue',
-          direction: 'INFLOW',
-          amount: Number(order.total),
-          currency: order.currency,
-          relatedType: 'SALE_ORDER',
-          relatedId: id,
-          reason: `Auto: Sale order ${order.orderNo} confirmed (${order.channel})`,
-          createdBy: actorId,
-        },
-      });
+      // No ledger entry is raised here, deliberately.
+      //
+      // Confirming a sale is not the arrival of money — the shop takes the
+      // goods and pays later, often over weeks. Booking revenue here as well
+      // as on each payment counted the same sale twice: 31,200 of orders
+      // produced 72,710 of ledger revenue.
+      //
+      // DECIDED 2026-08-22: the ledger records money as it is received. The
+      // sale itself is not lost — the order records it, and what has been sold
+      // but not yet collected is reported as receivables, which is the gap
+      // between the two.
 
       await this.audit.log({
         actorUserId: actorId,

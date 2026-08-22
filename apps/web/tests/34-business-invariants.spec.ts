@@ -219,3 +219,70 @@ test.describe('Records must point at things that exist', () => {
     expect(r.message).toMatch(/customer/i);
   });
 });
+
+test.describe('Revenue is counted once, when the money arrives', () => {
+  test('TC-INV-10: confirming a sale raises no revenue; being paid does', async ({ request }) => {
+    // DECIDED 2026-08-22. Revenue was booked twice — on confirm and again on
+    // each payment — so 31,200 of orders produced 72,710 of ledger revenue.
+    // The sale is not the money; the shop takes the goods and pays later.
+    const { headers, mk, customer, stockUp, owe, request: req } = await ctx(request);
+    await stockUp();
+
+    const revenueTotal = async () => {
+      const res = await req.get(`${API}/ledger?limit=200`, { headers });
+      const rows = (await res.json()).data ?? [];
+      return rows
+        .filter((r: any) => r.category === 'revenue')
+        .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
+    };
+
+    const before = await revenueTotal();
+    await owe(300);
+
+    // Sold, not collected: the ledger has not moved.
+    expect(await revenueTotal()).toBe(before);
+
+    await mk('payments', {
+      customerId: customer.id, amount: 300, currency: 'EGP', method: 'CASH',
+    });
+
+    // Collected: counted once, for what actually arrived.
+    expect(await revenueTotal()).toBe(before + 300);
+  });
+
+  test('TC-INV-11: the dashboard separates what was sold from what was collected', async ({
+    request,
+  }) => {
+    // The gap between them is the money still to come, which is the figure the
+    // owner asked to be able to see.
+    const { headers, mk, customer, stockUp, owe, request: req } = await ctx(request);
+    await stockUp();
+    const order = await owe(1000);
+
+    const dash = async () => {
+      const res = await req.get(`${API}/analytics/dashboard`, { headers });
+      return (await res.json()).data;
+    };
+
+    const sold = await dash();
+    expect(Number(sold.receivables)).toBeGreaterThanOrEqual(1000);
+
+    const payment = await mk('payments', {
+      customerId: customer.id, amount: 400, currency: 'EGP', method: 'CASH',
+    });
+
+    // Recording the money and putting it against the debt are two steps at
+    // this level — receivables move on the second, not the first. The customer
+    // page does both in one action, which is why it exists.
+    const banked = await dash();
+    expect(Number(banked.collected) - Number(sold.collected)).toBe(400);
+    expect(Number(banked.receivables)).toBe(Number(sold.receivables));
+
+    await mk(`payments/${payment.id}/allocations`, {
+      saleOrderId: order.id, amount: 400,
+    });
+
+    const applied = await dash();
+    expect(Number(sold.receivables) - Number(applied.receivables)).toBe(400);
+  });
+});

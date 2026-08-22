@@ -6,7 +6,7 @@ import { api } from '../../../lib/api';
 import { formatDate, timeAgo } from '../../../lib/dates';
 import {
   LayoutDashboard, TrendingUp, Package, AlertTriangle, DollarSign, ShoppingCart,
-  Activity, Loader2, Route,
+  Activity, Loader2, Route, Wallet, Clock,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -19,6 +19,7 @@ interface DashboardData {
   activeCycles: number;
   inventoryValue: number;
   receivables: number;
+  collected: number;
   lowStockAlerts: number;
   totalCustomers: number;
   totalProducts: number;
@@ -76,6 +77,7 @@ export default function DashboardPage() {
     activeCycles: 0,
     inventoryValue: 0,
     receivables: 0,
+    collected: 0,
     lowStockAlerts: 0,
     totalCustomers: 0,
     totalProducts: 0,
@@ -87,13 +89,17 @@ export default function DashboardPage() {
   const isLoading = loadingDash || loadingAudit || loadingProducts;
 
   const stats = [
+    // Sold, collected and still owed sit together on purpose: the first two
+    // differ by the third, and a strong month of selling with an empty till
+    // looks identical to a strong month of collecting if only one is shown.
     { key: 'revenue', value: egp(data.totalRevenue), icon: DollarSign, color: 'bg-green-500' },
+    { key: 'collected', value: egp(data.collected), icon: Wallet, color: 'bg-emerald-600' },
+    { key: 'receivables', value: egp(data.receivables), icon: Clock, color: 'bg-yellow-500' },
     { key: 'cogs', value: egp(data.totalCogs), icon: Package, color: 'bg-slate-500' },
     { key: 'netProfit', value: egp(data.netProfit), icon: TrendingUp, color: 'bg-blue-500' },
     { key: 'cashOut', value: egp(data.totalCashOut), icon: DollarSign, color: 'bg-teal-600' },
     { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
     { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
-    { key: 'receivables', value: egp(data.receivables), icon: ShoppingCart, color: 'bg-yellow-500' },
     { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
   ];
 

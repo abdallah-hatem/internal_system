@@ -122,6 +122,18 @@ export class AnalyticsService {
     }).length;
 
     // Total customers
+    // Money actually in hand, as opposed to money earned.
+    //
+    // Revenue above is what has been sold; this is what has been collected for
+    // it. The two differ by the receivables below, and keeping them apart is
+    // the whole point: a good month of selling and an empty till look
+    // identical if only one number is shown.
+    const collectedAgg = await this.prisma.payment.aggregate({
+      where: { status: 'RECORDED' },
+      _sum: { amount: true },
+    });
+    const collected = money(D(collectedAgg._sum.amount));
+
     const totalCustomers = await this.prisma.customer.count();
 
     // Total active products
@@ -135,6 +147,7 @@ export class AnalyticsService {
         totalCogs,
         totalExpenses,
         totalCashOut,
+        collected,
         netProfit: money(netProfit),
         activeCycles,
         inventoryValue,

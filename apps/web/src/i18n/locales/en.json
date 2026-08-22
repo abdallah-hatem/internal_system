@@ -90,7 +90,8 @@
     "lowStockAlerts": "Low Stock Alerts",
     "cashFlow": "Cash Flow",
     "cogs": "Cost of Goods Sold",
-    "cashOut": "Cash Paid Out"
+    "cashOut": "Cash Paid Out",
+    "collected": "Collected"
   },
   "products": {
     "title": "Products",

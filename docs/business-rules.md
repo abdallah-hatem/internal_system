@@ -253,6 +253,26 @@ landed cost, so only other outflows count as period expenses.
 
 **Cash flow is reported separately from profit** (BRD §11).
 
+**DECIDED 2026-08-22 — the ledger records money as it is received, not as it
+is earned.** Confirming a sale raises no ledger entry; a payment does. Revenue
+was previously booked at both points, so 31,200 of orders produced 72,710 of
+ledger revenue.
+
+The sale is not lost by this — the order records it — and the difference
+between the two is money still to come. The dashboard shows all three side by
+side, because a strong month of selling and an empty till look identical if
+only one figure is given:
+
+| Figure | Means |
+|---|---|
+| Revenue | what has been sold |
+| Collected | what has actually arrived |
+| Receivables | the gap: sold, not yet paid for |
+
+Note the two are separated by a step: a payment adds to Collected when it is
+recorded, and reduces Receivables when it is **allocated** to an order. The
+customer's page does both in one action; the API does not.
+
 ---
 
 ## 10. Notifications
