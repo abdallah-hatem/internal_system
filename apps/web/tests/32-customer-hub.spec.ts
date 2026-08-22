@@ -183,3 +183,68 @@ test.describe('Customer page', () => {
     await expect(page).toHaveURL(/\/sales$/);
   });
 });
+
+test.describe('Customer page — pushing on it', () => {
+  test('TC-HUB-05: a shop that owes nothing cannot have a payment recorded', async ({
+    page,
+    request,
+  }) => {
+    // Clear the debt, then try to take money anyway. Before the overpayment
+    // rule this recorded happily and sat against nothing.
+    const { headers, customer, older, newer } = await shopOwingTwoOrders(request);
+    await login(page);
+    await page.goto(`${BASE}/en/customers/${customer.id}`);
+
+    await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
+    await page.locator('input[name="amount"]').fill('1300');
+    await page.getByRole('button', { name: /save/i }).click();
+
+    await expect
+      .poll(() => outstanding(request, headers, older.id), { timeout: 15000 })
+      .toBe(0);
+    expect(await outstanding(request, headers, newer.id)).toBe(0);
+
+    // Now they owe nothing. A further payment must be refused, and say so.
+    await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
+    await page.locator('input[name="amount"]').fill('100');
+    await page.getByRole('button', { name: /save/i }).click();
+
+    await expect(page.getByText(/does not owe|nothing to pay/i).first()).toBeVisible({
+      timeout: 15000,
+    });
+  });
+
+  test('TC-HUB-06: zero and negative amounts are refused', async ({ page, request }) => {
+    // A form that accepts 0 records a payment that changes nothing but appears
+    // in the history; a negative one would credit the shop money.
+    //
+    // Asserted at the API as well as through the form. The number input carries
+    // min/step, so the browser may refuse before the server is ever asked —
+    // which would make this pass while the rule itself was missing.
+    const { headers, customer, older } = await shopOwingTwoOrders(request);
+    await login(page);
+    await page.goto(`${BASE}/en/customers/${customer.id}`);
+
+    for (const bad of ['0', '-50']) {
+      await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
+      const amount = page.locator('input[name="amount"]');
+      await amount.fill(bad);
+      await page.getByRole('button', { name: /save/i }).click();
+
+      // Either the browser blocks it on min/step, or the server refuses — but
+      // the debt must not move either way.
+      expect(await outstanding(request, headers, older.id)).toBe(500);
+      await page.keyboard.press('Escape');
+      await page.goto(`${BASE}/en/customers/${customer.id}`);
+    }
+
+    // And directly, where no browser validation can stand in for the rule.
+    for (const bad of [0, -50]) {
+      const res = await request.post(`${API}/payments`, {
+        headers,
+        data: { customerId: customer.id, amount: bad, currency: 'EGP', method: 'CASH' },
+      });
+      expect(res.status(), `amount ${bad} was accepted`).toBe(400);
+    }
+  });
+});

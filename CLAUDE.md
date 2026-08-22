@@ -11,6 +11,30 @@ cost that decides whether a cycle made money.
 
 ---
 
+## 0. Every feature's tests must include attempts to break it
+
+**Standing rule, set by the owner 2026-08-22.** A test file for a new feature
+is not finished when it shows the happy path working. It is finished when it
+has also tried to abuse the feature and the edge cases are pinned down.
+
+For each new feature, before calling it done, write tests for:
+
+- **The happy path**, once. That is the cheapest part and the least valuable.
+- **The limits.** Zero, negative, empty, more than exists, more than is owed,
+  longer than the field, a date that has not arrived.
+- **The wrong context.** The wrong customer, the wrong cycle, a closed record,
+  a draft treated as real, someone else's data.
+- **The second time.** Doing it twice, going back and editing, resuming after
+  leaving. Most bugs found in this repo lived on the second visit, not the
+  first — that is where a form discards edits or a stale cache lies.
+- **The interaction the feature changes.** If it prefills a value, test that a
+  value the user typed is never overwritten. If it applies money, test what
+  happens when there is more of it than is needed.
+
+A feature suite with only happy-path tests should be treated as untested.
+
+---
+
 ## 1. Test that the rules cannot be broken, not that the feature works
 
 Every suite here checked that something worked when used correctly. None of

@@ -19,6 +19,8 @@ const PASSWORD = 'password123';
 
 const B2B_PRICE = 1800;
 const B2C_PRICE = 2100;
+const OTHER_B2B = 640;
+const OTHER_B2C = 900;
 
 async function login(page: Page) {
   await page.goto(`${BASE}/en/login`);
@@ -56,16 +58,37 @@ async function pricedProductAndCustomer(request: APIRequestContext) {
     expect(res.ok(), await res.text()).toBeTruthy();
   }
 
+  // A second product at different prices, to prove a line re-prices when the
+  // product changes rather than keeping the first one's figure.
+  const otherRes = await request.post(`${API}/products`, {
+    headers, data: { name: `Other Part ${stamp}`, minStock: 0 },
+  });
+  const other = (await otherRes.json()).data ?? (await otherRes.json());
+  for (const [channel, amount] of [['B2B', OTHER_B2B], ['B2C', OTHER_B2C]] as const) {
+    const res = await request.post(`${API}/products/${other.id}/prices`, {
+      headers, data: { channel, currency: 'EGP', amount },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  }
+
   const custRes = await request.post(`${API}/customers`, {
     headers,
     data: { displayName: `Shop ${stamp}`, type: 'B2B' },
   });
   expect(custRes.ok(), await custRes.text()).toBeTruthy();
 
+  // A retail buyer, so switching customer changes the channel it prices at.
+  const retailRes = await request.post(`${API}/customers`, {
+    headers, data: { displayName: `Walkin ${stamp}`, type: 'B2C' },
+  });
+  expect(retailRes.ok(), await retailRes.text()).toBeTruthy();
+
   return {
     headers,
     productName: `Priced Part ${stamp}`,
+    otherProductName: `Other Part ${stamp}`,
     customerName: `Shop ${stamp}`,
+    retailName: `Walkin ${stamp}`,
   };
 }
 
@@ -183,5 +206,53 @@ test.describe('Sale line pricing', () => {
 
     // Silence here would read as "zero is the price".
     await expect(page.getByText(/no b2b price set/i)).toBeVisible();
+  });
+});
+
+test.describe('Sale line pricing — pushing on it', () => {
+  test('TC-PRICE-06: changing the product on a line re-prices it', async ({ page, request }) => {
+    // A line keeping the previous product's price is the kind of error that
+    // looks entirely plausible on the row and is wrong by hundreds.
+    const { productName, otherProductName } = await pricedProductAndCustomer(request);
+    await login(page);
+    await openOrderForm(page);
+
+    await pickProduct(page, productName);
+    await expect(unitPrice(page)).toHaveValue(String(B2B_PRICE));
+
+    await pickProduct(page, otherProductName);
+    await expect(unitPrice(page)).toHaveValue(String(OTHER_B2B));
+  });
+
+  test('TC-PRICE-07: switching to a retail customer re-prices at retail', async ({
+    page,
+    request,
+  }) => {
+    // The channel follows the customer, and the lines follow the channel.
+    const { productName, retailName } = await pricedProductAndCustomer(request);
+    await login(page);
+    await openOrderForm(page);
+
+    await pickProduct(page, productName);
+    await expect(unitPrice(page)).toHaveValue(String(B2B_PRICE));
+
+    await pick(page, 'customerId', retailName);
+    await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2C');
+    await expect(unitPrice(page)).toHaveValue(String(B2C_PRICE));
+  });
+
+  test('TC-PRICE-08: a typed price survives a customer switch too', async ({ page, request }) => {
+    // The rule is about the seller's judgement, not about which control moved.
+    // Testing it only against the channel picker would leave this route open.
+    const { productName, retailName } = await pricedProductAndCustomer(request);
+    await login(page);
+    await openOrderForm(page);
+
+    await pickProduct(page, productName);
+    await unitPrice(page).fill('1975');
+
+    await pick(page, 'customerId', retailName);
+    await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2C');
+    await expect(unitPrice(page)).toHaveValue('1975');
   });
 });
