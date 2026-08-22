@@ -37,7 +37,8 @@
     "clear": "مسح",
     "previousMonth": "الشهر السابق",
     "nextMonth": "الشهر التالي",
-    "unapplied": "غير مخصص"
+    "unapplied": "غير مخصص",
+    "optional": "اختياري"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -159,7 +160,25 @@
     "settlementStatus": "التسوية",
     "closed": "مغلقة",
     "cancelled": "ملغاة",
-    "search": "بحث في الدورات..."
+    "search": "بحث في الدورات...",
+    "details": "التفاصيل",
+    "invested": "المساهمة",
+    "landedCost": "التكلفة النهائية",
+    "items": "أصناف",
+    "received": "مستلم",
+    "remaining": "متبقي",
+    "participantAdded": "تمت إضافة المشارك",
+    "noParticipantsYet": "لا يوجد مشاركون بعد — لا يمكن تسوية الدورة قبل تسجيل من موّلها.",
+    "participantType": "النوع",
+    "corePartner": "شريك أساسي",
+    "tempInvestor": "مستثمر مؤقت",
+    "person": "الشخص",
+    "customProfitPct": "نسبة الربح %",
+    "byContribution": "حسب المساهمة",
+    "investorFeePct": "نسبة الرسوم %",
+    "fee": "رسوم",
+    "feeFromProfit": "تُخصم من ربحه وليس من رأس ماله.",
+    "settlement": "التسوية"
   },
   "purchases": {
     "title": "المشتريات",

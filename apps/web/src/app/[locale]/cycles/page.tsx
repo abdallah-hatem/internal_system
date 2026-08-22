@@ -223,8 +223,14 @@ export default function CyclesPage() {
                   return (
                     <tr
                       key={cycle.id}
-                      onClick={() => canResume ? router.push(`/${locale}/cycles/${cycle.id}`) : setViewingCycle(cycle)}
-                      className={`transition-colors ${canResume ? 'hover:bg-primary-50 cursor-pointer' : 'hover:bg-gray-50'}`}
+                      onClick={() =>
+                        router.push(
+                          canResume
+                            ? `/${locale}/cycles/${cycle.id}`
+                            : `/${locale}/cycles/${cycle.id}/details`,
+                        )
+                      }
+                      className="cursor-pointer transition-colors hover:bg-primary-50"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
                         {cycle.code}
@@ -238,18 +244,25 @@ export default function CyclesPage() {
                       <td className="px-4 py-3 text-gray-600">{cycle.purchaseOrders?.length ?? 0}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(cycle.startedOn)}</td>
                       <td className="px-4 py-3">
-                        {canResume ? (
-                          <span className="inline-flex items-center gap-1 text-primary-600 text-sm font-medium">
-                            Resume <ChevronRight className="h-4 w-4" />
-                          </span>
-                        ) : (
+                        <div className="flex items-center justify-end gap-3">
+                          {/* Details is offered for every cycle, in every
+                              status. A closed one is the one you most want to
+                              look back at and it used to show the least. */}
                           <button
-                            onClick={(e) => { e.stopPropagation(); setViewingCycle(cycle); }}
-                            className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 text-sm font-medium"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/${locale}/cycles/${cycle.id}/details`);
+                            }}
+                            className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
                           >
-                            {tc('details')} <ChevronRight className="h-4 w-4" />
+                            {tc('details')}
                           </button>
-                        )}
+                          {canResume && (
+                            <span className="inline-flex items-center gap-1 text-sm font-medium text-primary-600">
+                              Resume <ChevronRight className="h-4 w-4" />
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

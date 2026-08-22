@@ -37,7 +37,8 @@
     "clear": "Clear",
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
-    "unapplied": "unapplied"
+    "unapplied": "unapplied",
+    "optional": "optional"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -159,7 +160,25 @@
     "settlementStatus": "Settlement",
     "closed": "Closed",
     "cancelled": "Cancelled",
-    "search": "Search cycles..."
+    "search": "Search cycles...",
+    "details": "Details",
+    "invested": "Invested",
+    "landedCost": "Landed cost",
+    "items": "items",
+    "received": "received",
+    "remaining": "remaining",
+    "participantAdded": "Participant added",
+    "noParticipantsYet": "No participants yet — a cycle cannot be settled until the people who funded it are recorded here.",
+    "participantType": "Type",
+    "corePartner": "Core partner",
+    "tempInvestor": "Temporary investor",
+    "person": "Person",
+    "customProfitPct": "Profit share %",
+    "byContribution": "By contribution",
+    "investorFeePct": "Fee %",
+    "fee": "fee",
+    "feeFromProfit": "Taken from their profit, not their capital.",
+    "settlement": "Settlement"
   },
   "purchases": {
     "title": "Purchases",

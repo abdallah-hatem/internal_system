@@ -75,7 +75,19 @@ export class CyclesService {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id },
       include: {
-        participants: { include: { partner: true, investor: true } },
+        // Named fields, not `include: true`: those relations are User records,
+        // and including them whole sent every participant's bcrypt password
+        // hash to the browser with the cycle.
+        participants: {
+          include: {
+            partner: {
+              select: { id: true, email: true, role: true, partner: { select: { displayName: true } } },
+            },
+            investor: {
+              select: { id: true, email: true, role: true, partner: { select: { displayName: true } } },
+            },
+          },
+        },
         purchaseOrders: {
           include: {
             items: { include: { product: true } },
@@ -131,9 +143,11 @@ export class CyclesService {
         originType: originType as any,
         currency: data.currency || 'EGP',
         status: 'PLANNING',
-        startedOn: data.startedOn
-          ? new Date(data.startedOn)
-          : new Date(),
+        // A cycle starts when it is set up, so the wizard does not ask. The
+        // field stays accepted for a back-dated import, which is the only case
+        // where the two differ — and the only way to set it, since a cycle has
+        // no update endpoint.
+        startedOn: data.startedOn ? new Date(data.startedOn) : new Date(),
       },
     });
 
