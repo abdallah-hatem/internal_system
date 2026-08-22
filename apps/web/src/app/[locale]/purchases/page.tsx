@@ -15,6 +15,7 @@ import {
 import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
+import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
@@ -329,19 +330,15 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-              <Select
-                name="currency"
-                defaultValue="CNY"
-                options={['CNY', 'AED', 'USD', 'EGP'].map((c) => ({ value: c, label: c }))}
-              />
-            </div>
+            <CurrencyRateFields
+              rateName="fxRate"
+              currencies={['CNY', 'AED', 'USD', 'EGP']}
+              defaultCurrency="CNY"
+              currencyLabel={t('currency')}
+              rateLabel={t('fxRate')}
+            />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('fxRate')} name="fxRate" type="number" placeholder="0" />
-              <InputField label={t('orderedDate')} name="orderedDate" type="date" required />
-            </div>
+            <InputField label={t('orderedDate')} name="orderedDate" type="date" required />
 
             {/* Line Items */}
             <div>

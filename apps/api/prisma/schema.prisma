@@ -23,26 +23,26 @@ enum UserStatus {
 }
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  role          UserRole
-  status        UserStatus @default(ACTIVE)
-  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz()
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
-  version       Int       @default(1)
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz()
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz()
+  version      Int        @default(1)
 
-  partner                        Partner?
-  auditLogs                      AuditLog[]
-  notifications                  Notification[]
-  cyclePartnerEntries            CycleParticipant[] @relation("CyclePartnerUser")
-  cycleInvestorEntries           CycleParticipant[] @relation("CycleInvestorUser")
-  saleOrders                     SaleOrder[]        @relation("CreatedSaleOrderUser")
-  payments                       Payment[]          @relation("CreatedPaymentUser")
-  productRequests                ProductRequest[]   @relation("CreatedProductRequestUser")
-  financialTransactions          FinancialTransaction[]
-  inventoryMovements             InventoryMovement[]
+  partner               Partner?
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  cyclePartnerEntries   CycleParticipant[]     @relation("CyclePartnerUser")
+  cycleInvestorEntries  CycleParticipant[]     @relation("CycleInvestorUser")
+  saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
+  payments              Payment[]              @relation("CreatedPaymentUser")
+  productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
+  financialTransactions FinancialTransaction[]
+  inventoryMovements    InventoryMovement[]
 
   createdSaleReturns SaleReturn[] @relation("CreatedSaleReturnUser")
 
@@ -60,7 +60,7 @@ model Partner {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
   version     Int      @default(1)
 
-  user                 User                 @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("partners")
 }
@@ -99,39 +99,39 @@ model Category {
 }
 
 model Product {
-  id          String   @id @default(uuid()) @db.Uuid
-  sku         String   @unique
-  name        String
-  categoryId  String?  @map("category_id") @db.Uuid
-  description String?
-  barcode     String?
-  status      String   @default("ACTIVE")
-  minStock    Decimal? @map("min_stock") @db.Decimal(18, 3)
+  id           String   @id @default(uuid()) @db.Uuid
+  sku          String   @unique
+  name         String
+  categoryId   String?  @map("category_id") @db.Uuid
+  description  String?
+  barcode      String?
+  status       String   @default("ACTIVE")
+  minStock     Decimal? @map("min_stock") @db.Decimal(18, 3)
   unitWeightKg Decimal? @map("unit_weight_kg") @db.Decimal(18, 3)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  version     Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version      Int      @default(1)
 
-  category         Category?            @relation(fields: [categoryId], references: [id])
-  suppliers        ProductSupplier[]
-  compatibilities  ProductCompatibility[]
-  prices           ProductPrice[]
+  category           Category?              @relation(fields: [categoryId], references: [id])
+  suppliers          ProductSupplier[]
+  compatibilities    ProductCompatibility[]
+  prices             ProductPrice[]
   purchaseOrderItems PurchaseOrderItem[]
-  inventoryBatches InventoryBatch[]
-  saleItems        SaleItem[]
-  productRequests  ProductRequest[]
-  fileAssets       FileAsset[]
+  inventoryBatches   InventoryBatch[]
+  saleItems          SaleItem[]
+  productRequests    ProductRequest[]
+  fileAssets         FileAsset[]
 
   @@map("products")
 }
 
 model ProductSupplier {
-  id          String  @id @default(uuid()) @db.Uuid
-  productId   String  @map("product_id") @db.Uuid
-  supplierId  String  @map("supplier_id") @db.Uuid
-  supplierSku String? @map("supplier_sku")
-  sourceUrl   String? @map("source_url")
-  preferred   Boolean @default(false)
+  id          String   @id @default(uuid()) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  supplierId  String   @map("supplier_id") @db.Uuid
+  supplierSku String?  @map("supplier_sku")
+  sourceUrl   String?  @map("source_url")
+  preferred   Boolean  @default(false)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -157,11 +157,11 @@ model MotorcycleModel {
 }
 
 model ProductCompatibility {
-  id               String @id @default(uuid()) @db.Uuid
-  productId        String @map("product_id") @db.Uuid
-  motorcycleModelId String @map("motorcycle_model_id") @db.Uuid
-  notes            String?
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id                String   @id @default(uuid()) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  motorcycleModelId String   @map("motorcycle_model_id") @db.Uuid
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   product         Product         @relation(fields: [productId], references: [id])
   motorcycleModel MotorcycleModel @relation(fields: [motorcycleModelId], references: [id])
@@ -171,15 +171,15 @@ model ProductCompatibility {
 }
 
 model ProductPrice {
-  id          String   @id @default(uuid()) @db.Uuid
-  productId   String   @map("product_id") @db.Uuid
-  channel     String
-  currency    String
-  amount      Decimal  @db.Decimal(18, 2)
-  effectiveFrom DateTime @map("effective_from") @db.Timestamptz()
+  id            String    @id @default(uuid()) @db.Uuid
+  productId     String    @map("product_id") @db.Uuid
+  channel       String
+  currency      String
+  amount        Decimal   @db.Decimal(18, 2)
+  effectiveFrom DateTime  @map("effective_from") @db.Timestamptz()
   effectiveTo   DateTime? @map("effective_to") @db.Timestamptz()
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  createdBy   String?  @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy     String?   @map("created_by") @db.Uuid
 
   product Product @relation(fields: [productId], references: [id])
 
@@ -233,43 +233,43 @@ enum CycleStatus {
 }
 
 model ImportCycle {
-  id         String         @id @default(uuid()) @db.Uuid
-  code       String         @unique
-  status     CycleStatus    @default(PLANNING)
+  id         String          @id @default(uuid()) @db.Uuid
+  code       String          @unique
+  status     CycleStatus     @default(PLANNING)
   originType CycleOriginType @map("origin_type")
   currency   String
-  startedOn  DateTime?      @map("started_on") @db.Date
-  closedOn   DateTime?      @map("closed_on") @db.Date
-  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz()
-  version    Int            @default(1)
+  startedOn  DateTime?       @map("started_on") @db.Date
+  closedOn   DateTime?       @map("closed_on") @db.Date
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
+  version    Int             @default(1)
 
-  participants      CycleParticipant[]
-  purchaseOrders    PurchaseOrder[]
-  shippingLegs      ShippingLeg[]
-  inventoryBatches  InventoryBatch[]
+  participants          CycleParticipant[]
+  purchaseOrders        PurchaseOrder[]
+  shippingLegs          ShippingLeg[]
+  inventoryBatches      InventoryBatch[]
   financialTransactions FinancialTransaction[]
-  settlements       Settlement[]
+  settlements           Settlement[]
 
   @@map("import_cycles")
 }
 
 model CycleParticipant {
-  id                String   @id @default(uuid()) @db.Uuid
-  cycleId           String   @map("cycle_id") @db.Uuid
-  participantType   ParticipantType @map("participant_type")
-  partnerUserId     String?  @map("partner_user_id") @db.Uuid
-  investorUserId    String?  @map("investor_user_id") @db.Uuid
-  contributionAmount Decimal @map("contribution_amount") @db.Decimal(18, 2)
-  customProfitPct   Decimal? @map("custom_profit_pct") @db.Decimal(8, 4)
-  investorFeePct    Decimal? @map("investor_fee_pct") @db.Decimal(8, 4)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  version           Int      @default(1)
+  id                 String          @id @default(uuid()) @db.Uuid
+  cycleId            String          @map("cycle_id") @db.Uuid
+  participantType    ParticipantType @map("participant_type")
+  partnerUserId      String?         @map("partner_user_id") @db.Uuid
+  investorUserId     String?         @map("investor_user_id") @db.Uuid
+  contributionAmount Decimal         @map("contribution_amount") @db.Decimal(18, 2)
+  customProfitPct    Decimal?        @map("custom_profit_pct") @db.Decimal(8, 4)
+  investorFeePct     Decimal?        @map("investor_fee_pct") @db.Decimal(8, 4)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
+  version            Int             @default(1)
 
-  cycle           ImportCycle  @relation(fields: [cycleId], references: [id])
-  partner         User?        @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
-  investor        User?        @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
+  cycle           ImportCycle      @relation(fields: [cycleId], references: [id])
+  partner         User?            @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
+  investor        User?            @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
   settlementLines SettlementLine[]
 
   // A person joins a cycle once. Without this a double-add silently dilutes
@@ -292,10 +292,10 @@ model PurchaseOrder {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
   version     Int      @default(1)
 
-  cycle              ImportCycle        @relation(fields: [cycleId], references: [id])
-  supplier           Supplier           @relation(fields: [supplierId], references: [id])
-  items              PurchaseOrderItem[]
-  supplierRefunds    SupplierRefund[]
+  cycle           ImportCycle         @relation(fields: [cycleId], references: [id])
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  items           PurchaseOrderItem[]
+  supplierRefunds SupplierRefund[]
 
   @@map("purchase_orders")
 }
@@ -312,8 +312,8 @@ model PurchaseOrderItem {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
-  product       Product        @relation(fields: [productId], references: [id])
+  purchaseOrder  PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
   inventoryBatch InventoryBatch?
 
   @@map("purchase_order_items")
@@ -336,26 +336,34 @@ model SupplierRefund {
 }
 
 enum RefundMethod {
-  /** Reduces what the customer owes. The default: most returns are from shops
-      with a running balance, and no cash needs to move. */
+  /**
+   * Reduces what the customer owes. The default: most returns are from shops
+   * with a running balance, and no cash needs to move.
+   */
   CREDIT_NOTE
-  /** Money actually leaves, so it reaches the ledger as an outflow. */
+  /**
+   * Money actually leaves, so it reaches the ledger as an outflow.
+   */
   CASH
 }
 
 model SaleReturn {
-  id           String       @id @default(uuid()) @db.Uuid
-  saleOrderId  String       @map("sale_order_id") @db.Uuid
-  reference    String       @unique
-  returnedOn   DateTime     @map("returned_on") @db.Date
-  reason       String
-  refundMethod RefundMethod @default(CREDIT_NOTE) @map("refund_method")
-  /** Sum of the refunded line amounts. */
-  refundEgp    Decimal      @map("refund_egp") @db.Decimal(18, 2)
-  /** COGS put back, so cycle profit corrects itself. */
-  cogsReversedEgp Decimal   @map("cogs_reversed_egp") @db.Decimal(18, 2)
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz()
-  createdBy    String?      @map("created_by") @db.Uuid
+  id              String       @id @default(uuid()) @db.Uuid
+  saleOrderId     String       @map("sale_order_id") @db.Uuid
+  reference       String       @unique
+  returnedOn      DateTime     @map("returned_on") @db.Date
+  reason          String
+  refundMethod    RefundMethod @default(CREDIT_NOTE) @map("refund_method")
+  /**
+   * Sum of the refunded line amounts.
+   */
+  refundEgp       Decimal      @map("refund_egp") @db.Decimal(18, 2)
+  /**
+   * COGS put back, so cycle profit corrects itself.
+   */
+  cogsReversedEgp Decimal      @map("cogs_reversed_egp") @db.Decimal(18, 2)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy       String?      @map("created_by") @db.Uuid
 
   saleOrder SaleOrder        @relation(fields: [saleOrderId], references: [id])
   creator   User?            @relation("CreatedSaleReturnUser", fields: [createdBy], references: [id])
@@ -365,19 +373,23 @@ model SaleReturn {
 }
 
 model SaleReturnItem {
-  id             String  @id @default(uuid()) @db.Uuid
-  saleReturnId   String  @map("sale_return_id") @db.Uuid
-  saleItemId     String  @map("sale_item_id") @db.Uuid
-  /** The batch the units came from, so they go back at the cost they left at
-      rather than at today's price. */
-  inventoryBatchId String @map("inventory_batch_id") @db.Uuid
-  qty            Decimal @db.Decimal(18, 3)
-  unitPrice      Decimal @map("unit_price") @db.Decimal(18, 2)
-  refundEgp      Decimal @map("refund_egp") @db.Decimal(18, 2)
-  unitCostEgp    Decimal @map("unit_cost_egp") @db.Decimal(18, 4)
-  cogsReversedEgp Decimal @map("cogs_reversed_egp") @db.Decimal(18, 2)
-  /** False when goods come back damaged and are written off instead. */
-  restocked      Boolean @default(true)
+  id               String  @id @default(uuid()) @db.Uuid
+  saleReturnId     String  @map("sale_return_id") @db.Uuid
+  saleItemId       String  @map("sale_item_id") @db.Uuid
+  /**
+   * The batch the units came from, so they go back at the cost they left at
+   * rather than at today's price.
+   */
+  inventoryBatchId String  @map("inventory_batch_id") @db.Uuid
+  qty              Decimal @db.Decimal(18, 3)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(18, 2)
+  refundEgp        Decimal @map("refund_egp") @db.Decimal(18, 2)
+  unitCostEgp      Decimal @map("unit_cost_egp") @db.Decimal(18, 4)
+  cogsReversedEgp  Decimal @map("cogs_reversed_egp") @db.Decimal(18, 2)
+  /**
+   * False when goods come back damaged and are written off instead.
+   */
+  restocked        Boolean @default(true)
 
   saleReturn     SaleReturn     @relation(fields: [saleReturnId], references: [id])
   saleItem       SaleItem       @relation(fields: [saleItemId], references: [id])
@@ -394,7 +406,6 @@ enum PaymentPlanStatus {
 
 /**
  * An agreed schedule for clearing a shop's running balance.
- *
  * The plan is per customer, not per sale: a shop thinks in terms of what it
  * owes you in total, and pays against that. Instalment amounts are whatever was
  * agreed — 20,000 might be settled as 10,000 up front then 1,000, 5,000 and
@@ -405,7 +416,9 @@ model PaymentPlan {
   id         String            @id @default(uuid()) @db.Uuid
   customerId String            @map("customer_id") @db.Uuid
   reference  String            @unique
-  /** The balance this plan was agreed to cover. */
+  /**
+   * The balance this plan was agreed to cover.
+   */
   totalEgp   Decimal           @map("total_egp") @db.Decimal(18, 2)
   agreedOn   DateTime          @map("agreed_on") @db.Date
   status     PaymentPlanStatus @default(ACTIVE)
@@ -425,8 +438,10 @@ model PaymentPlanInstalment {
   id       String   @id @default(uuid()) @db.Uuid
   planId   String   @map("plan_id") @db.Uuid
   sequence Int
-  /** Usually a Sunday, but nothing enforces that — an upfront payment is just
-      the first instalment dated on the day the plan was agreed. */
+  /**
+   * Usually a Sunday, but nothing enforces that — an upfront payment is just
+   * the first instalment dated on the day the plan was agreed.
+   */
   dueOn    DateTime @map("due_on") @db.Date
   amount   Decimal  @db.Decimal(18, 2)
   note     String?
@@ -438,14 +453,14 @@ model PaymentPlanInstalment {
 }
 
 model Provider {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String   @id @default(uuid()) @db.Uuid
   name          String
-  contactPerson String?   @map("contact_person")
+  contactPerson String?  @map("contact_person")
   phone         String?
   email         String?
   notes         String?
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   shippingLegs ShippingLeg[]
 
@@ -453,32 +468,32 @@ model Provider {
 }
 
 model ShippingLeg {
-  id          String    @id @default(uuid()) @db.Uuid
-  cycleId     String    @map("cycle_id") @db.Uuid
-  sequence    Int
-  origin      String
-  destination String
-  provider    String?
-  providerId  String?   @map("provider_id") @db.Uuid
-  trackingRef String?   @map("tracking_ref")
-  status      String    @default("PENDING")
-  departedOn  DateTime? @map("departed_on") @db.Timestamptz()
-  arrivedOn   DateTime? @map("arrived_on") @db.Timestamptz()
+  id                 String            @id @default(uuid()) @db.Uuid
+  cycleId            String            @map("cycle_id") @db.Uuid
+  sequence           Int
+  origin             String
+  destination        String
+  provider           String?
+  providerId         String?           @map("provider_id") @db.Uuid
+  trackingRef        String?           @map("tracking_ref")
+  status             String            @default("PENDING")
+  departedOn         DateTime?         @map("departed_on") @db.Timestamptz()
+  arrivedOn          DateTime?         @map("arrived_on") @db.Timestamptz()
   // Costing basis: shipping is usually charged per piece, sometimes by weight.
   costBasis          ShippingCostBasis @default(FLAT) @map("cost_basis")
-  ratePerUnit        Decimal? @map("rate_per_unit") @db.Decimal(18, 4)
-  chargeablePieces   Decimal? @map("chargeable_pieces") @db.Decimal(18, 3)
-  chargeableWeightKg Decimal? @map("chargeable_weight_kg") @db.Decimal(18, 3)
-  currency           String   @default("EGP")
-  fxRateToEgp        Decimal  @default(1) @map("fx_rate_to_egp") @db.Decimal(18, 4)
-  amount      Decimal?  @db.Decimal(18, 2)
-  amountEgp          Decimal? @map("amount_egp") @db.Decimal(18, 2)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
-  version     Int       @default(1)
+  ratePerUnit        Decimal?          @map("rate_per_unit") @db.Decimal(18, 4)
+  chargeablePieces   Decimal?          @map("chargeable_pieces") @db.Decimal(18, 3)
+  chargeableWeightKg Decimal?          @map("chargeable_weight_kg") @db.Decimal(18, 3)
+  currency           String            @default("EGP")
+  fxRateToEgp        Decimal           @default(1) @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  amount             Decimal?          @db.Decimal(18, 2)
+  amountEgp          Decimal?          @map("amount_egp") @db.Decimal(18, 2)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
+  version            Int               @default(1)
 
-  cycle    ImportCycle @relation(fields: [cycleId], references: [id])
-  providerRecord Provider? @relation(fields: [providerId], references: [id])
+  cycle          ImportCycle @relation(fields: [cycleId], references: [id])
+  providerRecord Provider?   @relation(fields: [providerId], references: [id])
 
   @@unique([cycleId, sequence])
   @@map("shipping_legs")
@@ -503,40 +518,40 @@ enum VerificationStatus {
 }
 
 model InventoryBatch {
-  id                String   @id @default(uuid()) @db.Uuid
-  cycleId           String   @map("cycle_id") @db.Uuid
-  productId         String   @map("product_id") @db.Uuid
-  sourcePoItemId    String?  @unique @map("source_po_item_id") @db.Uuid
-  receivedQty       Decimal  @map("received_qty") @db.Decimal(18, 3)
-  remainingQty      Decimal  @map("remaining_qty") @db.Decimal(18, 3)
-  reservedQty       Decimal  @default(0) @map("reserved_qty") @db.Decimal(18, 3)
-  saleableQty       Decimal  @map("saleable_qty") @db.Decimal(18, 3)
-  landedUnitCostEgp Decimal  @map("landed_unit_cost_egp") @db.Decimal(18, 4)
+  id                 String             @id @default(uuid()) @db.Uuid
+  cycleId            String             @map("cycle_id") @db.Uuid
+  productId          String             @map("product_id") @db.Uuid
+  sourcePoItemId     String?            @unique @map("source_po_item_id") @db.Uuid
+  receivedQty        Decimal            @map("received_qty") @db.Decimal(18, 3)
+  remainingQty       Decimal            @map("remaining_qty") @db.Decimal(18, 3)
+  reservedQty        Decimal            @default(0) @map("reserved_qty") @db.Decimal(18, 3)
+  saleableQty        Decimal            @map("saleable_qty") @db.Decimal(18, 3)
+  landedUnitCostEgp  Decimal            @map("landed_unit_cost_egp") @db.Decimal(18, 4)
   verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  version           Int      @default(1)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
+  version            Int                @default(1)
 
-  cycle              ImportCycle          @relation(fields: [cycleId], references: [id])
-  product            Product              @relation(fields: [productId], references: [id])
-  sourcePoItem       PurchaseOrderItem?   @relation(fields: [sourcePoItemId], references: [id])
-  movements          InventoryMovement[]
-  reservations       InventoryReservation[]
+  cycle               ImportCycle            @relation(fields: [cycleId], references: [id])
+  product             Product                @relation(fields: [productId], references: [id])
+  sourcePoItem        PurchaseOrderItem?     @relation(fields: [sourcePoItemId], references: [id])
+  movements           InventoryMovement[]
+  reservations        InventoryReservation[]
   saleItemAllocations SaleItemAllocation[]
-  returnItems        SaleReturnItem[]
+  returnItems         SaleReturnItem[]
 
   @@map("inventory_batches")
 }
 
 model InventoryMovement {
-  id            String              @id @default(uuid()) @db.Uuid
-  batchId       String              @map("batch_id") @db.Uuid
+  id            String                @id @default(uuid()) @db.Uuid
+  batchId       String                @map("batch_id") @db.Uuid
   movementType  InventoryMovementType @map("movement_type")
-  qtyDelta      Decimal             @map("qty_delta") @db.Decimal(18, 3)
-  referenceType String?             @map("reference_type")
-  referenceId   String?             @map("reference_id") @db.Uuid
-  occurredAt    DateTime            @default(now()) @map("occurred_at") @db.Timestamptz()
-  createdBy     String?             @map("created_by") @db.Uuid
+  qtyDelta      Decimal               @map("qty_delta") @db.Decimal(18, 3)
+  referenceType String?               @map("reference_type")
+  referenceId   String?               @map("reference_id") @db.Uuid
+  occurredAt    DateTime              @default(now()) @map("occurred_at") @db.Timestamptz()
+  createdBy     String?               @map("created_by") @db.Uuid
 
   batch InventoryBatch @relation(fields: [batchId], references: [id])
   actor User?          @relation(fields: [createdBy], references: [id])
@@ -545,14 +560,14 @@ model InventoryMovement {
 }
 
 model InventoryReservation {
-  id           String   @id @default(uuid()) @db.Uuid
-  batchId      String   @map("batch_id") @db.Uuid
-  saleOrderId  String   @map("sale_order_id") @db.Uuid
-  qty          Decimal  @db.Decimal(18, 3)
-  status       String   @default("ACTIVE")
-  expiresAt    DateTime? @map("expires_at") @db.Timestamptz()
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  id          String    @id @default(uuid()) @db.Uuid
+  batchId     String    @map("batch_id") @db.Uuid
+  saleOrderId String    @map("sale_order_id") @db.Uuid
+  qty         Decimal   @db.Decimal(18, 3)
+  status      String    @default("ACTIVE")
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   batch     InventoryBatch @relation(fields: [batchId], references: [id])
   saleOrder SaleOrder      @relation(fields: [saleOrderId], references: [id])
@@ -577,22 +592,22 @@ enum OrderStatus {
 }
 
 model Customer {
-  id                 String   @id @default(uuid()) @db.Uuid
+  id                 String       @id @default(uuid()) @db.Uuid
   type               CustomerType
-  displayName        String   @map("display_name")
+  displayName        String       @map("display_name")
   phone              String?
   email              String?
-  shopOwnerUserId    String?  @map("shop_owner_user_id") @db.Uuid
-  verificationStatus String   @default("UNVERIFIED") @map("verification_status")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  version            Int      @default(1)
+  shopOwnerUserId    String?      @map("shop_owner_user_id") @db.Uuid
+  verificationStatus String       @default("UNVERIFIED") @map("verification_status")
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz()
+  version            Int          @default(1)
 
   saleOrders      SaleOrder[]
   payments        Payment[]
   productRequests ProductRequest[]
 
-  paymentPlans    PaymentPlan[]
+  paymentPlans PaymentPlan[]
 
   @@map("customers")
 }
@@ -613,30 +628,30 @@ model SaleOrder {
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
   version     Int         @default(1)
 
-  customer           Customer           @relation(fields: [customerId], references: [id])
-  creator            User?              @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
-  createdBy          String?            @map("created_by") @db.Uuid
+  customer           Customer               @relation(fields: [customerId], references: [id])
+  creator            User?                  @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
+  createdBy          String?                @map("created_by") @db.Uuid
   items              SaleItem[]
   reservations       InventoryReservation[]
   paymentAllocations PaymentAllocation[]
 
-  returns         SaleReturn[]
+  returns SaleReturn[]
 
   @@map("sale_orders")
 }
 
 model SaleItem {
-  id           String  @id @default(uuid()) @db.Uuid
-  saleOrderId  String  @map("sale_order_id") @db.Uuid
-  productId    String  @map("product_id") @db.Uuid
-  quantity     Decimal @db.Decimal(18, 3)
-  unitPrice    Decimal @map("unit_price") @db.Decimal(18, 2)
-  discount     Decimal @default(0) @db.Decimal(18, 2)
-  lineTotal    Decimal @map("line_total") @db.Decimal(18, 2)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id          String   @id @default(uuid()) @db.Uuid
+  saleOrderId String   @map("sale_order_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  quantity    Decimal  @db.Decimal(18, 3)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 2)
+  discount    Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @map("line_total") @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  saleOrder   SaleOrder          @relation(fields: [saleOrderId], references: [id])
-  product     Product            @relation(fields: [productId], references: [id])
+  saleOrder   SaleOrder            @relation(fields: [saleOrderId], references: [id])
+  product     Product              @relation(fields: [productId], references: [id])
   allocations SaleItemAllocation[]
   returnItems SaleReturnItem[]
 
@@ -644,15 +659,15 @@ model SaleItem {
 }
 
 model SaleItemAllocation {
-  id              String  @id @default(uuid()) @db.Uuid
-  saleItemId      String  @map("sale_item_id") @db.Uuid
-  inventoryBatchId String @map("inventory_batch_id") @db.Uuid
-  qty             Decimal @db.Decimal(18, 3)
-  unitCostEgp     Decimal @map("unit_cost_egp") @db.Decimal(18, 4)
-  cogsEgp         Decimal @map("cogs_egp") @db.Decimal(18, 2)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id               String   @id @default(uuid()) @db.Uuid
+  saleItemId       String   @map("sale_item_id") @db.Uuid
+  inventoryBatchId String   @map("inventory_batch_id") @db.Uuid
+  qty              Decimal  @db.Decimal(18, 3)
+  unitCostEgp      Decimal  @map("unit_cost_egp") @db.Decimal(18, 4)
+  cogsEgp          Decimal  @map("cogs_egp") @db.Decimal(18, 2)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  saleItem      SaleItem        @relation(fields: [saleItemId], references: [id])
+  saleItem       SaleItem       @relation(fields: [saleItemId], references: [id])
   inventoryBatch InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
 
   @@map("sale_item_allocations")
@@ -672,8 +687,8 @@ model Payment {
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
   version    Int      @default(1)
 
-  customer   Customer            @relation(fields: [customerId], references: [id])
-  creator    User?               @relation("CreatedPaymentUser", fields: [createdBy], references: [id])
+  customer    Customer            @relation(fields: [customerId], references: [id])
+  creator     User?               @relation("CreatedPaymentUser", fields: [createdBy], references: [id])
   allocations PaymentAllocation[]
 
   @@map("payments")
@@ -700,25 +715,25 @@ enum TransactionDirection {
 }
 
 model FinancialTransaction {
-  id              String              @id @default(uuid()) @db.Uuid
-  type            String
-  category        String
-  direction       TransactionDirection
-  amount          Decimal             @db.Decimal(18, 2)
-  currency        String
-  fxRateToEgp     Decimal?            @map("fx_rate_to_egp") @db.Decimal(18, 4)
-  accountId       String?             @map("account_id") @db.Uuid
-  cycleId         String?             @map("cycle_id") @db.Uuid
-  relatedType     String?             @map("related_type")
-  relatedId       String?             @map("related_id") @db.Uuid
-  reversalOfId    String?             @map("reversal_of_id") @db.Uuid
-  reason          String?
-  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz()
-  createdBy       String?             @map("created_by") @db.Uuid
+  id           String               @id @default(uuid()) @db.Uuid
+  type         String
+  category     String
+  direction    TransactionDirection
+  amount       Decimal              @db.Decimal(18, 2)
+  currency     String
+  fxRateToEgp  Decimal?             @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  accountId    String?              @map("account_id") @db.Uuid
+  cycleId      String?              @map("cycle_id") @db.Uuid
+  relatedType  String?              @map("related_type")
+  relatedId    String?              @map("related_id") @db.Uuid
+  reversalOfId String?              @map("reversal_of_id") @db.Uuid
+  reason       String?
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy    String?              @map("created_by") @db.Uuid
 
-  cycle    ImportCycle?       @relation(fields: [cycleId], references: [id])
-  actor    User?              @relation(fields: [createdBy], references: [id])
-  account  MoneyAccount?      @relation(fields: [accountId], references: [id])
+  cycle   ImportCycle?  @relation(fields: [cycleId], references: [id])
+  actor   User?         @relation(fields: [createdBy], references: [id])
+  account MoneyAccount? @relation(fields: [accountId], references: [id])
 
   @@map("financial_transactions")
 }
@@ -732,18 +747,18 @@ model MoneyAccount {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  transactions    FinancialTransaction[]
+  transactions          FinancialTransaction[]
   reconciliationEntries ReconciliationEntry[]
 
   @@map("money_accounts")
 }
 
 model ReconciliationEntry {
-  id        String   @id @default(uuid()) @db.Uuid
-  accountId String   @map("account_id") @db.Uuid
-  status    String
+  id           String    @id @default(uuid()) @db.Uuid
+  accountId    String    @map("account_id") @db.Uuid
+  status       String
   reconciledOn DateTime? @map("reconciled_on") @db.Timestamptz()
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   account MoneyAccount @relation(fields: [accountId], references: [id])
 
@@ -760,24 +775,24 @@ enum SettlementStatus {
 }
 
 model Settlement {
-  id            String          @id @default(uuid()) @db.Uuid
-  cycleId       String          @map("cycle_id") @db.Uuid
-  status        SettlementStatus @default(DRAFT)
+  id             String           @id @default(uuid()) @db.Uuid
+  cycleId        String           @map("cycle_id") @db.Uuid
+  status         SettlementStatus @default(DRAFT)
   // Cycle profit and loss as calculated, kept so an approved settlement can be
   // read back exactly as it was agreed.
-  revenueEgp     Decimal?       @map("revenue_egp") @db.Decimal(18, 2)
-  cogsEgp        Decimal?       @map("cogs_egp") @db.Decimal(18, 2)
-  expensesEgp    Decimal?       @map("expenses_egp") @db.Decimal(18, 2)
-  grossProfitEgp Decimal?       @map("gross_profit_egp") @db.Decimal(18, 2)
-  unsoldValueEgp Decimal?       @map("unsold_value_egp") @db.Decimal(18, 2)
-  unitsSold      Decimal?       @map("units_sold") @db.Decimal(18, 3)
-  unitsRemaining Decimal?       @map("units_remaining") @db.Decimal(18, 3)
-  calculatedAt  DateTime?       @map("calculated_at") @db.Timestamptz()
-  approvedAt    DateTime?       @map("approved_at") @db.Timestamptz()
-  paidAt        DateTime?       @map("paid_at") @db.Timestamptz()
-  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
-  version       Int             @default(1)
+  revenueEgp     Decimal?         @map("revenue_egp") @db.Decimal(18, 2)
+  cogsEgp        Decimal?         @map("cogs_egp") @db.Decimal(18, 2)
+  expensesEgp    Decimal?         @map("expenses_egp") @db.Decimal(18, 2)
+  grossProfitEgp Decimal?         @map("gross_profit_egp") @db.Decimal(18, 2)
+  unsoldValueEgp Decimal?         @map("unsold_value_egp") @db.Decimal(18, 2)
+  unitsSold      Decimal?         @map("units_sold") @db.Decimal(18, 3)
+  unitsRemaining Decimal?         @map("units_remaining") @db.Decimal(18, 3)
+  calculatedAt   DateTime?        @map("calculated_at") @db.Timestamptz()
+  approvedAt     DateTime?        @map("approved_at") @db.Timestamptz()
+  paidAt         DateTime?        @map("paid_at") @db.Timestamptz()
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
+  version        Int              @default(1)
 
   cycle ImportCycle      @relation(fields: [cycleId], references: [id])
   lines SettlementLine[]
@@ -786,16 +801,16 @@ model Settlement {
 }
 
 model SettlementLine {
-  id                   String   @id @default(uuid()) @db.Uuid
-  settlementId         String   @map("settlement_id") @db.Uuid
-  participantId        String   @map("participant_id") @db.Uuid
-  component            String
-  amount               Decimal  @db.Decimal(18, 2)
-  feeAmount            Decimal? @map("fee_amount") @db.Decimal(18, 2)
-  recipientParticipantId String? @map("recipient_participant_id") @db.Uuid
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id                     String   @id @default(uuid()) @db.Uuid
+  settlementId           String   @map("settlement_id") @db.Uuid
+  participantId          String   @map("participant_id") @db.Uuid
+  component              String
+  amount                 Decimal  @db.Decimal(18, 2)
+  feeAmount              Decimal? @map("fee_amount") @db.Decimal(18, 2)
+  recipientParticipantId String?  @map("recipient_participant_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  settlement Settlement     @relation(fields: [settlementId], references: [id])
+  settlement  Settlement       @relation(fields: [settlementId], references: [id])
   participant CycleParticipant @relation(fields: [participantId], references: [id])
 
   @@map("settlement_lines")
@@ -804,13 +819,13 @@ model SettlementLine {
 // ─── Notifications ─────────────────────────────────────────────────
 
 model Notification {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  eventType String    @map("event_type")
-  title     String
-  payloadJson Json?   @map("payload_json")
-  readAt    DateTime? @map("read_at") @db.Timestamptz()
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  eventType   String    @map("event_type")
+  title       String
+  payloadJson Json?     @map("payload_json")
+  readAt      DateTime? @map("read_at") @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   user User @relation(fields: [userId], references: [id])
 
@@ -843,23 +858,46 @@ model AuditLog {
 // ─── Product Requests (Phase 2) ────────────────────────────────────
 
 model ProductRequest {
-  id               String   @id @default(uuid()) @db.Uuid
-  customerId       String   @map("customer_id") @db.Uuid
-  productName      String   @map("product_name")
-  compatibilityText String? @map("compatibility_text")
-  quantity         Decimal? @db.Decimal(18, 3)
-  notes            String?
-  assetId          String?  @map("asset_id") @db.Uuid
-  supplierUrl      String?  @map("supplier_url")
-  status           String   @default("PENDING")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  id                String   @id @default(uuid()) @db.Uuid
+  customerId        String   @map("customer_id") @db.Uuid
+  productName       String   @map("product_name")
+  compatibilityText String?  @map("compatibility_text")
+  quantity          Decimal? @db.Decimal(18, 3)
+  notes             String?
+  assetId           String?  @map("asset_id") @db.Uuid
+  supplierUrl       String?  @map("supplier_url")
+  status            String   @default("PENDING")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  creator  User?    @relation("CreatedProductRequestUser", fields: [createdBy], references: [id])
-  createdBy String? @map("created_by") @db.Uuid
-  product  Product? @relation(fields: [productId], references: [id])
-  productId String? @map("product_id") @db.Uuid
+  customer  Customer @relation(fields: [customerId], references: [id])
+  creator   User?    @relation("CreatedProductRequestUser", fields: [createdBy], references: [id])
+  createdBy String?  @map("created_by") @db.Uuid
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?  @map("product_id") @db.Uuid
 
   @@map("product_requests")
+}
+
+// ─── Currency ──────────────────────────────────────────────────────
+
+/**
+ * The current rate for converting a foreign currency into EGP.
+ * This is a lookup for prefilling forms, NOT a historical record. Every
+ * document that involves a foreign amount stores the rate it was agreed at
+ * (purchase orders, shipping legs, ledger entries all carry their own
+ * fxRateToEgp), so changing a rate here never moves a figure that has already
+ * been recorded — which is what BRD §10 requires of financial history.
+ * `source` says where the number came from, so a rate typed by a partner is
+ * distinguishable from one a scheduled job fetched.
+ */
+model CurrencyRate {
+  code      String   @id
+  // Null means "no rate known" — the form asks for one rather than guessing.
+  rateToEgp Decimal? @map("rate_to_egp") @db.Decimal(18, 4)
+  source    String   @default("manual")
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("currency_rates")
 }

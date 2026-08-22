@@ -19,6 +19,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FilesModule } from './modules/files/files.module';
 import { ProvidersModule } from './modules/providers/providers.module';
+import { CurrencyRatesModule } from './modules/currency-rates/currency-rates.module';
 import { CostingModule } from './modules/costing/costing.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module';
@@ -45,6 +46,7 @@ import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module
     AnalyticsModule,
     FilesModule,
     ProvidersModule,
+    CurrencyRatesModule,
     CostingModule,
     ReturnsModule,
     PaymentPlansModule,

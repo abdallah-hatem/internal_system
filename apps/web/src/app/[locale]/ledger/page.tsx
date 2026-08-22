@@ -14,6 +14,7 @@ import {
 import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
+import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -375,18 +376,14 @@ export default function LedgerPage() {
                 </label>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-                <Select
-                  name="currency"
-                  defaultValue="EGP"
-                  options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
-                />
-              </div>
-            </div>
-            <InputField label={t('fxRate')} name="fxRateToEgp" type="number" placeholder="0" />
+            <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
+            <CurrencyRateFields
+              rateName="fxRateToEgp"
+              currencies={['EGP', 'USD', 'AED']}
+              defaultCurrency="EGP"
+              currencyLabel={t('currency')}
+              rateLabel={t('fxRate')}
+            />
             <InputField label={t('cycle') + ' ID'} name="cycleId" />
             <TextareaField label={t('reason')} name="reason" />
             <div className="flex justify-end gap-3 pt-2">

@@ -68,6 +68,27 @@ async function main() {
     },
   });
 
+  // Current FX rates. Reference data the forms depend on, so it belongs in
+  // every seed — the test reset truncates every table, and without this the
+  // rates would silently vanish for the length of a run.
+  //
+  // CNY is deliberately rate-less: the business buys from China, but no rate
+  // was agreed, and inventing one would put a wrong number into a landed cost.
+  for (const [code, rate, source] of [
+    ['EGP', 1, 'base'],
+    ['AED', 13.85, 'manual'],
+    ['USD', 50.86, 'manual'],
+    ['CNY', null, 'manual'],
+  ] as [string, number | null, string][]) {
+    await prisma.currencyRate.upsert({
+      where: { code },
+      update: {},
+      create: { code, rateToEgp: rate, source },
+    });
+  }
+
+  console.log('✅ Created currency rates (AED 13.85, USD 50.86; CNY unset)');
+
   // A minimal seed brings up only what is needed to sign in and start
   // recording — no sample suppliers, products or cycles. That is what you
   // want when the data is about to be real: invented rows are hard to tell
