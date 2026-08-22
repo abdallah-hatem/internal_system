@@ -198,7 +198,7 @@ export default function CustomerPage() {
             <Wallet className="h-4 w-4" /> {tp('create')}
           </button>
           <button
-            onClick={() => router.push(`/${locale}/sales`)}
+            onClick={() => router.push(`/${locale}/sales?customer=${id}`)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <Plus className="h-4 w-4" /> {ts('create')}

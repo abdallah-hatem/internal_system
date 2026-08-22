@@ -127,4 +127,29 @@ test.describe('Customer page', () => {
     const total = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
     expect(total).toBe(2000);
   });
+
+  test('TC-HUB-04: New Order opens the form on that shop, already chosen', async ({
+    page,
+    request,
+  }) => {
+    // It used to drop you on the sales list to find the shop you had just been
+    // looking at.
+    const { customer } = await shopOwingTwoOrders(request);
+    await login(page);
+    await page.goto(`${BASE}/en/customers/${customer.id}`);
+
+    await page.getByRole('button', { name: /new order/i }).first().click();
+
+    const chosen = page
+      .locator('input[type="hidden"][name="customerId"]')
+      .locator('..')
+      .getByRole('combobox');
+    await expect(chosen).toContainText(customer.displayName, { timeout: 15000 });
+
+    // The channel follows the shop's type rather than the B2B default by luck.
+    await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2B');
+
+    // The parameter is consumed, so a reload does not reopen the form.
+    await expect(page).toHaveURL(/\/sales$/);
+  });
 });

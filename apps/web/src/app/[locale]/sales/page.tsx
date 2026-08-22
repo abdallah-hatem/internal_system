@@ -3,11 +3,12 @@ import { Select } from '../../../components/ui/select';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { formatDate } from '../../../lib/dates';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
@@ -116,6 +117,14 @@ export default function SalesPage() {
   // the lines. Both still carry their `name`, so the form submits unchanged.
   const [customerId, setCustomerId] = useState('');
   const [channel, setChannel] = useState('B2B');
+
+  // Arriving from a shop's page with ?customer=<id> opens the order form on
+  // that shop, so "New Order" there means what it says instead of dropping you
+  // on a list to find them again.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const locale = useLocale();
+  const openedFromCustomer = useRef(false);
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search]);
@@ -240,6 +249,24 @@ export default function SalesPage() {
       applyChannel(customer.type);
     }
   };
+
+  // Wait for the customers to load before opening: the channel is taken from
+  // the customer's own type, and acting on an empty list would pick nothing
+  // and leave the form on its B2B default regardless of who they are.
+  useEffect(() => {
+    const wanted = searchParams.get('customer');
+    if (!wanted || openedFromCustomer.current || customerList.length === 0) return;
+    if (!customerList.some((c) => c.id === wanted)) return;
+
+    openedFromCustomer.current = true;
+    setLineItems([{ productId: '', quantity: 1, unitPrice: 0, discount: 0 }]);
+    setShowCreateModal(true);
+    onCustomerChange(wanted);
+
+    // Drop the parameter once it has been used, so a refresh does not reopen
+    // the form and a stale link cannot resurrect it later.
+    router.replace(`/${locale}/sales`, { scroll: false });
+  }, [searchParams, customerList, locale, router]);
 
   /**
    * Switch channel and re-price the lines that are still at list price.
