@@ -36,7 +36,8 @@
     "today": "Today",
     "clear": "Clear",
     "previousMonth": "Previous month",
-    "nextMonth": "Next month"
+    "nextMonth": "Next month",
+    "unapplied": "unapplied"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -67,7 +68,8 @@
       "money": "Money",
       "partners": "Partners",
       "system": "System"
-    }
+    },
+    "suppliers": "Suppliers"
   },
   "auth": {
     "login": "Login",
@@ -300,7 +302,8 @@
     "mobileWallet": "Mobile Wallet",
     "search": "Search payments...",
     "outstanding": "Outstanding",
-    "saleOrder": "Sale order"
+    "saleOrder": "Sale order",
+    "noOpenOrders": "No open orders for this customer"
   },
   "ledger": {
     "title": "Financial Ledger",
@@ -464,6 +467,28 @@
     "deleteSuccess": "Shipping provider deleted successfully",
     "createSuccess": "Shipping provider created successfully",
     "updateSuccess": "Shipping provider updated successfully"
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "create": "New Supplier",
+    "edit": "Edit Supplier",
+    "delete": "Delete Supplier",
+    "name": "Name",
+    "country": "Country",
+    "contact": "Contact",
+    "phone": "Phone",
+    "email": "Email",
+    "wechat": "WeChat",
+    "whatsapp": "WhatsApp",
+    "notes": "Notes",
+    "orders": "Orders",
+    "search": "Search suppliers...",
+    "noData": "No suppliers found",
+    "confirmDelete": "Are you sure you want to delete this supplier?",
+    "deleteBlocked": "This supplier has purchase orders, so it cannot be deleted — the cost history of that stock traces back through it.",
+    "deleteSuccess": "Supplier deleted successfully",
+    "createSuccess": "Supplier created successfully",
+    "updateSuccess": "Supplier updated successfully"
   },
   "categories": {
     "title": "Product Categories",

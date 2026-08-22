@@ -2,7 +2,8 @@
 import { Money } from '../../../components/ui/money';
 import { Select } from '../../../components/ui/select';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
@@ -44,6 +45,8 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function CustomersPage() {
+  const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations('customers');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -214,14 +217,16 @@ export default function CustomersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`font-medium ${customer.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {customer.outstandingBalance?.toLocaleString() ?? 0} {customer.currency ?? 'EGP'}
-                        </span>
+                        <Money
+                          value={customer.outstandingBalance ?? 0}
+                          currency={customer.currency ?? 'EGP'}
+                          className={`font-medium ${customer.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => setViewingCustomer(customer)}
+                            onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                             className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                             title={tc('view')}
                           >
@@ -254,7 +259,7 @@ export default function CustomersPage() {
             paginated.map((customer) => (
               <div
                 key={customer.id}
-                onClick={() => setViewingCustomer(customer)}
+onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-2">
@@ -269,7 +274,8 @@ export default function CustomersPage() {
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <span className={`font-medium text-sm ${customer.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {t('balance')}: {customer.outstandingBalance?.toLocaleString() ?? 0} {customer.currency ?? 'EGP'}
+                    {t('balance')}:{' '}
+                    <Money value={customer.outstandingBalance ?? 0} currency={customer.currency ?? 'EGP'} />
                   </span>
                   <div className="flex items-center gap-2">
                     <button
@@ -362,7 +368,7 @@ export default function CustomersPage() {
               <Detail label={t('email')} value={detail.email ?? '—'} />
               <Detail
                 label={t('balance')}
-                value={`${detail.outstandingBalance?.toLocaleString() ?? 0} ${detail.currency ?? 'EGP'}`}
+                value={<Money value={detail.outstandingBalance ?? 0} currency={detail.currency ?? 'EGP'} />}
               />
             </div>
 

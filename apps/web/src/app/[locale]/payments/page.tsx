@@ -441,7 +441,7 @@ export default function PaymentsPage() {
                       maximumFractionDigits: 2,
                     })} ${o.currency}`,
                   }))}
-                emptyText={t('noOpenOrders') ?? 'No open orders for this customer'}
+                emptyText={t('noOpenOrders')}
               />
             </div>
             <InputField label={t('allocateAmount')} name="allocateAmount" type="number" required placeholder="0" />
