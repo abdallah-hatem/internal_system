@@ -45,6 +45,39 @@ async function main() {
   console.log(`   Partner B: ${partnerB.email} (password: password123)`);
   console.log(`   Partner C: ${partnerC.email} (password: password123)`);
 
+  // Create a money account
+  await prisma.moneyAccount.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000020' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000020',
+      name: 'Home Storage Room Cash',
+      accountType: 'CASH',
+      currency: 'EGP',
+    },
+  });
+
+  await prisma.moneyAccount.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000021' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000021',
+      name: 'Business Bank Account',
+      accountType: 'BANK',
+      currency: 'EGP',
+    },
+  });
+
+  // A minimal seed brings up only what is needed to sign in and start
+  // recording — no sample suppliers, products or cycles. That is what you
+  // want when the data is about to be real: invented rows are hard to tell
+  // apart from genuine ones once the two are mixed together.
+  if (process.env.SEED_MINIMAL === '1') {
+    console.log('✅ Minimal seed — partners and money accounts only, no demo data');
+    console.log('🎉 Seeding complete!');
+    return;
+  }
+
   // Create some categories
   const categories = await Promise.all([
     prisma.category.upsert({
@@ -140,29 +173,6 @@ async function main() {
   ]);
 
   console.log(`✅ Created ${models.length} motorcycle models`);
-
-  // Create a money account
-  await prisma.moneyAccount.upsert({
-    where: { id: '00000000-0000-4000-8000-000000000020' },
-    update: {},
-    create: {
-      id: '00000000-0000-4000-8000-000000000020',
-      name: 'Home Storage Room Cash',
-      accountType: 'CASH',
-      currency: 'EGP',
-    },
-  });
-
-  await prisma.moneyAccount.upsert({
-    where: { id: '00000000-0000-4000-8000-000000000021' },
-    update: {},
-    create: {
-      id: '00000000-0000-4000-8000-000000000021',
-      name: 'Business Bank Account',
-      accountType: 'BANK',
-      currency: 'EGP',
-    },
-  });
 
 
   // ───────────────────────────────────────────────────────────────────────

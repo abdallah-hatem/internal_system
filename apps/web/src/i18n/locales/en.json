@@ -58,7 +58,16 @@
     "settings": "Settings",
     "logout": "Logout",
     "settlements": "Settlements",
-    "paymentPlans": "Payment Plans"
+    "paymentPlans": "Payment Plans",
+    "groups": {
+      "overview": "Overview",
+      "importing": "Importing",
+      "catalogue": "Products & Stock",
+      "selling": "Sales & Customers",
+      "money": "Money",
+      "partners": "Partners",
+      "system": "System"
+    }
   },
   "auth": {
     "login": "Login",

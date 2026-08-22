@@ -11,32 +11,116 @@ import {
   LayoutDashboard, Route, ShoppingCart, Truck, Package, Boxes,
   BadgePercent, Users, CreditCard, BookOpen, BarChart3,
   Bell, ShieldCheck, Settings, Menu, X, ChevronDown,
-  Globe, LogOut, Tag,
-  Scale,
-  CalendarClock,
+  Globe, Tag, Scale, CalendarClock, Building2, Handshake,
 } from 'lucide-react';
 
-const navItems = [
-  { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard' },
-  { key: 'cycles', icon: Route, href: '/cycles' },
-  { key: 'purchases', icon: ShoppingCart, href: '/purchases' },
-  { key: 'shipments', icon: Truck, href: '/shipments' },
-  { key: 'providers', icon: Truck, href: '/providers' },
-  { key: 'products', icon: Package, href: '/products' },
-  { key: 'categories', icon: Tag, href: '/categories' },
-  { key: 'inventory', icon: Boxes, href: '/inventory' },
-  { key: 'sales', icon: BadgePercent, href: '/sales' },
-  { key: 'customers', icon: Users, href: '/customers' },
-  { key: 'payments', icon: CreditCard, href: '/payments' },
-  { key: 'paymentPlans', icon: CalendarClock, href: '/payment-plans' },
-  { key: 'ledger', icon: BookOpen, href: '/ledger' },
-  { key: 'partners', icon: Users, href: '/partners' },
-  { key: 'settlements', icon: Scale, href: '/settlements' },
-  { key: 'analytics', icon: BarChart3, href: '/analytics' },
+/**
+ * The sidebar follows the shape of the business rather than the order the
+ * screens were built in: goods are bought and brought in, they become stock,
+ * the stock is sold, the money is collected, and what is left is split between
+ * the partners. A flat list of nineteen links made related screens — a cycle
+ * and the shipment on it, a payment and the plan it belongs to — sit
+ * arbitrarily far apart.
+ */
+const navGroups = [
+  {
+    key: 'overview',
+    items: [
+      { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard' },
+      { key: 'analytics', icon: BarChart3, href: '/analytics' },
+    ],
+  },
+  {
+    key: 'importing',
+    items: [
+      { key: 'cycles', icon: Route, href: '/cycles' },
+      { key: 'purchases', icon: ShoppingCart, href: '/purchases' },
+      { key: 'shipments', icon: Truck, href: '/shipments' },
+      // Providers are the shipping companies, so they belong beside the
+      // shipments rather than with suppliers. A distinct icon from Shipments:
+      // the two shared Truck and were hard to tell apart at a glance.
+      { key: 'providers', icon: Building2, href: '/providers' },
+    ],
+  },
+  {
+    key: 'catalogue',
+    items: [
+      { key: 'products', icon: Package, href: '/products' },
+      { key: 'categories', icon: Tag, href: '/categories' },
+      { key: 'inventory', icon: Boxes, href: '/inventory' },
+    ],
+  },
+  {
+    key: 'selling',
+    items: [
+      { key: 'sales', icon: BadgePercent, href: '/sales' },
+      { key: 'customers', icon: Users, href: '/customers' },
+    ],
+  },
+  {
+    key: 'money',
+    items: [
+      { key: 'payments', icon: CreditCard, href: '/payments' },
+      { key: 'paymentPlans', icon: CalendarClock, href: '/payment-plans' },
+      { key: 'ledger', icon: BookOpen, href: '/ledger' },
+    ],
+  },
+  {
+    key: 'partners',
+    items: [
+      { key: 'partners', icon: Handshake, href: '/partners' },
+      { key: 'settlements', icon: Scale, href: '/settlements' },
+    ],
+  },
+];
+
+/** Pinned to the foot of the sidebar — reached occasionally, not part of the
+ *  daily flow, and better out of the way than padding the list above. */
+const systemItems = [
   { key: 'notifications', icon: Bell, href: '/notifications' },
   { key: 'auditLogs', icon: ShieldCheck, href: '/audit-logs' },
   { key: 'settings', icon: Settings, href: '/settings' },
 ];
+/**
+ * Match on a whole path segment. A plain `includes` would light up two entries
+ * as soon as one route's path appeared inside another's.
+ */
+function isActiveHref(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavLink({
+  item,
+  locale,
+  label,
+  active,
+  onNavigate,
+}: {
+  item: { key: string; icon: React.ComponentType<{ className?: string }>; href: string };
+  locale: string;
+  label: string;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <a
+      href={`/${locale}${item.href}`}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={`
+        flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
+        transition-colors duration-150
+        ${active
+          ? 'bg-primary-50 text-primary-700'
+          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+      `}
+    >
+      <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? '' : 'text-gray-400'}`} />
+      <span>{label}</span>
+    </a>
+  );
+}
 
 export function AppShell({
   children,
@@ -116,28 +200,43 @@ export function AppShell({
           </button>
         </div>
 
-        <nav className="p-3 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname.includes(item.href);
-            return (
-              <a
-                key={item.key}
-                href={`/${locale}${item.href}`}
-                onClick={() => setSidebarOpen(false)}
-                className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                  transition-colors duration-150
-                  ${isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
-                `}
-              >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                <span>{t(item.key as any)}</span>
-              </a>
-            );
-          })}
+        <nav className="flex h-[calc(100vh-4rem)] flex-col overflow-y-auto p-3">
+          {navGroups.map((group) => (
+            <div key={group.key} className="mb-3">
+              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                {t(`groups.${group.key}` as any)}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.key}
+                    item={item}
+                    locale={locale}
+                    label={t(item.key as any)}
+                    active={isActiveHref(pathname, item.href)}
+                    onNavigate={() => setSidebarOpen(false)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* mt-auto pins this to the foot on a tall window, and it simply
+              follows the list on a short one rather than overlapping it. */}
+          <div className="mt-auto border-t border-gray-100 pt-3">
+            <div className="space-y-0.5">
+              {systemItems.map((item) => (
+                <NavLink
+                  key={item.key}
+                  item={item}
+                  locale={locale}
+                  label={t(item.key as any)}
+                  active={isActiveHref(pathname, item.href)}
+                  onNavigate={() => setSidebarOpen(false)}
+                />
+              ))}
+            </div>
+          </div>
         </nav>
       </aside>
 

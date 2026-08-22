@@ -58,7 +58,16 @@
     "settlements": "التسويات",
     "categories": "الفئات",
     "providers": "شركات الشحن",
-    "paymentPlans": "خطط السداد"
+    "paymentPlans": "خطط السداد",
+    "groups": {
+      "overview": "نظرة عامة",
+      "importing": "الاستيراد",
+      "catalogue": "المنتجات والمخزون",
+      "selling": "المبيعات والعملاء",
+      "money": "المالية",
+      "partners": "الشركاء",
+      "system": "النظام"
+    }
   },
   "auth": {
     "login": "تسجيل الدخول",
