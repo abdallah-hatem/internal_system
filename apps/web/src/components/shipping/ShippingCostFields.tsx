@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Select } from '../ui/select';
 import { useCurrencyRates } from '../../lib/currency-rates';
 
@@ -59,8 +59,22 @@ export function ShippingCostFields({
   const [weight, setWeight] = useState(String(defaults?.chargeableWeightKg ?? ''));
   const [amount, setAmount] = useState(String(defaults?.amount ?? ''));
   const [currency, setCurrency] = useState(defaults?.currency ?? 'EGP');
-  const [fx, setFx] = useState(String(defaults?.fxRateToEgp ?? '1'));
+  const [fx, setFx] = useState(
+    // Not `?? '1'`: a leg in AED with no rate yet would have been costed one
+    // to one against the pound, silently and with no sign anything was wrong.
+    defaults?.fxRateToEgp != null ? String(defaults.fxRateToEgp) : '',
+  );
   const rates = useCurrencyRates();
+
+  // Fill in the rate for the currency already on the form. A leg loaded in AED
+  // should read 13.85 without the currency being re-picked; a rate already
+  // stored on the leg is left exactly as it was.
+  useEffect(() => {
+    if (currency === 'EGP') return;
+    const known = rates[currency];
+    if (known == null) return;
+    setFx((prev) => (prev ? prev : String(known)));
+  }, [currency, rates]);
 
   const native =
     basis === 'PER_PIECE'

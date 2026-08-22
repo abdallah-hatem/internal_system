@@ -252,6 +252,21 @@ test.describe('Editing a saved record round-trips', () => {
   });
 });
 
+/**
+ * A cycle in AED with no purchase order yet, so the purchase order step opens
+ * with the currency already chosen and the rate still to be filled.
+ */
+async function cycleAwaitingItsOrder(request: APIRequestContext, currency = 'AED') {
+  const t = await token(request);
+  const headers = { Authorization: `Bearer ${t}` };
+  const created = await request.post(`${API}/cycles`, {
+    headers,
+    data: { originType: 'UAE_DIRECT', currency },
+  });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  return { headers, cycleId: ((await created.json()).data ?? {}).id };
+}
+
 test.describe('FX rates reach the forms', () => {
   test('TC-RT-05: choosing a currency fills in its stored rate', async ({ page, request }) => {
     const t = await token(request);
@@ -274,4 +289,64 @@ test.describe('FX rates reach the forms', () => {
 
     await expect(page.locator('input[name="fxRateToEgp"]')).toHaveValue(String(rates.AED));
   });
+
+  test('TC-RT-06: a currency that is ALREADY selected gets its rate too', async ({
+    page,
+    request,
+  }) => {
+    // The case the first pass missed: the rate was only filled by the act of
+    // changing the currency, so a form that opened already set to AED sat
+    // there with an empty rate and no hint that one was known.
+    const { headers, cycleId } = await cycleAwaitingItsOrder(request, 'AED');
+
+    const rates = (await (await request.get(`${API}/currency-rates/map`, { headers })).json()).data;
+    expect(rates.AED).toBeTruthy();
+
+    await login(page);
+    await page.goto(`${BASE}/en/cycles/${cycleId}`);
+
+    // Nothing is touched — the currency arrives selected from the cycle.
+    const currency = page
+      .locator('input[type="hidden"][name="currency"]')
+      .locator('..')
+      .getByRole('combobox');
+    await expect(currency).toContainText('AED');
+    await expect(page.locator('input[name="fxRateToEgp"]')).toHaveValue(
+      Number(rates.AED).toFixed(4),
+    );
+  });
+
+  test('TC-RT-07: a leg saved in a foreign currency shows its stored rate on reload', async ({
+    page,
+    request,
+  }) => {
+    // The rate on a saved leg is the one the shipment was actually paid at, so
+    // reopening must show that and not today's. (An earlier version of this
+    // test claimed to catch a leg being costed 1:1 for want of a rate — that
+    // cannot happen: fx_rate_to_egp is NOT NULL and defaults to 1, so a stored
+    // leg always carries a rate. What is worth guarding is the round-trip.)
+    const { headers, cycleId } = await cycleWithALeg(request);
+
+    const legs = await request.get(`${API}/cycles/${cycleId}/shipping-legs`, { headers });
+    const leg = ((await legs.json()).data ?? [])[0];
+
+    // Agreed at 13.50, deliberately not the 13.85 the rates table holds.
+    const agreed = 13.5;
+    const put = await request.put(`${API}/shipping/legs/${leg.id}`, {
+      headers,
+      data: { currency: 'AED', fxRateToEgp: agreed, costBasis: 'FLAT', amount: 1000 },
+    });
+    expect(put.ok(), await put.text()).toBeTruthy();
+
+    await login(page);
+    await openShippingStep(page, cycleId);
+
+    const fx = page.locator('input[name="leg1_fxRateToEgp"]');
+    await expect(fx).toHaveValue(String(agreed));
+
+    const rates = (await (await request.get(`${API}/currency-rates/map`, { headers })).json()).data;
+    // Today's rate must not have overwritten what was agreed.
+    await expect(fx).not.toHaveValue(String(rates.AED));
+  });
+
 });

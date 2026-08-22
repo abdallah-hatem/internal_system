@@ -84,6 +84,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // Which saved leg each sequence maps to, so a second pass through step 3
   // updates the legs instead of trying to create them again.
   const [legIds, setLegIds] = useState<Record<number, string>>({});
+
   const [poOrderedOn, setPoOrderedOn] = useState('');
 
   // Step 3 form state for back-navigation pre-population
@@ -128,6 +129,22 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     queryFn: () => api.get(`/cycles/${existingCycleId}`).then((r) => r.data.data ?? r.data),
     enabled: !!existingCycleId,
   });
+
+  // The currency the purchase order step is showing: the one already chosen on
+  // this order, or failing that the cycle's own.
+  const effectivePoCurrency = poCurrency || existingCycle?.currency || '';
+
+  // Fill in the rate for a currency that is already selected. Resuming a cycle
+  // set to AED preselected the currency but left the rate blank, because the
+  // rate was only ever filled by the act of changing the currency — so the one
+  // case where nothing needs changing was the case it did not cover. A rate
+  // already on the order is left alone.
+  useEffect(() => {
+    if (!effectivePoCurrency || effectivePoCurrency === 'EGP') return;
+    const known = rates[effectivePoCurrency];
+    if (known == null) return;
+    setPoFxRate((prev) => (prev ? prev : String(known)));
+  }, [effectivePoCurrency, rates]);
 
   // Determine resume step when existing cycle loads
   useEffect(() => {
@@ -814,10 +831,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   Currency <span className="text-red-500">*</span>
                 </label>
                 <Select
-                  key={poCurrency || 'empty-currency'}
+                  key={effectivePoCurrency || 'empty-currency'}
                   name="currency"
                   required
-                  defaultValue={poCurrency || (existingCycle?.currency ?? '')}
+                  defaultValue={effectivePoCurrency}
                   placeholder="Select currency"
                   onChange={(v) => {
                     setPoCurrency(v);
@@ -850,10 +867,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  {poCurrency && rates[poCurrency] != null
-                    ? `Current rate: 1 ${poCurrency} = ${rates[poCurrency]} EGP`
-                    : poCurrency
-                      ? `No rate recorded for ${poCurrency} — enter the rate used`
+                  {effectivePoCurrency && rates[effectivePoCurrency] != null
+                    ? `Current rate: 1 ${effectivePoCurrency} = ${rates[effectivePoCurrency]} EGP`
+                    : effectivePoCurrency
+                      ? `No rate recorded for ${effectivePoCurrency} — enter the rate used`
                       : 'Pick a currency to fill this in'}
                 </p>
               </div>

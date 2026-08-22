@@ -39,16 +39,21 @@ export function CurrencyRateFields({
   const rates = useCurrencyRates();
   const [currency, setCurrency] = useState(defaultCurrency);
   const [rate, setRate] = useState(defaultRate != null ? String(defaultRate) : '');
-  // Only auto-fill when the user changes currency — not on first render, which
-  // would overwrite a rate loaded from the document being edited.
-  const [touched, setTouched] = useState(false);
 
   const known = rates[currency];
 
+  // Fill an empty rate for whatever currency is showing, including one that
+  // arrived already selected — a form opened on AED should read 13.85 without
+  // being made to re-pick the currency it is already set to. Rates arrive
+  // asynchronously, so this cannot be done in useState.
+  //
+  // An existing value is never touched: a saved document keeps the rate it was
+  // agreed at. Changing the currency replaces it (see onChange) because the
+  // old rate belongs to the old currency.
   useEffect(() => {
-    if (!touched) return;
-    setRate(known != null ? String(known) : '');
-  }, [currency, known, touched]);
+    if (known == null) return;
+    setRate((prev) => (prev ? prev : String(known)));
+  }, [known]);
 
   const isBase = currency === 'EGP';
 
@@ -60,8 +65,10 @@ export function CurrencyRateFields({
           name={currencyName}
           value={currency}
           onChange={(v) => {
-            setTouched(true);
             setCurrency(v);
+            // A rate for the previous currency is meaningless under the new
+            // one, so this replaces rather than fills.
+            setRate(rates[v] != null ? String(rates[v]) : '');
           }}
           options={currencies.map((c) => ({
             value: c,
