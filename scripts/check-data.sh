@@ -45,9 +45,9 @@ SELECT check_name, count FROM (
   UNION ALL SELECT 8, 'sale order worth less than nothing',
          count(*) FROM sale_orders WHERE total < 0
   UNION ALL SELECT 9, 'payment received on a date that has not arrived',
-         count(*) FROM payments WHERE received_on > current_date
+         count(*) FROM payments WHERE received_on > (now() AT TIME ZONE 'Africa/Cairo')::date
   UNION ALL SELECT 10, 'purchase order placed on a date that has not arrived',
-         count(*) FROM purchase_orders WHERE ordered_on > current_date
+         count(*) FROM purchase_orders WHERE ordered_on > (now() AT TIME ZONE 'Africa/Cairo')::date
   UNION ALL SELECT 11, 'payment allocated beyond its own amount',
          count(*) FROM payments p
    WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.payment_id=p.id) > p.amount

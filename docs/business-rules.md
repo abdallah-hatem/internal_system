@@ -191,7 +191,11 @@ is ever needed, it is a separate thing and needs its own decision — see below.
 **Only confirmed orders owe anything.** A draft reserves nothing and counts for
 nothing (§4), so it is not part of a balance and cannot be paid against.
 
-**Money cannot be dated forward.** A payment cannot be received, and a purchase
+**Money cannot be dated forward.** Judged in the business's timezone
+(`Africa/Cairo`, overridable with `BUSINESS_TIMEZONE`), not the server's. At
+00:37 on the 23rd in Cairo it is still the 22nd in UTC, so a payment entered
+then was refused as future by a UTC check — correct on a machine in Cairo,
+wrong the moment it runs anywhere else. A payment cannot be received, and a purchase
 order cannot be placed, on a date that has not arrived. Dating either forward
 puts revenue or cash into a period that has not happened, so a report run today
 already contains next month. Instalment due dates are the exception and are
