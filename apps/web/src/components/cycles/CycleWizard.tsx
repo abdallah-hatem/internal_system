@@ -5,7 +5,7 @@ import { useCurrencyRates } from '../../lib/currency-rates';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShippingCostFields, readShippingCostFields } from '../shipping/ShippingCostFields';
 import { api } from '../../lib/api';
@@ -34,11 +34,11 @@ import {
 // ---------------------------------------------------------------------------
 
 const STEPS = [
-  { title: 'Cycle Info', icon: Route },
-  { title: 'Purchase Order', icon: ShoppingCart },
-  { title: 'Shipping Leg', icon: Truck },
-  { title: 'Receive Inventory', icon: Package },
-];
+  { titleKey: 'step1Title', icon: Route },
+  { titleKey: 'step2Title', icon: ShoppingCart },
+  { titleKey: 'step3Title', icon: Truck },
+  { titleKey: 'step4Title', icon: Package },
+] as const;
 
 const COMPLETED_STATUSES = ['VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED'];
 
@@ -80,6 +80,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     queryClient.invalidateQueries({ queryKey: ['cycle'] });
   };
   const locale = useLocale();
+  const t = useTranslations('wizard');
   const toast = useToast();
 
   // Wizard state
@@ -445,10 +446,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       setCycleCode(result.code);
       setCurrentStep(1);
       refreshCycleCaches();
-      toast.success('Cycle created');
+      toast.success(t('cycleCreated'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to create cycle');
+      toast.error(err?.response?.data?.message || err?.message || t('createCycleFailed'));
     },
   });
 
@@ -464,10 +465,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       setPoFxRate(String(_variables.fxRateToEgp));
       setPoOrderedOn(_variables.orderedOn ?? '');
       setCurrentStep(2);
-      toast.success('Purchase order created');
+      toast.success(t('purchaseCreated'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to create purchase order');
+      toast.error(err?.response?.data?.message || err?.message || t('createPurchaseFailed'));
     },
   });
 
@@ -477,10 +478,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       const result = res.data.data ?? res.data;
       setShippingLegId(result.id ?? null);
       setCurrentStep(3);
-      toast.success('Shipping leg created');
+      toast.success(t('shippingCreated'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to create shipping leg');
+      toast.error(err?.response?.data?.message || err?.message || t('createShippingFailed'));
     },
   });
 
@@ -489,10 +490,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     onSuccess: () => {
       setCurrentStep(4);
       refreshCycleCaches();
-      toast.success('Inventory verified');
+      toast.success(t('inventoryVerified'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to verify inventory');
+      toast.error(err?.response?.data?.message || err?.message || t('verifyInventoryFailed'));
     },
   });
 
@@ -538,7 +539,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
     // Require at least one line item
     if (lineItems.length === 0) {
-      toast.error('Please add at least one line item before submitting');
+      toast.error(t('addAtLeastOneItem'));
       return;
     }
 
@@ -555,10 +556,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // cycle has only the UAE->Egypt leg. Each leg carries its own cost.
   const legPlan =
     originType === 'UAE_DIRECT'
-      ? [{ sequence: 1, label: 'UAE to Egypt', origin: 'Dubai, UAE', destination: 'Cairo, Egypt' }]
+      ? [{ sequence: 1, label: t('legUaeToEgypt'), origin: 'Dubai, UAE', destination: 'Cairo, Egypt' }]
       : [
-          { sequence: 1, label: 'China to UAE', origin: 'Guangzhou, CN', destination: 'Dubai, UAE' },
-          { sequence: 2, label: 'UAE to Egypt', origin: 'Dubai, UAE', destination: 'Cairo, Egypt' },
+          { sequence: 1, label: t('legChinaToUae'), origin: 'Guangzhou, CN', destination: 'Dubai, UAE' },
+          { sequence: 2, label: t('legUaeToEgypt'), origin: 'Dubai, UAE', destination: 'Cairo, Egypt' },
         ];
 
   // What the cycle actually bought, used to prefill each leg's piece count.
@@ -625,19 +626,15 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       await refetchCycle();
       toast.success(
         updated
-          ? payloads.length > 1
-            ? 'Shipping legs updated'
-            : 'Shipping leg updated'
-          : payloads.length > 1
-            ? 'Shipping legs created'
-            : 'Shipping leg created',
+          ? t('legsUpdated', { count: payloads.length })
+          : t('legsCreated', { count: payloads.length }),
       );
       setCurrentStep(3);
     } catch (err: any) {
       toast.error(
         err?.response?.data?.error?.message ||
           err?.response?.data?.message ||
-          'Failed to save shipping legs',
+          t('saveShippingLegsFailed'),
       );
     } finally {
       setIsCreatingLegs(false);
@@ -676,7 +673,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           .map((l: any) => `${l.origin} → ${l.destination}`)
           .join(', ');
         toast.error(
-          `${which} has not arrived yet. Record the departure and arrival dates on the shipping step first.`,
+          t('legNotArrived', { leg: which }),
         );
         setCurrentStep(2);
         return;
@@ -705,8 +702,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         refreshCycleCaches();
         toast.success(
           currentStatus === 'VERIFICATION'
-            ? 'Stock is already received — nothing left to enter'
-            : 'Stock was already received — cycle moved on to verification',
+            ? t('stockAlreadyReceived')
+            : t('stockReceivedMovedOn'),
         );
         forgetDraft();
         router.push(`/${locale}/cycles`);
@@ -723,7 +720,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         })),
       });
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || 'Failed to verify inventory');
+      toast.error(err?.response?.data?.message || err?.message || t('verifyInventoryFailed'));
     } finally {
       setIsStep4Processing(false);
     }
@@ -850,7 +847,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary-600 me-3" />
-        <span className="text-gray-500 text-sm">Loading cycle data…</span>
+        <span className="text-gray-500 text-sm">{t('loadingCycle')}</span>
       </div>
     );
   }
@@ -864,24 +861,23 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       <div className="max-w-4xl mx-auto px-4 py-10">
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">All Steps Complete!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('allDone')}</h2>
           <p className="text-gray-500 mb-8 max-w-md mx-auto">
-            Your import cycle has been set up with all purchases, shipping, and
-            inventory verification completed.
+            {t('allDoneDesc')}
           </p>
 
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
             <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">Cycle Code</p>
+              <p className="text-xs text-gray-500 mb-1">{t('cycleCode')}</p>
               <p className="font-mono font-bold text-gray-900">{cycleCode}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">PO Reference</p>
+              <p className="text-xs text-gray-500 mb-1">{t('poReference')}</p>
               <p className="font-mono font-bold text-gray-900">{poReference}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">Shipping</p>
+              <p className="text-xs text-gray-500 mb-1">{t('shipping')}</p>
               <p className="font-bold text-gray-900 text-sm">
                 {shippingOrigin} &rarr; {shippingDestination}
               </p>
@@ -893,13 +889,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               onClick={() => router.push(`/${locale}/cycles`)}
               className="px-6 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
             >
-              View Cycles
+              {t('viewCycles')}
             </button>
             <button
               onClick={handleStartAnother}
               className="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
             >
-              Start Another Cycle
+              {t('startOver')}
             </button>
           </div>
         </div>
@@ -923,7 +919,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           className="flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
         >
           <p className="text-sm text-amber-900">
-            Picked up where you left off on this cycle.
+            {t('draftRestored')}
           </p>
           <button
             type="button"
@@ -933,7 +929,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             }}
             className="shrink-0 text-sm font-medium text-amber-900 underline hover:no-underline"
           >
-            Start over
+            {t('draftDiscard')}
           </button>
         </div>
       )}
@@ -979,7 +975,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     isCurrent ? 'text-primary-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
                   }`}
                 >
-                  {step.title}
+                  {t(step.titleKey)}
                 </span>
               </button>
             );
@@ -992,42 +988,42 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         {/* Step 1 — Cycle Info */}
         {currentStep === 0 && (
           <form onSubmit={handleStep1Submit} className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Cycle Information</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('cycleInformation')}</h2>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Origin Type <span className="text-red-500">*</span>
+                {t('originType')} <span className="text-red-500">*</span>
               </label>
               <Select
-                key={originType || 'empty-origin'}
                 name="originType"
                 required
-                defaultValue={originType || existingCycle?.originType || ''}
-                placeholder="Select origin type"
+                value={originType || existingCycle?.originType || ''}
+                onChange={setOriginType}
+                placeholder={t('selectOriginType')}
                 options={[
-                  { value: 'CHINA', label: 'China' },
-                  { value: 'UAE_DIRECT', label: 'UAE Direct' },
+                  { value: 'CHINA', label: t('china') },
+                  { value: 'UAE_DIRECT', label: t('uaeDirect') },
                 ]}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Currency <span className="text-red-500">*</span>
+                {t('currency')} <span className="text-red-500">*</span>
               </label>
               <Select
-                key={poCurrency || 'empty-currency'}
                 name="currency"
                 required
-                defaultValue={poCurrency || existingCycle?.currency || ''}
-                placeholder="Select currency"
+                value={effectivePoCurrency}
+                onChange={setPoCurrency}
+                placeholder={t('selectCurrency')}
                 options={[
                   { value: 'CNY', label: 'CNY (\u00A5)' },
                   { value: 'AED', label: 'AED' },
                   { value: 'USD', label: 'USD ($)' },
                 ].map((o) => ({
                   ...o,
-                  hint: rates[o.value] != null ? `${rates[o.value]} EGP` : 'no rate set',
+                  hint: rates[o.value] != null ? `${rates[o.value]} EGP` : t('noRateSet'),
                 }))}
               />
             </div>
@@ -1039,7 +1035,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isStep1Loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save &amp; Continue
+                {t('saveAndContinueBtn')}
               </button>
             </div>
           </form>
@@ -1053,12 +1049,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             choosing a currency wiped the supplier chosen a moment earlier. */}
         {currentStep === 1 && (
           <form onSubmit={handleStep2Submit} className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Purchase Order</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('purchaseOrder')}</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Supplier <span className="text-red-500">*</span>
+                  {t('supplier')} <span className="text-red-500">*</span>
                 </label>
                 <Select
                   key={poSupplierId || 'empty-supplier'}
@@ -1066,7 +1062,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   required
                   value={poSupplierId}
                   onChange={setPoSupplierId}
-                  placeholder="Select supplier"
+                  placeholder={t('selectSupplier')}
                   options={supplierList.map((s: any) => ({
                     value: s.id,
                     label: s.name,
@@ -1077,13 +1073,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Currency <span className="text-red-500">*</span>
+                  {t('currency')} <span className="text-red-500">*</span>
                 </label>
                 <Select
                   name="currency"
                   required
                   value={effectivePoCurrency}
-                  placeholder="Select currency"
+                  placeholder={t('selectCurrency')}
                   onChange={(v) => {
                     setPoCurrency(v);
                     // Fill the rate in from the currency. It stays editable —
@@ -1093,7 +1089,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   options={['CNY', 'AED', 'USD', 'EGP'].map((c) => ({
                     value: c,
                     label: c,
-                    hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : 'no rate set',
+                    hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : t('noRateSet'),
                   }))}
                 />
               </div>
@@ -1102,7 +1098,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  FX Rate to EGP <span className="text-red-500">*</span>
+                  {t('fxRateToEgp')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   key={poFxRate}
@@ -1119,13 +1115,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     ? `Current rate: 1 ${effectivePoCurrency} = ${rates[effectivePoCurrency]} EGP`
                     : effectivePoCurrency
                       ? `No rate recorded for ${effectivePoCurrency} — enter the rate used`
-                      : 'Pick a currency to fill this in'}
+                      : t('pickCurrencyFirst')}
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ordered Date <span className="text-red-500">*</span>
+                  {t('orderedDate')} <span className="text-red-500">*</span>
                 </label>
                 <DatePicker name="orderedOn" required defaultValue={poOrderedOn} />
               </div>
@@ -1134,19 +1130,19 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             {/* Line Items */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-900">Line Items</h3>
+                <h3 className="text-sm font-semibold text-gray-900">{t('lineItems')}</h3>
                 <button
                   type="button"
                   onClick={addLineItem}
                   className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
                 >
-                  <Plus className="h-3.5 w-3.5" /> Add Item
+                  <Plus className="h-3.5 w-3.5" /> {t('addItem')}
                 </button>
               </div>
 
               {lineItems.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4 border border-dashed border-gray-200 rounded-lg">
-                  No items added. Click &quot;Add Item&quot; to begin.
+                  {t('noItemsYet')}
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -1157,13 +1153,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     >
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">
-                          Product
+                          {t('product')}
                         </label>
                         <Select
                           value={item.productId}
                           onChange={(v) => updateLineItem(idx, 'productId', v)}
                           required
-                          placeholder="Select product"
+                          placeholder={t('selectProduct')}
                           options={productList.map((p: any) => ({
                             value: p.id,
                             label: p.name,
@@ -1174,7 +1170,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">
-                          Qty
+                          {t('qty')}
                         </label>
                         <input
                           type="number"
@@ -1192,7 +1188,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
                       <div className="w-24">
                         <label className="block text-xs text-gray-500 mb-1">
-                          Unit Price
+                          {t('unitPrice')}
                         </label>
                         <MoneyInput
                           placeholder="0.00"
@@ -1205,7 +1201,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">
-                          Discount
+                          {t('discount')}
                         </label>
                         <MoneyInput
                           placeholder="0.00"
@@ -1234,7 +1230,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onClick={() => setCurrentStep(0)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-4 w-4" /> {t('back')}
               </button>
               <button
                 type="submit"
@@ -1242,7 +1238,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isStep2Loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save &amp; Continue
+                {t('saveAndContinueBtn')}
               </button>
             </div>
           </form>
@@ -1252,11 +1248,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         {currentStep === 2 && (
           <form onSubmit={handleStep3Submit} className="space-y-6">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Shipping</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('shipping')}</h2>
               <p className="text-sm text-gray-500 mt-1">
                 {originType === 'UAE_DIRECT'
-                  ? 'This cycle ships directly from UAE to Egypt.'
-                  : 'This cycle ships in two legs. Record the cost of each one.'}
+                  ? t('oneLegNote')
+                  : t('twoLegNote')}
               </p>
             </div>
 
@@ -1281,13 +1277,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Shipping Provider <span className="text-red-500">*</span>
+                        {t('shippingProvider')} <span className="text-red-500">*</span>
                       </label>
                       <Select
                         name={`${prefix}provider`}
                         required
                         defaultValue={existing?.provider ?? ''}
-                        placeholder="Select shipping provider"
+                        placeholder={t('selectShippingProvider')}
                         options={(Array.isArray(providers) ? providers : []).map((pr: any) => ({
                           value: pr.name,
                           label: pr.name,
@@ -1297,14 +1293,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tracking Reference{' '}
+                        {t('trackingReference')}{' '}
                         <span className="text-gray-400 text-xs font-normal">(Optional)</span>
                       </label>
                       <input
                         type="text"
                         name={`${prefix}trackingRef`}
                         defaultValue={existing?.trackingRef ?? ''}
-                        placeholder="Tracking number"
+                        placeholder={t('trackingNumber')}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
@@ -1313,7 +1309,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Origin <span className="text-red-500">*</span>
+                        {t('origin')} <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1325,7 +1321,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Destination <span className="text-red-500">*</span>
+                        {t('destination')} <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1388,7 +1384,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onClick={() => setCurrentStep(1)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-4 w-4" /> {t('back')}
               </button>
               <button
                 type="submit"
@@ -1396,7 +1392,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isStep3Loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save &amp; Continue
+                {t('saveAndContinueBtn')}
               </button>
             </div>
           </form>
@@ -1405,7 +1401,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         {/* Step 4 — Receive Inventory */}
         {currentStep === 3 && (
           <div className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Receive Inventory</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">{t('receiveInventory')}</h2>
             <p className="text-sm text-gray-500 mb-4">
               Landed unit cost includes this cycle&apos;s shipping, spread across the
               items it moved. Edit a value to override it.
@@ -1453,7 +1449,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
             {receiveItems.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8 border border-dashed border-gray-200 rounded-lg">
-                No purchase order items found.
+                {t('noPurchaseOrderItems')}
               </p>
             ) : receiveItems.every((i) => receivedByPoItem.has(i.purchaseOrderItemId)) ? (
               <p className="text-sm text-gray-500 text-center py-6 border border-dashed border-gray-200 rounded-lg">
@@ -1463,10 +1459,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             ) : (
               <div className="space-y-4">
                 <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-3 text-xs font-medium text-gray-500">
-                  <div className="col-span-4">Product</div>
-                  <div className="col-span-2 text-center">Ordered</div>
-                  <div className="col-span-2 text-center">Received</div>
-                  <div className="col-span-4 text-center">Landed Unit Cost (EGP)</div>
+                  <div className="col-span-4">{t('product')}</div>
+                  <div className="col-span-2 text-center">{t('ordered')}</div>
+                  <div className="col-span-2 text-center">{t('received')}</div>
+                  <div className="col-span-4 text-center">{t('landedUnitCost')}</div>
                 </div>
 
                 {receiveItems.map((item, idx) => {
@@ -1478,19 +1474,19 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-gray-50 rounded-lg p-3"
                     >
                       <div className="sm:col-span-4">
-                        <span className="text-xs text-gray-400 sm:hidden">Product: </span>
+                        <span className="text-xs text-gray-400 sm:hidden">{t('product')}: </span>
                         <p className="text-sm font-medium text-gray-900">
                           {poItem?.product?.name ?? 'Product'}
                         </p>
                       </div>
 
                       <div className="sm:col-span-2 text-center">
-                        <span className="text-xs text-gray-400 sm:hidden">Ordered: </span>
+                        <span className="text-xs text-gray-400 sm:hidden">{t('ordered')}: </span>
                         <span className="text-sm text-gray-600">{poItem?.orderedQty ?? 0}</span>
                       </div>
 
                       <div className="sm:col-span-2">
-                        <span className="text-xs text-gray-400 sm:hidden">Received: </span>
+                        <span className="text-xs text-gray-400 sm:hidden">{t('received')}: </span>
                         <input
                           type="number"
                           placeholder="0"
@@ -1505,7 +1501,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       </div>
 
                       <div className="sm:col-span-4">
-                        <span className="text-xs text-gray-400 sm:hidden">Landed Unit Cost (EGP): </span>
+                        <span className="text-xs text-gray-400 sm:hidden">{t('landedUnitCost')}: </span>
                         <MoneyInput
                           placeholder="0.00"
                           value={item.landedUnitCostEgp}
@@ -1527,7 +1523,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onClick={() => setCurrentStep(2)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> Back
+                <ArrowLeft className="h-4 w-4" /> {t('back')}
               </button>
               <button
                 type="button"
@@ -1538,8 +1534,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 {isStep4Processing && <Loader2 className="h-4 w-4 animate-spin" />}
                 {receiveItems.length > 0 &&
                 receiveItems.every((i) => receivedByPoItem.has(i.purchaseOrderItemId))
-                  ? 'Done'
-                  : 'Complete'}
+                  ? t('done')
+                  : t('complete')}
               </button>
             </div>
           </div>
