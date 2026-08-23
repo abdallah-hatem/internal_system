@@ -29,6 +29,20 @@ UAE-direct cycle to sequence 1. Anything else is refused.
 | Per weight | Rate per kg × total kilograms | Derived |
 | Flat | One agreed amount | As entered |
 
+**DECIDED 2026-08-24 — a leg's status follows its cycle.** Nothing used to set
+it, so every leg read PENDING for good: a cycle could reach Egypt, have its
+stock received and sold, while the shipment still said the goods had not left.
+
+| Cycle reaches | China cycle | UAE direct |
+|---|---|---|
+| IN_TRANSIT | leg 1 in transit | — |
+| ARRIVED_UAE | leg 1 arrived | — (goods are at the origin; nothing has moved) |
+| IN_TRANSIT_TO_EGYPT | leg 2 in transit | leg 1 in transit |
+| ARRIVED_EGYPT and beyond | both arrived | leg 1 arrived |
+
+A leg is only ever pushed forward, so a correction made on the shipments page
+is not undone by a later cycle transition.
+
 Rate-based legs derive their total rather than asking for it, so the per-piece
 rate itself stays on the record. A leg can be priced in another currency with an
 FX rate; everything lands in EGP.

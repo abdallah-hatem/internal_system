@@ -242,6 +242,69 @@ export class CyclesService {
     return { data: cycle };
   }
 
+  /**
+   * Move the shipping legs along with the cycle.
+   *
+   * A leg's status was set by nothing at all. Every leg stayed PENDING for
+   * ever, so a cycle could reach Egypt, have its stock received and sold,
+   * while the shipment record still said the goods had not left — two screens
+   * describing the same shipment and disagreeing.
+   *
+   * The cycle's status is what the wizard actually drives, so the legs follow
+   * it rather than being maintained by hand. A leg is only ever pushed
+   * forward: someone who has corrected a leg on the shipments page should not
+   * have it silently undone by a later cycle transition.
+   *
+   *   China cycle:  leg 1 is China→UAE, leg 2 is UAE→Egypt
+   *   UAE direct:   leg 1 is UAE→Egypt
+   */
+  private async advanceShippingLegs(
+    cycleId: string,
+    originType: string,
+    cycleStatus: string,
+  ) {
+    const RANK: Record<string, number> = { PENDING: 0, IN_TRANSIT: 1, ARRIVED: 2 };
+
+    // What each leg should be, once the cycle has reached this status.
+    const target = (sequence: number): string | null => {
+      const lastLeg = originType === 'UAE_DIRECT' ? 1 : 2;
+      switch (cycleStatus) {
+        case 'IN_TRANSIT':
+          return sequence === 1 ? 'IN_TRANSIT' : null;
+        case 'ARRIVED_UAE':
+          // For a China cycle the first leg has landed. For a UAE-direct cycle
+          // the goods are sitting at the origin and nothing has moved yet.
+          return sequence === 1 && originType !== 'UAE_DIRECT' ? 'ARRIVED' : null;
+        case 'IN_TRANSIT_TO_EGYPT':
+          return sequence === lastLeg ? 'IN_TRANSIT' : null;
+        case 'ARRIVED_EGYPT':
+        case 'VERIFICATION':
+        case 'SELLING':
+        case 'SETTLEMENT':
+        case 'CLOSED':
+          // Past Egypt, every leg has by definition arrived.
+          return 'ARRIVED';
+        default:
+          return null;
+      }
+    };
+
+    const legs = await this.prisma.shippingLeg.findMany({
+      where: { cycleId },
+      select: { id: true, sequence: true, status: true },
+    });
+
+    for (const leg of legs) {
+      const wanted = target(leg.sequence);
+      if (!wanted) continue;
+      if ((RANK[leg.status] ?? 0) >= RANK[wanted]) continue;
+      await this.prisma.shippingLeg.update({
+        where: { id: leg.id },
+        data: { status: wanted },
+      });
+    }
+  }
+
   async transition(id: string, targetStatus: string, actorId: string) {
     const cycle = await this.prisma.importCycle.findUnique({ where: { id } });
     if (!cycle) throw new NotFoundException('Cycle not found');
@@ -270,6 +333,8 @@ export class CyclesService {
         closedOn: targetStatus === 'CLOSED' ? new Date() : undefined,
       },
     });
+
+    await this.advanceShippingLegs(id, cycle.originType, targetStatus);
 
     await this.audit.log({
       actorUserId: actorId,

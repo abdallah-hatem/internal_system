@@ -62,6 +62,12 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 12.2, 'cancelled order still showing a balance',
          count(*) FROM sale_orders
    WHERE status = 'CANCELLED' AND outstanding <> 0
+  UNION ALL SELECT 12.3, 'stock received while a shipping leg says it has not arrived',
+         count(DISTINCT b.cycle_id) FROM inventory_batches b
+   WHERE EXISTS (
+     SELECT 1 FROM shipping_legs l
+      WHERE l.cycle_id = b.cycle_id AND l.status <> 'ARRIVED'
+   )
   UNION ALL SELECT 13, 'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'
