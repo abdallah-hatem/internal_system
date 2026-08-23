@@ -243,65 +243,73 @@ export class CyclesService {
   }
 
   /**
-   * Move the shipping legs along with the cycle.
+   * Refuse a cycle step the shipping has not actually reached.
    *
-   * A leg's status was set by nothing at all. Every leg stayed PENDING for
-   * ever, so a cycle could reach Egypt, have its stock received and sold,
-   * while the shipment record still said the goods had not left — two screens
-   * describing the same shipment and disagreeing.
+   * Completing the wizard used to walk a cycle from PLANNING to VERIFICATION in
+   * one click and receive the stock, so goods "departed", "arrived" and landed
+   * in inventory in the same instant, with no departure or arrival date ever
+   * recorded. A cycle that had been approved a moment ago had sellable stock.
    *
-   * The cycle's status is what the wizard actually drives, so the legs follow
-   * it rather than being maintained by hand. A leg is only ever pushed
-   * forward: someone who has corrected a leg on the shipments page should not
-   * have it silently undone by a later cycle transition.
+   * Now the shipment's own dates decide. A leg is in transit once it has a
+   * departure date and arrived once it has an arrival date, and the cycle
+   * cannot pass a point its goods have not reached.
    *
    *   China cycle:  leg 1 is China→UAE, leg 2 is UAE→Egypt
    *   UAE direct:   leg 1 is UAE→Egypt
    */
-  private async advanceShippingLegs(
+  private async assertShippingReached(
     cycleId: string,
     originType: string,
-    cycleStatus: string,
+    targetStatus: string,
   ) {
-    const RANK: Record<string, number> = { PENDING: 0, IN_TRANSIT: 1, ARRIVED: 2 };
-
-    // What each leg should be, once the cycle has reached this status.
-    const target = (sequence: number): string | null => {
-      const lastLeg = originType === 'UAE_DIRECT' ? 1 : 2;
-      switch (cycleStatus) {
-        case 'IN_TRANSIT':
-          return sequence === 1 ? 'IN_TRANSIT' : null;
-        case 'ARRIVED_UAE':
-          // For a China cycle the first leg has landed. For a UAE-direct cycle
-          // the goods are sitting at the origin and nothing has moved yet.
-          return sequence === 1 && originType !== 'UAE_DIRECT' ? 'ARRIVED' : null;
-        case 'IN_TRANSIT_TO_EGYPT':
-          return sequence === lastLeg ? 'IN_TRANSIT' : null;
-        case 'ARRIVED_EGYPT':
-        case 'VERIFICATION':
-        case 'SELLING':
-        case 'SETTLEMENT':
-        case 'CLOSED':
-          // Past Egypt, every leg has by definition arrived.
-          return 'ARRIVED';
-        default:
-          return null;
-      }
-    };
-
     const legs = await this.prisma.shippingLeg.findMany({
       where: { cycleId },
-      select: { id: true, sequence: true, status: true },
+      orderBy: { sequence: 'asc' },
+      select: { sequence: true, status: true, origin: true, destination: true },
     });
 
-    for (const leg of legs) {
-      const wanted = target(leg.sequence);
-      if (!wanted) continue;
-      if ((RANK[leg.status] ?? 0) >= RANK[wanted]) continue;
-      await this.prisma.shippingLeg.update({
-        where: { id: leg.id },
-        data: { status: wanted },
-      });
+    // Nothing to check before the legs are recorded — they are added part-way
+    // through the wizard, and the early steps happen before that.
+    if (legs.length === 0) return;
+
+    const lastSequence = originType === 'UAE_DIRECT' ? 1 : 2;
+    const leg = (sequence: number) => legs.find((l) => l.sequence === sequence);
+    const where = (l: { origin: string; destination: string }) =>
+      `${l.origin} → ${l.destination}`;
+
+    const needs = (
+      sequence: number,
+      minimum: 'IN_TRANSIT' | 'ARRIVED',
+      what: string,
+    ) => {
+      const l = leg(sequence);
+      if (!l) return;
+      const rank: Record<string, number> = { PENDING: 0, IN_TRANSIT: 1, ARRIVED: 2 };
+      if ((rank[l.status] ?? 0) >= rank[minimum]) return;
+      throw new BadRequestException(
+        `${where(l)} has not ${what}. Record the ${
+          minimum === 'ARRIVED' ? 'arrival' : 'departure'
+        } date on that leg first.`,
+      );
+    };
+
+    switch (targetStatus) {
+      case 'IN_TRANSIT':
+        needs(1, 'IN_TRANSIT', 'departed');
+        break;
+      case 'ARRIVED_UAE':
+        // Only a China cycle has a leg that lands in the UAE. A UAE-direct
+        // cycle's goods are sitting at its origin and nothing has moved.
+        if (originType !== 'UAE_DIRECT') needs(1, 'ARRIVED', 'arrived');
+        break;
+      case 'IN_TRANSIT_TO_EGYPT':
+        needs(lastSequence, 'IN_TRANSIT', 'departed');
+        break;
+      case 'ARRIVED_EGYPT':
+        for (const l of legs) needs(l.sequence, 'ARRIVED', 'arrived');
+        break;
+      default:
+        break;
     }
   }
 
@@ -326,6 +334,8 @@ export class CyclesService {
       );
     }
 
+    await this.assertShippingReached(id, cycle.originType, targetStatus);
+
     const updated = await this.prisma.importCycle.update({
       where: { id },
       data: {
@@ -334,7 +344,6 @@ export class CyclesService {
       },
     });
 
-    await this.advanceShippingLegs(id, cycle.originType, targetStatus);
 
     await this.audit.log({
       actorUserId: actorId,

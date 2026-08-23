@@ -4,11 +4,52 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { CostingService } from '../costing/costing.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
+
+/**
+ * A leg's status is what its dates say, not a field anyone sets.
+ *
+ * The shipment departed on a date, and arrived on a date. Those are the facts
+ * being recorded; "in transit" and "arrived" are just readings of them.
+ * Keeping status separately meant it could disagree with the dates, and it
+ * did: nothing wrote to it, so every leg read PENDING for ever while goods
+ * were received and sold.
+ */
+/**
+ * Dates a shipment could actually have.
+ *
+ * Arriving before departing, or arriving without ever having left, are not
+ * things that happen — and either would make the derived status a lie.
+ */
+export function assertLegDates(
+  departedOn?: Date | string | null,
+  arrivedOn?: Date | string | null,
+) {
+  if (arrivedOn && !departedOn) {
+    throw new BadRequestException(
+      'A shipment cannot arrive without a departure date. Record when it left first.',
+    );
+  }
+  if (departedOn && arrivedOn && new Date(arrivedOn) < new Date(departedOn)) {
+    throw new BadRequestException(
+      'A shipment cannot arrive before it departed.',
+    );
+  }
+}
+
+export function legStatusFromDates(
+  departedOn?: Date | string | null,
+  arrivedOn?: Date | string | null,
+): 'PENDING' | 'IN_TRANSIT' | 'ARRIVED' {
+  if (arrivedOn) return 'ARRIVED';
+  if (departedOn) return 'IN_TRANSIT';
+  return 'PENDING';
+}
 
 @Injectable()
 export class ShippingService {
@@ -61,6 +102,8 @@ export class ShippingService {
       provider?: string;
       providerId?: string;
       trackingRef?: string;
+      departedOn?: string;
+      arrivedOn?: string;
       costBasis?: ShippingCostBasis;
       ratePerUnit?: number;
       chargeablePieces?: number;
@@ -115,6 +158,10 @@ export class ShippingService {
 
     const costFields = this.buildCostFields(data);
 
+    // The dates were accepted by the DTO and then dropped on the floor here,
+    // so a leg created with a departure date came back without one.
+    assertLegDates(data.departedOn, data.arrivedOn);
+
     const leg = await this.prisma.shippingLeg.create({
       data: {
         cycleId,
@@ -124,6 +171,9 @@ export class ShippingService {
         provider: data.provider,
         providerId: data.providerId,
         trackingRef: data.trackingRef,
+        departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
+        arrivedOn: data.arrivedOn ? new Date(data.arrivedOn) : undefined,
+        status: legStatusFromDates(data.departedOn, data.arrivedOn),
         ...costFields,
       },
     });
@@ -177,12 +227,22 @@ export class ShippingService {
     };
     const costFields = this.buildCostFields({ ...merged, currency: data.currency });
 
+    // Merged, because a partial update that sets only the arrival date still
+    // has to be judged against the departure date already on the leg.
+    const departedOn = data.departedOn ?? existing.departedOn;
+    const arrivedOn = data.arrivedOn ?? existing.arrivedOn;
+    assertLegDates(departedOn, arrivedOn);
+    assertNotFuture(data.departedOn, 'A departure date');
+    assertNotFuture(data.arrivedOn, 'An arrival date');
+
     const updated = await this.prisma.shippingLeg.update({
       where: { id },
       data: {
         origin: data.origin,
         destination: data.destination,
-        status: data.status,
+        // Derived, never taken from the caller: the dates are the record of
+        // what happened and the status is only a reading of them.
+        status: legStatusFromDates(departedOn, arrivedOn),
         departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
         arrivedOn: data.arrivedOn ? new Date(data.arrivedOn) : undefined,
         provider: data.provider,

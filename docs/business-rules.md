@@ -29,19 +29,36 @@ UAE-direct cycle to sequence 1. Anything else is refused.
 | Per weight | Rate per kg × total kilograms | Derived |
 | Flat | One agreed amount | As entered |
 
-**DECIDED 2026-08-24 — a leg's status follows its cycle.** Nothing used to set
-it, so every leg read PENDING for good: a cycle could reach Egypt, have its
-stock received and sold, while the shipment still said the goods had not left.
+**DECIDED 2026-08-24 — the shipment's dates decide where a cycle can get to,
+and stock exists only once the goods have arrived.**
 
-| Cycle reaches | China cycle | UAE direct |
-|---|---|---|
-| IN_TRANSIT | leg 1 in transit | — |
-| ARRIVED_UAE | leg 1 arrived | — (goods are at the origin; nothing has moved) |
-| IN_TRANSIT_TO_EGYPT | leg 2 in transit | leg 1 in transit |
-| ARRIVED_EGYPT and beyond | both arrived | leg 1 arrived |
+Completing the wizard used to walk a cycle from planning to verification in one
+click and receive the stock, so goods departed, arrived and became sellable in
+the same instant with no date recorded anywhere. A cycle approved a moment ago
+had inventory.
 
-A leg is only ever pushed forward, so a correction made on the shipments page
-is not undone by a later cycle transition.
+A leg's status is a reading of its dates, never a field anyone sets:
+
+| Dates recorded | Leg reads |
+|---|---|
+| none | pending |
+| departure | in transit |
+| departure and arrival | arrived |
+
+And the cycle cannot pass a point its goods have not reached:
+
+| Cycle step | Requires |
+|---|---|
+| In transit (China) | leg 1 has departed |
+| Arrived UAE (China) | leg 1 has arrived |
+| In transit to Egypt | the last leg has departed |
+| Arrived Egypt | every leg has arrived |
+
+A UAE-direct cycle's single leg is UAE→Egypt, so arriving in the UAE asks
+nothing of it — the goods are sitting at its origin and it has not started.
+
+Arriving without a departure date, arriving before departing, and either date
+in the future are all refused.
 
 Rate-based legs derive their total rather than asking for it, so the per-piece
 rate itself stays on the record. A leg can be priced in another currency with an

@@ -360,6 +360,19 @@ test.describe('FX rates reach the forms', () => {
     // finishes the cycle instead of refusing.
     const { headers, cycleId } = await cycleWithALeg(request);
 
+    // The shipment has to have actually arrived before the cycle can pass it,
+    // so the dates go on first. The fixture leaves them empty on purpose —
+    // TC-RT-01 checks a leg with no dates comes back with none.
+    const legs = await (await request.get(`${API}/cycles/${cycleId}/shipping-legs`, { headers })).json();
+    const daysBack = (n: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    await request.put(`${API}/shipping/legs/${(legs.data ?? legs)[0].id}`, {
+      headers, data: { departedOn: daysBack(20), arrivedOn: daysBack(5) },
+    });
+
     // Walk it through to VERIFICATION and receive the stock.
     for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       const res = await request.post(`${API}/cycles/${cycleId}/transition`, {

@@ -15,6 +15,13 @@ export const API = 'http://localhost:3001/api/v1';
 export const EMAIL = 'partner.a@motoparts.com';
 export const PASSWORD = 'password123';
 
+/** A date `n` days back, for shipments that have already happened. */
+export const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+};
+
 export const today = () => {
   const d = new Date();
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
@@ -60,9 +67,12 @@ export async function giveStock(
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
     items: [{ productId, orderedQty: qty, unitPrice: 10 }],
   });
+  // The departure and arrival dates are the point: a cycle cannot pass a stage
+  // its shipment has not reached, so stock cannot exist without them.
   await mk(`cycles/${cycle.id}/shipping-legs`, {
     sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
     provider: `${label} Freight`, costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+    departedOn: daysAgo(20), arrivedOn: daysAgo(5),
   });
   for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
@@ -92,9 +102,12 @@ export async function stockedProduct(
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
     items: [{ productId: product.id, orderedQty: qty, unitPrice: 10 }],
   });
+  // The departure and arrival dates are the point: a cycle cannot pass a stage
+  // its shipment has not reached, so stock cannot exist without them.
   await mk(`cycles/${cycle.id}/shipping-legs`, {
     sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
     provider: `${label} Freight`, costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+    departedOn: daysAgo(20), arrivedOn: daysAgo(5),
   });
   for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });

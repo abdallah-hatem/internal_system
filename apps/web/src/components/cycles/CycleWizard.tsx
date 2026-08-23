@@ -515,6 +515,29 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       const allStatuses = ['PLANNING', ...allTransitions];
       const startIdx = allStatuses.indexOf(currentStatus);
 
+      // The shipment has to have actually arrived before any of this. Walking
+      // the cycle to VERIFICATION in one click is what made a cycle approved a
+      // moment ago have sellable stock — the goods departed, arrived and were
+      // received in the same instant, with no dates recorded anywhere.
+      //
+      // The server refuses each step it has not reached, but checking here
+      // means saying which leg and what is missing, rather than stopping
+      // half-way with the cycle in some middle state.
+      const legsRes = await api.get(`/cycles/${cycleId}/shipping-legs`);
+      const legs = legsRes.data.data ?? legsRes.data ?? [];
+      const notArrived = legs.filter((l: any) => l.status !== 'ARRIVED');
+
+      if (notArrived.length > 0) {
+        const which = notArrived
+          .map((l: any) => `${l.origin} → ${l.destination}`)
+          .join(', ');
+        toast.error(
+          `${which} has not arrived yet. Record the departure and arrival dates on the shipping step first.`,
+        );
+        setCurrentStep(2);
+        return;
+      }
+
       if (startIdx >= 0) {
         const transitionsNeeded = allTransitions.slice(startIdx);
         for (const status of transitionsNeeded) {

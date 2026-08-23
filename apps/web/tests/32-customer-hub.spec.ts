@@ -57,6 +57,11 @@ async function shopOwingTwoOrders(request: APIRequestContext) {
 
   const today = new Date();
   const iso = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+  const ago = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+  };
 
   // Stock, via the only route that creates any.
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
@@ -67,6 +72,8 @@ async function shopOwingTwoOrders(request: APIRequestContext) {
   await mk(`cycles/${cycle.id}/shipping-legs`, {
     sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
     provider: 'Hub Freight', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+    // Stock cannot exist until the shipment has actually arrived.
+    departedOn: ago(20), arrivedOn: ago(5),
   });
   for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
     await mk(`cycles/${cycle.id}/transition`, { status });
