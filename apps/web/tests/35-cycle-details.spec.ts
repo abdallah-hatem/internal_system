@@ -87,7 +87,7 @@ test.describe('Cycle details', () => {
     await person.click();
     await page.getByRole('listbox').getByRole('option').first().click();
 
-    await page.locator('input[name="contributionAmount"]').fill('40000');
+    await page.locator('input[inputmode="decimal"]').first().fill('40000');
     await page.getByRole('button', { name: /save/i }).click();
 
     await expect

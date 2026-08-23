@@ -11,6 +11,7 @@ import { ShippingCostFields, readShippingCostFields } from '../shipping/Shipping
 import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
 import { selectOnFocus } from '../../lib/select-on-focus';
+import { MoneyInput } from '../ui/money-input';
 import {
   Route,
   ShoppingCart,
@@ -994,18 +995,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         <label className="block text-xs text-gray-500 mb-1">
                           Unit Price
                         </label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.unitPrice || ''}
-                          onChange={(e) =>
-                            updateLineItem(idx, 'unitPrice', Number(e.target.value))
-                          }
-                          {...selectOnFocus}
+                          onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
                           required
-                          min="0"
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
 
@@ -1013,17 +1008,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         <label className="block text-xs text-gray-500 mb-1">
                           Discount
                         </label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.discount || ''}
-                          onChange={(e) =>
-                            updateLineItem(idx, 'discount', Number(e.target.value))
-                          }
-                          {...selectOnFocus}
-                          min="0"
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
 
@@ -1318,21 +1307,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
                       <div className="sm:col-span-4">
                         <span className="text-xs text-gray-400 sm:hidden">Landed Unit Cost (EGP): </span>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.landedUnitCostEgp}
-                          onChange={(e) =>
-                            updateReceiveItem(
-                              idx,
-                              'landedUnitCostEgp',
-                              Number(e.target.value),
-                            )
+                          onChange={(raw) =>
+                            updateReceiveItem(idx, 'landedUnitCostEgp', Number(raw))
                           }
-                          {...selectOnFocus}
-                          min="0"
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                     </div>

@@ -124,7 +124,7 @@ test.describe('Customer page', () => {
 
     // 700 clears the older 500 and leaves 200 against the newer 800.
     await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
-    await page.locator('input[name="amount"]').fill('700');
+    await page.locator('input[inputmode="decimal"]').first().fill('700');
     await page.getByRole('button', { name: /save/i }).click();
 
     await expect
@@ -147,7 +147,7 @@ test.describe('Customer page', () => {
     await page.goto(`${BASE}/en/customers/${customer.id}`);
 
     await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
-    await page.locator('input[name="amount"]').fill('2000');
+    await page.locator('input[inputmode="decimal"]').first().fill('2000');
     await page.getByRole('button', { name: /save/i }).click();
 
     // Refused, and said why.
@@ -196,7 +196,7 @@ test.describe('Customer page — pushing on it', () => {
     await page.goto(`${BASE}/en/customers/${customer.id}`);
 
     await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
-    await page.locator('input[name="amount"]').fill('1300');
+    await page.locator('input[inputmode="decimal"]').first().fill('1300');
     await page.getByRole('button', { name: /save/i }).click();
 
     await expect
@@ -206,7 +206,7 @@ test.describe('Customer page — pushing on it', () => {
 
     // Now they owe nothing. A further payment must be refused, and say so.
     await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
-    await page.locator('input[name="amount"]').fill('100');
+    await page.locator('input[inputmode="decimal"]').first().fill('100');
     await page.getByRole('button', { name: /save/i }).click();
 
     await expect(page.getByText(/does not owe|nothing to pay/i).first()).toBeVisible({
@@ -227,7 +227,7 @@ test.describe('Customer page — pushing on it', () => {
 
     for (const bad of ['0', '-50']) {
       await page.getByRole('button', { name: /record payment|new payment/i }).first().click();
-      const amount = page.locator('input[name="amount"]');
+      const amount = page.locator('input[inputmode="decimal"]').first();
       await amount.fill(bad);
       await page.getByRole('button', { name: /save/i }).click();
 

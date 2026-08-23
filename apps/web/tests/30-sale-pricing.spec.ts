@@ -116,10 +116,19 @@ async function pick(page: Page, name: string, label: string | RegExp) {
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
-/** The line's unit price box — the third number input on the row. */
+/**
+ * The line's unit price box.
+ *
+ * Amount fields are formatted as they are typed, so they are text inputs with
+ * a numeric keypad rather than `type=number` — a browser will not render
+ * "1,800.00" in a number input at all.
+ */
 function unitPrice(page: Page) {
-  return page.locator('input[type="number"]').nth(1);
+  return page.locator('input[inputmode="decimal"]').first();
 }
+
+/** What an amount field shows for a given number. */
+const shown = (n: number) => n.toLocaleString('en-US');
 
 async function pickProduct(page: Page, productName: string) {
   // The product picker is the only combobox without a name, inside the row.
@@ -140,7 +149,7 @@ test.describe('Sale line pricing', () => {
 
     // Channel defaults to B2B.
     await pickProduct(page, productName);
-    await expect(unitPrice(page)).toHaveValue(String(B2B_PRICE));
+    await expect(unitPrice(page)).toHaveValue(shown(B2B_PRICE));
   });
 
   test('TC-PRICE-02: switching channel re-prices a line still at list price', async ({
@@ -152,10 +161,10 @@ test.describe('Sale line pricing', () => {
     await openOrderForm(page);
 
     await pickProduct(page, productName);
-    await expect(unitPrice(page)).toHaveValue(String(B2B_PRICE));
+    await expect(unitPrice(page)).toHaveValue(shown(B2B_PRICE));
 
     await pick(page, 'channel', 'B2C');
-    await expect(unitPrice(page)).toHaveValue(String(B2C_PRICE));
+    await expect(unitPrice(page)).toHaveValue(shown(B2C_PRICE));
   });
 
   test('TC-PRICE-03: a price the seller typed survives a channel change', async ({
@@ -172,10 +181,10 @@ test.describe('Sale line pricing', () => {
     await unitPrice(page).fill('1950');
 
     await pick(page, 'channel', 'B2C');
-    await expect(unitPrice(page)).toHaveValue('1950');
+    await expect(unitPrice(page)).toHaveValue('1,950');
 
     await pick(page, 'channel', 'B2B');
-    await expect(unitPrice(page)).toHaveValue('1950');
+    await expect(unitPrice(page)).toHaveValue('1,950');
   });
 
   test('TC-PRICE-04: choosing a customer sets the channel to their kind', async ({
@@ -231,10 +240,10 @@ test.describe('Sale line pricing — pushing on it', () => {
     await openOrderForm(page);
 
     await pickProduct(page, productName);
-    await expect(unitPrice(page)).toHaveValue(String(B2B_PRICE));
+    await expect(unitPrice(page)).toHaveValue(shown(B2B_PRICE));
 
     await pickProduct(page, otherProductName);
-    await expect(unitPrice(page)).toHaveValue(String(OTHER_B2B));
+    await expect(unitPrice(page)).toHaveValue(shown(OTHER_B2B));
   });
 
   test('TC-PRICE-07: switching to a retail customer re-prices at retail', async ({
@@ -247,11 +256,11 @@ test.describe('Sale line pricing — pushing on it', () => {
     await openOrderForm(page);
 
     await pickProduct(page, productName);
-    await expect(unitPrice(page)).toHaveValue(String(B2B_PRICE));
+    await expect(unitPrice(page)).toHaveValue(shown(B2B_PRICE));
 
     await pick(page, 'customerId', retailName);
     await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2C');
-    await expect(unitPrice(page)).toHaveValue(String(B2C_PRICE));
+    await expect(unitPrice(page)).toHaveValue(shown(B2C_PRICE));
   });
 
   test('TC-PRICE-08: a typed price survives a customer switch too', async ({ page, request }) => {
@@ -266,6 +275,6 @@ test.describe('Sale line pricing — pushing on it', () => {
 
     await pick(page, 'customerId', retailName);
     await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2C');
-    await expect(unitPrice(page)).toHaveValue('1975');
+    await expect(unitPrice(page)).toHaveValue('1,975');
   });
 });

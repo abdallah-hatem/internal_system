@@ -14,6 +14,7 @@ import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/paginati
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { selectOnFocus } from '../../../lib/select-on-focus';
+import { MoneyInput } from '../../../components/ui/money-input';
 import {
   BadgePercent, Plus, Search, Eye, X, MinusCircle, Loader2,
   ChevronRight, DollarSign, CheckCircle, Ban, Package,
@@ -633,14 +634,11 @@ export default function SalesPage() {
                       </div>
                       <div className="w-24">
                         <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.unitPrice}
-                          onChange={(e) => updateLineItem(idx, 'unitPrice', Number(e.target.value))}
-                          {...selectOnFocus}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                         {item.productId &&
                           (() => {
@@ -664,14 +662,11 @@ export default function SalesPage() {
                       </div>
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.discount}
-                          onChange={(e) => updateLineItem(idx, 'discount', Number(e.target.value))}
-                          {...selectOnFocus}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       <button type="button" onClick={() => removeLineItem(idx)} className="p-1.5 text-red-400 hover:text-red-600">

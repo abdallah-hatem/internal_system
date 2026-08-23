@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../../lib/api';
 import { useToast } from '../../../../components/ui/toast';
 import { formatDate } from '../../../../lib/dates';
+import { MoneyInput } from '../../../../components/ui/money-input';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
@@ -689,12 +690,9 @@ function PriceRow({
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-400">{current?.currency ?? 'EGP'}</span>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
+        <MoneyInput
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={setValue}
           placeholder="0.00"
           className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />

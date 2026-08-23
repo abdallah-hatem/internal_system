@@ -15,6 +15,7 @@ import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
+import { MoneyInput } from '../../../components/ui/money-input';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -376,7 +377,12 @@ export default function LedgerPage() {
                 </label>
               </div>
             </div>
-            <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {t('amount')}<span className="ms-1 text-red-500">*</span>
+              </label>
+              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
             <CurrencyRateFields
               rateName="fxRateToEgp"
               currencies={['EGP', 'USD', 'AED']}

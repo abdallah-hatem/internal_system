@@ -24,6 +24,7 @@ import { Money } from '../../../../../components/ui/money';
 import { Select } from '../../../../../components/ui/select';
 import { useToast } from '../../../../../components/ui/toast';
 import { selectOnFocus } from '../../../../../lib/select-on-focus';
+import { MoneyInput } from '../../../../../components/ui/money-input';
 import {
   ArrowLeft, Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Trash2, Scale, Route,
 } from 'lucide-react';
@@ -364,10 +365,9 @@ function AddParticipantForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">{t('contribution')}</label>
-          <input
-            name="contributionAmount" type="number" step="0.01" min="0" required
-            placeholder="0.00" {...selectOnFocus}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          <MoneyInput
+            name="contributionAmount" required placeholder="0.00"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
         <div>

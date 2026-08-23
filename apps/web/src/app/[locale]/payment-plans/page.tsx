@@ -6,9 +6,11 @@ import { useState } from 'react';
 import { api } from '../../../lib/api';
 import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
+import { CustomerLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
 import { Select } from '../../../components/ui/select';
 import { DatePicker } from '../../../components/ui/date-picker';
+import { MoneyInput } from '../../../components/ui/money-input';
 import {
   CalendarClock, Plus, X, Loader2, AlertTriangle, Check, Trash2, Ban,
 } from 'lucide-react';
@@ -190,7 +192,9 @@ export default function PaymentPlansPage() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{plan.customer.displayName}</span>
+                    <span className="font-medium text-gray-900">
+                      <CustomerLink id={plan.customer.id} name={plan.customer.displayName} />
+                    </span>
                     <span className="font-mono text-xs text-gray-400">{plan.reference}</span>
                     {plan.isOverdue && (
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
@@ -357,14 +361,11 @@ export default function PaymentPlansPage() {
                           }
                         />
                       </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
+                      <MoneyInput
                         placeholder="0.00"
                         value={line.amount}
-                        onChange={(e) =>
-                          setLines((l) => l.map((x, i) => (i === idx ? { ...x, amount: e.target.value } : x)))
+                        onChange={(raw) =>
+                          setLines((l) => l.map((x, i) => (i === idx ? { ...x, amount: raw } : x)))
                         }
                         className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />

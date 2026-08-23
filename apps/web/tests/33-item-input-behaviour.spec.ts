@@ -52,6 +52,9 @@ async function openOrderWithARow(page: Page) {
 const rowInputs = (page: Page) => page.locator('input[type="number"]:not([name])');
 const qty = (page: Page) => rowInputs(page).first();
 
+/** Amount fields are formatted while typing, so they are text inputs. */
+const money = (page: Page) => page.locator('input[inputmode="decimal"]');
+
 test.describe('Item row inputs', () => {
   test('TC-INPUT-01: clicking a prefilled quantity and typing replaces it', async ({ page }) => {
     await login(page);
@@ -90,7 +93,8 @@ test.describe('Item row inputs', () => {
     await page.keyboard.press('Tab');
     await page.keyboard.type('250');
 
-    const price = rowInputs(page).nth(1);
+    // Tab lands on the unit price, which is a formatted amount field.
+    const price = money(page).first();
     await expect(price).toHaveValue('250');
   });
 
@@ -124,5 +128,83 @@ test.describe('Item row inputs', () => {
     await orderedQty.click();
     await page.keyboard.type('9');
     await expect(orderedQty).toHaveValue('9');
+  });
+});
+
+test.describe('Amount fields read as money while they are typed', () => {
+  test('TC-MONEY-01: separators appear as the number grows', async ({ page }) => {
+    // 1512.91 is a number; 1,512.91 is an amount. Without the grouping a
+    // mistyped 15129.1 looks much like 1512.91 at a glance.
+    await login(page);
+    await openOrderWithARow(page);
+
+    const price = page.locator('input[inputmode="decimal"]').first();
+    await price.click();
+    await page.keyboard.type('1234567.89');
+    await expect(price).toHaveValue('1,234,567.89');
+  });
+
+  test('TC-MONEY-02: the caret stays with the digit when a comma appears', async ({ page }) => {
+    // Reformatting on every keystroke moves everything after the inserted
+    // comma. Restoring the caret by character position puts it in the wrong
+    // place; it has to be restored by counting digits.
+    await login(page);
+    await openOrderWithARow(page);
+
+    const price = page.locator('input[inputmode="decimal"]').first();
+    await price.click();
+    await page.keyboard.type('1234567.89');
+
+    // Put the caret after "1,234" and type a digit.
+    await price.evaluate((el: HTMLInputElement) => el.setSelectionRange(5, 5));
+    await page.keyboard.type('9');
+
+    await expect(price).toHaveValue('12,349,567.89');
+    const before = await price.evaluate(
+      (el: HTMLInputElement) => el.value.slice(0, el.selectionStart ?? 0),
+    );
+    expect(before).toBe('12,349');
+  });
+
+  test('TC-MONEY-03: the form submits a plain number, not the formatted text', async ({
+    page,
+  }) => {
+    // The separators are for reading. Anything sending "25,000.50" to the API
+    // would have it parsed as 25 or rejected outright.
+    await login(page);
+    await page.goto(`${BASE}/en/payments`);
+    await page.getByRole('button', { name: /record payment/i }).click();
+
+    const amount = page.locator('input[inputmode="decimal"]').first();
+    await amount.click();
+    await page.keyboard.type('25000.50');
+    await expect(amount).toHaveValue('25,000.50');
+
+    const submitted = await page
+      .locator('input[type="hidden"][name="amount"]')
+      .inputValue();
+    expect(submitted).toBe('25000.50');
+  });
+
+  test('TC-MONEY-04: letters and stray punctuation are ignored', async ({ page }) => {
+    await login(page);
+    await openOrderWithARow(page);
+
+    const price = page.locator('input[inputmode="decimal"]').first();
+    await price.click();
+    await page.keyboard.type('12a3b4.5c6');
+    await expect(price).toHaveValue('1,234.56');
+  });
+
+  test('TC-MONEY-05: a second decimal point is refused', async ({ page }) => {
+    // "12.34.56" is not a number, and silently keeping the first part is
+    // better than sending something unparseable.
+    await login(page);
+    await openOrderWithARow(page);
+
+    const price = page.locator('input[inputmode="decimal"]').first();
+    await price.click();
+    await page.keyboard.type('12.34.56');
+    await expect(price).toHaveValue('12.34');
   });
 });

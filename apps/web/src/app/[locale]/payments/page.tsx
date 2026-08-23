@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { CustomerLink } from '../../../components/ui/entity-link';
 import { DatePicker } from '../../../components/ui/date-picker';
 import { Money } from '../../../components/ui/money';
 
@@ -11,6 +12,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { formatDate } from '../../../lib/dates';
 import { TextareaField } from '../../../components/ui/textarea-field';
+import { MoneyInput } from '../../../components/ui/money-input';
 import {
   CreditCard, Plus, Search, Eye, X, Loader2,
   ChevronRight, ArrowRightLeft, Ban, RotateCcw,
@@ -249,7 +251,9 @@ export default function PaymentsPage() {
                   ) : (
                     paginated.map((payment) => (
                       <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-900 font-medium">{payment.customer?.displayName ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium">
+                        <CustomerLink id={payment.customerId} name={payment.customer?.displayName} />
+                      </td>
                       <td className="px-4 py-3 text-gray-900 font-medium"><Money value={payment.amount} /></td>
                       <td className="px-4 py-3 text-gray-600">{payment.currency}</td>
                       <td className="px-4 py-3 text-gray-600">{t(METHOD_KEYS[payment.method] ?? payment.method)}</td>
@@ -311,7 +315,9 @@ export default function PaymentsPage() {
                 onClick={() => setViewingPayment(payment)}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-gray-900">{payment.customer?.displayName ?? '—'}</p>
+                  <p className="font-medium text-gray-900">
+                    <CustomerLink id={payment.customerId} name={payment.customer?.displayName} />
+                  </p>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[payment.status] ?? 'bg-gray-100 text-gray-600'}`}>
                     {t(STATUS_KEYS[payment.status] ?? payment.status)}
                   </span>
@@ -369,7 +375,12 @@ export default function PaymentsPage() {
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
+              <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {t('amount')}<span className="ms-1 text-red-500">*</span>
+              </label>
+              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
                 <Select
@@ -444,7 +455,12 @@ export default function PaymentsPage() {
                 emptyText={t('noOpenOrders')}
               />
             </div>
-            <InputField label={t('allocateAmount')} name="allocateAmount" type="number" required placeholder="0" />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {t('allocateAmount')}<span className="ms-1 text-red-500">*</span>
+              </label>
+              <MoneyInput name="allocateAmount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowAllocateModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={allocateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">

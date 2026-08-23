@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Select } from '../ui/select';
+import { MoneyInput } from '../ui/money-input';
 import { useCurrencyRates } from '../../lib/currency-rates';
 
 export type CostBasis = 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
@@ -115,10 +116,10 @@ export function ShippingCostFields({
             <label className={label}>
               Cost per piece<span className="text-red-500 ms-1">*</span>
             </label>
-            <input
-              type="number" step="0.0001" min="0" required
-              {...{ name: n('ratePerUnit') }} value={rate} onChange={(e) => setRate(e.target.value)}
-              placeholder="0.0000" className={input}
+            <MoneyInput
+              required
+              {...{ name: n('ratePerUnit') }} value={rate} onChange={setRate}
+              placeholder="0.00" className={`${input} text-end`}
             />
           </div>
           <div>
@@ -158,10 +159,10 @@ export function ShippingCostFields({
             <label className={label}>
               Cost per kg<span className="text-red-500 ms-1">*</span>
             </label>
-            <input
-              type="number" step="0.0001" min="0" required
-              {...{ name: n('ratePerUnit') }} value={rate} onChange={(e) => setRate(e.target.value)}
-              placeholder="0.0000" className={input}
+            <MoneyInput
+              required
+              {...{ name: n('ratePerUnit') }} value={rate} onChange={setRate}
+              placeholder="0.00" className={`${input} text-end`}
             />
           </div>
           <div>
@@ -182,10 +183,10 @@ export function ShippingCostFields({
           <label className={label}>
             Total shipment cost<span className="text-red-500 ms-1">*</span>
           </label>
-          <input
-            type="number" step="0.01" min="0" required
-            {...{ name: n('amount') }} value={amount} onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00" className={input}
+          <MoneyInput
+            required
+            {...{ name: n('amount') }} value={amount} onChange={setAmount}
+            placeholder="0.00" className={`${input} text-end`}
           />
         </div>
       )}

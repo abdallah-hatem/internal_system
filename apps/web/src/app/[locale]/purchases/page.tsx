@@ -18,6 +18,7 @@ import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
 import { selectOnFocus } from '../../../lib/select-on-focus';
+import { MoneyInput } from '../../../components/ui/money-input';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
@@ -386,26 +387,20 @@ export default function PurchasesPage() {
                       </div>
                       <div className="w-24">
                         <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.unitPrice}
-                          onChange={(e) => updateLineItem(idx, 'unitPrice', Number(e.target.value))}
-                          {...selectOnFocus}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          step="0.01"
+                        <MoneyInput
+                          placeholder="0.00"
                           value={item.discount}
-                          onChange={(e) => updateLineItem(idx, 'discount', Number(e.target.value))}
-                          {...selectOnFocus}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       <button type="button" onClick={() => removeLineItem(idx)} className="p-1.5 text-red-400 hover:text-red-600">
@@ -539,7 +534,12 @@ export default function PurchasesPage() {
             }}
             className="space-y-4"
           >
-            <InputField label={t('amount')} name="amount" type="number" required placeholder="0" />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {t('amount')}<span className="ms-1 text-red-500">*</span>
+              </label>
+              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
             <TextareaField label={t('reason')} name="reason" />
             <InputField label={tc('date')} name="recordedOn" type="date" required />
             <div className="flex justify-end gap-3 pt-2">

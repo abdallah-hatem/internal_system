@@ -24,6 +24,7 @@ import { Money } from '../../../../components/ui/money';
 import { Select } from '../../../../components/ui/select';
 import { DatePicker } from '../../../../components/ui/date-picker';
 import { useToast } from '../../../../components/ui/toast';
+import { MoneyInput } from '../../../../components/ui/money-input';
 import {
   ArrowLeft, Loader2, Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
 } from 'lucide-react';
@@ -371,10 +372,10 @@ function PaymentModal({
         >
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">{tp('amount')}</label>
-            <input
-              name="amount" type="number" step="0.01" min="0.01" required autoFocus
-              placeholder={owed > 0 ? String(owed) : '0.00'}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            <MoneyInput
+              name="amount" required autoFocus
+              placeholder={owed > 0 ? owed.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
