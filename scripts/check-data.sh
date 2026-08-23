@@ -54,6 +54,13 @@ SELECT check_name, count FROM (
   UNION ALL SELECT 12, 'order allocated beyond its own total',
          count(*) FROM sale_orders o
    WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.sale_order_id=o.id) > o.total
+  UNION ALL SELECT 12.1, 'money allocated to a cancelled or returned order',
+         count(*) FROM payment_allocations a
+    JOIN sale_orders o ON o.id = a.sale_order_id
+   WHERE o.status IN ('CANCELLED', 'RETURNED')
+  UNION ALL SELECT 12.2, 'cancelled order still showing a balance',
+         count(*) FROM sale_orders
+   WHERE status = 'CANCELLED' AND outstanding <> 0
   UNION ALL SELECT 13, 'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'

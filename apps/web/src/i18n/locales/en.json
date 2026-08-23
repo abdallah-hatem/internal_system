@@ -286,7 +286,9 @@
     "cashRefund": "Cash refund",
     "reasonPlaceholder": "Why did the goods come back?",
     "reason": "Reason",
-    "inStock": "in stock"
+    "inStock": "in stock",
+    "cancelWarning": "This order will be cancelled and its stock returned to inventory. This cannot be undone.",
+    "keepOrder": "Keep order"
   },
   "customers": {
     "title": "Customers",

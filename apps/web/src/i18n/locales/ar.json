@@ -286,7 +286,9 @@
     "cashRefund": "استرداد نقدي",
     "reasonPlaceholder": "ما سبب إرجاع البضاعة؟",
     "reason": "السبب",
-    "inStock": "متاح"
+    "inStock": "متاح",
+    "cancelWarning": "سيتم إلغاء هذا الطلب وإعادة مخزونه. لا يمكن التراجع عن ذلك.",
+    "keepOrder": "الاحتفاظ بالطلب"
   },
   "customers": {
     "title": "العملاء",

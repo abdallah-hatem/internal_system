@@ -117,6 +117,9 @@ export default function SalesPage() {
   const [lineItems, setLineItems] = useState<Array<{ productId: string; quantity: number; unitPrice: number; discount: number }>>([]);
   // Controlled so the customer can set the channel and the channel can price
   // the lines. Both still carry their `name`, so the form submits unchanged.
+  // Cancelling is not undoable and the button sits beside Confirm, so it asks
+  // first rather than acting on the click.
+  const [cancellingOrder, setCancellingOrder] = useState<SaleOrder | null>(null);
   const [customerId, setCustomerId] = useState('');
   const [channel, setChannel] = useState('B2B');
 
@@ -821,9 +824,8 @@ export default function SalesPage() {
               {detail.status === 'DRAFT' && (
                 <>
                   <button
-                    onClick={() => cancelMutation.mutate(detail.id)}
-                    disabled={cancelMutation.isPending}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                    onClick={() => setCancellingOrder(detail)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
                   >
                     <Ban className="h-4 w-4" />
                     {t('cancel')}
@@ -847,11 +849,15 @@ export default function SalesPage() {
                   {t('recordReturn')}
                 </button>
               )}
-              {detail.status === 'PARTIALLY_PAID' && (
+              {/* No cancel for a partially paid order. Money has come in
+                  against it, and cancelling would leave that payment attached
+                  to a dead order — collected, clearing nothing, unusable
+                  anywhere else. Record a return, which moves the goods, the
+                  cost and the cash together. */}
+              {detail.status === 'CONFIRMED' && (
                 <button
-                  onClick={() => cancelMutation.mutate(detail.id)}
-                  disabled={cancelMutation.isPending}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                  onClick={() => setCancellingOrder(detail)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
                 >
                   <Ban className="h-4 w-4" />
                   {t('cancel')}
@@ -863,6 +869,55 @@ export default function SalesPage() {
       )}
 
       {/* ─── Return Modal ──────────────────────────────────────────── */}
+      {cancellingOrder && (
+        <Modal
+          title={`${t('cancel')} — ${cancellingOrder.orderNo}`}
+          onClose={() => setCancellingOrder(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              {t('cancelWarning')}
+            </p>
+            <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">{t('customer')}</span>
+                <span className="font-medium text-gray-900">
+                  {cancellingOrder.customer?.displayName ?? '—'}
+                </span>
+              </div>
+              <div className="mt-1 flex justify-between">
+                <span className="text-gray-500">{t('total')}</span>
+                <span className="font-medium text-gray-900">
+                  <Money value={Number(cancellingOrder.total)} currency={cancellingOrder.currency} />
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancellingOrder(null)}
+                className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+              >
+                {t('keepOrder')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  cancelMutation.mutate(cancellingOrder.id);
+                  setCancellingOrder(null);
+                }}
+                disabled={cancelMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {cancelMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Ban className="h-4 w-4" />
+                {t('cancel')}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {returningOrder && (
         <Modal
           title={`${t('recordReturn')} — ${returningOrder.orderNo}`}

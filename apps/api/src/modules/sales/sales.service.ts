@@ -369,6 +369,31 @@ export class SalesService {
         );
       }
 
+      // DECIDED 2026-08-23: an order that has been paid against cannot be
+      // cancelled.
+      //
+      // Cancelling put the stock back and marked the order dead, and did
+      // nothing at all about the money. The allocation stayed pointing at the
+      // cancelled order: it cleared nothing, could not be applied anywhere
+      // else, and still read as collected — the order vanished from what the
+      // shop owed while their payment stayed spent on it.
+      //
+      // Money coming back is a refund, and a refund is a return: goods, cost
+      // and cash all move together there. Cancelling is for an order that
+      // never happened.
+      const paid = await tx.paymentAllocation.aggregate({
+        where: { saleOrderId: id },
+        _sum: { amount: true },
+      });
+      const paidAmount = Number(paid._sum.amount ?? 0);
+      if (paidAmount > 0) {
+        throw new BadRequestException(
+          `${paidAmount.toFixed(2)} has already been paid against ${order.orderNo}, ` +
+            'so it cannot be cancelled. Record a return instead, which refunds the ' +
+            'money and puts the stock back.',
+        );
+      }
+
       // Release any reservations/allocations
       for (const item of order.items) {
         for (const alloc of item.allocations) {

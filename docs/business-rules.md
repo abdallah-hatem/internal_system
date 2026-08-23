@@ -95,6 +95,18 @@ with no stock cannot be put on an order at all.
 Selling more than is available is refused, and the whole confirmation rolls
 back: no partial allocation is ever left behind.
 
+**DECIDED 2026-08-23 — an order that has been paid against cannot be
+cancelled.** Cancelling put the stock back and did nothing about the money: the
+payment stayed allocated to the cancelled order, so it cleared nothing, could
+not be used anywhere else, and still read as collected — while the order
+dropped out of what the shop owed. The screen even offered Cancel specifically
+on partially paid orders, the one state where money had certainly arrived.
+
+Cancelling is for an order that never happened. Money coming back is a refund,
+and a refund is a return (§5), where the goods, the cost and the cash move
+together. Cancelling also asks before acting, since it cannot be undone and the
+button sits beside Confirm.
+
 ---
 
 ## 5. Returns
