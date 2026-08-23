@@ -13,6 +13,11 @@ import { useToast } from '../ui/toast';
 import { selectOnFocus } from '../../lib/select-on-focus';
 import { MoneyInput } from '../ui/money-input';
 import {
+  useCycleWizardDraft,
+  draftIsWorthKeeping,
+  type CycleWizardDraft,
+} from '../../stores/cycle-wizard-draft';
+import {
   Route,
   ShoppingCart,
   Truck,
@@ -130,6 +135,145 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   useEffect(() => {
     setMaxStepReached((prev) => Math.max(prev, currentStep));
   }, [currentStep]);
+
+  // ---------------------------------------------------------------------------
+  // Draft persistence (new cycles only)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resuming an existing cycle loads that cycle from the server, and the server
+   * is the truth for it. Only the /cycles/new flow has state that exists
+   * nowhere else, so only that flow keeps a draft.
+   */
+  const isNewWizard = !existingCycleId;
+  const draftHydrated = useCycleWizardDraft((s) => s.hydrated);
+  const storedDraft = useCycleWizardDraft((s) => s.draft);
+  const saveDraft = useCycleWizardDraft((s) => s.save);
+  const clearDraft = useCycleWizardDraft((s) => s.clear);
+  const draftRestoredRef = useRef(false);
+  // Whether this session opened onto restored work, so the wizard can say so.
+  const [showRestoredNotice, setShowRestoredNotice] = useState(false);
+
+  const currentDraft: CycleWizardDraft = {
+    currentStep,
+    maxStepReached,
+    cycleId,
+    cycleCode,
+    poId,
+    poReference,
+    legIds,
+    shippingLegId,
+    originType,
+    poSupplierId,
+    poCurrency,
+    poFxRate,
+    poOrderedOn,
+    lineItems,
+    receiveItems,
+    shippingProvider,
+    shippingOrigin,
+    shippingDestination,
+    shippingTrackingRef,
+    shippingDepartedOn,
+    shippingArrivedOn,
+    shippingAmount,
+  };
+
+  const forgetDraft = () => {
+    // Mark restored too: a cleared draft must not be restored a second time by
+    // the effect below, which would put back what was just discarded.
+    draftRestoredRef.current = true;
+    setShowRestoredNotice(false);
+    clearDraft();
+  };
+
+  // Put a saved draft back, once, as soon as localStorage has been read.
+  useEffect(() => {
+    if (!isNewWizard || !draftHydrated || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+
+    const draft = storedDraft;
+    if (!draftIsWorthKeeping(draft) || !draft) return;
+
+    setShowRestoredNotice(true);
+    setCurrentStep(draft.currentStep);
+    setMaxStepReached(draft.maxStepReached);
+    setCycleId(draft.cycleId);
+    setCycleCode(draft.cycleCode);
+    setPoId(draft.poId);
+    setPoReference(draft.poReference);
+    setLegIds(draft.legIds);
+    setShippingLegId(draft.shippingLegId);
+    setOriginType(draft.originType);
+    setPoSupplierId(draft.poSupplierId);
+    setPoCurrency(draft.poCurrency);
+    setPoFxRate(draft.poFxRate);
+    setPoOrderedOn(draft.poOrderedOn);
+    setLineItems(draft.lineItems);
+    setReceiveItems(draft.receiveItems);
+    setShippingProvider(draft.shippingProvider);
+    setShippingOrigin(draft.shippingOrigin);
+    setShippingDestination(draft.shippingDestination);
+    setShippingTrackingRef(draft.shippingTrackingRef);
+    setShippingDepartedOn(draft.shippingDepartedOn);
+    setShippingArrivedOn(draft.shippingArrivedOn);
+    setShippingAmount(draft.shippingAmount);
+
+    // Step 4 seeds its rows from the purchase order the first time it is
+    // shown. The restored rows already carry edited landed costs, so mark the
+    // seeding done for this order or it would overwrite them.
+    if (draft.poId && draft.receiveItems.length > 0) {
+      receiveInitRef.current = draft.poId;
+    }
+  }, [isNewWizard, draftHydrated, storedDraft]);
+
+  // Keep the saved draft in step with the form.
+  //
+  // Waits for the restore above: saving first would write the wizard's empty
+  // initial state over the draft it is about to read.
+  useEffect(() => {
+    if (!isNewWizard || !draftHydrated || !draftRestoredRef.current) return;
+    if (!draftIsWorthKeeping(currentDraft)) return;
+    saveDraft(currentDraft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isNewWizard,
+    draftHydrated,
+    currentStep,
+    maxStepReached,
+    cycleId,
+    cycleCode,
+    poId,
+    poReference,
+    legIds,
+    shippingLegId,
+    originType,
+    poSupplierId,
+    poCurrency,
+    poFxRate,
+    poOrderedOn,
+    lineItems,
+    receiveItems,
+    shippingProvider,
+    shippingOrigin,
+    shippingDestination,
+    shippingTrackingRef,
+    shippingDepartedOn,
+    shippingArrivedOn,
+    shippingAmount,
+  ]);
+
+  /**
+   * The success screen means the cycle exists in full. Nothing is a draft any
+   * more, so drop it — otherwise the next new cycle would open on the finished
+   * one. Declared after the save effect so it wins on the render that arrives
+   * at the last step.
+   */
+  useEffect(() => {
+    if (!isNewWizard || currentStep !== 4) return;
+    forgetDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNewWizard, currentStep]);
 
   // ---------------------------------------------------------------------------
   // Fetch existing cycle data for resume
@@ -564,6 +708,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             ? 'Stock is already received — nothing left to enter'
             : 'Stock was already received — cycle moved on to verification',
         );
+        forgetDraft();
         router.push(`/${locale}/cycles`);
         return;
       }
@@ -662,6 +807,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // ---------------------------------------------------------------------------
 
   const handleStartAnother = () => {
+    forgetDraft();
     setCurrentStep(0);
     setCycleId(null);
     setCycleCode(null);
@@ -767,6 +913,31 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* Restored draft.
+
+          Reopening onto a half-filled form with no explanation reads as a bug,
+          and there has to be a way out that isn't "clear it by hand". */}
+      {showRestoredNotice && (
+        <div
+          data-testid="wizard-draft-restored"
+          className="flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+        >
+          <p className="text-sm text-amber-900">
+            Picked up where you left off on this cycle.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              forgetDraft();
+              handleStartAnother();
+            }}
+            className="shrink-0 text-sm font-medium text-amber-900 underline hover:no-underline"
+          >
+            Start over
+          </button>
+        </div>
+      )}
+
       {/* Progress Bar */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center justify-between relative">
