@@ -874,9 +874,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           </form>
         )}
 
-        {/* Step 2 — Purchase Order */}
+        {/* Step 2 — Purchase Order.
+
+            No remount key on the form. It existed to make the pickers pick up
+            a value loaded from an existing order, which controlled inputs do
+            on their own — and remounting cleared whatever else had been typed:
+            choosing a currency wiped the supplier chosen a moment earlier. */}
         {currentStep === 1 && (
-          <form key={`step2-${poSupplierId}-${poCurrency}`} onSubmit={handleStep2Submit} className="space-y-5">
+          <form onSubmit={handleStep2Submit} className="space-y-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Purchase Order</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -888,7 +893,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   key={poSupplierId || 'empty-supplier'}
                   name="supplierId"
                   required
-                  defaultValue={poSupplierId}
+                  value={poSupplierId}
+                  onChange={setPoSupplierId}
                   placeholder="Select supplier"
                   options={supplierList.map((s: any) => ({
                     value: s.id,
@@ -903,10 +909,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   Currency <span className="text-red-500">*</span>
                 </label>
                 <Select
-                  key={effectivePoCurrency || 'empty-currency'}
                   name="currency"
                   required
-                  defaultValue={effectivePoCurrency}
+                  value={effectivePoCurrency}
                   placeholder="Select currency"
                   onChange={(v) => {
                     setPoCurrency(v);
