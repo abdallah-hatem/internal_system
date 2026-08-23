@@ -89,6 +89,102 @@ async function main() {
 
   console.log('✅ Created currency rates (AED 13.85, USD 50.86; CNY unset)');
 
+  // ─── Reference data ────────────────────────────────────────────────────
+  //
+  // Two of everything you need before a cycle can be started: categories,
+  // suppliers, shipping providers, products and customers. No cycles, orders
+  // or payments — those are what you are testing, and they should start empty.
+  //
+  // SEED_REFERENCE=1 stops here. Everything is upserted on a natural key, so
+  // running it twice changes nothing and it can be layered onto an existing
+  // database without duplicating rows.
+  if (process.env.SEED_REFERENCE === '1') {
+    const brakes = await prisma.category.upsert({
+      where: { name: 'Brakes' }, update: {}, create: { name: 'Brakes' },
+    });
+    const helmets = await prisma.category.upsert({
+      where: { name: 'Helmets' }, update: {}, create: { name: 'Helmets' },
+    });
+
+    // Suppliers have no unique key, so they are matched by name to stay
+    // idempotent — findFirst then create rather than upsert.
+    const supplierOf = async (name: string, country: string, notes: string) => {
+      const found = await prisma.supplier.findFirst({ where: { name } });
+      if (found) return found;
+      return prisma.supplier.create({ data: { name, country, notes } });
+    };
+    const china = await supplierOf(
+      'Hangzhou Parts Co.', 'CN', 'Brake parts and consumables. Pays in USD.',
+    );
+    const uae = await supplierOf(
+      'Gulf Trading LLC', 'AE', 'Helmets and accessories. Pays in AED.',
+    );
+
+    const providerOf = async (name: string, contactPerson: string, phone: string) => {
+      const found = await prisma.provider.findFirst({ where: { name } });
+      if (found) return found;
+      return prisma.provider.create({ data: { name, contactPerson, phone } });
+    };
+    await providerOf('Sea Freight Express', 'Karim Adel', '+20 100 111 2222');
+    await providerOf('Gulf Air Cargo', 'Mona Saeed', '+971 50 333 4444');
+
+    // A unit weight is set on both, so a weight-charged shipping leg has
+    // something to spread its cost across.
+    const brakePad = await prisma.product.upsert({
+      where: { sku: 'PRD-000001' },
+      update: {},
+      create: {
+        sku: 'PRD-000001', name: 'Brake Pad Set', categoryId: brakes.id,
+        description: 'Front brake pads, universal fit.',
+        minStock: 10, unitWeightKg: 0.4,
+      },
+    });
+    const helmet = await prisma.product.upsert({
+      where: { sku: 'PRD-000002' },
+      update: {},
+      create: {
+        sku: 'PRD-000002', name: 'Full Face Helmet', categoryId: helmets.id,
+        description: 'Full face helmet, medium.',
+        minStock: 5, unitWeightKg: 1.6,
+      },
+    });
+
+    // Selling prices, so a sale line prices itself instead of starting at zero.
+    for (const [product, b2b, b2c] of [
+      [brakePad, 320, 450],
+      [helmet, 1800, 2400],
+    ] as [typeof brakePad, number, number][]) {
+      for (const [channel, amount] of [['B2B', b2b], ['B2C', b2c]] as [string, number][]) {
+        const existing = await prisma.productPrice.findFirst({
+          where: { productId: product.id, channel, effectiveTo: null },
+        });
+        if (!existing) {
+          await prisma.productPrice.create({
+            data: {
+              productId: product.id, channel, currency: 'EGP',
+              amount, effectiveFrom: new Date(),
+            },
+          });
+        }
+      }
+    }
+
+    // One of each kind, since the channel a sale prices at follows the
+    // customer's type.
+    const customerOf = async (displayName: string, type: 'B2B' | 'B2C', phone: string) => {
+      const found = await prisma.customer.findFirst({ where: { displayName } });
+      if (found) return found;
+      return prisma.customer.create({ data: { displayName, type, phone } });
+    };
+    await customerOf('El Nasr Motors', 'B2B', '+20 122 555 6677');
+    await customerOf('Walk-in Customer', 'B2C', '+20 111 888 9900');
+
+    console.log('✅ Reference seed — 2 categories, 2 suppliers, 2 shipping providers,');
+    console.log('   2 products (priced B2B/B2C) and 2 customers. No cycles or orders.');
+    console.log('🎉 Seeding complete!');
+    return;
+  }
+
   // A minimal seed brings up only what is needed to sign in and start
   // recording — no sample suppliers, products or cycles. That is what you
   // want when the data is about to be real: invented rows are hard to tell

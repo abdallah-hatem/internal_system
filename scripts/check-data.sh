@@ -12,10 +12,11 @@ set -euo pipefail
 DB=${DB:-motorcycle_parts}
 CONTAINER=${CONTAINER:-motorcycle_parts_db}
 
-docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 <<'SQL'
-\pset border 2
-SELECT check_name, count FROM (
-  SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS check_name,
+# The checks, defined once. Printed as a table for a person, and summed for an
+# exit code so a script can act on it — parsing the table to decide whether
+# anything failed is how the reset script came to warn on every clean run.
+CHECKS=$(cat <<'SQL'
+SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS check_name,
          count(*) FROM financial_transactions f
    WHERE f.related_type='PAYMENT'
      AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.id=f.related_id)
@@ -65,5 +66,23 @@ SELECT check_name, count FROM (
          count(*) FROM payments p
    WHERE p.status='RECORDED'
      AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.payment_id=p.id)
-) checks ORDER BY ord;
 SQL
+)
+
+docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 <<SQL
+\pset border 2
+SELECT check_name, count FROM ($CHECKS) checks ORDER BY ord;
+SQL
+
+FAILING=$(docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -t -A -v ON_ERROR_STOP=1 <<SQL
+SELECT coalesce(sum(count), 0) FROM ($CHECKS) checks;
+SQL
+)
+
+if [ "${FAILING:-0}" -gt 0 ]; then
+  echo
+  # A count, not a record count: one bad row can break more than one rule.
+  echo "$FAILING check(s) found records the business could not have produced."
+  exit 1
+fi
+exit 0

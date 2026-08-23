@@ -127,3 +127,23 @@ count should be zero.
 Run it after a data fix, after restoring a backup, and whenever a figure on
 screen looks wrong. It found five orphaned ledger rows that a cleanup of mine
 had left behind, which no test would ever have noticed.
+
+## 8. Resetting the database
+
+`npm run db:reset` rebuilds it from nothing at three levels:
+
+| Level | Contains |
+|---|---|
+| `db:reset:minimal` | partner logins, money accounts, FX rates |
+| `db:reset` (default) | the above plus two each of category, supplier, shipping provider, product and customer |
+| `db:reset:demo` | the full worked example with cycles, sales and settlements |
+
+The reference level is the one for manual testing: everything needed before a
+cycle can be started, and nothing that a test would be about. No cycles,
+orders or payments — those you create yourself.
+
+It backs up first, and runs the consistency check afterwards. Every seed is
+idempotent, so running one twice changes nothing.
+
+The API caches its database connection, so restart it (`npm run dev`) after a
+reset or it will keep talking to the database that no longer exists.
