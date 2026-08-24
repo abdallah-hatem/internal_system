@@ -6,7 +6,7 @@ import { api } from '../../../lib/api';
 import { formatDate, timeAgo } from '../../../lib/dates';
 import {
   LayoutDashboard, TrendingUp, Package, AlertTriangle, DollarSign, ShoppingCart,
-  Activity, Loader2, Route, Wallet, Clock,
+  Activity, Loader2, Route, Wallet, Clock, Receipt,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -96,6 +96,11 @@ export default function DashboardPage() {
     { key: 'collected', value: egp(data.collected), icon: Wallet, color: 'bg-emerald-600' },
     { key: 'receivables', value: egp(data.receivables), icon: Clock, color: 'bg-yellow-500' },
     { key: 'cogs', value: egp(data.totalCogs), icon: Package, color: 'bg-slate-500' },
+    // Net profit subtracts this, and it was fetched and then never shown — so
+    // revenue less cost of goods did not equal the profit on screen and nothing
+    // accounted for the difference. Buying stock is not here: it converts cash
+    // into inventory and becomes a cost when the goods sell.
+    { key: 'expenses', value: egp(data.totalExpenses), icon: Receipt, color: 'bg-rose-500' },
     { key: 'netProfit', value: egp(data.netProfit), icon: TrendingUp, color: 'bg-blue-500' },
     { key: 'cashOut', value: egp(data.totalCashOut), icon: DollarSign, color: 'bg-teal-600' },
     { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },

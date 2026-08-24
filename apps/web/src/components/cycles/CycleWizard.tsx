@@ -579,7 +579,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         sequence: leg.sequence,
         origin: str('origin'),
         destination: str('destination'),
-        provider: str('provider'),
+        // Both: the id is the link, the name is what the leg displays. Only
+        // the name was sent before, so provider_id was null on every leg the
+        // wizard made — a provider's shipments could not be found from the
+        // provider, and the delete guard counts through exactly that relation,
+        // so it called every provider unused and let them be deleted.
+        providerId: str('providerId') || undefined,
+        provider: providerList.find((pr: any) => pr.id === str('providerId'))?.name,
         trackingRef: str('trackingRef') || undefined,
         departedOn: str('departedOn') || undefined,
         arrivedOn: str('arrivedOn') || undefined,
@@ -831,6 +837,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // ---------------------------------------------------------------------------
 
   const supplierList: any[] = Array.isArray(suppliers) ? suppliers : [];
+  const providerList: any[] = Array.isArray(providers) ? providers : [];
   const productList: any[] = Array.isArray(products) ? products : [];
   const poItems: any[] = poDetail?.items ?? [];
 
@@ -1282,12 +1289,18 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         {t('shippingProvider')} <span className="text-red-500">*</span>
                       </label>
                       <Select
-                        name={`${prefix}provider`}
+                        name={`${prefix}providerId`}
                         required
-                        defaultValue={existing?.provider ?? ''}
+                        // An existing leg may only know the provider's name —
+                        // every leg made before this carried nothing else.
+                        defaultValue={
+                          existing?.providerId ??
+                          providerList.find((pr: any) => pr.name === existing?.provider)?.id ??
+                          ''
+                        }
                         placeholder={t('selectShippingProvider')}
-                        options={(Array.isArray(providers) ? providers : []).map((pr: any) => ({
-                          value: pr.name,
+                        options={providerList.map((pr: any) => ({
+                          value: pr.id,
                           label: pr.name,
                           hint: pr.contactPerson ?? undefined,
                         }))}

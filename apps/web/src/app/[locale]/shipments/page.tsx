@@ -24,6 +24,8 @@ interface Shipment {
   origin: string;
   destination: string;
   provider: string;
+  /** Null on every leg made before the pickers carried the id. */
+  providerId?: string | null;
   trackingRef?: string;
   status: string;
   departedOn?: string;
@@ -114,6 +116,22 @@ export default function ShipmentsPage() {
   const shipmentList: Shipment[] = Array.isArray(shipments) ? shipments : [];
   const cycleList: any[] = Array.isArray(cycles) ? cycles : [];
   const providerList: any[] = Array.isArray(providersData) ? providersData : [];
+
+  /**
+   * A chosen provider, as both the link and the label.
+   *
+   * The pickers used to carry the provider's NAME, so `provider_id` was null on
+   * every leg the UI created: a provider's shipments could not be found from
+   * the provider, and the delete guard — which counts through that relation —
+   * reported every provider as unused however many legs were riding on it.
+   *
+   * The leg keeps the name too. It is what the tables render, and it has to
+   * survive the provider record being renamed or removed.
+   */
+  const providerFields = (id: FormDataEntryValue | null) => {
+    const found = providerList.find((p: any) => p.id === id);
+    return { providerId: found?.id, provider: found?.name };
+  };
 
   const filtered = shipmentList.filter((s) => {
     if (!search) return true;
@@ -283,7 +301,7 @@ export default function ShipmentsPage() {
                 sequence: Number(fd.get('sequence')),
                 origin: fd.get('origin'),
                 destination: fd.get('destination'),
-                provider: fd.get('provider'),
+                ...providerFields(fd.get('providerId')),
                 trackingRef: fd.get('trackingRef'),
                 ...readShippingCostFields(fd),
               });
@@ -319,12 +337,12 @@ export default function ShipmentsPage() {
                   {t('provider')}<span className="text-red-500 ms-1">*</span>
                 </label>
                 <Select
-                  name="provider"
+                  name="providerId"
                   required
                   placeholder={t('provider')}
                   searchPlaceholder={tc('search')}
                   options={providerList.map((p: any) => ({
-                    value: p.name,
+                    value: p.id,
                     label: p.name,
                     hint: p.contactPerson ?? undefined,
                   }))}
@@ -358,7 +376,7 @@ export default function ShipmentsPage() {
                 status: fd.get('status'),
                 departedOn: fd.get('departedOn') || null,
                 arrivedOn: fd.get('arrivedOn') || null,
-                provider: fd.get('provider'),
+                ...providerFields(fd.get('providerId')),
                 trackingRef: fd.get('trackingRef'),
                 ...readShippingCostFields(fd),
               });
@@ -387,12 +405,16 @@ export default function ShipmentsPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('provider')}</label>
                 <Select
-                  name="provider"
-                  defaultValue={editingShipment.provider}
+                  name="providerId"
+                  defaultValue={
+                    editingShipment.providerId ??
+                    providerList.find((p: any) => p.name === editingShipment.provider)?.id ??
+                    ''
+                  }
                   placeholder={t('provider')}
                   searchPlaceholder={tc('search')}
                   options={providerList.map((p: any) => ({
-                    value: p.name,
+                    value: p.id,
                     label: p.name,
                     hint: p.contactPerson ?? undefined,
                   }))}
