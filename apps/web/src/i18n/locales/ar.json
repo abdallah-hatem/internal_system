@@ -417,7 +417,9 @@
     "cycleHistory": "الدورات",
     "atRiskHint": "رأس مال في دورات لم ينتهِ بيعها",
     "totalsTitle": "إجمالي الشركاء",
-    "cycleCount": "{count, plural, =0 {لا دورات} one {دورة واحدة} two {دورتان} few {# دورات} other {# دورة}}"
+    "cycleCount": "{count, plural, =0 {لا دورات} one {دورة واحدة} two {دورتان} few {# دورات} other {# دورة}}",
+    "accrued": "أرباح حتى الآن",
+    "accruedHint": "أرباح ما تم بيعه في الدورات المفتوحة — لم تُصرف بعد وقابلة للتغيّر"
   },
   "analytics": {
     "title": "التحليلات والتقارير",

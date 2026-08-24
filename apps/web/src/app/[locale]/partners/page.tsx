@@ -6,7 +6,7 @@ import { api } from '../../../lib/api';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Search, Loader2, Route, TrendingUp, Wallet, Clock } from 'lucide-react';
+import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PartnerCycle {
@@ -15,6 +15,7 @@ interface PartnerCycle {
   status: string;
   contributionEgp: number;
   profitShareEgp: number;
+  accruedProfitEgp: number;
 }
 
 interface Participation {
@@ -28,6 +29,7 @@ interface Participation {
   contributedEgp: number;
   returnedEgp: number;
   profitShareEgp: number;
+  accruedProfitEgp: number;
   atRiskEgp: number;
   cycles: PartnerCycle[];
 }
@@ -81,9 +83,10 @@ export default function PartnersPage() {
     (acc, p) => ({
       contributed: acc.contributed + p.contributedEgp,
       profit: acc.profit + p.profitShareEgp,
+      accrued: acc.accrued + p.accruedProfitEgp,
       atRisk: acc.atRisk + p.atRiskEgp,
     }),
-    { contributed: 0, profit: 0, atRisk: 0 },
+    { contributed: 0, profit: 0, accrued: 0, atRisk: 0 },
   );
 
   // ── Render ────────────────────────────────────────────────────────
@@ -116,9 +119,16 @@ export default function PartnersPage() {
               is worth stating once rather than making it a mental sum of the
               cards below. */}
           {corePartners.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <Total label={t('capitalIn')} value={egp(totals.contributed)} icon={Wallet} tone="text-emerald-600" />
               <Total label={t('profitEarned')} value={egp(totals.profit)} icon={TrendingUp} tone="text-blue-600" />
+              <Total
+                label={t('accrued')}
+                value={egp(totals.accrued)}
+                icon={Hourglass}
+                tone={totals.accrued > 0 ? 'text-violet-600' : 'text-gray-400'}
+                hint={t('accruedHint')}
+              />
               <Total
                 label={t('atRisk')}
                 value={egp(totals.atRisk)}
@@ -223,9 +233,18 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
 
       {/* Money. Put in, earned, and what has not come back yet — the third is
           the one that says whether they are exposed right now. */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {/* Put in, banked, still only on paper, and not yet back. The third is
+          separated from the second on purpose: money the cycle has made is not
+          money anyone has been paid, and it can still fall if the rest of the
+          stock sells badly. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <Figure label={t('capitalIn')} value={egp(person.contributedEgp)} tone="text-gray-900" />
         <Figure label={t('profitEarned')} value={egp(person.profitShareEgp)} tone="text-blue-600" />
+        <Figure
+          label={t('accrued')}
+          value={egp(person.accruedProfitEgp)}
+          tone={person.accruedProfitEgp > 0 ? 'text-violet-600' : 'text-gray-400'}
+        />
         <Figure
           label={t('atRisk')}
           value={egp(person.atRiskEgp)}
@@ -261,6 +280,9 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
                   {egp(c.contributionEgp)}
                   {c.profitShareEgp > 0 && (
                     <span className="text-blue-600"> → +{egp(c.profitShareEgp)}</span>
+                  )}
+                  {c.profitShareEgp === 0 && c.accruedProfitEgp !== 0 && (
+                    <span className="text-violet-600"> → ~{egp(c.accruedProfitEgp)}</span>
                   )}
                 </span>
               </li>

@@ -33,6 +33,16 @@ export class SettlementsController {
     return this.settlementsService.findAll(query);
   }
 
+  // Declared before ':id' — Nest matches in order, so the other way round
+  // "preview" is read as a settlement id and 404s.
+  @Get('preview/:cycleId')
+  @ApiOperation({
+    summary: "A cycle's profit as it stands, and how it would split, without writing anything",
+  })
+  preview(@Param('cycleId') cycleId: string) {
+    return this.settlementsService.preview(cycleId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a settlement by ID' })
   findOne(@Param('id') id: string) {

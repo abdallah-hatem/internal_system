@@ -119,7 +119,7 @@ export function ShippingCostFields({
             <MoneyInput
               required
               {...{ name: n('ratePerUnit') }} value={rate} onChange={setRate}
-              placeholder="0.00" className={`${input} text-end`}
+              placeholder="0.00" className={`${input} text-start`}
             />
           </div>
           <div>
@@ -162,7 +162,7 @@ export function ShippingCostFields({
             <MoneyInput
               required
               {...{ name: n('ratePerUnit') }} value={rate} onChange={setRate}
-              placeholder="0.00" className={`${input} text-end`}
+              placeholder="0.00" className={`${input} text-start`}
             />
           </div>
           <div>
@@ -186,7 +186,7 @@ export function ShippingCostFields({
           <MoneyInput
             required
             {...{ name: n('amount') }} value={amount} onChange={setAmount}
-            placeholder="0.00" className={`${input} text-end`}
+            placeholder="0.00" className={`${input} text-start`}
           />
         </div>
       )}

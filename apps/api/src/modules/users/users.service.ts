@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { SettlementsService } from '../settlements/settlements.service';
 import * as bcrypt from 'bcrypt';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 import { conflict, notFound } from '../../common/api-error';
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private settlements: SettlementsService,
+  ) {}
 
   async findAll(pagination: PaginationDto & { role?: string; status?: string }) {
     const { cursor, limit: rawLimit = 20, role, status } = pagination;
@@ -95,13 +99,52 @@ export class UsersService {
 
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
+    /**
+     * What an open cycle has earned so far, split the way it will be settled.
+     *
+     * Without this a partner on a cycle that is actively selling saw nothing at
+     * all: capital in, profit zero, until the day it settles. Money had clearly
+     * been made and none of it was visible to the people who funded it.
+     *
+     * This is NOT revenue. A partner does not earn revenue — the cycle does,
+     * and most of it repays the goods. Showing collected revenue per partner
+     * would overstate what they are owed by roughly the cost of the stock.
+     *
+     * It runs the settlement's own projection, so the number converges on the
+     * real one instead of contradicting it, and it stays separate from profit
+     * actually paid: this can still fall if the rest of the stock sells badly.
+     */
+    const openCycleIds = [
+      ...new Set(
+        users.flatMap((u) =>
+          [...u.cyclePartnerEntries, ...u.cycleInvestorEntries]
+            .filter((e) => e.cycle.status !== 'CLOSED')
+            .map((e) => e.cycle.id),
+        ),
+      ),
+    ];
+    const accrued = new Map<string, Prisma.Decimal>();
+    for (const cycleId of openCycleIds) {
+      const projected = await this.settlements.project(cycleId).catch(() => null);
+      if (!projected) continue;
+      for (const line of projected.distribution.lines) {
+        // netProfit, not grossProfit: an investor's fee has already moved to
+        // the partners, so gross would count that money on both sides.
+        accrued.set(line.participantId, line.netProfit.add(line.feeReceived));
+      }
+    }
+
     const data = users.map(({ passwordHash, ...user }) => {
-      const entries =
-        user.role === 'TEMP_INVESTOR' ? user.cycleInvestorEntries : user.cyclePartnerEntries;
+      // Both lists, not the one matching their role. A core partner can also
+      // put money into a cycle as an investor — the demo data does exactly
+      // that — and picking by role dropped that participation entirely: the
+      // cycle was missing from their list and its capital from their totals.
+      const entries = [...user.cyclePartnerEntries, ...user.cycleInvestorEntries];
 
       let contributed = new Prisma.Decimal(0);
       let returned = new Prisma.Decimal(0);
       let profitShare = new Prisma.Decimal(0);
+      let accruedProfit = new Prisma.Decimal(0);
 
       for (const entry of entries) {
         contributed = contributed.add(entry.contributionAmount);
@@ -109,6 +152,11 @@ export class UsersService {
         if (settled) {
           returned = returned.add(settled.returned);
           profitShare = profitShare.add(settled.profit);
+        }
+        // Only while the cycle is open. Once it closes the settled figure is
+        // the truth and a projection alongside it would just disagree.
+        if (entry.cycle.status !== 'CLOSED') {
+          accruedProfit = accruedProfit.add(accrued.get(entry.id) ?? 0);
         }
       }
 
@@ -123,6 +171,7 @@ export class UsersService {
         contributedEgp: money(contributed),
         returnedEgp: money(returned),
         profitShareEgp: money(profitShare),
+        accruedProfitEgp: money(accruedProfit),
         atRiskEgp: money(contributed.sub(returned)),
         cycles: entries
           .map((e) => ({
@@ -131,6 +180,10 @@ export class UsersService {
             status: e.cycle.status,
             contributionEgp: money(new Prisma.Decimal(e.contributionAmount)),
             profitShareEgp: money(byParticipant.get(e.id)?.profit ?? new Prisma.Decimal(0)),
+            accruedProfitEgp:
+              e.cycle.status === 'CLOSED'
+                ? 0
+                : money(new Prisma.Decimal(accrued.get(e.id) ?? 0)),
           }))
           .sort((a, b) => b.code.localeCompare(a.code)),
       };

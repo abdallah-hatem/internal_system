@@ -1203,7 +1203,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           value={item.unitPrice || ''}
                           onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
                           required
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
 
@@ -1216,7 +1216,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           placeholder="0.00"
                           value={item.discount || ''}
                           onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
 
@@ -1524,7 +1524,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           onChange={(raw) =>
                             updateReceiveItem(idx, 'landedUnitCostEgp', Number(raw))
                           }
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                     </div>

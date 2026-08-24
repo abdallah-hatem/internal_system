@@ -417,7 +417,9 @@
     "cycleHistory": "Cycles",
     "atRiskHint": "Capital in cycles that have not finished selling",
     "totalsTitle": "Across all partners",
-    "cycleCount": "{count, plural, =0 {no cycles} one {# cycle} other {# cycles}}"
+    "cycleCount": "{count, plural, =0 {no cycles} one {# cycle} other {# cycles}}",
+    "accrued": "Earned so far",
+    "accruedHint": "Profit on what has sold in open cycles — not yet paid out, and still able to move"
   },
   "analytics": {
     "title": "Analytics & Reports",

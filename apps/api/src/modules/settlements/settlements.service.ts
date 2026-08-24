@@ -24,8 +24,14 @@ const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const
  * of one. Treating a payout as an expense re-charges the cycle for its own
  * profit: a settled cycle recalculated afterwards turned an 11,620 profit into
  * a 100,871 loss, and every later settlement would inherit the error.
+ *
+ * `contribution` is capital moving between the partners and the cycle, in
+ * either direction. Lowering someone's contribution posts an outflow — capital
+ * handed back — and without this that outflow was read as an operating expense
+ * and came straight off the cycle's profit. The partners would have paid for
+ * their own money being returned.
  */
-const CAPITALISED_CATEGORIES = ['purchase', 'shipping', 'settlement'];
+const CAPITALISED_CATEGORIES = ['purchase', 'shipping', 'settlement', 'contribution'];
 
 /**
  * Money recovered from a supplier. It does not re-price batches already costed
@@ -163,6 +169,170 @@ export class SettlementsService {
     });
     if (!settlement) throw notFound('settlement');
     return { data: settlement };
+  }
+
+  /**
+   * The cycle's profit as it stands, and how it would split today.
+   *
+   * Exactly the arithmetic `calculate` uses, lifted out so a cycle still
+   * selling can be asked what it has earned so far without writing a
+   * settlement. A projection that used its own maths would drift from the
+   * settlement it is meant to predict, which is worse than not showing one.
+   *
+   * Nothing here writes, and it deliberately does not check for a locked
+   * settlement — asking is not recalculating.
+   */
+  async project(cycleId: string) {
+    const participants = await this.prisma.cycleParticipant.findMany({
+      where: { cycleId },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (participants.length === 0) return null;
+
+    // --- Revenue and COGS from this cycle's batches ------------------------
+    const allocations = await this.prisma.saleItemAllocation.findMany({
+      where: {
+        inventoryBatch: { cycleId },
+        saleItem: {
+          saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } },
+        },
+      },
+      include: { saleItem: true },
+    });
+
+    const allocationInputs = allocations.map((a) => {
+      const qty = new Prisma.Decimal(a.qty);
+      const itemQty = new Prisma.Decimal(a.saleItem.quantity);
+      // Use the line total so a line-level discount is reflected in revenue.
+      const unitPrice = itemQty.gt(0)
+        ? new Prisma.Decimal(a.saleItem.lineTotal).div(itemQty)
+        : new Prisma.Decimal(0);
+      return { qty, unitPrice, cogs: new Prisma.Decimal(a.cogsEgp) };
+    });
+
+    // Goods that came back. Netted as negative allocations rather than by
+    // editing the sale, so history survives (BRD 9) and the arithmetic stays
+    // in one place.
+    //
+    // A damaged return reverses the revenue but reverses no cost, because the
+    // stock never went back on the shelf: cogsReversedEgp is zero for those,
+    // and the cost stays spent as a write-off.
+    const returnItems = await this.prisma.saleReturnItem.findMany({
+      where: {
+        inventoryBatch: { cycleId },
+        // Must match the allocation filter above: a fully returned order is no
+        // longer realised, so its revenue is already excluded and netting its
+        // return too would subtract the same money twice.
+        saleItem: { saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } } },
+      },
+      select: { qty: true, unitPrice: true, cogsReversedEgp: true },
+    });
+
+    for (const r of returnItems) {
+      allocationInputs.push({
+        qty: new Prisma.Decimal(r.qty).neg(),
+        unitPrice: new Prisma.Decimal(r.unitPrice),
+        cogs: new Prisma.Decimal(r.cogsReversedEgp).neg(),
+      });
+    }
+
+    // --- Stock still on the shelf -----------------------------------------
+    const batches = await this.prisma.inventoryBatch.findMany({
+      where: { cycleId },
+      select: { remainingQty: true, landedUnitCostEgp: true },
+    });
+    const unitsRemaining = batches.reduce(
+      (s, b) => s.add(b.remainingQty),
+      new Prisma.Decimal(0),
+    );
+    const unsoldValue = batches.reduce(
+      (s, b) => s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
+      new Prisma.Decimal(0),
+    );
+
+    // --- Expenses not already inside landed cost ---------------------------
+    const expenseTxns = await this.prisma.financialTransaction.findMany({
+      where: {
+        cycleId,
+        direction: 'OUTFLOW',
+        category: { notIn: CAPITALISED_CATEGORIES },
+      },
+      select: { amount: true },
+    });
+    // Money recovered from suppliers reduces what the cycle cost. It is netted
+    // here rather than by re-pricing batches: units already sold keep the cost
+    // they were sold at, and a settlement may already have been agreed on it.
+    const recoveryTxns = await this.prisma.financialTransaction.findMany({
+      where: {
+        cycleId,
+        direction: 'INFLOW',
+        category: { in: COST_RECOVERY_CATEGORIES },
+      },
+      select: { amount: true },
+    });
+
+    const expenses = expenseTxns
+      .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
+      .sub(recoveryTxns.reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0)));
+
+    const pnl = summarizeCyclePnl({
+      allocations: allocationInputs,
+      expenses,
+      unsoldValue,
+      unitsRemaining,
+    });
+
+    // --- Distribute -------------------------------------------------------
+    const participantInputs: ParticipantInput[] = participants.map((p) => ({
+      id: p.id,
+      type: p.participantType === 'TEMP_INVESTOR' ? 'TEMP_INVESTOR' : 'CORE_PARTNER',
+      contribution: new Prisma.Decimal(p.contributionAmount),
+      customProfitPct: p.customProfitPct ? new Prisma.Decimal(p.customProfitPct) : null,
+      investorFeePct: p.investorFeePct ? new Prisma.Decimal(p.investorFeePct) : null,
+    }));
+
+    const distribution = distributeCycleProfit(participantInputs, pnl.grossProfit);
+    return { pnl, distribution, participants };
+  }
+
+  /**
+   * What `calculate` would produce, without producing it.
+   *
+   * Lets a cycle still selling be asked what it has earned so far — which the
+   * partners page needs, and which anyone about to settle wants to see before
+   * they commit to it.
+   */
+  async preview(cycleId: string) {
+    const cycle = await this.prisma.importCycle.findUnique({ where: { id: cycleId } });
+    if (!cycle) throw notFound('cycle');
+
+    const projected = await this.project(cycleId);
+    if (!projected) {
+      throw badRequest('CYCLE_NO_PARTICIPANTS', 'No participants found for this cycle');
+    }
+
+    return {
+      data: {
+        cycleId,
+        cycleCode: cycle.code,
+        status: cycle.status,
+        revenueEgp: projected.pnl.revenue.toFixed(2),
+        cogsEgp: projected.pnl.cogs.toFixed(2),
+        expensesEgp: projected.pnl.expenses.toFixed(2),
+        grossProfitEgp: projected.pnl.grossProfit.toFixed(2),
+        unsoldValueEgp: projected.pnl.unsoldValue.toFixed(2),
+        fullySold: projected.pnl.fullySold,
+        lines: projected.distribution.lines.map((l) => ({
+          participantId: l.participantId,
+          type: l.type,
+          sharePct: l.sharePct.toFixed(4),
+          netProfitEgp: l.netProfit.toFixed(2),
+          feeReceivedEgp: l.feeReceived.toFixed(2),
+          capitalReturnEgp: l.capitalReturn.toFixed(2),
+          payoutEgp: l.payout.toFixed(2),
+        })),
+      },
+    };
   }
 
   /**
