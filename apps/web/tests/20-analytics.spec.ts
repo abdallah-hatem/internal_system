@@ -79,7 +79,12 @@ test.describe('Analytics figures', () => {
     expect(cycles.some((c: any) => c.status !== 'CLOSED')).toBeTruthy();
 
     for (const c of cycles) {
-      expect(Number(c.profit)).toBeCloseTo(Number(c.totalRevenue) - Number(c.totalCost), 2);
+      // Profit is revenue less the cost of what sold, plus anything a supplier
+      // gave back — a refund recovers cost without re-pricing any batch.
+      expect(Number(c.profit)).toBeCloseTo(
+        Number(c.totalRevenue) - Number(c.totalCost) + Number(c.supplierRefundsEgp ?? 0),
+        2,
+      );
     }
   });
 

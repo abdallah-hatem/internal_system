@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
+import { badRequest, notFound } from '../../common/api-error';
 @Injectable()
 export class SuppliersService {
   constructor(
@@ -26,7 +27,13 @@ export class SuppliersService {
       take: limit + 1,
       cursor: cursor ? { id: cursor } : undefined,
       orderBy: { name: 'asc' },
-      include: { products: true },
+      // The list is what the suppliers page renders, and it needs to know what
+      // points at each row: how many orders were bought from it, and whether
+      // deleting it is even possible.
+      include: {
+        products: true,
+        _count: { select: { purchaseOrders: true, products: true } },
+      },
     });
 
     const hasMore = items.length > limit;
@@ -48,7 +55,7 @@ export class SuppliersService {
         purchaseOrders: true,
       },
     });
-    if (!supplier) throw new NotFoundException('Supplier not found');
+    if (!supplier) throw notFound('supplier');
     return { data: supplier };
   }
 
@@ -92,7 +99,7 @@ export class SuppliersService {
     actorId: string,
   ) {
     const existing = await this.prisma.supplier.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Supplier not found');
+    if (!existing) throw notFound('supplier');
 
     const updated = await this.prisma.supplier.update({
       where: { id },
@@ -114,5 +121,49 @@ export class SuppliersService {
     });
 
     return { data: updated };
+  }
+
+  /**
+   * Delete a supplier that nothing points at.
+   *
+   * A supplier with purchase orders is part of the cycle's cost history — the
+   * landed cost of stock still on the shelf traces back through it — so it is
+   * kept and the delete refused. This exists for the one created by mistake.
+   */
+  async remove(id: string, actorId: string) {
+    const existing = await this.prisma.supplier.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { purchaseOrders: true, products: true } },
+      },
+    });
+    if (!existing) throw notFound('supplier');
+
+    if (existing._count.purchaseOrders > 0) {
+      throw badRequest(
+        'SUPPLIER_HAS_ORDERS',
+        `Cannot delete supplier: ${existing._count.purchaseOrders} purchase order(s) were bought from it`,
+        { count: existing._count.purchaseOrders },
+      );
+    }
+    if (existing._count.products > 0) {
+      throw badRequest(
+        'SUPPLIER_HAS_PRODUCTS',
+        `Cannot delete supplier: ${existing._count.products} product(s) are linked to it`,
+        { count: existing._count.products },
+      );
+    }
+
+    await this.prisma.supplier.delete({ where: { id } });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'DELETE',
+      entityType: 'Supplier',
+      entityId: id,
+      beforeJson: existing,
+    });
+
+    return { data: { deleted: true } };
   }
 }

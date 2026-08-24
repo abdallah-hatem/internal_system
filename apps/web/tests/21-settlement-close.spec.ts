@@ -45,7 +45,7 @@ test.describe('Settlement close', () => {
     expect(JSON.stringify(await paid.json())).toMatch(/still holds|remaining/i);
 
     await request.post(`${API}/settlements/${settlement.id}/reverse`, {
-      headers: h, data: { reason: 'test cleanup' },
+      headers: h, data: { reason: 'Reopened for a costing correction' },
     });
   });
 
@@ -82,7 +82,7 @@ test.describe('Settlement close', () => {
     expect(totalPaid).toBeCloseTo(capital + Number(settlement.grossProfitEgp), 2);
 
     await request.post(`${API}/settlements/${settlement.id}/reverse`, {
-      headers: h, data: { reason: 'test cleanup' },
+      headers: h, data: { reason: 'Reopened for a costing correction' },
     });
   });
 

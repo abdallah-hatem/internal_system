@@ -203,3 +203,93 @@ test.describe('Settlements', () => {
     expect(Math.abs(received - fee)).toBeLessThan(0.02);
   });
 });
+
+test.describe('Settlement actions from the page', () => {
+  /** Approve a settlement for a cycle that has sales, so Mark paid is on screen. */
+  async function approvedSettlement(request: any, h: any) {
+    const profitability = (await (
+      await request.get(`${API}/analytics/cycle-profitability`, { headers: h })
+    ).json()).data;
+    const target = profitability.find(
+      (c: any) => c.status !== 'CLOSED' && Number(c.totalRevenue) > 0,
+    );
+    if (!target) return null;
+
+    const cycles = (await (await request.get(`${API}/cycles?limit=200`, { headers: h })).json()).data;
+    const cycle = cycles.find((c: any) => c.code === target.cycleCode);
+    if (!cycle) return null;
+
+    const settlement = (await (
+      await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h })
+    ).json()).data;
+    await request.post(`${API}/settlements/${settlement.id}/approve`, { headers: h });
+    return settlement;
+  }
+
+  test('TC-SET-15: Mark paid sends the body /pay accepts', async ({ page, request }) => {
+    const h = { Authorization: `Bearer ${await token(request)}` };
+    const settlement = await approvedSettlement(request, h);
+    test.skip(!settlement, 'no open cycle with sales to settle');
+
+    await login(page);
+    await page.goto(`${BASE}/en/settlements`);
+
+    const payButton = page.getByRole('button', { name: /mark paid/i }).first();
+    await expect(payButton).toBeVisible({ timeout: 15000 });
+
+    const call = page.waitForResponse((r) => r.url().includes('/pay') && r.request().method() === 'POST');
+    await payButton.click();
+    const response = await call;
+
+    // One mutation used to serve approve, pay and reverse alike, posting
+    // `{ reason }` to all three. /pay whitelists only acceptRemainingStock, so
+    // every Mark paid died on "property reason should not exist".
+    const sent = JSON.parse(response.request().postData() || '{}');
+    expect(sent.reason).toBeUndefined();
+    expect(JSON.stringify(await response.json())).not.toMatch(/should not exist/i);
+
+    // It either paid, or it asked about stock still on the shelf — never a
+    // dead-end validation error.
+    await expect(
+      page.getByText(/Settlement paid/i).or(page.getByRole('button', { name: /close anyway/i })).first(),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Amounts the API writes into a message are read by people too: they carry
+    // thousands separators like every amount the UI renders itself.
+    const body = await page.textContent('body');
+    expect(body).not.toMatch(/\b\d{5,}\.\d{2}\s*EGP/);
+
+    // Leave the cycle as it was found.
+    await request.post(`${API}/settlements/${settlement!.id}/reverse`, {
+      headers: h, data: { reason: 'Reopened after a settlement check' },
+    });
+  });
+
+  test('TC-SET-16: reversing asks for a reason instead of inventing one', async ({ page, request }) => {
+    const h = { Authorization: `Bearer ${await token(request)}` };
+    const settlement = await approvedSettlement(request, h);
+    test.skip(!settlement, 'no open cycle with sales to settle');
+
+    await login(page);
+    await page.goto(`${BASE}/en/settlements`);
+
+    const reverseButton = page.getByRole('button', { name: /^reverse$/i }).first();
+    await expect(reverseButton).toBeVisible({ timeout: 15000 });
+    await reverseButton.click();
+
+    // The reason lands on the balancing ledger entries and in the audit log, so
+    // it has to come from the person reversing — it used to be hardcoded.
+    const reason = page.getByLabel(/why is this being reversed/i);
+    await expect(reason).toBeVisible();
+    await reason.fill('Reopened after a settlement check');
+
+    const call = page.waitForResponse((r) => r.url().includes('/reverse') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: /^reverse$/i }).last().click();
+    const response = await call;
+
+    expect(JSON.parse(response.request().postData() || '{}').reason).toBe(
+      'Reopened after a settlement check',
+    );
+    expect(response.status()).toBeLessThan(400);
+  });
+});

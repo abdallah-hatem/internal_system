@@ -38,11 +38,7 @@ test.describe('Customer returns', () => {
     test.skip(!found, 'no confirmed order with allocations');
     const { order, line } = found!;
 
-    const batchId = line.allocations[0].inventoryBatchId;
     const before = (await (await request.get(`${API}/inventory?limit=100`, { headers: h })).json()).data;
-    const batchBefore = before
-      .flatMap((p: any) => p.batches ?? [])
-      .find((b: any) => b.id === batchId);
 
     const res = await request.post(`${API}/returns`, {
       headers: h,
@@ -57,14 +53,22 @@ test.describe('Customer returns', () => {
 
     // The batch matters: the same product sits in several batches at
     // different landed costs, so restocking "the product" would re-price it.
-    expect(ret.items[0].inventoryBatchId).toBe(batchId);
-    expect(Number(ret.items[0].unitCostEgp)).toBeCloseTo(
-      Number(line.allocations[0].unitCostEgp), 4,
+    //
+    // Units come back from the most recently allocated batch first — the last
+    // to leave are the ones handed back — so on a line spanning two batches
+    // this is not necessarily allocations[0]. Assert it is one of the batches
+    // the line was actually sold from, at that batch's own cost.
+    const soldFrom = new Map<string, number>(
+      line.allocations.map((a: any) => [a.inventoryBatchId, Number(a.unitCostEgp)]),
     );
+    const used = ret.items[0].inventoryBatchId;
+    expect([...soldFrom.keys()]).toContain(used);
+    expect(Number(ret.items[0].unitCostEgp)).toBeCloseTo(soldFrom.get(used)!, 4);
 
+    const batchBefore = before.flatMap((p: any) => p.batches ?? []).find((b: any) => b.id === used);
     if (batchBefore) {
       const after = (await (await request.get(`${API}/inventory?limit=100`, { headers: h })).json()).data;
-      const batchAfter = after.flatMap((p: any) => p.batches ?? []).find((b: any) => b.id === batchId);
+      const batchAfter = after.flatMap((p: any) => p.batches ?? []).find((b: any) => b.id === used);
       expect(Number(batchAfter.remainingQty)).toBeCloseTo(Number(batchBefore.remainingQty) + 1, 3);
     }
   });

@@ -22,7 +22,7 @@ async function manualEntry(request: any, h: any, amount = 500) {
     headers: h,
     data: {
       type: 'EXPENSE', category: 'other', direction: 'OUTFLOW',
-      amount, currency: 'EGP', reason: 'test entry',
+      amount, currency: 'EGP', reason: 'Warehouse electricity bill',
     },
   });
   return (await res.json()).data;

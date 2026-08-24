@@ -10,6 +10,8 @@ const BASE = 'http://localhost:3000';
 const API = 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
+/** Seeded in prisma/seed.ts — the audit test updates this one rather than creating rows. */
+const SEEDED_PROVIDER = 'Gulf Freight';
 
 async function login(page: any) {
   await page.goto(`${BASE}/en/login`);
@@ -63,13 +65,27 @@ test.describe('Audit Logs Flow', () => {
     // The seed writes through Prisma directly, so a fresh database has no audit
     // entries. Perform one auditable action first rather than depending on
     // whatever happens to be left over from earlier runs.
+    //
+    // Touch a seeded provider instead of creating one. Creating left a new
+    // "Audit probe <timestamp>" row behind on every run, and those piled up in
+    // the providers list for anyone actually using the app. An update is just
+    // as auditable and leaves the data as it found it.
     const auth = await request.post(`${API}/auth/login`, {
       data: { email: EMAIL, password: PASSWORD },
     });
     const token = (await auth.json()).data.accessToken;
-    await request.post(`${API}/providers`, {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { name: `Audit probe ${Date.now()}` },
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const list = await request.get(`${API}/providers`, { headers });
+    const provider = (await list.json()).data.find(
+      (p: { name: string }) => p.name === SEEDED_PROVIDER,
+    );
+    expect(provider, `seeded provider "${SEEDED_PROVIDER}" is missing — reseed the database`).toBeTruthy();
+
+    // Same values every run, so the row never actually drifts.
+    await request.put(`${API}/providers/${provider.id}`, {
+      headers,
+      data: { name: provider.name, notes: 'Audit trail check' },
     });
 
     await login(page);

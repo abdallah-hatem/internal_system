@@ -7,8 +7,19 @@
 import { test, expect } from '@playwright/test';
 
 const BASE = 'http://localhost:3000';
+const API = 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
+
+/** Choose from one of the wizard's Selects by its hidden input's name. */
+async function pick(page: any, name: string, label: string) {
+  await page
+    .locator(`input[type="hidden"][name="${name}"]`)
+    .locator('..')
+    .getByRole('combobox')
+    .click();
+  await page.getByRole('listbox').getByRole('option').filter({ hasText: label }).first().click();
+}
 
 // Login helper
 async function login(page: any) {
@@ -74,6 +85,37 @@ test.describe('Import Cycles Flow', () => {
       await createBtn.click();
       await page.waitForTimeout(3000);
     }
+  });
+
+  test('TC-CYC-10: step 1 does not ask for a start date; the cycle is dated today', async ({ page, request }) => {
+    await login(page);
+    await page.goto(`${BASE}/en/cycles/new`);
+    await expect(page.getByRole('heading', { name: /cycle information/i })).toBeVisible({ timeout: 10000 });
+
+    // The field was optional and blank already meant today, so it only ever
+    // asked for a decision that did not matter.
+    await expect(page.getByText(/start date/i)).toHaveCount(0);
+
+    await pick(page, 'originType', 'UAE Direct');
+    await pick(page, 'currency', 'USD');
+    await page.getByRole('button', { name: /save & continue/i }).click();
+
+    // Reaching step 2 means the cycle was created without one.
+    await expect(page.locator('input[type="hidden"][name="supplierId"]')).toBeAttached({ timeout: 15000 });
+
+    const auth = await request.post(`${API}/auth/login`, {
+      data: { email: EMAIL, password: PASSWORD },
+    });
+    const h = { Authorization: `Bearer ${(await auth.json()).data.accessToken}` };
+    const cycles = (await (await request.get(`${API}/cycles?limit=200`, { headers: h })).json()).data;
+    const newest = cycles.reduce((a: any, b: any) =>
+      new Date(a.createdAt) > new Date(b.createdAt) ? a : b,
+    );
+
+    // startedOn is a DATE column filled from the server's clock, so it lands on
+    // the same UTC day the record was made.
+    expect(newest.startedOn).toBeTruthy();
+    expect(String(newest.startedOn).slice(0, 10)).toBe(new Date().toISOString().slice(0, 10));
   });
 
   test('TC-CYC-05: Cycles list shows status badges', async ({ page }) => {

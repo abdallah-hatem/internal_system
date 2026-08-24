@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -12,6 +13,9 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+
+/** Lists shorter than this are faster to scan than to search. */
+const SEARCH_THRESHOLD = 4;
 
 export interface SelectOption {
   value: string;
@@ -36,6 +40,10 @@ export interface SelectOption {
  *
  * A hidden input carries `name`, so forms reading values through FormData work
  * unchanged.
+ *
+ * The search box only appears once the list is long enough to need it
+ * (SEARCH_THRESHOLD). On three currencies a search field is noise, and it also
+ * steals the first keystroke from someone who just wants to arrow down.
  */
 export function Select({
   name,
@@ -70,9 +78,14 @@ export function Select({
   const [internal, setInternal] = useState(defaultValue ?? '');
   const selected = controlled ? value! : internal;
 
+  const t = useTranslations('common');
   const [open, setOpen] = useState(false);
+  const [invalid, setInvalid] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const commandRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>();
+
+  const showSearch = options.length >= SEARCH_THRESHOLD;
 
   const selectedOption = useMemo(
     () => options.find((o) => o.value === selected),
@@ -88,6 +101,7 @@ export function Select({
   const commit = (v: string) => {
     if (!controlled) setInternal(v);
     onChange?.(v);
+    setInvalid(false);
     setOpen(false);
   };
 
@@ -96,7 +110,13 @@ export function Select({
       <input type="hidden" name={name} value={selected} readOnly />
 
       {/* Mirrors required-ness for forms that call reportValidity(); a hidden
-          input cannot be focused, so it cannot carry `required` itself. */}
+          input cannot be focused, so it cannot carry `required` itself.
+
+          It has to fill the control rather than measure 0x0: on a zero-sized box
+          the browser blocks the submit, fails to focus the offending field, and
+          gives up silently — the form just stops responding with nothing shown.
+          Sized and overlaid, the native bubble lands on the control, and the
+          `invalid` event lets us show a message that outlives it. */}
       {required && !selected && (
         <input
           tabIndex={-1}
@@ -104,7 +124,8 @@ export function Select({
           required
           value=""
           onChange={() => {}}
-          className="pointer-events-none absolute bottom-0 h-0 w-0 opacity-0"
+          onInvalid={() => setInvalid(true)}
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
         />
       )}
 
@@ -124,6 +145,7 @@ export function Select({
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-ring',
               'disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground',
               open && 'border-ring ring-2 ring-ring/20',
+              invalid && !open && 'border-destructive ring-2 ring-destructive/20',
             )}
           >
             <span
@@ -161,8 +183,20 @@ export function Select({
           sideOffset={4}
           style={width ? { width } : undefined}
           className="p-0"
+          onOpenAutoFocus={
+            showSearch
+              ? undefined
+              : (e) => {
+                  // No search box means nothing inside is tabbable, so Radix would
+                  // leave focus on the panel and cmdk — which listens on its own
+                  // root — would never see the arrow keys.
+                  e.preventDefault();
+                  commandRef.current?.focus();
+                }
+          }
         >
           <Command
+            ref={commandRef}
             // Filter on the hint too, so an SKU or a cycle status finds its row.
             filter={(itemValue, search) => {
               const opt = options.find((o) => o.value === itemValue);
@@ -170,9 +204,9 @@ export function Select({
               return haystack.includes(search.toLowerCase()) ? 1 : 0;
             }}
           >
-            <CommandInput placeholder={searchPlaceholder} className="h-9" />
+            {showSearch && <CommandInput placeholder={searchPlaceholder} className="h-9" />}
             <CommandList>
-              <CommandEmpty>{emptyText}</CommandEmpty>
+              {showSearch && <CommandEmpty>{emptyText}</CommandEmpty>}
               <CommandGroup>
                 {options.map((opt) => (
                   <CommandItem
@@ -210,6 +244,12 @@ export function Select({
           </Command>
         </PopoverContent>
       </Popover>
+
+      {invalid && (
+        <p role="alert" data-slot="select-error" className="mt-1 text-xs text-destructive">
+          {t('required')}
+        </p>
+      )}
     </div>
   );
 }

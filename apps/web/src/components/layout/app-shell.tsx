@@ -12,6 +12,7 @@ import {
   BadgePercent, Users, CreditCard, BookOpen, BarChart3,
   Bell, ShieldCheck, Settings, Menu, X, ChevronDown,
   Globe, Tag, Scale, CalendarClock, Building2, Handshake,
+  Factory,
 } from 'lucide-react';
 
 /**
@@ -37,6 +38,7 @@ const navGroups = [
       { key: 'purchases', icon: ShoppingCart, href: '/purchases' },
       // Suppliers sit with purchases — they are who the goods are bought from,
       // as distinct from providers below, who move them.
+      { key: 'suppliers', icon: Factory, href: '/suppliers' },
       { key: 'shipments', icon: Truck, href: '/shipments' },
       // Providers are the shipping companies, so they belong beside the
       // shipments rather than with suppliers. A distinct icon from Shipments:

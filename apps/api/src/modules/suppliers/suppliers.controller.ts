@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -48,5 +49,13 @@ export class SuppliersController {
   @ApiOperation({ summary: 'Update a supplier (CORE_PARTNER only)' })
   update(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
     return this.suppliersService.update(id, body, user.id);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Delete an unused supplier (CORE_PARTNER only)' })
+  remove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.suppliersService.remove(id, user.id);
   }
 }
