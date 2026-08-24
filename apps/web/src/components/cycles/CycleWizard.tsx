@@ -198,6 +198,19 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     const draft = storedDraft;
     if (!draftIsWorthKeeping(draft) || !draft) return;
 
+    /**
+     * A draft outlives the records it points at.
+     *
+     * It survives a database reset, a cycle someone else deleted, and a switch
+     * between environments — and then restores ids for rows that no longer
+     * exist. The wizard came back on step 3 holding a leg id from the old
+     * database, and saving tried to UPDATE that leg: "Shipping leg not found",
+     * on a step the person had not touched yet and with no way to get past it.
+     *
+     * So the cycle is confirmed to still exist before any of it is applied.
+     * If it has gone, the draft is worthless — there is nothing to resume.
+     */
+    const apply = () => {
     setShowRestoredNotice(true);
     setCurrentStep(draft.currentStep);
     setMaxStepReached(draft.maxStepReached);
@@ -228,6 +241,29 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     if (draft.poId && draft.receiveItems.length > 0) {
       receiveInitRef.current = draft.poId;
     }
+    };
+
+    // Nothing saved server-side yet: there is nothing to go stale.
+    if (!draft.cycleId) {
+      apply();
+      return;
+    }
+
+    let cancelled = false;
+    api
+      .get(`/cycles/${draft.cycleId}`)
+      .then(() => {
+        if (!cancelled) apply();
+      })
+      .catch(() => {
+        // The cycle is gone. Drop the draft rather than restoring a wizard
+        // that cannot save anything.
+        if (!cancelled) forgetDraft();
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewWizard, draftHydrated, storedDraft]);
 
   // Keep the saved draft in step with the form.
@@ -616,11 +652,25 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         // `sequence` identifies the leg and is uniquely constrained, so an
         // update must not carry it — the endpoint rejects it outright.
         const { sequence: _seq, ...updatable } = body;
-        const res = existingId
-          ? await api.put(`/shipping/legs/${existingId}`, updatable)
-          : await api.post(`/cycles/${cycleId}/shipping-legs`, body);
 
-        if (existingId) updated = true;
+        // An id can outlive the leg — a restored draft, or someone deleting it
+        // in another tab. Falling back to creating is better than refusing to
+        // save: the person wanted this leg recorded, and it is not there.
+        let res;
+        let wasUpdate = Boolean(existingId);
+        if (existingId) {
+          try {
+            res = await api.put(`/shipping/legs/${existingId}`, updatable);
+          } catch (err: any) {
+            if (err?.response?.status !== 404) throw err;
+            wasUpdate = false;
+            res = await api.post(`/cycles/${cycleId}/shipping-legs`, body);
+          }
+        } else {
+          res = await api.post(`/cycles/${cycleId}/shipping-legs`, body);
+        }
+
+        if (wasUpdate) updated = true;
         const saved = res.data.data ?? res.data;
         savedIds[body.sequence] = saved.id ?? existingId;
         if (!firstId) firstId = saved.id ?? existingId;
