@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { usePathname } from '../../i18n/navigation';
+import { Link, usePathname } from '../../i18n/navigation';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
@@ -35,6 +35,8 @@ const navGroups = [
     items: [
       { key: 'cycles', icon: Route, href: '/cycles' },
       { key: 'purchases', icon: ShoppingCart, href: '/purchases' },
+      // Suppliers sit with purchases — they are who the goods are bought from,
+      // as distinct from providers below, who move them.
       { key: 'shipments', icon: Truck, href: '/shipments' },
       // Providers are the shipping companies, so they belong beside the
       // shipments rather than with suppliers. A distinct icon from Shipments:
@@ -91,21 +93,26 @@ function isActiveHref(pathname: string, href: string) {
 
 function NavLink({
   item,
-  locale,
   label,
   active,
   onNavigate,
 }: {
   item: { key: string; icon: React.ComponentType<{ className?: string }>; href: string };
-  locale: string;
   label: string;
   active: boolean;
   onNavigate: () => void;
 }) {
   const Icon = item.icon;
   return (
-    <a
-      href={`/${locale}${item.href}`}
+    // Link, not <a>. A plain anchor made every tab click a full document
+    // navigation: the bundle re-parsed, React remounted, and the query cache
+    // went with it — so every page refetched from scratch and the sidebar,
+    // being a new DOM node each time, lost its scroll position.
+    //
+    // This Link comes from the i18n navigation module and adds the locale
+    // itself, so the href must NOT carry it or it lands on /en/en/....
+    <Link
+      href={item.href}
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
       className={`
@@ -118,7 +125,7 @@ function NavLink({
     >
       <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${active ? '' : 'text-gray-400'}`} />
       <span>{label}</span>
-    </a>
+    </Link>
   );
 }
 
@@ -211,7 +218,6 @@ export function AppShell({
                   <NavLink
                     key={item.key}
                     item={item}
-                    locale={locale}
                     label={t(item.key as any)}
                     active={isActiveHref(pathname, item.href)}
                     onNavigate={() => setSidebarOpen(false)}
@@ -229,7 +235,6 @@ export function AppShell({
                 <NavLink
                   key={item.key}
                   item={item}
-                  locale={locale}
                   label={t(item.key as any)}
                   active={isActiveHref(pathname, item.href)}
                   onNavigate={() => setSidebarOpen(false)}
