@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 
+import { badRequest } from '../../common/api-error';
 /** The currency everything reports in; its rate is 1 by definition. */
 const BASE = 'EGP';
 
@@ -63,12 +64,14 @@ export class CurrencyRatesService {
     const upper = code.toUpperCase();
 
     if (upper === BASE && rateToEgp !== null && Number(rateToEgp) !== 1) {
-      throw new BadRequestException(
+      throw badRequest(
+        'BASE_CURRENCY_RATE_FIXED',
         `${BASE} is the base currency — its rate is 1 by definition and cannot be changed.`,
+        { currency: BASE },
       );
     }
     if (rateToEgp !== null && !(Number(rateToEgp) > 0)) {
-      throw new BadRequestException('A rate must be greater than zero.');
+      throw badRequest('RATE_NOT_POSITIVE', 'A rate must be greater than zero.');
     }
 
     const before = await this.prisma.currencyRate.findUnique({ where: { code: upper } });
@@ -104,7 +107,7 @@ export class CurrencyRatesService {
     const rate = await this.prisma.currencyRate.findUnique({
       where: { code: code.toUpperCase() },
     });
-    if (!rate) throw new NotFoundException(`No rate recorded for ${code.toUpperCase()}`);
+    if (!rate) throw badRequest('NO_RATE_RECORDED', `No rate recorded for ${code.toUpperCase()}`, { currency: code.toUpperCase() });
     return { data: rate };
   }
 }

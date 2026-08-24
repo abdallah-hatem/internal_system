@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { assertNotFuture } from '../../common/dates';
@@ -12,6 +8,7 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
 
+import { badRequest, notFound } from '../../common/api-error';
 @Injectable()
 export class PurchasesService {
   constructor(
@@ -59,7 +56,7 @@ export class PurchasesService {
         supplierRefunds: true,
       },
     });
-    if (!po) throw new NotFoundException('Purchase order not found');
+    if (!po) throw notFound('purchaseOrder');
     return { data: po };
   }
 
@@ -97,37 +94,39 @@ export class PurchasesService {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
 
     // Validate cycle is in an appropriate status for purchasing
     if (!['PLANNING', 'FUNDING', 'PURCHASING'].includes(cycle.status)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'CYCLE_STATUS_BLOCKS_PO',
         `Cycle must be in PLANNING, FUNDING or PURCHASING status to create purchase orders. Current: ${cycle.status}`,
+        { status: cycle.status },
       );
     }
 
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: data.supplierId },
     });
-    if (!supplier) throw new NotFoundException('Supplier not found');
+    if (!supplier) throw notFound('supplier');
 
     // Validate items
     if (!data.items || data.items.length === 0) {
-      throw new BadRequestException('Purchase order must contain at least one item');
+      throw badRequest('PO_NEEDS_ITEM', 'Purchase order must contain at least one item');
     }
     for (const item of data.items) {
       if (!item.productId) {
-        throw new BadRequestException('Each item must have a productId');
+        throw badRequest('ITEM_NEEDS_PRODUCT', 'Each item must have a productId');
       }
       const product = await this.prisma.product.findUnique({ where: { id: item.productId } });
       if (!product) {
-        throw new NotFoundException(`Product not found: ${item.productId}`);
+        throw notFound('product');
       }
       if (!item.orderedQty || item.orderedQty <= 0) {
-        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be greater than 0`);
+        throw badRequest('QTY_NOT_POSITIVE', `Invalid quantity for product ${item.productId}: must be greater than 0`);
       }
       if (item.unitPrice == null || item.unitPrice < 0) {
-        throw new BadRequestException(`Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
+        throw badRequest('PRICE_NEGATIVE', `Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
       }
     }
 
@@ -221,10 +220,11 @@ export class PurchasesService {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
     });
-    if (!po) throw new NotFoundException('Purchase order not found');
+    if (!po) throw notFound('purchaseOrder');
 
     if (po.status !== 'DRAFT') {
-      throw new BadRequestException(
+      throw badRequest(
+        'PO_NOT_DRAFT',
         'Can only add items to a DRAFT purchase order',
       );
     }
@@ -262,7 +262,7 @@ export class PurchasesService {
     const existing = await this.prisma.purchaseOrderItem.findUnique({
       where: { id },
     });
-    if (!existing) throw new NotFoundException('Purchase order item not found');
+    if (!existing) throw notFound('purchaseOrderItem');
 
     const updated = await this.prisma.purchaseOrderItem.update({
       where: { id },
@@ -311,7 +311,7 @@ export class PurchasesService {
         cycle: { select: { id: true, code: true } },
       },
     });
-    if (!po) throw new NotFoundException('Purchase order not found');
+    if (!po) throw notFound('purchaseOrder');
 
     const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 
@@ -327,9 +327,16 @@ export class PurchasesService {
     // A supplier cannot give back more than was paid; a figure above that is a
     // data-entry slip that would show the cycle a profit it never made.
     if (alreadyRefundedEgp.add(amountEgp).gt(orderValueEgp)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'REFUND_EXCEEDS_ORDER',
         `Refund of ${formatMoney(amountEgp)} EGP exceeds what is left on ${po.reference}: ` +
           `order ${formatMoney(orderValueEgp)} EGP, already refunded ${formatMoney(alreadyRefundedEgp)} EGP.`,
+        {
+          refund: formatMoney(amountEgp),
+          reference: po.reference,
+          order: formatMoney(orderValueEgp),
+          refunded: formatMoney(alreadyRefundedEgp),
+        },
       );
     }
 

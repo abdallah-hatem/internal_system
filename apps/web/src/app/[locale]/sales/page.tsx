@@ -8,7 +8,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { formatDate } from '../../../lib/dates';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { Suspense, useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
@@ -21,6 +21,7 @@ import {
   Undo2,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -104,7 +105,8 @@ const STATUS_KEYS: Record<string, string> = {
 const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled'] as const;
 
 // ─── Main Page ────────────────────────────────────────────────────────
-export default function SalesPage() {
+function SalesPageContent() {
+  const apiError = useApiError();
   const t = useTranslations('sales');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -177,7 +179,7 @@ export default function SalesPage() {
       addToast('Order created successfully', 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Operation failed', 'error');
+      addToast(apiError(error, 'Operation failed'), 'error');
     },
   });
 
@@ -191,7 +193,7 @@ export default function SalesPage() {
       addToast('Order confirmed successfully', 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Operation failed', 'error');
+      addToast(apiError(error, 'Operation failed'), 'error');
     },
   });
 
@@ -214,9 +216,7 @@ export default function SalesPage() {
     },
     onError: (error: any) => {
       addToast(
-        error?.response?.data?.error?.message ||
-          error?.response?.data?.message ||
-          'Failed to record the return',
+        apiError(error, 'Failed to record the return'),
         'error',
       );
     },
@@ -231,7 +231,7 @@ export default function SalesPage() {
       addToast('Order cancelled successfully', 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Operation failed', 'error');
+      addToast(apiError(error, 'Operation failed'), 'error');
     },
   });
 
@@ -1055,5 +1055,20 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
       <span className="text-gray-500 text-xs">{label}</span>
       <p className="font-medium text-gray-900">{value}</p>
     </div>
+  );
+}
+
+/**
+ * The page reads `?customer=<id>` to open the order form on a particular shop.
+ * `useSearchParams` cannot be prerendered — the query string is only known in
+ * the browser — so Next requires a Suspense boundary saying where the static
+ * part stops. Without it `next build` fails on this page; `next dev` never
+ * mentions it.
+ */
+export default function SalesPage() {
+  return (
+    <Suspense fallback={null}>
+      <SalesPageContent />
+    </Suspense>
   );
 }

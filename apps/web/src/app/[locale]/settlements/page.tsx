@@ -9,9 +9,10 @@ import { useToast } from '../../../components/ui/toast';
 import { Money } from '../../../components/ui/money';
 import {
   Scale, Loader2, AlertTriangle, TrendingUp, TrendingDown,
-  CheckCircle2, Wallet, RotateCcw, Calculator,
+  CheckCircle2, Wallet, RotateCcw, Calculator, X,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Line {
   id: string;
@@ -69,6 +70,7 @@ const nameOf = (l: Line) =>
 
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function SettlementsPage() {
+  const apiError = useApiError();
   const t = useTranslations('settlementsPage');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -94,9 +96,7 @@ export default function SettlementsPage() {
 
   const onError = (e: any) =>
     addToast(
-      e?.response?.data?.error?.message ||
-        e?.response?.data?.message ||
-        'Operation failed',
+      apiError(e, 'Operation failed'),
       'error',
     );
 
@@ -111,15 +111,65 @@ export default function SettlementsPage() {
     onError,
   });
 
+  // Reversing needs a reason from the person doing it; paying sometimes needs
+  // an explicit decision about stock still on the shelf. Both are held here
+  // while the dialog is open.
+  const [reversing, setReversing] = useState<string | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
+  const [stockPrompt, setStockPrompt] = useState<{ id: string; message: string } | null>(null);
+
   const actionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: string }) =>
-      api.post(`/settlements/${id}/${action}`, { reason: 'Reversed from UI' }),
+    // Each endpoint takes its OWN body, and the API rejects anything else
+    // outright (`property reason should not exist`). Sending one shape to all
+    // three made Mark paid fail every time it was pressed.
+    mutationFn: ({ id, action, body }: { id: string; action: string; body?: unknown }) =>
+      api.post(`/settlements/${id}/${action}`, body ?? {}),
     onSuccess: () => {
       refresh();
+      setReversing(null);
+      setReverseReason('');
+      setStockPrompt(null);
       addToast('Settlement updated', 'success');
     },
     onError,
   });
+
+  const payMutation = useMutation({
+    mutationFn: ({ id, acceptRemainingStock }: { id: string; acceptRemainingStock?: boolean }) =>
+      api.post(`/settlements/${id}/pay`, acceptRemainingStock ? { acceptRemainingStock } : {}),
+    onSuccess: () => {
+      refresh();
+      setStockPrompt(null);
+      addToast('Settlement paid', 'success');
+    },
+    onError: (e: any, variables) => {
+      // Closing a cycle that still holds stock writes that cost off, so the API
+      // refuses until it is asked for deliberately. Ask, rather than showing a
+      // refusal the person cannot act on.
+      //
+      // Matched on the error code, not on the message. This used to test the
+      // message against /still holds|remaining/, which stops matching the
+      // moment the message is read in Arabic — and the prompt this opens is
+      // the only way to complete the close, so the reader would have been
+      // stuck with a refusal and no way past it.
+      const code = e?.response?.data?.error?.code;
+      if (!variables.acceptRemainingStock && code === 'CYCLE_HAS_UNSOLD_STOCK') {
+        setStockPrompt({ id: variables.id, message: apiError(e, tc('error')) });
+        return;
+      }
+      onError(e);
+    },
+  });
+
+  const onAction = (id: string, action: string) => {
+    if (action === 'pay') return payMutation.mutate({ id });
+    if (action === 'reverse') {
+      setReverseReason('');
+      setReversing(id);
+      return;
+    }
+    actionMutation.mutate({ id, action });
+  };
 
   const list: Settlement[] = Array.isArray(settlements) ? settlements : [];
   const cycleList: any[] = Array.isArray(cycles) ? cycles : [];
@@ -196,14 +246,108 @@ export default function SettlementsPage() {
               key={s.id}
               settlement={s}
               t={t}
-              onAction={(action) =>
-                actionMutation.mutate({ id: s.id, action })
-              }
-              busy={actionMutation.isPending}
+              onAction={(action) => onAction(s.id, action)}
+              busy={actionMutation.isPending || payMutation.isPending}
             />
           ))}
         </div>
       )}
+
+      {/* Reversing writes balancing ledger entries; the reason travels with them
+          and into the audit log, so it has to come from the person reversing. */}
+      {reversing && (
+        <Modal title={t('reverse')} onClose={() => setReversing(null)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              actionMutation.mutate({
+                id: reversing,
+                action: 'reverse',
+                body: { reason: reverseReason.trim() },
+              });
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label htmlFor="reverse-reason" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('reverseReason')}<span className="text-red-500 ms-1">*</span>
+              </label>
+              <textarea
+                id="reverse-reason"
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                required
+                minLength={3}
+                rows={3}
+                placeholder={t('reverseReasonHint')}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setReversing(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={actionMutation.isPending}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {actionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('reverse')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Unsold stock keeps its cost with the cycle, so closing writes it off. */}
+      {stockPrompt && (
+        <Modal title={t('markPaid')} onClose={() => setStockPrompt(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">{stockPrompt.message}</p>
+            <p className="text-sm text-gray-600">{t('acceptRemainingStockHint')}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStockPrompt(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={payMutation.isPending}
+                onClick={() =>
+                  payMutation.mutate({ id: stockPrompt.id, acceptRemainingStock: true })
+                }
+                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {payMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('closeAnyway')}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
+      </div>
     </div>
   );
 }

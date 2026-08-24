@@ -29,11 +29,11 @@ async function token(request: any) {
 
 
 /**
- * Choose from a searchable Select by its hidden input's name.
+ * Choose from a Select by its hidden input's name, by position.
  *
- * The entity pickers are no longer native <select>, so selectOption() does not
- * apply to them. Short fixed enums (origin type, currency) are still native and
- * keep using selectOption.
+ * No picker is a native <select> any more — not even the short fixed enums —
+ * so selectOption() applies nowhere. Use pickValueByName when the option
+ * matters; this one is for "just take the first supplier".
  */
 async function pickByName(page: Page, name: string, index = 0) {
   // The trigger sits beside the hidden input that carries the value; the panel
@@ -48,15 +48,67 @@ async function pickByName(page: Page, name: string, index = 0) {
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
+/**
+ * Choose a specific option from a Select, by the text on the option.
+ *
+ * Lists under four options no longer render a search box, so the panel is just
+ * the options — clicking the one you want is the whole interaction.
+ */
+async function pickValueByName(page: Page, name: string, label: string | RegExp) {
+  const trigger = page
+    .locator(`input[type="hidden"][name="${name}"]`)
+    .locator('..')
+    .getByRole('combobox');
+  await trigger.click();
+  await page.getByRole('listbox').waitFor({ state: 'visible' });
+  await page.getByRole('listbox').getByRole('option').filter({ hasText: label }).first().click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(trigger).toContainText(label);
+}
+
+/**
+ * Choose a date from the DatePicker that replaced <input type="date">.
+ *
+ * The value now lives in a hidden input, so fill() no longer reaches it — the
+ * date is chosen the way a person chooses it: open the popover, step to the
+ * month, click the day.
+ */
+async function pickDate(page: Page, name: string, iso: string) {
+  await page.locator(`[data-date-picker="${name}"]`).click();
+  const grid = page.getByRole('grid');
+  await grid.waitFor({ state: 'visible' });
+
+  const targetMonth = iso.slice(0, 7);
+  for (let i = 0; i < 36; i++) {
+    // Days from the neighbouring months are marked, so the first unmarked cell
+    // always belongs to the month on screen.
+    const shown = await grid.locator('[data-day]:not([data-outside])').first().getAttribute('data-day');
+    const shownMonth = (shown ?? '').slice(0, 7);
+    if (shownMonth === targetMonth) break;
+    await page.getByTestId(shownMonth < targetMonth ? 'calendar-next' : 'calendar-prev').click();
+  }
+
+  await grid.locator(`[data-day="${iso}"]:not([data-outside])`).click();
+  await expect(page.locator(`input[type="hidden"][name="${name}"]`)).toHaveValue(iso);
+}
+
 test.describe('Shipment costing', () => {
   test('TC-COST-01: New leg form offers per piece, per weight and flat', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/shipments`);
     await page.getByRole('button', { name: /new shipping leg/i }).click();
 
-    const basis = page.locator('select[name="costBasis"]');
+    // Three options and no search box — the panel is short enough to read.
+    const basis = page
+      .locator('input[type="hidden"][name="costBasis"]')
+      .locator('..')
+      .getByRole('combobox');
     await expect(basis).toBeVisible({ timeout: 10000 });
-    await expect(basis.locator('option')).toHaveCount(3);
+    await basis.click();
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(3);
+    // (the page's own search boxes don't count — this is the panel's)
+    expect(await page.locator('[data-slot="command-input"]').count()).toBe(0);
+    await page.keyboard.press('Escape');
     await expect(page.getByText(/cost per piece/i)).toBeVisible();
   });
 
@@ -65,7 +117,7 @@ test.describe('Shipment costing', () => {
     await page.goto(`${BASE}/en/shipments`);
     await page.getByRole('button', { name: /new shipping leg/i }).click();
 
-    await page.locator('input[name="ratePerUnit"]').fill('12.5');
+    await page.locator('input[data-field="ratePerUnit"]').fill('12.5');
     await page.locator('input[name="chargeablePieces"]').fill('340');
 
     const preview = page.locator('[data-testid^="leg-cost-preview"]');
@@ -77,9 +129,9 @@ test.describe('Shipment costing', () => {
     await page.goto(`${BASE}/en/shipments`);
     await page.getByRole('button', { name: /new shipping leg/i }).click();
 
-    await page.locator('select[name="costBasis"]').selectOption('PER_WEIGHT');
+    await pickValueByName(page, 'costBasis', /per weight/i);
     await expect(page.getByText(/cost per kg/i)).toBeVisible();
-    await page.locator('input[name="ratePerUnit"]').fill('20');
+    await page.locator('input[data-field="ratePerUnit"]').fill('20');
     await page.locator('input[name="chargeableWeightKg"]').fill('250');
     await expect(page.locator('[data-testid^="leg-cost-preview"]')).toContainText('5,000.00 EGP');
   });
@@ -89,9 +141,9 @@ test.describe('Shipment costing', () => {
     await page.goto(`${BASE}/en/shipments`);
     await page.getByRole('button', { name: /new shipping leg/i }).click();
 
-    await page.locator('input[name="ratePerUnit"]').fill('10');
+    await page.locator('input[data-field="ratePerUnit"]').fill('10');
     await page.locator('input[name="chargeablePieces"]').fill('100');
-    await page.locator('select[name="currency"]').selectOption('USD');
+    await pickValueByName(page, 'currency', 'USD');
     await page.locator('input[name="fxRateToEgp"]').fill('48.5');
 
     // 10 x 100 USD at 48.5 = 48,500 EGP
@@ -102,16 +154,16 @@ test.describe('Shipment costing', () => {
     await login(page);
     await page.goto(`${BASE}/en/cycles/new`);
 
-    await page.locator('select[name="originType"]').selectOption('CHINA');
-    await page.locator('select[name="currency"]').selectOption('USD');
+    await pickValueByName(page, 'originType', 'China');
+    await pickValueByName(page, 'currency', 'USD');
     await page.getByRole('button', { name: /save & continue/i }).click();
 
     // Step 2 — minimal purchase order
     await expect(page.locator('input[type="hidden"][name="supplierId"]')).toBeAttached({ timeout: 10000 });
     await pickByName(page, 'supplierId');
-    await page.locator('select[name="currency"]').selectOption('USD');
+    await pickValueByName(page, 'currency', 'USD');
     await page.locator('input[name="fxRateToEgp"]').fill('48.5');
-    await page.locator('input[name="orderedOn"]').fill('2026-08-20');
+    await pickDate(page, 'orderedOn', '2026-08-20');
     await page.getByRole('button', { name: /add item/i }).click();
 
     // The product picker is the line item's own searchable Select.
@@ -121,9 +173,11 @@ test.describe('Shipment costing', () => {
     await productTrigger.click();
     await page.getByRole('listbox').getByRole('option').first().click();
 
-    const numbers = page.locator('input[type="number"]');
-    await numbers.nth(1).fill('100');
-    await numbers.nth(2).fill('5');
+    // Qty is still a number input; the price is a MoneyInput, which renders
+    // text so it can group digits as they are typed. Counting number inputs
+    // positionally used to reach it and silently stopped.
+    await page.locator('input[type="number"]').nth(1).fill('100'); // qty
+    await page.locator('input[data-field="unitPrice"]').fill('5');
     await page.getByRole('button', { name: /save & continue/i }).click();
 
     // Step 3 — both legs present
@@ -136,8 +190,16 @@ test.describe('Shipment costing', () => {
     await expect(leg1.getByRole('heading', { name: 'China to UAE', exact: true })).toBeVisible();
     await expect(leg2.getByRole('heading', { name: 'UAE to Egypt', exact: true })).toBeVisible();
     // Each leg carries its own independent cost block.
-    await expect(leg1.locator('[name="leg1_ratePerUnit"]')).toBeVisible();
-    await expect(leg2.locator('[name="leg2_costBasis"]')).toBeVisible();
+    await expect(leg1.locator('[data-field="leg1_ratePerUnit"]')).toBeVisible();
+    // costBasis rides in a hidden input now, so it is attached, never visible.
+    await expect(leg2.locator('input[type="hidden"][name="leg2_costBasis"]')).toBeAttached();
+
+    // Step 2 ordered 100 pieces, so neither leg asks for that number again. It
+    // stays editable — a forwarder billing by carton charges for fewer — but the
+    // whole-order case is filled in.
+    await expect(leg1.locator('[name="leg1_chargeablePieces"]')).toHaveValue('100');
+    await expect(leg2.locator('[name="leg2_chargeablePieces"]')).toHaveValue('100');
+    await expect(leg1.getByText(/prefilled from the 100 ordered/i)).toBeVisible();
   });
 
   test('TC-COST-06: API — shipping is spread across the items it moved', async ({ request }) => {

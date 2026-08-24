@@ -29,6 +29,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
+import { useApiError } from '../../lib/api-error';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -65,6 +66,7 @@ interface ReceiveItem {
 // ---------------------------------------------------------------------------
 
 export default function CycleWizard({ existingCycleId }: { existingCycleId?: string }) {
+  const apiError = useApiError();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -449,7 +451,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       toast.success(t('cycleCreated'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || t('createCycleFailed'));
+      toast.error(apiError(err, t('createCycleFailed')));
     },
   });
 
@@ -468,7 +470,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       toast.success(t('purchaseCreated'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || t('createPurchaseFailed'));
+      toast.error(apiError(err, t('createPurchaseFailed')));
     },
   });
 
@@ -481,7 +483,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       toast.success(t('shippingCreated'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || t('createShippingFailed'));
+      toast.error(apiError(err, t('createShippingFailed')));
     },
   });
 
@@ -493,7 +495,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       toast.success(t('inventoryVerified'));
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || err?.message || t('verifyInventoryFailed'));
+      toast.error(apiError(err, t('verifyInventoryFailed')));
     },
   });
 
@@ -632,9 +634,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       setCurrentStep(3);
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.error?.message ||
-          err?.response?.data?.message ||
-          t('saveShippingLegsFailed'),
+        apiError(err, t('saveShippingLegsFailed')),
       );
     } finally {
       setIsCreatingLegs(false);
@@ -720,7 +720,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         })),
       });
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || t('verifyInventoryFailed'));
+      toast.error(apiError(err, t('verifyInventoryFailed')));
     } finally {
       setIsStep4Processing(false);
     }
@@ -1191,6 +1191,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           {t('unitPrice')}
                         </label>
                         <MoneyInput
+                          data-field="unitPrice"
                           placeholder="0.00"
                           value={item.unitPrice || ''}
                           onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
@@ -1204,6 +1205,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           {t('discount')}
                         </label>
                         <MoneyInput
+                          data-field="discount"
                           placeholder="0.00"
                           value={item.discount || ''}
                           onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
@@ -1503,6 +1505,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       <div className="sm:col-span-4">
                         <span className="text-xs text-gray-400 sm:hidden">{t('landedUnitCost')}: </span>
                         <MoneyInput
+                          data-field="landedUnitCostEgp"
                           placeholder="0.00"
                           value={item.landedUnitCostEgp}
                           onChange={(raw) =>

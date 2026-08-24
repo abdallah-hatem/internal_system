@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -12,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { CreatePaymentPlanDto } from './dto/payment-plan.dto';
 import { formatMoney } from '../../common/money';
 
+import { badRequest, notFound } from '../../common/api-error';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
@@ -177,7 +174,7 @@ export class PaymentPlansService {
       where: { id },
       include: PLAN_INCLUDE,
     });
-    if (!plan) throw new NotFoundException('Payment plan not found');
+    if (!plan) throw notFound('paymentPlan');
 
     return {
       data: {
@@ -198,16 +195,18 @@ export class PaymentPlansService {
       where: { id: dto.customerId },
       select: { id: true, displayName: true },
     });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw notFound('customer');
 
     const active = await this.prisma.paymentPlan.findFirst({
       where: { customerId: dto.customerId, status: 'ACTIVE' },
       select: { id: true, reference: true },
     });
     if (active) {
-      throw new BadRequestException(
+      throw badRequest(
+        'CUSTOMER_HAS_ACTIVE_PLAN',
         `${customer.displayName} already has an active plan (${active.reference}). ` +
           'Cancel it before agreeing another, or two schedules will claim the same payments.',
+        { customer: customer.displayName, reference: active.reference },
       );
     }
 
@@ -226,9 +225,11 @@ export class PaymentPlansService {
     });
     const owed = D(owedAgg._sum?.outstanding);
     if (owed.gt(0) && total.gt(owed)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'INSTALMENTS_EXCEED_OWED',
         `The instalments total ${formatMoney(total)} EGP but ${customer.displayName} ` +
           `only owes ${formatMoney(owed)} EGP.`,
+        { total: formatMoney(total), customer: customer.displayName, owed: formatMoney(owed) },
       );
     }
 
@@ -278,9 +279,9 @@ export class PaymentPlansService {
 
   async cancel(id: string, reason: string, actorId?: string) {
     const plan = await this.prisma.paymentPlan.findUnique({ where: { id } });
-    if (!plan) throw new NotFoundException('Payment plan not found');
+    if (!plan) throw notFound('paymentPlan');
     if (plan.status === 'CANCELLED') {
-      throw new BadRequestException('This plan is already cancelled');
+      throw badRequest('PLAN_ALREADY_CANCELLED', 'This plan is already cancelled');
     }
 
     const updated = await this.prisma.paymentPlan.update({

@@ -1,15 +1,13 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { CostingService } from '../costing/costing.service';
+import { formatMoney, formatQty } from '../../common/money';
 
+import { badRequest, notFound } from '../../common/api-error';
 @Injectable()
 export class InventoryService {
   constructor(
@@ -35,11 +33,13 @@ export class InventoryService {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
 
     if (cycle.status !== 'VERIFICATION') {
-      throw new BadRequestException(
+      throw badRequest(
+        'CYCLE_NOT_IN_VERIFICATION',
         `Cycle must be in VERIFICATION status to verify stock. Current: ${cycle.status}`,
+        { status: cycle.status },
       );
     }
 
@@ -69,12 +69,11 @@ export class InventoryService {
           include: { purchaseOrder: true },
         });
         if (!poItem) {
-          throw new NotFoundException(
-            `Purchase order item ${item.purchaseOrderItemId} not found`,
-          );
+          throw notFound('purchaseOrderItem');
         }
         if (poItem.purchaseOrder.cycleId !== cycleId) {
-          throw new BadRequestException(
+          throw badRequest(
+            'PO_ITEM_NOT_IN_CYCLE',
             `Purchase order item does not belong to cycle ${cycleId}`,
           );
         }
@@ -84,7 +83,8 @@ export class InventoryService {
           where: { sourcePoItemId: item.purchaseOrderItemId },
         });
         if (existingBatch) {
-          throw new BadRequestException(
+          throw badRequest(
+            'STOCK_ALREADY_VERIFIED',
             `Stock already verified for purchase order item ${item.purchaseOrderItemId}`,
           );
         }
@@ -96,7 +96,8 @@ export class InventoryService {
             : costByPoItem.get(item.purchaseOrderItemId);
 
         if (resolvedUnitCost === undefined) {
-          throw new BadRequestException(
+          throw badRequest(
+            'NO_LANDED_COST',
             `Could not determine landed unit cost for purchase order item ${item.purchaseOrderItemId}`,
           );
         }
@@ -145,7 +146,7 @@ export class InventoryService {
             cycleId,
             relatedType: 'PURCHASE_ORDER_ITEM',
             relatedId: item.purchaseOrderItemId,
-            reason: `Auto: ${item.receivedQty} units received at ${resolvedUnitCost.toFixed(4)} EGP/unit landed`,
+            reason: `Auto: ${formatQty(item.receivedQty)} units received at ${formatMoney(resolvedUnitCost)} EGP/unit landed`,
             createdBy: actorId,
           },
         });
@@ -249,7 +250,7 @@ export class InventoryService {
     const batch = await this.prisma.inventoryBatch.findUnique({
       where: { id: batchId },
     });
-    if (!batch) throw new NotFoundException('Inventory batch not found');
+    if (!batch) throw notFound('inventoryBatch');
 
     const movements = await this.prisma.inventoryMovement.findMany({
       where: { batchId },

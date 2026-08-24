@@ -1,5 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
 
+
+import { badRequest } from './api-error';
 /**
  * The timezone the business actually operates in.
  *
@@ -50,6 +51,6 @@ export function assertNotFuture(value: string | Date | undefined | null, label: 
       : businessToday(given);
 
   if (givenDay > businessToday()) {
-    throw new BadRequestException(`${label} cannot be in the future (${givenDay}).`);
+    throw badRequest('DATE_IN_FUTURE', `${label} cannot be in the future (${givenDay}).`, { label, day: givenDay });
   }
 }

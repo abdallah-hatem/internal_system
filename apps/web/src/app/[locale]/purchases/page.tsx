@@ -20,6 +20,7 @@ import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields'
 import { selectOnFocus } from '../../../lib/select-on-focus';
 import { MoneyInput } from '../../../components/ui/money-input';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -57,6 +58,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PurchasesPage() {
+  const apiError = useApiError();
   const t = useTranslations('purchases');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -113,7 +115,7 @@ export default function PurchasesPage() {
       toast('Purchase order created successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error?.message || 'Failed to create purchase order', 'error');
+      toast(apiError(error, 'Failed to create purchase order'), 'error');
     },
   });
 
@@ -125,7 +127,7 @@ export default function PurchasesPage() {
       toast('Refund recorded successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error?.message || 'Failed to record refund', 'error');
+      toast(apiError(error, 'Failed to record refund'), 'error');
     },
   });
 

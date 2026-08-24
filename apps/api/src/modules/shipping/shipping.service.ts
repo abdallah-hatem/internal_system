@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
@@ -11,6 +7,7 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { CostingService } from '../costing/costing.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
+import { badRequest, notFound } from '../../common/api-error';
 /**
  * A leg's status is what its dates say, not a field anyone sets.
  *
@@ -31,12 +28,14 @@ export function assertLegDates(
   arrivedOn?: Date | string | null,
 ) {
   if (arrivedOn && !departedOn) {
-    throw new BadRequestException(
+    throw badRequest(
+      'ARRIVAL_WITHOUT_DEPARTURE',
       'A shipment cannot arrive without a departure date. Record when it left first.',
     );
   }
   if (departedOn && arrivedOn && new Date(arrivedOn) < new Date(departedOn)) {
-    throw new BadRequestException(
+    throw badRequest(
+      'ARRIVAL_BEFORE_DEPARTURE',
       'A shipment cannot arrive before it departed.',
     );
   }
@@ -117,11 +116,12 @@ export class ShippingService {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
 
     // Validate: UAE_DIRECT cycles only allow sequence 1 (UAE→Egypt)
     if (cycle.originType === 'UAE_DIRECT' && data.sequence !== 1) {
-      throw new BadRequestException(
+      throw badRequest(
+        'UAE_DIRECT_ONE_LEG',
         'UAE_DIRECT cycles only allow a single shipping leg (sequence 1: UAE to Egypt)',
       );
     }
@@ -132,7 +132,8 @@ export class ShippingService {
         !data.origin.toUpperCase().includes('UAE') ||
         !data.destination.toUpperCase().includes('EGYPT')
       ) {
-        throw new BadRequestException(
+        throw badRequest(
+          'UAE_DIRECT_LEG_ROUTE',
           'UAE_DIRECT cycle shipping leg must go from UAE to Egypt',
         );
       }
@@ -141,7 +142,8 @@ export class ShippingService {
     // China cycles ship in two legs: 1 = China->UAE (merchant), 2 = UAE->Egypt
     // (shipping company). Anything beyond sequence 2 is not a real route.
     if (cycle.originType === 'CHINA' && ![1, 2].includes(data.sequence)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'CHINA_TWO_LEGS',
         'CHINA cycles have at most two shipping legs (sequence 1: China to UAE, sequence 2: UAE to Egypt)',
       );
     }
@@ -151,8 +153,10 @@ export class ShippingService {
       where: { cycleId_sequence: { cycleId, sequence: data.sequence } },
     });
     if (existingLeg) {
-      throw new BadRequestException(
+      throw badRequest(
+        'LEG_SEQUENCE_TAKEN',
         `Shipping leg with sequence ${data.sequence} already exists for this cycle`,
+        { sequence: data.sequence },
       );
     }
 
@@ -213,7 +217,7 @@ export class ShippingService {
     const existing = await this.prisma.shippingLeg.findUnique({
       where: { id },
     });
-    if (!existing) throw new NotFoundException('Shipping leg not found');
+    if (!existing) throw notFound('shippingLeg');
 
     // Recompute the EGP amount from the merged (existing + incoming) state so a
     // partial update of just the rate or the piece count stays consistent.
@@ -316,12 +320,14 @@ export class ShippingService {
     const fxRateToEgp = dec(data.fxRateToEgp) ?? new Prisma.Decimal(1);
 
     if (basis === 'PER_PIECE' && (!ratePerUnit || !chargeablePieces)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'PER_PIECE_FIELDS_REQUIRED',
         'PER_PIECE shipping requires both ratePerUnit and chargeablePieces',
       );
     }
     if (basis === 'PER_WEIGHT' && (!ratePerUnit || !chargeableWeightKg)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'PER_WEIGHT_FIELDS_REQUIRED',
         'PER_WEIGHT shipping requires both ratePerUnit and chargeableWeightKg',
       );
     }

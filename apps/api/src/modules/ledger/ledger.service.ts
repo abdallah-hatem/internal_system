@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { AuditService } from '../audit/audit.service';
 
+import { badRequest, notFound } from '../../common/api-error';
 @Injectable()
 export class LedgerService {
   constructor(
@@ -66,7 +67,7 @@ export class LedgerService {
         account: { select: { id: true, name: true } },
       },
     });
-    if (!transaction) throw new NotFoundException('Financial transaction not found');
+    if (!transaction) throw notFound('financialTransaction');
     return { data: transaction };
   }
 
@@ -124,16 +125,17 @@ export class LedgerService {
    */
   async reverse(id: string, reason: string, userId: string) {
     if (!reason?.trim()) {
-      throw new BadRequestException('A reason is required to reverse an entry');
+      throw badRequest('REVERSAL_REASON_REQUIRED', 'A reason is required to reverse an entry');
     }
 
     const original = await this.prisma.financialTransaction.findUnique({
       where: { id },
     });
-    if (!original) throw new NotFoundException('Financial transaction not found');
+    if (!original) throw notFound('financialTransaction');
 
     if (original.reversalOfId) {
-      throw new BadRequestException(
+      throw badRequest(
+        'ENTRY_IS_A_REVERSAL',
         'This entry is itself a reversal. Reversing it would start a chain that ' +
           'nets to nothing but obscures what happened; raise a new entry instead.',
       );
@@ -144,19 +146,23 @@ export class LedgerService {
       select: { id: true, createdAt: true },
     });
     if (existingReversal) {
-      throw new BadRequestException(
+      throw badRequest(
+        'ENTRY_ALREADY_REVERSED',
         `This entry was already reversed on ${existingReversal.createdAt
           .toISOString()
           .slice(0, 10)}. Reversing again would double-count the correction.`,
+        { date: existingReversal.createdAt.toISOString().slice(0, 10) },
       );
     }
 
     if (original.relatedType) {
-      throw new BadRequestException(
+      throw badRequest(
+        'ENTRY_OWNED_ELSEWHERE',
         `This entry belongs to a ${original.relatedType
           .toLowerCase()
           .replace(/_/g, ' ')} and cannot be reversed on its own — the ledger and ` +
           'that record would stop agreeing. Reverse it from there instead.',
+        { owner: original.relatedType.toLowerCase().replace(/_/g, ' ') },
       );
     }
 

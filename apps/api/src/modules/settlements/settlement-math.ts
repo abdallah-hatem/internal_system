@@ -1,6 +1,7 @@
-import { BadRequestException } from '@nestjs/common';
+
 import { Prisma } from '@prisma/client';
 
+import { badRequest } from '../../common/api-error';
 const ZERO = new Prisma.Decimal(0);
 const HUNDRED = new Prisma.Decimal(100);
 
@@ -64,7 +65,7 @@ export function distributeCycleProfit(
   totalProfit: Prisma.Decimal,
 ): DistributionResult {
   if (participants.length === 0) {
-    throw new BadRequestException('Cycle has no participants to settle');
+    throw badRequest('CYCLE_NO_PARTICIPANTS', 'Cycle has no participants to settle');
   }
 
   const shares = resolveShares(participants);
@@ -146,7 +147,8 @@ function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
 
   if (withCustom.length > 0) {
     if (withCustom.length !== participants.length) {
-      throw new BadRequestException(
+      throw badRequest(
+        'PARTIAL_CUSTOM_SPLIT',
         'A custom profit split must be set for every participant in the cycle, or for none of them',
       );
     }
@@ -155,8 +157,10 @@ function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
       ZERO,
     );
     if (!total.equals(HUNDRED)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'SPLIT_NOT_100',
         `Custom profit percentages must add up to 100 (currently ${total.toFixed(2)})`,
+        { total: total.toFixed(2) },
       );
     }
     return participants.map((p) => p.customProfitPct!.div(HUNDRED));

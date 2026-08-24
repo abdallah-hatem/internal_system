@@ -1,15 +1,11 @@
 import { pageSize } from '../../common/dto/pagination.dto';
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
 
+import { badRequest, conflict, notFound } from '../../common/api-error';
 @Injectable()
 export class SalesService {
   constructor(
@@ -67,7 +63,7 @@ export class SalesService {
         paymentAllocations: { include: { payment: true } },
       },
     });
-    if (!order) throw new NotFoundException('Sale order not found');
+    if (!order) throw notFound('saleOrder');
     return { data: order };
   }
 
@@ -87,18 +83,18 @@ export class SalesService {
   ) {
     // Validate customer exists
     if (!data.customerId) {
-      throw new BadRequestException('customerId is required');
+      throw badRequest('CUSTOMER_REQUIRED', 'customerId is required');
     }
     const customer = await this.prisma.customer.findUnique({
       where: { id: data.customerId },
     });
     if (!customer) {
-      throw new NotFoundException(`Customer not found: ${data.customerId}`);
+      throw notFound('customer');
     }
 
     // Validate items array
     if (!data.items || data.items.length === 0) {
-      throw new BadRequestException('Order must contain at least one item');
+      throw badRequest('ORDER_NEEDS_ITEM', 'Order must contain at least one item');
     }
 
     // What can be sold right now: the saleable quantity across this product's
@@ -124,19 +120,19 @@ export class SalesService {
     // Validate each item
     for (const item of data.items) {
       if (!item.productId) {
-        throw new BadRequestException('Each item must have a productId');
+        throw badRequest('ITEM_NEEDS_PRODUCT', 'Each item must have a productId');
       }
       const product = await this.prisma.product.findUnique({
         where: { id: item.productId },
       });
       if (!product) {
-        throw new NotFoundException(`Product not found: ${item.productId}`);
+        throw notFound('product');
       }
       if (!item.quantity || item.quantity <= 0) {
-        throw new BadRequestException(`Invalid quantity for product ${item.productId}: must be greater than 0`);
+        throw badRequest('QTY_NOT_POSITIVE', `Invalid quantity for product ${item.productId}: must be greater than 0`);
       }
       if (item.unitPrice == null || item.unitPrice < 0) {
-        throw new BadRequestException(`Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
+        throw badRequest('PRICE_NEGATIVE', `Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
       }
     }
 
@@ -150,9 +146,15 @@ export class SalesService {
           where: { id: productId },
           select: { name: true },
         });
-        throw new BadRequestException(
+        throw badRequest(
+          'NOT_ENOUGH_STOCK',
           `Only ${available.toFixed(3)} of ${product?.name ?? 'that product'} ` +
             `is in stock, so ${wanted.toFixed(3)} cannot be sold.`,
+          {
+            available: available.toFixed(3),
+            product: product?.name ?? 'that product',
+            wanted: wanted.toFixed(3),
+          },
         );
       }
     }
@@ -177,8 +179,10 @@ export class SalesService {
       // 9,999 produced an order totalling -9,899 — a sale that owes money to
       // the customer, and one that would have been counted as revenue.
       if (discount > gross) {
-        throw new BadRequestException(
+        throw badRequest(
+          'DISCOUNT_EXCEEDS_LINE',
           `Discount ${discount.toFixed(2)} is more than the line is worth (${gross.toFixed(2)}).`,
+          { discount: discount.toFixed(2), gross: gross.toFixed(2) },
         );
       }
 
@@ -228,11 +232,11 @@ export class SalesService {
         where: { id },
         include: { items: { include: { product: true } } },
       });
-      if (!order) throw new NotFoundException('Order not found');
+      if (!order) throw notFound('order');
       if (order.status !== 'DRAFT')
-        throw new BadRequestException('Only draft orders can be confirmed');
+        throw badRequest('ONLY_DRAFT_CONFIRMABLE', 'Only draft orders can be confirmed');
       if (order.version !== version)
-        throw new ConflictException('Version conflict — order was modified');
+        throw conflict('ORDER_VERSION_CONFLICT', 'Version conflict — order was modified');
 
       const allocations: any[] = [];
       let totalCogs = new Prisma.Decimal(0);
@@ -309,8 +313,10 @@ export class SalesService {
         }
 
         if (remainingQty.gt(0)) {
-          throw new BadRequestException(
+          throw badRequest(
+            'INSUFFICIENT_STOCK',
             `Insufficient stock for ${item.product.name}. Missing: ${remainingQty.toFixed(3)}`,
+            { product: item.product.name, missing: remainingQty.toFixed(3) },
           );
         }
       }
@@ -359,12 +365,13 @@ export class SalesService {
         where: { id },
         include: { items: { include: { allocations: true } } },
       });
-      if (!order) throw new NotFoundException('Order not found');
+      if (!order) throw notFound('order');
       if (
         order.status === 'CANCELLED' ||
         order.status === 'RETURNED'
       ) {
-        throw new BadRequestException(
+        throw badRequest(
+          'ORDER_ALREADY_CLOSED',
           'Order is already cancelled/returned',
         );
       }
@@ -387,10 +394,12 @@ export class SalesService {
       });
       const paidAmount = Number(paid._sum.amount ?? 0);
       if (paidAmount > 0) {
-        throw new BadRequestException(
+        throw badRequest(
+          'ORDER_PAID_CANNOT_CANCEL',
           `${paidAmount.toFixed(2)} has already been paid against ${order.orderNo}, ` +
             'so it cannot be cancelled. Record a return instead, which refunds the ' +
             'money and puts the stock back.',
+          { paid: paidAmount.toFixed(2), order: order.orderNo },
         );
       }
 

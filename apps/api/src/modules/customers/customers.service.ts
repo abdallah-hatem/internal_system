@@ -1,11 +1,11 @@
 import {
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
+import { notFound } from '../../common/api-error';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -69,7 +69,7 @@ export class CustomersService {
         },
       },
     });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw notFound('customer');
     return { data: customer };
   }
 
@@ -113,7 +113,7 @@ export class CustomersService {
     actorId: string,
   ) {
     const existing = await this.prisma.customer.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Customer not found');
+    if (!existing) throw notFound('customer');
 
     const updated = await this.prisma.customer.update({
       where: { id },

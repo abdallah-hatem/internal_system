@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
@@ -45,6 +46,7 @@ interface Movement {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function InventoryPage() {
+  const apiError = useApiError();
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -91,7 +93,7 @@ export default function InventoryPage() {
       toast('Stock verified successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to verify stock', 'error');
+      toast(apiError(error, 'Failed to verify stock'), 'error');
     },
   });
 
@@ -178,7 +180,9 @@ export default function InventoryPage() {
                            <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <div>
-                                <p className="font-medium text-gray-900">{item.productName}</p>
+                                <p className="font-medium text-gray-900">
+                                  <ProductLink id={item.productId} name={item.productName} />
+                                </p>
                               </div>
                               {isLow && (
                                 <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-100 rounded-full px-2 py-0.5">
@@ -298,7 +302,9 @@ export default function InventoryPage() {
                   >
                     <div className="flex items-start justify-between">
                        <div>
-                        <p className="font-medium text-gray-900">{item.productName}</p>
+                        <p className="font-medium text-gray-900">
+                          <ProductLink id={item.productId} name={item.productName} />
+                        </p>
                       </div>
                       {isLow && (
                         <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-100 rounded-full px-2 py-0.5">
@@ -463,6 +469,7 @@ export default function InventoryPage() {
 // ─── Helpers ──────────────────────────────────────────────────────────
 import { Fragment } from 'react';
 
+import { useApiError } from '../../../lib/api-error';
 function VerificationBadge({ status }: { status: string }) {
   const t = useTranslations('inventory');
   if (status === 'VERIFIED') {

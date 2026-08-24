@@ -15,6 +15,7 @@ import {
   ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check,
 } from 'lucide-react';
 
+import { useApiError } from '../../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -647,6 +648,7 @@ function PriceRow({
   current?: { amount: number; currency: string };
 }) {
   const tc = useTranslations('common');
+  const apiError = useApiError();
   const { addToast } = useToast();
   const queryClient = useQueryClient();
   const [value, setValue] = useState(current ? String(current.amount) : '');
@@ -673,7 +675,7 @@ function PriceRow({
     },
     onError: (e: any) =>
       addToast(
-        e?.response?.data?.error?.message || e?.response?.data?.message || 'Could not save the price',
+        apiError(e, 'Could not save the price'),
         'error',
       ),
   });

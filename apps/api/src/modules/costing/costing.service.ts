@@ -1,7 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
+import { badRequest, notFound } from '../../common/api-error';
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
 
@@ -108,7 +109,7 @@ export class CostingService {
       },
     });
 
-    if (!cycle) throw new NotFoundException(`Cycle ${cycleId} not found`);
+    if (!cycle) throw notFound('cycle');
 
     const warnings: string[] = [];
 
@@ -263,7 +264,8 @@ export class CostingService {
     const result = await this.computeCycleLandedCosts(cycleId, opts);
     const line = result.items.find((i) => i.purchaseOrderItemId === purchaseOrderItemId);
     if (!line) {
-      throw new BadRequestException(
+      throw badRequest(
+        'PO_ITEM_NOT_IN_CYCLE',
         `Purchase order item ${purchaseOrderItemId} is not part of cycle ${cycleId}`,
       );
     }

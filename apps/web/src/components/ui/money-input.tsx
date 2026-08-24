@@ -111,6 +111,12 @@ export function MoneyInput({
       <input
         {...rest}
         ref={inputRef}
+        // `name` has to sit on the hidden field so a form submit picks up the
+        // plain number rather than the grouped text. That leaves the field a
+        // person actually types into with no name to find it by, and
+        // `input[name="x"]` silently starts matching the hidden one instead —
+        // it broke four tests, each reporting only "element is not visible".
+        data-field={(rest as Record<string, unknown>)['data-field'] ?? name}
         type="text"
         inputMode="decimal"
         value={display}

@@ -147,3 +147,34 @@ idempotent, so running one twice changes nothing.
 
 The API caches its database connection, so restart it (`npm run dev`) after a
 reset or it will keep talking to the database that no longer exists.
+
+## 9. Refusals carry a code; the client says them
+
+Nothing user-facing is written in English inside a service. A refusal names
+itself with a stable code and the web app translates it, because the API cannot
+know which language the reader chose and the app already does, from the URL.
+
+```ts
+throw badRequest('NOT_ENOUGH_STOCK', `Only ${available} of ${name} is in stock.`, {
+  available, product: name,
+});
+throw notFound('purchaseOrder');   // one code for all 57 of these
+```
+
+The English argument is not optional and is not decoration: it is what the logs
+record, what the tests read, and what a client falls back to for a code it has
+never heard of. Drop it and a new refusal shows an empty toast.
+
+Adding a code means adding it to `errors` in **both** `en.json` and `ar.json`.
+`41-error-messages` fails if a thrown code has no translation, or if a
+translation survives a code that nothing throws any more.
+
+Two things that look right and are not:
+
+- **Never branch on the message text.** `/still holds|remaining/.test(message)`
+  stops matching the moment the reader is on Arabic. Branch on `error.code`.
+- **`err.response.data.message` is always undefined.** The body is
+  `{ error: { code, message, params } }`. Thirty-six call sites read one level
+  too shallow, so every refusal fell through to a generic fallback and the API's
+  explanation reached nobody — with a toast still appearing, so nothing looked
+  broken. Use `useApiError()`, never reach into the response by hand.

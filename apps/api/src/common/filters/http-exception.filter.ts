@@ -32,11 +32,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }`,
       );
 
+      const body = (typeof res === 'object' ? res : {}) as Record<string, any>;
+
+      // `code` used to carry Nest's status text ("Bad Request"), which named
+      // the HTTP status the client already had and nothing about the refusal.
+      // A throw raised through the api-error helpers puts a real code here,
+      // and the params the client needs to phrase it in its own language.
+      // Anything not yet migrated keeps the status text, so the client falls
+      // back to the English message rather than showing nothing.
       response.status(status).json({
         error: {
-          code: typeof res === 'string' ? 'ERROR' : (res as any).error || 'ERROR',
-          message: typeof res === 'string' ? res : (res as any).message,
-          details: typeof res === 'object' ? (res as any).message : undefined,
+          code: typeof res === 'string' ? 'ERROR' : body.code || body.error || 'ERROR',
+          message: typeof res === 'string' ? res : body.message,
+          params: body.params,
+          details: typeof res === 'object' ? body.message : undefined,
           correlationId,
         },
       });

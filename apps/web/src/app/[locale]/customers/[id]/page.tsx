@@ -29,6 +29,7 @@ import {
   ArrowLeft, Loader2, Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
 } from 'lucide-react';
 
+import { useApiError } from '../../../../lib/api-error';
 interface SaleOrder {
   id: string;
   orderNo: string;
@@ -53,6 +54,7 @@ interface PaymentRecord {
 const num = (v: unknown) => Number(v ?? 0);
 
 export default function CustomerPage() {
+  const apiError = useApiError();
   const t = useTranslations('customers');
   const tp = useTranslations('payments');
   const ts = useTranslations('sales');
@@ -163,7 +165,7 @@ export default function CustomerPage() {
     },
     onError: (e: any) =>
       addToast(
-        e?.response?.data?.error?.message || e?.response?.data?.message || 'Could not record the payment',
+        apiError(e, 'Could not record the payment'),
         'error',
       ),
   });

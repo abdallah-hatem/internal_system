@@ -4,13 +4,13 @@ import {
   Param,
   Query,
   UseGuards,
-  NotFoundException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
+import { notFound } from '../../common/api-error';
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
@@ -84,7 +84,7 @@ export class AuditController {
         actor: { select: { id: true, email: true } },
       },
     });
-    if (!log) throw new NotFoundException('Audit log not found');
+    if (!log) throw notFound('auditLog');
     return { data: log };
   }
 }

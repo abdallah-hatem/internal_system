@@ -1,13 +1,10 @@
 import { pageSize } from '../../common/dto/pagination.dto';
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 
+import { badRequest, notFound } from '../../common/api-error';
 /** Orders whose balance is genuinely outstanding; a draft owes nothing yet. */
 const OWED_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID'] as const;
 
@@ -51,7 +48,7 @@ export class PaymentsService {
         allocations: { include: { saleOrder: true } },
       },
     });
-    if (!payment) throw new NotFoundException('Payment not found');
+    if (!payment) throw notFound('payment');
     return { data: payment };
   }
 
@@ -76,7 +73,7 @@ export class PaymentsService {
       where: { id: data.customerId },
       select: { id: true, displayName: true },
     });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw notFound('customer');
 
     // A shop cannot pay more than it owes. Taking 500 against a 300 balance
     // leaves 200 attached to nobody: it clears no order, shows as paid, and
@@ -88,11 +85,17 @@ export class PaymentsService {
     });
     const owed = Number(owedAgg._sum?.outstanding ?? 0);
     if (data.amount > owed) {
-      throw new BadRequestException(
-        owed <= 0
-          ? `${customer.displayName} does not owe anything, so there is nothing to pay.`
-          : `${customer.displayName} owes ${owed.toFixed(2)}, so ${Number(data.amount).toFixed(2)} cannot be received against it.`,
-      );
+      throw owed <= 0
+        ? badRequest(
+            'CUSTOMER_OWES_NOTHING',
+            `${customer.displayName} does not owe anything, so there is nothing to pay.`,
+            { customer: customer.displayName },
+          )
+        : badRequest(
+            'PAYMENT_EXCEEDS_OWED',
+            `${customer.displayName} owes ${owed.toFixed(2)}, so ${Number(data.amount).toFixed(2)} cannot be received against it.`,
+            { customer: customer.displayName, owed: owed.toFixed(2), amount: Number(data.amount).toFixed(2) },
+          );
     }
 
     // Check idempotency
@@ -155,9 +158,10 @@ export class PaymentsService {
       const payment = await tx.payment.findUnique({
         where: { id: paymentId },
       });
-      if (!payment) throw new NotFoundException('Payment not found');
+      if (!payment) throw notFound('payment');
       if (payment.status !== 'RECORDED')
-        throw new BadRequestException(
+        throw badRequest(
+          'PAYMENT_FULLY_ALLOCATED',
           'Payment already fully allocated or reversed',
         );
 
@@ -168,8 +172,10 @@ export class PaymentsService {
       });
       const totalAllocated = Number(existingAllocations._sum.amount || 0);
       if (totalAllocated + amount > Number(payment.amount)) {
-        throw new BadRequestException(
+        throw badRequest(
+          'ALLOCATION_EXCEEDS_PAYMENT',
           `Cannot allocate ${amount}. Payment has ${Number(payment.amount) - totalAllocated} remaining`,
+          { amount: String(amount), remaining: Number(payment.amount) - totalAllocated },
         );
       }
 
@@ -177,21 +183,25 @@ export class PaymentsService {
       const order = await tx.saleOrder.findUnique({
         where: { id: saleOrderId },
       });
-      if (!order) throw new NotFoundException('Order not found');
+      if (!order) throw notFound('order');
 
       // The order must belong to whoever paid. Nothing checked this, and the
       // allocate picker offered every order in the system by number, so one
       // shop's money could clear another shop's debt — leaving both balances
       // wrong and no sign of it anywhere.
       if (order.customerId !== payment.customerId) {
-        throw new BadRequestException(
+        throw badRequest(
+          'ORDER_OTHER_CUSTOMER',
           `Order ${order.orderNo} belongs to a different customer than this payment.`,
+          { order: order.orderNo },
         );
       }
 
       if (Number(order.outstanding) < amount) {
-        throw new BadRequestException(
+        throw badRequest(
+          'ALLOCATION_EXCEEDS_OUTSTANDING',
           `Order outstanding is ${order.outstanding}, cannot allocate ${amount}`,
+          { outstanding: String(order.outstanding), amount: String(amount) },
         );
       }
 
@@ -229,7 +239,7 @@ export class PaymentsService {
       where: { id },
       include: { allocations: true },
     });
-    if (!payment) throw new NotFoundException('Payment not found');
+    if (!payment) throw notFound('payment');
 
     // Reverse allocations
     for (const alloc of payment.allocations) {

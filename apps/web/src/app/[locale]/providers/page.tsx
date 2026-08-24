@@ -11,6 +11,7 @@ import {
   Truck, Plus, Search, Edit, X, Loader2, Phone, Mail, User, Trash2,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -23,6 +24,7 @@ interface Provider {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ProvidersPage() {
+  const apiError = useApiError();
   const t = useTranslations('providers');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -52,7 +54,7 @@ export default function ProvidersPage() {
       addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Failed to create provider', 'error');
+      addToast(apiError(error, 'Failed to create provider'), 'error');
     },
   });
 
@@ -64,7 +66,7 @@ export default function ProvidersPage() {
       addToast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Failed to update provider', 'error');
+      addToast(apiError(error, 'Failed to update provider'), 'error');
     },
   });
 
@@ -76,7 +78,7 @@ export default function ProvidersPage() {
       addToast(t('deleteSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Failed to delete provider', 'error');
+      addToast(apiError(error, 'Failed to delete provider'), 'error');
     },
   });
 

@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
+import { badRequest, notFound } from '../../common/api-error';
 @Injectable()
 export class ProvidersService {
   constructor(
@@ -22,7 +23,7 @@ export class ProvidersService {
       where: { id },
       include: { _count: { select: { shippingLegs: true } } },
     });
-    if (!provider) throw new NotFoundException('Provider not found');
+    if (!provider) throw notFound('provider');
     return { data: provider };
   }
 
@@ -69,7 +70,7 @@ export class ProvidersService {
     actorId: string,
   ) {
     const existing = await this.prisma.provider.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Provider not found');
+    if (!existing) throw notFound('provider');
 
     const updated = await this.prisma.provider.update({
       where: { id },
@@ -99,10 +100,11 @@ export class ProvidersService {
       where: { id },
       include: { _count: { select: { shippingLegs: true } } },
     });
-    if (!existing) throw new NotFoundException('Provider not found');
+    if (!existing) throw notFound('provider');
 
     if (existing._count.shippingLegs > 0) {
-      throw new BadRequestException(
+      throw badRequest(
+        'PROVIDER_IN_USE',
         'Cannot delete provider: it is referenced by shipping legs',
       );
     }

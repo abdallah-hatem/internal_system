@@ -14,6 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -51,6 +52,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
+  const apiError = useApiError();
   const t = useTranslations('shipments');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -92,7 +94,7 @@ export default function ShipmentsPage() {
       addToast('Shipment created successfully', 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Operation failed', 'error');
+      addToast(apiError(error, 'Operation failed'), 'error');
     },
   });
 
@@ -104,7 +106,7 @@ export default function ShipmentsPage() {
       addToast('Shipment updated successfully', 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Operation failed', 'error');
+      addToast(apiError(error, 'Operation failed'), 'error');
     },
   });
 

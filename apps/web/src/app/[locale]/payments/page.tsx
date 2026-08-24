@@ -18,6 +18,7 @@ import {
   ChevronRight, ArrowRightLeft, Ban, RotateCcw,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -66,6 +67,7 @@ const METHOD_KEYS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PaymentsPage() {
+  const apiError = useApiError();
   const t = useTranslations('payments');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -114,7 +116,7 @@ export default function PaymentsPage() {
       setShowCreateModal(false);
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to create payment', 'error');
+      toast(apiError(error, 'Failed to create payment'), 'error');
     },
   });
 
@@ -128,7 +130,7 @@ export default function PaymentsPage() {
       setSelectedPayment(null);
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to allocate payment', 'error');
+      toast(apiError(error, 'Failed to allocate payment'), 'error');
     },
   });
 
@@ -141,7 +143,7 @@ export default function PaymentsPage() {
       setSelectedPayment(null);
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to reverse payment', 'error');
+      toast(apiError(error, 'Failed to reverse payment'), 'error');
     },
   });
 

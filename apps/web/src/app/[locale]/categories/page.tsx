@@ -11,6 +11,7 @@ import {
   Tag, Plus, Search, Edit, X, Loader2, Trash2, ChevronRight, ChevronDown, FolderTree,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -55,6 +56,7 @@ function flattenTree(nodes: Category[], depth = 0): (Category & { depth: number;
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function CategoriesPage() {
+  const apiError = useApiError();
   const t = useTranslations('categories');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -84,7 +86,7 @@ export default function CategoriesPage() {
       addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Failed to create category', 'error');
+      addToast(apiError(error, 'Failed to create category'), 'error');
     },
   });
 
@@ -96,7 +98,7 @@ export default function CategoriesPage() {
       addToast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Failed to update category', 'error');
+      addToast(apiError(error, 'Failed to update category'), 'error');
     },
   });
 
@@ -108,7 +110,7 @@ export default function CategoriesPage() {
       addToast(t('deleteSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(error?.response?.data?.message || error?.message || 'Failed to delete category', 'error');
+      addToast(apiError(error, 'Failed to delete category'), 'error');
     },
   });
 

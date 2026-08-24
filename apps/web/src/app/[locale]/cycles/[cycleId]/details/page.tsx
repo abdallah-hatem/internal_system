@@ -29,9 +29,11 @@ import {
   ArrowLeft, Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Trash2, Scale, Route,
 } from 'lucide-react';
 
+import { useApiError } from '../../../../../lib/api-error';
 const num = (v: unknown) => Number(v ?? 0);
 
 export default function CycleDetailsPage() {
+  const apiError = useApiError();
   const t = useTranslations('cycles');
   const tc = useTranslations('common');
   const { cycleId: id, locale } = useParams<{ cycleId: string; locale: string }>();
@@ -66,7 +68,7 @@ export default function CycleDetailsPage() {
     },
     onError: (e: any) =>
       addToast(
-        e?.response?.data?.error?.message || e?.response?.data?.message || tc('error'),
+        apiError(e, tc('error')),
         'error',
       ),
   });

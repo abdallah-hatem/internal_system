@@ -1,15 +1,11 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
+import { badRequest, conflict, notFound } from '../../common/api-error';
 @Injectable()
 export class ProductsService {
   constructor(
@@ -70,7 +66,7 @@ export class ProductsService {
         compatibilities: { include: { motorcycleModel: true } },
       },
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product) throw notFound('product');
     return { data: product };
   }
 
@@ -130,7 +126,7 @@ export class ProductsService {
     actorId: string,
   ) {
     const existing = await this.prisma.product.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Product not found');
+    if (!existing) throw notFound('product');
 
     const updated = await this.prisma.product.update({
       where: { id },
@@ -176,7 +172,7 @@ export class ProductsService {
       where: { name: data.name },
     });
     if (existing) {
-      throw new ConflictException('Category with this name already exists');
+      throw conflict('CATEGORY_NAME_TAKEN', 'Category with this name already exists');
     }
 
     const category = await this.prisma.category.create({ data });
@@ -197,7 +193,7 @@ export class ProductsService {
       where: { id },
       include: { children: true, parent: true, _count: { select: { products: true, children: true } } },
     });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category) throw notFound('category');
     return { data: category };
   }
 
@@ -207,17 +203,17 @@ export class ProductsService {
     actorId: string,
   ) {
     const existing = await this.prisma.category.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Category not found');
+    if (!existing) throw notFound('category');
 
     // Check name uniqueness if changing
     if (data.name && data.name !== existing.name) {
       const dup = await this.prisma.category.findUnique({ where: { name: data.name } });
-      if (dup) throw new ConflictException('Category with this name already exists');
+      if (dup) throw conflict('CATEGORY_NAME_TAKEN', 'Category with this name already exists');
     }
 
     // Prevent setting self as parent
     if (data.parentId === id) {
-      throw new BadRequestException('Category cannot be its own parent');
+      throw badRequest('CATEGORY_OWN_PARENT', 'Category cannot be its own parent');
     }
 
     const updated = await this.prisma.category.update({ where: { id }, data });
@@ -239,16 +235,20 @@ export class ProductsService {
       where: { id },
       include: { _count: { select: { products: true, children: true } } },
     });
-    if (!existing) throw new NotFoundException('Category not found');
+    if (!existing) throw notFound('category');
 
     if (existing._count.products > 0) {
-      throw new BadRequestException(
+      throw badRequest(
+        'CATEGORY_HAS_PRODUCTS',
         `Cannot delete category with ${existing._count.products} product(s). Reassign or remove them first.`,
+        { count: existing._count.products },
       );
     }
     if (existing._count.children > 0) {
-      throw new BadRequestException(
+      throw badRequest(
+        'CATEGORY_HAS_CHILDREN',
         `Cannot delete category with ${existing._count.children} subcategory(ies). Delete or reassign them first.`,
+        { count: existing._count.children },
       );
     }
 
@@ -275,7 +275,7 @@ export class ProductsService {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product) throw notFound('product');
 
     // Close previous price for this product+channel
     await this.prisma.productPrice.updateMany({
@@ -309,7 +309,7 @@ export class ProductsService {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product) throw notFound('product');
 
     const prices = await this.prisma.productPrice.findMany({
       where: { productId },

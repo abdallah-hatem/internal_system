@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
+import { notFound } from '../../common/api-error';
 @Injectable()
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
@@ -36,7 +37,7 @@ export class NotificationsService {
     const notification = await this.prisma.notification.findFirst({
       where: { id, userId },
     });
-    if (!notification) throw new NotFoundException('Notification not found');
+    if (!notification) throw notFound('notification');
 
     return this.prisma.notification.update({
       where: { id },

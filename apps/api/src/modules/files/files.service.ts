@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+import { notFound } from '../../common/api-error';
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
 @Injectable()
@@ -47,7 +48,7 @@ export class FilesService {
 
   async uploadFile(fileAssetId: string, file: Buffer, originalName: string) {
     const fileAsset = await this.prisma.fileAsset.findUnique({ where: { id: fileAssetId } });
-    if (!fileAsset) throw new NotFoundException('File asset not found');
+    if (!fileAsset) throw notFound('fileAsset');
 
     // Ensure upload directory exists
     const dir = path.dirname(path.join(UPLOAD_DIR, fileAsset.objectKey));
@@ -76,7 +77,7 @@ export class FilesService {
       const fileAsset = await this.prisma.fileAsset.findFirst({ where: { objectKey } });
       return { buffer, mimeType: fileAsset?.mimeType || 'application/octet-stream' };
     } catch {
-      throw new NotFoundException('File not found');
+      throw notFound('file');
     }
   }
 

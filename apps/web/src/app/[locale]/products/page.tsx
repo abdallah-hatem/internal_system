@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
+import { ProductLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -15,6 +16,7 @@ import {
   X, Loader2,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -58,6 +60,7 @@ function StatusBadge({ active }: { active: boolean }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ProductsPage() {
+  const apiError = useApiError();
   const t = useTranslations('products');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -94,7 +97,7 @@ export default function ProductsPage() {
       toast('Product created successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to create product', 'error');
+      toast(apiError(error, 'Failed to create product'), 'error');
     },
   });
 
@@ -107,7 +110,7 @@ export default function ProductsPage() {
       toast('Product updated successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to update product', 'error');
+      toast(apiError(error, 'Failed to update product'), 'error');
     },
   });
 
@@ -251,7 +254,9 @@ export default function ProductsPage() {
                   paginated.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs text-gray-500">{product.sku}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{product.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        <ProductLink id={product.id} name={product.name} />
+                      </td>
                        <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2.5 py-0.5 text-xs">
                           <Tag className="h-3 w-3" />
@@ -312,7 +317,9 @@ export default function ProductsPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">{product.name}</p>
+                    <p className="font-medium text-gray-900">
+                      <ProductLink id={product.id} name={product.name} />
+                    </p>
                     <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
                   </div>
                   <StatusBadge active={product.isActive} />

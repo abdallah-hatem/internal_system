@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
@@ -8,7 +8,9 @@ import {
   summarizeCyclePnl,
   ParticipantInput,
 } from './settlement-math';
+import { formatMoney, formatQty } from '../../common/money';
 
+import { badRequest, notFound } from '../../common/api-error';
 /** Sale states whose stock has genuinely left the business. */
 const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
 
@@ -159,7 +161,7 @@ export class SettlementsService {
         },
       },
     });
-    if (!settlement) throw new NotFoundException('Settlement not found');
+    if (!settlement) throw notFound('settlement');
     return { data: settlement };
   }
 
@@ -175,14 +177,14 @@ export class SettlementsService {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
 
     const participants = await this.prisma.cycleParticipant.findMany({
       where: { cycleId },
       orderBy: { createdAt: 'asc' },
     });
     if (participants.length === 0) {
-      throw new BadRequestException('No participants found for this cycle');
+      throw badRequest('CYCLE_NO_PARTICIPANTS', 'No participants found for this cycle');
     }
 
     // A settled cycle must not be silently recalculated underneath the
@@ -191,8 +193,10 @@ export class SettlementsService {
       where: { cycleId, status: { in: ['APPROVED', 'PAID'] } },
     });
     if (locked) {
-      throw new BadRequestException(
+      throw badRequest(
+        'SETTLEMENT_LOCKED',
         `Cycle already has a ${locked.status} settlement. Reverse it before recalculating.`,
+        { status: locked.status },
       );
     }
 
@@ -303,7 +307,7 @@ export class SettlementsService {
     const warnings: string[] = [];
     if (!pnl.fullySold) {
       warnings.push(
-        `${unitsRemaining.toFixed(3)} units are still in stock (${pnl.unsoldValue.toFixed(2)} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.`,
+        `${formatQty(unitsRemaining)} units are still in stock (${formatMoney(pnl.unsoldValue)} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.`,
       );
     }
     if (allocationInputs.length === 0) {
@@ -426,9 +430,9 @@ export class SettlementsService {
    */
   async approve(id: string, actorId?: string) {
     const settlement = await this.prisma.settlement.findUnique({ where: { id } });
-    if (!settlement) throw new NotFoundException('Settlement not found');
+    if (!settlement) throw notFound('settlement');
     if (settlement.status !== 'DRAFT') {
-      throw new BadRequestException('Only DRAFT settlements can be approved');
+      throw badRequest('ONLY_DRAFT_APPROVABLE', 'Only DRAFT settlements can be approved');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -483,18 +487,24 @@ export class SettlementsService {
         cycle: { select: { id: true, code: true, currency: true } },
       },
     });
-    if (!settlement) throw new NotFoundException('Settlement not found');
+    if (!settlement) throw notFound('settlement');
     if (settlement.status !== 'APPROVED') {
-      throw new BadRequestException('Only APPROVED settlements can be marked as paid');
+      throw badRequest('ONLY_APPROVED_PAYABLE', 'Only APPROVED settlements can be marked as paid');
     }
 
     const unitsRemaining = new Prisma.Decimal(settlement.unitsRemaining ?? 0);
     if (unitsRemaining.gt(0) && !opts.acceptRemainingStock) {
-      throw new BadRequestException(
-        `Cycle ${settlement.cycle.code} still holds ${unitsRemaining.toFixed(3)} units ` +
-          `worth ${new Prisma.Decimal(settlement.unsoldValueEgp ?? 0).toFixed(2)} EGP at landed cost. ` +
+      throw badRequest(
+        'CYCLE_HAS_UNSOLD_STOCK',
+        `Cycle ${settlement.cycle.code} still holds ${formatQty(unitsRemaining)} units ` +
+          `worth ${formatMoney(settlement.unsoldValueEgp)} EGP at landed cost. ` +
           'Closing now writes that cost off against this cycle. ' +
           'Sell the remaining stock first, or confirm explicitly to accept it.',
+        {
+          cycle: settlement.cycle.code,
+          units: formatQty(unitsRemaining),
+          value: formatMoney(settlement.unsoldValueEgp),
+        },
       );
     }
 
@@ -587,12 +597,12 @@ export class SettlementsService {
       where: { id },
       include: { cycle: { select: { id: true, code: true } } },
     });
-    if (!settlement) throw new NotFoundException('Settlement not found');
+    if (!settlement) throw notFound('settlement');
     if (settlement.status === 'REVERSED') {
-      throw new BadRequestException('Settlement is already reversed');
+      throw badRequest('SETTLEMENT_ALREADY_REVERSED', 'Settlement is already reversed');
     }
     if (!reason?.trim()) {
-      throw new BadRequestException('A reason is required to reverse a settlement');
+      throw badRequest('SETTLEMENT_REASON_REQUIRED', 'A reason is required to reverse a settlement');
     }
 
     const paid = await this.prisma.financialTransaction.findMany({

@@ -15,6 +15,7 @@ import {
   Clock, CheckCircle2, Circle, Loader2, AlertCircle, ChevronDown,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Cycle {
   id: string;
@@ -61,6 +62,7 @@ const STATUS_LABEL_MAP: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function CyclesPage() {
+  const apiError = useApiError();
   const t = useTranslations('cycles');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -103,7 +105,7 @@ export default function CyclesPage() {
       toast.success('Cycle status updated');
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || error?.message || 'Transition failed');
+      toast.error(apiError(error, 'Transition failed'));
     },
   });
 

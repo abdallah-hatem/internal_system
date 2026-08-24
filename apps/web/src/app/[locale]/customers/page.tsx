@@ -1,5 +1,6 @@
 'use client';
 import { Money } from '../../../components/ui/money';
+import { CustomerLink } from '../../../components/ui/entity-link';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations, useLocale } from 'next-intl';
@@ -15,6 +16,7 @@ import {
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -45,6 +47,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function CustomersPage() {
+  const apiError = useApiError();
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations('customers');
@@ -83,7 +86,7 @@ export default function CustomersPage() {
       toast('Customer created successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to create customer', 'error');
+      toast(apiError(error, 'Failed to create customer'), 'error');
     },
   });
 
@@ -96,7 +99,7 @@ export default function CustomersPage() {
       toast('Customer updated successfully', 'success');
     },
     onError: (error: any) => {
-      toast(error?.response?.data?.message || error.message || 'Failed to update customer', 'error');
+      toast(apiError(error, 'Failed to update customer'), 'error');
     },
   });
 
@@ -198,7 +201,9 @@ export default function CustomersPage() {
                   ) : (
                   paginated.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">{customer.displayName}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        <CustomerLink id={customer.id} name={customer.displayName} />
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[customer.type] ?? 'bg-gray-100 text-gray-600'}`}>
                           {customer.type === 'B2B' ? t('b2b') : t('b2c')}
@@ -263,7 +268,9 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-gray-900">{customer.displayName}</p>
+                  <p className="font-medium text-gray-900">
+                    <CustomerLink id={customer.id} name={customer.displayName} />
+                  </p>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[customer.type] ?? 'bg-gray-100 text-gray-600'}`}>
                     {customer.type === 'B2B' ? t('b2b') : t('b2c')}
                   </span>

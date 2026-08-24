@@ -15,6 +15,7 @@ import {
   CalendarClock, Plus, X, Loader2, AlertTriangle, Check, Trash2, Ban,
 } from 'lucide-react';
 
+import { useApiError } from '../../../lib/api-error';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -77,6 +78,7 @@ function nextSundayAfter(day: string) {
 const today = () => asDay(new Date());
 
 export default function PaymentPlansPage() {
+  const apiError = useApiError();
   const t = useTranslations('paymentPlans');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -108,7 +110,7 @@ export default function PaymentPlansPage() {
     },
     onError: (e: any) =>
       addToast(
-        e?.response?.data?.error?.message || e?.response?.data?.message || t('createFailed'),
+        apiError(e, t('createFailed')),
         'error',
       ),
   });

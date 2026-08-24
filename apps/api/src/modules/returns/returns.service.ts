@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -10,6 +6,7 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma, RefundMethod } from '@prisma/client';
 import { CreateReturnDto } from './dto/return.dto';
 
+import { badRequest, notFound } from '../../common/api-error';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
@@ -61,7 +58,7 @@ export class ReturnsService {
       where: { id },
       include: RETURN_INCLUDE,
     });
-    if (!found) throw new NotFoundException('Return not found');
+    if (!found) throw notFound('return');
     return { data: found };
   }
 
@@ -92,11 +89,13 @@ export class ReturnsService {
         },
       },
     });
-    if (!order) throw new NotFoundException('Sale order not found');
+    if (!order) throw notFound('saleOrder');
 
     if (!RETURNABLE_ORDER_STATUSES.includes(order.status)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'ONLY_CONFIRMED_RETURNABLE',
         `Only a confirmed sale can be returned. ${order.orderNo} is ${order.status}.`,
+        { order: order.orderNo, status: order.status },
       );
     }
 
@@ -118,8 +117,10 @@ export class ReturnsService {
     for (const line of dto.items) {
       const saleItem = order.items.find((i) => i.id === line.saleItemId);
       if (!saleItem) {
-        throw new BadRequestException(
+        throw badRequest(
+          'SALE_ITEM_NOT_IN_ORDER',
           `Sale item ${line.saleItemId} is not part of order ${order.orderNo}`,
+          { order: order.orderNo },
         );
       }
 
@@ -129,10 +130,18 @@ export class ReturnsService {
       const returnable = sold.sub(alreadyReturned);
 
       if (wanted.gt(returnable)) {
-        throw new BadRequestException(
+        throw badRequest(
+          'RETURN_EXCEEDS_RETURNABLE',
           `Cannot return ${wanted.toFixed(3)} of ${saleItem.product.name}: ` +
             `${sold.toFixed(3)} sold, ${alreadyReturned.toFixed(3)} already returned, ` +
             `${returnable.toFixed(3)} still returnable.`,
+          {
+            wanted: wanted.toFixed(3),
+            product: saleItem.product.name,
+            sold: sold.toFixed(3),
+            returned: alreadyReturned.toFixed(3),
+            returnable: returnable.toFixed(3),
+          },
         );
       }
 
@@ -176,9 +185,11 @@ export class ReturnsService {
       }
 
       if (outstanding.gt(0)) {
-        throw new BadRequestException(
+        throw badRequest(
+          'RETURN_UNTRACEABLE',
           `Could not trace ${outstanding.toFixed(3)} of ${saleItem.product.name} ` +
             'back to the batches it was sold from.',
+          { qty: outstanding.toFixed(3), product: saleItem.product.name },
         );
       }
     }
