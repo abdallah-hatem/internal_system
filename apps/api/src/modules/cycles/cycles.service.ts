@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -11,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma, ParticipantType } from '@prisma/client';
 
+import { badRequest, notFound } from '../../common/api-error';
 // Valid state transitions per the spec
 const VALID_TRANSITIONS: Record<string, string[]> = {
   PLANNING: ['FUNDING', 'CANCELLED'],
@@ -30,8 +26,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 /** Accept only the two participant kinds the business recognises. */
 function assertParticipantType(value: string): ParticipantType {
   if (value === 'CORE_PARTNER' || value === 'TEMP_INVESTOR') return value;
-  throw new BadRequestException(
+  throw badRequest(
+    'BAD_PARTICIPANT_TYPE',
     `participantType must be CORE_PARTNER or TEMP_INVESTOR (received "${value}")`,
+    { value: String(value) },
   );
 }
 
@@ -100,7 +98,7 @@ export class CyclesService {
         settlements: true,
       },
     });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
     return { data: cycle };
   }
 
@@ -125,7 +123,7 @@ export class CyclesService {
     // Support both 'origin' and 'originType' field names
     const originType = data.originType || data.origin;
     if (!originType) {
-      throw new BadRequestException('originType (or origin) is required');
+      throw badRequest('ORIGIN_TYPE_REQUIRED', 'originType (or origin) is required');
     }
 
     // Generate cycle code: CYC-YYYY-XXXX (or use provided code)
@@ -187,16 +185,32 @@ export class CyclesService {
     // Create inline participants if provided
     if (data.participants && data.participants.length > 0) {
       for (const p of data.participants) {
-        const participant = await this.prisma.cycleParticipant.create({
-          data: {
+        const type = assertParticipantType(p.participantType);
+        // The participant row and the money arriving are one fact, so they are
+        // written together — a contribution recorded without its ledger entry
+        // is the gap this whole thing exists to close.
+        const participant = await this.prisma.$transaction(async (tx) => {
+          const created = await tx.cycleParticipant.create({
+            data: {
+              cycleId: cycle.id,
+              participantType: type,
+              partnerUserId: p.partnerUserId,
+              investorUserId: p.investorUserId,
+              contributionAmount: p.contributionAmount,
+              customProfitPct: p.customProfitPct,
+              investorFeePct: p.investorFeePct,
+            },
+          });
+          await this.recordContributionChange(tx, {
             cycleId: cycle.id,
-            participantType: assertParticipantType(p.participantType),
-            partnerUserId: p.partnerUserId,
-            investorUserId: p.investorUserId,
-            contributionAmount: p.contributionAmount,
-            customProfitPct: p.customProfitPct,
-            investorFeePct: p.investorFeePct,
-          },
+            cycleCode: cycle.code,
+            participantId: created.id,
+            before: 0,
+            after: p.contributionAmount,
+            isInvestor: type === 'TEMP_INVESTOR',
+            actorId,
+          });
+          return created;
         });
 
         // Notify each participant
@@ -286,10 +300,12 @@ export class CyclesService {
       if (!l) return;
       const rank: Record<string, number> = { PENDING: 0, IN_TRANSIT: 1, ARRIVED: 2 };
       if ((rank[l.status] ?? 0) >= rank[minimum]) return;
-      throw new BadRequestException(
+      throw badRequest(
+        minimum === 'ARRIVED' ? 'LEG_NOT_ARRIVED' : 'LEG_NOT_DEPARTED',
         `${where(l)} has not ${what}. Record the ${
           minimum === 'ARRIVED' ? 'arrival' : 'departure'
         } date on that leg first.`,
+        { leg: where(l) },
       );
     };
 
@@ -315,12 +331,14 @@ export class CyclesService {
 
   async transition(id: string, targetStatus: string, actorId: string) {
     const cycle = await this.prisma.importCycle.findUnique({ where: { id } });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
 
     const allowed = VALID_TRANSITIONS[cycle.status];
     if (!allowed || !allowed.includes(targetStatus)) {
-      throw new BadRequestException(
+      throw badRequest(
+        'BAD_STATUS_TRANSITION',
         `Cannot transition from ${cycle.status} to ${targetStatus}. Allowed: ${(allowed || []).join(', ')}`,
+        { from: cycle.status, to: targetStatus, allowed: (allowed || []).join(', ') },
       );
     }
 
@@ -329,7 +347,8 @@ export class CyclesService {
       targetStatus === 'IN_TRANSIT' &&
       cycle.originType === 'UAE_DIRECT'
     ) {
-      throw new BadRequestException(
+      throw badRequest(
+        'UAE_DIRECT_NO_CHINA_LEG',
         'UAE_DIRECT cycles cannot have a China-to-UAE leg',
       );
     }
@@ -396,11 +415,12 @@ export class CyclesService {
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
-    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (!cycle) throw notFound('cycle');
 
     // Validate: cannot add participants in closed cycles
     if (cycle.status === 'CLOSED') {
-      throw new BadRequestException(
+      throw badRequest(
+        'CYCLE_CLOSED_NO_PARTICIPANTS',
         'Cannot add participants to a closed cycle',
       );
     }
@@ -409,11 +429,9 @@ export class CyclesService {
     const userId =
       type === 'TEMP_INVESTOR' ? data.investorUserId : data.partnerUserId;
     if (!userId) {
-      throw new BadRequestException(
-        type === 'TEMP_INVESTOR'
-          ? 'investorUserId is required for a temporary investor'
-          : 'partnerUserId is required for a core partner',
-      );
+      throw type === 'TEMP_INVESTOR'
+        ? badRequest('INVESTOR_ID_REQUIRED', 'investorUserId is required for a temporary investor')
+        : badRequest('PARTNER_ID_REQUIRED', 'partnerUserId is required for a core partner');
     }
 
     // Adding the same person twice would dilute everyone else's profit share.
@@ -424,21 +442,34 @@ export class CyclesService {
           : { cycleId, partnerUserId: userId },
     });
     if (already) {
-      throw new BadRequestException(
+      throw badRequest(
+        'ALREADY_A_PARTICIPANT',
         'This person is already a participant in this cycle',
       );
     }
 
-    const participant = await this.prisma.cycleParticipant.create({
-      data: {
+    const participant = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.cycleParticipant.create({
+        data: {
+          cycleId,
+          participantType: type,
+          partnerUserId: type === 'TEMP_INVESTOR' ? undefined : userId,
+          investorUserId: type === 'TEMP_INVESTOR' ? userId : undefined,
+          contributionAmount: data.contributionAmount,
+          customProfitPct: data.customProfitPct,
+          investorFeePct: data.investorFeePct,
+        },
+      });
+      await this.recordContributionChange(tx, {
         cycleId,
-        participantType: type,
-        partnerUserId: type === 'TEMP_INVESTOR' ? undefined : userId,
-        investorUserId: type === 'TEMP_INVESTOR' ? userId : undefined,
-        contributionAmount: data.contributionAmount,
-        customProfitPct: data.customProfitPct,
-        investorFeePct: data.investorFeePct,
-      },
+        cycleCode: cycle.code,
+        participantId: created.id,
+        before: 0,
+        after: data.contributionAmount,
+        isInvestor: type === 'TEMP_INVESTOR',
+        actorId,
+      });
+      return created;
     });
 
     await this.audit.log({
@@ -467,6 +498,60 @@ export class CyclesService {
     return { data: participant };
   }
 
+  /**
+   * Post the money a participant put in, or took back out.
+   *
+   * The ledger recorded the cycle spending its capital but never recorded that
+   * capital arriving: the purchase went out as an OUTFLOW and the partners'
+   * money that funded it appeared nowhere. Netting the table gave −62,325 on a
+   * cycle that had been settled in full and owed nobody anything — the business
+   * looked to have spent money it never received, understated by exactly what
+   * the partners had contributed.
+   *
+   * A contribution is a standing figure that can be edited, but money moving is
+   * an event. So this posts the DIFFERENCE rather than the new total: raise a
+   * contribution and the increase comes in, lower it and the excess goes back.
+   * The entries then always sum to the current figure without any of them being
+   * rewritten, which is what keeps the ledger an audit trail rather than a
+   * mirror of a mutable column.
+   */
+  private async recordContributionChange(
+    tx: Prisma.TransactionClient,
+    args: {
+      cycleId: string;
+      cycleCode: string;
+      participantId: string;
+      before: Prisma.Decimal | number;
+      after: Prisma.Decimal | number;
+      isInvestor: boolean;
+      actorId: string;
+    },
+  ) {
+    const before = new Prisma.Decimal(args.before ?? 0);
+    const after = new Prisma.Decimal(args.after ?? 0);
+    const delta = after.sub(before);
+    if (delta.isZero()) return;
+
+    const who = args.isInvestor ? 'investor' : 'partner';
+    await tx.financialTransaction.create({
+      data: {
+        type: 'CAPITAL_CONTRIBUTION',
+        category: 'contribution',
+        // A reduction is capital handed back, so the money leaves.
+        direction: delta.gt(0) ? 'INFLOW' : 'OUTFLOW',
+        amount: delta.abs().toDecimalPlaces(2),
+        currency: 'EGP',
+        cycleId: args.cycleId,
+        relatedType: 'CYCLE_PARTICIPANT',
+        relatedId: args.participantId,
+        reason: delta.gt(0)
+          ? `Capital put into ${args.cycleCode} by ${who}`
+          : `Capital returned from ${args.cycleCode} to ${who}`,
+        createdBy: args.actorId,
+      },
+    });
+  }
+
   async updateParticipant(
     id: string,
     data: {
@@ -479,15 +564,31 @@ export class CyclesService {
     const existing = await this.prisma.cycleParticipant.findUnique({
       where: { id },
     });
-    if (!existing) throw new NotFoundException('Participant not found');
+    if (!existing) throw notFound('participant');
 
-    const updated = await this.prisma.cycleParticipant.update({
-      where: { id },
-      data: {
-        contributionAmount: data.contributionAmount,
-        customProfitPct: data.customProfitPct,
-        investorFeePct: data.investorFeePct,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.cycleParticipant.update({
+        where: { id },
+        data: {
+          contributionAmount: data.contributionAmount,
+          customProfitPct: data.customProfitPct,
+          investorFeePct: data.investorFeePct,
+        },
+        include: { cycle: { select: { code: true } } },
+      });
+      // This is the path "Split equally" takes, and where a contribution
+      // usually gets its real value: a cycle is created with zeros because the
+      // capital is not known until the goods and shipping are costed.
+      await this.recordContributionChange(tx, {
+        cycleId: next.cycleId,
+        cycleCode: next.cycle.code,
+        participantId: next.id,
+        before: existing.contributionAmount,
+        after: next.contributionAmount,
+        isInvestor: next.participantType === 'TEMP_INVESTOR',
+        actorId,
+      });
+      return next;
     });
 
     await this.audit.log({

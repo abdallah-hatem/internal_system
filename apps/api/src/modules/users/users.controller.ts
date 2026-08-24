@@ -19,6 +19,15 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
+  // Declared before ':id' — Nest matches routes in order, so the other way
+  // round "participation" is read as a user id and returns a 404.
+  @Get('participation')
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({ summary: 'Per-partner capital, profit share and cycles' })
+  participation() {
+    return this.usersService.participation();
+  }
+
   @Get(':id')
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get user by ID' })

@@ -3,6 +3,42 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+/**
+ * Post the capital a seeded participant put in.
+ *
+ * The seed writes participant rows straight through Prisma, so it bypasses the
+ * service that normally raises the matching ledger entry. Without this the demo
+ * database declares contributions the ledger has never heard of — 400,000 of
+ * capital against nothing coming in — and it fails the same invariant the app
+ * is supposed to hold.
+ */
+async function seedContributions(cycleId: string, cycleCode: string) {
+  const participants = await prisma.cycleParticipant.findMany({ where: { cycleId } });
+  for (const p of participants) {
+    if (Number(p.contributionAmount) <= 0) continue;
+    const already = await prisma.financialTransaction.findFirst({
+      where: { relatedType: 'CYCLE_PARTICIPANT', relatedId: p.id },
+    });
+    if (already) continue;
+    await prisma.financialTransaction.create({
+      data: {
+        type: 'CAPITAL_CONTRIBUTION',
+        category: 'contribution',
+        direction: 'INFLOW',
+        amount: p.contributionAmount,
+        currency: 'EGP',
+        cycleId,
+        relatedType: 'CYCLE_PARTICIPANT',
+        relatedId: p.id,
+        reason: `Capital put into ${cycleCode} by ${
+          p.participantType === 'TEMP_INVESTOR' ? 'investor' : 'partner'
+        }`,
+        createdBy: p.partnerUserId ?? p.investorUserId,
+      },
+    });
+  }
+}
+
 async function main() {
   console.log('🌱 Seeding database...');
 
@@ -378,6 +414,7 @@ async function main() {
         { cycleId: cycle.id, participantType: 'CORE_PARTNER', partnerUserId: partnerC.id, contributionAmount: D(120000) },
       ],
     });
+    await seedContributions(cycle.id, cycle.code);
 
     const po = await prisma.purchaseOrder.create({
       data: {
@@ -492,6 +529,7 @@ async function main() {
         { cycleId: uae.id, participantType: 'TEMP_INVESTOR', investorUserId: partnerC.id, contributionAmount: D(50000), investorFeePct: D(15) },
       ],
     });
+    await seedContributions(uae.id, uae.code);
     await prisma.shippingLeg.create({
       data: {
         cycleId: uae.id, sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',

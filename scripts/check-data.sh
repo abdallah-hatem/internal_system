@@ -72,6 +72,26 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM payments p
    WHERE p.status='RECORDED'
      AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.payment_id=p.id)
+  UNION ALL SELECT 14, 'partner capital declared but never recorded as arriving',
+         count(*) FROM cycle_participants cp
+   WHERE cp.contribution_amount > 0
+     AND NOT EXISTS (
+       SELECT 1 FROM financial_transactions f
+        WHERE f.related_type='CYCLE_PARTICIPANT' AND f.related_id=cp.id
+     )
+  UNION ALL SELECT 14.1, 'ledger contributions disagree with the participant rows',
+         count(*) FROM (
+           SELECT cp.id
+             FROM cycle_participants cp
+             LEFT JOIN (
+               SELECT related_id,
+                      sum(CASE WHEN direction='INFLOW' THEN amount ELSE -amount END) AS net
+                 FROM financial_transactions
+                WHERE related_type='CYCLE_PARTICIPANT'
+                GROUP BY related_id
+             ) f ON f.related_id = cp.id
+            WHERE cp.contribution_amount <> COALESCE(f.net, 0)
+         ) drifted
 SQL
 )
 
