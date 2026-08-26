@@ -178,3 +178,90 @@ Two things that look right and are not:
   too shallow, so every refusal fell through to a generic fallback and the API's
   explanation reached nobody — with a toast still appearing, so nothing looked
   broken. Use `useApiError()`, never reach into the response by hand.
+
+## 10. A number nobody entered is still a number
+
+`resolveShares` used to return all-zero shares for a cycle nobody had funded.
+That reads as harmless — nothing to split, so split nothing — and it was not.
+Every line then rounds to zero except the last, which absorbs the rounding
+residual, so the whole profit landed on whichever participant happened to be
+created last. Three equal partners, 90,000 of profit, answer 0 / 0 / 90,000.
+
+The test guarding that path passed a profit of **zero**, so every line was zero
+whatever the shares were. It only ever proved the code did not divide by zero.
+
+- When a calculation has no valid basis, refuse. Do not return a neutral-looking
+  value and let rounding decide who gets the money.
+- Test a distribution with a non-zero total. Zero hides every share bug there is.
+- If a figure is required for a later step to be correct, ask for it in the flow
+  that produces it. Contributions lived on a different page from the wizard, so
+  they were a step you could finish without — and nothing said so until
+  settlement, weeks later.
+
+## 11. One rule, one definition
+
+`CAPITALISED_CATEGORIES` — the ledger categories that are not operating
+expenses — existed twice, once in the settlements service and once in analytics.
+Adding `contribution` to one and not the other meant handing a partner their
+capital back was charged against the dashboard's net profit as an expense, while
+the settlement itself had it right. The same question, asked twice, answered
+differently.
+
+It lives in `apps/api/src/common/ledger-categories.ts` now, imported by both.
+
+- A rule the business states once should be written down once. Two copies drift
+  on the first change, and the drift shows up as a wrong figure on one screen
+  and a right one on another — which reads as a display bug, not an arithmetic
+  one, and gets looked for in the wrong place.
+- When adding a ledger category, ask what it is NOT: not income, not an expense,
+  not a cost recovery. Money moving is not the same as money earned or spent.
+
+## 12. Being logged in is not being allowed
+
+`POST /auth/register` had no guard and the caller chose their own role, so
+anyone who could reach the API could make themselves a CORE_PARTNER. Settlements,
+sales, payments and ledger carried no `RolesGuard` at all, so any account —
+including a temporary investor's — could approve a settlement or reverse a
+ledger entry.
+
+- Every endpoint that moves money names the roles allowed to call it. The guard
+  defaults to allowing when no roles are set, so silence means open.
+- A refusal from the guard throws a coded error like any other. Returning
+  `false` gives Nest's bare "Forbidden resource", which carries no code and
+  cannot be translated.
+- Test both directions: that the wrong role is refused, and that the right one
+  still works. A guard that refuses everybody passes half a test suite.
+
+## 13. A form must not be a dead end
+
+Adding a product needed a category that did not exist yet, and the only way to
+get one was to abandon the half-filled form, go to Categories, create it, come
+back and start again. The same dead end sat behind every picker in the app.
+
+`FieldWithQuickCreate` puts a `+` beside the field. It opens **the entity's own
+create form** — the same one its tab shows — saves it, refreshes the list the
+picker reads, and selects it, leaving the form underneath untouched.
+
+The form is defined once in `components/entities/entity-forms.tsx` and rendered
+in both places. The first attempt gave quick-create its own cut-down fields, and
+that is a second definition of a form that already exists: add a field to
+Customers and the `+` beside a sale quietly keeps making customers without it.
+A new picker is one entry in that registry, not a modal copied into a page.
+
+Four things that are easy to get wrong, and all of them were:
+
+- **The trigger sits inside another form.** A bare `<button>` defaults to
+  `type="submit"`, so reaching for a category would save the half-filled
+  product. Every button inside a form states its type.
+- **The modal has to leave the tree.** Rendering it where it sits puts a
+  `<form>` inside a `<form>` — invalid markup, and the inner submit bubbles to
+  the outer one. It portals to `document.body`.
+- **Refetch before handing the id back.** Select an id the picker's list does
+  not yet contain and the field renders blank: created, and apparently not.
+- **Clear the selection on every close path, not just on success.** Cancel left
+  the last choice behind and the next record opened already filled in. Route
+  open and close through one helper rather than calling the setter at each site.
+
+Not every picker should have one. A cycle is built by a four-step wizard and has
+no honest minimal form; a category's own parent picker is already inside the
+category form. A `+` that creates a half-formed record is worse than the detour.
