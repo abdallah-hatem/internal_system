@@ -38,7 +38,7 @@
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "unapplied": "unapplied",
-    "optional": "optional"
+    "optional": "Optional"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -92,7 +92,9 @@
     "cashFlow": "Cash Flow",
     "cogs": "Cost of Goods Sold",
     "cashOut": "Cash Paid Out",
-    "collected": "Collected"
+    "collected": "Collected",
+    "cashOnHand": "Cash on Hand",
+    "cashIn": "Cash Received"
   },
   "products": {
     "title": "Products",
@@ -623,7 +625,28 @@
     "purchaseOrder": "Purchase Order",
     "receiveInventory": "Receive Inventory",
     "back": "Back",
-    "saveAndContinueBtn": "Save & Continue"
+    "saveAndContinueBtn": "Save & Continue",
+    "funding": "Who is funding this cycle",
+    "fundingHint": "Split what the cycle cost between the partners. Left at zero, its profit cannot be shared out at settlement.",
+    "splitEqually": "Split equally",
+    "fundingSaved": "Contributions saved",
+    "fundingFailed": "Could not save the contributions",
+    "cycleCost": "Cycle cost",
+    "funded": "Funded",
+    "fundingShort": "{amount} EGP of the cycle cost is not covered",
+    "fundingOver": "{amount} EGP more than the cycle cost",
+    "notFundedYet": "No contributions recorded yet",
+    "tempInvestorTag": "investor",
+    "addInvestor": "Add a temporary investor",
+    "investorPerson": "Who",
+    "investorAmount": "Amount",
+    "investorFee": "Fee %",
+    "investorFeeHint": "Percentage of this investor's own profit that goes to the partners",
+    "addInvestorAction": "Add",
+    "investorAdded": "Investor added",
+    "investorFailed": "Could not add the investor",
+    "selectPerson": "Select a person",
+    "everyoneIsOn": "Everyone is already on this cycle"
   },
   "settlementsPage": {
     "title": "Settlements",
@@ -797,6 +820,9 @@
     "UAE_DIRECT_LEG_ROUTE": "A UAE-direct cycle ships from UAE to Egypt.",
     "UAE_DIRECT_NO_CHINA_LEG": "A UAE-direct cycle cannot have a China-to-UAE leg.",
     "UAE_DIRECT_ONE_LEG": "A UAE-direct cycle has a single shipping leg, from UAE to Egypt.",
-    "WRONG_CURRENT_PASSWORD": "The current password is incorrect."
+    "WRONG_CURRENT_PASSWORD": "The current password is incorrect.",
+    "CYCLE_NOT_FUNDED": "No contributions are recorded for this cycle, so there is no basis to split its profit. Record what each participant put in first.",
+    "NOTHING_TO_SCHEDULE": "{customer} does not owe anything, so there is no debt to schedule.",
+    "ROLE_NOT_ALLOWED": "Your role does not allow this action."
   }
 }

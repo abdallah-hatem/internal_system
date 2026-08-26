@@ -1,6 +1,5 @@
 'use client';
 import { Select } from '../../../components/ui/select';
-import { DatePicker } from '../../../components/ui/date-picker';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +14,9 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { formatDate } from '../../../lib/dates';
+import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
+import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -62,8 +64,24 @@ export default function ShipmentsPage() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  // A provider created from inside either modal, so it can be selected the
+  // moment it exists.
+  const [newProviderId, setNewProviderId] = useState('');
+  const [editProviderId, setEditProviderId] = useState('');
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
+
+  // Every way in and out of the edit modal clears the provider override, or
+  // the next shipment opens showing the previous one's provider.
+  const openEdit = (ship: Shipment) => {
+    setEditProviderId('');
+    setEditingShipment(ship);
+  };
+  const closeEdit = () => {
+    setEditProviderId('');
+    setEditingShipment(null);
+  };
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search]);
@@ -104,7 +122,7 @@ export default function ShipmentsPage() {
     mutationFn: ({ id, ...data }: any) => api.put(`/shipping/legs/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
-      setEditingShipment(null);
+      closeEdit();
       addToast('Shipment updated successfully', 'success');
     },
     onError: (error: any) => {
@@ -129,8 +147,32 @@ export default function ShipmentsPage() {
    * survive the provider record being renamed or removed.
    */
   const providerFields = (id: FormDataEntryValue | null) => {
-    const found = providerList.find((p: any) => p.id === id);
+    const value = String(id ?? '');
+    // `name:<x>` is a leg's own unlinked provider offered back to it: it names
+    // a provider the records do not have, so there is no id to send.
+    if (value.startsWith('name:')) return { providerId: undefined, provider: value.slice(5) };
+    const found = providerList.find((p: any) => p.id === value);
     return { providerId: found?.id, provider: found?.name };
+  };
+
+  /**
+   * The providers to choose from, plus whatever this leg already says.
+   *
+   * Legs were created with a free-text provider for a long time, so an older
+   * one can name something the records do not have. Offering only real
+   * providers left the field empty for those, and the leg could no longer be
+   * edited at all — the browser just refused to submit, silently.
+   */
+  const providerOptions = (current?: string) => {
+    const options = providerList.map((p: any) => ({
+      value: p.id,
+      label: p.name,
+      hint: p.contactPerson ?? undefined,
+    }));
+    if (current && !providerList.some((p: any) => p.name === current)) {
+      options.unshift({ value: `name:${current}`, label: current, hint: undefined });
+    }
+    return options;
   };
 
   const filtered = shipmentList.filter((s) => {
@@ -222,14 +264,14 @@ export default function ShipmentsPage() {
                       <td className="px-4 py-3">
                         <StatusBadge status={ship.status} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{ship.departedOn ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{ship.arrivedOn ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(ship.departedOn)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(ship.arrivedOn)}</td>
                       <td className="px-4 py-3 text-gray-700">
                         <LegCost ship={ship} />
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => setEditingShipment(ship)}
+                          onClick={() => openEdit(ship)}
                           className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                           title={tc('edit')}
                         >
@@ -254,7 +296,7 @@ export default function ShipmentsPage() {
             paginated.map((ship) => (
               <div
                 key={ship.id}
-                onClick={() => setEditingShipment(ship)}
+                onClick={() => openEdit(ship)}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-2">
@@ -272,8 +314,10 @@ export default function ShipmentsPage() {
                   {ship.trackingRef && <span className="font-mono">{ship.trackingRef}</span>}
                 </div>
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                  <span>{ship.departedOn ?? '—'}</span>
-                  <span>{ship.arrivedOn ?? '—'}</span>
+                  {/* Through formatDate, not raw. These printed
+                      "2026-08-13T00:00:00.000Z" straight onto the card. */}
+                  <span>{formatDate(ship.departedOn)}</span>
+                  <span>{formatDate(ship.arrivedOn)}</span>
                   <span className="font-medium text-gray-700">
                     <LegCost ship={ship} />
                   </span>
@@ -336,17 +380,24 @@ export default function ShipmentsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('provider')}<span className="text-red-500 ms-1">*</span>
                 </label>
-                <Select
-                  name="providerId"
-                  required
-                  placeholder={t('provider')}
-                  searchPlaceholder={tc('search')}
-                  options={providerList.map((p: any) => ({
-                    value: p.id,
-                    label: p.name,
-                    hint: p.contactPerson ?? undefined,
-                  }))}
-                />
+                <FieldWithQuickCreate
+                  entity="provider"
+                  onCreated={(pr) => setNewProviderId(pr.id)}
+                >
+                  <Select
+                    name="providerId"
+                    required
+                    value={newProviderId}
+                    onChange={setNewProviderId}
+                    placeholder={t('provider')}
+                    searchPlaceholder={tc('search')}
+                    options={providerList.map((p: any) => ({
+                      value: p.id,
+                      label: p.name,
+                      hint: p.contactPerson ?? undefined,
+                    }))}
+                  />
+                </FieldWithQuickCreate>
               </div>
               <InputField label={t('trackingRef')} name="trackingRef" />
             </div>
@@ -366,7 +417,7 @@ export default function ShipmentsPage() {
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingShipment && (
-        <Modal title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`} onClose={() => setEditingShipment(null)}>
+        <Modal title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`} onClose={() => closeEdit()}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -404,21 +455,24 @@ export default function ShipmentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('provider')}</label>
-                <Select
-                  name="providerId"
-                  defaultValue={
-                    editingShipment.providerId ??
-                    providerList.find((p: any) => p.name === editingShipment.provider)?.id ??
-                    ''
-                  }
-                  placeholder={t('provider')}
-                  searchPlaceholder={tc('search')}
-                  options={providerList.map((p: any) => ({
-                    value: p.id,
-                    label: p.name,
-                    hint: p.contactPerson ?? undefined,
-                  }))}
-                />
+                <FieldWithQuickCreate
+                  entity="provider"
+                  onCreated={(pr) => setEditProviderId(pr.id)}
+                >
+                  <Select
+                    name="providerId"
+                    value={
+                      editProviderId ||
+                      editingShipment.providerId ||
+                      providerList.find((p: any) => p.name === editingShipment.provider)?.id ||
+                      (editingShipment.provider ? `name:${editingShipment.provider}` : '')
+                    }
+                    onChange={setEditProviderId}
+                    placeholder={t('provider')}
+                    searchPlaceholder={tc('search')}
+                    options={providerOptions(editingShipment.provider)}
+                  />
+                </FieldWithQuickCreate>
               </div>
               <InputField label={t('trackingRef')} name="trackingRef" defaultValue={editingShipment.trackingRef} />
             </div>
@@ -436,7 +490,7 @@ export default function ShipmentsPage() {
             />
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setEditingShipment(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="button" onClick={() => closeEdit()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={updateMutation.isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('save')}
@@ -503,19 +557,3 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      {type === 'date' ? (
-        <DatePicker name={name} defaultValue={defaultValue} required={required} placeholder={placeholder} />
-      ) : (
-        <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-      )}
-    </div>
-  );
-}

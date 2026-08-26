@@ -92,7 +92,9 @@
     "cashFlow": "التدفق النقدي",
     "cogs": "تكلفة البضاعة المباعة",
     "cashOut": "النقد المدفوع",
-    "collected": "المحصّل"
+    "collected": "المحصّل",
+    "cashOnHand": "النقد المتاح",
+    "cashIn": "النقد المستلم"
   },
   "products": {
     "title": "المنتجات",
@@ -651,7 +653,28 @@
     "purchaseOrder": "أمر الشراء",
     "receiveInventory": "استلام المخزون",
     "back": "رجوع",
-    "saveAndContinueBtn": "حفظ ومتابعة"
+    "saveAndContinueBtn": "حفظ ومتابعة",
+    "funding": "من يموّل هذه الدورة",
+    "fundingHint": "وزّع تكلفة الدورة على الشركاء. إن تُركت صفرًا، لا يمكن تقسيم أرباحها عند التسوية.",
+    "splitEqually": "تقسيم بالتساوي",
+    "fundingSaved": "تم حفظ المساهمات",
+    "fundingFailed": "تعذّر حفظ المساهمات",
+    "cycleCost": "تكلفة الدورة",
+    "funded": "المموّل",
+    "fundingShort": "{amount} ج.م من تكلفة الدورة غير مغطاة",
+    "fundingOver": "{amount} ج.م أكثر من تكلفة الدورة",
+    "notFundedYet": "لا توجد مساهمات مسجّلة بعد",
+    "tempInvestorTag": "مستثمر",
+    "addInvestor": "إضافة مستثمر مؤقت",
+    "investorPerson": "الشخص",
+    "investorAmount": "المبلغ",
+    "investorFee": "نسبة العمولة ٪",
+    "investorFeeHint": "نسبة من أرباح هذا المستثمر تذهب إلى الشركاء",
+    "addInvestorAction": "إضافة",
+    "investorAdded": "تمت إضافة المستثمر",
+    "investorFailed": "تعذّرت إضافة المستثمر",
+    "selectPerson": "اختر الشخص",
+    "everyoneIsOn": "جميع الأشخاص مشاركون في هذه الدورة بالفعل"
   },
   "paymentPlans": {
     "title": "خطط السداد",
@@ -797,6 +820,9 @@
     "UAE_DIRECT_LEG_ROUTE": "الدورة الإماراتية المباشرة تُشحن من الإمارات إلى مصر.",
     "UAE_DIRECT_NO_CHINA_LEG": "الدورة الإماراتية المباشرة لا يمكن أن تحتوي على مرحلة من الصين إلى الإمارات.",
     "UAE_DIRECT_ONE_LEG": "الدورة الإماراتية المباشرة لها مرحلة شحن واحدة، من الإمارات إلى مصر.",
-    "WRONG_CURRENT_PASSWORD": "كلمة المرور الحالية غير صحيحة."
+    "WRONG_CURRENT_PASSWORD": "كلمة المرور الحالية غير صحيحة.",
+    "CYCLE_NOT_FUNDED": "لا توجد مساهمات مسجّلة لهذه الدورة، فلا أساس لتقسيم أرباحها. سجّل ما دفعه كل مشارك أولًا.",
+    "NOTHING_TO_SCHEDULE": "لا يوجد مستحق على {customer}، فلا دَين لجدولته.",
+    "ROLE_NOT_ALLOWED": "دورك لا يسمح بهذا الإجراء."
   }
 }

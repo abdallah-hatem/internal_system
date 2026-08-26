@@ -10,13 +10,13 @@ import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
-import { TextareaField } from '../../../components/ui/textarea-field';
 import {
   Plus, Search, Edit, Eye, Tag,
   X, Loader2,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -74,6 +74,15 @@ export default function ProductsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
+  // The chosen category used to be held here, once per modal, and cleared on
+  // every open and close path so the next product did not inherit the last
+  // one's. The shared form owns it now: each modal mounts a fresh copy seeded
+  // from the record being edited, so there is no state left to leak.
+  const openCreate = () => setShowCreateModal(true);
+  const closeCreate = () => setShowCreateModal(false);
+  const openEditProduct = (product: Product) => setEditingProduct(product);
+  const closeEditProduct = () => setEditingProduct(null);
+
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search, categoryFilter]);
 
@@ -93,7 +102,7 @@ export default function ProductsPage() {
     mutationFn: (data: Partial<Product>) => api.post('/products', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      setShowCreateModal(false);
+      closeCreate();
       toast('Product created successfully', 'success');
     },
     onError: (error: any) => {
@@ -106,7 +115,7 @@ export default function ProductsPage() {
       api.put(`/products/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      setEditingProduct(null);
+      closeEditProduct();
       toast('Product updated successfully', 'success');
     },
     onError: (error: any) => {
@@ -155,13 +164,7 @@ export default function ProductsPage() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      name: fd.get('name') as string,
-      categoryId: fd.get('category') as string || undefined,
-      description: fd.get('description') as string,
-      barcode: fd.get('barcode') as string,
-      minStock: Number(fd.get('minStock') || 0),
-    });
+    createMutation.mutate(ENTITY_FORMS.product.toPayload(fd) as any);
   };
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -185,7 +188,7 @@ export default function ProductsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => openCreate()}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -285,7 +288,7 @@ export default function ProductsPage() {
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => setEditingProduct(product)}
+                            onClick={() => openEditProduct(product)}
                             className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                             title={tc('edit')}
                           >
@@ -348,7 +351,7 @@ export default function ProductsPage() {
                     <Eye className="h-3.5 w-3.5" /> {tc('view')}
                   </button>
                   <button
-                    onClick={() => setEditingProduct(product)}
+                    onClick={() => openEditProduct(product)}
                     className="flex items-center gap-1 text-xs text-gray-500 hover:text-amber-600 px-2 py-1 rounded"
                   >
                     <Edit className="h-3.5 w-3.5" /> {tc('edit')}
@@ -367,23 +370,11 @@ export default function ProductsPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
+        <Modal title={t('create')} onClose={() => closeCreate()}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <InputField label={t('name')} name="name" required />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('category')}</label>
-              <Select
-                name="category"
-                placeholder={t('category')}
-                searchPlaceholder={tc('search')}
-                options={categoryList.map((cat) => ({ value: cat.id, label: cat.name }))}
-              />
-            </div>
-            <TextareaField label={t('description')} name="description" />
-            <InputField label={t('barcode')} name="barcode" />
-            <InputField label={t('minStock')} name="minStock" type="number" placeholder="0" />
+            <ENTITY_FORMS.product.Fields />
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+              <button type="button" onClick={() => closeCreate()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
                 {tc('cancel')}
               </button>
               <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
@@ -397,24 +388,11 @@ export default function ProductsPage() {
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingProduct && (
-        <Modal title={t('edit')} onClose={() => setEditingProduct(null)}>
+        <Modal title={t('edit')} onClose={() => closeEditProduct()}>
           <form onSubmit={handleUpdate} className="space-y-4">
-            <InputField label={t('name')} name="name" defaultValue={editingProduct.name} required />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('category')}</label>
-              <Select
-                name="category"
-                defaultValue={editingProduct.categoryId}
-                placeholder={t('category')}
-                searchPlaceholder={tc('search')}
-                options={categoryList.map((cat) => ({ value: cat.id, label: cat.name }))}
-              />
-            </div>
-            <TextareaField label={t('description')} name="description" defaultValue={editingProduct.description} />
-            <InputField label={t('barcode')} name="barcode" defaultValue={editingProduct.barcode} />
-            <InputField label={t('minStock')} name="minStock" type="number" defaultValue={String(editingProduct.minStock)} placeholder="0" />
+            <ENTITY_FORMS.product.Fields record={editingProduct} />
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setEditingProduct(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+              <button type="button" onClick={() => closeEditProduct()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
                 {tc('cancel')}
               </button>
               <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
@@ -446,35 +424,4 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({
-  label,
-  name,
-  type = 'text',
-  defaultValue,
-  required,
-  placeholder,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  defaultValue?: string;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      <input
-        type={type}
-        name={name}
-        defaultValue={defaultValue}
-        required={required}
-        placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-      />
-    </div>
-  );
-}
+

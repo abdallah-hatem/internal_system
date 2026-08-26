@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
+import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -157,10 +159,7 @@ export default function CategoriesPage() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      name: fd.get('name'),
-      parentId: fd.get('parentId') || undefined,
-    });
+    createMutation.mutate(ENTITY_FORMS.category.toPayload(fd));
   };
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -309,22 +308,7 @@ export default function CategoriesPage() {
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <InputField label={t('name')} name="name" required />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('parentCategory')} <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>
-              </label>
-              <Select
-                name="parentId"
-                placeholder={t('noParent')}
-                searchPlaceholder={tc('search')}
-                clearable
-                options={categoryList.filter((c) => !c.parentId).map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
-              />
-            </div>
+            <ENTITY_FORMS.category.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
@@ -429,15 +413,3 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-    </div>
-  );
-}

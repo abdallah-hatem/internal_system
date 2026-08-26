@@ -1,7 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
 import { ProductLink } from '../../../components/ui/entity-link';
-import { DatePicker } from '../../../components/ui/date-picker';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -21,6 +20,8 @@ import { selectOnFocus } from '../../../lib/select-on-focus';
 import { MoneyInput } from '../../../components/ui/money-input';
 
 import { useApiError } from '../../../lib/api-error';
+import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
+import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -67,6 +68,7 @@ export default function PurchasesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newSupplierId, setNewSupplierId] = useState('');
   const [viewingPO, setViewingPO] = useState<PurchaseOrder | null>(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [lineItems, setLineItems] = useState<Array<{ productId: string; orderedQty: number; unitPrice: number; discount: number }>>([]);
@@ -321,9 +323,15 @@ export default function PurchasesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('supplier')}</label>
+                <FieldWithQuickCreate
+                  entity="supplier"
+                  onCreated={(sup) => setNewSupplierId(sup.id)}
+                >
                 <Select
                   name="supplierId"
                   required
+                  value={newSupplierId}
+                  onChange={setNewSupplierId}
                   placeholder={t('supplier')}
                   searchPlaceholder={tc('search')}
                   options={supplierList.map((sup: any) => ({
@@ -332,6 +340,7 @@ export default function PurchasesPage() {
                     hint: sup.contactPerson ?? undefined,
                   }))}
                 />
+                </FieldWithQuickCreate>
               </div>
             </div>
 
@@ -364,17 +373,22 @@ export default function PurchasesPage() {
                     <div key={idx} className="flex items-end gap-2 bg-gray-50 rounded-lg p-3">
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">{t('product')}</label>
-                        <Select
-                          value={item.productId}
-                          onChange={(v) => updateLineItem(idx, 'productId', v)}
-                          placeholder={t('product')}
-                          searchPlaceholder={tc('search')}
-                          options={productList.map((p: any) => ({
-                            value: p.id,
-                            label: p.name,
-                            hint: p.sku,
-                          }))}
-                        />
+                        <FieldWithQuickCreate
+                          entity="product"
+                          onCreated={(prod) => updateLineItem(idx, 'productId', prod.id)}
+                        >
+                          <Select
+                            value={item.productId}
+                            onChange={(v) => updateLineItem(idx, 'productId', v)}
+                            placeholder={t('product')}
+                            searchPlaceholder={tc('search')}
+                            options={productList.map((p: any) => ({
+                              value: p.id,
+                              label: p.name,
+                              hint: p.sku,
+                            }))}
+                          />
+                        </FieldWithQuickCreate>
                       </div>
                       <div className="w-20">
                         <label className="block text-xs text-gray-500 mb-1">{t('orderedQty')}</label>
@@ -571,22 +585,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      {type === 'date' ? (
-        <DatePicker name={name} defaultValue={defaultValue} required={required} placeholder={placeholder} />
-      ) : (
-        <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-      )}
-    </div>
-  );
-}
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (

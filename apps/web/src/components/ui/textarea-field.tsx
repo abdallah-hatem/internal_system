@@ -1,3 +1,7 @@
+'use client';
+
+import { FieldMark } from './fields';
+
 /**
  * A labelled multi-line field, matching InputField's markup so the two sit
  * together in a form without looking like different controls.
@@ -31,11 +35,7 @@ export function TextareaField({
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         {label}
-        {required ? (
-          <span className="text-red-500 ms-1">*</span>
-        ) : (
-          <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>
-        )}
+        <FieldMark required={required} />
       </label>
       <textarea
         name={name}

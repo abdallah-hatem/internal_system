@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
+import { InputField } from '../../../components/ui/fields';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -125,12 +127,7 @@ export default function CustomersPage() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      displayName: fd.get('displayName'),
-      type: fd.get('type'),
-      phone: fd.get('phone') || undefined,
-      email: fd.get('email') || undefined,
-    });
+    createMutation.mutate(ENTITY_FORMS.customer.toPayload(fd));
   };
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -309,20 +306,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <InputField label={t('name')} name="displayName" required />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('type')}<span className="text-red-500 ms-1">*</span>
-              </label>
-              <Select
-                name="type"
-                required
-                defaultValue="B2B"
-                options={CUSTOMER_TYPES.map((v) => ({ value: v, label: t(v.toLowerCase()) }))}
-              />
-            </div>
-            <InputField label={t('phone')} name="phone" type="tel" />
-            <InputField label={t('email')} name="email" type="email" />
+            <ENTITY_FORMS.customer.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
@@ -432,18 +416,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-    </div>
-  );
-}
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (

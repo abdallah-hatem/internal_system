@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
+import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -103,13 +105,7 @@ export default function ProvidersPage() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      name: fd.get('name'),
-      contactPerson: fd.get('contactPerson') || undefined,
-      phone: fd.get('phone') || undefined,
-      email: fd.get('email') || undefined,
-      notes: fd.get('notes') || undefined,
-    });
+    createMutation.mutate(ENTITY_FORMS.provider.toPayload(fd));
   };
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -282,13 +278,7 @@ export default function ProvidersPage() {
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <InputField label={t('name')} name="name" required />
-            <InputField label={t('contactPerson')} name="contactPerson" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('phone')} name="phone" type="tel" />
-              <InputField label={t('email')} name="email" type="email" />
-            </div>
-            <TextareaField label={t('notes')} name="notes" placeholder="Additional notes..." />
+            <ENTITY_FORMS.provider.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
@@ -362,15 +352,3 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-    </div>
-  );
-}

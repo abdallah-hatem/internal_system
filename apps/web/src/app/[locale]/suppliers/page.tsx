@@ -6,7 +6,8 @@ import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
-import { TextareaField } from '../../../components/ui/textarea-field';
+import { FormActions } from '../../../components/ui/fields';
+import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import {
   Plus, Search, Edit, X, Loader2, Phone, Mail, MessageCircle, Trash2, ShoppingCart,
 } from 'lucide-react';
@@ -32,14 +33,6 @@ interface Supplier {
 }
 
 const contactOf = (s: Supplier): SupplierContact => s.contactJson ?? {};
-
-/** Drop the fields left blank so the stored contact has no empty keys. */
-function buildContact(fd: FormData): SupplierContact | undefined {
-  const entries = (['phone', 'email', 'wechat', 'whatsapp'] as const)
-    .map((k) => [k, String(fd.get(k) ?? '').trim()] as const)
-    .filter(([, v]) => v.length > 0);
-  return entries.length ? Object.fromEntries(entries) : undefined;
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SuppliersPage() {
@@ -128,27 +121,17 @@ export default function SuppliersPage() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      name: fd.get('name'),
-      country: fd.get('country'),
-      contactJson: buildContact(fd),
-      notes: fd.get('notes') || undefined,
-    });
+    createMutation.mutate(ENTITY_FORMS.supplier.toPayload(fd));
   };
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingSupplier) return;
     const fd = new FormData(e.currentTarget);
-    updateMutation.mutate({
-      id: editingSupplier.id,
-      name: fd.get('name'),
-      country: fd.get('country'),
-      // Always send the contact: sending undefined would leave the old one in
-      // place, so clearing a phone number in the form would never stick.
-      contactJson: buildContact(fd) ?? {},
-      notes: fd.get('notes') || undefined,
-    });
+    // The shared payload always carries `contactJson`, blank keys included.
+    // Omitting it would leave the stored contact in place, so clearing a phone
+    // number in the form would never stick.
+    updateMutation.mutate({ id: editingSupplier.id, ...ENTITY_FORMS.supplier.toPayload(fd) });
   };
 
   // ── Render ────────────────────────────────────────────────────────
@@ -286,7 +269,7 @@ export default function SuppliersPage() {
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <SupplierFields t={t} />
+            <ENTITY_FORMS.supplier.Fields />
             <FormActions
               onCancel={() => setShowCreateModal(false)}
               cancelLabel={tc('cancel')}
@@ -301,7 +284,7 @@ export default function SuppliersPage() {
       {editingSupplier && (
         <Modal title={t('edit')} onClose={() => setEditingSupplier(null)}>
           <form onSubmit={handleUpdate} className="space-y-4">
-            <SupplierFields t={t} supplier={editingSupplier} />
+            <ENTITY_FORMS.supplier.Fields record={editingSupplier} />
             <FormActions
               onCancel={() => setEditingSupplier(null)}
               cancelLabel={tc('cancel')}
@@ -375,59 +358,6 @@ function ContactLine({ contact }: { contact: SupplierContact }) {
   );
 }
 
-function SupplierFields({
-  t,
-  supplier,
-}: {
-  t: (key: string) => string;
-  supplier?: Supplier;
-}) {
-  const c = supplier ? contactOf(supplier) : {};
-  return (
-    <>
-      <InputField label={t('name')} name="name" defaultValue={supplier?.name} required />
-      <InputField label={t('country')} name="country" defaultValue={supplier?.country} required />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={t('phone')} name="phone" type="tel" defaultValue={c.phone} />
-        <InputField label={t('email')} name="email" type="email" defaultValue={c.email} />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={t('wechat')} name="wechat" defaultValue={c.wechat} />
-        <InputField label={t('whatsapp')} name="whatsapp" defaultValue={c.whatsapp} />
-      </div>
-      <TextareaField label={t('notes')} name="notes" defaultValue={supplier?.notes} />
-    </>
-  );
-}
-
-function FormActions({
-  onCancel,
-  cancelLabel,
-  submitLabel,
-  busy,
-}: {
-  onCancel: () => void;
-  cancelLabel: string;
-  submitLabel: string;
-  busy: boolean;
-}) {
-  return (
-    <div className="flex justify-end gap-3 pt-2">
-      <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
-        {cancelLabel}
-      </button>
-      <button
-        type="submit"
-        disabled={busy}
-        className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2"
-      >
-        {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-        {submitLabel}
-      </button>
-    </div>
-  );
-}
-
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
@@ -443,15 +373,3 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-    </div>
-  );
-}

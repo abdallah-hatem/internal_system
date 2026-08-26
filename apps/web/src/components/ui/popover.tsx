@@ -23,6 +23,19 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  /**
+   * z-[90], not shadcn's default z-50.
+   *
+   * The panel portals to <body>, so it is a sibling of whatever modal owns the
+   * trigger rather than a child of it — and at z-50 it tied with a page modal
+   * (won on DOM order) and *lost outright* to the quick-create modal at z-60.
+   * Every picker inside a quick-create form was therefore dead: the panel
+   * opened, behind the dialog, invisible and unclickable. Picking a category
+   * for a product created from a purchase line was impossible.
+   *
+   * A dropdown always belongs to the topmost surface, so it sits above all of
+   * them, and below the toasts at z-100 which have to stay readable.
+   */
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -30,7 +43,7 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 w-72 origin-(--radix-popover-content-transform-origin) rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "z-[90] w-72 origin-(--radix-popover-content-transform-origin) rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className
         )}
         {...props}

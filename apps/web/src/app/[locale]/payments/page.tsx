@@ -1,7 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink } from '../../../components/ui/entity-link';
-import { DatePicker } from '../../../components/ui/date-picker';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations } from 'next-intl';
@@ -19,6 +18,8 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
+import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -76,6 +77,7 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newCustomerId, setNewCustomerId] = useState('');
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -365,16 +367,23 @@ export default function PaymentsPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')}</label>
-              <Select
-                name="customerId"
-                required
-                placeholder={t('customer')}
-                searchPlaceholder={tc('search')}
-                options={customerList.map((c) => ({
-                  value: c.id,
-                  label: c.displayName,
-                }))}
-              />
+              <FieldWithQuickCreate
+                entity="customer"
+                onCreated={(c) => setNewCustomerId(c.id)}
+              >
+                <Select
+                  name="customerId"
+                  required
+                  value={newCustomerId}
+                  onChange={setNewCustomerId}
+                  placeholder={t('customer')}
+                  searchPlaceholder={tc('search')}
+                  options={customerList.map((c) => ({
+                    value: c.id,
+                    label: c.displayName,
+                  }))}
+                />
+              </FieldWithQuickCreate>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -531,22 +540,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-        {required ? <span className="text-red-500 ms-1">*</span> : <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>}
-      </label>
-      {type === 'date' ? (
-        <DatePicker name={name} defaultValue={defaultValue} required={required} placeholder={placeholder} />
-      ) : (
-        <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-      )}
-    </div>
-  );
-}
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
