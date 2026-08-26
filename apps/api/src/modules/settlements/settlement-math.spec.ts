@@ -177,9 +177,46 @@ describe('distributeCycleProfit', () => {
       expect(r.totals.feesRedistributed.toFixed(2)).toBe('6000.00');
     });
 
-    it('handles a zero-contribution cycle without dividing by zero', () => {
-      const r = distributeCycleProfit([partner('A', 0), partner('B', 0)], D(0));
-      expect(r.lines.every((l) => l.grossProfit.isZero())).toBe(true);
+    it('refuses to split a cycle nobody funded', () => {
+      // This used to return all-zero shares, which sounds harmless and is not.
+      // Every line then rounds to zero except the last, which takes the
+      // residual — so the whole profit landed on whichever participant was
+      // created last and the others got nothing, silently.
+      //
+      // The test that stood here passed a profit of ZERO, so all lines were
+      // zero whatever the shares were, and it never saw any of that. It only
+      // ever proved the code did not divide by zero.
+      expect(() =>
+        distributeCycleProfit([partner('A', 0), partner('B', 0), partner('C', 0)], D(90_000)),
+      ).toThrow(/no basis to split/i);
+    });
+
+    it('refuses even when there is no profit to split', () => {
+      // Nothing to distribute today, but the cycle is still unfunded and
+      // settling it would record capital returns of zero against partners who
+      // did put money in. The refusal is about the missing contributions.
+      expect(() =>
+        distributeCycleProfit([partner('A', 0), partner('B', 0)], D(0)),
+      ).toThrow(/no basis to split/i);
+    });
+
+    it('still settles an unfunded cycle when the split was agreed explicitly', () => {
+      // The escape hatch: percentages agreed between the partners override
+      // contribution entirely, so a cycle funded outside the system can still
+      // be settled without inventing contribution figures.
+      const withPct = (id: string, pct: number) => ({
+        ...partner(id, 0),
+        customProfitPct: D(pct),
+      });
+      const r = distributeCycleProfit(
+        [withPct('A', 50), withPct('B', 30), withPct('C', 20)],
+        D(90_000),
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '45000.00',
+        '27000.00',
+        '18000.00',
+      ]);
     });
   });
 });

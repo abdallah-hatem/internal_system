@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Auth')
@@ -18,8 +19,23 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  /**
+   * Create a user. Not self-service.
+   *
+   * This was public and the caller chose their own role, so anyone who could
+   * reach the API could mint themselves a CORE_PARTNER and from there approve
+   * settlements, reverse ledger entries and cancel orders. Nothing in the app
+   * ever called it — the frontend has a helper for it that no screen uses — so
+   * it was an open door onto the whole system for no benefit.
+   *
+   * The first partners come from the seed, so requiring one to exist here
+   * cannot lock anybody out.
+   */
   @Post('register')
-  @ApiOperation({ summary: 'Register a new user (admin or initial setup)' })
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a user (CORE_PARTNER only)' })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }

@@ -7,6 +7,7 @@
  *  matters on any day is whether the shop has paid what it promised by then.
  */
 import { test, expect } from '@playwright/test';
+import { apiCtx, stockedProduct, owedOrder } from './support/fixtures';
 
 const API = 'http://localhost:3001/api/v1';
 
@@ -17,13 +18,27 @@ async function auth(request: any) {
   return { Authorization: `Bearer ${(await res.json()).data.accessToken}` };
 }
 
-/** A shop with no history, so nothing else colours the arithmetic. */
+/**
+ * A shop that owes money, and nothing else.
+ *
+ * These tests used to build a shop with no history at all, on the grounds that
+ * nothing would then colour the arithmetic. But a plan schedules a debt, and a
+ * shop with no debt has nothing to schedule — the API used to allow the plan
+ * anyway and then refuse every payment into it, which is the contradiction
+ * this suite was quietly built on top of.
+ *
+ * The debt is far larger than any plan here, so no test trips the separate
+ * rule about promising more than is owed.
+ */
 async function freshCustomer(request: any, h: any, label: string) {
-  const res = await request.post(`${API}/customers`, {
-    headers: h,
-    data: { displayName: `${label} ${Date.now()}`, type: 'B2B' },
+  const { mk } = await apiCtx(request);
+  const customer = await mk('customers', {
+    displayName: `${label} ${Date.now()}`,
+    type: 'B2B',
   });
-  return (await res.json()).data;
+  const { product } = await stockedProduct(request, h, mk, `${label}-stock`, 10);
+  await owedOrder(mk, customer.id, product.id, 100_000);
+  return customer;
 }
 
 /**
@@ -147,19 +162,45 @@ test.describe('Instalment plans', () => {
 
   test('TC-PLAN-05: a plan cannot promise more than the shop owes', async ({ request }) => {
     const h = await auth(request);
-    const orders = (await (await request.get(`${API}/sales/orders?limit=50`, { headers: h })).json()).data ?? [];
-    const owing = orders.find((o: any) => Number(o.outstanding) > 0);
-    test.skip(!owing, 'no customer with an outstanding balance');
+
+    // Its own shop. Hunting the database for any outstanding order found one
+    // that the tests above had already given a plan, so this refused with
+    // "already has an active plan" — the right status for the wrong reason,
+    // and dependent on the order the tests happened to run in.
+    const customer = await freshCustomer(request, h, 'Overpromise');
 
     const res = await request.post(`${API}/payment-plans`, {
       headers: h,
       data: {
-        customerId: owing.customerId,
-        instalments: [{ dueOn: iso(7), amount: Number(owing.outstanding) + 500000 }],
+        customerId: customer.id,
+        instalments: [{ dueOn: iso(7), amount: 500_000 }],
       },
     });
     expect(res.status()).toBe(400);
-    expect(JSON.stringify(await res.json())).toMatch(/only owes/i);
+    expect((await res.json()).error.code).toBe('INSTALMENTS_EXCEED_OWED');
+  });
+
+  test('TC-PLAN-08: a shop that owes nothing cannot be given a plan', async ({
+    request,
+  }) => {
+    // The contradiction this suite was built on top of. The check for
+    // over-promising was guarded on `owed > 0`, so a shop with no debt skipped
+    // it and any plan was accepted — then every payment into that plan was
+    // refused with "does not owe anything, so there is nothing to pay".
+    // Agreed and unusable, with nothing on screen explaining why.
+    const h = await auth(request);
+    const debtless = (await (await request.post(`${API}/customers`, {
+      headers: h,
+      data: { displayName: `Debtless ${Date.now()}`, type: 'B2B' },
+    })).json()).data;
+
+    const res = await request.post(`${API}/payment-plans`, {
+      headers: h,
+      data: { customerId: debtless.id, instalments: [{ dueOn: iso(7), amount: 1000 }] },
+    });
+
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error.code).toBe('NOTHING_TO_SCHEDULE');
   });
 
   test('TC-PLAN-06: a plan needs at least one positive instalment', async ({ request }) => {

@@ -146,6 +146,28 @@ export class UsersService {
       let profitShare = new Prisma.Decimal(0);
       let accruedProfit = new Prisma.Decimal(0);
 
+      /**
+       * One row per cycle, whatever the person's part in it.
+       *
+       * Nothing stops someone being both a core partner and a temporary
+       * investor in the same cycle — the unique constraints are per role, so
+       * two participant rows are perfectly legal, and the suite produces them.
+       * Listing the entries directly then showed that cycle twice and counted
+       * it twice. Both contributions are real money and are summed; the cycle
+       * they belong to is still one cycle.
+       */
+      const byCycle = new Map<
+        string,
+        {
+          id: string;
+          code: string;
+          status: string;
+          contribution: Prisma.Decimal;
+          profit: Prisma.Decimal;
+          accrued: Prisma.Decimal;
+        }
+      >();
+
       for (const entry of entries) {
         contributed = contributed.add(entry.contributionAmount);
         const settled = byParticipant.get(entry.id);
@@ -155,10 +177,27 @@ export class UsersService {
         }
         // Only while the cycle is open. Once it closes the settled figure is
         // the truth and a projection alongside it would just disagree.
-        if (entry.cycle.status !== 'CLOSED') {
-          accruedProfit = accruedProfit.add(accrued.get(entry.id) ?? 0);
-        }
+        const open = entry.cycle.status !== 'CLOSED';
+        const entryAccrued = open
+          ? new Prisma.Decimal(accrued.get(entry.id) ?? 0)
+          : new Prisma.Decimal(0);
+        accruedProfit = accruedProfit.add(entryAccrued);
+
+        const row = byCycle.get(entry.cycle.id) ?? {
+          id: entry.cycle.id,
+          code: entry.cycle.code,
+          status: entry.cycle.status,
+          contribution: new Prisma.Decimal(0),
+          profit: new Prisma.Decimal(0),
+          accrued: new Prisma.Decimal(0),
+        };
+        row.contribution = row.contribution.add(entry.contributionAmount);
+        row.profit = row.profit.add(settled?.profit ?? 0);
+        row.accrued = row.accrued.add(entryAccrued);
+        byCycle.set(entry.cycle.id, row);
       }
+
+      const cycles = [...byCycle.values()];
 
       return {
         id: user.id,
@@ -166,24 +205,21 @@ export class UsersService {
         role: user.role,
         status: user.status,
         displayName: user.partner?.displayName ?? null,
-        cycleCount: entries.length,
-        openCycleCount: entries.filter((e) => e.cycle.status !== 'CLOSED').length,
+        cycleCount: cycles.length,
+        openCycleCount: cycles.filter((c) => c.status !== 'CLOSED').length,
         contributedEgp: money(contributed),
         returnedEgp: money(returned),
         profitShareEgp: money(profitShare),
         accruedProfitEgp: money(accruedProfit),
         atRiskEgp: money(contributed.sub(returned)),
-        cycles: entries
-          .map((e) => ({
-            id: e.cycle.id,
-            code: e.cycle.code,
-            status: e.cycle.status,
-            contributionEgp: money(new Prisma.Decimal(e.contributionAmount)),
-            profitShareEgp: money(byParticipant.get(e.id)?.profit ?? new Prisma.Decimal(0)),
-            accruedProfitEgp:
-              e.cycle.status === 'CLOSED'
-                ? 0
-                : money(new Prisma.Decimal(accrued.get(e.id) ?? 0)),
+        cycles: cycles
+          .map((c) => ({
+            id: c.id,
+            code: c.code,
+            status: c.status,
+            contributionEgp: money(c.contribution),
+            profitShareEgp: money(c.profit),
+            accruedProfitEgp: money(c.accrued),
           }))
           .sort((a, b) => b.code.localeCompare(a.code)),
       };

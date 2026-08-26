@@ -53,16 +53,22 @@ test.describe('Analytics figures', () => {
 
     // A draft is a quote that has reserved nothing; counting it once reported
     // three million units sold.
+    //
+    // The quantity used to be 500,000, chosen to be conspicuous in the totals.
+    // e67dbdc made an order for more stock than exists refuse outright, so the
+    // draft was never created and this sat red — testing the refusal by
+    // accident instead of the thing it is named after. A small quantity still
+    // moves the figure if drafts are counted, and is a draft that can exist.
     const draft = await request.post(`${API}/sales/orders`, {
       headers: h,
       data: {
         customerId: '00000000-0000-4000-8000-000000000050',
         channel: 'B2B',
         currency: 'EGP',
-        items: [{ productId: target.productId, quantity: 500000, unitPrice: 1 }],
+        items: [{ productId: target.productId, quantity: 1, unitPrice: 1 }],
       },
     });
-    expect(draft.ok()).toBeTruthy();
+    expect(draft.ok(), `draft create: ${await draft.text()}`).toBeTruthy();
 
     const after = (await (await request.get(`${API}/analytics/top-products`, { headers: h })).json()).data;
     const same = after.find((p: any) => p.productId === target.productId);

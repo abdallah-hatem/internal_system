@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { CAPITALISED_CATEGORIES } from '../../common/ledger-categories';
 
 /**
  * Sale states whose revenue is realised: the goods have left the business, so
@@ -54,7 +55,7 @@ export class AnalyticsService {
         direction: 'OUTFLOW',
         // Settlement payouts distribute profit already earned; counting them
         // as expenses would subtract the same money twice.
-        category: { notIn: ['purchase', 'shipping', 'settlement'] },
+        category: { notIn: [...CAPITALISED_CATEGORIES] },
       },
       _sum: { amount: true },
     });
@@ -141,12 +142,36 @@ export class AnalyticsService {
       where: { status: 'ACTIVE' },
     });
 
+    /**
+     * Money actually in hand: everything in, less everything out.
+     *
+     * This could not be computed honestly until contributions were recorded.
+     * The ledger held the purchase going out and nothing for the partners'
+     * capital coming in, so netting it gave −62,325 on a cycle that had been
+     * settled in full and owed nobody anything — a figure worse than no figure,
+     * which is why none was shown.
+     *
+     * Both directions in one pass rather than two aggregates: a category added
+     * on one side and forgotten on the other is exactly how the number drifted
+     * last time.
+     */
+    const flows = await this.prisma.financialTransaction.groupBy({
+      by: ['direction'],
+      _sum: { amount: true },
+    });
+    const flowOf = (d: string) =>
+      D(flows.find((f) => f.direction === d)?._sum.amount ?? 0);
+    const cashIn = flowOf('INFLOW');
+    const cashOnHand = cashIn.sub(flowOf('OUTFLOW'));
+
     return {
       data: {
         totalRevenue,
         totalCogs,
         totalExpenses,
         totalCashOut,
+        totalCashIn: money(cashIn),
+        cashOnHand: money(cashOnHand),
         collected,
         netProfit: money(netProfit),
         activeCycles,

@@ -11,34 +11,14 @@ import {
 import { formatMoney, formatQty } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
+import {
+  CAPITALISED_CATEGORIES,
+  COST_RECOVERY_CATEGORIES,
+} from '../../common/ledger-categories';
 /** Sale states whose stock has genuinely left the business. */
 const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
 
-/**
- * Ledger categories that are not operating expenses of the cycle.
- *
- * `purchase` and `shipping` are already capitalised into batch landed cost, so
- * counting them again would charge the cycle twice.
- *
- * `settlement` is the distribution of profit already earned, plus any reversal
- * of one. Treating a payout as an expense re-charges the cycle for its own
- * profit: a settled cycle recalculated afterwards turned an 11,620 profit into
- * a 100,871 loss, and every later settlement would inherit the error.
- *
- * `contribution` is capital moving between the partners and the cycle, in
- * either direction. Lowering someone's contribution posts an outflow — capital
- * handed back — and without this that outflow was read as an operating expense
- * and came straight off the cycle's profit. The partners would have paid for
- * their own money being returned.
- */
-const CAPITALISED_CATEGORIES = ['purchase', 'shipping', 'settlement', 'contribution'];
 
-/**
- * Money recovered from a supplier. It does not re-price batches already costed
- * — units sold keep the cost they were sold at — so it lands as a reduction of
- * the cycle's expenses, which is to say a gain.
- */
-const COST_RECOVERY_CATEGORIES = ['supplier_refund'];
 
 const SETTLEMENT_INCLUDE = {
   cycle: { select: { id: true, code: true, status: true } },
@@ -255,7 +235,7 @@ export class SettlementsService {
       where: {
         cycleId,
         direction: 'OUTFLOW',
-        category: { notIn: CAPITALISED_CATEGORIES },
+        category: { notIn: [...CAPITALISED_CATEGORIES] },
       },
       select: { amount: true },
     });
@@ -266,7 +246,7 @@ export class SettlementsService {
       where: {
         cycleId,
         direction: 'INFLOW',
-        category: { in: COST_RECOVERY_CATEGORIES },
+        category: { in: [...COST_RECOVERY_CATEGORIES] },
       },
       select: { amount: true },
     });
@@ -436,7 +416,7 @@ export class SettlementsService {
       where: {
         cycleId,
         direction: 'OUTFLOW',
-        category: { notIn: CAPITALISED_CATEGORIES },
+        category: { notIn: [...CAPITALISED_CATEGORIES] },
       },
       select: { amount: true },
     });
@@ -447,7 +427,7 @@ export class SettlementsService {
       where: {
         cycleId,
         direction: 'INFLOW',
-        category: { in: COST_RECOVERY_CATEGORIES },
+        category: { in: [...COST_RECOVERY_CATEGORIES] },
       },
       select: { amount: true },
     });

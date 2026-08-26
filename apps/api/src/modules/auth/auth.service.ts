@@ -62,16 +62,15 @@ export class AuthService {
       include: { partner: true },
     });
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    // No access token. This creates somebody else's account — handing the
+    // caller a token for it would mean a partner adding a colleague walks away
+    // able to act as them. Signing in is that person's own business.
     return {
       data: {
-        accessToken: this.jwtService.sign(payload),
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          displayName: user.partner?.displayName,
-        },
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.partner?.displayName,
       },
     };
   }

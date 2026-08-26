@@ -224,7 +224,25 @@ export class PaymentPlansService {
       _sum: { outstanding: true },
     });
     const owed = D(owedAgg._sum?.outstanding);
-    if (owed.gt(0) && total.gt(owed)) {
+
+    /**
+     * A plan schedules a debt, so there has to be one.
+     *
+     * The check below was guarded on `owed.gt(0)`, which meant a customer who
+     * owed nothing skipped it entirely and any plan at all was accepted. The
+     * system then contradicted itself: the plan existed, and every payment into
+     * it was refused with "does not owe anything, so there is nothing to pay".
+     * Agreed and unusable, with nothing explaining why.
+     */
+    if (owed.lte(0)) {
+      throw badRequest(
+        'NOTHING_TO_SCHEDULE',
+        `${customer.displayName} does not owe anything, so there is no debt to schedule.`,
+        { customer: customer.displayName },
+      );
+    }
+
+    if (total.gt(owed)) {
       throw badRequest(
         'INSTALMENTS_EXCEED_OWED',
         `The instalments total ${formatMoney(total)} EGP but ${customer.displayName} ` +

@@ -14,10 +14,17 @@ import { PaymentsService } from './payments.service';
 import { CreatePaymentDto, AllocatePaymentDto } from './dto/payment.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Payments')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+/**
+ * Receiving and allocating money is office work; reversing it is a partner's.
+ *
+ * No role guard existed here, so any logged-in account could reverse a payment.
+ */
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
 @Controller('payments')
 export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
@@ -65,6 +72,7 @@ export class PaymentsController {
   }
 
   @Post(':id/reverse')
+  @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Reverse a payment' })
   reverse(
     @Param('id') id: string,

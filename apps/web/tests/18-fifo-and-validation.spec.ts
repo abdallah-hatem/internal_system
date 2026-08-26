@@ -76,9 +76,18 @@ test.describe('FIFO allocation', () => {
     expect(allocated).toBeCloseTo(qty, 3);
   });
 
-  test('TC-FIFO-02: overselling is refused and leaves no partial allocation', async ({ request }) => {
+  test('TC-FIFO-02: overselling is refused, and no order is left behind', async ({
+    request,
+  }) => {
     const t = await token(request);
     const h = { Authorization: `Bearer ${t}` };
+
+    // This used to be refused at CONFIRM, and the test walked a draft through
+    // to that point. e67dbdc moved the refusal earlier — an order cannot be
+    // created for more stock than exists at all — so the draft this waited to
+    // confirm is never made, and the test sat red encoding the older rule.
+    const before = await request.get(`${API}/sales/orders?limit=100`, { headers: h });
+    const countBefore = ((await before.json()).data ?? []).length;
 
     const create = await request.post(`${API}/sales/orders`, {
       headers: h,
@@ -87,20 +96,14 @@ test.describe('FIFO allocation', () => {
         items: [{ productId: BRAKE_PAD, quantity: 999999, unitPrice: 200 }],
       },
     });
-    const order = (await create.json()).data;
 
-    const confirm = await request.post(`${API}/sales/orders/${order.id}/confirm`, {
-      headers: h, data: { version: order.version },
-    });
-    expect(confirm.status()).toBe(400);
-    expect(JSON.stringify(await confirm.json())).toMatch(/insufficient stock/i);
+    expect(create.status()).toBe(400);
+    expect((await create.json()).error.code).toBe('NOT_ENOUGH_STOCK');
 
-    // The order must still be a draft with nothing allocated.
-    const after = await request.get(`${API}/sales/orders/${order.id}`, { headers: h });
-    const body = (await after.json()).data;
-    expect(body.status).toBe('DRAFT');
-    const allocations = (body.items ?? []).flatMap((i: any) => i.allocations ?? []);
-    expect(allocations).toHaveLength(0);
+    // Refused early means refused completely: no draft, nothing allocated,
+    // nothing to tidy up afterwards.
+    const after = await request.get(`${API}/sales/orders?limit=100`, { headers: h });
+    expect(((await after.json()).data ?? []).length).toBe(countBefore);
   });
 });
 

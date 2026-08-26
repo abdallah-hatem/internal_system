@@ -108,22 +108,43 @@ async function main() {
   // every seed — the test reset truncates every table, and without this the
   // rates would silently vanish for the length of a run.
   //
-  // CNY is deliberately rate-less: the business buys from China, but no rate
-  // was agreed, and inventing one would put a wrong number into a landed cost.
+  // CNY was deliberately left rate-less, on the grounds that inventing a rate
+  // would put a wrong number into a landed cost. True of production, wrong for
+  // a seed: China is the two-leg route and the more involved one, so the
+  // harder path was also the one that made you type a rate by hand before you
+  // could get anywhere.
+  //
+  // It carries a working rate now, marked `seed` rather than `manual` so it is
+  // visibly not a rate anybody agreed. Confirm it against the real one before
+  // costing a real cycle.
   for (const [code, rate, source] of [
     ['EGP', 1, 'base'],
     ['AED', 13.85, 'manual'],
     ['USD', 50.86, 'manual'],
-    ['CNY', null, 'manual'],
+    ['CNY', 7.06, 'seed'],
   ] as [string, number | null, string][]) {
     await prisma.currencyRate.upsert({
       where: { code },
       update: {},
       create: { code, rateToEgp: rate, source },
     });
+    // The rows already exist: a migration inserts them, with CNY deliberately
+    // rate-less. `update: {}` above then left that NULL in place and the seed's
+    // rate never landed — the map endpoint omits rate-less currencies, so a
+    // China cycle still had nothing to prefill and the change looked applied
+    // while doing nothing at all.
+    //
+    // Only a currency with no rate is filled in, so a rate somebody actually
+    // agreed is never overwritten by re-running a seed.
+    if (rate !== null) {
+      await prisma.currencyRate.updateMany({
+        where: { code, rateToEgp: null },
+        data: { rateToEgp: rate, source },
+      });
+    }
   }
 
-  console.log('✅ Created currency rates (AED 13.85, USD 50.86; CNY unset)');
+  console.log('✅ Created currency rates (AED 13.85, USD 50.86, CNY 7.06 — CNY is a seed value, confirm before real use)');
 
   // ─── Reference data ────────────────────────────────────────────────────
   //

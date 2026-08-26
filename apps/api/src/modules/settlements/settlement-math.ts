@@ -172,8 +172,24 @@ function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
   );
 
   if (totalContribution.lte(0)) {
-    // Nothing was contributed, so there is no basis to split on.
-    return participants.map(() => ZERO);
+    /**
+     * Nobody funded the cycle, so there is no basis to split on — and
+     * returning all-zero shares was worse than refusing.
+     *
+     * Every share came out zero, so every line rounded to zero except the
+     * last, which takes the residual: the whole profit landed on whichever
+     * participant happened to be created last, and the other two got nothing.
+     * Silently. On 90,000 of profit across three equal partners the answer was
+     * 0 / 0 / 90,000.
+     *
+     * A cycle reaches settlement with zero contributions by the ordinary
+     * route: they are seeded at zero because the capital is not known yet, and
+     * whoever set the cycle up never came back to fill them in.
+     */
+    throw badRequest(
+      'CYCLE_NOT_FUNDED',
+      'No contributions are recorded for this cycle, so there is no basis to split its profit. Record what each participant put in first.',
+    );
   }
 
   return participants.map((p) => p.contribution.div(totalContribution));
