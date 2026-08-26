@@ -62,11 +62,25 @@ test.describe('Cycle wizard translations', () => {
   test('TC-I18N-03: no Arabic value is still English', async () => {
     // Copying the English across to unblock a build is the easy mistake, and it
     // looks translated in the key listing.
-    // Strip ICU control syntax — argument names and plural/select keywords are
-    // English by specification and say nothing about the translation.
-    const icu = /\b(?:count|leg|plural|select|selectordinal|one|two|few|many|other|zero|offset)\b|[{}#,]/g;
+    // Strip ICU control syntax so only the words a reader sees are checked.
+    //
+    // Doing that by listing argument names — count, leg — was wrong twice over:
+    // it needed extending for every new placeholder, and until someone did,
+    // `{amount}` left the bare word "amount" behind and a perfectly good Arabic
+    // string was reported as untranslated. Placeholders are removed by shape
+    // now, and only the plural/select KEYWORDS are named, because those are
+    // fixed by the ICU spec.
+    const strip = (text: string) =>
+      text
+        // A whole simple placeholder: {amount}, {customer}.
+        .replace(/\{\s*[A-Za-z_]\w*\s*\}/g, '')
+        // The header of a plural or select, leaving its translated bodies.
+        .replace(/\{\s*[A-Za-z_]\w*\s*,\s*(?:plural|selectordinal|select)\s*,/g, '')
+        // Branch keywords and the punctuation that frames them.
+        .replace(/\b(?:zero|one|two|few|many|other|offset)\b|[{}#=,]/g, '');
+
     const untranslated = Object.entries(ar.wizard as Record<string, string>)
-      .filter(([k, v]) => v === en.wizard[k] || /[A-Za-z]/.test(v.replace(icu, '')))
+      .filter(([k, v]) => v === en.wizard[k] || /[A-Za-z]/.test(strip(v)))
       .map(([k]) => k);
 
     expect(untranslated).toEqual([]);

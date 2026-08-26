@@ -6,7 +6,8 @@ import { api } from '../../../lib/api';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass } from 'lucide-react';
+import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download } from 'lucide-react';
+import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PartnerCycle {
@@ -94,6 +95,37 @@ export default function PartnersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {/* One row per participation rather than per person: a partner on four
+            cycles is four lines, which is what anyone checking the figures
+            against a cycle needs. The per-person totals are the sum. */}
+        <button
+          type="button"
+          onClick={() =>
+            downloadCsv(
+              datedFilename('partners'),
+              filtered.flatMap<{ person: Participation; cycle: PartnerCycle | null }>((p) =>
+                p.cycles.length > 0
+                  ? p.cycles.map((c) => ({ person: p, cycle: c }))
+                  : [{ person: p, cycle: null }],
+              ),
+              [
+                { header: t('name'), value: (r) => r.person.displayName ?? r.person.email },
+                { header: t('email'), value: (r) => r.person.email },
+                { header: t('role'), value: (r) => r.person.role },
+                { header: t('cycleHistory'), value: (r) => r.cycle?.code ?? '' },
+                { header: t('status'), value: (r) => r.cycle?.status ?? '' },
+                { header: t('capitalIn'), value: (r) => r.cycle?.contributionEgp ?? r.person.contributedEgp },
+                { header: t('profitEarned'), value: (r) => r.cycle?.profitShareEgp ?? r.person.profitShareEgp },
+                { header: t('accrued'), value: (r) => r.cycle?.accruedProfitEgp ?? r.person.accruedProfitEgp },
+              ],
+            )
+          }
+          disabled={filtered.length === 0}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <Download className="h-4 w-4" />
+          {tc('export')}
+        </button>
       </div>
 
       <div className="relative max-w-md">

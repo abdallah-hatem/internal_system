@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -527,19 +528,24 @@ function SalesPageContent() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')}</label>
-                <Select
-                  name="customerId"
-                  required
-                  value={customerId}
-                  onChange={onCustomerChange}
-                  placeholder={t('customer')}
-                  searchPlaceholder={tc('search')}
-                  options={customerList.map((c) => ({
-                    value: c.id,
-                    label: c.displayName,
-                    hint: c.type,
-                  }))}
-                />
+                <FieldWithQuickCreate
+                  entity="customer"
+                  onCreated={(c) => onCustomerChange(c.id)}
+                >
+                  <Select
+                    name="customerId"
+                    required
+                    value={customerId}
+                    onChange={onCustomerChange}
+                    placeholder={t('customer')}
+                    searchPlaceholder={tc('search')}
+                    options={customerList.map((c) => ({
+                      value: c.id,
+                      label: c.displayName,
+                      hint: c.type,
+                    }))}
+                  />
+                </FieldWithQuickCreate>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('channel')}</label>

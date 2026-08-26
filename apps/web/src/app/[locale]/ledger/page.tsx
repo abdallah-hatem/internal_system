@@ -16,6 +16,8 @@ import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
 import { MoneyInput } from '../../../components/ui/money-input';
+import { downloadCsv, datedFilename } from '../../../lib/export-csv';
+import { Download } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -180,6 +182,29 @@ export default function LedgerPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        <div className="flex items-center gap-2">
+        {/* Whatever the filters currently show, not the whole table — the
+            filtered view is the question being asked. Amount goes out as a
+            number so the spreadsheet can total it. */}
+        <button
+          type="button"
+          onClick={() =>
+            downloadCsv(datedFilename('ledger'), filtered, [
+              { header: tc('date'), value: (e) => e.createdAt?.slice(0, 10) ?? '' },
+              { header: t('direction'), value: (e) => e.direction },
+              { header: t('category'), value: (e) => e.category },
+              { header: tc('amount'), value: (e) => e.amount },
+              { header: t('currency'), value: (e) => e.currency },
+              { header: t('cycle'), value: (e) => e.cycle?.code ?? '' },
+              { header: t('reason'), value: (e) => e.reason ?? '' },
+            ])
+          }
+          disabled={filtered.length === 0}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <Download className="h-4 w-4" />
+          {tc('export')}
+        </button>
         <button
           onClick={() => setShowCreateModal(true)}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
@@ -187,6 +212,7 @@ export default function LedgerPage() {
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        </div>
       </div>
 
       {/* Search + Filters */}

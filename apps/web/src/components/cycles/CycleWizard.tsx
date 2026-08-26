@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../lib/api-error';
+import { FieldWithQuickCreate } from '../ui/quick-create';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -83,6 +84,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   };
   const locale = useLocale();
   const t = useTranslations('wizard');
+  const tc = useTranslations('common');
   const toast = useToast();
 
   // Wizard state
@@ -327,6 +329,164 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     queryFn: () => api.get(`/cycles/${existingCycleId}`).then((r) => r.data.data ?? r.data),
     enabled: !!existingCycleId,
   });
+
+  /**
+   * Who is funding this cycle, and for how much.
+   *
+   * The wizard never asked. Contributions are seeded at zero because the cost
+   * is not known when the cycle is created, and filling them in lived on a
+   * different page entirely — so it was a step you could simply forget, weeks
+   * before settlement made that matter. It matters a great deal: an unfunded
+   * cycle used to hand its entire profit to whichever partner was created last.
+   *
+   * Asked here, on the last step, because this is where the cycle's real cost
+   * is finally known: goods from step 2 plus shipping from step 3.
+   */
+  const { data: fundingCycle, refetch: refetchFunding } = useQuery({
+    queryKey: ['cycle', 'funding', cycleId],
+    queryFn: () => api.get(`/cycles/${cycleId}`).then((r) => r.data.data ?? r.data),
+    enabled: !!cycleId && currentStep === 3,
+  });
+
+  const participants: any[] = fundingCycle?.participants ?? [];
+
+  /**
+   * What to call a participant.
+   *
+   * `partner` and `investor` on a participant row are USER records, and the
+   * display name hangs off the Partner record nested inside each. Reading
+   * `p.partner.displayName` is one level too high, so every row rendered as a
+   * dash — three identical amounts against three blank names.
+   */
+  const participantName = (p: any) => {
+    const user = p.partner ?? p.investor;
+    return user?.partner?.displayName ?? user?.email ?? '—';
+  };
+  const [contributions, setContributions] = useState<Record<string, string>>({});
+  const [isFunding, setIsFunding] = useState(false);
+
+  // Seed the inputs from what is already recorded, once the participants load.
+  useEffect(() => {
+    if (participants.length === 0) return;
+    setContributions((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
+      return Object.fromEntries(
+        participants.map((p: any) => {
+          const amount = Number(p.contributionAmount);
+          return [p.id, amount ? amount.toFixed(2) : ''];
+        }),
+      );
+    });
+  }, [participants.length]);
+
+  // What the cycle has actually cost: goods from step 2 plus shipping from
+  // step 3, which is the number the partners are funding.
+  const { data: landedCost } = useQuery({
+    queryKey: ['costing', cycleId],
+    queryFn: () =>
+      api.get(`/costing/cycles/${cycleId}/landed-cost`).then((r) => r.data.data ?? r.data),
+    enabled: !!cycleId && currentStep === 3,
+  });
+
+  /**
+   * Everyone who could still be put on this cycle.
+   *
+   * A temporary investor is an ordinary user given money in one cycle, so the
+   * list is everybody not already a participant — not only users whose role
+   * says TEMP_INVESTOR. A core partner backing a cycle separately is a real
+   * case, and the demo data has one.
+   */
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get('/users').then((r) => r.data.data ?? r.data),
+    enabled: !!cycleId && currentStep === 3,
+  });
+
+  const onCycle = new Set(
+    participants.flatMap((p: any) => [p.partnerUserId, p.investorUserId].filter(Boolean)),
+  );
+  const addableUsers = (Array.isArray(allUsers) ? allUsers : []).filter(
+    (u: any) => !onCycle.has(u.id),
+  );
+
+  const [investorUserId, setInvestorUserId] = useState('');
+  const [investorAmount, setInvestorAmount] = useState('');
+  const [investorFee, setInvestorFee] = useState('');
+  const [isAddingInvestor, setIsAddingInvestor] = useState(false);
+
+  const addInvestor = async () => {
+    if (!investorUserId) return;
+    setIsAddingInvestor(true);
+    try {
+      await api.post(`/cycles/${cycleId}/participants`, {
+        participantType: 'TEMP_INVESTOR',
+        investorUserId,
+        contributionAmount: Number(investorAmount || 0),
+        investorFeePct: investorFee ? Number(investorFee) : undefined,
+      });
+      setInvestorUserId('');
+      setInvestorAmount('');
+      setInvestorFee('');
+      await refetchFunding();
+      refreshCycleCaches();
+      toast.success(t('investorAdded'));
+    } catch (err: any) {
+      toast.error(apiError(err, t('investorFailed')));
+    } finally {
+      setIsAddingInvestor(false);
+    }
+  };
+
+  const landedTotal = Number(landedCost?.totals?.landedEgp ?? 0);
+  const fundedTotal = participants.reduce(
+    (sum: number, p: any) => sum + Number(contributions[p.id] || 0),
+    0,
+  );
+
+  /**
+   * Split what the cycle actually cost across the core partners.
+   *
+   * To the piastre: thirds of 75,645.50 do not divide evenly, so the last
+   * partner absorbs the residual and the parts re-sum exactly. Left uneven,
+   * capital returned at settlement would not match capital put in.
+   *
+   * Investors are left alone — they put in a specific amount that is theirs,
+   * not a share of the whole.
+   */
+  const splitEqually = () => {
+    const core = participants.filter((p: any) => p.participantType === 'CORE_PARTNER');
+    if (core.length === 0) return;
+    const investors = participants
+      .filter((p: any) => p.participantType !== 'CORE_PARTNER')
+      .reduce((sum: number, p: any) => sum + Number(contributions[p.id] || 0), 0);
+
+    const cents = Math.round(Math.max(landedTotal - investors, 0) * 100);
+    const each = Math.floor(cents / core.length);
+    const next: Record<string, string> = { ...contributions };
+    core.forEach((p: any, i: number) => {
+      const amount = (i === core.length - 1 ? cents - each * (core.length - 1) : each) / 100;
+      next[p.id] = amount.toFixed(2);
+    });
+    setContributions(next);
+  };
+
+  const saveFunding = async () => {
+    setIsFunding(true);
+    try {
+      for (const p of participants) {
+        const next = Number(contributions[p.id] || 0);
+        if (next === Number(p.contributionAmount)) continue;
+        await api.put(`/cycles/participants/${p.id}`, { contributionAmount: next });
+      }
+      await refetchFunding();
+      refreshCycleCaches();
+      toast.success(t('fundingSaved'));
+    } catch (err: any) {
+      toast.error(apiError(err, t('fundingFailed')));
+    } finally {
+      setIsFunding(false);
+    }
+  };
 
   // Stock already received for this cycle, keyed by the purchase order item it
   // came from. A batch keeps the landed cost it was received at for good — the
@@ -620,8 +780,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         // wizard made — a provider's shipments could not be found from the
         // provider, and the delete guard counts through exactly that relation,
         // so it called every provider unused and let them be deleted.
-        providerId: str('providerId') || undefined,
-        provider: providerList.find((pr: any) => pr.id === str('providerId'))?.name,
+        // `name:<x>` is the leg's own unlinked provider offered back to it, so
+        // it carries no id — sending it as one would be a foreign key that
+        // does not exist.
+        providerId: str('providerId').startsWith('name:') ? undefined : str('providerId') || undefined,
+        provider: str('providerId').startsWith('name:')
+          ? str('providerId').slice(5)
+          : providerList.find((pr: any) => pr.id === str('providerId'))?.name,
         trackingRef: str('trackingRef') || undefined,
         departedOn: str('departedOn') || undefined,
         arrivedOn: str('arrivedOn') || undefined,
@@ -888,6 +1053,37 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   const supplierList: any[] = Array.isArray(suppliers) ? suppliers : [];
   const providerList: any[] = Array.isArray(providers) ? providers : [];
+
+  // Per leg, keyed by the field prefix, so a provider created from inside one
+  // leg's form does not land on the other leg of a China cycle.
+  const [legProviderIds, setLegProviderIds] = useState<Record<string, string>>({});
+  const setLegProviderId = (prefix: string, id: string) =>
+    setLegProviderIds((prev) => ({ ...prev, [prefix]: id }));
+
+  /**
+   * The providers to choose from, plus whatever this leg already says.
+   *
+   * A leg saved before the pickers carried ids knows only a provider NAME, and
+   * that name need not match any provider record — legs were created with free
+   * text for a long time. Offering only real providers left the required field
+   * empty for those legs, so the browser silently refused to submit and the leg
+   * could no longer be edited at all: dates, costs, tracking, none of it.
+   *
+   * The stray name is offered back as `name:<whatever>`, which resolves to no
+   * provider id — the leg keeps displaying what it always did, and picking a
+   * real provider from the list links it properly.
+   */
+  const providerOptions = (current?: string) => {
+    const options = providerList.map((pr: any) => ({
+      value: pr.id,
+      label: pr.name,
+      hint: pr.contactPerson ?? undefined,
+    }));
+    if (current && !providerList.some((pr: any) => pr.name === current)) {
+      options.unshift({ value: `name:${current}`, label: current, hint: undefined });
+    }
+    return options;
+  };
   const productList: any[] = Array.isArray(products) ? products : [];
   const poItems: any[] = poDetail?.items ?? [];
 
@@ -1113,6 +1309,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('supplier')} <span className="text-red-500">*</span>
                 </label>
+                <FieldWithQuickCreate
+                  entity="supplier"
+                  onCreated={(sup) => setPoSupplierId(sup.id)}
+                >
                 <Select
                   key={poSupplierId || 'empty-supplier'}
                   name="supplierId"
@@ -1126,6 +1326,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     hint: s.contactPerson ?? undefined,
                   }))}
                 />
+                </FieldWithQuickCreate>
               </div>
 
               <div>
@@ -1212,6 +1413,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('product')}
                         </label>
+                        <FieldWithQuickCreate
+                          entity="product"
+                          onCreated={(prod) => updateLineItem(idx, 'productId', prod.id)}
+                        >
                         <Select
                           value={item.productId}
                           onChange={(v) => updateLineItem(idx, 'productId', v)}
@@ -1223,6 +1428,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                             hint: p.sku,
                           }))}
                         />
+                        </FieldWithQuickCreate>
                       </div>
 
                       <div className="w-20">
@@ -1338,23 +1544,26 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t('shippingProvider')} <span className="text-red-500">*</span>
                       </label>
+                      <FieldWithQuickCreate
+                        entity="provider"
+                        onCreated={(pr) => setLegProviderId(prefix, pr.id)}
+                      >
                       <Select
                         name={`${prefix}providerId`}
                         required
-                        // An existing leg may only know the provider's name —
-                        // every leg made before this carried nothing else.
-                        defaultValue={
+                        // A provider chosen or created here wins; otherwise the
+                        // leg's own, which for an older leg may be only a name.
+                        value={
+                          legProviderIds[prefix] ??
                           existing?.providerId ??
                           providerList.find((pr: any) => pr.name === existing?.provider)?.id ??
-                          ''
+                          (existing?.provider ? `name:${existing.provider}` : '')
                         }
+                        onChange={(v) => setLegProviderId(prefix, v)}
                         placeholder={t('selectShippingProvider')}
-                        options={providerList.map((pr: any) => ({
-                          value: pr.id,
-                          label: pr.name,
-                          hint: pr.contactPerson ?? undefined,
-                        }))}
+                        options={providerOptions(existing?.provider)}
                       />
+                      </FieldWithQuickCreate>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1471,6 +1680,176 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               Landed unit cost includes this cycle&apos;s shipping, spread across the
               items it moved. Edit a value to override it.
             </p>
+
+            {/* Funding.
+
+                Asked here because this is the first point where the cycle's
+                real cost is known — goods plus shipping — and the last point
+                before it leaves the wizard. It used to live on another page,
+                which made it a step you could finish without. */}
+            {participants.length > 0 && (
+              <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">{t('funding')}</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{t('fundingHint')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={splitEqually}
+                    disabled={landedTotal <= 0}
+                    className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {t('splitEqually')}
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {participants.map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-3">
+                      <span className="flex-1 text-sm text-gray-700">
+                        {participantName(p)}
+                        {p.participantType !== 'CORE_PARTNER' && (
+                          <span className="ms-2 text-xs text-purple-600">
+                            {t('tempInvestorTag')}
+                          </span>
+                        )}
+                      </span>
+                      <MoneyInput
+                        data-field={`contribution-${p.id}`}
+                        placeholder="0.00"
+                        value={contributions[p.id] ?? ''}
+                        onChange={(raw) =>
+                          setContributions((prev) => ({ ...prev, [p.id]: raw }))
+                        }
+                        className="w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Adding an investor.
+
+                    A cycle starts with the three partners on it and there was
+                    no way to put anyone else there from the wizard at all —
+                    the only route was a separate page most people would never
+                    find. A temporary investor is funding like any other, so it
+                    is asked for in the same place. */}
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs font-medium text-gray-700 mb-2">{t('addInvestor')}</p>
+                  {addableUsers.length === 0 ? (
+                    <p className="text-xs text-gray-400">{t('everyoneIsOn')}</p>
+                  ) : (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="min-w-[12rem] flex-1">
+                        <label className="block text-[11px] text-gray-500 mb-1">
+                          {t('investorPerson')}
+                        </label>
+                        <Select
+                          value={investorUserId}
+                          onChange={setInvestorUserId}
+                          placeholder={t('selectPerson')}
+                          options={addableUsers.map((u: any) => ({
+                            value: u.id,
+                            label: u.partner?.displayName ?? u.email,
+                            hint: u.email,
+                          }))}
+                        />
+                      </div>
+                      <div className="w-32">
+                        <label className="block text-[11px] text-gray-500 mb-1">
+                          {t('investorAmount')}
+                        </label>
+                        <MoneyInput
+                          data-field="investor-amount"
+                          placeholder="0.00"
+                          value={investorAmount}
+                          onChange={setInvestorAmount}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <label
+                          className="block text-[11px] text-gray-500 mb-1"
+                          title={t('investorFeeHint')}
+                        >
+                          {t('investorFee')}
+                        </label>
+                        <input
+                          type="number"
+                          name="investorFeePct"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          placeholder="0"
+                          value={investorFee}
+                          onChange={(e) => setInvestorFee(e.target.value)}
+                          {...selectOnFocus}
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addInvestor}
+                        disabled={!investorUserId || isAddingInvestor}
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {isAddingInvestor && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {t('addInvestorAction')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 text-xs">
+                  <span className="text-gray-500">
+                    {t('cycleCost')}:{' '}
+                    <span className="font-medium text-gray-900">
+                      {landedTotal.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      EGP
+                    </span>
+                    {' · '}
+                    {t('funded')}:{' '}
+                    <span className="font-medium text-gray-900">
+                      {fundedTotal.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      EGP
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={saveFunding}
+                    disabled={isFunding}
+                    className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {isFunding && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {tc('save')}
+                  </button>
+                </div>
+
+                {/* Not blocking — a cycle can legitimately be funded for less
+                    than it cost, or by someone outside the system. But it is
+                    said plainly, because the settlement will not say it. */}
+                {fundedTotal <= 0 ? (
+                  <p className="text-xs text-amber-700">{t('notFundedYet')}</p>
+                ) : Math.abs(fundedTotal - landedTotal) > 0.01 && landedTotal > 0 ? (
+                  <p className="text-xs text-amber-700">
+                    {fundedTotal < landedTotal
+                      ? t('fundingShort', {
+                          amount: (landedTotal - fundedTotal).toFixed(2),
+                        })
+                      : t('fundingOver', {
+                          amount: (fundedTotal - landedTotal).toFixed(2),
+                        })}
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             {costingWarnings.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">

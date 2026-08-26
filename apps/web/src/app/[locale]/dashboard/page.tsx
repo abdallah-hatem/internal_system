@@ -6,7 +6,7 @@ import { api } from '../../../lib/api';
 import { formatDate, timeAgo } from '../../../lib/dates';
 import {
   LayoutDashboard, TrendingUp, Package, AlertTriangle, DollarSign, ShoppingCart,
-  Activity, Loader2, Route, Wallet, Clock, Receipt,
+  Activity, Loader2, Route, Wallet, Clock, Receipt, Landmark,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -15,6 +15,8 @@ interface DashboardData {
   totalExpenses: number;
   totalCogs?: number;
   totalCashOut?: number;
+  totalCashIn?: number;
+  cashOnHand?: number;
   netProfit: number;
   activeCycles: number;
   inventoryValue: number;
@@ -73,6 +75,8 @@ export default function DashboardPage() {
     totalExpenses: 0,
     totalCogs: 0,
     totalCashOut: 0,
+    totalCashIn: 0,
+    cashOnHand: 0,
     netProfit: 0,
     activeCycles: 0,
     inventoryValue: 0,
@@ -103,6 +107,16 @@ export default function DashboardPage() {
     { key: 'expenses', value: egp(data.totalExpenses), icon: Receipt, color: 'bg-rose-500' },
     { key: 'netProfit', value: egp(data.netProfit), icon: TrendingUp, color: 'bg-blue-500' },
     { key: 'cashOut', value: egp(data.totalCashOut), icon: DollarSign, color: 'bg-teal-600' },
+    // Everything in less everything out. It could not be shown before
+    // contributions were recorded: the ledger held the purchase going out and
+    // nothing for the capital coming in, so the figure was short by exactly
+    // what the partners had put in.
+    {
+      key: 'cashOnHand',
+      value: egp(data.cashOnHand ?? 0),
+      icon: Landmark,
+      color: (data.cashOnHand ?? 0) < 0 ? 'bg-red-600' : 'bg-cyan-600',
+    },
     { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
     { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
     { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },

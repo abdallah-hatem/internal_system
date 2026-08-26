@@ -145,6 +145,11 @@ test.describe('Accrued profit', () => {
 
     const cycles = await (await request.get(`${API}/cycles?limit=50`, { headers })).json();
     const list = cycles.data?.items ?? cycles.data ?? [];
+    // Only the cycles this page actually returned. Run on its own there are a
+    // handful and the limit is irrelevant; run as part of the whole suite there
+    // are hundreds, so the expectation was built from a truncated list and a
+    // participation the summary reported correctly looked like an extra.
+    const fetched = new Set<string>(list.map((c: any) => c.id));
 
     // Every participation the API knows about, per user, straight from source.
     const expected = new Map<string, { cycles: Set<string>; capital: number }>();
@@ -153,6 +158,9 @@ test.describe('Accrued profit', () => {
       for (const p of (detail.data ?? detail).participants ?? []) {
         const userId = p.partnerUserId ?? p.investorUserId;
         if (!userId) continue;
+        // Summed, not overwritten: the same person can hold two participant
+        // rows on one cycle — a core partner who also invested — and both
+        // contributions are real money.
         const entry = expected.get(userId) ?? { cycles: new Set<string>(), capital: 0 };
         entry.cycles.add(c.id);
         entry.capital += num(p.contributionAmount);
@@ -163,15 +171,25 @@ test.describe('Accrued profit', () => {
 
     for (const person of people) {
       const want = expected.get(person.id) ?? { cycles: new Set<string>(), capital: 0 };
-      const got = person.cycles.map((c: any) => c.id);
+      const all = person.cycles.map((c: any) => c.id);
+      const got = all.filter((id: string) => fetched.has(id));
 
-      expect(new Set(got).size, `${person.email} lists a cycle twice`).toBe(got.length);
+      // One row per cycle. Two participant rows on the same cycle are legal —
+      // a core partner who also invested — and their money is summed, but the
+      // cycle is still one cycle and must not be listed or counted twice.
+      expect(new Set(all).size, `${person.email} lists a cycle twice`).toBe(all.length);
       expect(
         [...got].sort(),
         `${person.email} is missing a participation`,
       ).toEqual([...want.cycles].sort());
-      expect(person.contributedEgp).toBeCloseTo(want.capital, 2);
-      expect(person.cycleCount).toBe(want.cycles.size);
+
+      // Capital, over the same subset — the summary totals every cycle, so
+      // comparing it against a partial list would only ever agree by luck.
+      const capital = person.cycles
+        .filter((c: any) => fetched.has(c.id))
+        .reduce((sum: number, c: any) => sum + num(c.contributionEgp), 0);
+      expect(capital).toBeCloseTo(want.capital, 2);
+      expect(person.cycleCount).toBe(all.length);
     }
   });
 
