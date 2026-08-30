@@ -9,6 +9,7 @@ import { Link } from '../../i18n/navigation';
 import { formatDate } from '../../lib/dates';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { notificationHref, useNotifications } from '../../lib/notifications';
 
 interface Notification {
   id: string;
@@ -34,16 +35,12 @@ export function NotificationBell() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
-  const { data: notifications = [] } = useQuery<Notification[]>({
-    queryKey: ['notifications'],
-    queryFn: () => api.get('/notifications').then((r) => r.data.data ?? r.data),
-    // These are raised by other people's actions, so the tab needs to notice
-    // without a reload.
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
-  });
+  // The shared query. This and the notifications page each had their own under
+  // the same key, returning different shapes; the page read the bell's array as
+  // if it were an object and showed nothing while this showed nine unread.
+  const { data } = useNotifications();
 
-  const list = Array.isArray(notifications) ? notifications : [];
+  const list = data?.items ?? [];
   const unread = list.filter((n) => !n.readAt);
 
   const markRead = useMutation({
@@ -101,12 +98,14 @@ export function NotificationBell() {
             <p className="px-4 py-8 text-center text-sm text-gray-400">{t('noData')}</p>
           ) : (
             list.slice(0, 8).map((n) => (
-              <div
+              <BellRow
                 key={n.id}
-                className={cn(
-                  'flex items-start gap-2 border-b border-gray-50 px-4 py-3 last:border-0',
-                  !n.readAt && 'bg-primary-50/40',
-                )}
+                href={notificationHref(n)}
+                unread={!n.readAt}
+                onOpen={() => {
+                  setOpen(false);
+                  if (!n.readAt) markRead.mutate(n.id);
+                }}
               >
                 <span
                   className={cn(
@@ -124,13 +123,17 @@ export function NotificationBell() {
                   <button
                     type="button"
                     aria-label={t('markRead')}
-                    onClick={() => markRead.mutate(n.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      markRead.mutate(n.id);
+                    }}
                     className="rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
                   >
                     <Check className="h-3.5 w-3.5" />
                   </button>
                 )}
-              </div>
+              </BellRow>
             ))
           )}
         </div>
@@ -144,5 +147,40 @@ export function NotificationBell() {
         </Link>
       </PopoverContent>
     </Popover>
+  );
+}
+
+
+/**
+ * One line in the bell, as a link where there is somewhere to go.
+ *
+ * Opening it closes the panel and marks it read — the two things a person means
+ * by clicking a notification, and neither of which used to happen. The
+ * mark-read tick stays for the case where they have read it here and do not
+ * want to go anywhere; `stopPropagation` keeps that from navigating.
+ */
+function BellRow({
+  href,
+  unread,
+  onOpen,
+  children,
+}: {
+  href: string | null;
+  unread: boolean;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
+  const className = cn(
+    'flex items-start gap-2 border-b border-gray-50 px-4 py-3 last:border-0',
+    unread && 'bg-primary-50/40',
+    href && 'cursor-pointer hover:bg-gray-50',
+  );
+
+  if (!href) return <div className={className}>{children}</div>;
+
+  return (
+    <Link href={href} onClick={onOpen} className={className}>
+      {children}
+    </Link>
   );
 }

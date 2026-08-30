@@ -10,6 +10,8 @@ import {
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
 } from 'lucide-react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Link } from '../../../i18n/navigation';
+import { notificationHref, useNotifications } from '../../../lib/notifications';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface Notification {
@@ -38,21 +40,16 @@ export default function NotificationsPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
 
-  const { data: notifications, isLoading } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: async () => {
-      const res = await api.get('/notifications');
-      return {
-        data: res.data.data ?? res.data,
-        meta: res.data.meta,
-      };
-    },
-  });
+  // The shared query. This page and the bell each had their own under the same
+  // key and disagreed about the shape, so whichever mounted first won and the
+  // other read the wrong thing — which is why this page said "No notifications"
+  // beside a bell showing nine.
+  const { data, isLoading } = useNotifications();
 
   const [page, setPage] = useState(1);
 
-  const notificationList: Notification[] = Array.isArray(notifications?.data) ? notifications.data : [];
-  const unreadCount = notifications?.meta?.unreadCount ?? notificationList.filter((n) => !n.readAt).length;
+  const notificationList: Notification[] = data?.items ?? [];
+  const unreadCount = data?.unreadCount ?? notificationList.filter((n) => !n.readAt).length;
 
   const totalPages = Math.ceil(notificationList.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(notificationList, page), [notificationList, page]);
@@ -117,12 +114,13 @@ export default function NotificationsPage() {
               {paginated.map((notification) => {
                 const Icon = EVENT_ICONS[notification.eventType] ?? Bell;
                 return (
-                  <div
+                  <NotificationRow
                     key={notification.id}
-                    onClick={() => {
+                    href={notificationHref(notification)}
+                    onOpen={() => {
                       if (!notification.readAt) markReadMutation.mutate(notification.id);
                     }}
-                    className={`flex items-start gap-4 px-4 py-4 cursor-pointer hover:bg-gray-50 transition-colors ${!notification.readAt ? 'bg-primary-50/30' : ''}`}
+                    unread={!notification.readAt}
                   >
                     <div className={`mt-0.5 p-2 rounded-lg ${!notification.readAt ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-400'}`}>
                       <Icon className="h-4 w-4" />
@@ -143,7 +141,7 @@ export default function NotificationsPage() {
                     <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
                       {timeAgo(notification.createdAt)}
                     </span>
-                  </div>
+                  </NotificationRow>
                 );
               })}
             </div>
@@ -156,5 +154,44 @@ export default function NotificationsPage() {
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={notificationList.length} />
       )}
     </div>
+  );
+}
+
+
+/**
+ * One notification, as a link when there is somewhere to go.
+ *
+ * A notification you cannot act on wastes the reading of it: "El Nasr Motors
+ * asked to buy" was a dead end, and the person had to work out for themselves
+ * which screen that lived on. Now it opens the request.
+ *
+ * A real `<a>` rather than an onClick, so it opens in a new tab with the middle
+ * button and shows its destination in the status bar — both of which a div
+ * pretending to be a link takes away. Events with nowhere sensible to go stay
+ * plain text rather than landing on a dashboard and leaving the reader hunting.
+ */
+function NotificationRow({
+  href,
+  onOpen,
+  unread,
+  children,
+}: {
+  href: string | null;
+  onOpen: () => void;
+  unread: boolean;
+  children: React.ReactNode;
+}) {
+  const className = `flex items-start gap-4 px-4 py-4 transition-colors ${
+    unread ? 'bg-primary-50/30' : ''
+  } ${href ? 'cursor-pointer hover:bg-gray-50' : ''}`;
+
+  if (!href) {
+    return <div className={className}>{children}</div>;
+  }
+
+  return (
+    <Link href={href} onClick={onOpen} className={className}>
+      {children}
+    </Link>
   );
 }
