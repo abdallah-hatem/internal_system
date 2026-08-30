@@ -423,6 +423,21 @@ customers are filtered out of the Customers list by default, and an order
 request, a payment and a payment plan are all refused against one. A spam row
 can exist; it can never touch money.
 
+**An unverified shop may ask for an import, but not for an order.** DECIDED
+2026-08-30, by me rather than asked — recorded here so it is not a quiet one.
+An order request holds stock, and a hold is a promise; nothing has been agreed
+with an account nobody has looked at. An import request holds nothing and
+promises nothing, so it is how a shop that signed up an hour ago starts a
+conversation instead of sitting in a queue with nothing to do. Reverse it if
+that is wrong — the check is one line in `import-requests.service.ts`.
+
+**A photograph belongs to the shop that sent it.** A customer's import-request
+photos are served through a portal route that resolves the asset through the
+request, so the ownership check is the one that already found the request. The
+public catalogue image route refuses anything not attached to a product, and
+another shop asking for a photo gets a 404 rather than a 403 — it should not
+learn that the request exists.
+
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added

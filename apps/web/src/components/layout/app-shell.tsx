@@ -8,11 +8,31 @@ import { useAuth } from '../../lib/auth-context';
 import { ToastProvider, ToastBridge } from '../ui/toast';
 import { NotificationBell } from './notification-bell';
 import {
-  LayoutDashboard, Route, ShoppingCart, Truck, Package, Boxes,
-  BadgePercent, Users, CreditCard, BookOpen, BarChart3,
-  Bell, ShieldCheck, Settings, Menu, X, ChevronDown,
-  Globe, Tag, Scale, CalendarClock, Building2, Handshake,
+  BadgePercent,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Boxes,
+  Building2,
+  CalendarClock,
+  ChevronDown,
+  CreditCard,
   Factory,
+  Globe,
+  Handshake,
+  LayoutDashboard,
+  Menu,
+  Package,
+  Route,
+  Scale,
+  Settings,
+  ShieldCheck,
+  ShoppingCart,
+  Store,
+  Tag,
+  Truck,
+  Users,
+  X,
 } from 'lucide-react';
 
 /**
@@ -57,6 +77,9 @@ const navGroups = [
   {
     key: 'selling',
     items: [
+      // First in this group on purpose: every pending request is holding stock
+      // on a clock, so it is the one thing here that goes stale if it waits.
+      { key: 'orderRequests', icon: Store, href: '/order-requests' },
       { key: 'sales', icon: BadgePercent, href: '/sales' },
       { key: 'customers', icon: Users, href: '/customers' },
     ],

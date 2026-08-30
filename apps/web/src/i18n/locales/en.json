@@ -70,7 +70,8 @@
       "partners": "Partners",
       "system": "System"
     },
-    "suppliers": "Suppliers"
+    "suppliers": "Suppliers",
+    "orderRequests": "Order requests"
   },
   "auth": {
     "login": "Login",
@@ -850,5 +851,26 @@
     "CUSTOMER_NOT_VERIFIED": "{customer} has not been verified yet, so nothing can be recorded against them.",
     "TOO_MANY_PHOTOS": "A request can carry at most {max} photos.",
     "VALIDATION_FAILED": "Some of what you entered is not valid: {fields}."
+  },
+  "orderRequests": {
+    "title": "Order requests",
+    "subtitle": "What the shops have asked to buy. Each one is holding stock until you answer.",
+    "empty": "Nothing is waiting for an answer.",
+    "asked": "asked {qty}",
+    "couldGive": "{qty} available",
+    "approveQty": "Approve",
+    "unitPrice": "Unit price",
+    "noteToShop": "Note to the shop",
+    "notePlaceholder": "Say what changed and why, if anything did.",
+    "orderTotal": "Order total",
+    "approve": "Approve",
+    "decline": "Decline",
+    "approved": "Approved — order {orderNo} raised.",
+    "declined": "Declined, and the stock released.",
+    "declineNeedsReason": "Tell the shop why, so they know what to do next.",
+    "changedWarning": "This differs from what was asked for. The shop will see both figures — a note explaining why saves them asking.",
+    "holdHours": "Held for {hours}h more",
+    "holdMinutes": "Held for {minutes}m more",
+    "holdExpired": "Hold expired"
   }
 }

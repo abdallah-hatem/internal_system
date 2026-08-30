@@ -70,7 +70,8 @@
       "partners": "الشركاء",
       "system": "النظام"
     },
-    "suppliers": "المورّدون"
+    "suppliers": "المورّدون",
+    "orderRequests": "طلبات الشراء"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -850,5 +851,26 @@
     "CUSTOMER_NOT_VERIFIED": "لم يتم التحقق من {customer} بعد، لذا لا يمكن تسجيل أي شيء عليه.",
     "TOO_MANY_PHOTOS": "يمكن إرفاق {max} صور كحد أقصى لكل طلب.",
     "VALIDATION_FAILED": "بعض البيانات المُدخلة غير صحيحة: {fields}."
+  },
+  "orderRequests": {
+    "title": "طلبات الشراء",
+    "subtitle": "ما طلبته المحلات. كل طلب يحجز الكمية حتى ترد عليه.",
+    "empty": "لا توجد طلبات في انتظار الرد.",
+    "asked": "طلب {qty}",
+    "couldGive": "المتاح {qty}",
+    "approveQty": "الموافقة على",
+    "unitPrice": "سعر الوحدة",
+    "noteToShop": "ملاحظة للمحل",
+    "notePlaceholder": "اذكر ما تغيّر ولماذا، إن تغيّر شيء.",
+    "orderTotal": "إجمالي الأمر",
+    "approve": "موافقة",
+    "decline": "رفض",
+    "approved": "تمت الموافقة — أُنشئ أمر البيع {orderNo}.",
+    "declined": "تم الرفض وأُفرج عن الكمية.",
+    "declineNeedsReason": "اذكر السبب حتى يعرف المحل ما يفعله بعد ذلك.",
+    "changedWarning": "هذا يختلف عمّا طُلب. سيرى المحل الرقمين — وملاحظة توضّح السبب توفّر عليه السؤال.",
+    "holdHours": "محجوزة لمدة {hours} ساعة أخرى",
+    "holdMinutes": "محجوزة لمدة {minutes} دقيقة أخرى",
+    "holdExpired": "انتهى الحجز"
   }
 }
