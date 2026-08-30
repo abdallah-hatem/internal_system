@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { SurfaceGuard } from './common/guards/surface.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -50,6 +52,20 @@ import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module
     CostingModule,
     ReturnsModule,
     PaymentPlansModule,
+  ],
+  providers: [
+    /**
+     * Global on purpose.
+     *
+     * Applied per controller this would be twenty-two decorators, and the
+     * twenty-third controller — written next year by someone who has not read
+     * this file — would not have it. Registered here, a route is fenced unless
+     * it says otherwise, which is the opposite of how `RolesGuard` behaves and
+     * the reason four money-moving modules once carried no guard at all.
+     *
+     * `JwtService` resolves because `AuthModule` re-exports `JwtModule`.
+     */
+    { provide: APP_GUARD, useClass: SurfaceGuard },
   ],
 })
 export class AppModule {}

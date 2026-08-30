@@ -77,7 +77,8 @@
     "email": "Email",
     "password": "Password",
     "loginTitle": "Sign in to your account",
-    "loginSubtitle": "Motorcycle Parts Management System"
+    "loginSubtitle": "Motorcycle Parts Management System",
+    "loginFailed": "Could not sign you in."
   },
   "dashboard": {
     "title": "Dashboard",
@@ -823,6 +824,10 @@
     "WRONG_CURRENT_PASSWORD": "The current password is incorrect.",
     "CYCLE_NOT_FUNDED": "No contributions are recorded for this cycle, so there is no basis to split its profit. Record what each participant put in first.",
     "NOTHING_TO_SCHEDULE": "{customer} does not owe anything, so there is no debt to schedule.",
-    "ROLE_NOT_ALLOWED": "Your role does not allow this action."
+    "ROLE_NOT_ALLOWED": "Your role does not allow this action.",
+    "USE_PORTAL_LOGIN": "Shop accounts sign in on the store, not here.",
+    "WRONG_SURFACE": "This account cannot be used here.",
+    "USE_INTERNAL_LOGIN": "Office accounts sign in on the internal system.",
+    "PORTAL_ACCOUNT_INCOMPLETE": "This account is not linked to a shop yet."
   }
 }

@@ -53,10 +53,20 @@ export class SurfaceGuard implements CanActivate {
     }
 
     const audience = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
+
+    if (!audience) {
+      // A token issued before audiences existed. That is a stale session, not
+      // an attempt to go somewhere forbidden — and the difference matters,
+      // because the web app redirects to the login page on 401 and does
+      // nothing at all on 403. Returning 403 here would leave everyone signed
+      // in before this shipped stuck on a screen of errors with no way back.
+      throw unauthorized('SESSION_INVALID', 'Your session is no longer valid');
+    }
+
     if (audience !== declared) {
-      // Also catches a token issued before audiences existed, which has no
-      // `aud` at all. Refusing those is deliberate: a token that predates the
-      // fence has never been behind it.
+      // A real token for the other system. This one IS forbidden rather than
+      // stale: signing in again would not help, because the account is not
+      // meant to be here at all.
       throw forbidden(
         'WRONG_SURFACE',
         `This token is not valid for the ${declared} system.`,

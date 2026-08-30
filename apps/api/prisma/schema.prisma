@@ -48,6 +48,9 @@ model User {
 
   createdPaymentPlans PaymentPlan[] @relation("CreatedPaymentPlanUser")
 
+  /** The shop this login belongs to, for a SHOP_OWNER_PORTAL account. */
+  portalCustomer Customer? @relation("PortalAccount")
+
   @@map("users")
 }
 
@@ -597,7 +600,10 @@ model Customer {
   displayName        String       @map("display_name")
   phone              String?
   email              String?
-  shopOwnerUserId    String?      @map("shop_owner_user_id") @db.Uuid
+  // Unique: one login belongs to one shop. Without it two customers could
+  // name the same portal user, and a session would see whichever the query
+  // happened to return first — an ownership bug that reads as a caching one.
+  shopOwnerUserId    String?      @unique @map("shop_owner_user_id") @db.Uuid
   verificationStatus String       @default("UNVERIFIED") @map("verification_status")
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz()
@@ -606,6 +612,12 @@ model Customer {
   saleOrders      SaleOrder[]
   payments        Payment[]
   productRequests ProductRequest[]
+
+  // `shop_owner_user_id` has existed since the first migration with no foreign
+  // key behind it, so it could name a user that was never there. The portal
+  // login reads it to decide whose data a session may see, which is not a
+  // column to leave unenforced.
+  shopOwner User? @relation("PortalAccount", fields: [shopOwnerUserId], references: [id])
 
   paymentPlans PaymentPlan[]
 

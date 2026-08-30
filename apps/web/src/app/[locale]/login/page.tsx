@@ -3,11 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../lib/auth-context';
 import { useRouter } from '../../../i18n/navigation';
+import { useApiError } from '../../../lib/api-error';
 import { Package, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 export default function LoginPage() {
   const t = useTranslations('auth');
+  const apiError = useApiError();
   const { login } = useAuth();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +26,12 @@ export default function LoginPage() {
       await login(email, password);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Login failed');
+      // Was `err.response?.data?.error?.message` — the API's English sentence,
+      // shown verbatim on the Arabic page. The login screen was missed when the
+      // thirty-six other call sites were moved onto coded errors, and nothing
+      // noticed because the only refusal it could produce was a wrong password
+      // and nobody reads that one twice. CLAUDE.md rule 9.
+      setError(apiError(err, t('loginFailed')));
     } finally {
       setLoading(false);
     }

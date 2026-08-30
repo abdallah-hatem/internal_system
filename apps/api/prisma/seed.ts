@@ -233,11 +233,30 @@ async function main() {
       if (found) return found;
       return prisma.customer.create({ data: { displayName, type, phone } });
     };
-    await customerOf('El Nasr Motors', 'B2B', '+20 122 555 6677');
+    const elNasr = await customerOf('El Nasr Motors', 'B2B', '+20 122 555 6677');
     await customerOf('Walk-in Customer', 'B2C', '+20 111 888 9900');
+
+    // A shop with a login, so the fence between the office and the store can be
+    // tested from the outside. A test that mints its own token proves the guard
+    // reads a claim; it does not prove the system ever issues one.
+    const shopUser = await prisma.user.upsert({
+      where: { email: 'shop.owner@example.com' },
+      update: {},
+      create: {
+        email: 'shop.owner@example.com',
+        passwordHash: await bcrypt.hash('password123', 12),
+        role: 'SHOP_OWNER_PORTAL',
+        status: 'ACTIVE',
+      },
+    });
+    await prisma.customer.update({
+      where: { id: elNasr.id },
+      data: { shopOwnerUserId: shopUser.id, verificationStatus: 'VERIFIED' },
+    });
 
     console.log('✅ Reference seed — 2 categories, 2 suppliers, 2 shipping providers,');
     console.log('   2 products (priced B2B/B2C) and 2 customers. No cycles or orders.');
+    console.log('   El Nasr Motors has a store login: shop.owner@example.com');
     console.log('🎉 Seeding complete!');
     return;
   }

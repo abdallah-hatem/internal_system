@@ -63,10 +63,12 @@ describe('SurfaceGuard', () => {
     expect(refusal(ctx('portal', portal))).toBeNull();
   });
 
-  it('refuses a token issued before audiences existed', () => {
-    // Every token in circulation today. Refused rather than grandfathered: one
-    // that predates the fence has never been behind it.
-    expect(refusal(ctx(undefined, noAudience))).toBe('WRONG_SURFACE');
+  it('treats a token issued before audiences existed as a stale session', () => {
+    // Every token in circulation the day this ships. SESSION_INVALID rather
+    // than WRONG_SURFACE on purpose: the web app redirects to the login page
+    // on 401 and does nothing at all on 403, so a forbidden here would strand
+    // everyone already signed in on a screen of errors with no way back.
+    expect(refusal(ctx(undefined, noAudience))).toBe('SESSION_INVALID');
   });
 
   it('refuses a request carrying no token at all', () => {
