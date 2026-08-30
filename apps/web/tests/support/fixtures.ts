@@ -129,8 +129,14 @@ export async function stockedProduct(
   mk: Mk,
   label: string,
   qty = 100,
+  /** Optional, so a test can filter by a category nothing else can be in. */
+  categoryId?: string,
 ) {
-  const product = await mk('products', { name: `${label} Part`, minStock: 0 });
+  const product = await mk('products', {
+    name: `${label} Part`,
+    minStock: 0,
+    ...(categoryId ? { categoryId } : {}),
+  });
   const supplier = await mk('suppliers', { name: `${label} Supplier`, country: 'AE' });
 
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });

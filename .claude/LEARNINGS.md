@@ -103,3 +103,41 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   has not painted. Wait for the page to stop loading instead — 4.8s, and it still catches
   an injected timestamp. — 2026-08-30
 
+## Tests that read the clock
+
+- Date arithmetic is checked against many dates or it is not checked. `getRevenueByMonth`
+  dropped the current month from the chart on 24 days of 2026, at particular hours of those
+  days — 1.5% of day/hour combinations. TC-ANA-01 reads the real clock, so it samples one
+  point a day and was green for weeks. Pull the arithmetic into a function and run it over
+  a multi-year span in a unit test. — 2026-08-31
+- `setMonth`/`getMonth` are **local** time. Keys cut from `toISOString()` are **UTC**. Mixing
+  them makes the code disagree with its own labels near midnight. And a date carrying a
+  day-of-month cannot be stepped by months — from the 31st it lands where there is no 31st
+  and drifts. Anchor to day 1 and let `Date.UTC` normalise the overflow. — 2026-08-31
+- Write the explanation after measuring, not before. I blamed February's short month,
+  committed that reasoning in a comment, then measured and found the local/UTC mix was the
+  larger half. A confident wrong comment is worse than none. — 2026-08-31
+
+## Running a suite against another suite
+
+- Run the combination, not the parts. Two Playwright projects in one config share a database:
+  the office project creates ~90 products before the storefront project starts, so a
+  catalogue that serves a page of ten no longer holds the seeded SKUs. Three storefront
+  tests named `[data-sku="PRD-0000NN"]` and passed alone, forever. `--project=x` proves that
+  project in isolation and nothing about the run that ships. — 2026-08-31
+- A fixture should own what it asserts on. Filter to a category created for the test and the
+  count is exact whatever else exists; name a seeded SKU and the test is a statement about
+  how big the seed happens to be. — 2026-08-31
+
+## Subagent reports
+
+- "All green" from an agent means green on what it ran. Ask which command produced it. The
+  storefront suite was reported 17/17 with every test break-verified, and that was true —
+  it had run `--project=storefront` only, and said so in its caveats. The combined run had
+  five failures. Read the caveats as the finding, not the footnote. — 2026-08-31
+- Kill leftover watcher shells. A polling loop written as
+  `until ! pgrep -f "playwright test"` matches its own command line and waits on itself
+  forever. It also makes the next `pgrep` guard report a run in progress when there is
+  none — which is how a rule-6 check ends up refusing to run for no reason. Match on
+  `node.*playwright`, not the bare string. — 2026-08-31
+

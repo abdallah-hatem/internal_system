@@ -94,14 +94,23 @@ test.beforeEach(async ({ page }) => {
 async function aProduct(
   request: APIRequestContext,
   label: string,
-  { qty = 20, b2c = 500, b2b = 400 }: { qty?: number; b2c?: number; b2b?: number } = {},
+  {
+    qty = 20,
+    b2c = 500,
+    b2b = 400,
+    categoryId,
+  }: { qty?: number; b2c?: number; b2b?: number; categoryId?: string } = {},
 ) {
   const { headers, mk } = await apiCtx(request);
 
   const product =
     qty > 0
-      ? (await stockedProduct(request, headers, mk, label, qty)).product
-      : await mk('products', { name: `${label} Part`, minStock: 0 });
+      ? (await stockedProduct(request, headers, mk, label, qty, categoryId)).product
+      : await mk('products', {
+          name: `${label} Part`,
+          minStock: 0,
+          ...(categoryId ? { categoryId } : {}),
+        });
 
   await mk(`products/${product.id}/prices`, { channel: 'B2C', currency: 'EGP', amount: b2c });
   await mk(`products/${product.id}/prices`, { channel: 'B2B', currency: 'EGP', amount: b2b });
@@ -130,8 +139,33 @@ async function signIn(page: Page, email: string, password: string) {
   await expect(page.getByRole('heading', { name: 'Products' })).toBeVisible();
 }
 
+/**
+ * Bring one product on screen and return its card.
+ *
+ * The catalogue serves a page of ten. That is fine when the storefront suite
+ * runs alone against the seeded catalogue, and wrong the moment it runs after
+ * the office suite, which creates around ninety products first — the seeded
+ * parts and the fixture's own product are then both on page two, and every
+ * `[data-sku=…]` in this file resolves to nothing.
+ *
+ * Three tests failed exactly that way, and only when run together with the
+ * office project, which is the run nobody had done. Searching for the part is
+ * also what a shop with a real catalogue would do; expecting a specific SKU on
+ * the first screen was only ever true of a small seed.
+ */
+async function showProduct(page: Page, sku: string, term: string) {
+  const card = page.locator(`[data-sku="${sku}"]`);
+  if (await card.count()) return card;
+
+  const search = page.getByPlaceholder('Search parts…');
+  await search.fill(term);
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  return card;
+}
+
 /** Put a product in the basket from its own page, reached from the catalogue. */
-async function addToBasket(page: Page, sku: string) {
+async function addToBasket(page: Page, sku: string, term?: string) {
+  if (term) await showProduct(page, sku, term);
   await page.locator(`[data-sku="${sku}"]`).click();
   const add = page.getByRole('button', { name: /Add to request|Added to your request/ });
   await add.click();
@@ -228,39 +262,60 @@ test.describe('The shop window', () => {
 
     await page.goto('/en');
 
-    // Both on screen to begin with: the seeded catalogue and the new part.
-    await expect(page.locator(`[data-sku="${mine.sku}"]`)).toBeVisible();
-    const seeded = page.locator('[data-sku="PRD-000002"]');
-    await expect(seeded).toBeVisible();
+    // A page of ten, so how many cards there are is not a fixed number — it is
+    // however many the catalogue holds, capped. Count what is on screen rather
+    // than naming a SKU that may be on page two.
+    const cards = page.locator('[data-sku]');
+    await expect(cards.first()).toBeVisible();
+    const before = await cards.count();
+    expect(before, 'the catalogue rendered nothing to narrow').toBeGreaterThan(1);
 
     await page.getByPlaceholder('Search parts…').fill(label);
 
+    // Narrowed to exactly the one part, whatever else the catalogue holds.
     await expect(page.locator(`[data-sku="${mine.sku}"]`)).toBeVisible();
-    await expect(seeded, 'search did not narrow anything').toHaveCount(0);
+    await expect(cards, 'search did not narrow anything').toHaveCount(1);
 
     // And clearing it puts the catalogue back — the second visit, where a
     // filter that is applied once and never lifted lives.
     await page.getByRole('button', { name: 'Clear search' }).click();
-    await expect(seeded).toBeVisible();
+    await expect(cards).toHaveCount(before);
   });
 
   test('TC-STORE-02: the category filter narrows, and is not a native select', async ({
     page,
+    request,
   }) => {
+    // A category of its own, with one part in it. Naming the seeded
+    // `PRD-000001` and `PRD-000002` meant this test only held while the
+    // catalogue was small enough for both to be on the first page of ten —
+    // true when the storefront suite runs alone, false the moment the office
+    // suite has run first and created ninety products.
+    //
+    // Filtering to a category nothing else can be in makes the assertion exact
+    // rather than approximately true: one card, and it is the right one.
+    const label = `Sprocket${stamp()}`;
+    const { mk } = await apiCtx(request);
+    const category = await mk('categories', { name: `${label} Category` });
+    const mine = await aProduct(request, label, { categoryId: category.id });
+
     await page.goto('/en');
-    const brakePad = page.locator('[data-sku="PRD-000001"]'); // Brake Parts
-    const helmet = page.locator('[data-sku="PRD-000002"]'); // Engine Parts
-    await expect(brakePad).toBeVisible();
-    await expect(helmet).toBeVisible();
 
     await page.getByRole('combobox').click();
     // The picker is searchable, which an `<option>` cannot be — and while it
     // is open is the moment a native control would be in the DOM.
     await expect(page.locator('select, option')).toHaveCount(0);
-    await page.getByRole('option', { name: 'Brake Parts' }).click();
+    // Searched rather than scrolled to. The office suite leaves dozens of
+    // categories behind, and a row far down a scrolling popover is the same
+    // page-one assumption as the one this test was rewritten to remove.
+    // `exact` because the catalogue's own box says "Search parts…", which a
+    // substring match would take instead.
+    await page.getByPlaceholder('Search', { exact: true }).fill(label);
+    await page.getByRole('option', { name: `${label} Category` }).click();
 
-    await expect(brakePad).toBeVisible();
-    await expect(helmet, 'the category filter narrowed nothing').toHaveCount(0);
+    const cards = page.locator('[data-sku]');
+    await expect(page.locator(`[data-sku="${mine.sku}"]`)).toBeVisible();
+    await expect(cards, 'the category filter narrowed nothing').toHaveCount(1);
   });
 
   test('TC-STORE-03: stock is a band on the card, never a count', async ({ page, request }) => {
@@ -354,11 +409,12 @@ test.describe('Asking for stock', () => {
     page,
     request,
   }) => {
-    const mine = await aProduct(request, `Ask${stamp()}`, { qty: 40 });
+    const label = `Ask${stamp()}`;
+    const mine = await aProduct(request, label, { qty: 40 });
 
     await page.goto('/en');
     await signIn(page, SHOP_EMAIL, SHOP_PASSWORD);
-    await addToBasket(page, mine.sku);
+    await addToBasket(page, mine.sku, label);
     await openBasket(page);
 
     const sheet = page.getByRole('dialog');
@@ -440,11 +496,12 @@ test.describe('Asking for stock', () => {
   });
 
   test('TC-STORE-08: zero and negative never reach the server', async ({ page, request }) => {
-    const mine = await aProduct(request, `Zero${stamp()}`, { qty: 10 });
+    const label = `Zero${stamp()}`;
+    const mine = await aProduct(request, label, { qty: 10 });
 
     await page.goto('/en');
     await signIn(page, SHOP_EMAIL, SHOP_PASSWORD);
-    await addToBasket(page, mine.sku);
+    await addToBasket(page, mine.sku, label);
     await openBasket(page);
 
     const sheet = page.getByRole('dialog');
@@ -471,11 +528,12 @@ test.describe('Asking for stock', () => {
     // The second time. Most bugs found in this repository lived on the second
     // visit — a form that keeps last time's error over a basket that has since
     // changed, so the shop reads a refusal about something it already fixed.
-    const scarce = await aProduct(request, `Again${stamp()}`, { qty: 3 });
+    const label = `Again${stamp()}`;
+    const scarce = await aProduct(request, label, { qty: 3 });
 
     await page.goto('/en');
     await signIn(page, SHOP_EMAIL, SHOP_PASSWORD);
-    await addToBasket(page, scarce.sku);
+    await addToBasket(page, scarce.sku, label);
     await openBasket(page);
 
     const sheet = page.getByRole('dialog');
@@ -571,8 +629,7 @@ test.describe('A shop that has just signed up', () => {
     // The wrong context: the whole ordering flow is open until the last step,
     // and the refusal has to be a sentence rather than a code.
     await tab(page, 'catalogue').click();
-    await page.getByPlaceholder('Search parts…').fill(mine.name);
-    await addToBasket(page, mine.sku);
+    await addToBasket(page, mine.sku, mine.name);
     await openBasket(page);
     await page.getByRole('dialog').getByRole('button', { name: 'Send request' }).click();
     await expect(alertIn(page.getByRole('dialog'))).toContainText(
