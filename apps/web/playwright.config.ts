@@ -26,10 +26,26 @@ export default defineConfig({
     navigationTimeout: 30_000,
   },
 
+  // Two apps, one harness. The storefront is a separate origin on 3002, so it
+  // needs its own baseURL — but it must NOT get its own config: `globalSetup`
+  // snapshots the developer's database, and two Playwright runs against the
+  // same database is the one thing `CLAUDE.md` rule 6 exists to stop. A second
+  // project shares this file's globalSetup, its single worker and its
+  // sequential ordering, so the store is tested with the office rather than
+  // beside it.
   projects: [
     {
       name: 'chromium',
+      testIgnore: /storefront\.spec\.ts$/,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'storefront',
+      testMatch: /storefront\.spec\.ts$/,
+      // A phone, because that is what this app is. The bottom bar, the sheets
+      // and the two-column grid are all sized for one, and a 1280px window
+      // tests a layout nobody uses.
+      use: { ...devices['Pixel 7'], baseURL: 'http://localhost:3002' },
     },
   ],
 });

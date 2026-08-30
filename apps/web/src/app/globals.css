@@ -81,8 +81,12 @@
     border-color: theme(colors.gray.200);
   }
 
-  /* Buttons & interactive elements default to pointer cursor */
-  button, a, [role="button"], select, [onclick], label:has(input[type="radio"]), label:has(input[type="checkbox"]) {
+  /* Buttons & interactive elements default to pointer cursor.
+     `[role="option"]` and `[role="menuitem"]` are here because the Select and
+     the menus are built from Radix and cmdk, which render div s carrying a role
+     rather than a button — so the list above missed every row of every dropdown
+     in the app. */
+  button, a, [role="button"], [role="option"], [role="menuitem"], select, [onclick], label:has(input[type="radio"]), label:has(input[type="checkbox"]) {
     cursor: pointer;
   }
 
