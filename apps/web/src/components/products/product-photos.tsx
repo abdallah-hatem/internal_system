@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useApiError } from '../../lib/api-error';
 import { useToast } from '../ui/toast';
+import { AuthedImage } from '../ui/authed-image';
 
 /**
  * The photographs on a product.
@@ -22,41 +23,6 @@ import { useToast } from '../ui/toast';
  * megabytes, and a batch upload that fails halfway leaves the person guessing
  * which ones landed; here each is its own attempt with its own error.
  */
-
-/**
- * An image behind a login.
- *
- * `/files/download` needs the bearer token, and a plain `<img src>` sends no
- * headers — it would 401 and render a broken icon. So the bytes are fetched
- * through the axios client, which attaches the token, and shown from an object
- * URL that is revoked when the component goes away. Without the revoke every
- * thumbnail a person scrolls past stays in memory until the tab is closed.
- */
-function AuthedImage({ objectKey, className }: { objectKey: string; className?: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let url: string | null = null;
-    let cancelled = false;
-
-    api
-      .get(`/files/download/${objectKey}`, { responseType: 'blob' })
-      .then((res) => {
-        if (cancelled) return;
-        url = URL.createObjectURL(res.data);
-        setSrc(url);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [objectKey]);
-
-  if (!src) return <div className={`${className ?? ''} animate-pulse bg-gray-100`} />;
-  return <img src={src} alt="" className={className} />;
-}
 
 interface Asset {
   id: string;

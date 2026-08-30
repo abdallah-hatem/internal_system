@@ -23,6 +23,7 @@ import {
   LayoutDashboard,
   Menu,
   Package,
+  PackageSearch,
   Route,
   Scale,
   Settings,
@@ -80,6 +81,10 @@ const navGroups = [
       // First in this group on purpose: every pending request is holding stock
       // on a clock, so it is the one thing here that goes stale if it waits.
       { key: 'orderRequests', icon: Store, href: '/order-requests' },
+      // Beside order requests, because they are the same conversation from the
+      // shop's side: one asks for what is on the shelf, the other for what is
+      // not.
+      { key: 'importRequests', icon: PackageSearch, href: '/import-requests' },
       { key: 'sales', icon: BadgePercent, href: '/sales' },
       { key: 'customers', icon: Users, href: '/customers' },
     ],

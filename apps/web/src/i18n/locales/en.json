@@ -71,7 +71,8 @@
       "system": "System"
     },
     "suppliers": "Suppliers",
-    "orderRequests": "Order requests"
+    "orderRequests": "Order requests",
+    "importRequests": "Import requests"
   },
   "auth": {
     "login": "Login",
@@ -881,5 +882,28 @@
     "holdHours": "Held for {hours}h more",
     "holdMinutes": "Held for {minutes}m more",
     "holdExpired": "Hold expired"
+  },
+  "importRequests": {
+    "title": "Import requests",
+    "subtitle": "Parts shops have asked us to bring in.",
+    "empty": "Nobody has asked for anything.",
+    "pending": "Waiting",
+    "sourcing": "Looking for it",
+    "unverifiedShop": "Not verified yet",
+    "fits": "Fits",
+    "quantity": "Quantity",
+    "notes": "Their notes",
+    "link": "Link they sent",
+    "photos": "Photos they sent",
+    "reply": "Your reply to the shop",
+    "replyPlaceholder": "What you found, what it costs, when it lands.",
+    "reasonNeeded": "Say something — a reply with no words tells the shop nothing.",
+    "linkProduct": "Link a product",
+    "nowStockedAs": "Now stocked as",
+    "pickProduct": "Choose the product",
+    "lookingForIt": "Looking for it",
+    "cannotSource": "Cannot source it",
+    "answer": "Answer",
+    "sent": "The shop has been told."
   }
 }

@@ -71,7 +71,8 @@
       "system": "النظام"
     },
     "suppliers": "المورّدون",
-    "orderRequests": "طلبات الشراء"
+    "orderRequests": "طلبات الشراء",
+    "importRequests": "طلبات الاستيراد"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -881,5 +882,28 @@
     "holdHours": "محجوزة لمدة {hours} ساعة أخرى",
     "holdMinutes": "محجوزة لمدة {minutes} دقيقة أخرى",
     "holdExpired": "انتهى الحجز"
+  },
+  "importRequests": {
+    "title": "طلبات الاستيراد",
+    "subtitle": "قطع طلبت المحلات توفيرها.",
+    "empty": "لم يطلب أحد أي شيء.",
+    "pending": "في الانتظار",
+    "sourcing": "نبحث عنها",
+    "unverifiedShop": "غير مُعتمد بعد",
+    "fits": "تناسب",
+    "quantity": "الكمية",
+    "notes": "ملاحظاتهم",
+    "link": "الرابط المُرسل",
+    "photos": "الصور المُرسلة",
+    "reply": "ردّك على المحل",
+    "replyPlaceholder": "ما وجدته، وسعره، وموعد وصوله.",
+    "reasonNeeded": "اكتب شيئًا — ردّ بلا كلمات لا يفيد المحل.",
+    "linkProduct": "اربط بمنتج",
+    "nowStockedAs": "متوفرة الآن باسم",
+    "pickProduct": "اختر المنتج",
+    "lookingForIt": "نبحث عنها",
+    "cannotSource": "يتعذّر توفيرها",
+    "answer": "إرسال الرد",
+    "sent": "تم إبلاغ المحل."
   }
 }
