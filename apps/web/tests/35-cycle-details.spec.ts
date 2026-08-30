@@ -12,7 +12,7 @@
  *  reported "No participants found for this cycle" with no way to fix it.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, today } from './support/fixtures';
+import { API, aCorePartnerUser, anInvestorUser, apiCtx, today } from './support/fixtures';
 
 const BASE = 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
@@ -29,8 +29,22 @@ async function login(page: Page) {
 async function aCycle(request: APIRequestContext) {
   const { headers, mk } = await apiCtx(request);
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
-  const users = await (await request.get(`${API}/users`, { headers })).json();
-  return { headers, mk, cycle, users: users.data ?? users };
+
+  // Only people who can hold a share.
+  //
+  // This returned every user and the tests took the first, which once the
+  // storefront existed was whichever shop had signed up most recently — a
+  // state the business does not recognise, and one the server now refuses.
+  // Two of these tests expect a 400 for an unrelated reason, so a shop account
+  // here would have had them passing for the wrong one.
+  const body = await (await request.get(`${API}/users`, { headers })).json();
+  const all: any[] = body.data?.items ?? body.data ?? body;
+  const users = all.filter(
+    (u) => u.status === 'ACTIVE' && (u.role === 'CORE_PARTNER' || u.role === 'TEMP_INVESTOR'),
+  );
+  expect(users.length, 'the seed has nobody who can be a cycle participant').toBeGreaterThan(0);
+
+  return { headers, mk, cycle, users };
 }
 
 test.describe('Cycle details', () => {
@@ -172,8 +186,10 @@ test.describe('The three partners fund a cycle equally by default', () => {
     // Otherwise a cycle with one named investor would quietly gain three
     // partners as well.
     const { headers, mk } = await apiCtx(request);
-    const users = await (await request.get(`${API}/users`, { headers })).json();
-    const first = (users.data ?? users)[0];
+    // A core partner, because that is the type this names. `anInvestorUser`
+    // prefers the seeded temporary investor, and only a core partner can be
+    // added as one — the rule this test is not about.
+    const first = await aCorePartnerUser(request, headers);
 
     const cycle = await mk('cycles', {
       originType: 'UAE_DIRECT',
@@ -248,8 +264,7 @@ test.describe('The three partners fund a cycle equally by default', () => {
       provider: 'Inv Freight', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
     });
 
-    const users = await (await request.get(`${API}/users`, { headers })).json();
-    const investor = (users.data ?? users)[0];
+    const investor = await anInvestorUser(request, headers);
     await mk(`cycles/${cycle.id}/participants`, {
       participantType: 'TEMP_INVESTOR',
       investorUserId: investor.id,

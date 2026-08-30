@@ -56,6 +56,29 @@ async function seedContributions(cycleId: string, cycleCode: string) {
  * the storefront quoting nothing, since a product with no row on a channel is
  * shown as unpriced rather than as free.
  */
+/**
+ * A temporary investor account.
+ *
+ * There was none, at any seed level, which made the whole TEMP_INVESTOR concept
+ * unexercisable: every test that wanted one grabbed `users[0]` and got whichever
+ * account happened to be newest — a shop owner, once the storefront existed.
+ * That is a fixture building a state the business does not recognise, and it
+ * passed only while nothing checked who a participant could be.
+ */
+async function seedTempInvestor() {
+  return prisma.user.upsert({
+    where: { email: 'investor@motoparts.com' },
+    update: {},
+    create: {
+      email: 'investor@motoparts.com',
+      passwordHash: await bcrypt.hash('password123', 12),
+      role: 'TEMP_INVESTOR',
+      status: 'ACTIVE',
+      partner: { create: { displayName: 'Temporary Investor' } },
+    },
+  });
+}
+
 async function priceProduct(productId: string, b2b: number, b2c: number) {
   for (const [channel, amount] of [['B2B', b2b], ['B2C', b2c]] as [string, number][]) {
     const existing = await prisma.productPrice.findFirst({
@@ -268,10 +291,12 @@ async function main() {
     await customerOf('Walk-in Customer', 'B2C', '+20 111 888 9900');
 
     await giveStoreLogin(elNasr.id);
+    await seedTempInvestor();
 
     console.log('✅ Reference seed — 2 categories, 2 suppliers, 2 shipping providers,');
     console.log('   2 products (priced B2B/B2C) and 2 customers. No cycles or orders.');
     console.log('   El Nasr Motors has a store login: shop.owner@example.com');
+    console.log('   A temporary investor: investor@motoparts.com');
     console.log('🎉 Seeding complete!');
     return;
   }
@@ -453,6 +478,7 @@ async function main() {
   // too. `prisma db seed` with no flag runs this path, and the test harness
   // uses exactly that.
   await giveStoreLogin(customer.id);
+  await seedTempInvestor();
 
 
   // ── Cycle 1 — China route ───────────────────────────────────────────────

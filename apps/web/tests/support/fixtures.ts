@@ -29,6 +29,42 @@ export const today = () => {
 
 export type Mk = (path: string, data: any) => Promise<any>;
 
+/**
+ * Somebody who can actually hold a share of a cycle.
+ *
+ * Tests used to take `users[0]` and get whichever account was newest. Once the
+ * storefront existed that was a shop owner, and a shop owner on a cycle means a
+ * share of the partners' profit at settlement — so the server refuses it now,
+ * and a fixture that reached for one was building a state the business does not
+ * recognise.
+ *
+ * Prefers the seeded temporary investor. A core partner is the fallback, and is
+ * legitimate: putting extra money in beside your own share is a real thing an
+ * owner does, and `docs/business-rules.md` says so.
+ */
+export async function aCorePartnerUser(request: APIRequestContext, headers: any) {
+  const res = await request.get(`${API}/users`, { headers });
+  const body = await res.json();
+  const users: any[] = body.data?.items ?? body.data ?? body;
+
+  const partner = users.find((u) => u.status === 'ACTIVE' && u.role === 'CORE_PARTNER');
+  expect(partner, 'no core partner in the seed').toBeTruthy();
+  return partner;
+}
+
+export async function anInvestorUser(request: APIRequestContext, headers: any) {
+  const res = await request.get(`${API}/users`, { headers });
+  const body = await res.json();
+  const users: any[] = body.data?.items ?? body.data ?? body;
+
+  const eligible = users.filter(
+    (u) => u.status === 'ACTIVE' && (u.role === 'TEMP_INVESTOR' || u.role === 'CORE_PARTNER'),
+  );
+  const investor = eligible.find((u) => u.role === 'TEMP_INVESTOR') ?? eligible[0];
+  expect(investor, 'no user in the seed can be a cycle participant').toBeTruthy();
+  return investor;
+}
+
 /** An authenticated context plus a POST helper that fails loudly. */
 export async function apiCtx(request: APIRequestContext) {
   const auth = await request.post(`${API}/auth/login`, {

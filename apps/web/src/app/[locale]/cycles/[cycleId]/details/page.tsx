@@ -355,11 +355,27 @@ function AddParticipantForm({
             required
             placeholder={t('person')}
             searchPlaceholder={tc('search')}
-            options={users.map((u) => ({
-              value: u.id,
-              label: u.partner?.displayName ?? u.email,
-              hint: u.email,
-            }))}
+            /* Only people who can actually hold a share.
+             *
+             * This listed every user, including the storefront logins, and
+             * picking one put a shop owner on a cycle — a share of the
+             * partners' profit at settlement and every cycle notification
+             * with everyone's figures in it. The server refuses it now; the
+             * form should not have offered it in the first place.
+             *
+             * Same rule as `assertCanParticipate`, stated where the choice is
+             * made rather than only where it is rejected. */
+            options={users
+              .filter(
+                (u) =>
+                  u.status === 'ACTIVE' &&
+                  (u.role === 'CORE_PARTNER' || u.role === 'TEMP_INVESTOR'),
+              )
+              .map((u) => ({
+                value: u.id,
+                label: u.partner?.displayName ?? u.email,
+                hint: u.email,
+              }))}
           />
         </div>
       </div>
