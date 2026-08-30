@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the example, which is documentation. `.env*` swallowed it, so the
+# storefront arrived in this repo with no record of what it needs to start and
+# the next clone would have found a Next app that boots and then 404s every
+# request. apps/api tracks its example for the same reason.
+!.env.example
 
 # vercel
 .vercel
