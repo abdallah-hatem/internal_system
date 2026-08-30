@@ -107,6 +107,15 @@ export class CustomersService {
         displayName: data.displayName,
         phone: data.phone,
         email: data.email,
+        // Verified, because a person in the office just created it.
+        //
+        // The column defaults to UNVERIFIED, which is the right default for a
+        // row that arrives without anyone saying where it came from — and the
+        // storefront's self-signup relies on it. But verification means "a
+        // person has vetted this account", and that is exactly what happened
+        // here. Taking the default made every customer the office added
+        // unsellable-to, which forty-four tests said in one run.
+        verificationStatus: 'VERIFIED',
       },
     });
 

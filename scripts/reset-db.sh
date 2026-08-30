@@ -36,6 +36,20 @@ docker exec "$CONTAINER" pg_dump -U postgres -d "$DB" --no-owner > "$BACKUP" 2>/
   echo "  (nothing to back up — carrying on)"; rm -f "$BACKUP";
 }
 
+# The product photographs and the pictures customers attach to import requests.
+#
+# These live on disk, not in the database, so a pg_dump on its own restores a
+# catalogue of broken images and import requests whose evidence has vanished.
+# The FileAsset rows come back and point at files that are no longer there.
+UPLOADS="$ROOT/apps/api/uploads"
+if [ -d "$UPLOADS" ] && [ -n "$(ls -A "$UPLOADS" 2>/dev/null)" ]; then
+  IMAGES="$ROOT/.backups/before-reset-$STAMP-uploads.tar.gz"
+  say "Backing up uploads to $(basename "$IMAGES")"
+  tar -czf "$IMAGES" -C "$ROOT/apps/api" uploads
+else
+  say "No uploads to back up"
+fi
+
 say "Recreating the database"
 # The API holds connections open; Postgres will not drop a database in use.
 docker exec "$CONTAINER" psql -U postgres -d postgres -q -c \

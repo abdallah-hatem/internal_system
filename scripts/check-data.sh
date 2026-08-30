@@ -11,6 +11,7 @@
 set -euo pipefail
 DB=${DB:-motorcycle_parts}
 CONTAINER=${CONTAINER:-motorcycle_parts_db}
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 # The checks, defined once. Printed as a table for a person, and summed for an
 # exit code so a script can act on it — parsing the table to decide whether
@@ -95,6 +96,23 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
 SQL
 )
 
+# ── Images on disk ───────────────────────────────────────────────────
+#
+# The one check that cannot be a SQL query: file_assets rows point at files in
+# apps/api/uploads, which is not in the database. Restoring a pg_dump on its own
+# brings the rows back and leaves a catalogue of broken pictures — the exact
+# failure that adding uploads to the backup in reset-db.sh is meant to prevent,
+# and this is what notices when it has happened anyway.
+UPLOADS="$ROOT/apps/api/uploads"
+MISSING=0
+while IFS= read -r key; do
+  [ -z "$key" ] && continue
+  [ -f "$UPLOADS/$key" ] || MISSING=$((MISSING + 1))
+done < <(docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -t -A -v ON_ERROR_STOP=1 <<'SQL'
+SELECT object_key FROM file_assets;
+SQL
+)
+
 docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 <<SQL
 \pset border 2
 SELECT check_name, count FROM ($CHECKS) checks ORDER BY ord;
@@ -105,7 +123,13 @@ SELECT coalesce(sum(count), 0) FROM ($CHECKS) checks;
 SQL
 )
 
-if [ "${FAILING:-0}" -gt 0 ]; then
+if [ "$MISSING" -gt 0 ]; then
+  echo
+  echo "$MISSING image(s) recorded in the database are not on disk."
+  echo "  Restore the matching .backups/*-uploads.tar.gz into apps/api/."
+fi
+
+if [ "${FAILING:-0}" -gt 0 ] || [ "$MISSING" -gt 0 ]; then
   echo
   # A count, not a record count: one bad row can break more than one rule.
   echo "$FAILING check(s) found records the business could not have produced."
