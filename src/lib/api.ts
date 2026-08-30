@@ -30,13 +30,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/** The two routes where a 401 means "wrong password", not "session over". */
+const SIGN_IN_ROUTES = ['/auth/portal/login', '/auth/portal/signup'];
+
 api.interceptors.response.use(
   (r) => r,
   (error) => {
     // 401 means the session is finished. 403 does not — it means this account
     // may not do that particular thing, and signing out would lose the basket
     // over a refusal the person could have read and acted on.
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
+    //
+    // And a 401 from the login route is not a finished session either: it is a
+    // mistyped password. Clearing on that signed out a shop that was already
+    // signed in and simply fat-fingered the form on its way to somewhere else.
+    const url = error.config?.url ?? '';
+    const signingIn = SIGN_IN_ROUTES.some((route) => url.includes(route));
+
+    if (error.response?.status === 401 && !signingIn && typeof window !== 'undefined') {
       token.clear();
     }
     return Promise.reject(error);

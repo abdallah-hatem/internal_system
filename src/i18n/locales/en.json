@@ -102,7 +102,18 @@
     "enableNotifications": "Turn on alerts",
     "notificationsOn": "Alerts are on for this device.",
     "iosInstallFirst": "On iPhone, add MotoParts to your home screen first — Safari cannot send alerts otherwise.",
-    "unverified": "Your account is still being reviewed. You can browse, but not order yet."
+    "unverified": "Your account is still being reviewed. You can browse, but not order yet.",
+    "verified": "Your account is approved. Trade prices and orders are open to you.",
+    "signedOut": "You are not signed in.",
+    "signedOutBody": "Sign in to see your trade prices and the orders you have asked for.",
+    "notificationsIntro": "Get an alert on this device when we answer a request.",
+    "turnOffNotifications": "Turn off alerts",
+    "notificationsBlocked": "This browser is blocking alerts and will not ask again. Turn them on for this site in your browser settings.",
+    "notificationsUnsupported": "This browser cannot show alerts.",
+    "notificationsNotAllowed": "Alerts were not turned on.",
+    "notificationsFailed": "Alerts could not be turned on for this device.",
+    "arabic": "العربية",
+    "english": "English"
   },
   "auth": {
     "signIn": "Sign in",
@@ -113,7 +124,21 @@
     "phone": "Phone",
     "loginFailed": "Could not sign you in.",
     "noAccount": "No account yet?",
-    "haveAccount": "Already have an account?"
+    "haveAccount": "Already have an account?",
+    "emailRequired": "Enter your email address.",
+    "emailInvalid": "That does not look like an email address.",
+    "passwordRequired": "Enter your password.",
+    "passwordTooShort": "Your password must be at least 8 characters.",
+    "passwordHint": "At least {count} characters.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "shopNameRequired": "Enter the shop's name.",
+    "shopNameTooShort": "The shop name needs at least 2 characters.",
+    "signingIn": "Signing you in…",
+    "creatingAccount": "Creating your account…",
+    "signUpFailed": "Could not create your account.",
+    "accountCreated": "Your account has been created.",
+    "awaitingReview": "We will look at it and get back to you. You can sign in and browse in the meantime — ordering opens once your shop is approved."
   },
   "errors": {
     "NOT_FOUND": "{entity} not found",
