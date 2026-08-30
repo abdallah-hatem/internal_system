@@ -1,3 +1,8 @@
+// A plain default import, which needs `esModuleInterop`. That flag was absent
+// from this tsconfig — only `allowSyntheticDefaultImports`, which silences the
+// type error without emitting the interop helper — so `import sharp from
+// 'sharp'` compiled to `sharp_1.default`, which is undefined at runtime for a
+// CommonJS module. Every valid photograph was refused as "not an image".
 import sharp, { type Metadata } from 'sharp';
 
 import { badRequest } from '../../common/api-error';
@@ -57,8 +62,13 @@ export async function processImage(input: Buffer): Promise<Derivative[]> {
   let meta: Metadata;
   try {
     meta = await sharp(input).metadata();
-  } catch {
-    // sharp could not read it at all. Whatever it is, it is not a picture.
+  } catch (err) {
+    // Narrow on purpose. The first version caught everything and answered
+    // "that is not an image", which is what a broken `sharp` import looked
+    // like from the outside: every valid photograph refused, with a message
+    // pointing at the file rather than at the code. A catch that can only
+    // report one cause must only catch that cause.
+    if (err instanceof TypeError || err instanceof ReferenceError) throw err;
     throw badRequest('FILE_NOT_AN_IMAGE', 'That file is not an image we can read.');
   }
 

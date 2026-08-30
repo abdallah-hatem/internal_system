@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Req,
   Query,
   Res,
   UploadedFile,
@@ -13,12 +14,13 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
 import { FilesService } from './files.service';
 import { MAX_UPLOAD_BYTES } from './image-pipeline';
 import { badRequest } from '../../common/api-error';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { wildcardPath } from '../../common/wildcard-path';
 
 @ApiTags('Files')
 @ApiBearerAuth()
@@ -71,8 +73,13 @@ export class FilesController {
   @Get('download/*objectKey')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Download a file' })
-  async download(@Param('objectKey') objectKey: string, @Res() res: Response) {
-    const { buffer, mimeType } = await this.filesService.serveFile(decodeURIComponent(objectKey));
+  async download(@Req() req: Request, @Res() res: Response) {
+    // Not `@Param('objectKey')`: Express 5 gives Nest an array of segments and
+    // the parameter arrives comma-joined, so every key with a slash in it —
+    // which is all of them — missed. See `wildcardPath`.
+    const { buffer, mimeType } = await this.filesService.serveFile(
+      wildcardPath(req, '/files/download/'),
+    );
     res.set({ 'Content-Type': mimeType, 'Cache-Control': 'private, max-age=3600' });
     res.send(buffer);
   }

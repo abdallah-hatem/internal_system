@@ -10,6 +10,8 @@ import { OrderRequestsService } from './order-requests.service';
 import { OrderRequestDecisionsService } from './order-request-decisions.service';
 import { SalesModule } from '../sales/sales.module';
 import { PortalSignupController } from './portal-signup.controller';
+import { PortalImagesController } from './portal-images.controller';
+import { FilesModule } from '../files/files.module';
 import { PortalSignupService } from './portal-signup.service';
 import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-viewer.guard';
 
@@ -24,9 +26,10 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
  * `AuthModule` is imported for `JwtModule`, which the viewer guard needs.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, SalesModule],
+  imports: [PrismaModule, AuthModule, SalesModule, FilesModule],
   controllers: [
     PortalCatalogueController,
+    PortalImagesController,
     PortalSignupController,
     PortalRequestsController,
     OrderRequestsController,

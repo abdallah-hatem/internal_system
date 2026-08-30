@@ -93,10 +93,14 @@ export class OrderRequestsService {
         const asked = wanted.get(product.id)!;
         const have = available.get(product.id) ?? new Prisma.Decimal(0);
         if (asked.gt(have)) {
+          // All three params, because the translation interpolates all three.
+          // next-intl does not throw on a missing ICU argument — it returns the
+          // key path — so a shop would have read the literal string
+          // "errors.NOT_ENOUGH_STOCK" on the screen.
           throw badRequest(
             'NOT_ENOUGH_STOCK',
-            `Only ${have.toString()} of ${product.name} can be reserved right now.`,
-            { available: have.toString(), product: product.name },
+            `Only ${have.toString()} of ${product.name} is in stock, so ${asked.toString()} cannot be sold.`,
+            { available: have.toString(), product: product.name, wanted: asked.toString() },
           );
         }
         if (!priceOn(product.prices, channel)) {

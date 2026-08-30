@@ -155,13 +155,25 @@ export class OrderRequestDecisionsService {
       kept.map((l) => l.item.productId),
       { orderRequestId: id },
     );
+
+    // Named, not "that product". A refusal a shop cannot act on is barely
+    // better than none, and the owner reading it needs to know which line.
+    const names = new Map(
+      (
+        await this.prisma.product.findMany({
+          where: { id: { in: kept.map((l) => l.item.productId) } },
+          select: { id: true, name: true },
+        })
+      ).map((p) => [p.id, p.name]),
+    );
     for (const line of kept) {
       const have = available.get(line.item.productId) ?? new Prisma.Decimal(0);
       if (line.qty.gt(have)) {
+        const name = names.get(line.item.productId) ?? 'that product';
         throw badRequest(
           'NOT_ENOUGH_STOCK',
-          `Only ${have.toString()} of that product is still available.`,
-          { available: have.toString() },
+          `Only ${have.toString()} of ${name} is in stock, so ${line.qty.toString()} cannot be sold.`,
+          { available: have.toString(), product: name, wanted: line.qty.toString() },
         );
       }
     }
