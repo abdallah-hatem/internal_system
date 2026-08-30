@@ -6,6 +6,7 @@ import { IBM_Plex_Sans, IBM_Plex_Sans_Arabic } from 'next/font/google';
 
 import { routing } from '../../i18n/routing';
 import { Providers } from '../../lib/providers';
+import { AppShell } from '../../components/app-shell';
 import '../globals.css';
 
 const latin = IBM_Plex_Sans({
@@ -58,7 +59,9 @@ export default async function LocaleLayout({
     <html lang={locale} dir={dir} className={`${latin.variable} ${arabic.variable}`}>
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">
         <NextIntlClientProvider messages={messages}>
-          <Providers>{children}</Providers>
+          <Providers>
+            <AppShell>{children}</AppShell>
+          </Providers>
         </NextIntlClientProvider>
       </body>
     </html>
