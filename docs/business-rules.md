@@ -484,3 +484,43 @@ Recorded here so it is not forgotten:
 - **No backups.** Losing the database volume loses every financial record.
 - **No real cycle has been through it.** Every figure verified so far comes from
   invented data.
+
+---
+
+## 13. Open questions — the storefront
+
+### Which language a shop owner actually gets  — OPEN, raised 2026-08-31
+
+The decision recorded on 2026-08-30 was "Arabic default". What is built is
+next-intl's ordinary behaviour: `defaultLocale: 'ar'` is the **fallback**, and
+`Accept-Language` wins over it. Measured:
+
+| the phone asks for | it lands on |
+|---|---|
+| Arabic | `/ar` |
+| English | `/en` |
+| French | `/ar` |
+| nothing | `/ar` |
+
+So a shop owner whose phone is set to English — common in Egypt regardless of
+what someone reads most comfortably — gets an English store and may never see
+the Arabic one. That may be right: it serves each person the language they asked
+their phone for. It may equally be wrong: the phone's language is often a setting
+nobody chose, and this business's customers are Arabic-speaking.
+
+`localeDetection: false` in `apps/storefront/src/i18n/routing.ts` makes everyone
+start on Arabic with English one tap away. **Not changed** — this is the owner's
+call, and TC-STORE-15 currently pins the behaviour as built, so changing the rule
+means changing that test with it.
+
+### Where a shop sends its basket from  — OPEN, raised 2026-08-31
+
+`<BasketLauncher />` is rendered only by the "My orders" page. A shop that adds
+parts while browsing the catalogue sees "Added to your request" and then has no
+visible way to review or send it without finding that tab.
+
+`basket-sheet.tsx`'s own comment says the sheet exists "so a shop adding a fifth
+part does not lose its place in the catalogue", which reads as the intent being a
+launcher visible while browsing. **Not changed** — where a persistent basket
+button belongs is a design decision, not a defect to fix quietly.
+
