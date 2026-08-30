@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../../lib/api-error';
+import { ProductPhotos } from '../../../../components/products/product-photos';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -249,6 +250,10 @@ export default function ProductDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── Left Column ─────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
+          {/* First, because it is what a shop sees first. The catalogue card
+              and the product page in the store both render these. */}
+          <ProductPhotos productId={productId} />
+
           {/* ── Product Details ──────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">

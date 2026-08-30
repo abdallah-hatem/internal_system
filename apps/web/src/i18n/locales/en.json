@@ -132,7 +132,11 @@
     "remainingQty": "Remaining",
     "landedCost": "Landed Cost",
     "batchNo": "Batch",
-    "cycle": "Cycle"
+    "cycle": "Cycle",
+    "photos": "Photos",
+    "addPhoto": "Add photos",
+    "noPhotos": "No photos yet. The store shows a placeholder without one.",
+    "photosHint": "JPEG, PNG or WebP, up to 8 MB. Resized automatically for the store."
   },
   "cycles": {
     "title": "Import Cycles",
