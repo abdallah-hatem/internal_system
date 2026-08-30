@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024">
+    <rect width="100" height="100" fill="#1d4ed8"/>
+    
+    <g fill="#ffffff" fill-rule="evenodd">
+      <rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(0 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(22.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(45 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(67.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(90 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(112.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(135 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(157.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(180 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(202.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(225 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(247.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(270 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(292.5 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(315 50 50)"/><rect x="47.4" y="14" width="5.2" height="8" rx="1.4" transform="rotate(337.5 50 50)"/>
+      <path d="
+        M 50 20 a 30 30 0 1 0 0.01 0 Z
+        M 50 37 a 13 13 0 1 1 -0.01 0 Z
+        M 50 26.4 a 2.6 2.6 0 1 1 -0.01 0 Z M 69.97218684219823 40.9106431181261 a 2.6 2.6 0 1 1 -0.01 0 Z M 62.34349029814194 64.38935688187391 a 2.6 2.6 0 1 1 -0.01 0 Z M 37.65650970185807 64.38935688187391 a 2.6 2.6 0 1 1 -0.01 0 Z M 30.027813157801774 40.9106431181261 a 2.6 2.6 0 1 1 -0.01 0 Z
+      "/>
+    </g>
+  </svg>

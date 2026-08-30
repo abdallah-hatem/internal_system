@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   title: 'MotoParts',
   description: 'Motorcycle parts for the trade.',
   manifest: '/manifest.webmanifest',
+  // iOS ignores the manifest's icons entirely and takes this one. `app/icon.png`
+  // and `app/apple-icon.png` are Next's file conventions and generate the rest
+  // of the tags, so there is no hand-written <link> to fall out of date.
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'MotoParts' },
 };
 
