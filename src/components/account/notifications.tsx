@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import { api } from '../../lib/api';
 import { useRefusal } from '../requests/use-refusal';
+import { HowToAllow } from './how-to-allow';
 import {
   needsHomeScreenFirst,
   pushSupported,
@@ -158,10 +159,31 @@ export function Notifications({ pushPublicKey }: { pushPublicKey: string }) {
 
       {status === 'unsupported' ? (
         <Note>{t('notificationsUnsupported')}</Note>
-      ) : status === 'homeScreenFirst' ? (
-        <Note>{t('iosInstallFirst')}</Note>
-      ) : status === 'blocked' ? (
-        <Note>{t('notificationsBlocked')}</Note>
+      ) : status === 'homeScreenFirst' || status === 'blocked' ? (
+        /* Instructions, not a refusal.
+         *
+         * Both of these used to render one sentence and stop, which reads as
+         * "you cannot" when what is true is "not yet, and here is how". The
+         * steps differ per browser and the button stays underneath: on iOS it
+         * is what the person presses once they have opened the installed app,
+         * and re-pressing after changing a setting is exactly the last step. */
+        <>
+          <HowToAllow reason={status === 'blocked' ? 'blocked' : 'install'} />
+          <button
+            type="button"
+            onClick={enable}
+            disabled={busy}
+            data-push={status}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60"
+          >
+            {busy ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Bell className="h-4 w-4" aria-hidden />
+            )}
+            {t('enableNotifications')}
+          </button>
+        </>
       ) : (
         <>
           <p className="text-sm text-gray-600">

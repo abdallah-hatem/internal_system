@@ -87,3 +87,27 @@ export function readKeys(subscription: PushSubscription): SubscriptionKeys | nul
   if (!keys?.p256dh || !keys.auth) return null;
   return { p256dh: keys.p256dh, auth: keys.auth };
 }
+
+/**
+ * Which set of instructions to show somebody who cannot turn alerts on yet.
+ *
+ * Naming the browser matters because the steps genuinely differ, and a generic
+ * "check your browser settings" is the kind of help that helps nobody. The
+ * detection is deliberately coarse — Safari and Firefox are identified by what
+ * they are NOT, since every browser's user agent claims to be several others —
+ * and the fallback is a set of steps that are true of any Chromium browser,
+ * which is most of them.
+ */
+export type BrowserFamily = 'ios-safari' | 'safari' | 'firefox' | 'chromium';
+
+export function browserFamily(): BrowserFamily {
+  if (typeof navigator === 'undefined') return 'chromium';
+  const ua = navigator.userAgent;
+
+  if (isIos()) return 'ios-safari';
+  if (/Firefox\//.test(ua)) return 'firefox';
+  // Chrome, Edge, Brave, Opera and Arc all carry "Chrome" AND "Safari"; real
+  // Safari carries "Safari" and neither "Chrome" nor "Chromium".
+  if (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) return 'safari';
+  return 'chromium';
+}

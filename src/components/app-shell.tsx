@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { Package, ClipboardList, Ship, User } from 'lucide-react';
 
 import { Link, usePathname } from '../i18n/navigation';
+import { AlertsPrompt } from './account/alerts-prompt';
 
 /**
  * The frame every screen sits in.
@@ -29,7 +30,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col bg-gray-50">
-      <main className="flex-1 pb-20">{children}</main>
+      <main className="flex-1 pb-20">
+        {/* Above the page, on every screen but the account one. Being told
+            when an order is answered is the whole point of the app having a
+            login, and it should not be something you have to go and find. */}
+        <div className="px-4 pt-3">
+          <AlertsPrompt pathname={pathname} />
+        </div>
+        {children}
+      </main>
 
       <nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur"

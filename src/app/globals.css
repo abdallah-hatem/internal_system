@@ -56,3 +56,33 @@ html {
 body {
   font-family: var(--font-sans);
 }
+
+@layer base {
+  /* Anything you can click says so.
+   *
+   * Tailwind v4's preflight no longer gives buttons a pointer cursor, so
+   * every button in a fresh project comes out with an arrow. The internal
+   * system carries the same rule for the same reason; it was missed here
+   * because this project was scaffolded rather than copied.
+   *
+   * A rule rather than a `cursor-pointer` class on each element: the class
+   * gets forgotten on the next button somebody adds, and this cannot be. */
+  button,
+  a,
+  summary,
+  [role="button"],
+  [role="option"],
+  [role="tab"],
+  label:has(input[type="radio"]),
+  label:has(input[type="checkbox"]),
+  label:has(input[type="file"]) {
+    cursor: pointer;
+  }
+
+  /* Except when it would be a lie. */
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  [disabled] {
+    cursor: not-allowed;
+  }
+}
