@@ -23,7 +23,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/motorcycle_parts
-      JWT_SECRET: ci-secret-not-used-outside-ci
+      JWT_SECRET: ci-only-throwaway-value-not-used-outside-continuous-integration
       JWT_EXPIRATION: 24h
       PORT: 3001
       NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1

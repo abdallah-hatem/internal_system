@@ -81,6 +81,10 @@ test.describe('Dates on screen', () => {
     page,
     request,
   }) => {
+    // Eighteen full page loads against a database that later files have filled.
+    // This is a sweep, not a unit test, and it is honestly slower than one.
+    test.setTimeout(150_000);
+
     // A sweep, because the bug is always a field nobody remembered to format
     // and it will be a different field next time.
     await cycleWithDatedLeg(request, `Sweep${Date.now()}`);
@@ -96,7 +100,27 @@ test.describe('Dates on screen', () => {
     const leaks: string[] = [];
     for (const slug of pages) {
       await page.goto(`${BASE}/en/${slug}`);
-      await page.waitForTimeout(900);
+
+      // Wait for the page to have finished loading rather than for a fixed
+      // 900ms. The blind wait was 18 × 900ms of dead time against a 60s limit,
+      // and it read the screen mid-render on whichever page happened to be slow
+      // that day — so a leak could sit on a row that had not painted yet and
+      // the sweep would call the page clean.
+      //
+      // It also made the test fail as the suite grew: run alone it took 20s,
+      // but by file 50 the database holds every record the previous 49 files
+      // created, every list is longer, and the same 18 pages blew past the
+      // timeout. A test that gets slower as its neighbours do is a test that
+      // eventually fails for a reason that has nothing to do with dates.
+      await page
+        .locator('main .animate-spin')
+        .waitFor({ state: 'detached', timeout: 15_000 })
+        .catch(() => {
+          // Never had a spinner, or it outlived the wait. Either way, read on —
+          // a page stuck loading has no text to leak, and one that never
+          // spinner'd is already done.
+        });
+
       const text = await page.locator('main').innerText().catch(() => '');
       const found = text.match(RAW_TIMESTAMP);
       if (found) leaks.push(`${slug}: ${found[0]}`);
