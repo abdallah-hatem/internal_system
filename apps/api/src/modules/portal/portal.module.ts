@@ -9,6 +9,8 @@ import { OrderRequestsController } from './order-requests.controller';
 import { OrderRequestsService } from './order-requests.service';
 import { OrderRequestDecisionsService } from './order-request-decisions.service';
 import { SalesModule } from '../sales/sales.module';
+import { PortalSignupController } from './portal-signup.controller';
+import { PortalSignupService } from './portal-signup.service';
 import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-viewer.guard';
 
 /**
@@ -23,9 +25,15 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
  */
 @Module({
   imports: [PrismaModule, AuthModule, SalesModule],
-  controllers: [PortalCatalogueController, PortalRequestsController, OrderRequestsController],
+  controllers: [
+    PortalCatalogueController,
+    PortalSignupController,
+    PortalRequestsController,
+    OrderRequestsController,
+  ],
   providers: [
     PortalCatalogueService,
+    PortalSignupService,
     OrderRequestsService,
     OrderRequestDecisionsService,
     OptionalPortalViewerGuard,

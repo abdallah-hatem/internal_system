@@ -844,6 +844,7 @@
     "FILE_TOO_LARGE": "That image is larger than {maxMb} MB.",
     "FILE_NOT_AN_IMAGE": "That file is not an image we can read.",
     "FILE_REQUIRED": "No file was sent.",
-    "DELETE_THE_ORIGINAL": "Delete the original image; its other sizes go with it."
+    "DELETE_THE_ORIGINAL": "Delete the original image; its other sizes go with it.",
+    "CUSTOMER_NOT_VERIFIED": "{customer} has not been verified yet, so nothing can be recorded against them."
   }
 }

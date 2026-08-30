@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
+import { assertVerified } from '../../common/verified-customer';
 import { availableQty } from '../../common/available-stock';
 @Injectable()
 export class SalesService {
@@ -92,6 +93,7 @@ export class SalesService {
     if (!customer) {
       throw notFound('customer');
     }
+    assertVerified(customer);
 
     // Validate items array
     if (!data.items || data.items.length === 0) {

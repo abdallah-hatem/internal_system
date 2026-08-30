@@ -17,12 +17,31 @@ export class CustomersService {
     pagination: PaginationDto & {
       type?: string;
       search?: string;
+      verification?: string;
     },
   ) {
-    const { cursor, limit: rawLimit = 20, type, search } = pagination;
+    const { cursor, limit: rawLimit = 20, type, search, verification } = pagination;
     const limit = pageSize(rawLimit);
     const where: any = {};
     if (type) where.type = type;
+
+    // Unverified shops are hidden unless asked for.
+    //
+    // Anyone can create one by filling in the storefront's signup form — the
+    // owner's decision of 2026-08-30, taken knowing it puts strangers in the
+    // table that orders and balances hang off. They are kept out of the list by
+    // default so a morning's spam does not bury the real customers, and shown
+    // deliberately through `verification=UNVERIFIED` when someone sits down to
+    // work through them.
+    //
+    // `verification=ALL` is the escape hatch for a search that should find
+    // everything, so a name typed into the box does not silently miss an
+    // account that exists.
+    if (verification === 'UNVERIFIED' || verification === 'VERIFIED') {
+      where.verificationStatus = verification;
+    } else if (verification !== 'ALL') {
+      where.verificationStatus = { not: 'UNVERIFIED' };
+    }
     if (search) {
       where.OR = [
         { displayName: { contains: search, mode: 'insensitive' } },

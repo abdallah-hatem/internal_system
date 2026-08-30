@@ -5,6 +5,7 @@ import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { assertVerified } from '../../common/verified-customer';
 /** Orders whose balance is genuinely outstanding; a draft owes nothing yet. */
 const OWED_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID'] as const;
 
@@ -71,9 +72,10 @@ export class PaymentsService {
     // whoever typed the id nothing at all.
     const customer = await this.prisma.customer.findUnique({
       where: { id: data.customerId },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, verificationStatus: true },
     });
     if (!customer) throw notFound('customer');
+    assertVerified(customer);
 
     // A shop cannot pay more than it owes. Taking 500 against a 300 balance
     // leaves 200 attached to nobody: it clears no order, shows as paid, and

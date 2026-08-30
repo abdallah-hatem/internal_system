@@ -29,6 +29,8 @@ export class CustomersController {
     query: PaginationDto & {
       type?: string;
       search?: string;
+      /** VERIFIED | UNVERIFIED | ALL. Omitted hides unverified signups. */
+      verification?: string;
     },
   ) {
     return this.customersService.findAll(query);

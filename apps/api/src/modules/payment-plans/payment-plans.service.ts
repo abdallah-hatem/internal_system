@@ -9,6 +9,7 @@ import { CreatePaymentPlanDto } from './dto/payment-plan.dto';
 import { formatMoney } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { assertVerified } from '../../common/verified-customer';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
@@ -193,9 +194,10 @@ export class PaymentPlansService {
   async create(dto: CreatePaymentPlanDto, actorId?: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, verificationStatus: true },
     });
     if (!customer) throw notFound('customer');
+    assertVerified(customer);
 
     const active = await this.prisma.paymentPlan.findFirst({
       where: { customerId: dto.customerId, status: 'ACTIVE' },
