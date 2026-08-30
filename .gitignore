@@ -30,3 +30,11 @@ TEST_CREDENTIALS.md
 
 # Local database dumps
 .backups/
+
+# Uploaded files
+#
+# Product photographs and the pictures customers attach to import requests.
+# These are somebody else's property and this repository is public, so a
+# `git add -A` must never sweep them in. They are backed up by reset-db.sh
+# alongside the pg_dump instead — see scripts/reset-db.sh.
+apps/api/uploads/

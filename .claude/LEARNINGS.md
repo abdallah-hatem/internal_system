@@ -39,3 +39,19 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   part silently fails to match still changes the file, so the aggregate assert passes and the
   edit looks done. Assert on the thing being removed or added — and pick a marker that does
   not also appear in the prose you just wrote (`</select>`, not `<select>`). — 2026-08-30
+
+## The storefront (apps/storefront)
+
+- Arabic is the default locale there, not a translation of an English app. Logical
+  properties only — `ps-`/`pe-`/`ms-`/`me-`/`text-start`. — 2026-08-30
+- Only `/portal/*` and `/auth/portal/*` are reachable. A 403 `WRONG_SURFACE` means this app
+  asked for something the office owns — fix it here, not by widening the API. — 2026-08-30
+- Read `err.response.data.error.code`; `data.message` is always undefined. `lib/api-error.ts`
+  is copied verbatim from the admin panel — do not write a shorter version, next-intl returns
+  the dotted key path rather than throwing on a missing key. — 2026-08-30
+- Images on `/portal/imports/**` need the bearer token, so a plain `<img src>` 401s. Fetch as
+  a blob through the axios client and revoke the object URL on unmount. Catalogue images are
+  public and do not need this. — 2026-08-30
+- The two apps are separate origins, so a token stored by one is invisible to the
+  other. That is correct, not an inconvenience. — 2026-08-30
+

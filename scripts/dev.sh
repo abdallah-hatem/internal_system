@@ -9,6 +9,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_PORT=3001
 WEB_PORT=3000
+# The customer-facing storefront. Its own port because it is its own app, on
+# its own origin — which is also why a token stored by one is invisible to the
+# other, and that is the correct behaviour rather than an inconvenience.
+STORE_PORT=3002
 
 say() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m!  \033[0m %s\n' "$1"; }
@@ -44,7 +48,7 @@ say "Closing windows left by a previous run"
 sleep 1
 
 # ── 4. Free the ports ────────────────────────────────────────────────────
-for port in $API_PORT $WEB_PORT; do
+for port in $API_PORT $WEB_PORT $STORE_PORT; do
   pids=$(lsof -ti:"$port" 2>/dev/null || true)
   if [ -n "$pids" ]; then
     warn "Port $port held by PID(s) $pids — stopping them"
@@ -58,13 +62,15 @@ done
 # leftovers instead of stacking up a new pair every time.
 TAG="motoparts-dev"
 
-say "Opening API and web in Terminal windows"
+say "Opening API, office and store in Terminal windows"
 osascript >/dev/null <<APPLESCRIPT
 tell application "Terminal"
   set apiTab to do script "cd '$ROOT/apps/api' && npm run start:dev"
   set custom title of apiTab to "$TAG — api"
   set webTab to do script "cd '$ROOT/apps/web' && npm run dev"
   set custom title of webTab to "$TAG — web"
+  set storeTab to do script "cd '$ROOT/apps/storefront' && PORT=$STORE_PORT npm run dev"
+  set custom title of storeTab to "$TAG — store"
   activate
 end tell
 APPLESCRIPT
@@ -85,10 +91,12 @@ wait_for() {
 
 wait_for "http://localhost:$API_PORT/api/docs" "API" || true
 wait_for "http://localhost:$WEB_PORT" "Web" || true
+wait_for "http://localhost:$STORE_PORT" "Store" || true
 
 cat <<EOF
 
-  Web      http://localhost:$WEB_PORT
+  Office   http://localhost:$WEB_PORT
+  Store    http://localhost:$STORE_PORT
   API      http://localhost:$API_PORT
   Swagger  http://localhost:$API_PORT/api/docs
 
