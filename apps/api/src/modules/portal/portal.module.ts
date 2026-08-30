@@ -12,6 +12,10 @@ import { SalesModule } from '../sales/sales.module';
 import { PortalSignupController } from './portal-signup.controller';
 import { PortalImagesController } from './portal-images.controller';
 import { FilesModule } from '../files/files.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { PortalAccountController } from './portal-account.controller';
+import { PortalImportsController } from './portal-imports.controller';
+import { ImportRequestsService } from './import-requests.service';
 import { PortalSignupService } from './portal-signup.service';
 import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-viewer.guard';
 
@@ -26,11 +30,13 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
  * `AuthModule` is imported for `JwtModule`, which the viewer guard needs.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, SalesModule, FilesModule],
+  imports: [PrismaModule, AuthModule, SalesModule, FilesModule, NotificationsModule],
   controllers: [
     PortalCatalogueController,
     PortalImagesController,
     PortalSignupController,
+    PortalAccountController,
+    PortalImportsController,
     PortalRequestsController,
     OrderRequestsController,
   ],
@@ -38,6 +44,7 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
     PortalCatalogueService,
     PortalSignupService,
     OrderRequestsService,
+    ImportRequestsService,
     OrderRequestDecisionsService,
     OptionalPortalViewerGuard,
   ],

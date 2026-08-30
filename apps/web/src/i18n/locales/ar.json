@@ -737,7 +737,9 @@
       "settlement": "التسوية",
       "shippingLeg": "مرحلة الشحن",
       "supplier": "المورّد",
-      "user": "المستخدم"
+      "user": "المستخدم",
+      "productRequest": "طلب استيراد",
+      "orderRequest": "طلب شراء"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -845,6 +847,7 @@
     "FILE_NOT_AN_IMAGE": "هذا الملف ليس صورة يمكن قراءتها.",
     "FILE_REQUIRED": "لم يتم إرسال أي ملف.",
     "DELETE_THE_ORIGINAL": "احذف الصورة الأصلية؛ وستُحذف معها بقية المقاسات.",
-    "CUSTOMER_NOT_VERIFIED": "لم يتم التحقق من {customer} بعد، لذا لا يمكن تسجيل أي شيء عليه."
+    "CUSTOMER_NOT_VERIFIED": "لم يتم التحقق من {customer} بعد، لذا لا يمكن تسجيل أي شيء عليه.",
+    "TOO_MANY_PHOTOS": "يمكن إرفاق {max} صور كحد أقصى لكل طلب."
   }
 }
