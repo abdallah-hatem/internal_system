@@ -44,10 +44,12 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 
 - Arabic is the default locale there, not a translation of an English app. Logical
   properties only — `ps-`/`pe-`/`ms-`/`me-`/`text-start`. — 2026-08-30
-- "Default" means the fallback, not what most people get. next-intl honours
-  `Accept-Language`, so a phone set to English lands on `/en` and only a browser with
-  no preference we publish gets `/ar`. Whether that is wanted is open — see
-  `docs/business-rules.md` §13. `localeDetection: false` is the switch. — 2026-08-31
+- Arabic is unconditional, and that took `localeDetection: false`. next-intl honours
+  `Accept-Language` by default, which makes `defaultLocale` only a fallback — a phone set
+  to English landed on `/en`. The owner decided 2026-08-31 that the store opens in Arabic
+  for everyone (docs/business-rules.md §13). A rule about what happens when the browser has
+  an opinion needs a test with a browser that has one: TC-STORE-15 used the default context
+  and never asked for English, so it passed the whole time. — 2026-08-31
 - Only `/portal/*` and `/auth/portal/*` are reachable. A 403 `WRONG_SURFACE` means this app
   asked for something the office owns — fix it here, not by widening the API. — 2026-08-30
 - Read `err.response.data.error.code`; `data.message` is always undefined. `lib/api-error.ts`

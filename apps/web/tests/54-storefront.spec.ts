@@ -771,6 +771,43 @@ test.describe('The language it opens in', () => {
     }
   });
 
+  test('TC-STORE-18: a phone set to English still opens in Arabic', async ({ browser }) => {
+    // The decision (business-rules.md §13, 2026-08-31): the store opens in
+    // Arabic for everyone, and English is a choice the reader makes.
+    //
+    // next-intl honours `Accept-Language` unless told not to, which made
+    // `defaultLocale: 'ar'` only a fallback — a phone set to English landed on
+    // /en, and plenty of phones here are set to English by whoever sold them,
+    // which is not the same as somebody choosing to read English.
+    //
+    // TC-STORE-15 could not catch this: it uses the default context, which
+    // never asks for English, so it passed throughout. A rule about what
+    // happens when the browser has an opinion has to be tested with a browser
+    // that has one.
+    for (const locale of ['en-US', 'en-GB', 'fr-FR']) {
+      const context = await browser.newContext({ locale });
+      const page = await context.newPage();
+      // The beforeEach hook runs on the fixture page, not this one.
+      await page.addInitScript(() => {
+        const style = document.createElement('style');
+        style.textContent = 'nextjs-portal { display: none !important }';
+        document.head?.appendChild(style);
+      });
+
+      await page.goto('/');
+      await expect(page, `a browser asking for ${locale} was sent to English`).toHaveURL(
+        /\/ar$/,
+      );
+      await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
+      // Arabic on screen, not merely an /ar address.
+      await expect(page.getByRole('heading', { name: 'المنتجات' })).toBeVisible();
+
+      await context.close();
+    }
+  });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────

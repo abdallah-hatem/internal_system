@@ -489,29 +489,34 @@ Recorded here so it is not forgotten:
 
 ## 13. Open questions — the storefront
 
-### Which language a shop owner actually gets  — OPEN, raised 2026-08-31
+### Which language a shop owner gets  — DECIDED 2026-08-31
 
-The decision recorded on 2026-08-30 was "Arabic default". What is built is
-next-intl's ordinary behaviour: `defaultLocale: 'ar'` is the **fallback**, and
-`Accept-Language` wins over it. Measured:
+**The store opens in Arabic for everyone. English is a choice the reader
+makes, not one their phone makes for them.**
 
-| the phone asks for | it lands on |
+The rule recorded on 2026-08-30 was "Arabic default", and what was built was
+next-intl's ordinary behaviour, which is not the same thing: `defaultLocale`
+is only the fallback, and `Accept-Language` beats it. Measured before the
+change:
+
+| the phone asks for | it landed on |
 |---|---|
 | Arabic | `/ar` |
 | English | `/en` |
 | French | `/ar` |
 | nothing | `/ar` |
 
-So a shop owner whose phone is set to English — common in Egypt regardless of
-what someone reads most comfortably — gets an English store and may never see
-the Arabic one. That may be right: it serves each person the language they asked
-their phone for. It may equally be wrong: the phone's language is often a setting
-nobody chose, and this business's customers are Arabic-speaking.
+So a shop owner whose phone was set to English — common here, and often set
+by whoever sold the phone rather than by its owner — got an English store and
+might never have seen the Arabic one.
 
-`localeDetection: false` in `apps/storefront/src/i18n/routing.ts` makes everyone
-start on Arabic with English one tap away. **Not changed** — this is the owner's
-call, and TC-STORE-15 currently pins the behaviour as built, so changing the rule
-means changing that test with it.
+`localeDetection: false` in `apps/storefront/src/i18n/routing.ts`. Every
+browser now lands on `/ar` whatever it asks for, and the language switch is
+one tap away.
+
+TC-STORE-18 pins it, using browser contexts that explicitly request `en-US`,
+`en-GB` and `fr-FR`. TC-STORE-15 could not have caught this: it uses the
+default context, which never asks for English, so it passed throughout.
 
 ### Where a shop sends its basket from  — OPEN, raised 2026-08-31
 
