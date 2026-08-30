@@ -3,18 +3,24 @@
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 
+import { Select } from '../ui/select';
 import type { Category } from './types';
 
 /**
  * Which shelf to look on.
  *
- * A native `<select>` rather than a custom menu: on the phone this is used on,
- * the platform picker is a full-height wheel a thumb can reach, and it mirrors
- * for Arabic without anything here knowing which way it opened.
+ * The shared `Select`, not a native `<select>`. The owner rejected the native
+ * picker in the internal system and asked for the shadcn one, and the same
+ * answer holds here: a store that looks like a different product from the
+ * office it belongs to is two products.
+ *
+ * The native element also cannot do what this needs — it is searchable once a
+ * catalogue has more than a handful of categories, and an `<option>` cannot
+ * carry the hint the shared component renders.
  *
  * Children are listed under their parent and indented with a real space rather
- * than an `<optgroup>`, because a parent category is itself selectable and an
- * optgroup label is not.
+ * than a group heading, because a parent category is itself selectable and a
+ * heading is not.
  */
 function ordered(categories: Category[]): { category: Category; depth: number }[] {
   const byParent = new Map<string | null, Category[]>();
@@ -57,21 +63,23 @@ export function CategoryFilter({
   onChange: (value: string) => void;
 }) {
   const t = useTranslations('catalogue');
+  const tc = useTranslations('common');
   const options = useMemo(() => ordered(categories), [categories]);
 
   return (
-    <select
+    <Select
       value={value}
-      onChange={(event) => onChange(event.target.value)}
-      aria-label={t('category')}
-      className="h-12 w-full rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-brand-600 focus:outline-2 focus:outline-offset-0 focus:outline-brand-600 sm:w-56"
-    >
-      <option value="">{t('allCategories')}</option>
-      {options.map(({ category, depth }) => (
-        <option key={category.id} value={category.id}>
-          {'  '.repeat(depth) + category.name}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      placeholder={t('allCategories')}
+      searchPlaceholder={tc('search')}
+      clearable
+      className="w-full sm:w-56"
+      options={options.map(({ category, depth }) => ({
+        value: category.id,
+        // Non-breaking spaces: an ordinary one collapses in HTML and the
+        // nesting would disappear.
+        label: '\u00a0\u00a0'.repeat(depth) + category.name,
+      }))}
+    />
   );
 }
