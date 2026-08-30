@@ -7,6 +7,7 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma, ParticipantType } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { assertCanParticipate } from './participant-eligibility';
 // Valid state transitions per the spec
 const VALID_TRANSITIONS: Record<string, string[]> = {
   PLANNING: ['FUNDING', 'CANCELLED'],
@@ -186,6 +187,11 @@ export class CyclesService {
     if (data.participants && data.participants.length > 0) {
       for (const p of data.participants) {
         const type = assertParticipantType(p.participantType);
+        await assertCanParticipate(
+          this.prisma,
+          (type === 'TEMP_INVESTOR' ? p.investorUserId : p.partnerUserId)!,
+          type,
+        );
         // The participant row and the money arriving are one fact, so they are
         // written together — a contribution recorded without its ledger entry
         // is the gap this whole thing exists to close.
@@ -433,6 +439,8 @@ export class CyclesService {
         ? badRequest('INVESTOR_ID_REQUIRED', 'investorUserId is required for a temporary investor')
         : badRequest('PARTNER_ID_REQUIRED', 'partnerUserId is required for a core partner');
     }
+
+    await assertCanParticipate(this.prisma, userId, type);
 
     // Adding the same person twice would dilute everyone else's profit share.
     const already = await this.prisma.cycleParticipant.findFirst({

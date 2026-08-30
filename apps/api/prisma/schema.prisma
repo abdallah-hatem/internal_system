@@ -1035,6 +1035,10 @@ model OrderRequest {
    */
   holdExpiresAt  DateTime? @map("hold_expires_at") @db.Timestamptz()
   holdReleasedAt DateTime? @map("hold_released_at") @db.Timestamptz()
+  /** When the office was nudged that this is about to lapse. Stops the same
+      request alerting every half hour until it does — twelve identical alerts
+      is how people learn to ignore the bell. */
+  holdWarnedAt   DateTime? @map("hold_warned_at") @db.Timestamptz()
 
   saleOrderId String?   @unique @map("sale_order_id") @db.Uuid
   decidedAt   DateTime? @map("decided_at") @db.Timestamptz()

@@ -93,6 +93,10 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
              ) f ON f.related_id = cp.id
             WHERE cp.contribution_amount <> COALESCE(f.net, 0)
          ) drifted
+  UNION ALL SELECT 15, 'a shop account is a participant on a cycle',
+         count(*) FROM cycle_participants cp
+           JOIN users u ON u.id = COALESCE(cp.partner_user_id, cp.investor_user_id)
+          WHERE u.role = 'SHOP_OWNER_PORTAL'
 SQL
 )
 

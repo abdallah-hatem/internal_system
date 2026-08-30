@@ -438,6 +438,18 @@ public catalogue image route refuses anything not attached to a product, and
 another shop asking for a photo gets a 404 rather than a 403 — it should not
 learn that the request exists.
 
+**Who may be a participant on a cycle.** DECIDED 2026-08-30, after finding a
+shop owner sitting on three cycles — one as a CORE_PARTNER with a 5,000
+contribution, which is a share of the partners' profit at settlement and every
+cycle notification with everyone's figures in it. Nothing had ever checked: the
+participant row took any user id the foreign key accepted.
+
+A core partner may also come in as a temporary investor on the same cycle,
+because putting extra money in beside your own share is a real thing an owner
+does. A shop account can be neither. An office account with no stake can be
+neither. `RolesGuard` answers who may *call* the endpoint; this answers who the
+call may *name*, and only the first question was being asked.
+
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added

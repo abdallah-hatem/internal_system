@@ -6,6 +6,7 @@ import { badRequest, conflict, notFound } from '../../common/api-error';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { availableByProduct } from '../../common/available-stock';
 import { channelFor, priceOn } from './portal-pricing';
+import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
  * A shop asking to buy, and the stock that waits while the owner decides.
@@ -26,7 +27,10 @@ export const HOLD_HOURS = 48;
 
 @Injectable()
 export class OrderRequestsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifier: PortalNotifier,
+  ) {}
 
   // ── Submitting ──────────────────────────────────────────────────────
 
@@ -76,7 +80,7 @@ export class OrderRequestsService {
     const channel = channelFor({ customer });
     const productIds = [...wanted.keys()];
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const products = await tx.product.findMany({
         where: { id: { in: productIds }, status: 'ACTIVE' },
         include: { prices: { select: { channel: true, amount: true, effectiveTo: true } } },
@@ -138,8 +142,22 @@ export class OrderRequestsService {
 
       await this.holdStock(tx, request.id, wanted, holdExpiresAt);
 
-      return { data: await this.detail(tx, request.id, customerId) };
+      return this.detail(tx, request.id, customerId);
     });
+
+    // After the commit, never inside it. A notification is not part of the
+    // request, and a transaction held open while a push service is reached is
+    // a transaction holding row locks on inventory for the duration.
+    await this.notifier.orderRequestSubmitted({
+      requestId: created.id,
+      requestNo: created.requestNo,
+      shopName: (await this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { displayName: true },
+      }))!.displayName,
+    });
+
+    return { data: created };
   }
 
   /**

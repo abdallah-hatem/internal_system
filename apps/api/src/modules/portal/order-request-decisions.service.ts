@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SalesService } from '../sales/sales.service';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { availableByProduct } from '../../common/available-stock';
+import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
  * Answering a request, from the office side.
@@ -24,6 +25,7 @@ export class OrderRequestDecisionsService {
   constructor(
     private prisma: PrismaService,
     private sales: SalesService,
+    private notifier: PortalNotifier,
   ) {}
 
   /** Everything waiting for an answer, newest first. */
@@ -233,6 +235,22 @@ export class OrderRequestDecisionsService {
       }),
     ]);
 
+    // Partial if anything was reduced or dropped — the shop's alert should say
+    // "some of what you asked for" rather than an unqualified "approved", so
+    // they open it instead of assuming the whole order is coming.
+    const partial =
+      kept.length !== request.items.length ||
+      kept.some((l) => !l.qty.equals(l.item.qtyRequested));
+
+    await this.notifier.orderRequestAnswered({
+      customerId: request.customerId,
+      requestId: id,
+      requestNo: request.requestNo,
+      approved: true,
+      orderNo: created.orderNo,
+      partial,
+    });
+
     return { data: { requestId: id, orderId: created.id, orderNo: created.orderNo } };
   }
 
@@ -244,7 +262,7 @@ export class OrderRequestDecisionsService {
       throw badRequest('REASON_REQUIRED', 'Tell the shop why, so they know what to do next.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const declined = await this.prisma.$transaction(async (tx) => {
       const request = await tx.orderRequest.findUnique({ where: { id } });
       if (!request) throw notFound('orderRequest');
       if (request.status !== 'PENDING') {
@@ -267,8 +285,17 @@ export class OrderRequestDecisionsService {
         },
       });
 
-      return { data: { requestId: id, status: 'DECLINED' } };
+      return { requestNo: request.requestNo, customerId: request.customerId };
     });
+
+    await this.notifier.orderRequestAnswered({
+      customerId: declined.customerId,
+      requestId: id,
+      requestNo: declined.requestNo,
+      approved: false,
+    });
+
+    return { data: { requestId: id, status: 'DECLINED' } };
   }
 
   /**

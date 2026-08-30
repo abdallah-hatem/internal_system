@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { badRequest, conflict, notFound } from '../../common/api-error';
+import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
  * "Bring me this — here is a photo of it."
@@ -30,6 +31,7 @@ export class ImportRequestsService {
   constructor(
     private prisma: PrismaService,
     private files: FilesService,
+    private notifier: PortalNotifier,
   ) {}
 
   async create(
@@ -54,6 +56,12 @@ export class ImportRequestsService {
         supplierUrl: data.supplierUrl?.trim(),
         notes: data.notes?.trim(),
       },
+    });
+
+    await this.notifier.importRequestSubmitted({
+      requestId: request.id,
+      productName: request.productName,
+      shopName: customer.displayName,
     });
 
     return { data: this.present(await this.load(request.id, customerId)) };
@@ -223,6 +231,13 @@ export class ImportRequestsService {
         decidedAt: decision.status === 'SOURCING' ? null : new Date(),
         createdBy: request.createdBy ?? actorId,
       },
+    });
+
+    await this.notifier.importRequestAnswered({
+      customerId: request.customerId,
+      requestId: id,
+      productName: request.productName,
+      status: decision.status,
     });
 
     return { data: { id, status: decision.status } };

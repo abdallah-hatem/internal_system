@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { SurfaceGuard } from './common/guards/surface.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -30,6 +31,9 @@ import { PortalModule } from './modules/portal/portal.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Runs the hold sweeper. Without it `releaseExpiredHolds` is a method
+    // nobody calls, which is what it was.
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     AuditModule,

@@ -15,7 +15,9 @@ import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PortalAccountController } from './portal-account.controller';
 import { PortalImportsController } from './portal-imports.controller';
+import { PortalNotificationsController } from './portal-notifications.controller';
 import { ImportRequestsService } from './import-requests.service';
+import { HoldsScheduler } from './holds.scheduler';
 import { ImportRequestsAdminController } from './order-requests-imports.controller';
 import { PortalSignupService } from './portal-signup.service';
 import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-viewer.guard';
@@ -38,6 +40,7 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
     PortalSignupController,
     PortalAccountController,
     PortalImportsController,
+    PortalNotificationsController,
     PortalRequestsController,
     OrderRequestsController,
     ImportRequestsAdminController,
@@ -47,6 +50,7 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
     PortalSignupService,
     OrderRequestsService,
     ImportRequestsService,
+    HoldsScheduler,
     OrderRequestDecisionsService,
     OptionalPortalViewerGuard,
   ],

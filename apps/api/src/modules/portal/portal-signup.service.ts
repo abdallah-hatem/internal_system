@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { conflict } from '../../common/api-error';
+import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
  * A shop signing itself up.
@@ -21,7 +22,10 @@ import { conflict } from '../../common/api-error';
  */
 @Injectable()
 export class PortalSignupService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifier: PortalNotifier,
+  ) {}
 
   async signUp(data: { email: string; password: string; shopName: string; phone?: string }) {
     const email = data.email.trim().toLowerCase();
@@ -57,6 +61,13 @@ export class PortalSignupService {
           verificationStatus: 'UNVERIFIED',
         },
       });
+    });
+
+    // Somebody has to know this is waiting, or an unverified account sits in a
+    // tab nobody has a reason to open.
+    await this.notifier.shopSignedUp({
+      customerId: customer.id,
+      shopName: customer.displayName,
     });
 
     // No token. Signing in is a separate act, and it is the login that decides

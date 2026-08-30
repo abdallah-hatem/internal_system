@@ -851,7 +851,11 @@
     "CUSTOMER_NOT_VERIFIED": "{customer} has not been verified yet, so nothing can be recorded against them.",
     "TOO_MANY_PHOTOS": "A request can carry at most {max} photos.",
     "VALIDATION_FAILED": "Some of what you entered is not valid: {fields}.",
-    "REQUEST_WITHDRAWN": "The shop withdrew this request, so there is nothing to answer."
+    "REQUEST_WITHDRAWN": "The shop withdrew this request, so there is nothing to answer.",
+    "SHOP_CANNOT_PARTICIPATE": "A shop account cannot be a partner or an investor on a cycle.",
+    "ROLE_CANNOT_PARTICIPATE": "An office account with no stake cannot be a participant on a cycle.",
+    "NOT_A_CORE_PARTNER": "Only a core partner can be added as one. Add them as a temporary investor instead.",
+    "PARTICIPANT_NOT_ACTIVE": "That account is not active, so it cannot take a share of a cycle."
   },
   "orderRequests": {
     "title": "Order requests",
