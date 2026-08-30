@@ -48,8 +48,13 @@ model User {
 
   createdPaymentPlans PaymentPlan[] @relation("CreatedPaymentPlanUser")
 
-  /** The shop this login belongs to, for a SHOP_OWNER_PORTAL account. */
+  /**
+   * The shop this login belongs to, for a SHOP_OWNER_PORTAL account.
+   */
   portalCustomer Customer? @relation("PortalAccount")
+
+  pushSubscriptions    PushSubscription[]
+  decidedOrderRequests OrderRequest[]     @relation("DecidedOrderRequestUser")
 
   @@map("users")
 }
@@ -124,6 +129,7 @@ model Product {
   saleItems          SaleItem[]
   productRequests    ProductRequest[]
   fileAssets         FileAsset[]
+  orderRequestItems  OrderRequestItem[]
 
   @@map("products")
 }
@@ -189,17 +195,53 @@ model ProductPrice {
   @@map("product_prices")
 }
 
+enum AssetVariant {
+  ORIGINAL
+  CARD
+  THUMB
+}
+
+/**
+ * An image, and the thing it belongs to.
+ * `owner_type` / `owner_id` was polymorphic in name only: `owner_id` carried a
+ * foreign key to `products`, so a photo attached to anything else failed the
+ * constraint. Two explicit nullable columns instead — integrity is kept, and
+ * what a file can belong to is legible from the schema rather than from
+ * whatever strings the callers happen to pass.
+ */
 model FileAsset {
-  id        String   @id @default(uuid()) @db.Uuid
-  ownerType String   @map("owner_type")
-  ownerId   String   @map("owner_id") @db.Uuid
-  objectKey String   @map("object_key")
-  mimeType  String   @map("mime_type")
-  sizeBytes Int      @map("size_bytes")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id        String       @id @default(uuid()) @db.Uuid
+  objectKey String       @map("object_key")
+  /**
+   * Sniffed from the leading bytes, not taken from the caller.
+   */
+  mimeType  String       @map("mime_type")
+  sizeBytes Int          @map("size_bytes")
+  variant   AssetVariant @default(ORIGINAL)
+  width     Int?
+  height    Int?
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz()
 
-  product Product? @relation(fields: [ownerId], references: [id])
+  /**
+   * Derivatives point at the original they were resized from.
+   */
+  parentAssetId String?     @map("parent_asset_id") @db.Uuid
+  parentAsset   FileAsset?  @relation("AssetDerivatives", fields: [parentAssetId], references: [id], onDelete: Cascade)
+  derivatives   FileAsset[] @relation("AssetDerivatives")
 
+  productId String?  @map("product_id") @db.Uuid
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  productRequestId String?         @map("product_request_id") @db.Uuid
+  productRequest   ProductRequest? @relation(fields: [productRequestId], references: [id], onDelete: Cascade)
+
+  /**
+   * Who uploaded it, so a customer's photo is attributable.
+   */
+  uploadedBy String? @map("uploaded_by") @db.Uuid
+
+  @@index([productId])
+  @@index([productRequestId])
   @@map("file_assets")
 }
 
@@ -562,19 +604,37 @@ model InventoryMovement {
   @@map("inventory_movements")
 }
 
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+/**
+ * Stock set aside, either for an order or for a request awaiting an answer.
+ * `sale_order_id` was required, so this could only ever hold for something that
+ * was already an order — which is why the table sat unused. A request holds
+ * stock before an order exists; that is the whole point of a hold.
+ * Exactly one of the two is set, enforced by a check constraint rather than by
+ * hope.
+ */
 model InventoryReservation {
-  id          String    @id @default(uuid()) @db.Uuid
-  batchId     String    @map("batch_id") @db.Uuid
-  saleOrderId String    @map("sale_order_id") @db.Uuid
-  qty         Decimal   @db.Decimal(18, 3)
-  status      String    @default("ACTIVE")
-  expiresAt   DateTime? @map("expires_at") @db.Timestamptz()
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  id             String            @id @default(uuid()) @db.Uuid
+  batchId        String            @map("batch_id") @db.Uuid
+  saleOrderId    String?           @map("sale_order_id") @db.Uuid
+  orderRequestId String?           @map("order_request_id") @db.Uuid
+  qty            Decimal           @db.Decimal(18, 3)
+  status         ReservationStatus @default(ACTIVE)
+  expiresAt      DateTime?         @map("expires_at") @db.Timestamptz()
+  releasedAt     DateTime?         @map("released_at") @db.Timestamptz()
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
 
-  batch     InventoryBatch @relation(fields: [batchId], references: [id])
-  saleOrder SaleOrder      @relation(fields: [saleOrderId], references: [id])
+  batch        InventoryBatch @relation(fields: [batchId], references: [id])
+  saleOrder    SaleOrder?     @relation(fields: [saleOrderId], references: [id])
+  orderRequest OrderRequest?  @relation(fields: [orderRequestId], references: [id], onDelete: Cascade)
 
+  @@index([status, expiresAt])
   @@map("inventory_reservations")
 }
 
@@ -619,6 +679,8 @@ model Customer {
   // column to leave unenforced.
   shopOwner User? @relation("PortalAccount", fields: [shopOwnerUserId], references: [id])
 
+  orderRequests OrderRequest[]
+
   paymentPlans PaymentPlan[]
 
   @@map("customers")
@@ -648,6 +710,8 @@ model SaleOrder {
   paymentAllocations PaymentAllocation[]
 
   returns SaleReturn[]
+
+  orderRequest OrderRequest?
 
   @@map("sale_orders")
 }
@@ -869,18 +933,35 @@ model AuditLog {
 
 // ─── Product Requests (Phase 2) ────────────────────────────────────
 
+enum ProductRequestStatus {
+  PENDING
+  SOURCING
+  ANSWERED
+  DECLINED
+}
+
 model ProductRequest {
-  id                String   @id @default(uuid()) @db.Uuid
-  customerId        String   @map("customer_id") @db.Uuid
-  productName       String   @map("product_name")
-  compatibilityText String?  @map("compatibility_text")
-  quantity          Decimal? @db.Decimal(18, 3)
+  id                String               @id @default(uuid()) @db.Uuid
+  customerId        String               @map("customer_id") @db.Uuid
+  productName       String               @map("product_name")
+  compatibilityText String?              @map("compatibility_text")
+  quantity          Decimal?             @db.Decimal(18, 3)
   notes             String?
-  assetId           String?  @map("asset_id") @db.Uuid
-  supplierUrl       String?  @map("supplier_url")
-  status            String   @default("PENDING")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  supplierUrl       String?              @map("supplier_url")
+  status            ProductRequestStatus @default(PENDING)
+  /**
+   * The owner's reply, shown to the shop.
+   */
+  decisionNote      String?              @map("decision_note")
+  decidedAt         DateTime?            @map("decided_at") @db.Timestamptz()
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz()
+
+  /**
+   * Photos of the part. `asset_id` held exactly one and had no relation
+   * behind it; a shop photographs a part from three angles.
+   */
+  photos FileAsset[]
 
   customer  Customer @relation(fields: [customerId], references: [id])
   creator   User?    @relation("CreatedProductRequestUser", fields: [createdBy], references: [id])
@@ -912,4 +993,105 @@ model CurrencyRate {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("currency_rates")
+}
+
+enum OrderRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+/**
+ * A shop asking to buy, before it is an order.
+ * Deliberately not a status on `SaleOrder`. Outstanding balances, analytics,
+ * payment allocation, settlement projection and the customer balance screen all
+ * read sale orders, and a `REQUESTED` value there would mean every one of them
+ * has to learn to exclude it. The one that forgot would be silently wrong
+ * money, which is the failure this repository has spent the most time on.
+ * Approving calls the existing `sales.create` and `confirmOrder`. There is one
+ * definition of how an order comes into being and this is not a second one.
+ */
+model OrderRequest {
+  id           String             @id @default(uuid()) @db.Uuid
+  requestNo    String             @unique @map("request_no")
+  customerId   String             @map("customer_id") @db.Uuid
+  status       OrderRequestStatus @default(PENDING)
+  /**
+   * What the shop wrote when submitting.
+   */
+  note         String?
+  /**
+   * The owner's answer, shown to the shop beside what changed.
+   */
+  decisionNote String?            @map("decision_note")
+
+  /**
+   * When the hold lapses. The request stays answerable past it; only the
+   * units go back on the shelf.
+   */
+  holdExpiresAt  DateTime? @map("hold_expires_at") @db.Timestamptz()
+  holdReleasedAt DateTime? @map("hold_released_at") @db.Timestamptz()
+
+  saleOrderId String?   @unique @map("sale_order_id") @db.Uuid
+  decidedAt   DateTime? @map("decided_at") @db.Timestamptz()
+  decidedBy   String?   @map("decided_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  version     Int       @default(1)
+
+  customer     Customer               @relation(fields: [customerId], references: [id])
+  saleOrder    SaleOrder?             @relation(fields: [saleOrderId], references: [id])
+  decider      User?                  @relation("DecidedOrderRequestUser", fields: [decidedBy], references: [id])
+  items        OrderRequestItem[]
+  reservations InventoryReservation[]
+
+  @@index([customerId, status])
+  @@index([status, holdExpiresAt])
+  @@map("order_requests")
+}
+
+model OrderRequestItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  orderRequestId String   @map("order_request_id") @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  qtyRequested   Decimal  @map("qty_requested") @db.Decimal(18, 3)
+  /**
+   * Null until decided. Zero means the line was dropped.
+   */
+  qtyApproved    Decimal? @map("qty_approved") @db.Decimal(18, 3)
+  /**
+   * The price the shop was shown when they asked. A price that moves between
+   * request and approval must not change what they believed they were asking
+   * for; the approval screen shows both when they differ.
+   */
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(18, 2)
+
+  orderRequest OrderRequest @relation(fields: [orderRequestId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id])
+
+  @@map("order_request_items")
+}
+
+/**
+ * One browser that agreed to be notified.
+ * Deleted on a 404 or 410 from the push service. Dead endpoints otherwise
+ * accumulate for every phone that ever uninstalled the app, and each one is a
+ * failed request on every send.
+ */
+model PushSubscription {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  userAgent     String?   @map("user_agent")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz()
+  failureCount  Int       @default(0) @map("failure_count")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }

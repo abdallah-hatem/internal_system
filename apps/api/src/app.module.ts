@@ -25,6 +25,7 @@ import { CurrencyRatesModule } from './modules/currency-rates/currency-rates.mod
 import { CostingModule } from './modules/costing/costing.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module';
+import { PortalModule } from './modules/portal/portal.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module
     CostingModule,
     ReturnsModule,
     PaymentPlansModule,
+    PortalModule,
   ],
   providers: [
     /**

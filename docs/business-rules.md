@@ -371,6 +371,65 @@ behind.
 
 ---
 
+## 12. The customer storefront
+
+DECIDED 2026-08-30. A shop owner browses a public catalogue, asks to buy, and
+the owner approves. Design in
+`docs/superpowers/specs/2026-08-30-customer-storefront-design.md`.
+
+**Who sees what price.** The catalogue is public and quotes retail. A shop that
+has been verified sees the price for its own customer type — trade, for a B2B
+shop. An unverified account sees retail: nothing has been agreed with them yet,
+and showing the wholesale list to whoever fills in a signup form gives it away.
+
+The channel is resolved once, on the server, from the token. Every surface that
+shows a price — the card, the product page, the basket, the resulting order —
+is handed the price already resolved. No screen chooses.
+
+**Stock is a band, never a count.** In stock, low, or out. A public page saying
+"12 left" tells a competitor the exact position, and a shop needs only to know
+whether it is worth asking.
+
+**A request holds the stock behind it, for 48 hours.** Submitting sets the units
+aside so a second shop cannot be promised the same ones. When the 48 hours pass
+the units go back on the shelf and the request stays answerable — expiry is not
+a decision, it only stops an unanswered request from costing anything while it
+waits. Approving after expiry re-checks what is actually there and refuses if it
+has gone.
+
+The deadline is the rule, not the sweeper: a hold past its time is ignored when
+availability is calculated, whether or not the job that releases it has run.
+
+**Approving can change what was asked for.** Quantities can be reduced and lines
+dropped — ten asked for, six in stock, so six approved and the shop is told why.
+What is approved becomes the order. Approving for *more* than was requested is
+refused: the shop would be billed for goods it never asked for. Approving
+nothing is refused too, because that is a decline wearing a different word, and
+a decline must carry a reason.
+
+The price the shop was shown when they asked is recorded on the request. A price
+that moves in between does not change what they believed they were asking for;
+the approval screen shows both.
+
+**An order request is not a sale order.** Separate records. Outstanding
+balances, analytics, payment allocation and settlement projection all read sale
+orders, and a request living among them as a status would mean every one of
+those has to learn to exclude it.
+
+**A signup becomes an unverified customer.** The owner chose this over a
+separate pending queue, knowing it lets a stranger create a row in the table
+that orders and balances hang off. Contained rather than argued: unverified
+customers are filtered out of the Customers list by default, and an order
+request, a payment and a payment plan are all refused against one. A spam row
+can exist; it can never touch money.
+
+**Notifications are recorded first and delivered second.** Every event writes a
+notification row, then attempts a push. A push that fails must never mean a lost
+notification, and a shop on an iPhone gets no push at all until the app is added
+to their home screen.
+
+---
+
 ## Still open
 
 These are **not decided**. The code's current behaviour is stated so nobody
@@ -384,6 +443,7 @@ mistakes it for an agreement.
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |
+| Whether a shop that is behind on payment may hold stock | It may. A request checks verification and stock, not the balance. Raised 2026-08-30 with the storefront; not decided. |
 
 ---
 

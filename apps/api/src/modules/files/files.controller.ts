@@ -1,43 +1,79 @@
-import { Controller, Get, Post, Param, Body, Res, UseGuards, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { Response } from 'express';
+
 import { FilesService } from './files.service';
+import { MAX_UPLOAD_BYTES } from './image-pipeline';
+import { badRequest } from '../../common/api-error';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Files')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
 @Controller('files')
 export class FilesController {
   constructor(private filesService: FilesService) {}
 
-  @Post('signed-url')
-  @ApiOperation({ summary: 'Get a signed upload URL' })
-  getSignedUrl(@Body() body: { ownerType: string; ownerId: string; fileName: string; mimeType: string; sizeBytes: number }) {
-    return this.filesService.getSignedUploadUrl(body);
-  }
-
-  @Post('upload/:id')
-  @UseInterceptors(FileInterceptor('file'))
+  /**
+   * Add a picture to a product.
+   *
+   * Internal — this is the office adding photographs to the catalogue. The
+   * limit is enforced by multer, before the bytes are in memory: checking the
+   * length afterwards means having already read whatever was sent.
+   */
+  @Post('products/:productId')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES } }))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload a file' })
-  upload(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
-    return this.filesService.uploadFile(id, file.buffer, file.originalname);
+  @ApiOperation({ summary: 'Add a photo to a product' })
+  uploadProductImage(
+    @Param('productId') productId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: { id: string },
+  ) {
+    if (!file) throw badRequest('FILE_REQUIRED', 'No file was sent.');
+    return this.filesService.upload({ productId }, file.buffer, user.id);
   }
 
+  @Get('products/:productId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'The photos on a product' })
+  listProductImages(@Param('productId') productId: string) {
+    return this.filesService.listFor({ productId });
+  }
+
+  @Delete(':id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Remove an image and the sizes derived from it' })
+  remove(@Param('id') id: string) {
+    return this.filesService.remove(id);
+  }
+
+  /**
+   * Serve the bytes.
+   *
+   * Still behind a login: this route reaches every image including the photos
+   * on customers' requests. The catalogue's own images are served by the portal
+   * controller, which is public and restricted to product images.
+   */
   @Get('download/*objectKey')
+  @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Download a file' })
   async download(@Param('objectKey') objectKey: string, @Res() res: Response) {
     const { buffer, mimeType } = await this.filesService.serveFile(decodeURIComponent(objectKey));
-    res.set({ 'Content-Type': mimeType, 'Cache-Control': 'public, max-age=3600' });
+    res.set({ 'Content-Type': mimeType, 'Cache-Control': 'private, max-age=3600' });
     res.send(buffer);
-  }
-
-  @Get('owner/:ownerType/:ownerId')
-  @ApiOperation({ summary: 'List files for an owner' })
-  getFilesByOwner(@Param('ownerType') ownerType: string, @Param('ownerId') ownerId: string) {
-    return this.filesService.getFilesByOwner(ownerType, ownerId);
   }
 }

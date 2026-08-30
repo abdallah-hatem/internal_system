@@ -828,6 +828,22 @@
     "USE_PORTAL_LOGIN": "Shop accounts sign in on the store, not here.",
     "WRONG_SURFACE": "This account cannot be used here.",
     "USE_INTERNAL_LOGIN": "Office accounts sign in on the internal system.",
-    "PORTAL_ACCOUNT_INCOMPLETE": "This account is not linked to a shop yet."
+    "PORTAL_ACCOUNT_INCOMPLETE": "This account is not linked to a shop yet.",
+    "REQUEST_NEEDS_ITEM": "A request must ask for at least one product.",
+    "REQUEST_QTY_INVALID": "Every line must ask for more than zero.",
+    "SHOP_NOT_VERIFIED": "Your account is still being reviewed, so orders cannot be placed yet.",
+    "PRODUCT_NOT_PRICED": "{product} has no price yet.",
+    "STOCK_TAKEN_MEANWHILE": "Some of that stock was taken while your request was being placed. Please try again.",
+    "REQUEST_ALREADY_DECIDED": "This request has already been answered.",
+    "LINE_NOT_REQUESTED": "A line was approved that this request never asked for.",
+    "APPROVED_MORE_THAN_REQUESTED": "A line cannot be approved for more than was requested.",
+    "PRICE_INVALID": "An approved line must carry a price above zero.",
+    "NOTHING_APPROVED": "Nothing was approved. Decline the request instead, so the shop is told why.",
+    "REASON_REQUIRED": "Tell the shop why, so they know what to do next.",
+    "FILE_EMPTY": "That file is empty.",
+    "FILE_TOO_LARGE": "That image is larger than {maxMb} MB.",
+    "FILE_NOT_AN_IMAGE": "That file is not an image we can read.",
+    "FILE_REQUIRED": "No file was sent.",
+    "DELETE_THE_ORIGINAL": "Delete the original image; its other sizes go with it."
   }
 }

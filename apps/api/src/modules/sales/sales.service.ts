@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
+import { availableQty } from '../../common/available-stock';
 @Injectable()
 export class SalesService {
   constructor(
@@ -97,16 +98,16 @@ export class SalesService {
       throw badRequest('ORDER_NEEDS_ITEM', 'Order must contain at least one item');
     }
 
-    // What can be sold right now: the saleable quantity across this product's
-    // verified batches. Same definition confirming uses to allocate, so the
-    // two cannot drift into disagreeing about what is on the shelf.
-    const availableFor = async (productId: string) => {
-      const agg = await this.prisma.inventoryBatch.aggregate({
-        where: { productId, verificationStatus: 'VERIFIED' },
-        _sum: { saleableQty: true },
-      });
-      return new Prisma.Decimal(agg._sum.saleableQty ?? 0);
-    };
+    // What can be sold right now, from the one definition of it.
+    //
+    // This was a local aggregate over saleable quantity, which was correct
+    // while `InventoryReservation` sat unused. The storefront now lets a shop
+    // hold stock while the owner decides, and a local copy here would have gone
+    // on selling the held units — the storefront and the office disagreeing
+    // about the same shelf, which shows up as a wrong figure on one screen and
+    // a right one on the other. `availableQty` subtracts live holds and is read
+    // by the catalogue, the request flow and this, all three.
+    const availableFor = (productId: string) => availableQty(this.prisma, productId);
 
     // Summed per product, not checked line by line: two lines of 40 against 60
     // in stock is 80, and checking each alone would wave it through.

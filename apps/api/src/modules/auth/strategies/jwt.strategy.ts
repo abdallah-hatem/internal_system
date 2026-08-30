@@ -26,6 +26,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || user.status !== 'ACTIVE') {
       throw unauthorized('SESSION_INVALID', 'Your session is no longer valid');
     }
-    return { id: user.id, email: user.email, role: user.role, partner: user.partner };
+    // `customerId` rides on portal tokens only, and is the shop whose data the
+    // session may see. Read from the token rather than looked up per request:
+    // it is signed, so it cannot be swapped, and having it here means no portal
+    // endpoint ever needs to accept a customer id from the caller.
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      partner: user.partner,
+      customerId: payload.customerId as string | undefined,
+    };
   }
 }

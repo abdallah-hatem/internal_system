@@ -39,6 +39,54 @@ async function seedContributions(cycleId: string, cycleCode: string) {
   }
 }
 
+/**
+ * A shop with a login, linked to a customer.
+ *
+ * Called from every level that has customers, not just one. It lived inside the
+ * reference branch first, and `prisma db seed` with no level flag runs the demo
+ * path — which is what the Playwright harness uses. So the store account was
+ * absent from every test run and five fence tests failed against a shop that
+ * did not exist, reporting INVALID_CREDENTIALS for what looked like a logic bug.
+ */
+/**
+ * Selling prices, so a sale line prices itself instead of starting at zero.
+ *
+ * Called at both levels. The demo level created products and no prices at all,
+ * which made the worked example unable to demonstrate a priced sale — and left
+ * the storefront quoting nothing, since a product with no row on a channel is
+ * shown as unpriced rather than as free.
+ */
+async function priceProduct(productId: string, b2b: number, b2c: number) {
+  for (const [channel, amount] of [['B2B', b2b], ['B2C', b2c]] as [string, number][]) {
+    const existing = await prisma.productPrice.findFirst({
+      where: { productId, channel, effectiveTo: null },
+    });
+    if (!existing) {
+      await prisma.productPrice.create({
+        data: { productId, channel, currency: 'EGP', amount, effectiveFrom: new Date() },
+      });
+    }
+  }
+}
+
+async function giveStoreLogin(customerId: string) {
+  const shopUser = await prisma.user.upsert({
+    where: { email: 'shop.owner@example.com' },
+    update: {},
+    create: {
+      email: 'shop.owner@example.com',
+      passwordHash: await bcrypt.hash('password123', 12),
+      role: 'SHOP_OWNER_PORTAL',
+      status: 'ACTIVE',
+    },
+  });
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { shopOwnerUserId: shopUser.id, verificationStatus: 'VERIFIED' },
+  });
+  return shopUser;
+}
+
 async function main() {
   console.log('🌱 Seeding database...');
 
@@ -206,25 +254,8 @@ async function main() {
       },
     });
 
-    // Selling prices, so a sale line prices itself instead of starting at zero.
-    for (const [product, b2b, b2c] of [
-      [brakePad, 320, 450],
-      [helmet, 1800, 2400],
-    ] as [typeof brakePad, number, number][]) {
-      for (const [channel, amount] of [['B2B', b2b], ['B2C', b2c]] as [string, number][]) {
-        const existing = await prisma.productPrice.findFirst({
-          where: { productId: product.id, channel, effectiveTo: null },
-        });
-        if (!existing) {
-          await prisma.productPrice.create({
-            data: {
-              productId: product.id, channel, currency: 'EGP',
-              amount, effectiveFrom: new Date(),
-            },
-          });
-        }
-      }
-    }
+    await priceProduct(brakePad.id, 320, 450);
+    await priceProduct(helmet.id, 1800, 2400);
 
     // One of each kind, since the channel a sale prices at follows the
     // customer's type.
@@ -236,23 +267,7 @@ async function main() {
     const elNasr = await customerOf('El Nasr Motors', 'B2B', '+20 122 555 6677');
     await customerOf('Walk-in Customer', 'B2C', '+20 111 888 9900');
 
-    // A shop with a login, so the fence between the office and the store can be
-    // tested from the outside. A test that mints its own token proves the guard
-    // reads a claim; it does not prove the system ever issues one.
-    const shopUser = await prisma.user.upsert({
-      where: { email: 'shop.owner@example.com' },
-      update: {},
-      create: {
-        email: 'shop.owner@example.com',
-        passwordHash: await bcrypt.hash('password123', 12),
-        role: 'SHOP_OWNER_PORTAL',
-        status: 'ACTIVE',
-      },
-    });
-    await prisma.customer.update({
-      where: { id: elNasr.id },
-      data: { shopOwnerUserId: shopUser.id, verificationStatus: 'VERIFIED' },
-    });
+    await giveStoreLogin(elNasr.id);
 
     console.log('✅ Reference seed — 2 categories, 2 suppliers, 2 shipping providers,');
     console.log('   2 products (priced B2B/B2C) and 2 customers. No cycles or orders.');
@@ -420,6 +435,9 @@ async function main() {
     },
   });
 
+  await priceProduct(brakePad.id, 320, 450);
+  await priceProduct(helmet.id, 1800, 2400);
+
   const customer = await prisma.customer.upsert({
     where: { id: id('50') },
     update: {},
@@ -430,6 +448,12 @@ async function main() {
       phone: '+201000000001',
     },
   });
+
+  // A B2B shop with a store login, so the portal can be exercised at this level
+  // too. `prisma db seed` with no flag runs this path, and the test harness
+  // uses exactly that.
+  await giveStoreLogin(customer.id);
+
 
   // ── Cycle 1 — China route ───────────────────────────────────────────────
   const existingCycle = await prisma.importCycle.findUnique({ where: { code: 'CYC-DEMO-001' } });
