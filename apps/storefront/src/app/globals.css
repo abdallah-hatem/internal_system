@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/**
+ * The store's own look.
+ *
+ * The scaffold shipped a `prefers-color-scheme: dark` block that painted the
+ * body black and beat every Tailwind background on the page. The internal
+ * system is light-only and this reads beside it, so the two are not going to
+ * disagree about what colour a page is depending on a phone setting.
+ *
+ * The font pair matches the internal app: IBM Plex Sans for Latin, IBM Plex
+ * Sans Arabic for Arabic, both loaded through next/font in the locale layout.
+ * `--font-arabic` comes first in the stack so Arabic text is never rendered in
+ * the Latin face's fallback glyphs.
+ */
+
+@theme inline {
+  --font-sans: var(--font-arabic), var(--font-latin), ui-sans-serif, system-ui, sans-serif;
+
+  /* ── shadcn semantic tokens ───────────────────────────────────────────
+     Copied from the internal system so the shared `Select` reads as part of
+     this product rather than as an unstyled component library. The two apps
+     use the same picker; they should not disagree about what it looks like. */
+  --color-background: #ffffff;
+  --color-foreground: #111827;
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #111827;
+
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+
+  --color-accent: #f3f4f6;
+  --color-accent-foreground: #111827;
+
+  --color-border: #e5e7eb;
+  --color-input: #e5e7eb;
+  --color-ring: #3b82f6;
+
+  --radius: 0.75rem;
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.375rem;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+}
+
+html {
+  /* Tabular figures everywhere a price or a quantity appears. Proportional
+     digits make a column of money jitter as the values change. */
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+@layer base {
+  /* Anything you can click says so.
+   *
+   * Tailwind v4's preflight no longer gives buttons a pointer cursor, so
+   * every button in a fresh project comes out with an arrow. The internal
+   * system carries the same rule for the same reason; it was missed here
+   * because this project was scaffolded rather than copied.
+   *
+   * A rule rather than a `cursor-pointer` class on each element: the class
+   * gets forgotten on the next button somebody adds, and this cannot be. */
+  button,
+  a,
+  summary,
+  [role="button"],
+  [role="option"],
+  [role="tab"],
+  label:has(input[type="radio"]),
+  label:has(input[type="checkbox"]),
+  label:has(input[type="file"]) {
+    cursor: pointer;
+  }
+
+  /* Except when it would be a lie. */
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  [disabled] {
+    cursor: not-allowed;
+  }
+}
