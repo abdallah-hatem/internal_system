@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { validationRefusal } from './common/validation-error';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -20,6 +21,10 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
+      // Otherwise this answers with `code: "Bad Request"` and an array of
+      // English sentences, which no client can translate and React renders
+      // concatenated. See `validationRefusal`.
+      exceptionFactory: validationRefusal,
     }),
   );
 

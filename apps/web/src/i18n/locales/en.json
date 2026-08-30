@@ -848,6 +848,7 @@
     "FILE_REQUIRED": "No file was sent.",
     "DELETE_THE_ORIGINAL": "Delete the original image; its other sizes go with it.",
     "CUSTOMER_NOT_VERIFIED": "{customer} has not been verified yet, so nothing can be recorded against them.",
-    "TOO_MANY_PHOTOS": "A request can carry at most {max} photos."
+    "TOO_MANY_PHOTOS": "A request can carry at most {max} photos.",
+    "VALIDATION_FAILED": "Some of what you entered is not valid: {fields}."
   }
 }

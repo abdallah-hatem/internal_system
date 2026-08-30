@@ -848,6 +848,7 @@
     "FILE_REQUIRED": "لم يتم إرسال أي ملف.",
     "DELETE_THE_ORIGINAL": "احذف الصورة الأصلية؛ وستُحذف معها بقية المقاسات.",
     "CUSTOMER_NOT_VERIFIED": "لم يتم التحقق من {customer} بعد، لذا لا يمكن تسجيل أي شيء عليه.",
-    "TOO_MANY_PHOTOS": "يمكن إرفاق {max} صور كحد أقصى لكل طلب."
+    "TOO_MANY_PHOTOS": "يمكن إرفاق {max} صور كحد أقصى لكل طلب.",
+    "VALIDATION_FAILED": "بعض البيانات المُدخلة غير صحيحة: {fields}."
   }
 }
