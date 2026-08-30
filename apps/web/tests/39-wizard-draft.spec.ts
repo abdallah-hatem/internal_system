@@ -155,6 +155,21 @@ test.describe('New-cycle wizard draft', () => {
     await page.reload();
     await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
     await expect(banner(page)).toHaveCount(0);
+
+    // And nothing is left in storage to come back later.
+    //
+    // The banner alone was not enough. This test failed once inside a full run
+    // and passed six times in a row on its own, because whether the banner
+    // appears depends on when the save effect happens to fire relative to the
+    // reload. The stored value does not depend on that timing, so assert on it.
+    //
+    // What was actually wrong: `handleStartAnother` reset seventeen fields and
+    // missed `originType` and `maxStepReached`, and `draftIsWorthKeeping`
+    // returns true on `originType` alone — so the effect that saves on any
+    // field change wrote the draft back immediately after it was discarded.
+    const stored = await page.evaluate((k) => localStorage.getItem(k), DRAFT_KEY);
+    const draft = stored ? JSON.parse(stored)?.state?.draft : null;
+    expect(draft, `Start over left a draft behind: ${JSON.stringify(draft)}`).toBeFalsy();
   });
 
   test('TC-DRAFT-06: a draft older than a week is not offered', async ({ page }) => {

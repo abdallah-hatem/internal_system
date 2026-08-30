@@ -1027,6 +1027,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const handleStartAnother = () => {
     forgetDraft();
     setCurrentStep(0);
+    // `originType` and `maxStepReached` were the two fields this reset forgot,
+    // and `draftIsWorthKeeping` returns true on `originType` alone — so the
+    // save effect below, which fires on any of these, wrote the draft straight
+    // back after it had just been discarded. "Start over" has to leave nothing
+    // that counts as a draft, or it is a button that appears to work.
+    setOriginType('');
+    setMaxStepReached(0);
     setCycleId(null);
     setCycleCode(null);
     setPoId(null);
