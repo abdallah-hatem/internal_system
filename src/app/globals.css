@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/**
+ * The store's own look.
+ *
+ * The scaffold shipped a `prefers-color-scheme: dark` block that painted the
+ * body black and beat every Tailwind background on the page. The internal
+ * system is light-only and this reads beside it, so the two are not going to
+ * disagree about what colour a page is depending on a phone setting.
+ *
+ * The font pair matches the internal app: IBM Plex Sans for Latin, IBM Plex
+ * Sans Arabic for Arabic, both loaded through next/font in the locale layout.
+ * `--font-arabic` comes first in the stack so Arabic text is never rendered in
+ * the Latin face's fallback glyphs.
+ */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-arabic), var(--font-latin), ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  /* Tabular figures everywhere a price or a quantity appears. Proportional
+     digits make a column of money jitter as the values change. */
+  font-variant-numeric: tabular-nums;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
