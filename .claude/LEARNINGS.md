@@ -55,3 +55,47 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - The two apps are separate origins, so a token stored by one is invisible to the
   other. That is correct, not an inconvenience. — 2026-08-30
 
+## Configuration that fails silently
+
+- A missing secret is not a crash, it is a forgery. `configService.get('JWT_SECRET')!`
+  with nothing set makes @nestjs/jwt sign and verify with `undefined`: every login works,
+  every request is authorised, and any token is forgeable. Neither end looks wrong. Check
+  values like this at boot and refuse to start — `common/jwt-secret.ts`. The same shape
+  applies to any config read with a `!`. — 2026-08-30
+- Match placeholders on the value with case and punctuation stripped, not the literal
+  string. The first list stored `change_me_in_production`, so the hyphenated spelling
+  missed it entirely and a 40-character placeholder would have been accepted. Its own
+  test caught that. — 2026-08-30
+
+## Claims about security
+
+- Verify before repeating an alarming claim. I told the owner several times that the JWT
+  secret was committed to a public repo. It never was — `.env` has never been tracked and
+  the value is nowhere in history. The claim came from an earlier session's notes and I
+  passed it on as fact. `git log --all -S "<value>"` is two seconds and settles it. An
+  invented emergency spends the owner's attention on nothing and hides the real backlog.
+  — 2026-08-30
+
+## Moving a repo in with subtree
+
+- `git log -- apps/<name>` shows almost nothing afterwards, because the merged commits
+  carry the old paths. That is not lost history. Check it properly:
+  `git merge-base --is-ancestor <old-main-sha> HEAD`. — 2026-08-30
+- Whatever the old repo did not track cannot come across. Next's generated `.gitignore`
+  has `.env*`, which swallows `.env.example`, so the storefront arrived with no record of
+  what it needs to start. Diff the two working trees after the move, not just the git
+  histories. — 2026-08-30
+- `git check-ignore -v` prints the matching rule for a negation (`!.env.example`) as
+  readily as for an exclusion, and its exit code is what distinguishes them. Reading the
+  output as proof of exclusion is wrong. `git add --dry-run` answers the actual question.
+  — 2026-08-30
+
+## Sweep tests
+
+- A test that loads many pages gets slower as the suite around it grows, because by file
+  50 the database holds what the previous 49 created. TC-DATE-02 swept 18 pages behind a
+  blind `waitForTimeout(900)`: fine alone at 20s, dead past the 60s limit in a full run.
+  A fixed wait also reads the screen mid-render, so the leak it hunts can be on a row that
+  has not painted. Wait for the page to stop loading instead — 4.8s, and it still catches
+  an injected timestamp. — 2026-08-30
+
