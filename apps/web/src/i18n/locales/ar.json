@@ -850,7 +850,8 @@
     "DELETE_THE_ORIGINAL": "احذف الصورة الأصلية؛ وستُحذف معها بقية المقاسات.",
     "CUSTOMER_NOT_VERIFIED": "لم يتم التحقق من {customer} بعد، لذا لا يمكن تسجيل أي شيء عليه.",
     "TOO_MANY_PHOTOS": "يمكن إرفاق {max} صور كحد أقصى لكل طلب.",
-    "VALIDATION_FAILED": "بعض البيانات المُدخلة غير صحيحة: {fields}."
+    "VALIDATION_FAILED": "بعض البيانات المُدخلة غير صحيحة: {fields}.",
+    "REQUEST_WITHDRAWN": "سحب المحل هذا الطلب، لذا لا يوجد ما يُرد عليه."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

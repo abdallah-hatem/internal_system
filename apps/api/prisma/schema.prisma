@@ -938,6 +938,9 @@ enum ProductRequestStatus {
   SOURCING
   ANSWERED
   DECLINED
+  /** The shop changed its own mind. Not the same as being turned down, and a
+      screen that showed it as DECLINED told a customer we had refused them. */
+  CANCELLED
 }
 
 model ProductRequest {

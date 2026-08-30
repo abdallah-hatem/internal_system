@@ -136,12 +136,96 @@ export class ImportRequestsService {
       );
     }
 
+    // CANCELLED, not DECLINED, and no note invented on the shop's behalf.
+    //
+    // The first version wrote `status: 'DECLINED'` with the English literal
+    // "Withdrawn by the shop." into `decisionNote` — so a shop that changed its
+    // own mind read "not available" with an English sentence under "our reply",
+    // indistinguishable from being turned down. Nothing in the payload told the
+    // two apart, and rule 9 forbids the client guessing from the text.
     await this.prisma.productRequest.update({
       where: { id },
-      data: { status: 'DECLINED', decisionNote: 'Withdrawn by the shop.', decidedAt: new Date() },
+      data: { status: 'CANCELLED', decidedAt: new Date() },
     });
 
     return { data: this.present(await this.load(id, customerId)) };
+  }
+
+  // ── The owner's side ────────────────────────────────────────────────
+
+  /** Everything a shop has asked us to bring in, newest first. */
+  async listForOffice(status?: string) {
+    const rows = await this.prisma.productRequest.findMany({
+      where: status ? { status: status as any } : { status: { in: ['PENDING', 'SOURCING'] } },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        customer: { select: { id: true, displayName: true, verificationStatus: true } },
+        photos: { where: { variant: 'CARD' }, select: { id: true, objectKey: true } },
+        product: { select: { id: true, sku: true, name: true } },
+      },
+    });
+
+    return {
+      data: rows.map((r) => ({
+        ...this.present(r),
+        customer: {
+          id: r.customer.id,
+          displayName: r.customer.displayName,
+          verified: r.customer.verificationStatus === 'VERIFIED',
+        },
+        // The office reads photos through the files route, which its own token
+        // opens. The portal path in `present()` is for the shop.
+        photos: r.photos.map((p) => ({
+          id: p.id,
+          url: `/api/v1/files/download/${p.objectKey}`,
+        })),
+      })),
+    };
+  }
+
+  /**
+   * Answer one.
+   *
+   * `SOURCING` is a real answer, not a non-answer: it tells a shop we are
+   * looking, which is the difference between waiting and being ignored.
+   *
+   * `productId` links the request to what it became once the part is stocked,
+   * so the shop can go from "you asked for this" straight to buying it.
+   */
+  async answer(
+    id: string,
+    actorId: string,
+    decision: { status: 'SOURCING' | 'ANSWERED' | 'DECLINED'; decisionNote: string; productId?: string },
+  ) {
+    const request = await this.prisma.productRequest.findUnique({ where: { id } });
+    if (!request) throw notFound('productRequest');
+
+    if (request.status === 'CANCELLED') {
+      throw conflict(
+        'REQUEST_WITHDRAWN',
+        'The shop withdrew this request, so there is nothing to answer.',
+      );
+    }
+
+    if (decision.productId) {
+      const product = await this.prisma.product.findUnique({ where: { id: decision.productId } });
+      if (!product) throw notFound('product');
+    }
+
+    await this.prisma.productRequest.update({
+      where: { id },
+      data: {
+        status: decision.status,
+        decisionNote: decision.decisionNote,
+        productId: decision.productId,
+        // SOURCING is not a decision, it is a progress report — dating it as
+        // one would make "decided at" a lie the day someone reports on it.
+        decidedAt: decision.status === 'SOURCING' ? null : new Date(),
+        createdBy: request.createdBy ?? actorId,
+      },
+    });
+
+    return { data: { id, status: decision.status } };
   }
 
   /**

@@ -850,7 +850,8 @@
     "DELETE_THE_ORIGINAL": "Delete the original image; its other sizes go with it.",
     "CUSTOMER_NOT_VERIFIED": "{customer} has not been verified yet, so nothing can be recorded against them.",
     "TOO_MANY_PHOTOS": "A request can carry at most {max} photos.",
-    "VALIDATION_FAILED": "Some of what you entered is not valid: {fields}."
+    "VALIDATION_FAILED": "Some of what you entered is not valid: {fields}.",
+    "REQUEST_WITHDRAWN": "The shop withdrew this request, so there is nothing to answer."
   },
   "orderRequests": {
     "title": "Order requests",
