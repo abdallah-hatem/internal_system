@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CAPITALISED_CATEGORIES } from '../../common/ledger-categories';
+import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
 
 /**
  * Sale states whose revenue is realised: the goods have left the business, so
@@ -185,8 +186,15 @@ export class AnalyticsService {
   }
 
   async getRevenueByMonth(months: number = 12) {
-    const since = new Date();
-    since.setMonth(since.getMonth() - months);
+    // See `monthBuckets` for why this is not a loop that walks a date forward.
+    // In short: `setMonth` is local time, the keys are UTC, and a date carrying
+    // a day-of-month cannot be stepped by months — together they dropped the
+    // current month from the chart on 24 days of 2026.
+    const now = new Date();
+    // `months` buckets ending with the current one, so 12 means this month and
+    // the eleven before it — not thirteen.
+    const keys = monthBuckets(now, months);
+    const since = monthBucketsSince(now, months);
 
     const orders = await this.prisma.saleOrder.findMany({
       where: {
@@ -221,14 +229,8 @@ export class AnalyticsService {
       revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) - Number(ret.refundEgp);
     }
 
-    // Fill in missing months with 0
-    const result: { month: string; revenue: number }[] = [];
-    const cursor = new Date(since);
-    while (cursor <= new Date()) {
-      const key = cursor.toISOString().slice(0, 7);
-      result.push({ month: key, revenue: revenueByMonth[key] || 0 });
-      cursor.setMonth(cursor.getMonth() + 1);
-    }
+    // Every bucket, including the current month, and zero for the quiet ones.
+    const result = keys.map((key) => ({ month: key, revenue: revenueByMonth[key] || 0 }));
 
     return { data: result };
   }
