@@ -812,6 +812,56 @@ test.describe('The language it opens in', () => {
 
 // ─────────────────────────────────────────────────────────────────────────
 test.describe('The controls it is made of', () => {
+  test('TC-STORE-19: the bottom bar is one row, in both languages', async ({ page }) => {
+    // "Import requests" wrapped to two lines on an iPhone while the other three
+    // labels did not. The icons stayed level, the label did not, and the bar
+    // grew — it read as broken alignment rather than as one long word.
+    //
+    // Asserted on geometry rather than on the strings, because the strings are
+    // exactly what a translator changes. Every tab must be the same height and
+    // every label must occupy a single line.
+    // 375px: an iPhone SE, 13 mini, or any of the narrow ones still in use.
+    //
+    // This matters more than it looks. The first version of this test ran at
+    // the project's default Pixel 7 width of 412px, where "Import requests"
+    // fits on one line — so it passed against the exact markup that wrapped on
+    // the owner's iPhone. A layout test proves nothing at a width where the
+    // layout is not under pressure; it has to run at the narrowest screen the
+    // app claims to support.
+    await page.setViewportSize({ width: 375, height: 812 });
+
+    for (const locale of ['en', 'ar']) {
+      await page.goto(`/${locale}`);
+
+      const tabs = page.locator('nav a[data-tab]');
+      await expect(tabs).toHaveCount(4);
+
+      const boxes = await tabs.evaluateAll((els) =>
+        els.map((el) => {
+          const label = el.querySelector('span');
+          const cs = label ? getComputedStyle(label) : null;
+          const lineHeight = cs ? parseFloat(cs.lineHeight) : 0;
+          return {
+            tab: el.getAttribute('data-tab'),
+            height: Math.round(el.getBoundingClientRect().height),
+            labelHeight: label ? Math.round(label.getBoundingClientRect().height) : 0,
+            lineHeight: Math.round(lineHeight),
+            text: (label?.textContent ?? '').trim(),
+          };
+        }),
+      );
+
+      // Every tab the same height: one that wrapped would be taller.
+      const heights = [...new Set(boxes.map((b) => b.height))];
+      expect(heights, `${locale}: tabs are not the same height — ${JSON.stringify(boxes)}`).toHaveLength(1);
+
+      // And each label is a single line, which is the cause rather than the
+      // symptom — two tabs could wrap together and still match in height.
+      const wrapped = boxes.filter((b) => b.lineHeight > 0 && b.labelHeight > b.lineHeight * 1.5);
+      expect(wrapped, `${locale}: these labels wrap — ${JSON.stringify(wrapped)}`).toEqual([]);
+    }
+  });
+
   test('TC-STORE-16: no native select or option anywhere in the store', async ({
     page,
     request,

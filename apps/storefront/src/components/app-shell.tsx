@@ -55,12 +55,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   href={href}
                   data-tab={key}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex flex-col items-center gap-1 px-2 py-2.5 text-xs font-medium transition-colors ${
+                  className={`flex flex-col items-center gap-1 px-1 py-2.5 text-xs font-medium transition-colors ${
                     active ? 'text-brand-700' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  <Icon className="h-5 w-5" aria-hidden />
-                  {t(key)}
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                  {/* One line, always.
+
+                      "Import requests" wrapped on an iPhone while the other
+                      three labels did not, so that tab grew a second line, the
+                      bar grew with it, and the labels no longer sat level with
+                      each other — the row read as broken rather than as one
+                      long word.
+
+                      The labels are one word each now, which is what fixed it.
+                      This is here so the next translation cannot undo that
+                      quietly: a label too long for its quarter of the screen is
+                      truncated, which is visibly a label that needs shortening,
+                      rather than reflowing the whole bar. */}
+                  <span className="w-full truncate text-center leading-tight">{t(key)}</span>
                 </Link>
               </li>
             );
