@@ -73,6 +73,14 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   missed it entirely and a 40-character placeholder would have been accepted. Its own
   test caught that. — 2026-08-30
 
+## Local environment
+
+- Stopping dev means the whole stack, database included: the API, the web app, the
+  storefront, then `docker compose stop`. Killing an app server and leaving
+  `motorcycle_parts_db` up is a half-stop that holds 5432 and keeps Postgres running for
+  nothing. Check nothing is mid-flight first — no `node.*playwright` process — because the
+  API and both front ends may belong to another session. — 2026-09-02
+
 ## Deployment
 
 - Local `.env` says nothing about production. All three apps deploy to Vercel
