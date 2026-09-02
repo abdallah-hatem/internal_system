@@ -9,6 +9,7 @@ import { useState } from 'react';
 import {
   Settings as SettingsIcon, User, ShieldCheck, Globe, Loader2, Check,
 } from 'lucide-react';
+import { PushAlerts } from '../../../components/settings/push-alerts';
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -135,6 +136,9 @@ export default function SettingsPage() {
               </button>
             </div>
           </section>
+
+          {/* Alerts on this device */}
+          <PushAlerts />
 
           {/* Security Section */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">

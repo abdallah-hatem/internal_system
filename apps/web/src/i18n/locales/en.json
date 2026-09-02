@@ -915,5 +915,33 @@
     "cannotSource": "Cannot source it",
     "answer": "Answer",
     "sent": "The shop has been told."
+  },
+  "push": {
+    "title": "Alerts on this device",
+    "deviceScope": "A subscription belongs to one browser on one device. Turning alerts on here does nothing for your other devices, and turning them off does not silence them either.",
+    "intro": "Get an alert when a shop asks to buy or asks for an import, even when this app is closed.",
+    "on": "Alerts are on for this device.",
+    "unsupported": "This browser cannot show alerts.",
+    "notAllowed": "Alerts were not turned on.",
+    "failed": "Alerts could not be turned on for this device.",
+    "turnOn": "Turn on alerts",
+    "turnOff": "Turn off alerts",
+    "installToGetAlerts": "To get alerts on this iPhone, add MotoParts Manager to your home screen first — Safari cannot send them otherwise.",
+    "alertsBlockedTitle": "Alerts are blocked for this site. The browser will not ask again, so turn them on here:",
+    "iosStep1": "Tap the Share button at the bottom of Safari",
+    "iosStep2": "Scroll down and tap \"Add to Home Screen\"",
+    "iosStep3": "Tap \"Add\", then close Safari",
+    "iosStep4": "Open MotoParts Manager from your home screen and come back to this page",
+    "installStep1": "Install MotoParts Manager from your browser menu — look for \"Install app\" or \"Add to Home screen\"",
+    "installStep2": "Open it from your home screen and come back to this page",
+    "blockedIosStep1": "Open Settings, then Apps, then Safari",
+    "blockedIosStep2": "Tap Notifications and allow them for this site",
+    "blockedIosStep3": "Come back here and press the button again",
+    "blockedSafariStep1": "In the menu bar: Safari → Settings → Websites → Notifications",
+    "blockedSafariStep2": "Find this site, set it to Allow, then press the button again",
+    "blockedFirefoxStep1": "Click the padlock in the address bar, then open Permissions",
+    "blockedFirefoxStep2": "Set Notifications to Allow, reload, then press the button again",
+    "blockedChromeStep1": "Click the padlock or the icon at the start of the address bar",
+    "blockedChromeStep2": "Set Notifications to Allow, reload, then press the button again"
   }
 }
