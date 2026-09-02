@@ -1,0 +1,15 @@
+# Nothing here is needed to run the API, and some of it must not leave this
+# machine. `uploads/` in particular holds product photographs and pictures
+# customers attached to import requests — on Vercel those live in the Blob
+# store, and shipping the local copies would both bloat the deployment and
+# push customer data somewhere it was never meant to go.
+node_modules
+uploads
+dist
+test
+coverage
+*.spec.ts
+.env
+.env.*
+!.env.example
+backups

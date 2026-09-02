@@ -46,12 +46,21 @@ The schedule now lives in `apps/api/vercel.json` and calls
 works on a host with a real process; running both is harmless because the sweep
 is idempotent.
 
-> **Cron frequency depends on your plan.** Hobby allows two cron jobs, once a
-> day. The sweep is set hourly, which Pro allows. On Hobby the build will reject
-> it — change the schedule to `0 3 * * *` and accept that the "six hours before
-> this hold lapses" warning becomes unreliable, or upgrade. Expiry itself is
-> safe either way: `availableQty` already ignores a hold past its deadline, so
-> stock is never wrongly withheld between sweeps.
+> **This account is on Hobby, so the sweep runs once a day**, at 03:00. An
+> hourly schedule was rejected at build time with "Hobby accounts are limited to
+> daily cron jobs".
+>
+> What that costs, stated plainly: **the "six hours before this hold lapses"
+> warning is effectively dead.** It fires only if the single daily run happens
+> to land inside a request's six-hour window, which for a 48-hour hold is a
+> roughly 12% chance. Do not rely on it.
+>
+> What it does not cost: expiry itself. `availableQty` ignores any hold past its
+> deadline, so stock is never wrongly withheld between sweeps — the sweep is
+> housekeeping for the reservations table, not the rule. A hold is dead when its
+> deadline passes, whether or not anything has swept it.
+>
+> Pro restores the hourly schedule; change `schedule` back to `0 * * * *`.
 
 ### CORS named only localhost
 
