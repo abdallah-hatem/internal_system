@@ -25,6 +25,17 @@ const STORE = 'https://internal-system-store.vercel.app';
 const OFFICE = 'https://internal-system-web-three.vercel.app';
 const API = 'https://internal-system-api.vercel.app/api/v1';
 
+/**
+ * Generous, because the API is serverless.
+ *
+ * A cold function has to start Nest, connect to Neon and answer — the first
+ * login after a quiet period measured 21s here. The localhost suite's 10s is
+ * right for a process that is already running and wrong for one that is not,
+ * and a check that fails on latency rather than on behaviour is a check people
+ * learn to ignore.
+ */
+const COLD_START = 60_000;
+
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 
@@ -97,22 +108,31 @@ test.describe('The deployed store', () => {
 });
 
 test.describe('The deployed office app', () => {
+  test.setTimeout(120_000);
   test('TC-PROD-06: a partner can sign in and reach the dashboard', async ({ page }) => {
     // Proves the whole chain in one go: the office build's API URL, CORS from a
     // real origin, the JWT secret set on the API, and Neon behind it.
     await page.goto(`${OFFICE}/en/login`, { waitUntil: 'domcontentloaded' });
-    await page.getByPlaceholder(EMAIL).fill(EMAIL);
-    await page.getByPlaceholder('••••••••').fill(PASSWORD);
-    await page.getByRole('button', { name: /login/i }).click();
-    await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 });
+    // The same selectors the localhost suite uses. Reaching for the button by
+    // its accessible name failed here while the identical flow worked when
+    // driven by hand, and a production check that is flaky for its own reasons
+    // is worse than no check — it trains you to ignore it.
+    await page.fill('input[type="email"]', EMAIL);
+    await page.fill('input[type="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await expect(page).toHaveURL(/dashboard/, { timeout: COLD_START });
   });
 
   test('TC-PROD-07: the product created in production is listed with its photo', async ({ page }) => {
     await page.goto(`${OFFICE}/en/login`, { waitUntil: 'domcontentloaded' });
-    await page.getByPlaceholder(EMAIL).fill(EMAIL);
-    await page.getByPlaceholder('••••••••').fill(PASSWORD);
-    await page.getByRole('button', { name: /login/i }).click();
-    await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 });
+    // The same selectors the localhost suite uses. Reaching for the button by
+    // its accessible name failed here while the identical flow worked when
+    // driven by hand, and a production check that is flaky for its own reasons
+    // is worse than no check — it trains you to ignore it.
+    await page.fill('input[type="email"]', EMAIL);
+    await page.fill('input[type="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await expect(page).toHaveURL(/dashboard/, { timeout: COLD_START });
 
     await page.goto(`${OFFICE}/en/products`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Brake Disc, Front')).toBeVisible({ timeout: 30_000 });
