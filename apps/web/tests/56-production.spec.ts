@@ -49,6 +49,53 @@ async function untranslatedKeys(page: any): Promise<string[]> {
   });
 }
 
+/**
+ * Sign in, and make sure the form actually holds what was typed.
+ *
+ * `fill` was landing before React had hydrated the page, so the value was set
+ * on the DOM node and then thrown away when the component mounted — the failure
+ * screenshot showed an empty email box beside a filled password box, and a
+ * login that could not succeed. `domcontentloaded` returns before hydration,
+ * which is exactly the window this fell into.
+ *
+ * So: wait for the form to be interactive, fill, then assert the values are
+ * still there before submitting. On a deployed app there is no dev server to
+ * tell you the page was not ready yet.
+ */
+async function signIn(page: any) {
+  const email = page.locator('input[type="email"]');
+  const password = page.locator('input[type="password"]');
+
+  await expect(email).toBeVisible({ timeout: COLD_START });
+
+  // Hydration is the whole problem here, and asserting the value once is not
+  // enough: `fill` sets it on the DOM node, the assertion passes, and React
+  // then mounts and replaces the input with its own empty state. The failure
+  // screenshot showed exactly that — an empty email box beside a filled
+  // password box — and it happens on roughly two runs in three.
+  //
+  // So type the way a person does, and keep checking it stuck. Retrying is
+  // honest here: the question is whether the app can be signed into, not
+  // whether it can be signed into on the first attempt within one tick of
+  // hydration.
+  await expect
+    .poll(
+      async () => {
+        await email.click();
+        await email.fill('');
+        await email.pressSequentially(EMAIL, { delay: 10 });
+        await password.fill('');
+        await password.pressSequentially(PASSWORD, { delay: 10 });
+        return (await email.inputValue()) === EMAIL && (await password.inputValue()) === PASSWORD;
+      },
+      { timeout: 30_000, message: 'the form kept discarding what was typed' },
+    )
+    .toBe(true);
+
+  await page.click('button[type="submit"]');
+  await expect(page).toHaveURL(/dashboard/, { timeout: COLD_START });
+}
+
 test.describe('The deployed store', () => {
   test('TC-PROD-01: the store opens in Arabic, right to left', async ({ page }) => {
     await page.goto(STORE, { waitUntil: 'domcontentloaded' });
@@ -94,10 +141,15 @@ test.describe('The deployed store', () => {
     const image = page.locator('[data-sku] img').first();
     await expect(image).toBeVisible({ timeout: 30_000 });
 
-    const ok = await image.evaluate(
-      (el: HTMLImageElement) => el.complete && el.naturalWidth > 0,
-    );
-    expect(ok, 'the image element rendered but no bytes arrived').toBe(true);
+    // Poll rather than read once: the image is lazy-loaded, so `naturalWidth`
+    // is legitimately 0 for a moment after the element appears. Reading it
+    // immediately tests the timing, not whether the bytes ever arrive.
+    await expect
+      .poll(
+        () => image.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0),
+        { timeout: 30_000, message: 'the image element rendered but no bytes ever arrived' },
+      )
+      .toBe(true);
   });
 
   test('TC-PROD-05: no untranslated key reaches the storefront', async ({ page }) => {
@@ -112,37 +164,31 @@ test.describe('The deployed office app', () => {
   test('TC-PROD-06: a partner can sign in and reach the dashboard', async ({ page }) => {
     // Proves the whole chain in one go: the office build's API URL, CORS from a
     // real origin, the JWT secret set on the API, and Neon behind it.
-    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'domcontentloaded' });
-    // The same selectors the localhost suite uses. Reaching for the button by
-    // its accessible name failed here while the identical flow worked when
-    // driven by hand, and a production check that is flaky for its own reasons
-    // is worse than no check — it trains you to ignore it.
-    await page.fill('input[type="email"]', EMAIL);
-    await page.fill('input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/dashboard/, { timeout: COLD_START });
+    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'load' });
+    await signIn(page);
   });
 
   test('TC-PROD-07: the product created in production is listed with its photo', async ({ page }) => {
-    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'domcontentloaded' });
-    // The same selectors the localhost suite uses. Reaching for the button by
-    // its accessible name failed here while the identical flow worked when
-    // driven by hand, and a production check that is flaky for its own reasons
-    // is worse than no check — it trains you to ignore it.
-    await page.fill('input[type="email"]', EMAIL);
-    await page.fill('input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/dashboard/, { timeout: COLD_START });
+    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'load' });
+    await signIn(page);
 
     await page.goto(`${OFFICE}/en/products`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText('Brake Disc, Front')).toBeVisible({ timeout: 30_000 });
+    // The list is fetched after the page renders, so wait for the fetch to
+    // finish rather than for a row that cannot exist yet.
+    await page
+      .locator('main .animate-spin')
+      .waitFor({ state: 'detached', timeout: COLD_START })
+      .catch(() => {});
+    // `.first()` — the name appears in the row and again in a detail panel, and
+    // strict mode is right to refuse an ambiguous locator.
+    await expect(page.getByText('Brake Disc, Front').first()).toBeVisible({ timeout: COLD_START });
   });
 
   test('TC-PROD-08: CORS allows the office origin', async ({ page }) => {
     // A CORS refusal is a browser-side network error with nothing in the API
     // log, so it reads as the API being down. WEB_ORIGIN was wrong once
     // already — it named a project that is not this one.
-    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'load' });
     const status = await page.evaluate(async (api) => {
       try {
         const res = await fetch(`${api}/portal/catalogue`);
