@@ -73,6 +73,15 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   missed it entirely and a 40-character placeholder would have been accepted. Its own
   test caught that. — 2026-08-30
 
+## Deployment
+
+- Local `.env` says nothing about production. All three apps deploy to Vercel
+  (`internal-system-api`, `-web`, `-store`) with Neon attached to the API, and I read
+  `apps/api/.env` — `DATABASE_URL=localhost` — and told the owner there was no production
+  database at all. `vercel projects ls` and `vercel env ls` from the app directory are the
+  source of truth; check them before any claim about what is deployed. Note `.vercel/` sits
+  in each app folder, so looking in one app proves nothing about the others. — 2026-09-02
+
 ## Claims about security
 
 - Verify before repeating an alarming claim. I told the owner several times that the JWT
@@ -119,6 +128,16 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - Write the explanation after measuring, not before. I blamed February's short month,
   committed that reasoning in a comment, then measured and found the local/UTC mix was the
   larger half. A confident wrong comment is worse than none. — 2026-08-31
+
+## How much of the suite to run
+
+- Run the tests the change touches, not all 466. The full run is 13 minutes and the owner
+  has asked for it to stop being the default — a label change does not need the ledger
+  tests. `-g "TC-X-01|TC-X-02"` or a single spec file. — 2026-09-02
+- Run everything before a push or a deploy, and when the change is cross-cutting: a guard,
+  a shared component, an error code, anything in `common/`. That is what the rule below is
+  about, and it is not in tension with the one above — narrow while iterating, wide before
+  it ships. — 2026-09-02
 
 ## Running a suite against another suite
 

@@ -862,6 +862,58 @@ test.describe('The controls it is made of', () => {
     }
   });
 
+  test('TC-STORE-20: the password reveal sits where the field reserves room for it', async ({
+    page,
+  }) => {
+    // In Arabic the eye sat on the left while the field reserved its 48px of
+    // space on the right, so a typed password ran directly underneath the icon
+    // and the reserved space stayed empty on the other side.
+    //
+    // The cause was two logical properties resolving against different
+    // directions: `dir="auto"` made the input LTR (a password is Latin), so its
+    // `padding-inline-end` went right, while the button's `end-0` resolved
+    // against the RTL page and went left.
+    //
+    // Asserted as a relationship rather than as "the button is on the right",
+    // because the right answer differs per direction. The button must sit in
+    // the padding the input reserved — whichever side that turns out to be.
+    for (const locale of ['ar', 'en']) {
+      await page.goto(`/${locale}/login`);
+
+      const field = page.locator('input[type="password"]');
+      await expect(field).toBeVisible();
+      await field.fill('MyPassword123');
+
+      const geometry = await page.evaluate(() => {
+        const input = document.querySelector('input[type="password"]') as HTMLInputElement;
+        const button = input.parentElement!.querySelector('button')!;
+        const cs = getComputedStyle(input);
+        const ib = input.getBoundingClientRect();
+        const bb = button.getBoundingClientRect();
+        const ltr = cs.direction === 'ltr';
+        return {
+          inputDirection: cs.direction,
+          // The side the input actually keeps clear.
+          reserved: ltr ? parseFloat(cs.paddingRight) : parseFloat(cs.paddingLeft),
+          // Does the button sit against that same edge?
+          gapAtReservedEdge: ltr ? Math.abs(bb.right - ib.right) : Math.abs(bb.left - ib.left),
+          buttonWidth: bb.width,
+        };
+      });
+
+      // The field reserves real space for a button, not a token few pixels.
+      expect(geometry.reserved, `${locale}: no room reserved`).toBeGreaterThanOrEqual(
+        geometry.buttonWidth - 1,
+      );
+
+      // And the button is in it. Wrong side and this is the full field width.
+      expect(
+        geometry.gapAtReservedEdge,
+        `${locale}: the reveal button is not against the edge the input reserves — ${JSON.stringify(geometry)}`,
+      ).toBeLessThan(2);
+    }
+  });
+
   test('TC-STORE-16: no native select or option anywhere in the store', async ({
     page,
     request,

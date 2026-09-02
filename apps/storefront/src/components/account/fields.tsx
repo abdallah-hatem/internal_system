@@ -99,14 +99,27 @@ export function PasswordField({
       <label htmlFor={id} className="block text-sm font-medium text-gray-700">
         {label}
       </label>
-      <div className="relative">
+      {/* `dir="ltr"` on the wrapper, not `dir="auto"` on the input.
+
+          `auto` asks the browser to pick a direction from the content, and a
+          password is Latin, so it picked LTR — while the button beside it
+          resolved `end-0` against the *page*, which is RTL. The two disagreed
+          by construction: the field reserved its 48px of padding on the right
+          and the eye sat on the left, so in Arabic the password was typed
+          directly underneath the icon with the reserved space empty on the
+          other side.
+
+          Setting it here makes the input and the button read `end` from the
+          same place, so they cannot drift apart again — and `auto` was never
+          right for this field anyway. It would have flipped the whole layout
+          the moment somebody's password began with an Arabic character. */}
+      <div className="relative" dir="ltr">
         <input
           id={id}
           type={shown ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}
-          dir="auto"
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy || undefined}
           className={`${CONTROL} pe-12 ${error ? 'border-red-400' : 'border-gray-300'}`}
