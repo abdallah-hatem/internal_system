@@ -38,6 +38,17 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: 'MotoParts Manager',
   description: 'Motorcycle Parts & Accessories Business Management System',
+  // Named explicitly rather than left to the app/favicon.ico convention: that
+  // file was the Next.js scaffold's, so every tab and bookmark carried the
+  // framework's logo instead of this app's.
+  icons: {
+    icon: [
+      { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    // iOS ignores the manifest icons entirely and takes this one.
+    apple: '/icons/apple-touch-icon.png',
+  },
 };
 
 export function generateStaticParams() {
