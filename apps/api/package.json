@@ -47,7 +47,6 @@
     "rxjs": "^7.8.1",
     "sharp": "^0.35.4",
     "swagger": "^0.7.5",
-    "uuid": "^14.0.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

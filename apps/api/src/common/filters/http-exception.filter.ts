@@ -7,7 +7,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+// Node's own, rather than the `uuid` package: v14 is ESM-only and this file
+// is compiled to CommonJS, so requiring it crashed the whole API at runtime
+// while the build reported success. randomUUID has been built in since
+// Node 14.17 and needs no dependency at all.
+import { randomUUID } from 'node:crypto';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,7 +21,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const correlationId = uuidv4();
+    const correlationId = randomUUID();
     const where = `${request?.method} ${request?.originalUrl}`;
 
     if (exception instanceof HttpException) {

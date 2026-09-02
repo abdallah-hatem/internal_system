@@ -70,10 +70,19 @@ export class LocalDiskStorage implements StorageAdapter {
  * rather than fail.
  */
 export class VercelBlobStorage implements StorageAdapter {
+  /**
+   * Loaded lazily, not at module load.
+   *
+   * Nothing outside a Vercel deployment has a blob token, so a top-level import
+   * would pull the package into every local run and every test for no reason.
+   *
+   * `require` is correct here despite the package being `"type": "module"`: it
+   * ships a CommonJS build behind the `require` condition of its exports map,
+   * and Node resolves that. Verified rather than assumed — `uuid` looked like
+   * the same shape, was not, and took the API down in production while the
+   * build reported success.
+   */
   private get blob() {
-    // Required lazily. The package is only installed where it is used, and
-    // importing it at module load would break the local development server and
-    // every test, none of which have a blob token.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('@vercel/blob');
   }
