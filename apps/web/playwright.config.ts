@@ -36,7 +36,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /storefront\.spec\.ts$/,
+      testIgnore: /(storefront|production)\.spec\.ts$/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Against the deployed URLs, and excluded from the default run: it costs
+      // a network round trip per assertion and depends on data that lives in
+      // production. `npx playwright test --project=production`.
+      //
+      // It exists because three failures this week were invisible to every
+      // other test here — they only happen in a compiled CommonJS bundle on a
+      // host with no disk, which is a thing localhost never is.
+      name: 'production',
+      testMatch: /56-production\.spec\.ts$/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
