@@ -81,6 +81,12 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   database at all. `vercel projects ls` and `vercel env ls` from the app directory are the
   source of truth; check them before any claim about what is deployed. Note `.vercel/` sits
   in each app folder, so looking in one app proves nothing about the others. — 2026-09-02
+- Prove a change against localhost before it goes anywhere near production, and never reach
+  for production to prove it works. Checking the URL is not enough: `.env.production.local`
+  now sits in `apps/api`, so a local API can be pointed at Neon by one env swap and a suite
+  that writes — portal signups, seeds — would land real rows in it. Confirm which database
+  the local API holds (`docker ps` for `motorcycle_parts_db`, and what `DATABASE_URL` the
+  running process actually has) before running anything that writes. — 2026-09-02
 
 ## Claims about security
 
