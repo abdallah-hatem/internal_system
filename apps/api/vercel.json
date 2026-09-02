@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npx prisma generate && npm run build",
+  "regions": ["fra1"],
+  "crons": [
+    {
+      "path": "/api/v1/jobs/sweep-holds",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

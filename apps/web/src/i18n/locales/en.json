@@ -860,7 +860,9 @@
     "SHOP_CANNOT_PARTICIPATE": "A shop account cannot be a partner or an investor on a cycle.",
     "ROLE_CANNOT_PARTICIPATE": "An office account with no stake cannot be a participant on a cycle.",
     "NOT_A_CORE_PARTNER": "Only a core partner can be added as one. Add them as a temporary investor instead.",
-    "PARTICIPANT_NOT_ACTIVE": "That account is not active, so it cannot take a share of a cycle."
+    "PARTICIPANT_NOT_ACTIVE": "That account is not active, so it cannot take a share of a cycle.",
+    "CRON_NOT_CONFIGURED": "Scheduled jobs are not configured on this deployment.",
+    "CRON_FORBIDDEN": "This is not a scheduled request."
   },
   "orderRequests": {
     "title": "Order requests",

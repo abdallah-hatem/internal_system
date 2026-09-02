@@ -51,3 +51,93 @@ export class LocalDiskStorage implements StorageAdapter {
     return target;
   }
 }
+
+/**
+ * Vercel Blob, for hosts without a disk that survives a deploy.
+ *
+ * The comment above turned out to be the deployment plan: Vercel wipes the
+ * filesystem on every build, so on a serverless host `LocalDiskStorage` loses
+ * every product photograph and every picture a shop attached to an import
+ * request — silently, because writing still succeeds and only later reads fail.
+ *
+ * Object keys are unchanged. The same key that was a path under `uploads/` is a
+ * pathname in the blob store, so nothing that stores or resolves a key had to
+ * change, and a database written by one adapter is readable by the other.
+ *
+ * `addRandomSuffix: false` matters: with the default, Vercel appends random
+ * characters to the pathname and the URL no longer matches the key the database
+ * holds. `allowOverwrite` because re-uploading a processed size must replace it
+ * rather than fail.
+ */
+export class VercelBlobStorage implements StorageAdapter {
+  private get blob() {
+    // Required lazily. The package is only installed where it is used, and
+    // importing it at module load would break the local development server and
+    // every test, none of which have a blob token.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@vercel/blob');
+  }
+
+  async put(objectKey: string, bytes: Buffer): Promise<void> {
+    // `private`, matching the store. These are product photographs and pictures
+    // customers attached to import requests, and the app already serves every
+    // one of them through an authenticated route. A public blob would hand out
+    // a URL that works forever for anyone who sees it, quietly undoing that.
+    await this.blob.put(objectKey, bytes, {
+      access: 'private',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
+  }
+
+  async get(objectKey: string): Promise<Buffer> {
+    // `get` rather than `fetch(url)`: a private blob's URL is not readable
+    // without credentials, so a plain fetch returns 401 and the image renders
+    // broken with nothing saying why. The SDK signs the request with the
+    // store's token.
+    //
+    // `access` is required and is not inferred from the store — pass it wrong
+    // and the read fails against a store holding the object perfectly well.
+    const result = await this.blob.get(objectKey, { access: 'private' });
+    if (!result) throw new Error(`no such object: ${objectKey}`);
+
+    // It returns a stream and metadata, not a Response — there is no
+    // `arrayBuffer()` on it. 304 carries no body, which cannot happen here
+    // because nothing sends a conditional request, but it is in the type and
+    // returning `Buffer.from(null)` would be a confusing way to find that out.
+    if (result.statusCode !== 200 || !result.stream) {
+      throw new Error(`unexpected ${result.statusCode} reading ${objectKey}`);
+    }
+
+    const chunks: Uint8Array[] = [];
+    const reader = result.stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  async delete(objectKey: string): Promise<void> {
+    // Deleting something that is already gone is not an error worth raising —
+    // the caller wanted it absent and it is.
+    await this.blob.del(objectKey).catch(() => undefined);
+  }
+}
+
+/**
+ * Which one to use, decided once.
+ *
+ * By the token rather than by NODE_ENV: `BLOB_READ_WRITE_TOKEN` is what Vercel
+ * injects when a blob store is attached, so the app follows what it has been
+ * given instead of guessing from the environment name. Running production
+ * locally against a disk still works, and a Vercel deploy with no store
+ * attached fails loudly on first upload rather than writing into a directory
+ * that is about to disappear.
+ */
+export function storageForEnvironment(): StorageAdapter {
+  return process.env.BLOB_READ_WRITE_TOKEN
+    ? new VercelBlobStorage()
+    : new LocalDiskStorage();
+}

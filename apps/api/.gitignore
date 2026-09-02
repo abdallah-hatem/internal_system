@@ -3,3 +3,10 @@ node_modules
 .env
 
 /generated/prisma
+.vercel
+.env*
+# ...except the example, which is documentation, not a secret. `vercel link`
+# appends a bare `.env*`, and that swallowed the storefront's example when it
+# was moved into this repo — the app arrived with no record of what it needs to
+# start. Tracked deliberately.
+!.env.example

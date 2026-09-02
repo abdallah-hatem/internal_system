@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { badRequest, notFound } from '../../common/api-error';
-import { LocalDiskStorage, type StorageAdapter } from './storage';
+import { storageForEnvironment, type StorageAdapter } from './storage';
 import { processImage } from './image-pipeline';
 
 /**
@@ -27,7 +27,7 @@ export type FileOwner =
 
 @Injectable()
 export class FilesService {
-  private storage: StorageAdapter = new LocalDiskStorage();
+  private storage: StorageAdapter = storageForEnvironment();
 
   constructor(private prisma: PrismaService) {}
 

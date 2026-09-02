@@ -18,6 +18,7 @@ import { PortalImportsController } from './portal-imports.controller';
 import { PortalNotificationsController } from './portal-notifications.controller';
 import { ImportRequestsService } from './import-requests.service';
 import { HoldsScheduler } from './holds.scheduler';
+import { JobsController } from './jobs.controller';
 import { ImportRequestsAdminController } from './order-requests-imports.controller';
 import { PortalSignupService } from './portal-signup.service';
 import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-viewer.guard';
@@ -35,6 +36,7 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
 @Module({
   imports: [PrismaModule, AuthModule, SalesModule, FilesModule, NotificationsModule],
   controllers: [
+    JobsController,
     PortalCatalogueController,
     PortalImagesController,
     PortalSignupController,
