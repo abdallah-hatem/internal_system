@@ -75,11 +75,16 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 
 ## Local environment
 
-- Stopping dev means the whole stack, database included: the API, the web app, the
-  storefront, then `docker compose stop`. Killing an app server and leaving
-  `motorcycle_parts_db` up is a half-stop that holds 5432 and keeps Postgres running for
-  nothing. Check nothing is mid-flight first — no `node.*playwright` process — because the
-  API and both front ends may belong to another session. — 2026-09-02
+- "Close dev", "stop dev" and the like mean the whole stack and then Docker Desktop itself:
+  the API, the web app, the storefront, `docker compose stop`, then quit the app with
+  `osascript -e 'tell application "Docker Desktop" to quit'`. Stopping the container alone
+  leaves the VM and a dozen helper processes running for nothing. Check nothing is
+  mid-flight first — no `node.*playwright` — because the servers may belong to another
+  session. — 2026-09-02
+- Do not test for Docker with `pgrep -x Docker`. The exact-name match hits nothing while
+  `Docker Desktop`, `com.docker.backend` and the rest are all running, so it reports a
+  clean shutdown that did not happen. Ask the engine (`docker info`) or match the bundle
+  path (`pgrep -f "Docker.app|com.docker"`). — 2026-09-02
 
 ## Deployment
 
