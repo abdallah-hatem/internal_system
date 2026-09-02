@@ -86,3 +86,33 @@ body {
     cursor: not-allowed;
   }
 }
+
+/* Never let Safari zoom the page when a field takes focus.
+ *
+ * iOS Safari zooms in on focus whenever the focused control's font-size is
+ * under 16px, and it does not zoom back out. The shop is left on a page
+ * scrolled sideways with the bottom bar off screen, and the only way back is a
+ * pinch. It reads as the site being broken rather than as a browser behaviour,
+ * and it happened on the control used most: the quantity box in the basket,
+ * which was 14px.
+ *
+ * NOT in `@layer base`. That was the first attempt and it did nothing at all:
+ * Tailwind's utilities are a later layer, so `text-sm` on the input beat it and
+ * the field stayed 14px. Unlayered CSS outranks every layer, which is what this
+ * needs — it has to win against a utility class by design, because the utility
+ * is exactly what causes the bug. (The same mistake was made with
+ * `cursor-default` in this product's other app; a base rule cannot correct a
+ * utility.)
+ *
+ * `pointer: coarse` so it applies to touch devices and leaves a mouse-driven
+ * layout alone, where a 14px input is a deliberate choice and zoom cannot
+ * happen. 16px is the threshold Safari actually uses, written as `16px` rather
+ * than `1rem` so a page-level font-size change cannot quietly shrink it under
+ * the line. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

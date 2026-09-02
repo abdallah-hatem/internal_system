@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { AccountPanel } from '../../../components/account/account-panel';
+import { InstallCard } from '../../../components/install/install-card';
 
 /**
  * The account tab.
@@ -19,6 +20,11 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
     <div className="mx-auto max-w-md px-4 py-6">
       <h1 className="pb-4 text-xl font-bold">{t('title')}</h1>
       <AccountPanel />
+      {/* Below the panel, so signing in comes first for someone who is here to
+          do that. It renders nothing once the app is installed. */}
+      <div className="pt-3">
+        <InstallCard />
+      </div>
     </div>
   );
 }

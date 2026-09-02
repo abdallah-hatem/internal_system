@@ -330,5 +330,28 @@
     "DELETE_THE_ORIGINAL": "Delete the original image; its other sizes go with it.",
     "TOO_MANY_PHOTOS": "A request can carry at most {max} photos.",
     "VALIDATION_FAILED": "Some of what was sent is not valid: {fields}."
+  },
+  "install": {
+    "title": "Add MotoParts to your home screen",
+    "why": "Opens like an app, and it is the only way to get alerts on iPhone.",
+    "close": "Close",
+    "choosePlatform": "Choose your phone",
+    "iphone": "iPhone",
+    "android": "Android",
+    "addToHomeScreen": "Add to Home Screen",
+    "installApp": "Install app",
+    "thenWhat": "Then open it from the new icon — not from your browser — and turn on alerts from the Account tab.",
+    "steps": {
+      "ios": {
+        "share": "Tap the Share button in the toolbar at the bottom.",
+        "find": "Scroll down the list and tap “Add to Home Screen”.",
+        "add": "Tap “Add”. The icon appears on your home screen."
+      },
+      "android": {
+        "menu": "Tap the three dots at the top of Chrome.",
+        "install": "Tap “Install app”.",
+        "confirm": "Tap “Install”. The icon appears on your home screen."
+      }
+    }
   }
 }

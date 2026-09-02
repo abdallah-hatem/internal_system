@@ -914,6 +914,55 @@ test.describe('The controls it is made of', () => {
     }
   });
 
+  test('TC-STORE-21: no field is small enough to make Safari zoom', async ({ page }) => {
+    // iOS Safari zooms the page in when a focused control's font-size is under
+    // 16px, and does not zoom back out — the shop is left scrolled sideways
+    // with the bottom bar off screen and no way back but a pinch. It reads as
+    // the site being broken.
+    //
+    // It bit the control used most, the basket's quantity box at 14px.
+    //
+    // Probes constructed from the classes rather than only measuring what
+    // happens to be on screen: the field that regresses next is the one
+    // somebody adds tomorrow, and the rule has to beat a utility class.
+    await page.goto('/ar');
+
+    const result = await page.evaluate(() => {
+      const measure = (tag: string, cls: string) => {
+        const el = document.createElement(tag) as HTMLElement;
+        el.className = cls;
+        document.body.appendChild(el);
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        el.remove();
+        return size;
+      };
+
+      const probes: Record<string, number> = {
+        'input.text-sm': measure('input', 'text-sm'),
+        'input.text-xs': measure('input', 'text-xs'),
+        'textarea.text-sm': measure('textarea', 'text-sm'),
+        'select.text-xs': measure('select', 'text-xs'),
+      };
+
+      // And everything genuinely rendered on this page.
+      document.querySelectorAll('input, select, textarea').forEach((el, i) => {
+        probes[`onscreen[${i}]`] = parseFloat(getComputedStyle(el).fontSize);
+      });
+
+      return {
+        coarse: window.matchMedia('(pointer: coarse)').matches,
+        tooSmall: Object.entries(probes).filter(([, size]) => size < 16),
+      };
+    });
+
+    // The rule is behind `pointer: coarse`; if the project stops emulating a
+    // phone this test would pass by not applying, which proves nothing.
+    expect(result.coarse, 'not running as a touch device — this test is void').toBe(true);
+    expect(result.tooSmall, `these would zoom on iOS: ${JSON.stringify(result.tooSmall)}`).toEqual(
+      [],
+    );
+  });
+
   test('TC-STORE-16: no native select or option anywhere in the store', async ({
     page,
     request,
