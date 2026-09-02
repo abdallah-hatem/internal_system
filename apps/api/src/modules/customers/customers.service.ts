@@ -130,6 +130,41 @@ export class CustomersService {
     return { data: customer };
   }
 
+  /**
+   * Vet a shop that signed itself up.
+   *
+   * Self-signup writes an UNVERIFIED customer, and every service that moves
+   * money refuses one — so without this the account can browse, can ask for an
+   * import, and can never become a customer. `update` deliberately does not
+   * accept `verificationStatus`: lifting it is a decision a person makes about
+   * an account, not a field edited in passing on a form.
+   *
+   * Idempotent. Verifying twice is a double-click, not an error, and it should
+   * not put a second row in the audit log saying nothing changed.
+   */
+  async verify(id: string, actorId: string) {
+    const existing = await this.prisma.customer.findUnique({ where: { id } });
+    if (!existing) throw notFound('customer');
+
+    if (existing.verificationStatus === 'VERIFIED') return { data: existing };
+
+    const updated = await this.prisma.customer.update({
+      where: { id },
+      data: { verificationStatus: 'VERIFIED' },
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'VERIFY',
+      entityType: 'Customer',
+      entityId: id,
+      beforeJson: existing,
+      afterJson: updated,
+    });
+
+    return { data: updated };
+  }
+
   async update(
     id: string,
     data: {

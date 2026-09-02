@@ -50,6 +50,18 @@ export class CustomersController {
     return this.customersService.create(body, user.id);
   }
 
+  @Post(':id/verify')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary:
+      'Vet a self-signed-up shop (CORE_PARTNER only). Until this runs, every ' +
+      'service that moves money refuses the account.',
+  })
+  verify(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.customersService.verify(id, user.id);
+  }
+
   @Put(':id')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')

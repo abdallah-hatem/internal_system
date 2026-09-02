@@ -14,6 +14,7 @@ import { formatDate } from '../../../lib/dates';
 import {
   Users, Plus, Search, Eye, Edit, X, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
+  ShieldAlert, ShieldCheck,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
@@ -26,6 +27,8 @@ interface Customer {
   id: string;
   displayName: string;
   type: string;
+  /** UNVERIFIED until someone in the office vets a self-signed-up shop. */
+  verificationStatus?: 'VERIFIED' | 'UNVERIFIED';
   phone?: string;
   email?: string;
   outstandingBalance: number;
@@ -58,18 +61,28 @@ export default function CustomersPage() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
+  // Shops that signed themselves up are UNVERIFIED, and the API hides those
+  // from an unfiltered list — so without this control they were unreachable
+  // from the panel entirely, and nothing could ever vet them.
+  const [verification, setVerification] = useState('');
+  const [verifyingCustomer, setVerifyingCustomer] = useState<Customer | null>(null);
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, verification]);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { data: customers = [], isLoading } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => api.get('/customers').then((r) => r.data.data ?? r.data),
+    queryKey: ['customers', verification],
+    queryFn: () =>
+      api
+        .get('/customers', {
+          params: { limit: 200, ...(verification ? { verification } : {}) },
+        })
+        .then((r) => r.data.data ?? r.data),
   });
 
   const { data: customerDetail } = useQuery({
@@ -102,6 +115,17 @@ export default function CustomersPage() {
     },
     onError: (error: any) => {
       toast(apiError(error, 'Failed to update customer'), 'error');
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/customers/${id}/verify`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast(t('verifySuccess'), 'success');
+    },
+    onError: (error: any) => {
+      toast(apiError(error, 'Failed to verify customer'), 'error');
     },
   });
 
@@ -158,15 +182,29 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+      {/* Search + verification filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder={t('search')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <Select
+          id="verification-filter"
+          className="w-full sm:w-52"
+          value={verification}
+          onChange={setVerification}
+          clearable
+          placeholder={t('verifiedOnly')}
+          options={[
+            { value: 'UNVERIFIED', label: t('awaitingReview'), hint: t('awaitingReviewHint') },
+            { value: 'ALL', label: t('allCustomers') },
+          ]}
         />
       </div>
 
@@ -199,7 +237,18 @@ export default function CustomersPage() {
                   paginated.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-900">
-                        <CustomerLink id={customer.id} name={customer.displayName} />
+                        <span className="inline-flex items-center gap-2">
+                          <CustomerLink id={customer.id} name={customer.displayName} />
+                          {customer.verificationStatus === 'UNVERIFIED' && (
+                            <span
+                              title={t('awaitingReviewHint')}
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+                            >
+                              <ShieldAlert className="h-3 w-3" />
+                              {t('awaitingReview')}
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[customer.type] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -227,6 +276,16 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          {customer.verificationStatus === 'UNVERIFIED' && (
+                            <button
+                              onClick={() => setVerifyingCustomer(customer)}
+                              disabled={verifyMutation.isPending}
+                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                              title={t('verify')}
+                            >
+                              <ShieldCheck className="h-4 w-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                             className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -315,6 +374,41 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* ─── Verify Confirmation ───────────────────────────────────── */}
+      {verifyingCustomer && (
+        <Modal title={t('verify')} onClose={() => setVerifyingCustomer(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">{t('confirmVerify')}</p>
+            <p className="text-sm font-medium text-gray-900">{verifyingCustomer.displayName}</p>
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              {t('verifyWarning')}
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setVerifyingCustomer(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={verifyMutation.isPending}
+                onClick={() =>
+                  verifyMutation.mutate(verifyingCustomer.id, {
+                    onSuccess: () => setVerifyingCustomer(null),
+                  })
+                }
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {verifyMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('verify')}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

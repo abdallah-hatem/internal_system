@@ -311,7 +311,15 @@
     "email": "Email",
     "balance": "Balance",
     "orders": "Orders",
-    "search": "Search customers..."
+    "search": "Search customers...",
+    "verify": "Verify",
+    "verifySuccess": "Customer verified",
+    "confirmVerify": "Verify this shop so it can order, be invoiced and carry a balance?",
+    "verifyWarning": "It signed itself up on the storefront and nobody has vetted it yet. Until you verify it, every action that moves money refuses the account.",
+    "verifiedOnly": "Verified only",
+    "awaitingReview": "Awaiting review",
+    "awaitingReviewHint": "Signed up on the storefront, not yet vetted",
+    "allCustomers": "All customers"
   },
   "payments": {
     "title": "Payments",
