@@ -48,7 +48,7 @@ export default defineConfig({
       // other test here — they only happen in a compiled CommonJS bundle on a
       // host with no disk, which is a thing localhost never is.
       name: 'production',
-      testMatch: /56-production\.spec\.ts$/,
+      testMatch: /(56-production|60-production-audit)\.spec\.ts$/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
