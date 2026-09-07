@@ -57,8 +57,19 @@ export class InventoryService {
       costing.items.map((i) => [i.purchaseOrderItemId, i.landedUnitCostEgp]),
     );
 
-    // All in a single Prisma transaction
-    return this.prisma.$transaction(async (tx) => {
+    // One transaction for the writes that must stand or fall together — and
+    // ONLY those. Anything reaching for `this.prisma` from in here asks the
+    // pool for a second connection while this transaction holds the first, and
+    // `connection_limit: 1` on the deployed runtime means there is no second
+    // one to give. It waits for a connection that cannot arrive until the
+    // transaction ends, and the transaction cannot end until it returns.
+    //
+    // That deadlock is what made receiving stock impossible in production:
+    // P2028 at exactly the ceiling, every time, first at 5000 ms and then at
+    // 15008 ms when the ceiling was raised. Always exactly the limit, never
+    // near it — the shape of a hang rather than of slow work. Locally the pool
+    // is large enough to hand out a second connection, so it never happened.
+    const { batches, lowStockProducts } = await this.prisma.$transaction(async (tx) => {
       const batches: any[] = [];
       const lowStockProducts: any[] = [];
 
@@ -174,37 +185,40 @@ export class InventoryService {
         }
       }
 
-      await this.audit.log({
-        actorUserId: actorId,
-        action: 'VERIFY_STOCK',
-        entityType: 'InventoryBatch',
-        entityId: cycleId,
-        afterJson: {
-          batchCount: batches.length,
-          totalQty: batches.reduce(
-            (s, b) => s + Number(b.receivedQty),
-            0,
-          ),
-        },
-      });
-
-      // Send low stock notifications
-      if (lowStockProducts.length > 0) {
-        const corePartners = await tx.user.findMany({
-          where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
-        });
-        const userIds = corePartners.map((u) => u.id);
-        if (userIds.length > 0) {
-          await this.notifications.createForMultipleUsers(userIds, {
-            eventType: 'LOW_STOCK_DETECTED',
-            title: `Low stock detected: ${lowStockProducts.map((p) => p.productName).join(', ')}`,
-            payload: { products: lowStockProducts },
-          });
-        }
-      }
-
-      return { data: batches };
+      return { batches, lowStockProducts };
     });
+
+    // After the commit, on the connection the transaction has now released.
+    // Both of these are records of something that already happened, so they
+    // belong here on their own merit: an audit row for a receipt that rolled
+    // back would be a lie, and a low-stock alert for stock that was never
+    // landed would send somebody to look at a shelf that did not change.
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'VERIFY_STOCK',
+      entityType: 'InventoryBatch',
+      entityId: cycleId,
+      afterJson: {
+        batchCount: batches.length,
+        totalQty: batches.reduce((s, b) => s + Number(b.receivedQty), 0),
+      },
+    });
+
+    if (lowStockProducts.length > 0) {
+      const corePartners = await this.prisma.user.findMany({
+        where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+      });
+      const userIds = corePartners.map((u) => u.id);
+      if (userIds.length > 0) {
+        await this.notifications.createForMultipleUsers(userIds, {
+          eventType: 'LOW_STOCK_DETECTED',
+          title: `Low stock detected: ${lowStockProducts.map((p) => p.productName).join(', ')}`,
+          payload: { products: lowStockProducts },
+        });
+      }
+    }
+
+    return { data: batches };
   }
 
   async getStock(params: { productId?: string; cycleId?: string }) {

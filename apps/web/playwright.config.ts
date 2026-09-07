@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/** True when the suite is aimed at a deployed API rather than localhost. */
+const REMOTE = Boolean(process.env.API_BASE) && !/localhost|127\.0\.0\.1/.test(process.env.API_BASE!);
+
 export default defineConfig({
   testDir: './tests',
 
@@ -18,11 +21,16 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
 
+  // Aimed at the deployed API, every call crosses a network and may wake a
+  // cold serverless function; the localhost figures below then fail on latency
+  // rather than on behaviour, which is a check people learn to ignore.
+  ...(REMOTE ? { timeout: 240_000, expect: { timeout: 60_000 } } : {}),
+
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: 15_000,
+    actionTimeout: REMOTE ? 90_000 : 15_000,
     navigationTimeout: 30_000,
   },
 
