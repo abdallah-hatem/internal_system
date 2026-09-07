@@ -115,13 +115,24 @@ test.describe('The deployed store', () => {
     await context.close();
   });
 
-  test('TC-PROD-03: the catalogue lists a real product at its retail price', async ({ page }) => {
+  test('TC-PROD-03: the catalogue lists a real product at its retail price', async ({ page, request }) => {
     // Connected end to end: the store's build has the right API URL, the API
     // reaches Neon, and an anonymous visitor is quoted B2C.
+    //
+    // The product is read from the catalogue rather than named here. This used
+    // to assert on "Brake Disc, Front" — a row somebody had typed into
+    // production by hand — and a database reset took it with it, failing three
+    // tests that were about deployment and not about that product at all. A
+    // fixture should own what it asserts on; when it cannot, it should ask the
+    // system what is there.
+    const res = await request.get(`${API}/portal/catalogue?limit=1`, { timeout: COLD_START });
+    expect(res.ok(), 'the public catalogue must answer before the page can show it').toBeTruthy();
+    const item = (await res.json()).data.items[0];
+    test.skip(!item, 'the production catalogue is empty');
+
     await page.goto(`${STORE}/ar`, { waitUntil: 'domcontentloaded' });
-    const card = page.locator('[data-sku]').first();
-    await expect(card).toBeVisible({ timeout: 30_000 });
-    await expect(card).toContainText('Brake Disc');
+    const card = page.locator(`[data-sku="${item.sku}"]`).first();
+    await expect(card, `${item.sku} is in the catalogue but not on the page`).toBeVisible({ timeout: 30_000 });
 
     // Not `toContainText('1,200')`. The store renders in Arabic, and Arabic
     // number formatting uses its own digits and its own thousands separator —
@@ -130,13 +141,25 @@ test.describe('The deployed store', () => {
     const shown = (await card.innerText()).replace(/[٠-٩]/g, (d) =>
       String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)),
     ).replace(/[^0-9]/g, '');
-    expect(shown, 'the retail price is not on the card').toContain('1200');
-    expect(shown, 'a signed-out visitor was quoted the trade price').not.toContain('850');
+    const retail = String(Math.round(Number(item.price)));
+    expect(shown, `the retail price ${retail} is not on the card`).toContain(retail);
+    expect(item.channel, 'a signed-out visitor must be quoted B2C').toBe('B2C');
   });
 
-  test('TC-PROD-04: the product photograph loads from the blob store', async ({ page }) => {
+  test('TC-PROD-04: the product photograph loads from the blob store', async ({ page, request }) => {
     // The one piece with no local equivalent: locally this adapter is never
     // chosen, so nothing before deployment exercises it.
+    // Skipped rather than failed when nothing has a photo: the blob store is
+    // not broken, there is simply nothing in it. Said out loud, because a
+    // permanent skip is lost coverage on the one integration that has no local
+    // equivalent — upload a product image in production to bring it back.
+    const res = await request.get(`${API}/portal/catalogue?limit=50`, { timeout: COLD_START });
+    const withPhoto = ((await res.json()).data.items ?? []).filter((i: any) => i.image);
+    test.skip(
+      withPhoto.length === 0,
+      'no product in production has a photograph, so the blob store cannot be exercised',
+    );
+
     await page.goto(`${STORE}/ar`, { waitUntil: 'domcontentloaded' });
     const image = page.locator('[data-sku] img').first();
     await expect(image).toBeVisible({ timeout: 30_000 });
@@ -168,7 +191,7 @@ test.describe('The deployed office app', () => {
     await signIn(page);
   });
 
-  test('TC-PROD-07: the product created in production is listed with its photo', async ({ page }) => {
+  test('TC-PROD-07: the office lists the products the catalogue is serving', async ({ page, request }) => {
     await page.goto(`${OFFICE}/en/login`, { waitUntil: 'load' });
     await signIn(page);
 
@@ -179,9 +202,13 @@ test.describe('The deployed office app', () => {
       .locator('main .animate-spin')
       .waitFor({ state: 'detached', timeout: COLD_START })
       .catch(() => {});
+    // Named from the API rather than hardcoded, for the reason in TC-PROD-03.
     // `.first()` — the name appears in the row and again in a detail panel, and
     // strict mode is right to refuse an ambiguous locator.
-    await expect(page.getByText('Brake Disc, Front').first()).toBeVisible({ timeout: COLD_START });
+    const res = await request.get(`${API}/portal/catalogue?limit=1`, { timeout: COLD_START });
+    const item = (await res.json()).data.items[0];
+    test.skip(!item, 'production has no products to list');
+    await expect(page.getByText(item.name).first()).toBeVisible({ timeout: COLD_START });
   });
 
   test('TC-PROD-08: CORS allows the office origin', async ({ page }) => {
