@@ -88,6 +88,21 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 
 ## Deployment
 
+- Never call another service from inside `$transaction`. `connection_limit: 1` is right for
+  a serverless host and it means the transaction holds the only connection there is, so
+  `this.audit.log()` or a notifier in there waits for a second connection that cannot arrive
+  until the transaction ends — which it cannot, until the call returns. It surfaces as P2028
+  at *exactly* the ceiling: 5000 ms, then 15008 ms when the ceiling was raised. Always
+  precisely the limit, never near it, is the shape of a hang and not of slow work. Four
+  endpoints were dead in production this way — receiving stock, confirming a sale,
+  cancelling one, allocating a payment — and every one passed locally, where the pool is
+  large enough to hand out a second connection. Pass `tx`, or do it after the commit.
+- Local passes prove nothing about the deployed runtime. Those four had green suites for
+  weeks. `API_BASE=<deployed api>` points the existing flow suites at production and found
+  all of them in one run; globalSetup leaves the local database alone when the run is not
+  aimed at it. — 2026-09-07
+
+
 - Local `.env` says nothing about production. All three apps deploy to Vercel
   (`internal-system-api`, `-web`, `-store`) with Neon attached to the API, and I read
   `apps/api/.env` — `DATABASE_URL=localhost` — and told the owner there was no production
