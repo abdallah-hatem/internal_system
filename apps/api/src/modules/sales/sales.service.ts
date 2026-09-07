@@ -230,7 +230,7 @@ export class SalesService {
 
   async confirmOrder(id: string, actorId: string, version: number) {
     // Transactional FIFO allocation
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await tx.saleOrder.findUnique({
         where: { id },
         include: { items: { include: { product: true } } },
@@ -343,16 +343,15 @@ export class SalesService {
       // but not yet collected is reported as receivables, which is the gap
       // between the two.
 
-      await this.audit.log({
-        actorUserId: actorId,
-        action: 'CONFIRM',
-        entityType: 'SaleOrder',
-        entityId: id,
-        beforeJson: { status: 'DRAFT' },
-        afterJson: { status: 'CONFIRMED', cogs: Number(totalCogs) },
-      });
-
       return {
+        audit: {
+          actorUserId: actorId,
+          action: 'CONFIRM',
+          entityType: 'SaleOrder',
+          entityId: id,
+          beforeJson: { status: 'DRAFT' },
+          afterJson: { status: 'CONFIRMED', cogs: Number(totalCogs) },
+        },
         data: {
           ...updatedOrder,
           allocations,
@@ -360,10 +359,18 @@ export class SalesService {
         },
       };
     });
+
+    // The audit row is written after the commit. `this.audit` uses the outer
+    // client, and `connection_limit: 1` means a transaction holds the only
+    // connection there is — an audit write from inside waits for one that
+    // cannot arrive until the transaction ends, and the transaction cannot
+    // end until it returns. P2028 at exactly the ceiling, every time.
+    await this.audit.log(outcome.audit);
+    return { data: outcome.data };
   }
 
   async cancelOrder(id: string, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await tx.saleOrder.findUnique({
         where: { id },
         include: { items: { include: { allocations: true } } },
@@ -437,16 +444,25 @@ export class SalesService {
         data: { status: 'CANCELLED' },
       });
 
-      await this.audit.log({
-        actorUserId: actorId,
-        action: 'CANCEL',
-        entityType: 'SaleOrder',
-        entityId: id,
-        beforeJson: { status: order.status },
-        afterJson: { status: 'CANCELLED' },
-      });
-
-      return { data: updated };
+      return {
+        audit: {
+          actorUserId: actorId,
+          action: 'CANCEL',
+          entityType: 'SaleOrder',
+          entityId: id,
+          beforeJson: { status: order.status },
+          afterJson: { status: 'CANCELLED' },
+        },
+        data: updated,
+      };
     });
+
+    // The audit row is written after the commit. `this.audit` uses the outer
+    // client, and `connection_limit: 1` means a transaction holds the only
+    // connection there is — an audit write from inside waits for one that
+    // cannot arrive until the transaction ends, and the transaction cannot
+    // end until it returns. P2028 at exactly the ceiling, every time.
+    await this.audit.log(outcome.audit);
+    return { data: outcome.data };
   }
 }

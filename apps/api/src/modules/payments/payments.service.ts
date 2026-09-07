@@ -156,7 +156,7 @@ export class PaymentsService {
     amount: number,
     actorId: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { id: paymentId },
       });
@@ -224,16 +224,25 @@ export class PaymentsService {
         },
       });
 
-      await this.audit.log({
-        actorUserId: actorId,
-        action: 'ALLOCATE',
-        entityType: 'Payment',
-        entityId: paymentId,
-        afterJson: { saleOrderId, amount, newOutstanding },
-      });
-
-      return { data: allocation };
+      return {
+        audit: {
+          actorUserId: actorId,
+          action: 'ALLOCATE',
+          entityType: 'Payment',
+          entityId: paymentId,
+          afterJson: { saleOrderId, amount, newOutstanding },
+        },
+        data: allocation,
+      };
     });
+
+    // The audit row is written after the commit. `this.audit` uses the outer
+    // client, and `connection_limit: 1` means a transaction holds the only
+    // connection there is — an audit write from inside waits for one that
+    // cannot arrive until the transaction ends, and the transaction cannot
+    // end until it returns. P2028 at exactly the ceiling, every time.
+    await this.audit.log(outcome.audit);
+    return { data: outcome.data };
   }
 
   async reverse(id: string, reason: string, actorId: string) {
