@@ -142,7 +142,11 @@ test.describe('Stock through the deployed app', () => {
         items: [{ productId: ctx.product.id, quantity: 5, unitPrice: 400, discount: 0 }],
       },
     })).json()).data;
-    const confirmed = await request.post(`${API}/sales/orders/${order.id}/confirm`, { headers: h });
+    // The version the order was read at — optimistic locking, and required.
+    const confirmed = await request.post(`${API}/sales/orders/${order.id}/confirm`, {
+      headers: h,
+      data: { version: order.version },
+    });
     expect(confirmed.ok(), await confirmed.text()).toBeTruthy();
 
     await signIn(page);

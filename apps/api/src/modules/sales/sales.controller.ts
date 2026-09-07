@@ -13,6 +13,7 @@ import { SalesService } from './sales.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
+import { badRequest } from '../../common/api-error';
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -56,9 +57,20 @@ export class SalesController {
   @ApiOperation({ summary: 'Confirm order and perform FIFO stock allocation' })
   confirmOrder(
     @Param('id') id: string,
-    @Body() body: { version: number },
+    @Body() body: { version?: number } | undefined,
     @CurrentUser() user: any,
   ) {
+    // `@Body()` is undefined when the request carries none, so `body.version`
+    // threw and every caller that forgot it got a 500 reading "An unexpected
+    // error occurred". The version is how two people editing one order are
+    // kept from overwriting each other, so it is required — and saying so is
+    // the whole job of this check.
+    if (body?.version === undefined) {
+      throw badRequest(
+        'VERSION_REQUIRED',
+        'Confirming an order requires the version it was read at.',
+      );
+    }
     return this.salesService.confirmOrder(id, user.id, body.version);
   }
 
