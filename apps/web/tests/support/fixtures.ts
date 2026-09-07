@@ -11,7 +11,8 @@
  */
 import { expect, APIRequestContext } from '@playwright/test';
 
-export const API = 'http://localhost:3001/api/v1';
+/** Local by default; `API_BASE` aims the same fixtures at the deployed API. */
+export const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
 export const EMAIL = 'partner.a@motoparts.com';
 export const PASSWORD = 'password123';
 

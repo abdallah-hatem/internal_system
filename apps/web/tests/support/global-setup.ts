@@ -24,6 +24,18 @@ function productionOnly(): boolean {
 }
 
 /**
+ * Is the run aimed somewhere other than the developer's own API?
+ *
+ * `API_BASE` points the flow suites at the deployed system. Snapshotting and
+ * reseeding localhost around a run that never opens it would destroy a
+ * morning's data entry to prepare a database nothing was going to read.
+ */
+function aimedElsewhere(): boolean {
+  const base = process.env.API_BASE;
+  return Boolean(base) && !/localhost|127\.0\.0\.1/.test(base!);
+}
+
+/**
  * Give the suite a known starting point without costing the owner their data.
  *
  * Several tests pick "the first confirmed order" or "a batch with stock", which
@@ -32,8 +44,8 @@ function productionOnly(): boolean {
  * cost a diagnosis before establishing the code was fine.
  */
 export default async function globalSetup() {
-  if (productionOnly()) {
-    console.log('  [db] production-only run — the local database is not touched');
+  if (productionOnly() || aimedElsewhere()) {
+    console.log('  [db] not aimed at the local database — it is left untouched');
     return;
   }
 

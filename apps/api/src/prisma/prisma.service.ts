@@ -44,11 +44,34 @@ export function tunedDatabaseUrl(raw: string | undefined): string | undefined {
   }
 }
 
+/**
+ * How long an interactive transaction may take.
+ *
+ * Prisma's default is 5000 ms, which is a figure for a database on the same
+ * machine. Receiving stock does roughly seven round trips per line plus an
+ * audit row and a ledger entry, and `connection_limit: 1` above means they
+ * serialise — so on the deployed API every one of them is a network hop taken
+ * one at a time. Measured in production it came to 5095 ms, and
+ * `POST /receipts/verify` failed with P2028 every single time: stock could not
+ * be received at all, while the same code passed locally in well under a
+ * second because Postgres was a container on the same host.
+ *
+ * The region fix in vercel.json is the real repair — the function and Neon are
+ * now in the same one. This is the margin, so that a slow moment costs a slow
+ * request rather than a 500 on the one endpoint that creates stock.
+ *
+ * Applied only on Vercel. Locally the default is a useful canary: a
+ * transaction that cannot finish in five seconds against a local database has
+ * something wrong with it, and that is worth failing over.
+ */
+const NETWORKED_TRANSACTION = { timeout: 15_000, maxWait: 10_000 } as const;
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
     super({
       datasources: { db: { url: tunedDatabaseUrl(process.env.DATABASE_URL) } },
+      ...(process.env.VERCEL ? { transactionOptions: NETWORKED_TRANSACTION } : {}),
     });
   }
 
