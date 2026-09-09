@@ -228,7 +228,21 @@ export class InventoryService {
 
     const batches = await this.prisma.inventoryBatch.findMany({
       where,
-      include: { product: true, cycle: true },
+      include: {
+        product: true,
+        cycle: {
+          // The legs carry the only record of when the goods physically
+          // landed. Ordered so the last one is the arrival into Egypt: a
+          // CHINA cycle has two, and the first leg arriving in the UAE is not
+          // the date anyone means by "when did this arrive".
+          include: {
+            shippingLegs: {
+              orderBy: { sequence: 'asc' },
+              select: { sequence: true, arrivedOn: true },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -254,7 +268,27 @@ export class InventoryService {
       productTotals[batch.productId].availableStock += Number(
         batch.saleableQty,
       );
-      productTotals[batch.productId].batches.push(batch);
+      // Two dates, because they answer different questions and a shop asking
+      // "how old is this stock" means different things by them.
+      //
+      //   arrivedOn  — when the shipment physically landed. Null until the leg
+      //                is dated, and null for stock that never had a leg.
+      //   receivedAt — when it was verified into stock and became sellable.
+      //                Always present, and the one the FIFO order uses.
+      //
+      // They are usually days apart and occasionally weeks, which is itself
+      // worth seeing: a wide gap is stock that sat before anyone booked it in.
+      // Collapsing them into one "arrived" would hide exactly that.
+      const legs = (batch.cycle as any)?.shippingLegs ?? [];
+      const lastArrival = [...legs]
+        .reverse()
+        .find((l: any) => l.arrivedOn)?.arrivedOn ?? null;
+
+      productTotals[batch.productId].batches.push({
+        ...batch,
+        arrivedOn: lastArrival,
+        receivedAt: batch.createdAt,
+      });
     }
 
     return { data: Object.values(productTotals) };

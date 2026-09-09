@@ -7,7 +7,6 @@ import { Money } from '../../../components/ui/money';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { formatDate } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
@@ -209,6 +208,8 @@ export default function InventoryPage() {
                                         <tr className="border-b border-gray-200">
                                           <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('batch')}</th>
                                           <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('cycle')}</th>
+                                          <th className="text-start py-2 text-xs text-gray-500 font-medium" title={t('arrivedHint')}>{t('arrived')}</th>
+                                          <th className="text-start py-2 text-xs text-gray-500 font-medium" title={t('receivedHint')}>{t('received')}</th>
                                           <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('remaining')}</th>
                                           <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('landedCost')}</th>
                                           <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('verificationStatus')}</th>
@@ -220,6 +221,15 @@ export default function InventoryPage() {
                                           <tr key={batch.id} className="hover:bg-white">
                                             <td className="py-2 font-mono text-xs text-gray-600"><BatchRef id={batch.id} /></td>
                                             <td className="py-2 text-gray-600">{batch.cycle?.code ?? '—'}</td>
+                                            {/* Dated from the shipping leg, so it is empty until the leg
+                                                is dated — said plainly rather than shown as a dash, which
+                                                reads as "no data" when it means "nobody entered it yet". */}
+                                            <td className="py-2 text-gray-600">
+                                              {batch.arrivedOn ? formatDate(batch.arrivedOn) : (
+                                                <span className="text-gray-400">{t('notArrivedYet')}</span>
+                                              )}
+                                            </td>
+                                            <td className="py-2 text-gray-600">{formatDate(batch.receivedAt)}</td>
                                              <td className="py-2 font-medium text-gray-900">{batch.remainingQty}</td>
                                             <td className="py-2 text-gray-600"><Money value={batch.landedUnitCostEgp} /></td>
                                             <td className="py-2">
@@ -349,6 +359,20 @@ export default function InventoryPage() {
                               <span className="text-gray-500">{t('landedCost')}:</span>{' '}
                               <span className="font-medium"><Money value={batch.landedUnitCostEgp} /></span>
                             </div>
+                            {/* Same two dates as the desktop table — the phone
+                                view is the one used on a warehouse floor, which
+                                is exactly where "how long has this been here"
+                                gets asked. */}
+                            <div>
+                              <span className="text-gray-500">{t('arrived')}:</span>{' '}
+                              <span className="font-medium">
+                                {batch.arrivedOn ? formatDate(batch.arrivedOn) : t('notArrivedYet')}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">{t('received')}:</span>{' '}
+                              <span className="font-medium">{formatDate(batch.receivedAt)}</span>
+                            </div>
                           </div>
                           <button
                             onClick={(e) => {
@@ -470,6 +494,7 @@ export default function InventoryPage() {
 import { Fragment } from 'react';
 
 import { useApiError } from '../../../lib/api-error';
+import { formatDate } from '../../../lib/dates';
 function VerificationBadge({ status }: { status: string }) {
   const t = useTranslations('inventory');
   if (status === 'VERIFIED') {

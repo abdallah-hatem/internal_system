@@ -249,7 +249,12 @@
     "verifyStock": "Verify Stock",
     "receivedQty": "Received Qty",
     "unitCost": "Unit Cost (EGP)",
-    "search": "Search inventory..."
+    "search": "Search inventory...",
+    "arrived": "Arrived",
+    "received": "Received",
+    "notArrivedYet": "Not dated",
+    "arrivedHint": "When the shipment landed",
+    "receivedHint": "When it was booked into stock"
   },
   "sales": {
     "title": "Sales Orders",

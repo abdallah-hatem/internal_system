@@ -68,6 +68,11 @@ interface Batch {
   receivedQty: number;
   remainingQty: number;
   landedUnitCostEgp: number;
+  /** When the shipment landed. Null until the shipping leg carries a date. */
+  arrivedOn?: string | null;
+  /** When it was verified into stock. Always present — it is the batch's own
+   *  creation, and it is the order FIFO consumes in. */
+  receivedAt?: string | null;
 }
 
 interface Movement {
@@ -109,6 +114,9 @@ function movementTypeIcon(type: string) {
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
   const t = useTranslations('products');
+  // Inventory owns these two labels; they are the same words the
+  // inventory screen uses and should not be a second translation of them.
+  const tInv = useTranslations('inventory');
   const tc = useTranslations('common');
   const router = useRouter();
   const params = useParams();
@@ -324,6 +332,17 @@ export default function ProductDetailPage() {
                           <span className="text-gray-600">
                             {t('landedCost')}:{' '}
                             <Money value={batch.landedUnitCostEgp} />
+                          </span>
+                          {/* When it landed, and when it was booked in. Both,
+                              because a gap between them is stock that sat
+                              unrecorded — and only one of the two is ever the
+                              answer to "how old is this". */}
+                          <span className="text-gray-600">
+                            {tInv('arrived')}:{' '}
+                            {batch.arrivedOn ? formatDate(batch.arrivedOn) : tInv('notArrivedYet')}
+                          </span>
+                          <span className="text-gray-600">
+                            {tInv('received')}: {formatDate(batch.receivedAt)}
                           </span>
                         </div>
                         {isExpanded ? (

@@ -529,3 +529,36 @@ part does not lose its place in the catalogue", which reads as the intent being 
 launcher visible while browsing. **Not changed** — where a persistent basket
 button belongs is a design decision, not a defect to fix quietly.
 
+---
+
+## 14. What "when stock arrived" means  — DECIDED 2026-09-09
+
+**Two dates, shown separately on inventory and on the product page.**
+
+| shown as | is | source |
+|---|---|---|
+| **Arrived** | when the shipment physically landed in Egypt | the cycle's **last dated** shipping leg's `arrivedOn` |
+| **Received** | when it was verified into stock and became sellable | the batch's own creation |
+
+They are routinely days apart — the reference seed has them five days apart —
+and the gap is the useful part: a wide one is stock that sat somewhere before
+anybody booked it in. Collapsing them into a single "arrived" would hide
+exactly that, so both are shown.
+
+**Arrived is the last leg, not the first.** A CHINA cycle runs
+China → UAE → Egypt, and leg 1 arriving is a box in a Dubai warehouse, not
+stock a shop can buy. Reading `shippingLegs[0]` would look correct against
+every UAE_DIRECT cycle and be wrong for every China one — which is most of the
+business. TC-ARR-02 pins this with a two-leg cycle whose legs are dated three
+weeks apart.
+
+**Arrived is reliable, not hopeful.** The API already refuses to advance a
+cycle whose leg carries no arrival date (`LEG_NOT_ARRIVED`), so stock cannot be
+received from an undated leg at all. The screens still handle a null — a cycle
+with no legs, or data predating that guard, reaches the same place — and say
+"Not dated" rather than showing a dash, because a dash reads as "no data" when
+it means "nobody entered it yet". TC-ARR-03 pins the refusal.
+
+Both screens read the same `/inventory` endpoint, so there is one definition of
+arrival rather than two (rule 11). TC-ARR-05 asserts they agree.
+
