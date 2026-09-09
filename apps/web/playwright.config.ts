@@ -44,7 +44,14 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /(storefront|production)\.spec\.ts$/,
+      // Anything with `production` anywhere in the name, not only at the end.
+      // The previous pattern required the file to *end* with
+      // `production.spec.ts`, so `60-production-audit` and
+      // `62-production-stock-flow` fell through and ran against localhost —
+      // where they assert things only true of the deployed system, and one of
+      // them was never in the production project at all, so it had only ever
+      // run against the wrong target.
+      testIgnore: /(storefront\.spec\.ts|production.*\.spec\.ts)$/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -56,7 +63,10 @@ export default defineConfig({
       // other test here — they only happen in a compiled CommonJS bundle on a
       // host with no disk, which is a thing localhost never is.
       name: 'production',
-      testMatch: /(56-production|60-production-audit|61-production-browser)\.spec\.ts$/,
+      // Matched by convention rather than by listing each file: the list had
+      // already fallen behind by one, and a production test that silently runs
+      // nowhere is worse than one that fails.
+      testMatch: /production.*\.spec\.ts$/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
