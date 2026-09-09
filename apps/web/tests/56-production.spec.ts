@@ -243,3 +243,75 @@ test.describe('The deployed API', () => {
     expect([401, 403, 404]).toContain(res.status());
   });
 });
+
+test.describe('Stock dates, in production', () => {
+  test('TC-PROD-11: the API reports both arrival and receipt for real stock', async ({
+    request,
+  }) => {
+    // Against the deployed database, not a fixture. The point is that the
+    // change reached production and works on the records actually there —
+    // which a local suite cannot tell you.
+    const login = await request.post(`${API}/auth/login`, {
+      data: { email: EMAIL, password: PASSWORD },
+      timeout: COLD_START,
+    });
+    expect(login.ok(), await login.text()).toBeTruthy();
+    const token = (await login.json()).data.accessToken;
+
+    const res = await request.get(`${API}/inventory`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: COLD_START,
+    });
+    expect(res.ok()).toBeTruthy();
+    const items = (await res.json()).data ?? [];
+
+    if (items.length === 0) {
+      test.skip(true, 'production carries no stock to check');
+      return;
+    }
+
+    const batches = items.flatMap((i: any) => i.batches ?? []);
+    expect(batches.length, 'stock with no batches').toBeGreaterThan(0);
+
+    for (const b of batches) {
+      // `receivedAt` is the batch itself and can never be absent.
+      expect(b, `batch ${b.id} has no receivedAt`).toHaveProperty('receivedAt');
+      expect(b.receivedAt).toBeTruthy();
+      // `arrivedOn` may legitimately be null for a cycle with no dated leg,
+      // but the field must be present — an absent key means the deployed
+      // build predates this and the screen will render nothing.
+      expect(b, `batch ${b.id} has no arrivedOn key`).toHaveProperty('arrivedOn');
+    }
+  });
+
+  test('TC-PROD-12: the deployed inventory screen shows both dates', async ({ page }) => {
+    // `signIn`, not an inline fill. This file already carries a helper that
+    // retries because a deployed Next app discards what `fill` typed if it
+    // lands before hydration — it fails on roughly two runs in three. Writing
+    // my own login here reproduced exactly that, and the failure looked like
+    // the feature being broken rather than the login.
+    await page.goto(`${OFFICE}/en/login`, { waitUntil: 'domcontentloaded' });
+    await signIn(page);
+
+    await page.goto(`${OFFICE}/en/inventory`, { waitUntil: 'domcontentloaded' });
+    await page
+      .locator('main .animate-spin')
+      .waitFor({ state: 'detached', timeout: COLD_START })
+      .catch(() => {});
+
+    const firstRow = page.locator('tbody tr').first();
+    await expect(firstRow).toBeVisible({ timeout: COLD_START });
+    await firstRow.click();
+
+    const main = page.locator('main');
+    await expect(main.getByText('Arrived', { exact: true }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(main.getByText('Received', { exact: true }).first()).toBeVisible();
+
+    // And formatted, not a leaked ISO string.
+    expect(await main.innerText(), 'a raw timestamp reached production').not.toMatch(
+      /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/,
+    );
+  });
+});

@@ -361,12 +361,67 @@ export class CyclesService {
 
     await this.assertShippingReached(id, cycle.originType, targetStatus);
 
-    const updated = await this.prisma.importCycle.update({
-      where: { id },
-      data: {
-        status: targetStatus as any,
-        closedOn: targetStatus === 'CLOSED' ? new Date() : undefined,
-      },
+    /**
+     * Leaving PURCHASING is the moment the orders were actually placed.
+     *
+     * Purchase orders are created DRAFT and nothing moved them out of it, so
+     * every order made through this app stayed a draft through shipping,
+     * arrival, verification and selling. Only the demo seeder ever wrote
+     * CONFIRMED, which is why it looked correct in a seeded database and was
+     * wrong in every real one.
+     *
+     * That is not a cosmetic label. `addItem` refuses on a non-DRAFT order —
+     * "can only add items to a DRAFT purchase order" — and with nothing ever
+     * leaving DRAFT that guard had never once fired. Lines could be added to
+     * an order after its stock was received and its landed cost computed,
+     * which is the exact shape of the money bugs this repo's rules were
+     * written after.
+     *
+     * PURCHASING -> IN_TRANSIT or ARRIVED_UAE both mean the goods are moving,
+     * so the order exists in the world and can no longer gain lines.
+     * CANCELLED does not confirm anything: an abandoned cycle never ordered.
+     */
+    const leavingPurchasing =
+      cycle.status === 'PURCHASING' && targetStatus !== 'CANCELLED';
+
+    if (leavingPurchasing) {
+      const drafts = await this.prisma.purchaseOrder.findMany({
+        where: { cycleId: id, status: 'DRAFT' },
+        include: { _count: { select: { items: true } } },
+      });
+
+      // An order with no lines is not an order. Confirming one would lock an
+      // empty record that can never be corrected, because the only way to add
+      // a line is while it is a draft.
+      const empty = drafts.filter((po) => po._count.items === 0);
+      if (empty.length > 0) {
+        throw badRequest(
+          'PO_HAS_NO_ITEMS',
+          `Purchase order ${empty[0].reference} has no items. Add what was ordered, or remove the order, before the cycle leaves purchasing.`,
+          { reference: empty[0].reference },
+        );
+      }
+    }
+
+    // One transaction, so a cycle cannot advance while its orders stay drafts.
+    // Nothing else is called from inside it — the audit log and the
+    // notifications below are separate connections and deadlock against this
+    // one if they are pulled in.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (leavingPurchasing) {
+        await tx.purchaseOrder.updateMany({
+          where: { cycleId: id, status: 'DRAFT' },
+          data: { status: 'CONFIRMED' },
+        });
+      }
+
+      return tx.importCycle.update({
+        where: { id },
+        data: {
+          status: targetStatus as any,
+          closedOn: targetStatus === 'CLOSED' ? new Date() : undefined,
+        },
+      });
     });
 
 

@@ -562,3 +562,37 @@ it means "nobody entered it yet". TC-ARR-03 pins the refusal.
 Both screens read the same `/inventory` endpoint, so there is one definition of
 arrival rather than two (rule 11). TC-ARR-05 asserts they agree.
 
+---
+
+## 15. When a purchase order stops being a draft  — DECIDED 2026-09-09
+
+**A purchase order is confirmed when its cycle leaves PURCHASING.**
+
+`PURCHASING -> IN_TRANSIT` and `PURCHASING -> ARRIVED_UAE` both mean the goods
+are moving, so the order was placed in the world and can no longer gain lines.
+`PURCHASING -> CANCELLED` confirms nothing: a cycle that was abandoned never
+ordered anything.
+
+**Why this needed deciding.** Orders were created `DRAFT` and *nothing* moved
+them out of it — no endpoint, no transition. Only the demo seeder ever wrote
+`CONFIRMED`, which is why a seeded database looked correct and every real one
+was wrong. Found by the production audit (TC-AUD-06), not by any feature test.
+
+The label was never the point. `addItem` refuses on a non-DRAFT order — "can
+only add items to a DRAFT purchase order" — and with nothing leaving DRAFT that
+guard had never once fired. Lines could be added to an order **after its stock
+was received and its landed cost computed**, which is the shape of the money
+bugs the working rules were written after.
+
+Historical cycles that passed PURCHASING before this rule existed are holding
+drafts the transition will never revisit. `scripts/confirm-stranded-orders.sh`
+reports them and confirms them with `--fix`. Only the status changes; no line is
+touched, because the cycle's own history already implies the order was placed.
+
+### `CANCELLED` was not a real status  — FIXED 2026-09-09
+
+Cancelling any cycle returned "An unexpected error occurred". `CANCELLED` was in
+the transition machine, in the office app's copy of it, in the badge colours and
+in both locale files — and missing from the `CycleStatus` enum, so the write
+failed at the database. Added, with a migration. TC-PO-04 covers it.
+

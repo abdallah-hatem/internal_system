@@ -275,6 +275,7 @@ enum CycleStatus {
   SELLING
   SETTLEMENT
   CLOSED
+  CANCELLED
 }
 
 model ImportCycle {
