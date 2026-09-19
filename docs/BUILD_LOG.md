@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Wave 1 of 4 **merged into `feature/mcp-assistant`** (resumed 2026-09-19) · handoff steps 1–4 done; 5–6 (local DB migrate + e2e) wait on the user's OK per repo rule 6; step 7 review running
+Current stage: 4 — Build · Wave 1 merged and verified · **Wave 2 next: T4 (OAuth) ‖ T5 (/mcp endpoint + confirmation)**
 
 ## Waves
 
@@ -15,6 +15,13 @@ Current stage: 4 — Build · Wave 1 of 4 **merged into `feature/mcp-assistant`*
 - Wave 1 merged: T3 `1db5944` → T2 `2079d1a` → T1 `72a271d`, then T0 rebased on top as `f4375ce`
   with violations re-frozen (api pruned, web +new). Re-checked, not trusted: api jest 165/165, lint +
   typecheck green in api, web and storefront. Translations `d59a062`. Prisma client regenerated locally.
+
+- Wave 1 verified on the merged branch: local DB migrated; e2e 82/82 (41, 02, 04, 35, 43, 48, 58, 63, 64).
+  Alignment review: T1 ALIGNED, T2 ALIGNED, T3 DOC OUT OF DATE → §16 updated in `e8178e4`.
+  Rule-2 on T1's race test **failed** — it passed with the mapping off (HTTP sends never overlap), and
+  the same sends also collide on the unique PO `reference`, which the mapping ignored → a 500.
+  Fixed in `e8178e4`, pinned by a unit test that fails on the old code. The plain PO-reference race
+  (two different POs at once → 500) predates this build; offered as a separate task.
 
 ## Decisions
 
@@ -61,6 +68,10 @@ Current stage: 4 — Build · Wave 1 of 4 **merged into `feature/mcp-assistant`*
 
 - **[Stage 4] Locale files belong to the main thread.** Subagents report new error codes with English
   and Arabic text; the main thread adds them after each wave, avoiding a four-way merge conflict.
+
+- **[Stage 4] Port 3000 belongs to another project today** (the Aesthetica session's API). `dev.sh`
+  frees ports by killing their holders, so it was not used; the API and web were started directly,
+  web on :3003 with `WEB_ORIGIN`, specs run with `WEB_URL=http://localhost:3003`.
 
 ## Findings
 
