@@ -29,6 +29,8 @@ interface ConfirmationClaims {
   sub?: string;
   tool?: string;
   input?: string;
+  /** Hash of what the preview promised, for tools that bind it. */
+  shown?: string;
   jti?: string;
   exp?: number;
 }
@@ -46,9 +48,24 @@ export class ConfirmationService {
     private readonly prisma: PrismaService,
   ) {}
 
-  issue(partnerId: string, tool: string, input: unknown): IssuedConfirmation {
+  /**
+   * `shown` is the part of the preview the partner is agreeing to, for a tool
+   * whose same input can do more by the time it commits — a transition that
+   * would lock a draft order created after the preview, a stock booking whose
+   * landed cost moved. Left out, only the input is bound.
+   */
+  issue(
+    partnerId: string,
+    tool: string,
+    input: unknown,
+    shown?: unknown,
+  ): IssuedConfirmation {
     const token = this.jwt.sign(
-      { tool, input: inputHash(input) },
+      {
+        tool,
+        input: inputHash(input),
+        ...(shown === undefined ? {} : { shown: inputHash(shown) }),
+      },
       {
         audience: CONFIRMATION_AUDIENCE,
         subject: partnerId,
@@ -73,6 +90,8 @@ export class ConfirmationService {
     partnerId: string,
     tool: string,
     input: unknown,
+    /** Previews again, for a token that bound what it showed. */
+    shownNow?: () => Promise<unknown>,
   ): Promise<void> {
     let claims: ConfirmationClaims;
     try {
@@ -103,6 +122,24 @@ export class ConfirmationService {
       );
     }
 
+    // Checked before the token is spent, so a preview that went stale leaves
+    // the partner free to look again rather than burning their "yes". A token
+    // already spent says so first — previewing again for a replay would answer
+    // with whatever the finished write now makes the preview refuse.
+    if (claims.shown !== undefined) {
+      const spent = await this.prisma.usedNonce.findUnique({
+        where: { jti: claims.jti },
+      });
+      if (spent) throw used();
+      const shown = shownNow ? await shownNow() : undefined;
+      if (shown === undefined || claims.shown !== inputHash(shown)) {
+        throw conflict(
+          'PREVIEW_CHANGED',
+          'What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that.',
+        );
+      }
+    }
+
     // Single use rests on the primary key, not on looking first: two
     // presentations at once would both find nothing and both commit.
     try {
@@ -114,15 +151,17 @@ export class ConfirmationService {
         },
       });
     } catch (err) {
-      if (isUniqueViolation(err)) {
-        throw conflict(
-          'CONFIRMATION_USED',
-          'This confirmation has already been used. Nothing more was saved.',
-        );
-      }
+      if (isUniqueViolation(err)) throw used();
       throw err;
     }
   }
+}
+
+function used() {
+  return conflict(
+    'CONFIRMATION_USED',
+    'This confirmation has already been used. Nothing more was saved.',
+  );
 }
 
 function invalid() {

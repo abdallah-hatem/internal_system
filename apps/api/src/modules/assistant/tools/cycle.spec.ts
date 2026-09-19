@@ -225,6 +225,8 @@ function fakePrisma() {
         db.nonces.add(data.jti);
         return Promise.resolve(data);
       },
+      findUnique: ({ where }: Row) =>
+        Promise.resolve(db.nonces.has(where.jti) ? { jti: where.jti } : null),
     },
   };
   prisma.$transaction = (fn: (tx: Row) => Promise<unknown>) => fn(prisma);
@@ -659,6 +661,69 @@ describe('transition_cycle', () => {
     expect(c.status).toBe('PURCHASING');
   });
 
+  it('a draft order created between preview and commit → PREVIEW_CHANGED, nothing locked unseen', async () => {
+    const c = cycle('PURCHASING');
+    order(c, 'PO-2026-0001', 'DRAFT', [[PAD, 10, 4]]);
+    const args = {
+      cycleId: c.id,
+      fromStatus: 'PURCHASING',
+      status: 'ARRIVED_UAE',
+    };
+    const preview = await call('transition_cycle', args);
+    expect(textOf(preview)).not.toContain('PO-2026-0002');
+
+    // Someone records another receipt on the cycle in the meantime.
+    order(c, 'PO-2026-0002', 'DRAFT', [[CHAIN, 5, 9]]);
+    const token = structured(preview).confirmationToken;
+
+    const commit = await call('transition_cycle', {
+      ...args,
+      confirmationToken: token,
+    });
+    expect(codeOf(commit)).toBe('PREVIEW_CHANGED');
+    expect(c.status).toBe('PURCHASING');
+    expect(db.orders.map((o) => o.status)).toEqual(['DRAFT', 'DRAFT']);
+
+    // The refusal did not spend the partner's "yes" on nothing: a new preview
+    // names both orders, and confirming that one goes through.
+    const again = await call('transition_cycle', args);
+    expect(textOf(again)).toContain('PO-2026-0002');
+    const done = await call('transition_cycle', {
+      ...args,
+      confirmationToken: structured(again).confirmationToken,
+    });
+    expect(done.isError).toBeFalsy();
+    expect(db.orders.map((o) => o.status)).toEqual(['CONFIRMED', 'CONFIRMED']);
+  });
+
+  it('a line added to a previewed draft before commit → PREVIEW_CHANGED', async () => {
+    const c = cycle('PURCHASING');
+    const [pad] = order(c, 'PO-2026-0001', 'DRAFT', [[PAD, 10, 4]]);
+    const args = {
+      cycleId: c.id,
+      fromStatus: 'PURCHASING',
+      status: 'ARRIVED_UAE',
+    };
+    const preview = await call('transition_cycle', args);
+
+    // Someone adds a line to that draft in the office app.
+    db.items.push({
+      ...pad,
+      id: randomUUID(),
+      productId: CHAIN,
+      orderedQty: D(5),
+      unitPrice: D(9),
+      lineTotal: D(45),
+    });
+
+    const commit = await call('transition_cycle', {
+      ...args,
+      confirmationToken: structured(preview).confirmationToken,
+    });
+    expect(codeOf(commit)).toBe('PREVIEW_CHANGED');
+    expect(db.orders[0].status).toBe('DRAFT');
+  });
+
   it('settling or closing a cycle is not offered to the assistant (§16: intake only)', async () => {
     const c = cycle('SELLING');
     const r = await call('transition_cycle', {
@@ -852,6 +917,30 @@ describe('verify_stock', () => {
       '214.29',
       '435.71',
     ]);
+  });
+
+  it('a leg cost corrected between preview and commit → PREVIEW_CHANGED, nothing booked at an unseen cost', async () => {
+    const { c, pad, chain } = landedCycle();
+    const args = {
+      cycleId: c.id,
+      items: [
+        { purchaseOrderItemId: pad.id, receivedQty: 10 },
+        { purchaseOrderItemId: chain.id, receivedQty: 25 },
+      ],
+    };
+    const preview = await call('verify_stock', args);
+    expect(preview.isError).toBeFalsy();
+
+    // The shipping invoice is corrected in the office app: 400 → 700 EGP.
+    db.legs[0].amount = D(700);
+
+    const commit = await call('verify_stock', {
+      ...args,
+      confirmationToken: structured(preview).confirmationToken,
+    });
+    expect(codeOf(commit)).toBe('PREVIEW_CHANGED');
+    expect(db.batches).toHaveLength(0);
+    expect(db.ledger).toHaveLength(0);
   });
 
   it('verify_stock twice for one order line → STOCK_ALREADY_VERIFIED, surfaced', async () => {

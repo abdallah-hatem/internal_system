@@ -609,6 +609,30 @@ Why now: receipts are about to arrive by photograph, and the same photo sent twi
 — by two partners, or by one partner who was not sure it went through — would
 otherwise double the stock and the landed cost of a cycle.
 
+### Rules the office app now enforces too  — DECIDED 2026-09-19, guesses marked
+
+The assistant writes through the same services as the office app, so a check
+added for it holds in both places. These were not written down before:
+
+- **A purchase order's FX rate is above zero, and a line discount is between 0
+  and 100 percent.** Line totals are exact decimals, never floats.
+- **Lines can be added to a draft only while its cycle is open for purchasing**
+  (PLANNING, FUNDING, PURCHASING). Adding a receipt to an existing draft needs the
+  same supplier, currency and rate; a draft with no invoice number takes the
+  receipt's, and one with a different number refuses — record it as its own order.
+- **A shipping leg cannot be dated in the future**, and cannot be added to a
+  CLOSED or CANCELLED cycle. A new cycle cannot start in the future.
+- **Receiving stock is a positive quantity, no more than was ordered, each line
+  once.** A line with nothing received is not booked as an empty batch: it stays
+  unreceived and can be received when it turns up. *(Guess: the BRD does not say
+  what a zero line means; this keeps the record honest and loses nothing.)*
+- **Suppliers and SKUs, when the assistant creates them.** *(Guess.)* A supplier
+  whose name matches an existing one — ignoring case, spacing, punctuation and
+  "Co., Ltd." — is refused, naming the existing one. A code printed on the receipt
+  becomes the new product's SKU, and one already used is refused. The office app's
+  own forms are unchanged. Open: a printed code in the house format
+  (`PRD-000050`) could later collide with a generated one.
+
 ---
 
 ## 16. The assistant  — PLANNED 2026-09-19
@@ -638,6 +662,13 @@ to the partner as a preview. It is made only when the partner confirms, within
 15 minutes, and what is made is exactly what was previewed — a changed quantity,
 a different cycle, or a confirmation used twice is refused.
 
+What was shown binds too, where the same request can do more by the time it is
+confirmed: moving a cycle out of PURCHASING is refused if a draft order or a line
+appeared since the preview (it would be locked unseen), and verifying stock is
+refused if a landed cost moved since (it would be booked at a figure nobody saw).
+The partner is shown the new preview instead. The assistant can move a cycle as
+far as SELLING; settling and closing stay in the office app.
+
 **Attribution.** Every change is recorded under the partner who signed in, as if
 they had made it in the office app.
 
@@ -656,8 +687,9 @@ previews the purchase order and creates it on the partner's word.
 
 A name on the receipt that is close to a known supplier or product — at most
 about one slip in five characters — is offered as a likely match and the partner
-confirms it; a close name is never taken as the same thing without that. Shipping, fees and tax printed on a receipt are not purchase
-order lines; the partner decides whether they belong on a shipping leg.
+confirms it; a close name is never taken as the same thing without that.
+
+Shipping, fees and tax printed on a receipt are not purchase order lines; the partner decides whether they belong on a shipping leg.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
 the supplier's invoice number, and the photograph stays in the conversation.

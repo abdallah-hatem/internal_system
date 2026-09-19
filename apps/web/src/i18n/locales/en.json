@@ -897,7 +897,8 @@
     "PO_HAS_OTHER_INVOICE": "Purchase order {reference} already records invoice {invoice}; record {ref} as a separate order.",
     "CYCLE_STATUS_CHANGED": "Cycle {cycle} is {status} now, not {expected}. Nothing was changed — preview again.",
     "CYCLE_FINAL_NO_LEGS": "Cycle {cycle} is {status}, so no shipping leg can be added to it.",
-    "RECEIVED_EXCEEDS_ORDERED": "{received} of {product} cannot be received: only {ordered} were ordered."
+    "RECEIVED_EXCEEDS_ORDERED": "{received} of {product} cannot be received: only {ordered} were ordered.",
+    "PREVIEW_CHANGED": "What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that."
   },
   "orderRequests": {
     "title": "Order requests",

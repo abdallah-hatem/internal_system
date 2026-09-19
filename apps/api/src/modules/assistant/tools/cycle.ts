@@ -303,6 +303,10 @@ export function registerCycleTools(
           },
         };
       },
+      // The orders it will lock, line counts included: a draft created, or a
+      // line added, after the preview would otherwise be locked unseen.
+      binds: (preview) =>
+        (preview.data as { ordersToConfirm: unknown }).ordersToConfirm,
       async commit({ cycleId: id, fromStatus, status }) {
         const { data } = await cycles().transition(id, status, ctx.user.id, {
           expectedFrom: fromStatus,
@@ -373,6 +377,21 @@ export function registerCycleTools(
             totalEgp: plan.totalEgp.toFixed(2),
             warnings: plan.warnings,
           },
+        };
+      },
+      // The landed costs shown: a leg's cost corrected after the preview
+      // would otherwise book stock at a figure the partner never saw.
+      binds: (preview) => {
+        const shown = preview.data as {
+          lines: { purchaseOrderItemId: string; landedUnitCostEgp: string }[];
+          totalEgp: string;
+        };
+        return {
+          lines: shown.lines.map((l) => [
+            l.purchaseOrderItemId,
+            l.landedUnitCostEgp,
+          ]),
+          totalEgp: shown.totalEgp,
         };
       },
       async commit({ cycleId: id, items }) {

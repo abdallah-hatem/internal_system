@@ -154,6 +154,13 @@ export interface WriteHandlers<S extends Shape> {
   preview(input: Input<S>): Promise<ToolOutcome>;
   /** Makes the change. Runs only after a matching confirmation was spent. */
   commit(input: Input<S>): Promise<ToolOutcome>;
+  /**
+   * The part of a preview the partner agrees to, when the same input can do
+   * more by commit time than it showed. The commit previews again and is
+   * refused with PREVIEW_CHANGED if this differs — so "commits what was
+   * previewed" holds for what the world did in between, not only the input.
+   */
+  binds?: (preview: ToolOutcome) => unknown;
 }
 
 /**
@@ -202,7 +209,12 @@ export function writeTool<S extends Shape>(
       try {
         if (!confirmationToken) {
           const preview = await handlers.preview(input);
-          const issued = ctx.confirmations.issue(ctx.user.id, name, input);
+          const issued = ctx.confirmations.issue(
+            ctx.user.id,
+            name,
+            input,
+            handlers.binds?.(preview),
+          );
           return {
             content: [
               {
@@ -224,11 +236,13 @@ export function writeTool<S extends Shape>(
           } satisfies CallToolResult;
         }
 
+        const binds = handlers.binds;
         await ctx.confirmations.redeem(
           confirmationToken,
           ctx.user.id,
           name,
           input,
+          binds ? async () => binds(await handlers.preview(input)) : undefined,
         );
         return outcomeResult(await handlers.commit(input), {
           status: 'committed',

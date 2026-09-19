@@ -897,7 +897,8 @@
     "PO_HAS_OTHER_INVOICE": "أمر الشراء {reference} مسجل عليه الفاتورة {invoice} بالفعل؛ سجّل {ref} كأمر منفصل.",
     "CYCLE_STATUS_CHANGED": "الدورة {cycle} أصبحت الآن {status} وليست {expected}. لم يتغير شيء — اعرض المعاينة مرة أخرى.",
     "CYCLE_FINAL_NO_LEGS": "الدورة {cycle} في حالة {status}، لذا لا يمكن إضافة مرحلة شحن إليها.",
-    "RECEIVED_EXCEEDS_ORDERED": "لا يمكن استلام {received} من {product}: الكمية المطلوبة {ordered} فقط."
+    "RECEIVED_EXCEEDS_ORDERED": "لا يمكن استلام {received} من {product}: الكمية المطلوبة {ordered} فقط.",
+    "PREVIEW_CHANGED": "تغيّر ما سيُحفظ منذ المعاينة. لم يُحفظ شيء — اعرض المعاينة الجديدة وأكّدها."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
