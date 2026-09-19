@@ -894,7 +894,10 @@
     "NEW_PRODUCT_REPEATED": "{product} is listed as a new product more than once.",
     "PO_SUPPLIER_MISMATCH": "Purchase order {reference} is from {supplier}, not {given}.",
     "PO_TERMS_MISMATCH": "Purchase order {reference} is in {currency} at {rate} EGP; add lines only in that currency and rate.",
-    "PO_HAS_OTHER_INVOICE": "Purchase order {reference} already records invoice {invoice}; record {ref} as a separate order."
+    "PO_HAS_OTHER_INVOICE": "Purchase order {reference} already records invoice {invoice}; record {ref} as a separate order.",
+    "CYCLE_STATUS_CHANGED": "Cycle {cycle} is {status} now, not {expected}. Nothing was changed — preview again.",
+    "CYCLE_FINAL_NO_LEGS": "Cycle {cycle} is {status}, so no shipping leg can be added to it.",
+    "RECEIVED_EXCEEDS_ORDERED": "{received} of {product} cannot be received: only {ordered} were ordered."
   },
   "orderRequests": {
     "title": "Order requests",
