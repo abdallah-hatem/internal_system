@@ -9,6 +9,38 @@ import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
+import {
+  SUPPLIER_INVOICE_REF_MAX,
+  isSupplierInvoiceRefTooLong,
+  normaliseSupplierInvoiceRef,
+} from './supplier-invoice-ref';
+
+function duplicateInvoice(
+  ref: string,
+  supplier: string,
+  purchaseOrder: string,
+) {
+  return badRequest(
+    'DUPLICATE_SUPPLIER_INVOICE',
+    `Invoice ${ref} from ${supplier} is already recorded on ${purchaseOrder}.`,
+    { ref, supplier, purchaseOrder },
+  );
+}
+
+/**
+ * A unique-index failure on (supplier_id, supplier_invoice_ref), and nothing
+ * else. Prisma names the target by column, field or constraint depending on
+ * version, so all three spellings are accepted.
+ */
+function isInvoiceRefCollision(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === 'P2002' &&
+    /supplier_?invoice_?ref/i.test(JSON.stringify(err.meta?.target ?? ''))
+  );
+}
+
 @Injectable()
 export class PurchasesService {
   constructor(
@@ -20,7 +52,7 @@ export class PurchasesService {
   async findAll(pagination: PaginationDto & { cycleId?: string }) {
     const { cursor, limit: rawLimit = 20, cycleId } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
+    const where: Prisma.PurchaseOrderWhereInput = {};
     if (cycleId) where.cycleId = cycleId;
 
     const items = await this.prisma.purchaseOrder.findMany({
@@ -73,22 +105,7 @@ export class PurchasesService {
     return { data: items };
   }
 
-  async create(
-    cycleId: string,
-    data: {
-      supplierId: string;
-      currency: string;
-      fxRateToEgp: number;
-      orderedOn: string;
-      items: Array<{
-        productId: string;
-        orderedQty: number;
-        unitPrice: number;
-        discount?: number;
-      }>;
-    },
-    actorId: string,
-  ) {
+  async create(cycleId: string, data: CreatePurchaseOrderDto, actorId: string) {
     assertNotFuture(data.orderedOn, 'The date an order was placed');
 
     const cycle = await this.prisma.importCycle.findUnique({
@@ -110,23 +127,42 @@ export class PurchasesService {
     });
     if (!supplier) throw notFound('supplier');
 
+    const supplierInvoiceRef = await this.assertInvoiceNotRecorded(
+      supplier,
+      data.supplierInvoiceRef,
+    );
+
     // Validate items
     if (!data.items || data.items.length === 0) {
-      throw badRequest('PO_NEEDS_ITEM', 'Purchase order must contain at least one item');
+      throw badRequest(
+        'PO_NEEDS_ITEM',
+        'Purchase order must contain at least one item',
+      );
     }
     for (const item of data.items) {
       if (!item.productId) {
-        throw badRequest('ITEM_NEEDS_PRODUCT', 'Each item must have a productId');
+        throw badRequest(
+          'ITEM_NEEDS_PRODUCT',
+          'Each item must have a productId',
+        );
       }
-      const product = await this.prisma.product.findUnique({ where: { id: item.productId } });
+      const product = await this.prisma.product.findUnique({
+        where: { id: item.productId },
+      });
       if (!product) {
         throw notFound('product');
       }
       if (!item.orderedQty || item.orderedQty <= 0) {
-        throw badRequest('QTY_NOT_POSITIVE', `Invalid quantity for product ${item.productId}: must be greater than 0`);
+        throw badRequest(
+          'QTY_NOT_POSITIVE',
+          `Invalid quantity for product ${item.productId}: must be greater than 0`,
+        );
       }
       if (item.unitPrice == null || item.unitPrice < 0) {
-        throw badRequest('PRICE_NEGATIVE', `Invalid unitPrice for product ${item.productId}: must be 0 or greater`);
+        throw badRequest(
+          'PRICE_NEGATIVE',
+          `Invalid unitPrice for product ${item.productId}: must be 0 or greater`,
+        );
       }
     }
 
@@ -140,40 +176,61 @@ export class PurchasesService {
     const reference = `PO-${year}-${pad(nextReferenceNumber(last?.reference, 4), 4)}`;
 
     // Create PO with items in a transaction
-    const result = await this.prisma.$transaction(async (tx) => {
-      const po = await tx.purchaseOrder.create({
-        data: {
-          cycleId,
-          supplierId: data.supplierId,
-          reference,
-          currency: data.currency,
-          fxRateToEgp: data.fxRateToEgp,
-          orderedOn: new Date(data.orderedOn),
-          status: 'DRAFT',
-        },
-      });
-
-      // Create line items
-      const items = [];
-      for (const item of data.items) {
-        const lineTotal =
-          item.orderedQty * item.unitPrice * (item.discount ? 1 - item.discount / 100 : 1);
-
-        const poItem = await tx.purchaseOrderItem.create({
+    const result = await this.prisma
+      .$transaction(async (tx) => {
+        const po = await tx.purchaseOrder.create({
           data: {
-            purchaseOrderId: po.id,
-            productId: item.productId,
-            orderedQty: item.orderedQty,
-            unitPrice: item.unitPrice,
-            discount: item.discount || 0,
-            lineTotal: lineTotal,
+            cycleId,
+            supplierId: data.supplierId,
+            reference,
+            currency: data.currency,
+            fxRateToEgp: data.fxRateToEgp,
+            orderedOn: new Date(data.orderedOn),
+            status: 'DRAFT',
+            supplierInvoiceRef,
           },
         });
-        items.push(poItem);
-      }
 
-      return { ...po, items };
-    });
+        // Create line items
+        const items = [];
+        for (const item of data.items) {
+          const lineTotal =
+            item.orderedQty *
+            item.unitPrice *
+            (item.discount ? 1 - item.discount / 100 : 1);
+
+          const poItem = await tx.purchaseOrderItem.create({
+            data: {
+              purchaseOrderId: po.id,
+              productId: item.productId,
+              orderedQty: item.orderedQty,
+              unitPrice: item.unitPrice,
+              discount: item.discount || 0,
+              lineTotal: lineTotal,
+            },
+          });
+          items.push(poItem);
+        }
+
+        return { ...po, items };
+      })
+      .catch(async (err: unknown) => {
+        // Two requests carrying the same receipt can both pass the check above
+        // before either commits. The unique index stops the second; say so in
+        // the same words, never as a 500.
+        if (supplierInvoiceRef && isInvoiceRefCollision(err)) {
+          const existing = await this.prisma.purchaseOrder.findFirst({
+            where: { supplierId: supplier.id, supplierInvoiceRef },
+            select: { reference: true },
+          });
+          throw duplicateInvoice(
+            supplierInvoiceRef,
+            supplier.name,
+            existing?.reference ?? '',
+          );
+        }
+        throw err;
+      });
 
     await this.audit.log({
       actorUserId: actorId,
@@ -207,6 +264,35 @@ export class PurchasesService {
     return { data: result };
   }
 
+  /**
+   * BUSINESS_LOGIC.md §15: a supplier's invoice is recorded once. Returns the
+   * number as it will be stored, or null for a receipt with no number.
+   */
+  private async assertInvoiceNotRecorded(
+    supplier: { id: string; name: string },
+    raw: string | null | undefined,
+  ): Promise<string | null> {
+    const ref = normaliseSupplierInvoiceRef(raw);
+    if (isSupplierInvoiceRefTooLong(ref)) {
+      // The DTO refuses this first on the HTTP route; the service says it for
+      // every other caller, in the same code the DTO uses.
+      throw badRequest(
+        'VALIDATION_FAILED',
+        `supplierInvoiceRef must be shorter than or equal to ${SUPPLIER_INVOICE_REF_MAX} characters`,
+        { fields: 'supplierInvoiceRef' },
+      );
+    }
+    if (!ref) return null;
+
+    const existing = await this.prisma.purchaseOrder.findFirst({
+      where: { supplierId: supplier.id, supplierInvoiceRef: ref },
+      select: { reference: true },
+    });
+    if (existing)
+      throw duplicateInvoice(ref, supplier.name, existing.reference);
+    return ref;
+  }
+
   async addItem(
     purchaseOrderId: string,
     data: {
@@ -230,7 +316,9 @@ export class PurchasesService {
     }
 
     const lineTotal =
-      data.orderedQty * data.unitPrice * (data.discount ? 1 - data.discount / 100 : 1);
+      data.orderedQty *
+      data.unitPrice *
+      (data.discount ? 1 - data.discount / 100 : 1);
 
     const item = await this.prisma.purchaseOrderItem.create({
       data: {
@@ -313,9 +401,12 @@ export class PurchasesService {
     });
     if (!po) throw notFound('purchaseOrder');
 
-    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const D = (v: unknown) =>
+      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 
-    const amountEgp = D(data.amount).mul(D(data.fxRateToEgp)).toDecimalPlaces(2);
+    const amountEgp = D(data.amount)
+      .mul(D(data.fxRateToEgp))
+      .toDecimalPlaces(2);
     const orderValueEgp = po.items
       .reduce((s, i) => s.add(D(i.lineTotal)), D(0))
       .mul(D(po.fxRateToEgp));
@@ -381,7 +472,11 @@ export class PurchasesService {
       action: 'RECORD_REFUND',
       entityType: 'SupplierRefund',
       entityId: refund.id,
-      afterJson: { ...refund, amountEgp: amountEgp.toFixed(2), cycle: po.cycle?.code },
+      afterJson: {
+        ...refund,
+        amountEgp: amountEgp.toFixed(2),
+        cycle: po.cycle?.code,
+      },
     });
 
     return { data: refund };
