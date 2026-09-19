@@ -27,7 +27,7 @@ export default defineConfig({
   ...(REMOTE ? { timeout: 240_000, expect: { timeout: 60_000 } } : {}),
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.WEB_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: REMOTE ? 90_000 : 15_000,

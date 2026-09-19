@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import { API, EMAIL, PASSWORD } from './support/fixtures';
 
-const BASE = 'http://localhost:3000';
+const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const SHOP_EMAIL = 'shop.owner@example.com';
 const SHOP_PASSWORD = 'password123';
 

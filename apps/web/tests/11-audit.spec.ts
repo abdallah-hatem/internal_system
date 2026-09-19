@@ -6,7 +6,7 @@
  */
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:3000';
+const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const API = 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';

@@ -16,7 +16,7 @@ import { test, expect, Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const BASE = 'http://localhost:3000';
+const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 const DRAFT_KEY = 'cycle-wizard-draft';
