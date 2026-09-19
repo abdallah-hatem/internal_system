@@ -23,6 +23,10 @@ Current stage: 4 — Build · Wave 1 merged and verified · **Wave 2 next: T4 (O
   Fixed in `e8178e4`, pinned by a unit test that fails on the old code. The plain PO-reference race
   (two different POs at once → 500) predates this build; offered as a separate task.
 
+- Wave 2: T4 ‖ T5 in parallel worktrees cut from `2ab2713`. T4 owns `main.ts` + `modules/oauth`; T5 owns
+  `modules/assistant` (except `receipt/`) + the MCP SDK dependency. Both add one import to
+  `app.module.ts` — resolved by the main thread at merge. T6-T9 wait on T5.
+
 ## Decisions
 
 - **[Stage 0] Where it runs — hosted, reachable from the Claude phone app.** User's choice.
