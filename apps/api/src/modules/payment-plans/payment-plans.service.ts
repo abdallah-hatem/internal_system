@@ -10,11 +10,9 @@ import { formatMoney } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
+import { owedBy } from '../../common/customer-balance';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-
-/** Sales whose money is genuinely owed. */
-const OWED_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID'] as const;
 
 export type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
@@ -221,11 +219,7 @@ export class PaymentPlansService {
     // What the shop actually owes across its open sales. The plan may cover
     // less (a part payment arrangement) but promising more than is owed is
     // almost always a typo.
-    const owedAgg = await this.prisma.saleOrder.aggregate({
-      where: { customerId: dto.customerId, status: { in: [...OWED_STATUSES] } },
-      _sum: { outstanding: true },
-    });
-    const owed = D(owedAgg._sum?.outstanding);
+    const owed = D(await owedBy(this.prisma, dto.customerId));
 
     /**
      * A plan schedules a debt, so there has to be one.

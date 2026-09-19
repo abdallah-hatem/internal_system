@@ -1,13 +1,12 @@
 import { pageSize } from '../../common/dto/pagination.dto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { assertNotFuture } from '../../common/dates';
+import { assertNotFuture, calendarRange } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
-/** Orders whose balance is genuinely outstanding; a draft owes nothing yet. */
-const OWED_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID'] as const;
+import { owedBy } from '../../common/customer-balance';
 
 @Injectable()
 export class PaymentsService {
@@ -16,11 +15,21 @@ export class PaymentsService {
     private audit: AuditService,
   ) {}
 
-  async findAll(pagination: { cursor?: string; limit?: number; customerId?: string }) {
-    const { cursor, limit: rawLimit = 20, customerId } = pagination;
+  async findAll(pagination: {
+    cursor?: string;
+    limit?: number;
+    customerId?: string;
+    /** Calendar days, YYYY-MM-DD, both included, on the day it was received. */
+    from?: string;
+    to?: string;
+  }) {
+    const { cursor, limit: rawLimit = 20, customerId, from, to } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
-    if (customerId) where.customerId = customerId;
+    const received = calendarRange(from, to);
+    const where: any = {
+      ...(customerId ? { customerId } : {}),
+      ...(received ? { receivedOn: received } : {}),
+    };
 
     const items = await this.prisma.payment.findMany({
       where,
@@ -81,11 +90,7 @@ export class PaymentsService {
     // leaves 200 attached to nobody: it clears no order, shows as paid, and
     // quietly overstates what has been collected. In practice it is a typo,
     // and the moment to catch a typo is before it is written down.
-    const owedAgg = await this.prisma.saleOrder.aggregate({
-      where: { customerId: data.customerId, status: { in: [...OWED_STATUSES] } },
-      _sum: { outstanding: true },
-    });
-    const owed = Number(owedAgg._sum?.outstanding ?? 0);
+    const owed = Number(await owedBy(this.prisma, data.customerId));
     if (data.amount > owed) {
       throw owed <= 0
         ? badRequest(

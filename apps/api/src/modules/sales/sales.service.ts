@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { availableQty } from '../../common/available-stock';
+import { instantRange } from '../../common/dates';
 @Injectable()
 export class SalesService {
   constructor(
@@ -21,13 +22,19 @@ export class SalesService {
     customerId?: string;
     status?: string;
     channel?: string;
+    /** Calendar days, YYYY-MM-DD, both included, on the day it was ordered. */
+    from?: string;
+    to?: string;
   }) {
-    const { cursor, limit: rawLimit = 20, customerId, status, channel } = pagination;
+    const { cursor, limit: rawLimit = 20, customerId, status, channel, from, to } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
-    if (customerId) where.customerId = customerId;
-    if (status) where.status = status;
-    if (channel) where.channel = channel;
+    const ordered = instantRange(from, to);
+    const where: any = {
+      ...(customerId ? { customerId } : {}),
+      ...(status ? { status } : {}),
+      ...(channel ? { channel } : {}),
+      ...(ordered ? { orderedAt: ordered } : {}),
+    };
 
     const items = await this.prisma.saleOrder.findMany({
       where,

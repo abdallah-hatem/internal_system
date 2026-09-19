@@ -7,6 +7,7 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma, ParticipantType } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { isUUID } from 'class-validator';
 import { assertCanParticipate } from './participant-eligibility';
 // Valid state transitions per the spec
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -101,6 +102,53 @@ export class CyclesService {
     });
     if (!cycle) throw notFound('cycle');
     return { data: cycle };
+  }
+
+  /**
+   * One cycle by its id or its code, as a person would name it.
+   *
+   * Partners say "CYC-2026-0003", not a uuid, and say it in whatever case they
+   * typed it. An exact code wins; otherwise the code is matched ignoring case.
+   * Codes may be entered by hand, so "cyc-7" and "CYC-7" can both exist — then
+   * a case-blind match is two cycles, and picking one would be a guess.
+   *
+   * Something that is not a uuid is never looked up as an id: Postgres refuses
+   * it as a uuid, and that surfaces as a 500 rather than "no such cycle".
+   */
+  async findByRef(ref: string) {
+    const key = ref.trim();
+    if (!key) throw notFound('cycle');
+
+    if (isUUID(key)) {
+      const byId = await this.prisma.importCycle.findUnique({
+        where: { id: key },
+        select: { id: true },
+      });
+      if (byId) return this.findById(byId.id);
+    }
+
+    const exact = await this.prisma.importCycle.findUnique({
+      where: { code: key },
+      select: { id: true },
+    });
+    if (exact) return this.findById(exact.id);
+
+    const matches = await this.prisma.importCycle.findMany({
+      where: { code: { equals: key, mode: 'insensitive' } },
+      select: { id: true, code: true },
+      orderBy: { code: 'asc' },
+      take: 5,
+    });
+    if (matches.length === 1) return this.findById(matches[0].id);
+    if (matches.length > 1) {
+      const codes = matches.map((m) => m.code).join(', ');
+      throw badRequest(
+        'CYCLE_CODE_AMBIGUOUS',
+        `"${key}" matches more than one cycle when case is ignored: ${codes}. Give the code exactly.`,
+        { code: key, matches: codes },
+      );
+    }
+    throw notFound('cycle');
   }
 
   async create(
