@@ -61,9 +61,6 @@
   "src/common/dates.ts": {
     "no-restricted-properties": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 4
     }
   },
   "src/common/decorators/current-shop.decorator.ts": {
@@ -614,14 +611,11 @@
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    },
     "@typescript-eslint/restrict-template-expressions": {
       "count": 1
     },
     "prettier/prettier": {
-      "count": 4
+      "count": 2
     }
   },
   "src/modules/portal/dto/import-request.dto.ts": {
@@ -880,9 +874,6 @@
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
     },
     "prettier/prettier": {
       "count": 10
