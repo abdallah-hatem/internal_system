@@ -8,6 +8,27 @@ import { CostingService } from '../costing/costing.service';
 import { formatMoney, formatQty } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { assertUuid } from '../../common/uuid';
+
+/** What a receipt of stock names: the order lines, and how many of each came. */
+export interface VerifyStockInput {
+  items: Array<{
+    purchaseOrderItemId: string;
+    /** Ignored: the product is the order line's. Accepted for older callers. */
+    productId?: string;
+    receivedQty: number;
+    /** Optional manual override; computed from cycle costing when omitted. */
+    landedUnitCostEgp?: number;
+  }>;
+}
+
+function alreadyVerified(purchaseOrderItemId: string) {
+  return badRequest(
+    'STOCK_ALREADY_VERIFIED',
+    `Stock already verified for purchase order item ${purchaseOrderItemId}`,
+  );
+}
+
 @Injectable()
 export class InventoryService {
   constructor(
@@ -17,19 +38,20 @@ export class InventoryService {
     private costing: CostingService,
   ) {}
 
-  async verifyStock(
-    cycleId: string,
-    data: {
-      items: Array<{
-        purchaseOrderItemId: string;
-        productId: string;
-        receivedQty: number;
-        /** Optional manual override; computed from cycle costing when omitted. */
-        landedUnitCostEgp?: number;
-      }>;
-    },
-    actorId: string,
-  ) {
+  /**
+   * Every check `verifyStock` makes, and the landed cost each line will be
+   * booked at, with nothing written.
+   *
+   * The assistant previews a receipt from this and `verifyStock` books exactly
+   * the lines it returns, so the unit cost the partner confirms is the unit cost
+   * on the batch and the amount on the ledger.
+   *
+   * The product comes from the order line, never from the caller: a batch holds
+   * what was ordered on that line, and trusting a separate product id let a
+   * receipt put one product's cost on another product's stock.
+   */
+  async planVerification(cycleId: string, data: VerifyStockInput) {
+    assertUuid(cycleId, 'cycleId');
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
@@ -43,19 +65,157 @@ export class InventoryService {
       );
     }
 
+    const items = Array.isArray(data?.items) ? data.items : [];
+    if (items.length === 0) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'items must contain at least one line',
+        { fields: 'items' },
+      );
+    }
+
+    const checked: Array<{
+      poItem: {
+        id: string;
+        productId: string;
+        orderedQty: Prisma.Decimal;
+        product: { name: string };
+      };
+      qty: Prisma.Decimal;
+      override: Prisma.Decimal | null;
+    }> = [];
+    const seen = new Set<string>();
+
+    for (const item of items) {
+      assertUuid(item.purchaseOrderItemId, 'purchaseOrderItemId');
+      // The second copy would fail on the batch's unique source line as a 500.
+      if (seen.has(item.purchaseOrderItemId)) {
+        throw badRequest(
+          'VALIDATION_FAILED',
+          `items lists purchase order item ${item.purchaseOrderItemId} twice`,
+          { fields: 'items' },
+        );
+      }
+      seen.add(item.purchaseOrderItemId);
+
+      // Nothing received is not a receipt: a zero batch carries a zero unit
+      // cost, and a negative one is stock that was never there.
+      const received = Number(item.receivedQty);
+      if (!Number.isFinite(received) || received <= 0) {
+        throw badRequest(
+          'QTY_NOT_POSITIVE',
+          `receivedQty must be greater than zero (received ${String(item.receivedQty)})`,
+        );
+      }
+      const qty = new Prisma.Decimal(received);
+
+      // Validate PO item exists and belongs to this cycle
+      const poItem = await this.prisma.purchaseOrderItem.findUnique({
+        where: { id: item.purchaseOrderItemId },
+        include: {
+          purchaseOrder: { select: { cycleId: true } },
+          product: { select: { name: true } },
+        },
+      });
+      if (!poItem) {
+        throw notFound('purchaseOrderItem');
+      }
+      if (poItem.purchaseOrder.cycleId !== cycleId) {
+        throw badRequest(
+          'PO_ITEM_NOT_IN_CYCLE',
+          `Purchase order item does not belong to cycle ${cycleId}`,
+        );
+      }
+
+      // More than was ordered cannot have come off this order line, and would
+      // spread the line's goods cost over units nobody paid for.
+      if (qty.gt(poItem.orderedQty)) {
+        throw badRequest(
+          'RECEIVED_EXCEEDS_ORDERED',
+          `${formatQty(qty)} of ${poItem.product.name} cannot be received: only ${formatQty(poItem.orderedQty)} were ordered.`,
+          {
+            product: poItem.product.name,
+            received: formatQty(qty),
+            ordered: formatQty(poItem.orderedQty),
+          },
+        );
+      }
+
+      // Check for duplicate batch
+      const existingBatch = await this.prisma.inventoryBatch.findUnique({
+        where: { sourcePoItemId: item.purchaseOrderItemId },
+      });
+      if (existingBatch) {
+        throw alreadyVerified(item.purchaseOrderItemId);
+      }
+
+      let override: Prisma.Decimal | null = null;
+      if (item.landedUnitCostEgp !== undefined && item.landedUnitCostEgp !== null) {
+        const cost = Number(item.landedUnitCostEgp);
+        if (!Number.isFinite(cost) || cost < 0) {
+          throw badRequest(
+            'VALIDATION_FAILED',
+            'landedUnitCostEgp must not be negative',
+            { fields: 'landedUnitCostEgp' },
+          );
+        }
+        override = new Prisma.Decimal(cost);
+      }
+
+      checked.push({ poItem, qty, override });
+    }
+
     // Derive landed unit costs for this cycle using the quantities being
     // verified now, so shipping recorded on the cycle's legs (China->UAE and
     // UAE->Egypt, or UAE->Egypt alone) is spread across the goods it moved.
-    const qtyOverrides: Record<string, number> = {};
-    for (const item of data.items) {
-      qtyOverrides[item.purchaseOrderItemId] = item.receivedQty;
-    }
+    const qtyOverrides: Record<string, Prisma.Decimal> = {};
+    for (const c of checked) qtyOverrides[c.poItem.id] = c.qty;
     const costing = await this.costing.computeCycleLandedCosts(cycleId, {
       qtyOverrides,
     });
     const costByPoItem = new Map(
       costing.items.map((i) => [i.purchaseOrderItemId, i.landedUnitCostEgp]),
     );
+
+    const lines = checked.map(({ poItem, qty, override }) => {
+      // Manual override wins; otherwise use the computed landed cost.
+      const unit = override ?? costByPoItem.get(poItem.id);
+      if (unit === undefined) {
+        throw badRequest(
+          'NO_LANDED_COST',
+          `Could not determine landed unit cost for purchase order item ${poItem.id}`,
+        );
+      }
+      return {
+        purchaseOrderItemId: poItem.id,
+        productId: poItem.productId,
+        productName: poItem.product.name,
+        orderedQty: poItem.orderedQty,
+        receivedQty: qty,
+        landedUnitCostEgp: unit,
+        costSource: override ? ('manual' as const) : ('computed' as const),
+        /** What the ledger records as this line's purchase cost. */
+        lineCostEgp: unit.mul(qty).toDecimalPlaces(2),
+      };
+    });
+
+    return {
+      cycle,
+      lines,
+      totalEgp: lines.reduce(
+        (s, l) => s.add(l.lineCostEgp),
+        new Prisma.Decimal(0),
+      ),
+      warnings: costing.warnings,
+    };
+  }
+
+  async verifyStock(
+    cycleId: string,
+    data: VerifyStockInput,
+    actorId: string,
+  ) {
+    const plan = await this.planVerification(cycleId, data);
 
     // One transaction for the writes that must stand or fall together — and
     // ONLY those. Anything reaching for `this.prisma` from in here asks the
@@ -73,45 +233,20 @@ export class InventoryService {
       const batches: any[] = [];
       const lowStockProducts: any[] = [];
 
-      for (const item of data.items) {
-        // Validate PO item exists and belongs to this cycle
-        const poItem = await tx.purchaseOrderItem.findUnique({
-          where: { id: item.purchaseOrderItemId },
-          include: { purchaseOrder: true },
-        });
-        if (!poItem) {
-          throw notFound('purchaseOrderItem');
-        }
-        if (poItem.purchaseOrder.cycleId !== cycleId) {
-          throw badRequest(
-            'PO_ITEM_NOT_IN_CYCLE',
-            `Purchase order item does not belong to cycle ${cycleId}`,
-          );
-        }
+      for (const line of plan.lines) {
+        const item = {
+          purchaseOrderItemId: line.purchaseOrderItemId,
+          productId: line.productId,
+          receivedQty: line.receivedQty,
+        };
+        const resolvedUnitCost = line.landedUnitCostEgp;
 
-        // Check for duplicate batch
+        // Checked by the plan already; checked again here because another
+        // receipt of the same line may have landed since.
         const existingBatch = await tx.inventoryBatch.findUnique({
           where: { sourcePoItemId: item.purchaseOrderItemId },
         });
-        if (existingBatch) {
-          throw badRequest(
-            'STOCK_ALREADY_VERIFIED',
-            `Stock already verified for purchase order item ${item.purchaseOrderItemId}`,
-          );
-        }
-
-        // Manual override wins; otherwise use the computed landed cost.
-        const resolvedUnitCost =
-          item.landedUnitCostEgp !== undefined && item.landedUnitCostEgp !== null
-            ? new Prisma.Decimal(item.landedUnitCostEgp)
-            : costByPoItem.get(item.purchaseOrderItemId);
-
-        if (resolvedUnitCost === undefined) {
-          throw badRequest(
-            'NO_LANDED_COST',
-            `Could not determine landed unit cost for purchase order item ${item.purchaseOrderItemId}`,
-          );
-        }
+        if (existingBatch) throw alreadyVerified(item.purchaseOrderItemId);
 
         const batch = await tx.inventoryBatch.create({
           data: {
@@ -146,7 +281,7 @@ export class InventoryService {
         batches.push(batch);
 
         // Auto-create financial transaction for purchase cost
-        const purchaseCost = resolvedUnitCost.mul(item.receivedQty).toDecimalPlaces(2);
+        const purchaseCost = line.lineCostEgp;
         await tx.financialTransaction.create({
           data: {
             type: 'PURCHASE_COST',
