@@ -33,3 +33,30 @@ export async function owedBy(db: Db, customerId: string): Promise<string> {
   });
   return agg._sum?.outstanding?.toFixed(2) ?? '0.00';
 }
+
+/**
+ * What each of several customers owes, in one query — for a page of the list.
+ *
+ * The same rule as `owedBy`, grouped by customer instead of asked once per row.
+ * Every id asked about gets an answer; one with nothing owed gets "0.00", not a
+ * missing key, so a list cannot show a blank where a zero belongs.
+ */
+export async function owedByEach(
+  db: Db,
+  customerIds: string[],
+): Promise<Map<string, string>> {
+  const owed = new Map(customerIds.map((id) => [id, '0.00']));
+  if (customerIds.length === 0) return owed;
+  const groups = await db.saleOrder.groupBy({
+    by: ['customerId'],
+    where: {
+      customerId: { in: customerIds },
+      status: { in: [...OWED_STATUSES] },
+    },
+    _sum: { outstanding: true },
+  });
+  for (const g of groups) {
+    owed.set(g.customerId, g._sum?.outstanding?.toFixed(2) ?? '0.00');
+  }
+  return owed;
+}

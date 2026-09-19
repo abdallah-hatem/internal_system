@@ -145,6 +145,20 @@ function fakePrisma(db: Db) {
           .reduce((s, o) => s + Number(o.outstanding), 0);
         return Promise.resolve({ _sum: { outstanding: sum } });
       }),
+      // The customers list asks for every row's balance in one grouped query.
+      groupBy: jest.fn((args: { where: Where }) => {
+        const sums = new Map<string, number>();
+        for (const o of db.orders.filter((o) => matches(o, args.where))) {
+          const id = o.customerId as string;
+          sums.set(id, (sums.get(id) ?? 0) + Number(o.outstanding));
+        }
+        return Promise.resolve(
+          [...sums].map(([customerId, outstanding]) => ({
+            customerId,
+            _sum: { outstanding },
+          })),
+        );
+      }),
     },
     payment: { findMany: findMany(() => []) },
     paymentPlan: { findMany: findMany(() => []) },
