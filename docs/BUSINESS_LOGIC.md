@@ -602,7 +602,8 @@ failed at the database. Added, with a migration. TC-PO-04 covers it.
 may carry the supplier's own invoice number; when it does, that number is unique
 for that supplier. Numbers are compared trimmed and case-insensitively, since
 `inv-001` and ` INV-001` are the same piece of paper. A receipt with no number
-is allowed and is not checked. Two suppliers may use the same number.
+is allowed and is not checked. Two suppliers may use the same number. An invoice
+number is at most 64 characters.
 
 Why now: receipts are about to arrive by photograph, and the same photo sent twice
 — by two partners, or by one partner who was not sure it went through — would
@@ -617,7 +618,9 @@ Desktop), connected to it as an MCP server. Spec:
 `docs/specs/2026-09-19-mcp-assistant.md`.
 
 **Who.** Core partners only. A temporary investor or a shop owner is refused when
-signing in. Signing in uses the partner's own login, once per device.
+signing in. Signing in uses the partner's own login. Each Claude app a partner
+connects — the phone, a laptop — signs in once, is remembered, and appears in
+Settings as its own connection.
 
 **What it may read.** Everything a core partner can see: cycles, purchase orders,
 stock with arrival and receipt dates, sales, payments, customer balances, the

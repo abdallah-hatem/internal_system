@@ -50,6 +50,7 @@ Depends on: —
 Edge cases:
 - [ ] `mcp` token on `GET /api/v1/payments` → 403 `WRONG_SURFACE`   (spec: scope enforced by the server)
 - [ ] `mcp` token on `POST /api/v1/sales/orders` → 403 `WRONG_SURFACE`   (spec: no sales writes)
+- [ ] `mcp` token on payment plans, sale returns, settlements and the ledger → 403 `WRONG_SURFACE` each   (§16: instalments, returns, settlements, ledger)
 - [ ] `internal` token on an `mcp` route → 403 `WRONG_SURFACE`
 - [ ] `portal` token on an `mcp` route → 403 `WRONG_SURFACE`
 - [ ] `mcp` token for a partner since demoted or deactivated → 403 `ASSISTANT_PARTNERS_ONLY`   (role)
@@ -146,6 +147,7 @@ Edge cases:
 - [ ] A service refusal → tool error with the code, not a 500
 - [ ] Input that fails the tool's schema → tool error, not a crash
 - [ ] No token → 401 with the resource-metadata header
+- [ ] No tool's input schema accepts file or image content, and no assistant tool writes a stored file   (§16: the receipt image is not kept)
 
 ### T6 — Read tools (backend · logic)
 Depends on: T5.
@@ -160,7 +162,7 @@ Edge cases:
 - [ ] `get_customer` balance equals the office app's for the same customer   (money: one definition)
 - [ ] `find_products` is case-insensitive and matches part of a SKU
 - [ ] `list_sales` with `from` after `to` → tool error
-- [ ] `tools/list` offers no tool that writes sales, payments, settlements or the ledger   (spec scope)
+- [ ] `tools/list` offers no tool that writes sales, payments, instalments, settlements, returns or the ledger   (§16: what it may change)
 
 ### T7 — Receipt tools (backend · logic)
 Depends on: T3, T5, T1.
@@ -208,6 +210,7 @@ Edge cases:
 - [ ] A partner sees only their own connections   (role)
 - [ ] Disconnecting another partner's connection id → 404   (role)
 - [ ] Disconnect all → only this partner's tokens revoked
+- [ ] Two Claude apps signed in by one partner → two separate connections, each disconnectable alone   (§16: each app is its own connection)
 - [ ] After disconnecting, refresh fails   (§16: revocable)
 - [ ] (ui) No connections → an empty state that says how to connect
 - [ ] (ui) The list updates after a disconnect without a reload
