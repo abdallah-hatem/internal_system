@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite green · **T10 (end to end over HTTP) running**
+Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite green · **HELD by the user 2026-09-19 before T10** — see Handoff
 
 ## Waves
 
@@ -119,48 +119,41 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
 
 _(none)_
 
-## Handoff — 2026-09-19, held by the user mid-Wave 1
+## Handoff — 2026-09-19 (second hold), before T10
 
-**Resume:** open a new session in this repo and run `/build-software`. It reads this file and carries
-on from here without asking the run mode again. Resume only when the user says to — the hold was
-theirs.
+**Resume:** run `/build-software` in this repo when the user says to. State is all on the local
+`feature/mcp-assistant` branch (nothing pushed); `master` still has its 5 older unpushed commits.
 
-### Where the code is
+### Done
+T0–T9 merged and verified, plus the customer-list balance fix. api jest 416/416; lint + typecheck green
+in api, web, storefront. Alignment review ALIGNED for T1–T9. Full e2e green (chromium 583 passed,
+2 skipped; storefront 21/21). Local DB restored to its pre-test state; check-data all zero.
 
-| Branch | Base | State | Holds |
-|---|---|---|---|
-| `master` | — | **5 commits unpushed** | the PO-confirmation fix, `CANCELLED`, the test-config fix, the state doc, this build's setup |
-| `feature/mcp-assistant` | `master` | 3 commits, local only | spec, plan, BUSINESS_LOGIC §15/§16 (PLANNED), this log |
-| `chore/lint` (T0) | **`ce41763` — a stale master** | **done — `8d28a92`**; lint + typecheck pass in all three apps, violations frozen (api 1184, web 2525, storefront 460), no source touched. API typecheck needs `prisma generate` first, which needs a `DATABASE_URL` | house lint + `typecheck`. **Rebase onto `feature/mcp-assistant` before merging**, then re-run `eslint --suppress-all` so files added since are covered |
-| `feature/mcp-t1-invoice-tables` (T1) | `a232603` | **done — `9854c5d`**, jest 89/89, tsc + eslint clean. Migration `20260919120000_supplier_invoice_ref_and_oauth` **not applied anywhere**. `63-supplier-invoice.spec.ts` (10 cases incl. a 3-way concurrent send) **not run, not rule-2 checked** — the P2002 → coded-refusal mapping is unproven until it is | invoice number, OAuth + nonce tables. New code `DUPLICATE_SUPPLIER_INVOICE` {ref, supplier, purchaseOrder} — EN "Invoice {ref} from {supplier} is already recorded on {purchaseOrder}." AR "الفاتورة {ref} من {supplier} مسجلة بالفعل على {purchaseOrder}." Also: the create-PO endpoint now validates its whole body with a DTO (a non-uuid supplier id or a missing order date is refused up front instead of a 500) — worth a look at review |
-| `feature/mcp-t2-surface` (T2) | `a232603` | **done — `d330da5`**, jest 97/97, tsc + eslint clean; rule-2 checked (7 tests fail with the partner check off). Playwright not yet run | `mcp` audience, `issueAssistantToken`, `64-assistant-surface.spec.ts` (11 REST routes refused). New code `ASSISTANT_PARTNERS_ONLY` — EN "Only core partners can use the assistant." AR "المساعد متاح للشركاء الأساسيين فقط." |
-| `feature/mcp-t3-receipt-analysis` (T3) | `a232603` | **done — `f72be3d`**, jest 58/58, tsc + eslint clean; 9 deliberate bugs each caught | `analyzeReceipt`. Match threshold: similarity ≥ 0.8 (offered, never auto-accepted). Extra blocking questions: `RECEIPT_NO_LINES`, `DATE_UNREADABLE`, `CURRENCY_UNREADABLE`. **For T7:** the open-for-purchasing statuses are written inline at `purchases.service.ts:100` — move to a shared constant (rule 11) |
+### Next, in order
+1. **T10** — `apps/web/tests/72-assistant-end-to-end.spec.ts` (plan says 63; that number is taken). The MCP
+   SDK client over HTTP: register → sign in → code → token → `tools/list` → `match_receipt` on a realistic
+   receipt → answer its questions → preview → commit → the PO exists with the invoice number, attributed
+   to the partner; then the assistant token on REST endpoints is refused. Class `logic`; run it on this
+   branch with the servers below.
+2. Release alignment review over everything since `master`; flip BUSINESS_LOGIC §15/§16 PLANNED → built.
+3. Ship — **needs the user's go-ahead**: merge to `master`, push (deploys). Production needs: the two
+   migrations applied to Neon (`20260919120000_supplier_invoice_ref_and_oauth` + the older `CANCELLED`
+   one), `PUBLIC_BASE_URL` set on the API (forwarded host is spoofable), `scripts/confirm-stranded-orders.sh
+   --fix` against Neon, then a production smoke check. Then the user adds the connector in Claude
+   (Settings → Connectors → `<api>/mcp`) and signs in.
 
-Each wave-1 task runs in `.claude/worktrees/agent-*` (`git worktree list`). None is pushed.
-
-### Resume steps, in order
-
-1. **All four committed** (T0 `8d28a92`, T1 `9854c5d`, T2 `d330da5`, T3 `f72be3d`) — confirmed with `git branch --contains`. Step kept for safety: **Did each task commit?** `git log a232603..<branch> --oneline` (T0: `ce41763..chore/lint`).
-   Empty means it stopped before committing — its files are still in its worktree:
-   `git -C <worktree> status`. Salvage and finish, or re-dispatch from the plan.
-2. **Check, don't trust.** In each worktree: `npx jest` and `npx tsc --noEmit -p tsconfig.json`
-   in `apps/api`, quiet output, summary lines only.
-3. **Merge into `feature/mcp-assistant`**: T3 (pure, no overlap) → T2 → T1 → T0 last, rebased.
-4. **Translate the new error codes** in `apps/web/src/i18n/locales/{en,ar}.json` — subagents were told
-   not to. Expected: `DUPLICATE_SUPPLIER_INVOICE`, `ASSISTANT_PARTNERS_ONLY`. Find any others:
-   codes thrown in `apps/api/src` that `en.json` lacks.
-5. **Migrate the local database** (`apps/api`: `npx prisma migrate deploy`), restart the API.
-6. **Run the database-backed tests on the merged branch**: `63-supplier-invoice`,
-   `64-assistant-surface`, `41-error-messages`, and the purchases and cycles suites. Rule 2: each new
-   test must fail with its fix reverted.
-7. **Alignment review** (`abdallah-skills:business-alignment-reviewer`) on the T1, T2 and T3 diffs.
-8. **Wave 2** — T4 (OAuth) ‖ T5 (the `/mcp` endpoint and the confirmation pattern), per the plan.
-
-### Not part of this build, still owed to production
-
-From before this run (`docs/where-things-stand.md` → Not yet in production), on `master`:
-push the 5 commits; apply the `CANCELLED` migration to Neon; run
-`scripts/confirm-stranded-orders.sh --fix` against Neon for the two stranded purchase orders.
+### How to run things here
+- Port 3000 may belong to another project (Aesthetica's API). Don't use `npm run dev`/`dev.sh` — it
+  kills port holders. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003 npm run
+  start:dev`; web `cd apps/web && npm run dev -- -p 3003`; storefront (only for 59/54) `PORT=3002`.
+- Specs: `WEB_URL=http://localhost:3003 npx playwright test '<pattern>' --project=chromium`. Pass
+  patterns, not a zsh file list. Full suite in 4 groups: `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`,
+  `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`.
+- One Playwright run at a time: globalSetup now holds `/tmp/motoparts-e2e.lock`. Check other sessions
+  (ListAgents, `pgrep -fl "playwright test"`, `lsof -ti:3001`) before starting servers.
+- Leftover worktrees to clean when convenient: `.claude/worktrees/sharp-boyd-ae107e` (side task;
+  uncommitted `.claude/settings.json` statusLine change — not ours to commit), the `chore/lint` one
+  (untracked files), and the wave-2/3 agent worktrees (all merged).
 
 ### Things a fresh session will not know
 
