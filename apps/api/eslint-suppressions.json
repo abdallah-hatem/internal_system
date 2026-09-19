@@ -357,22 +357,19 @@
   },
   "src/modules/cycles/cycles.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 10
     }
   },
   "src/modules/cycles/dto/participant.dto.ts": {
@@ -472,7 +469,7 @@
       "count": 1
     },
     "prettier/prettier": {
-      "count": 109
+      "count": 85
     }
   },
   "src/modules/ledger/dto/ledger.dto.ts": {

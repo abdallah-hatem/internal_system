@@ -5,6 +5,9 @@ import { AuthModule } from '../auth/auth.module';
 import { ProductsModule } from '../products/products.module';
 import { PurchasesModule } from '../purchases/purchases.module';
 import { SuppliersModule } from '../suppliers/suppliers.module';
+import { CyclesModule } from '../cycles/cycles.module';
+import { InventoryModule } from '../inventory/inventory.module';
+import { ShippingModule } from '../shipping/shipping.module';
 import { AssistantServer } from './assistant-server';
 import { ConfirmationService } from './confirmation.service';
 import { McpController } from './mcp.controller';
@@ -22,6 +25,9 @@ import { McpController } from './mcp.controller';
     PurchasesModule,
     SuppliersModule,
     ProductsModule,
+    CyclesModule,
+    ShippingModule,
+    InventoryModule,
   ],
   controllers: [McpController],
   providers: [AssistantServer, ConfirmationService],

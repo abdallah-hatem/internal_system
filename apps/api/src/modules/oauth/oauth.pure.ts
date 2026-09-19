@@ -110,16 +110,12 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Client ids are UUID columns. Asking Postgres for `'abc'` fails the cast and
  * surfaces as a 500, so anything else is an unknown client before it gets
- * that far.
+ * that far. One definition, in `common/uuid.ts`, shared with the assistant.
  */
-export function isUuid(value: unknown): value is string {
-  return typeof value === 'string' && UUID.test(value);
-}
+export { isUuid } from '../../common/uuid';
 
 /**
  * One parameter, as a string or not at all.
