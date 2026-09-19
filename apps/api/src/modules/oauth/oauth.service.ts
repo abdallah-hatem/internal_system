@@ -16,6 +16,7 @@ import {
   MAX_REDIRECT_URIS,
   MAX_STATE_LENGTH,
   REFRESH_TTL_MS,
+  connectionsFrom,
   hashToken,
   isAllowedRedirectUri,
   isUuid,
@@ -27,6 +28,7 @@ import {
   verifierMatches,
 } from './oauth.pure';
 import { publicBaseUrl } from '../../common/public-base-url';
+import { notFound } from '../../common/api-error';
 import {
   PageError,
   PageLang,
@@ -540,12 +542,95 @@ export class OAuthService {
     }
   }
 
-  /** Every live refresh token one partner holds on one client. */
-  private async endConnection(userId: string, clientId: string) {
-    await this.prisma.oAuthRefreshToken.updateMany({
+  /**
+   * Every live refresh token one partner holds on one client. Returns how many
+   * were ended, so a caller can tell "disconnected" from "nothing to end".
+   */
+  private async endConnection(
+    userId: string,
+    clientId: string,
+  ): Promise<number> {
+    const { count } = await this.prisma.oAuthRefreshToken.updateMany({
       where: { userId, clientId, revokedAt: null },
       data: { revokedAt: this.now() },
     });
+    return count;
+  }
+
+  // ------------------------------------------------ Settings: connections
+
+  /**
+   * The Claude apps this partner has signed in and not disconnected
+   * (BUSINESS_LOGIC §16). Scoped by the caller's id from the token — there is
+   * no way to ask for anybody else's.
+   *
+   * Two reads: which clients have a live token, then every row on those
+   * clients, so the rotation chain can be walked back to the sign-in without
+   * loading the history of apps long since disconnected.
+   */
+  async listConnections(userId: string) {
+    const now = this.now();
+    const live = await this.prisma.oAuthRefreshToken.findMany({
+      where: { userId, revokedAt: null },
+      select: { clientId: true, expiresAt: true },
+    });
+    const clientIds = [
+      ...new Set(live.filter((r) => r.expiresAt > now).map((r) => r.clientId)),
+    ];
+    if (clientIds.length === 0) return { data: [] };
+
+    const rows = await this.prisma.oAuthRefreshToken.findMany({
+      where: { userId, clientId: { in: clientIds } },
+      select: {
+        id: true,
+        clientId: true,
+        createdAt: true,
+        expiresAt: true,
+        lastUsedAt: true,
+        revokedAt: true,
+        replacedById: true,
+        client: { select: { clientName: true } },
+      },
+    });
+    return {
+      data: connectionsFrom(
+        rows.map(({ client, ...row }) => ({
+          ...row,
+          clientName: client.clientName,
+        })),
+        now,
+      ),
+    };
+  }
+
+  /**
+   * Disconnect one app. An id that is not this partner's live connection —
+   * another partner's, one already disconnected, or not an id at all — is the
+   * same 404, so the answer never says whether someone else's exists.
+   */
+  async disconnect(userId: string, connectionId: string) {
+    const ended = isUuid(connectionId)
+      ? await this.endConnection(userId, connectionId)
+      : 0;
+    if (ended === 0) throw notFound('assistantConnection');
+    return { data: { id: connectionId } };
+  }
+
+  /** Disconnect every app this partner has signed in, and nobody else's. */
+  async disconnectAll(userId: string) {
+    const now = this.now();
+    const live = await this.prisma.oAuthRefreshToken.findMany({
+      where: { userId, revokedAt: null },
+      select: { clientId: true, expiresAt: true },
+    });
+    const connections = new Set(
+      live.filter((r) => r.expiresAt > now).map((r) => r.clientId),
+    ).size;
+    await this.prisma.oAuthRefreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    return { data: { disconnected: connections } };
   }
 
   private async issue(userId: string, clientId: string) {

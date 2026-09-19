@@ -758,7 +758,8 @@
       "supplier": "Supplier",
       "user": "User",
       "productRequest": "Import request",
-      "orderRequest": "Order request"
+      "orderRequest": "Order request",
+      "assistantConnection": "Claude connection"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -956,5 +957,25 @@
     "blockedFirefoxStep2": "Set Notifications to Allow, reload, then press the button again",
     "blockedChromeStep1": "Click the padlock or the icon at the start of the address bar",
     "blockedChromeStep2": "Set Notifications to Allow, reload, then press the button again"
+  },
+  "claudeConnections": {
+    "title": "Claude connections",
+    "intro": "Each Claude app you sign in — the phone, a laptop — is its own connection. Disconnecting one ends its access at once, without changing your password.",
+    "empty": "Claude is not connected to your account.",
+    "howTo": "To connect, open Claude, go to Settings → Connectors, add a custom connector, and paste this server URL. Claude will ask you to sign in with your usual login.",
+    "serverUrl": "Server URL",
+    "unnamed": "Claude app",
+    "connected": "Connected {date}",
+    "lastRefreshed": "Last refreshed {date}",
+    "neverRefreshed": "Not refreshed yet",
+    "disconnect": "Disconnect",
+    "disconnectOne": "Disconnect {name}",
+    "disconnectAll": "Disconnect all",
+    "confirmAllTitle": "Disconnect every Claude app?",
+    "confirmAll": "Every Claude app signed in to your account loses access now. To use one again, you will have to sign it in again.",
+    "disconnected": "{name} disconnected",
+    "allDisconnected": "All Claude apps disconnected",
+    "failed": "Could not disconnect. Please try again.",
+    "loadFailed": "Your Claude connections could not be loaded."
   }
 }

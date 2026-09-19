@@ -156,3 +156,87 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+/** One refresh-token row, as much of it as a connection is built from. */
+export interface RefreshRow {
+  id: string;
+  clientId: string;
+  clientName: string | null;
+  createdAt: Date;
+  expiresAt: Date;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+  replacedById: string | null;
+}
+
+/** What Settings shows for one Claude app a partner has signed in. */
+export interface AssistantConnection {
+  /** The OAuth client's id: a connection is one partner on one client. */
+  id: string;
+  clientName: string | null;
+  /** When the partner signed this app in — the start of the live chain. */
+  connectedAt: Date;
+  /** When the app last swapped its refresh token; null if it never has. */
+  lastRefreshedAt: Date | null;
+}
+
+/**
+ * A partner's live connections, from their refresh-token rows.
+ *
+ * Tokens rotate on every refresh, so the live row is only the newest link of a
+ * chain: its own `createdAt` is the last refresh, not the sign-in. The chain is
+ * walked back through `replacedById` to find when the app was signed in, and
+ * the spent links' `lastUsedAt` say when it last refreshed. A chain that was
+ * ended — revoked, or thirty days unused — has no live row and is not a
+ * connection, however many rows it left behind.
+ *
+ * BUSINESS_LOGIC §16: each Claude app is its own connection, so rows are
+ * grouped by client. Newest sign-in first.
+ */
+export function connectionsFrom(
+  rows: RefreshRow[],
+  now: Date,
+): AssistantConnection[] {
+  const predecessor = new Map<string, RefreshRow>();
+  for (const row of rows) {
+    if (row.replacedById) predecessor.set(row.replacedById, row);
+  }
+
+  const later = (a: Date | null, b: Date | null) =>
+    a && (!b || a > b) ? a : b;
+
+  const byClient = new Map<string, AssistantConnection>();
+  for (const live of rows) {
+    if (live.revokedAt || live.expiresAt <= now) continue;
+
+    let connectedAt = live.createdAt;
+    let lastRefreshedAt: Date | null = null;
+    const seen = new Set<string>([live.id]);
+    for (
+      let prev = predecessor.get(live.id);
+      prev && !seen.has(prev.id);
+      prev = predecessor.get(prev.id)
+    ) {
+      seen.add(prev.id);
+      if (prev.createdAt < connectedAt) connectedAt = prev.createdAt;
+      lastRefreshedAt = later(prev.lastUsedAt, lastRefreshedAt);
+    }
+
+    const known = byClient.get(live.clientId);
+    if (!known) {
+      byClient.set(live.clientId, {
+        id: live.clientId,
+        clientName: live.clientName,
+        connectedAt,
+        lastRefreshedAt,
+      });
+      continue;
+    }
+    if (connectedAt < known.connectedAt) known.connectedAt = connectedAt;
+    known.lastRefreshedAt = later(lastRefreshedAt, known.lastRefreshedAt);
+  }
+
+  return [...byClient.values()].sort(
+    (a, b) => b.connectedAt.getTime() - a.connectedAt.getTime(),
+  );
+}

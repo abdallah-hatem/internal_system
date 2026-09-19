@@ -7,6 +7,7 @@ import {
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 // The fake database must fail the way Postgres does, with Prisma's own class.
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- a test double raising Prisma's P2002
@@ -23,6 +24,8 @@ import { Surface } from '../../common/surface';
 import { validationRefusal } from '../../common/validation-error';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { JwtStrategy } from '../auth/strategies/jwt.strategy';
+import { AssistantConnectionsController } from './assistant-connections.controller';
 import { OAuthController, WellKnownController } from './oauth.controller';
 import { hashToken, s256 } from './oauth.pure';
 import { OAUTH_CLOCK, OAuthService } from './oauth.service';
@@ -70,10 +73,15 @@ interface FakeRefresh {
 }
 
 type Where = Record<string, unknown>;
+/** Equality, plus Prisma's `{ in: [...] }` — the one operator the service uses. */
 const matches = (row: object, where: Where) =>
-  Object.entries(where).every(
-    ([k, v]) => (row as Record<string, unknown>)[k] === v,
-  );
+  Object.entries(where).every(([k, v]) => {
+    const value = (row as Record<string, unknown>)[k];
+    if (v && typeof v === 'object' && 'in' in v) {
+      return (v as { in: unknown[] }).in.includes(value);
+    }
+    return value === v;
+  });
 
 /** Lets the event loop run, so concurrent requests really interleave. */
 const tick = () => new Promise((r) => setImmediate(r));
@@ -128,6 +136,19 @@ function fakeDb(clock: () => Date) {
       findUnique: async ({ where }: { where: Where }) => {
         await tick();
         return refresh.find((r) => matches(r, where)) ?? null;
+      },
+      /** The client joined in, as a `select: { client: … }` would. */
+      findMany: async ({ where }: { where: Where }) => {
+        await tick();
+        return refresh
+          .filter((r) => matches(r, where))
+          .map((r) => ({
+            ...r,
+            client: {
+              clientName:
+                clients.find((c) => c.id === r.clientId)?.clientName ?? null,
+            },
+          }));
       },
       updateMany: async ({ where, data }: { where: Where; data: object }) => {
         await tick();
@@ -200,7 +221,8 @@ let app: INestApplication;
 let base: string;
 let now: Date;
 let store: ReturnType<typeof fakeDb>;
-const config: Record<string, string | undefined> = {};
+// JwtStrategy reads the secret when it is built, so it is set before that.
+const config: Record<string, string | undefined> = { JWT_SECRET: SECRET };
 const jwt = new JwtService({ secret: SECRET });
 
 const PASSWORD = 'correct horse battery';
@@ -223,15 +245,18 @@ beforeAll(async () => {
   store = fakeDb(() => now);
 
   const moduleRef = await Test.createTestingModule({
+    imports: [PassportModule],
     controllers: [
       WellKnownController,
       OAuthController,
+      AssistantConnectionsController,
       ProbeController,
       OfficeProbeController,
     ],
     providers: [
       OAuthService,
       AuthService,
+      JwtStrategy,
       { provide: PrismaService, useValue: store.db },
       { provide: JwtService, useValue: jwt },
       { provide: ConfigService, useValue: { get: (k: string) => config[k] } },
@@ -1032,5 +1057,282 @@ describe('AuthService.checkPassword', () => {
     expect(account?.id).toBe(partner.id);
     expect(account).not.toHaveProperty('passwordHash');
     expect(await auth.checkPassword(partner.email, 'wrong')).toBeNull();
+  });
+});
+
+// ============================================== Settings: Claude connections
+
+/**
+ * The office's view of the grants above: GET, DELETE one, DELETE all, under
+ * `api/v1/auth/assistant-connections`. Connections are made through the real
+ * door — sign in, redeem — so what is listed and ended is what Claude holds.
+ */
+describe('Settings → Claude connections', () => {
+  const CONNECTIONS = '/api/v1/auth/assistant-connections';
+
+  interface Listed {
+    id: string;
+    clientName: string | null;
+    connectedAt: string;
+    lastRefreshedAt: string | null;
+  }
+  interface Answer {
+    status: number;
+    body: {
+      data?: unknown;
+      error?: { code: string; params?: Record<string, unknown> };
+    };
+  }
+
+  /** The office's own login, as `AuthService.login` signs it. */
+  const officeToken = (user: FakeUser) =>
+    jwt.sign(
+      { sub: user.id, email: user.email, role: user.role },
+      { audience: 'internal' },
+    );
+
+  async function call(
+    token: string,
+    method: 'GET' | 'DELETE',
+    path = '',
+  ): Promise<Answer> {
+    const res = await fetch(`${base}${CONNECTIONS}${path}`, {
+      method,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return { status: res.status, body: (await res.json()) as Answer['body'] };
+  }
+
+  const list = async (user: FakeUser) => {
+    const res = await call(officeToken(user), 'GET');
+    expect(res.status).toBe(200);
+    return res.body.data as Listed[];
+  };
+
+  /** A partner signing one Claude app in; on the given client when there is one. */
+  async function connect(user: FakeUser, clientId?: string) {
+    const c = await codeFor(user.email, clientId);
+    const res = await redeem(c);
+    expect(res.status).toBe(200);
+    return { client: c.client, refresh_token: res.body.refresh_token };
+  }
+
+  it('No connections → an empty list, not an error', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    expect(await list(partner)).toEqual([]);
+  });
+
+  it('A partner sees only their own connections', async () => {
+    const a = await addUser('CORE_PARTNER');
+    const b = await addUser('CORE_PARTNER');
+    const mine = await connect(a);
+    const theirs = await connect(b);
+    // One Claude app signed in by both: each sees only their own grant on it.
+    const shared = await newClient();
+    await connect(a, shared);
+    await connect(b, shared);
+
+    const seen = (await list(a)).map((c) => c.id).sort();
+    expect(seen).toEqual([mine.client, shared].sort());
+    expect(seen).not.toContain(theirs.client);
+  });
+
+  it("Disconnecting another partner's connection id → 404", async () => {
+    const a = await addUser('CORE_PARTNER');
+    const b = await addUser('CORE_PARTNER');
+    const theirs = await connect(b);
+
+    const res = await call(officeToken(a), 'DELETE', `/${theirs.client}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error?.code).toBe('NOT_FOUND');
+    expect(res.body.error?.params).toEqual({ entity: 'assistantConnection' });
+
+    // And nothing of B's was touched.
+    expect(
+      (await refreshCall(theirs.client, theirs.refresh_token)).status,
+    ).toBe(200);
+  });
+
+  it("disconnecting a Claude app two partners share ends only the caller's grant", async () => {
+    const a = await addUser('CORE_PARTNER');
+    const b = await addUser('CORE_PARTNER');
+    const shared = await newClient();
+    const aGrant = await connect(a, shared);
+    const bGrant = await connect(b, shared);
+
+    expect((await call(officeToken(a), 'DELETE', `/${shared}`)).status).toBe(
+      200,
+    );
+    expect((await refreshCall(shared, aGrant.refresh_token)).body.error).toBe(
+      'invalid_grant',
+    );
+    expect((await refreshCall(shared, bGrant.refresh_token)).status).toBe(200);
+    expect((await list(b)).map((c) => c.id)).toEqual([shared]);
+  });
+
+  it("Disconnect all → only this partner's tokens revoked", async () => {
+    const a = await addUser('CORE_PARTNER');
+    const b = await addUser('CORE_PARTNER');
+    const phone = await connect(a);
+    const laptop = await connect(a);
+    const theirs = await connect(b);
+
+    const res = await call(officeToken(a), 'DELETE');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ disconnected: 2 });
+
+    expect(await list(a)).toEqual([]);
+    for (const grant of [phone, laptop]) {
+      expect(
+        (await refreshCall(grant.client, grant.refresh_token)).body.error,
+      ).toBe('invalid_grant');
+    }
+    expect((await list(b)).map((c) => c.id)).toEqual([theirs.client]);
+    expect(
+      (await refreshCall(theirs.client, theirs.refresh_token)).status,
+    ).toBe(200);
+  });
+
+  it('Disconnect all with nothing connected → 200, nothing ended', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    const res = await call(officeToken(partner), 'DELETE');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ disconnected: 0 });
+  });
+
+  it('Two Claude apps signed in by one partner → two separate connections, each disconnectable alone', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    const phone = await connect(partner);
+    const laptop = await connect(partner);
+
+    const both = await list(partner);
+    expect(both.map((c) => c.id).sort()).toEqual(
+      [phone.client, laptop.client].sort(),
+    );
+    expect(both.every((c) => c.clientName === 'Claude')).toBe(true);
+
+    expect(
+      (await call(officeToken(partner), 'DELETE', `/${phone.client}`)).status,
+    ).toBe(200);
+    expect((await list(partner)).map((c) => c.id)).toEqual([laptop.client]);
+    // The laptop was left alone and still refreshes.
+    expect(
+      (await refreshCall(laptop.client, laptop.refresh_token)).status,
+    ).toBe(200);
+  });
+
+  it('After disconnecting, refresh fails', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    const grant = await connect(partner);
+    // Refreshed once, so the live token is not the one first issued: the
+    // disconnect has to reach the successor, not only the original.
+    const next = (await refreshCall(grant.client, grant.refresh_token)).body;
+
+    expect(
+      (await call(officeToken(partner), 'DELETE', `/${grant.client}`)).status,
+    ).toBe(200);
+    const res = await refreshCall(grant.client, next.refresh_token);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid_grant');
+  });
+
+  it('a refreshed app is still one connection, dated from its sign-in', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    const signedInAt = new Date(now);
+    const grant = await connect(partner);
+
+    let [only] = await list(partner);
+    expect(only.connectedAt).toBe(signedInAt.toISOString());
+    expect(only.lastRefreshedAt).toBeNull();
+
+    now = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const second = (await refreshCall(grant.client, grant.refresh_token)).body;
+    now = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    await refreshCall(grant.client, second.refresh_token);
+
+    const after = await list(partner);
+    expect(after).toHaveLength(1);
+    [only] = after;
+    expect(only.connectedAt).toBe(signedInAt.toISOString());
+    expect(only.lastRefreshedAt).toBe(now.toISOString());
+  });
+
+  it('an app unused for thirty days is no longer listed', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    await connect(partner);
+    now = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
+    expect(await list(partner)).toEqual([]);
+  });
+
+  it('disconnecting twice → the second is 404, not 500', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    const grant = await connect(partner);
+    const token = officeToken(partner);
+
+    expect((await call(token, 'DELETE', `/${grant.client}`)).status).toBe(200);
+    const again = await call(token, 'DELETE', `/${grant.client}`);
+    expect(again.status).toBe(404);
+    expect(again.body.error?.code).toBe('NOT_FOUND');
+  });
+
+  it('a non-uuid id → a coded 404, not a 500', async () => {
+    const partner = await addUser('CORE_PARTNER');
+    await connect(partner);
+    const res = await call(officeToken(partner), 'DELETE', '/not-a-uuid');
+    expect(res.status).toBe(404);
+    expect(res.body.error?.code).toBe('NOT_FOUND');
+    expect(await list(partner)).toHaveLength(1);
+  });
+
+  it.each(['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL', 'ADMIN_SUPPORT'])(
+    'a %s office token → refused with ROLE_NOT_ALLOWED, on every route',
+    async (role) => {
+      const user = await addUser(role);
+      const token = officeToken(user);
+      for (const [method, path] of [
+        ['GET', ''],
+        ['DELETE', ''],
+        ['DELETE', `/${randomUUID()}`],
+      ] as const) {
+        const res = await call(token, method, path);
+        expect(res.status).toBe(403);
+        expect(res.body.error?.code).toBe('ROLE_NOT_ALLOWED');
+      }
+    },
+  );
+
+  it('a shop-owner portal token → refused with WRONG_SURFACE', async () => {
+    const shop = await addUser('SHOP_OWNER_PORTAL');
+    const token = jwt.sign(
+      { sub: shop.id, role: shop.role, customerId: randomUUID() },
+      { audience: 'portal' },
+    );
+    const res = await call(token, 'GET');
+    expect(res.status).toBe(403);
+    expect(res.body.error?.code).toBe('WRONG_SURFACE');
+  });
+
+  it("the assistant's own mcp token → WRONG_SURFACE: Claude cannot see or end its grants", async () => {
+    const partner = await addUser('CORE_PARTNER');
+    const grant = await connect(partner);
+    const mcp = app.get(AuthService).issueAssistantToken(partner);
+
+    for (const [method, path] of [
+      ['GET', ''],
+      ['DELETE', ''],
+      ['DELETE', `/${grant.client}`],
+    ] as const) {
+      const res = await call(mcp, method, path);
+      expect(res.status).toBe(403);
+      expect(res.body.error?.code).toBe('WRONG_SURFACE');
+    }
+    expect((await list(partner)).map((c) => c.id)).toEqual([grant.client]);
+  });
+
+  it('no token → 401 AUTH_REQUIRED', async () => {
+    const res = await fetch(`${base}${CONNECTIONS}`);
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as Answer['body'];
+    expect(body.error?.code).toBe('AUTH_REQUIRED');
   });
 });

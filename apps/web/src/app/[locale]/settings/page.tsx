@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon, User, ShieldCheck, Globe, Loader2, Check,
 } from 'lucide-react';
 import { PushAlerts } from '../../../components/settings/push-alerts';
+import { AssistantConnections } from '../../../components/settings/assistant-connections';
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -139,6 +140,9 @@ export default function SettingsPage() {
 
           {/* Alerts on this device */}
           <PushAlerts />
+
+          {/* Claude connections — only a core partner can connect Claude */}
+          {profileData?.role === 'CORE_PARTNER' && <AssistantConnections />}
 
           {/* Security Section */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
