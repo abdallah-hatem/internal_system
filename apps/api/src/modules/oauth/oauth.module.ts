@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AssistantConnectionsController } from './assistant-connections.controller';
 import { OAuthController, WellKnownController } from './oauth.controller';
 import { OAUTH_CLOCK, OAuthService, type Clock } from './oauth.service';
 
@@ -9,7 +10,11 @@ import { OAUTH_CLOCK, OAuthService, type Clock } from './oauth.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [WellKnownController, OAuthController],
+  controllers: [
+    WellKnownController,
+    OAuthController,
+    AssistantConnectionsController,
+  ],
   providers: [
     OAuthService,
     { provide: OAUTH_CLOCK, useValue: (() => new Date()) satisfies Clock },

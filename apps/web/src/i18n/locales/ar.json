@@ -758,7 +758,8 @@
       "supplier": "المورّد",
       "user": "المستخدم",
       "productRequest": "طلب استيراد",
-      "orderRequest": "طلب شراء"
+      "orderRequest": "طلب شراء",
+      "assistantConnection": "اتصال Claude"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -956,5 +957,25 @@
     "blockedFirefoxStep2": "اضبط الإشعارات على السماح، أعد التحميل، ثم اضغط الزر مرة أخرى",
     "blockedChromeStep1": "اضغط القفل أو الأيقونة في بداية شريط العنوان",
     "blockedChromeStep2": "اضبط الإشعارات على السماح، أعد التحميل، ثم اضغط الزر مرة أخرى"
+  },
+  "claudeConnections": {
+    "title": "اتصالات Claude",
+    "intro": "كل تطبيق Claude تسجّل الدخول منه — الهاتف أو الحاسوب — هو اتصال مستقل. قطع أحدها يُنهي وصوله فورًا دون تغيير كلمة المرور.",
+    "empty": "Claude غير متصل بحسابك.",
+    "howTo": "للاتصال، افتح Claude واذهب إلى الإعدادات ← الموصِّلات، وأضف موصِّلًا مخصصًا، ثم الصق عنوان الخادم هذا. سيطلب منك Claude تسجيل الدخول ببياناتك المعتادة.",
+    "serverUrl": "عنوان الخادم",
+    "unnamed": "تطبيق Claude",
+    "connected": "متصل منذ {date}",
+    "lastRefreshed": "آخر تحديث {date}",
+    "neverRefreshed": "لم يُحدَّث بعد",
+    "disconnect": "قطع الاتصال",
+    "disconnectOne": "قطع اتصال {name}",
+    "disconnectAll": "قطع الكل",
+    "confirmAllTitle": "قطع اتصال كل تطبيقات Claude؟",
+    "confirmAll": "ستفقد كل تطبيقات Claude المسجّلة بحسابك الوصول الآن. لاستخدام أي منها مرة أخرى، عليك تسجيل الدخول منه من جديد.",
+    "disconnected": "تم قطع اتصال {name}",
+    "allDisconnected": "تم قطع اتصال كل تطبيقات Claude",
+    "failed": "تعذّر قطع الاتصال. حاول مرة أخرى.",
+    "loadFailed": "تعذّر تحميل اتصالات Claude."
   }
 }

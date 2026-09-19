@@ -2,6 +2,12 @@ import axios from 'axios';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
+/**
+ * Where Claude connects: the MCP endpoint sits at the API host's root, outside
+ * `api/v1`, which is where MCP clients look for it.
+ */
+export const MCP_SERVER_URL = `${API_BASE.replace(/\/api\/v1\/?$/, '')}/mcp`;
+
 export const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },

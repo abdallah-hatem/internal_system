@@ -1,4 +1,6 @@
 import {
+  connectionsFrom,
+  type RefreshRow,
   isAllowedRedirectUri,
   isValidCodeChallenge,
   isValidCodeVerifier,
@@ -126,5 +128,87 @@ describe('isOpenOAuthPath', () => {
     expect(isOpenOAuthPath('/oauth/authorize')).toBe(false);
     expect(isOpenOAuthPath('/api/v1/payments')).toBe(false);
     expect(isOpenOAuthPath(undefined)).toBe(false);
+  });
+});
+
+describe('connectionsFrom — what Settings lists', () => {
+  const NOW = new Date('2026-09-19T12:00:00Z');
+  const at = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000);
+  const LATER = at(24 * 20);
+
+  let n = 0;
+  const row = (over: Partial<RefreshRow>): RefreshRow => ({
+    id: `r${++n}`,
+    clientId: 'phone',
+    clientName: 'Claude',
+    createdAt: at(-1),
+    expiresAt: LATER,
+    lastUsedAt: null,
+    revokedAt: null,
+    replacedById: null,
+    ...over,
+  });
+
+  it('a chain of rotations is one connection, from the first sign-in to the last refresh', () => {
+    const c = row({ id: 'c', createdAt: at(-2) });
+    const b = row({
+      id: 'b',
+      createdAt: at(-5),
+      revokedAt: at(-2),
+      lastUsedAt: at(-2),
+      replacedById: 'c',
+    });
+    const a = row({
+      id: 'a',
+      createdAt: at(-9),
+      revokedAt: at(-5),
+      lastUsedAt: at(-5),
+      replacedById: 'b',
+    });
+    expect(connectionsFrom([c, a, b], NOW)).toEqual([
+      {
+        id: 'phone',
+        clientName: 'Claude',
+        connectedAt: at(-9),
+        lastRefreshedAt: at(-2),
+      },
+    ]);
+  });
+
+  it('an ended chain on the same client does not stretch the connection back', () => {
+    // Signed in, disconnected, signed in again: connected from the second time.
+    const old = row({ id: 'old', createdAt: at(-100), revokedAt: at(-50) });
+    const fresh = row({ id: 'fresh', createdAt: at(-3) });
+    expect(connectionsFrom([old, fresh], NOW)[0].connectedAt).toEqual(at(-3));
+  });
+
+  it('revoked and expired chains are not connections', () => {
+    expect(
+      connectionsFrom(
+        [
+          row({ clientId: 'gone', revokedAt: at(-1) }),
+          row({ clientId: 'lapsed', expiresAt: NOW }),
+        ],
+        NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it('two apps are two connections, newest sign-in first', () => {
+    const list = connectionsFrom(
+      [
+        row({ clientId: 'phone', createdAt: at(-10) }),
+        row({ clientId: 'laptop', clientName: null, createdAt: at(-1) }),
+      ],
+      NOW,
+    );
+    expect(list.map((c) => c.id)).toEqual(['laptop', 'phone']);
+    expect(list[0].clientName).toBeNull();
+  });
+
+  it('a malformed chain that loops back on itself still ends', () => {
+    const x = row({ id: 'x', replacedById: 'y', revokedAt: at(-1) });
+    const y = row({ id: 'y', replacedById: 'x', createdAt: at(-4) });
+    expect(connectionsFrom([x, y], NOW)).toHaveLength(1);
   });
 });
