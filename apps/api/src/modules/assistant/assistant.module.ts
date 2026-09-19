@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
+import { ProductsModule } from '../products/products.module';
+import { PurchasesModule } from '../purchases/purchases.module';
+import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AssistantServer } from './assistant-server';
 import { ConfirmationService } from './confirmation.service';
 import { McpController } from './mcp.controller';
@@ -12,7 +16,13 @@ import { McpController } from './mcp.controller';
  * tool task that needs one imports that service's module here.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [
+    AuthModule,
+    AuditModule,
+    PurchasesModule,
+    SuppliersModule,
+    ProductsModule,
+  ],
   controllers: [McpController],
   providers: [AssistantServer, ConfirmationService],
 })

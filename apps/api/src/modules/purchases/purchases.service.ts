@@ -16,6 +16,77 @@ import {
   isSupplierInvoiceRefTooLong,
   normaliseSupplierInvoiceRef,
 } from './supplier-invoice-ref';
+import { OPEN_FOR_PURCHASING, isOpenForPurchasing } from './purchase-rules';
+
+type Db = Prisma.TransactionClient;
+
+/** One line of a purchase order. `discount` is percent off the line. */
+export interface PurchaseLine {
+  productId: string;
+  orderedQty: number;
+  unitPrice: number;
+  discount?: number;
+}
+
+/** What `validateOrder` settled, and `writeOrder` writes from. */
+export interface CheckedOrder {
+  cycle: { id: string; code: string; status: string };
+  supplier: { id: string; name: string };
+  supplierInvoiceRef: string | null;
+}
+
+/**
+ * Quantity × unit price less the percentage discount, to the cent, half up —
+ * as an invoice prints it. Decimal throughout, never a float standing in for
+ * money.
+ */
+export function purchaseLineTotal(
+  line: Pick<PurchaseLine, 'orderedQty' | 'unitPrice' | 'discount'>,
+): Prisma.Decimal {
+  return new Prisma.Decimal(line.orderedQty)
+    .mul(line.unitPrice)
+    .mul(new Prisma.Decimal(100).sub(line.discount ?? 0))
+    .div(100)
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/** Sums lines already priced, and converts at the order's rate, to the cent. */
+export function purchaseOrderTotals(
+  lineTotals: Array<Prisma.Decimal | number | string>,
+  fxRateToEgp: number,
+): { total: string; totalEgp: string } {
+  const total = lineTotals.reduce<Prisma.Decimal>(
+    (sum, t) => sum.add(t),
+    new Prisma.Decimal(0),
+  );
+  return {
+    total: total.toFixed(2),
+    totalEgp: total
+      .mul(fxRateToEgp)
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+      .toFixed(2),
+  };
+}
+
+function assertCycleOpen(status: string) {
+  if (!isOpenForPurchasing(status)) {
+    throw badRequest(
+      'CYCLE_STATUS_BLOCKS_PO',
+      `Cycle must be in ${OPEN_FOR_PURCHASING.join(', ')} status to create purchase orders. Current: ${status}`,
+      { status },
+    );
+  }
+}
+
+/** A rate is what one unit costs in EGP. Zero or less is not a rate. */
+function assertRate(rate: number) {
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw badRequest(
+      'RATE_NOT_POSITIVE',
+      'An exchange rate must be greater than zero.',
+    );
+  }
+}
 
 function duplicateInvoice(
   ref: string,
@@ -93,29 +164,53 @@ export class PurchasesService {
     return { data: items };
   }
 
+  /**
+   * Record a purchase order and its lines.
+   *
+   * Checked on the plain client first, then written in one transaction; the
+   * participants are told once it has committed. The assistant runs the same
+   * two steps, `validateOrder` and `writeOrder`, inside a transaction of its
+   * own, so that a supplier and products it creates alongside the order stand
+   * or fall with it.
+   */
   async create(cycleId: string, data: CreatePurchaseOrderDto, actorId: string) {
-    assertNotFuture(data.orderedOn, 'The date an order was placed');
+    const checked = await this.validateOrder(this.prisma, cycleId, data);
 
-    const cycle = await this.prisma.importCycle.findUnique({
+    const order = await this.prisma
+      .$transaction((tx) => this.writeOrder(tx, checked, data, actorId))
+      .catch((err: unknown) =>
+        this.explainDuplicateInvoice(err, checked.supplier, data),
+      );
+
+    await this.announceCreated(order, checked);
+    return { data: order };
+  }
+
+  /**
+   * Every refusal `create` makes, asked of `db`, writing nothing. Returns what
+   * the write needs: the cycle, the supplier, the invoice number as stored.
+   */
+  async validateOrder(
+    db: Db,
+    cycleId: string,
+    data: CreatePurchaseOrderDto,
+  ): Promise<CheckedOrder> {
+    assertNotFuture(data.orderedOn, 'The date an order was placed');
+    assertRate(data.fxRateToEgp);
+
+    const cycle = await db.importCycle.findUnique({
       where: { id: cycleId },
     });
     if (!cycle) throw notFound('cycle');
+    assertCycleOpen(cycle.status);
 
-    // Validate cycle is in an appropriate status for purchasing
-    if (!['PLANNING', 'FUNDING', 'PURCHASING'].includes(cycle.status)) {
-      throw badRequest(
-        'CYCLE_STATUS_BLOCKS_PO',
-        `Cycle must be in PLANNING, FUNDING or PURCHASING status to create purchase orders. Current: ${cycle.status}`,
-        { status: cycle.status },
-      );
-    }
-
-    const supplier = await this.prisma.supplier.findUnique({
+    const supplier = await db.supplier.findUnique({
       where: { id: data.supplierId },
     });
     if (!supplier) throw notFound('supplier');
 
     const supplierInvoiceRef = await this.assertInvoiceNotRecorded(
+      db,
       supplier,
       data.supplierInvoiceRef,
     );
@@ -127,114 +222,103 @@ export class PurchasesService {
         'Purchase order must contain at least one item',
       );
     }
-    for (const item of data.items) {
-      if (!item.productId) {
-        throw badRequest(
-          'ITEM_NEEDS_PRODUCT',
-          'Each item must have a productId',
-        );
-      }
-      const product = await this.prisma.product.findUnique({
-        where: { id: item.productId },
-      });
-      if (!product) {
-        throw notFound('product');
-      }
-      if (!item.orderedQty || item.orderedQty <= 0) {
-        throw badRequest(
-          'QTY_NOT_POSITIVE',
-          `Invalid quantity for product ${item.productId}: must be greater than 0`,
-        );
-      }
-      if (item.unitPrice == null || item.unitPrice < 0) {
-        throw badRequest(
-          'PRICE_NEGATIVE',
-          `Invalid unitPrice for product ${item.productId}: must be 0 or greater`,
-        );
-      }
-    }
+    for (const item of data.items) await this.assertLine(db, item);
 
+    return { cycle, supplier, supplierInvoiceRef };
+  }
+
+  /** Writes a validated order, its lines and its audit entry, in `tx`. */
+  async writeOrder(
+    tx: Db,
+    checked: CheckedOrder,
+    data: CreatePurchaseOrderDto,
+    actorId: string,
+  ) {
     // Generate reference: PO-YYYY-XXXX
     const year = new Date().getFullYear();
-    const last = await this.prisma.purchaseOrder.findFirst({
+    const last = await tx.purchaseOrder.findFirst({
       where: { reference: { startsWith: `PO-${year}` } },
       orderBy: { reference: 'desc' },
       select: { reference: true },
     });
     const reference = `PO-${year}-${pad(nextReferenceNumber(last?.reference, 4), 4)}`;
 
-    // Create PO with items in a transaction
-    const result = await this.prisma
-      .$transaction(async (tx) => {
-        const po = await tx.purchaseOrder.create({
-          data: {
-            cycleId,
-            supplierId: data.supplierId,
-            reference,
-            currency: data.currency,
-            fxRateToEgp: data.fxRateToEgp,
-            orderedOn: new Date(data.orderedOn),
-            status: 'DRAFT',
-            supplierInvoiceRef,
-          },
-        });
-
-        // Create line items
-        const items = [];
-        for (const item of data.items) {
-          const lineTotal =
-            item.orderedQty *
-            item.unitPrice *
-            (item.discount ? 1 - item.discount / 100 : 1);
-
-          const poItem = await tx.purchaseOrderItem.create({
-            data: {
-              purchaseOrderId: po.id,
-              productId: item.productId,
-              orderedQty: item.orderedQty,
-              unitPrice: item.unitPrice,
-              discount: item.discount || 0,
-              lineTotal: lineTotal,
-            },
-          });
-          items.push(poItem);
-        }
-
-        return { ...po, items };
-      })
-      .catch(async (err: unknown) => {
-        // Two requests carrying the same receipt can both pass the check above
-        // before either commits. The unique index stops the second; say so in
-        // the same words, never as a 500. Both sends also compute the same PO
-        // reference, so the failed index cannot be trusted to name the
-        // invoice — it is looked up instead.
-        if (supplierInvoiceRef && isUniqueViolation(err)) {
-          const existing = await this.prisma.purchaseOrder.findFirst({
-            where: { supplierId: supplier.id, supplierInvoiceRef },
-            select: { reference: true },
-          });
-          if (existing) {
-            throw duplicateInvoice(
-              supplierInvoiceRef,
-              supplier.name,
-              existing.reference,
-            );
-          }
-        }
-        throw err;
-      });
-
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'CREATE',
-      entityType: 'PurchaseOrder',
-      entityId: result.id,
-      afterJson: result,
+    const po = await tx.purchaseOrder.create({
+      data: {
+        cycleId: checked.cycle.id,
+        supplierId: checked.supplier.id,
+        reference,
+        currency: data.currency,
+        fxRateToEgp: data.fxRateToEgp,
+        orderedOn: new Date(data.orderedOn),
+        status: 'DRAFT',
+        supplierInvoiceRef: checked.supplierInvoiceRef,
+      },
     });
 
-    // Notify participants
+    const items = [];
+    for (const item of data.items) {
+      items.push(
+        await tx.purchaseOrderItem.create({
+          data: {
+            purchaseOrderId: po.id,
+            productId: item.productId,
+            orderedQty: item.orderedQty,
+            unitPrice: item.unitPrice,
+            discount: item.discount || 0,
+            lineTotal: purchaseLineTotal(item),
+          },
+        }),
+      );
+    }
+    const result = { ...po, items };
+
+    await this.audit.log(
+      {
+        actorUserId: actorId,
+        action: 'CREATE',
+        entityType: 'PurchaseOrder',
+        entityId: result.id,
+        afterJson: result,
+      },
+      tx,
+    );
+    return result;
+  }
+
+  /**
+   * Two requests carrying the same receipt can both pass the invoice check
+   * before either commits. The unique index stops the second; this says so in
+   * the same words, never as a 500. Both sends also compute the same PO
+   * reference, so the failed index cannot be trusted to name the invoice — it
+   * is looked up instead. Anything else is rethrown as it came.
+   */
+  async explainDuplicateInvoice(
+    err: unknown,
+    supplier: { id: string; name: string },
+    data: { supplierInvoiceRef?: string | null },
+  ): Promise<never> {
+    const ref = normaliseSupplierInvoiceRef(data.supplierInvoiceRef);
+    if (ref && isUniqueViolation(err)) {
+      const existing = await this.prisma.purchaseOrder.findFirst({
+        where: { supplierId: supplier.id, supplierInvoiceRef: ref },
+        select: { reference: true },
+      });
+      if (existing) {
+        throw duplicateInvoice(ref, supplier.name, existing.reference);
+      }
+    }
+    throw err;
+  }
+
+  /** Tells the cycle's participants. Only ever after the order has committed. */
+  async announceCreated(
+    order: { id: string; reference: string },
+    checked: Pick<CheckedOrder, 'cycle' | 'supplier'>,
+  ) {
+    const { cycle, supplier } = checked;
     const participants = await this.prisma.cycleParticipant.findMany({
-      where: { cycleId },
+      where: { cycleId: cycle.id },
     });
     const userIds = participants
       .map((p) => [p.partnerUserId, p.investorUserId])
@@ -243,24 +327,23 @@ export class PurchasesService {
     if (userIds.length > 0) {
       await this.notifications.createForMultipleUsers(userIds, {
         eventType: 'PURCHASE_ORDER_CREATED',
-        title: `New purchase order ${result.reference} created for cycle ${cycle.code}`,
+        title: `New purchase order ${order.reference} created for cycle ${cycle.code}`,
         payload: {
-          purchaseOrderId: result.id,
-          cycleId,
+          purchaseOrderId: order.id,
+          cycleId: cycle.id,
           cycleCode: cycle.code,
           supplierName: supplier.name,
         },
       });
     }
-
-    return { data: result };
   }
 
   /**
    * BUSINESS_LOGIC.md §15: a supplier's invoice is recorded once. Returns the
    * number as it will be stored, or null for a receipt with no number.
    */
-  private async assertInvoiceNotRecorded(
+  async assertInvoiceNotRecorded(
+    db: Db,
     supplier: { id: string; name: string },
     raw: string | null | undefined,
   ): Promise<string | null> {
@@ -276,7 +359,7 @@ export class PurchasesService {
     }
     if (!ref) return null;
 
-    const existing = await this.prisma.purchaseOrder.findFirst({
+    const existing = await db.purchaseOrder.findFirst({
       where: { supplierId: supplier.id, supplierInvoiceRef: ref },
       select: { reference: true },
     });
@@ -285,18 +368,62 @@ export class PurchasesService {
     return ref;
   }
 
+  /**
+   * One line's refusals, the same for a new order and a line added to a draft:
+   * a product that exists, a quantity above zero, a price of zero or more
+   * (free goods are real), and a discount that leaves the line worth between
+   * nothing and all of it.
+   */
+  private async assertLine(db: Db, item: PurchaseLine) {
+    if (!item.productId) {
+      throw badRequest('ITEM_NEEDS_PRODUCT', 'Each item must have a productId');
+    }
+    const product = await db.product.findUnique({
+      where: { id: item.productId },
+    });
+    if (!product) throw notFound('product');
+
+    if (!Number.isFinite(item.orderedQty) || item.orderedQty <= 0) {
+      throw badRequest(
+        'QTY_NOT_POSITIVE',
+        `Invalid quantity for product ${item.productId}: must be greater than 0`,
+      );
+    }
+    if (
+      item.unitPrice == null ||
+      !Number.isFinite(item.unitPrice) ||
+      item.unitPrice < 0
+    ) {
+      throw badRequest(
+        'PRICE_NEGATIVE',
+        `Invalid unitPrice for product ${item.productId}: must be 0 or greater`,
+      );
+    }
+    const discount = item.discount ?? 0;
+    if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+      // Over 100% the line is worth less than nothing, and the order's total —
+      // the cycle's cost — drops by goods that were in fact bought.
+      throw badRequest(
+        'DISCOUNT_PERCENT_INVALID',
+        `A line discount must be between 0 and 100 percent (given ${discount}).`,
+        { discount },
+      );
+    }
+  }
+
+  /**
+   * Add a line to an order still being written. `db` is the transaction to do
+   * it in, when the line is one part of a larger change.
+   */
   async addItem(
     purchaseOrderId: string,
-    data: {
-      productId: string;
-      orderedQty: number;
-      unitPrice: number;
-      discount?: number;
-    },
+    data: PurchaseLine,
     actorId: string,
+    db: Db = this.prisma,
   ) {
-    const po = await this.prisma.purchaseOrder.findUnique({
+    const po = await db.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
+      include: { cycle: { select: { status: true } } },
     });
     if (!po) throw notFound('purchaseOrder');
 
@@ -306,30 +433,32 @@ export class PurchasesService {
         'Can only add items to a DRAFT purchase order',
       );
     }
+    // A draft stranded on a cycle that left PURCHASING before §15 existed is
+    // still an order that was placed; its goods are already moving.
+    assertCycleOpen(po.cycle.status);
+    await this.assertLine(db, data);
 
-    const lineTotal =
-      data.orderedQty *
-      data.unitPrice *
-      (data.discount ? 1 - data.discount / 100 : 1);
-
-    const item = await this.prisma.purchaseOrderItem.create({
+    const item = await db.purchaseOrderItem.create({
       data: {
         purchaseOrderId,
         productId: data.productId,
         orderedQty: data.orderedQty,
         unitPrice: data.unitPrice,
         discount: data.discount || 0,
-        lineTotal,
+        lineTotal: purchaseLineTotal(data),
       },
     });
 
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'ADD_ITEM',
-      entityType: 'PurchaseOrderItem',
-      entityId: item.id,
-      afterJson: item,
-    });
+    await this.audit.log(
+      {
+        actorUserId: actorId,
+        action: 'ADD_ITEM',
+        entityType: 'PurchaseOrderItem',
+        entityId: item.id,
+        afterJson: item,
+      },
+      db,
+    );
 
     return { data: item };
   }
