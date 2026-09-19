@@ -84,7 +84,7 @@ theirs.
 | `feature/mcp-assistant` | `master` | 3 commits, local only | spec, plan, BUSINESS_LOGIC §15/§16 (PLANNED), this log |
 | `chore/lint` (T0) | **`ce41763` — a stale master** | was running | house lint + `typecheck`. **Rebase onto `feature/mcp-assistant` before merging**, then re-run `eslint --suppress-all` so files added since are covered |
 | `feature/mcp-t1-invoice-tables` (T1) | `a232603` | was running | invoice number, OAuth + nonce tables, migration, `63-supplier-invoice.spec.ts` |
-| `feature/mcp-t2-surface` (T2) | `a232603` | was running | `mcp` audience, `issueAssistantToken`, `64-assistant-surface.spec.ts` |
+| `feature/mcp-t2-surface` (T2) | `a232603` | **done — `d330da5`**, jest 97/97, tsc + eslint clean; rule-2 checked (7 tests fail with the partner check off). Playwright not yet run | `mcp` audience, `issueAssistantToken`, `64-assistant-surface.spec.ts` (11 REST routes refused). New code `ASSISTANT_PARTNERS_ONLY` — EN "Only core partners can use the assistant." AR "المساعد متاح للشركاء الأساسيين فقط." |
 | `feature/mcp-t3-receipt-analysis` (T3) | `a232603` | was running | `analyzeReceipt` pure function + its 25 cases |
 
 Each wave-1 task runs in `.claude/worktrees/agent-*` (`git worktree list`). None is pushed.
