@@ -1,0 +1,1048 @@
+{
+  "eslint.config.mjs": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "esm-guard.js": {
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "prisma.config.ts": {
+    "prettier/prettier": {
+      "count": 7
+    }
+  },
+  "prisma/seed.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "prettier/prettier": {
+      "count": 84
+    }
+  },
+  "src/common/api-error.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/common/api-error.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 4
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/common/available-stock.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/common/dates.ts": {
+    "no-restricted-properties": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "src/common/decorators/current-shop.decorator.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 7
+    }
+  },
+  "src/common/decorators/current-user.decorator.ts": {
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    }
+  },
+  "src/common/filters/http-exception.filter.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/common/guards/internal-only.guard.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    }
+  },
+  "src/common/guards/optional-portal-viewer.guard.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 7
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    }
+  },
+  "src/common/guards/roles.guard.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/common/jwt-secret.spec.ts": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "no-restricted-properties": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "src/common/money.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/common/month-buckets.spec.ts": {
+    "prettier/prettier": {
+      "count": 8
+    }
+  },
+  "src/common/month-buckets.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/common/references.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/common/validation-error.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/common/verified-customer.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/main.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
+    "no-console": {
+      "count": 2
+    },
+    "no-restricted-properties": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/analytics/analytics.controller.ts": {
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/modules/analytics/analytics.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 12
+    }
+  },
+  "src/modules/assistant/receipt/analyze-receipt.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/modules/audit/audit.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 7
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/audit/audit.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    }
+  },
+  "src/modules/auth/auth.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/auth/auth.module.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/auth/dto/register.dto.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/auth/strategies/jwt.strategy.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    }
+  },
+  "src/modules/costing/costing.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 7
+    }
+  },
+  "src/modules/currency-rates/currency-rates.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/currency-rates/currency-rates.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 8
+    }
+  },
+  "src/modules/customers/customers.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/customers/customers.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/cycles/cycles.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    }
+  },
+  "src/modules/cycles/cycles.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 10
+    }
+  },
+  "src/modules/cycles/dto/participant.dto.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 6
+    }
+  },
+  "src/modules/files/files.controller.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-restricted-syntax": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/modules/files/files.service.ts": {
+    "prettier/prettier": {
+      "count": 5
+    }
+  },
+  "src/modules/files/image-pipeline.ts": {
+    "prettier/prettier": {
+      "count": 6
+    }
+  },
+  "src/modules/files/storage.spec.ts": {
+    "no-restricted-properties": {
+      "count": 6
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/files/storage.ts": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "no-restricted-properties": {
+      "count": 1
+    }
+  },
+  "src/modules/inventory/inventory.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/inventory/inventory.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 109
+    }
+  },
+  "src/modules/ledger/dto/ledger.dto.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/ledger/ledger.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/ledger/ledger.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    },
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/modules/notifications/notifications.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/notifications/notifications.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 5
+    }
+  },
+  "src/modules/notifications/portal-notifier.service.ts": {
+    "prettier/prettier": {
+      "count": 7
+    }
+  },
+  "src/modules/notifications/push.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 6
+    }
+  },
+  "src/modules/payment-plans/dto/payment-plan.dto.ts": {
+    "prettier/prettier": {
+      "count": 6
+    }
+  },
+  "src/modules/payment-plans/payment-plans.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    },
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "src/modules/payment-plans/payment-plans.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 14
+    }
+  },
+  "src/modules/payments/dto/payment.dto.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "src/modules/payments/payments.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/payments/payments.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "src/modules/portal/dto/import-request.dto.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/portal/dto/signup.dto.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/holds.scheduler.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/import-requests.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 14
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 15
+    },
+    "prettier/prettier": {
+      "count": 13
+    }
+  },
+  "src/modules/portal/jobs.controller.ts": {
+    "no-restricted-properties": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/order-request-decisions.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 7
+    },
+    "prettier/prettier": {
+      "count": 9
+    }
+  },
+  "src/modules/portal/order-requests-imports.controller.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/order-requests.controller.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/order-requests.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 23
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 24
+    },
+    "prettier/prettier": {
+      "count": 16
+    }
+  },
+  "src/modules/portal/portal-account.controller.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/portal/portal-catalogue.controller.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/portal-catalogue.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 6
+    }
+  },
+  "src/modules/portal/portal-images.controller.ts": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/portal-imports.controller.ts": {
+    "no-restricted-syntax": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 5
+    }
+  },
+  "src/modules/portal/portal-notifications.controller.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/portal/portal-pricing.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/portal/portal-requests.controller.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/portal/portal-signup.service.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/portal/portal.module.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/products/products.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 6
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/products/products.module.ts": {
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/products/products.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 6
+    }
+  },
+  "src/modules/providers/providers.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    }
+  },
+  "src/modules/purchases/dto/refund.dto.ts": {
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/modules/purchases/purchases.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "src/modules/returns/dto/return.dto.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 5
+    }
+  },
+  "src/modules/returns/returns.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/returns/returns.service.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 8
+    }
+  },
+  "src/modules/sales/sales.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    }
+  },
+  "src/modules/sales/sales.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 10
+    }
+  },
+  "src/modules/settlements/dto/settlement.dto.ts": {
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/settlements/settlement-math.spec.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 5
+    }
+  },
+  "src/modules/settlements/settlement-math.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 3
+    }
+  },
+  "src/modules/settlements/settlements.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    },
+    "prettier/prettier": {
+      "count": 4
+    }
+  },
+  "src/modules/settlements/settlements.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "prettier/prettier": {
+      "count": 35
+    }
+  },
+  "src/modules/shipping/dto/shipping-leg.dto.ts": {
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 29
+    }
+  },
+  "src/modules/shipping/shipping.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "prettier/prettier": {
+      "count": 1
+    }
+  },
+  "src/modules/shipping/shipping.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/suppliers/suppliers.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    }
+  },
+  "src/modules/suppliers/suppliers.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    }
+  },
+  "src/modules/users/users.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  },
+  "src/modules/users/users.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-restricted-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 4
+    },
+    "prettier/prettier": {
+      "count": 12
+    }
+  },
+  "src/prisma/prisma.service.spec.ts": {
+    "no-restricted-properties": {
+      "count": 8
+    }
+  },
+  "src/prisma/prisma.service.ts": {
+    "no-restricted-properties": {
+      "count": 3
+    },
+    "prettier/prettier": {
+      "count": 2
+    }
+  }
+}

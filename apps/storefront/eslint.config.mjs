@@ -255,7 +255,7 @@ const nativeControlSelectors = [
 ];
 
 export default defineConfig([
-  globalIgnores([".next/**", "out/**", "build/**", "node_modules/**", "next-env.d.ts", "coverage/**", "playwright-report/**", "test-results/**"]),
+  globalIgnores([".next/**", "out/**", "build/**", "node_modules/**", "next-env.d.ts", "coverage/**"]),
 
   // 1. Next.js core-web-vitals + typescript (native flat configs in eslint-config-next >= 16)
   ...nextVitals,
