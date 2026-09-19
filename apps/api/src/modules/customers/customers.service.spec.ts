@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/require-await, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unnecessary-type-assertion -- an in-memory stand-in for Prisma answers loosely-shaped query objects */
+// Money in the fake database is Prisma's own Decimal, as the service expects.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the fake store holds real Decimals
 import { Prisma } from '@prisma/client';
 
 import type { PrismaService } from '../../prisma/prisma.service';
@@ -18,7 +21,11 @@ const DRAFT_ONLY = '22222222-2222-4222-8222-222222222222';
 const MIXED = '33333333-3333-4333-8333-333333333333';
 const NO_ORDERS = '44444444-4444-4444-8444-444444444444';
 
-type Order = { customerId: string; status: string; outstanding: Prisma.Decimal };
+type Order = {
+  customerId: string;
+  status: string;
+  outstanding: Prisma.Decimal;
+};
 
 function customer(id: string, displayName: string, createdAt: string) {
   return {
@@ -55,7 +62,12 @@ function fakeDb(orders: Order[]) {
   const calls = { groupBy: 0, aggregate: 0 };
   const prisma = {
     customer: {
-      findMany: jest.fn(async () => customers.map((c) => ({ ...c, _count: { saleOrders: 0, payments: 0 } }))),
+      findMany: jest.fn(async () =>
+        customers.map((c) => ({
+          ...c,
+          _count: { saleOrders: 0, payments: 0 },
+        })),
+      ),
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
         const c = customers.find((x) => x.id === where.id);
         return c ? { ...c, saleOrders: [], payments: [] } : null;
@@ -68,7 +80,9 @@ function fakeDb(orders: Order[]) {
         const ids = [...new Set(rows.map((o) => o.customerId))];
         return ids.map((customerId) => ({
           customerId,
-          _sum: { outstanding: sum(rows.filter((o) => o.customerId === customerId)) },
+          _sum: {
+            outstanding: sum(rows.filter((o) => o.customerId === customerId)),
+          },
         }));
       }),
       aggregate: jest.fn(async ({ where }: { where: any }) => {
