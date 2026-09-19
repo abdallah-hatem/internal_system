@@ -879,7 +879,11 @@
     "VERSION_REQUIRED": "This order changed while you were looking at it. Reload and try again.",
     "PO_HAS_NO_ITEMS": "This purchase order has no items. Add what was ordered before the cycle leaves purchasing.",
     "DUPLICATE_SUPPLIER_INVOICE": "Invoice {ref} from {supplier} is already recorded on {purchaseOrder}.",
-    "ASSISTANT_PARTNERS_ONLY": "Only core partners can use the assistant."
+    "ASSISTANT_PARTNERS_ONLY": "Only core partners can use the assistant.",
+    "CONFIRMATION_INVALID": "This confirmation is not valid. Show the preview again and confirm that.",
+    "CONFIRMATION_EXPIRED": "This confirmation has expired. Show the preview again and confirm it within 15 minutes.",
+    "CONFIRMATION_USED": "This confirmation has already been used. Nothing more was saved.",
+    "CONFIRMATION_MISMATCH": "This confirmation was given for a different request. Nothing was saved — show the new preview and confirm that."
   },
   "orderRequests": {
     "title": "Order requests",
