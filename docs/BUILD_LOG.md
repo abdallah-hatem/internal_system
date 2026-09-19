@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Wave 1 merged and verified · **Wave 2 next: T4 (OAuth) ‖ T5 (/mcp endpoint + confirmation)**
+Current stage: 4 — Build · Waves 1–2 merged and verified · **Wave 3 running: T6 ‖ T7 ‖ T8 ‖ T9**
 
 ## Waves
 
@@ -26,6 +26,13 @@ Current stage: 4 — Build · Wave 1 merged and verified · **Wave 2 next: T4 (O
 - Wave 2: T4 ‖ T5 in parallel worktrees cut from `2ab2713`. T4 owns `main.ts` + `modules/oauth`; T5 owns
   `modules/assistant` (except `receipt/`) + the MCP SDK dependency. Both add one import to
   `app.module.ts` — resolved by the main thread at merge. T6-T9 wait on T5.
+
+- Wave 2 merged: T5 `8e3cb32`, T4 `bad46ae`, resolution `5c5de24` (duplicate `isUniqueViolation`,
+  `publicBaseUrl` and test JWT signer each folded into one). Re-checked: api jest 290/290, lint + typecheck
+  green; e2e 93/93 (01, 04, 41, 63, 64, 65, 66). Codes translated `9935f48`.
+- Wave 3: T6 ‖ T7 ‖ T8 ‖ T9 from `9935f48`, each in its own worktree. T6/T7/T8 fill their own
+  `tools/*.ts`; T9 is auth + the office app and alone edits the locale files (its screen text).
+  T10 waits on all four.
 
 ## Decisions
 
@@ -76,6 +83,11 @@ Current stage: 4 — Build · Wave 1 merged and verified · **Wave 2 next: T4 (O
 - **[Stage 4] Port 3000 belongs to another project today** (the Aesthetica session's API). `dev.sh`
   frees ports by killing their holders, so it was not used; the API and web were started directly,
   web on :3003 with `WEB_ORIGIN`, specs run with `WEB_URL=http://localhost:3003`.
+
+- **[Stage 4] Wave 2 implementer decisions accepted:** confirmation token spent before the commit (a
+  refused commit needs a new preview — never a double write); `GET /mcp` → 405 (stateless, JSON only);
+  a replayed refresh token revokes that partner's tokens on that client; redirects only to claude.ai,
+  claude.com and loopback. `PUBLIC_BASE_URL` must be set in production (forwarded host is spoofable).
 
 ## Findings
 
