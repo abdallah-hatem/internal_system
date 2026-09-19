@@ -877,7 +877,9 @@
     "CRON_NOT_CONFIGURED": "Scheduled jobs are not configured on this deployment.",
     "CRON_FORBIDDEN": "This is not a scheduled request.",
     "VERSION_REQUIRED": "This order changed while you were looking at it. Reload and try again.",
-    "PO_HAS_NO_ITEMS": "This purchase order has no items. Add what was ordered before the cycle leaves purchasing."
+    "PO_HAS_NO_ITEMS": "This purchase order has no items. Add what was ordered before the cycle leaves purchasing.",
+    "DUPLICATE_SUPPLIER_INVOICE": "Invoice {ref} from {supplier} is already recorded on {purchaseOrder}.",
+    "ASSISTANT_PARTNERS_ONLY": "Only core partners can use the assistant."
   },
   "orderRequests": {
     "title": "Order requests",
