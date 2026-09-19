@@ -12,6 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PurchasesService } from './purchases.service';
 import { RecordSupplierRefundDto } from './dto/refund.dto';
+import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -48,7 +49,7 @@ export class PurchasesController {
       unitPrice: number;
       discount?: number;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: { id: string },
   ) {
     return this.purchasesService.addItem(body.purchaseOrderId, body, user.id);
   }
@@ -60,7 +61,7 @@ export class PurchasesController {
   updateItem(
     @Param('id') id: string,
     @Body() body: { receivedQty?: number },
-    @CurrentUser() user: any,
+    @CurrentUser() user: { id: string },
   ) {
     return this.purchasesService.updateItem(id, body, user.id);
   }
@@ -72,7 +73,7 @@ export class PurchasesController {
   recordRefund(
     @Param('id') id: string,
     @Body() body: RecordSupplierRefundDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: { id: string },
   ) {
     return this.purchasesService.recordRefund(id, body, user.id);
   }
@@ -91,8 +92,8 @@ export class CyclePurchasesController {
   @ApiOperation({ summary: 'Create purchase order for a cycle' })
   create(
     @Param('cycleId') cycleId: string,
-    @Body() body: any,
-    @CurrentUser() user: any,
+    @Body() body: CreatePurchaseOrderDto,
+    @CurrentUser() user: { id: string },
   ) {
     return this.purchasesService.create(cycleId, body, user.id);
   }

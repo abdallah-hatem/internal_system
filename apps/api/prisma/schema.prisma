@@ -54,7 +54,8 @@ model User {
   portalCustomer Customer? @relation("PortalAccount")
 
   pushSubscriptions    PushSubscription[]
-  decidedOrderRequests OrderRequest[]     @relation("DecidedOrderRequestUser")
+  decidedOrderRequests OrderRequest[]      @relation("DecidedOrderRequestUser")
+  oauthRefreshTokens   OAuthRefreshToken[]
 
   @@map("users")
 }
@@ -326,23 +327,28 @@ model CycleParticipant {
 }
 
 model PurchaseOrder {
-  id          String   @id @default(uuid()) @db.Uuid
-  cycleId     String   @map("cycle_id") @db.Uuid
-  supplierId  String   @map("supplier_id") @db.Uuid
-  reference   String
-  currency    String
-  fxRateToEgp Decimal  @map("fx_rate_to_egp") @db.Decimal(18, 4)
-  orderedOn   DateTime @map("ordered_on") @db.Date
-  status      String   @default("DRAFT")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  version     Int      @default(1)
+  id                 String   @id @default(uuid()) @db.Uuid
+  cycleId            String   @map("cycle_id") @db.Uuid
+  supplierId         String   @map("supplier_id") @db.Uuid
+  reference          String
+  currency           String
+  fxRateToEgp        Decimal  @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  orderedOn          DateTime @map("ordered_on") @db.Date
+  status             String   @default("DRAFT")
+  /// The supplier's own invoice number, trimmed and upper-cased. Unique per
+  /// supplier so one receipt cannot become two orders; NULL for a receipt with
+  /// no number (Postgres treats NULLs as distinct, so those are never checked).
+  supplierInvoiceRef String?  @map("supplier_invoice_ref")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version            Int      @default(1)
 
   cycle           ImportCycle         @relation(fields: [cycleId], references: [id])
   supplier        Supplier            @relation(fields: [supplierId], references: [id])
   items           PurchaseOrderItem[]
   supplierRefunds SupplierRefund[]
 
+  @@unique([supplierId, supplierInvoiceRef])
   @@map("purchase_orders")
 }
 
@@ -1102,4 +1108,58 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/**
+ * A client (a Claude app) that registered itself through OAuth dynamic client
+ * registration. Public clients only: no secret is issued, PKCE carries the proof.
+ */
+model OAuthClient {
+  id           String   @id @default(uuid()) @db.Uuid
+  clientName   String?  @map("client_name")
+  redirectUris String[] @map("redirect_uris")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  refreshTokens OAuthRefreshToken[]
+
+  @@map("oauth_clients")
+}
+
+/**
+ * One signed-in connection: a partner on one client. Only the SHA-256 of the
+ * token is stored, never the token. Rotated on use; the spent row points at its
+ * successor, so a replayed token can be traced and the chain revoked.
+ */
+model OAuthRefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  clientId     String    @map("client_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz()
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz()
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz()
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@map("oauth_refresh_tokens")
+}
+
+/**
+ * Single use for authorization codes and confirmation tokens: the jti is
+ * written when spent, and a second spend trips the primary key.
+ */
+model UsedNonce {
+  jti       String   @id
+  /// 'oauth_code' | 'confirmation'
+  kind      String
+  usedAt    DateTime @default(now()) @map("used_at") @db.Timestamptz()
+  expiresAt DateTime @map("expires_at") @db.Timestamptz()
+
+  @@index([expiresAt])
+  @@map("used_nonces")
 }
