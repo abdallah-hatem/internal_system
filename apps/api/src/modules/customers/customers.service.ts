@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
+import { owedBy } from '../../common/customer-balance';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -89,7 +90,10 @@ export class CustomersService {
       },
     });
     if (!customer) throw notFound('customer');
-    return { data: customer };
+    // What the shop owes, by the same rule that refuses a payment larger than
+    // it — so the balance shown and the balance enforced cannot disagree.
+    const outstandingBalance = await owedBy(this.prisma, id);
+    return { data: { ...customer, outstandingBalance } };
   }
 
   async create(

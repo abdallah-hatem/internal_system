@@ -36,6 +36,8 @@ export class SalesController {
       customerId?: string;
       status?: string;
       channel?: string;
+      from?: string;
+      to?: string;
     },
   ) {
     return this.salesService.findAll(query);

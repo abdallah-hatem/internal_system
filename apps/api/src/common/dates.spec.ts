@@ -6,7 +6,14 @@
  * refused as being in the future — on a machine in Cairo it was fine, and it
  * would have broken the moment this ran on a UTC server.
  */
-import { assertNotFuture, businessToday } from './dates';
+import {
+  assertDayRange,
+  assertNotFuture,
+  businessToday,
+  calendarRange,
+  instantRange,
+  startOfBusinessDay,
+} from './dates';
 
 const CAIRO_EARLY_23RD = new Date('2026-08-22T21:37:00Z'); // 00:37 on the 23rd, Cairo
 
@@ -57,5 +64,61 @@ describe('assertNotFuture', () => {
 
   it('leaves malformed input to the DTO', () => {
     expect(() => assertNotFuture('not-a-date', 'A payment')).not.toThrow();
+  });
+});
+
+describe('day ranges', () => {
+  const codeOf = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (e) {
+      return (e as { getResponse(): { code: string } }).getResponse().code;
+    }
+    return null;
+  };
+
+  it('refuses a range that ends before it starts', () => {
+    expect(codeOf(() => assertDayRange('2026-09-10', '2026-09-01'))).toBe(
+      'DATE_RANGE_REVERSED',
+    );
+    expect(codeOf(() => assertDayRange('2026-09-01', '2026-09-01'))).toBeNull();
+    expect(codeOf(() => assertDayRange('2026-09-01', undefined))).toBeNull();
+  });
+
+  it('refuses a day that does not exist, rather than letting Postgres choke on it', () => {
+    for (const bad of [
+      '2026-02-30',
+      '2026-13-01',
+      '2026-9-1',
+      'today',
+      '2026-09-01T00:00:00Z',
+    ]) {
+      expect(codeOf(() => assertDayRange(bad))).toBe('BAD_DATE');
+    }
+  });
+
+  it('starts a Cairo day at its own midnight, summer and winter', () => {
+    // Egypt keeps daylight saving: UTC+3 in August, UTC+2 in January.
+    expect(startOfBusinessDay('2026-08-01').toISOString()).toBe(
+      '2026-07-31T21:00:00.000Z',
+    );
+    expect(startOfBusinessDay('2026-01-15').toISOString()).toBe(
+      '2026-01-14T22:00:00.000Z',
+    );
+  });
+
+  it('a timestamp range runs to the start of the day after `to`', () => {
+    expect(instantRange('2026-08-01', '2026-08-01')).toEqual({
+      gte: new Date('2026-07-31T21:00:00.000Z'),
+      lt: new Date('2026-08-01T21:00:00.000Z'),
+    });
+    expect(instantRange()).toBeUndefined();
+  });
+
+  it('a date-column range compares the days themselves, both included', () => {
+    expect(calendarRange('2026-08-01', '2026-08-31')).toEqual({
+      gte: new Date('2026-08-01T00:00:00.000Z'),
+      lte: new Date('2026-08-31T00:00:00.000Z'),
+    });
   });
 });
