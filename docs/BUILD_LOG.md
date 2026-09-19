@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED · **waiting on the user: local DB repair** (see Blocked) · then e2e 67-70 + full suite, then T10
+Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite green · **T10 (end to end over HTTP) running**
 
 ## Waves
 
@@ -45,6 +45,12 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED · **waiting 
   Playwright on the same DB while mine ran; its globalSetup restored my in-progress snapshot mid-run.
   My e2e results from that run are void (they also hit that session's API on :3001). The DB now holds
   test rows instead of the pre-test state. Fixed for the future with a run lock (`tests/support`).
+
+- DB repaired on the user's OK: restored from `13-24-01-594Z-unrestored.sql` (matches exactly; the
+  leftover state archived as `2026-09-19-current-before-repair.sql`); check-data all zero.
+- Side task merged: customer-list balance `49fcbca` (+ lint `608ccc4`); api jest 416/416.
+- Verified on this branch's own API: wave-3 specs 67-71 + 41 → 59/59. Full suite: chromium 583 passed
+  (4 groups), 2 skipped (already skipped before this build), 0 failed; storefront 21/21.
 
 ## Decisions
 
@@ -111,9 +117,7 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED · **waiting 
 
 ## Blocked
 
-- **Local DB repair needs the user's OK** (the restore was refused as destructive). The pre-test state
-  is `/tmp/motoparts-snapshots/2026-09-19T13-24-01-594Z-unrestored.sql`, identical to the 12:50Z clean
-  snapshot. The current DB holds test leftovers from the overlapping runs.
+_(none)_
 
 ## Handoff — 2026-09-19, held by the user mid-Wave 1
 
