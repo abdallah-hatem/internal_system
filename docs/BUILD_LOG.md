@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Waves 1–2 merged and verified · **Wave 3 running: T6 ‖ T7 ‖ T8 ‖ T9**
+Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED · **waiting on the user: local DB repair** (see Blocked) · then e2e 67-70 + full suite, then T10
 
 ## Waves
 
@@ -35,6 +35,16 @@ Current stage: 4 — Build · Waves 1–2 merged and verified · **Wave 3 runnin
 - Wave 3: T6 ‖ T7 ‖ T8 ‖ T9 from `9935f48`, each in its own worktree. T6/T7/T8 fill their own
   `tools/*.ts`; T9 is auth + the office app and alone edits the locale files (its screen text).
   T10 waits on all four.
+
+- Wave 3 merged: T9 `1323de1`, T6 `b77309c`, T7 `c535aca`, T8 `6964a88`; api jest 409/409, lint +
+  typecheck green in api and web. Review: T6, T7, T8, T9 ALIGNED. Main-thread fixes `c39f873`: preview
+  binding (`PREVIEW_CHANGED` — transition_cycle locked drafts created after the preview; verify_stock
+  would book at a landed cost changed since), wizard skips 0-received lines (T8 made the server refuse
+  empty batches), BUSINESS_LOGIC §15/§16 updated with the office-app rules T7/T8 added.
+- **Cross-session collision, 16:23-16:26 local.** The side-task session (customer-list balance) ran
+  Playwright on the same DB while mine ran; its globalSetup restored my in-progress snapshot mid-run.
+  My e2e results from that run are void (they also hit that session's API on :3001). The DB now holds
+  test rows instead of the pre-test state. Fixed for the future with a run lock (`tests/support`).
 
 ## Decisions
 
@@ -101,7 +111,9 @@ Current stage: 4 — Build · Waves 1–2 merged and verified · **Wave 3 runnin
 
 ## Blocked
 
-_(none)_
+- **Local DB repair needs the user's OK** (the restore was refused as destructive). The pre-test state
+  is `/tmp/motoparts-snapshots/2026-09-19T13-24-01-594Z-unrestored.sql`, identical to the 12:50Z clean
+  snapshot. The current DB holds test leftovers from the overlapping runs.
 
 ## Handoff — 2026-09-19, held by the user mid-Wave 1
 
