@@ -887,7 +887,14 @@
     "CONFIRMATION_MISMATCH": "هذا التأكيد صدر لطلب مختلف. لم يُحفظ شيء — اعرض المعاينة الجديدة وأكّدها.",
     "DATE_RANGE_REVERSED": "يبدأ النطاق في {from}، بعد نهايته في {to}.",
     "BAD_DATE": "\"{value}\" ليس تاريخًا مكتوبًا بصيغة YYYY-MM-DD.",
-    "CYCLE_CODE_AMBIGUOUS": "\"{code}\" يطابق أكثر من دورة عند تجاهل حالة الأحرف: {matches}. اكتب الرمز كما هو بالضبط."
+    "CYCLE_CODE_AMBIGUOUS": "\"{code}\" يطابق أكثر من دورة عند تجاهل حالة الأحرف: {matches}. اكتب الرمز كما هو بالضبط.",
+    "SUPPLIER_NAME_TAKEN": "يوجد مورد باسم {name} بالفعل.",
+    "PRODUCT_SKU_TAKEN": "رمز المنتج {sku} مستخدم بالفعل للمنتج {product}.",
+    "DISCOUNT_PERCENT_INVALID": "يجب أن يكون خصم البند بين 0 و100 بالمئة.",
+    "NEW_PRODUCT_REPEATED": "المنتج {product} مُدرج كمنتج جديد أكثر من مرة.",
+    "PO_SUPPLIER_MISMATCH": "أمر الشراء {reference} من المورد {supplier} وليس {given}.",
+    "PO_TERMS_MISMATCH": "أمر الشراء {reference} بعملة {currency} بسعر {rate} جنيه؛ أضف البنود بنفس العملة والسعر فقط.",
+    "PO_HAS_OTHER_INVOICE": "أمر الشراء {reference} مسجل عليه الفاتورة {invoice} بالفعل؛ سجّل {ref} كأمر منفصل."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

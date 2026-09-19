@@ -887,7 +887,14 @@
     "CONFIRMATION_MISMATCH": "This confirmation was given for a different request. Nothing was saved — show the new preview and confirm that.",
     "DATE_RANGE_REVERSED": "The range starts on {from}, after it ends on {to}.",
     "BAD_DATE": "\"{value}\" is not a date written YYYY-MM-DD.",
-    "CYCLE_CODE_AMBIGUOUS": "\"{code}\" matches more than one cycle when case is ignored: {matches}. Give the code exactly."
+    "CYCLE_CODE_AMBIGUOUS": "\"{code}\" matches more than one cycle when case is ignored: {matches}. Give the code exactly.",
+    "SUPPLIER_NAME_TAKEN": "A supplier named {name} already exists.",
+    "PRODUCT_SKU_TAKEN": "SKU {sku} is already used by {product}.",
+    "DISCOUNT_PERCENT_INVALID": "A line discount must be between 0 and 100 percent.",
+    "NEW_PRODUCT_REPEATED": "{product} is listed as a new product more than once.",
+    "PO_SUPPLIER_MISMATCH": "Purchase order {reference} is from {supplier}, not {given}.",
+    "PO_TERMS_MISMATCH": "Purchase order {reference} is in {currency} at {rate} EGP; add lines only in that currency and rate.",
+    "PO_HAS_OTHER_INVOICE": "Purchase order {reference} already records invoice {invoice}; record {ref} as a separate order."
   },
   "orderRequests": {
     "title": "Order requests",
