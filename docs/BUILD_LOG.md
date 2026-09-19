@@ -4,11 +4,13 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 2 — Feature spec
+Current stage: 4 — Build (Wave 1 of 4)
 
 ## Waves
 
-_(none yet)_
+- Wave 1: T0 T1 T2 T3 in parallel, each in its own worktree. T0 is the house lint chore (all three
+  package.json files); T1 schema + purchases; T2 surface guard + auth tokens; T3 a new pure module.
+  No shared files. T4 T5 wait on T1+T2 · T6-T9 wait on T5.
 
 ## Decisions
 
@@ -46,6 +48,15 @@ _(none yet)_
   branching. Work happens on a local `feature/mcp-assistant` branch, is verified fully, merged to
   `master`, then smoke-tested in production with rollback ready. Feature branches are not pushed.
   Alternatives: create `dev` and a separate preview database first.
+
+- **[Stage 3] Plan approved after one review round.** Alignment review: CONFLICTS (4 gaps), fixed —
+  two plan cases added, two doc wording fixes — then ALIGNED.
+
+- **[Stage 4] E2E cases run by the main thread, not in worktrees.** Parallel worktrees share one
+  machine and one database; subagents write their e2e cases but only unit tests run in the worktree.
+
+- **[Stage 4] Locale files belong to the main thread.** Subagents report new error codes with English
+  and Arabic text; the main thread adds them after each wave, avoiding a four-way merge conflict.
 
 ## Findings
 
