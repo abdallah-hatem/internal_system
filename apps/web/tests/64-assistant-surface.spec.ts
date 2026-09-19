@@ -16,7 +16,8 @@
  */
 import { test, expect } from '@playwright/test';
 import { API, EMAIL, PASSWORD } from './support/fixtures';
-import { assistantToken, partnerId, sign } from './support/assistant-token';
+import { sign } from './support/api-jwt';
+import { assistantToken, partnerId } from './support/assistant-token';
 
 /** Everything the assistant must never write, and the reads that sit beside it. */
 const FORBIDDEN: Array<{ method: 'get' | 'post'; path: string; what: string }> = [

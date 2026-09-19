@@ -10,6 +10,9 @@ import { Prisma } from '@prisma/client';
  *
  * It does not say which index failed. Postgres reports whichever it checked
  * first, so a caller that needs to know looks the row up instead.
+ *
+ * Lives here because recognising the error needs Prisma's error class as a
+ * value, and value imports of `@prisma/client` belong beside the client.
  */
 export function isUniqueViolation(err: unknown): boolean {
   return (

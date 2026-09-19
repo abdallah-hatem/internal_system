@@ -15,7 +15,8 @@
  */
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { API, apiCtx } from './support/fixtures';
-import { apiSecret, assistantToken, mcpTokenFor, partnerId, sign } from './support/assistant-token';
+import { apiSecret, sign } from './support/api-jwt';
+import { assistantToken, mcpTokenFor, partnerId } from './support/assistant-token';
 
 const ROOT = API.replace(/\/api\/v1\/?$/, '');
 const MCP = `${ROOT}/mcp`;

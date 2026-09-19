@@ -20,7 +20,8 @@ function archive(tag: string) {
 /** Playwright runs from apps/web; the seed script lives in apps/api. */
 const API_DIR = path.resolve(process.cwd(), '../api');
 
-function psqlStdin(sql: string) {
+/** Runs SQL against the local test database. Exported for tests that must age a row. */
+export function psqlStdin(sql: string) {
   execFileSync(
     'docker',
     ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', DB, '-q', '-v', 'ON_ERROR_STOP=0'],

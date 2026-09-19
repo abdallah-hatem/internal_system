@@ -15,19 +15,37 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async login(dto: LoginDto) {
+  /**
+   * The account a login names, when the password is right; null otherwise.
+   *
+   * One answer for an unknown email and a wrong password, so no door can be
+   * used to find out who has an account. Who may then come in — the office,
+   * the assistant — is each door's own question, asked of what this returns.
+   * The hash is compared here and never leaves.
+   */
+  async checkPassword(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-      include: { partner: true },
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+        passwordHash: true,
+        partner: { select: { displayName: true } },
+      },
     });
-    if (!user) throw unauthorized('INVALID_CREDENTIALS', 'Invalid credentials');
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      return null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- pulled out so the hash never reaches a caller
+    const { passwordHash, ...account } = user;
+    return account;
+  }
 
-    const isPasswordValid = await bcrypt.compare(
-      dto.password,
-      user.passwordHash,
-    );
-    if (!isPasswordValid)
-      throw unauthorized('INVALID_CREDENTIALS', 'Invalid credentials');
+  async login(dto: LoginDto) {
+    const user = await this.checkPassword(dto.email, dto.password);
+    if (!user) throw unauthorized('INVALID_CREDENTIALS', 'Invalid credentials');
 
     // The office login is not the shop's. Sending them to the right door is
     // kinder than a wrong-password error, and it means an internal token can
