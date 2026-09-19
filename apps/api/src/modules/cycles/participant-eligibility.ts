@@ -15,7 +15,7 @@ import { badRequest, notFound } from '../../common/api-error';
  * may name, which is a different question and was not being asked at all —
  * `CLAUDE.md` rule 12 with the subject and the caller the wrong way round.
  *
- * DECIDED 2026-08-30, and written into docs/business-rules.md: a core partner
+ * DECIDED 2026-08-30, and written into docs/BUSINESS_LOGIC.md: a core partner
  * may also come in as a temporary investor on a cycle, because putting extra
  * money in beside your own share is a real thing an owner does. A shop owner
  * can be neither.

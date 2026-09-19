@@ -22,7 +22,7 @@ import { PortalNotifier } from '../notifications/portal-notifier.service';
  * anything while it waits.
  */
 
-/** Agreed 2026-08-30. Written down in docs/business-rules.md. */
+/** Agreed 2026-08-30. Written down in docs/BUSINESS_LOGIC.md. */
 export const HOLD_HOURS = 48;
 
 @Injectable()

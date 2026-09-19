@@ -41,7 +41,7 @@ export type Mk = (path: string, data: any) => Promise<any>;
  *
  * Prefers the seeded temporary investor. A core partner is the fallback, and is
  * legitimate: putting extra money in beside your own share is a real thing an
- * owner does, and `docs/business-rules.md` says so.
+ * owner does, and `docs/BUSINESS_LOGIC.md` says so.
  */
 export async function aCorePartnerUser(request: APIRequestContext, headers: any) {
   const res = await request.get(`${API}/users`, { headers });

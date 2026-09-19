@@ -772,7 +772,7 @@ test.describe('The language it opens in', () => {
   });
 
   test('TC-STORE-18: a phone set to English still opens in Arabic', async ({ browser }) => {
-    // The decision (business-rules.md §13, 2026-08-31): the store opens in
+    // The decision (BUSINESS_LOGIC.md §13, 2026-08-31): the store opens in
     // Arabic for everyone, and English is a choice the reader makes.
     //
     // next-intl honours `Accept-Language` unless told not to, which made

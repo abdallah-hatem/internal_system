@@ -3,7 +3,7 @@
 A snapshot for someone picking this up, or for you in three months. What the
 business does, what is built, what is live, and what is knowingly unfinished.
 
-`docs/business-rules.md` is the authority on *rules*; this file is the authority
+`docs/BUSINESS_LOGIC.md` is the authority on *rules*; this file is the authority
 on *state*. Where they disagree, the rules file wins and this one is stale.
 
 ---
@@ -161,7 +161,7 @@ find its own row.
 
 ### One open business question
 
-**Where a shop sends its basket from** (`business-rules.md` §13). The basket
+**Where a shop sends its basket from** (`BUSINESS_LOGIC.md` §13). The basket
 launcher renders only on the "My orders" tab, so a shop adding parts while
 browsing has no visible way to review or send them. Deliberately not decided.
 

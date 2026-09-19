@@ -47,7 +47,7 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - Arabic is unconditional, and that took `localeDetection: false`. next-intl honours
   `Accept-Language` by default, which makes `defaultLocale` only a fallback — a phone set
   to English landed on `/en`. The owner decided 2026-08-31 that the store opens in Arabic
-  for everyone (docs/business-rules.md §13). A rule about what happens when the browser has
+  for everyone (docs/BUSINESS_LOGIC.md §13). A rule about what happens when the browser has
   an opinion needs a test with a browser that has one: TC-STORE-15 used the default context
   and never asked for English, so it passed the whole time. — 2026-08-31
 - Only `/portal/*` and `/auth/portal/*` are reachable. A 403 `WRONG_SURFACE` means this app

@@ -15,7 +15,7 @@ import { defineRouting } from 'next-intl/routing';
  * choosing to read English.
  *
  * So the store opens in Arabic for everybody and English is one tap away.
- * Decided by the owner 2026-08-31; see docs/business-rules.md §13.
+ * Decided by the owner 2026-08-31; see docs/BUSINESS_LOGIC.md §13.
  */
 export const routing = defineRouting({
   locales: ['ar', 'en'],
