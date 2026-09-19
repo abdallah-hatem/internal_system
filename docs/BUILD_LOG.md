@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Wave 1 of 4 in flight · **HELD by the user 2026-09-19** — see Handoff
+Current stage: 4 — Build · Wave 1 of 4 **committed on its branches, not yet merged** · **HELD by the user 2026-09-19** — see Handoff
 
 ## Waves
 
@@ -83,7 +83,7 @@ theirs.
 | `master` | — | **5 commits unpushed** | the PO-confirmation fix, `CANCELLED`, the test-config fix, the state doc, this build's setup |
 | `feature/mcp-assistant` | `master` | 3 commits, local only | spec, plan, BUSINESS_LOGIC §15/§16 (PLANNED), this log |
 | `chore/lint` (T0) | **`ce41763` — a stale master** | **done — `8d28a92`**; lint + typecheck pass in all three apps, violations frozen (api 1184, web 2525, storefront 460), no source touched. API typecheck needs `prisma generate` first, which needs a `DATABASE_URL` | house lint + `typecheck`. **Rebase onto `feature/mcp-assistant` before merging**, then re-run `eslint --suppress-all` so files added since are covered |
-| `feature/mcp-t1-invoice-tables` (T1) | `a232603` | was running | invoice number, OAuth + nonce tables, migration, `63-supplier-invoice.spec.ts` |
+| `feature/mcp-t1-invoice-tables` (T1) | `a232603` | **done — `9854c5d`**, jest 89/89, tsc + eslint clean. Migration `20260919120000_supplier_invoice_ref_and_oauth` **not applied anywhere**. `63-supplier-invoice.spec.ts` (10 cases incl. a 3-way concurrent send) **not run, not rule-2 checked** — the P2002 → coded-refusal mapping is unproven until it is | invoice number, OAuth + nonce tables. New code `DUPLICATE_SUPPLIER_INVOICE` {ref, supplier, purchaseOrder} — EN "Invoice {ref} from {supplier} is already recorded on {purchaseOrder}." AR "الفاتورة {ref} من {supplier} مسجلة بالفعل على {purchaseOrder}." Also: the create-PO endpoint now validates its whole body with a DTO (a non-uuid supplier id or a missing order date is refused up front instead of a 500) — worth a look at review |
 | `feature/mcp-t2-surface` (T2) | `a232603` | **done — `d330da5`**, jest 97/97, tsc + eslint clean; rule-2 checked (7 tests fail with the partner check off). Playwright not yet run | `mcp` audience, `issueAssistantToken`, `64-assistant-surface.spec.ts` (11 REST routes refused). New code `ASSISTANT_PARTNERS_ONLY` — EN "Only core partners can use the assistant." AR "المساعد متاح للشركاء الأساسيين فقط." |
 | `feature/mcp-t3-receipt-analysis` (T3) | `a232603` | **done — `f72be3d`**, jest 58/58, tsc + eslint clean; 9 deliberate bugs each caught | `analyzeReceipt`. Match threshold: similarity ≥ 0.8 (offered, never auto-accepted). Extra blocking questions: `RECEIPT_NO_LINES`, `DATE_UNREADABLE`, `CURRENCY_UNREADABLE`. **For T7:** the open-for-purchasing statuses are written inline at `purchases.service.ts:100` — move to a shared constant (rule 11) |
 
@@ -91,7 +91,7 @@ Each wave-1 task runs in `.claude/worktrees/agent-*` (`git worktree list`). None
 
 ### Resume steps, in order
 
-1. **Did each task commit?** `git log a232603..<branch> --oneline` (T0: `ce41763..chore/lint`).
+1. **All four committed** (T0 `8d28a92`, T1 `9854c5d`, T2 `d330da5`, T3 `f72be3d`) — confirmed with `git branch --contains`. Step kept for safety: **Did each task commit?** `git log a232603..<branch> --oneline` (T0: `ce41763..chore/lint`).
    Empty means it stopped before committing — its files are still in its worktree:
    `git -C <worktree> status`. Salvage and finish, or re-dispatch from the plan.
 2. **Check, don't trust.** In each worktree: `npx jest` and `npx tsc --noEmit -p tsconfig.json`
