@@ -30,6 +30,8 @@ Current stage: 4 — Build · Waves 1–2 merged and verified · **Wave 3 runnin
 - Wave 2 merged: T5 `8e3cb32`, T4 `bad46ae`, resolution `5c5de24` (duplicate `isUniqueViolation`,
   `publicBaseUrl` and test JWT signer each folded into one). Re-checked: api jest 290/290, lint + typecheck
   green; e2e 93/93 (01, 04, 41, 63, 64, 65, 66). Codes translated `9935f48`.
+- Wave 2 alignment review: T4 ALIGNED, T5 ALIGNED, no findings. The 1-hour unrevocable access token
+  does not break §16 "loses it at once": the surface guard re-checks role and status on every request.
 - Wave 3: T6 ‖ T7 ‖ T8 ‖ T9 from `9935f48`, each in its own worktree. T6/T7/T8 fill their own
   `tools/*.ts`; T9 is auth + the office app and alone edits the locale files (its screen text).
   T10 waits on all four.
