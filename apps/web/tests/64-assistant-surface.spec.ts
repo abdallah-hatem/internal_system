@@ -14,47 +14,9 @@
  *  SESSION_INVALID, is what proves the signature was accepted: a token the API
  *  could not verify is refused earlier, with a 401.
  */
-import { test, expect, type APIRequestContext } from '@playwright/test';
-import { createHmac } from 'crypto';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { test, expect } from '@playwright/test';
 import { API, EMAIL, PASSWORD } from './support/fixtures';
-
-/** JWT_SECRET from apps/api/.env — the secret the running API signs with. */
-function apiSecret(): string {
-  const env = readFileSync(join(__dirname, '../../api/.env'), 'utf8');
-  const line = env.split('\n').find((l) => /^\s*JWT_SECRET\s*=/.test(l));
-  if (!line) throw new Error('JWT_SECRET is not set in apps/api/.env');
-  return line
-    .slice(line.indexOf('=') + 1)
-    .trim()
-    .replace(/^(['"])(.*)\1$/, '$2');
-}
-
-const b64url = (value: object | Buffer) =>
-  (Buffer.isBuffer(value) ? value : Buffer.from(JSON.stringify(value))).toString('base64url');
-
-/** An HS256 JWT, built by hand so the test depends on nothing the API ships. */
-function sign(payload: object, secret: string): string {
-  const head = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}`;
-  return `${head}.${b64url(createHmac('sha256', secret).update(head).digest())}`;
-}
-
-/** The core partner's id, from the ordinary internal login. */
-async function partnerId(request: APIRequestContext): Promise<string> {
-  const res = await request.post(`${API}/auth/login`, {
-    data: { email: EMAIL, password: PASSWORD },
-  });
-  expect(res.status()).toBe(200);
-  const body = await res.json();
-  expect(body.data.user.role).toBe('CORE_PARTNER');
-  return body.data.user.id;
-}
-
-async function assistantToken(request: APIRequestContext): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  return sign({ sub: await partnerId(request), aud: 'mcp', iat: now, exp: now + 3600 }, apiSecret());
-}
+import { assistantToken, partnerId, sign } from './support/assistant-token';
 
 /** Everything the assistant must never write, and the reads that sit beside it. */
 const FORBIDDEN: Array<{ method: 'get' | 'post'; path: string; what: string }> = [

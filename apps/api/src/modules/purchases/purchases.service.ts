@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isUniqueViolation } from '../../prisma/unique-violation';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
@@ -25,18 +26,6 @@ function duplicateInvoice(
     'DUPLICATE_SUPPLIER_INVOICE',
     `Invoice ${ref} from ${supplier} is already recorded on ${purchaseOrder}.`,
     { ref, supplier, purchaseOrder },
-  );
-}
-
-/**
- * Any unique-index failure. Two sends of one receipt collide on the invoice
- * number, but they also compute the same PO reference, and Postgres reports
- * whichever index it checks first — so the target cannot be trusted to name
- * the invoice. The caller looks the invoice up instead.
- */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
   );
 }
 
@@ -216,7 +205,9 @@ export class PurchasesService {
       .catch(async (err: unknown) => {
         // Two requests carrying the same receipt can both pass the check above
         // before either commits. The unique index stops the second; say so in
-        // the same words, never as a 500.
+        // the same words, never as a 500. Both sends also compute the same PO
+        // reference, so the failed index cannot be trusted to name the
+        // invoice — it is looked up instead.
         if (supplierInvoiceRef && isUniqueViolation(err)) {
           const existing = await this.prisma.purchaseOrder.findFirst({
             where: { supplierId: supplier.id, supplierInvoiceRef },
