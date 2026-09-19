@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- API and MCP responses are parsed JSON; each assertion names the field it checks */
 /**
  * ═══════════════════════════════════════════════════════════════════════
  *  TEST SUITE: the assistant's read tools, over HTTP
