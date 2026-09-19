@@ -85,7 +85,7 @@ theirs.
 | `chore/lint` (T0) | **`ce41763` — a stale master** | **done — `8d28a92`**; lint + typecheck pass in all three apps, violations frozen (api 1184, web 2525, storefront 460), no source touched. API typecheck needs `prisma generate` first, which needs a `DATABASE_URL` | house lint + `typecheck`. **Rebase onto `feature/mcp-assistant` before merging**, then re-run `eslint --suppress-all` so files added since are covered |
 | `feature/mcp-t1-invoice-tables` (T1) | `a232603` | was running | invoice number, OAuth + nonce tables, migration, `63-supplier-invoice.spec.ts` |
 | `feature/mcp-t2-surface` (T2) | `a232603` | **done — `d330da5`**, jest 97/97, tsc + eslint clean; rule-2 checked (7 tests fail with the partner check off). Playwright not yet run | `mcp` audience, `issueAssistantToken`, `64-assistant-surface.spec.ts` (11 REST routes refused). New code `ASSISTANT_PARTNERS_ONLY` — EN "Only core partners can use the assistant." AR "المساعد متاح للشركاء الأساسيين فقط." |
-| `feature/mcp-t3-receipt-analysis` (T3) | `a232603` | was running | `analyzeReceipt` pure function + its 25 cases |
+| `feature/mcp-t3-receipt-analysis` (T3) | `a232603` | **done — `f72be3d`**, jest 58/58, tsc + eslint clean; 9 deliberate bugs each caught | `analyzeReceipt`. Match threshold: similarity ≥ 0.8 (offered, never auto-accepted). Extra blocking questions: `RECEIPT_NO_LINES`, `DATE_UNREADABLE`, `CURRENCY_UNREADABLE`. **For T7:** the open-for-purchasing statuses are written inline at `purchases.service.ts:100` — move to a shared constant (rule 11) |
 
 Each wave-1 task runs in `.claude/worktrees/agent-*` (`git worktree list`). None is pushed.
 
