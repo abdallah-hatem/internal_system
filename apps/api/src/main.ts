@@ -4,11 +4,18 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { validationRefusal } from './common/validation-error';
+import {
+  API_PREFIX,
+  OUTSIDE_API_PREFIX,
+  isOpenOAuthPath,
+} from './common/api-prefix';
+import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix('api/v1');
+  // OAuth and MCP clients look for their routes at the host's root.
+  app.setGlobalPrefix(API_PREFIX, { exclude: OUTSIDE_API_PREFIX });
 
   /**
    * Who may call this API from a browser.
@@ -30,7 +37,7 @@ async function bootstrap() {
     process.env.STORE_ORIGIN,
   ].filter((o): o is string => Boolean(o));
 
-  app.enableCors({
+  const appCors: CorsOptions = {
     // A function rather than the array, so a Vercel preview deployment — whose
     // hostname carries a different hash every time — is not locked out of its
     // own API. Previews are matched by suffix; anything else must be named.
@@ -41,6 +48,13 @@ async function bootstrap() {
       callback(null, false);
     },
     credentials: true,
+  };
+
+  // The OAuth metadata and token routes answer any origin, without cookies —
+  // see `isOpenOAuthPath`. Everything else keeps the list above.
+  type CorsCallback = (err: Error | null, options: CorsOptions) => void;
+  app.enableCors((req: { url?: string }, callback: CorsCallback) => {
+    callback(null, isOpenOAuthPath(req.url) ? { origin: '*' } : appCors);
   });
 
   app.useGlobalPipes(

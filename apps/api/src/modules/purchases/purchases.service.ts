@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isUniqueViolation } from '../../prisma/unique-violation';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { assertNotFuture } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
@@ -28,17 +29,10 @@ function duplicateInvoice(
   );
 }
 
-/**
- * Any unique-index failure. Two sends of one receipt collide on the invoice
- * number, but they also compute the same PO reference, and Postgres reports
- * whichever index it checks first — so the target cannot be trusted to name
- * the invoice. The caller looks the invoice up instead.
- */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
-  );
-}
+// Any unique-index failure, not only the invoice's: two sends of one receipt
+// collide on the invoice number, but they also compute the same PO reference,
+// and Postgres reports whichever index it checks first — so the target cannot
+// be trusted to name the invoice. The caller looks the invoice up instead.
 
 @Injectable()
 export class PurchasesService {
