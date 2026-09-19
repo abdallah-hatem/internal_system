@@ -29,15 +29,14 @@ function duplicateInvoice(
 }
 
 /**
- * A unique-index failure on (supplier_id, supplier_invoice_ref), and nothing
- * else. Prisma names the target by column, field or constraint depending on
- * version, so all three spellings are accepted.
+ * Any unique-index failure. Two sends of one receipt collide on the invoice
+ * number, but they also compute the same PO reference, and Postgres reports
+ * whichever index it checks first — so the target cannot be trusted to name
+ * the invoice. The caller looks the invoice up instead.
  */
-function isInvoiceRefCollision(err: unknown): boolean {
+function isUniqueViolation(err: unknown): boolean {
   return (
-    err instanceof Prisma.PrismaClientKnownRequestError &&
-    err.code === 'P2002' &&
-    /supplier_?invoice_?ref/i.test(JSON.stringify(err.meta?.target ?? ''))
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
   );
 }
 
@@ -218,16 +217,18 @@ export class PurchasesService {
         // Two requests carrying the same receipt can both pass the check above
         // before either commits. The unique index stops the second; say so in
         // the same words, never as a 500.
-        if (supplierInvoiceRef && isInvoiceRefCollision(err)) {
+        if (supplierInvoiceRef && isUniqueViolation(err)) {
           const existing = await this.prisma.purchaseOrder.findFirst({
             where: { supplierId: supplier.id, supplierInvoiceRef },
             select: { reference: true },
           });
-          throw duplicateInvoice(
-            supplierInvoiceRef,
-            supplier.name,
-            existing?.reference ?? '',
-          );
+          if (existing) {
+            throw duplicateInvoice(
+              supplierInvoiceRef,
+              supplier.name,
+              existing.reference,
+            );
+          }
         }
         throw err;
       });

@@ -650,8 +650,13 @@ reads it; the system matches it against suppliers, products, open cycles and
 invoices already recorded, and names what could not be settled. Claude asks
 exactly those questions — an unknown supplier, an unmatched line, lines that do
 not add up to the stated total, a currency with no known rate, which cycle, a
-receipt already recorded — then previews the purchase order and creates it on
-the partner's word. Shipping, fees and tax printed on a receipt are not purchase
+receipt already recorded — and, when the reading itself failed, a receipt with
+no lines, a date that cannot be read, or a currency that cannot be read. It then
+previews the purchase order and creates it on the partner's word.
+
+A name on the receipt that is close to a known supplier or product — at most
+about one slip in five characters — is offered as a likely match and the partner
+confirms it; a close name is never taken as the same thing without that. Shipping, fees and tax printed on a receipt are not purchase
 order lines; the partner decides whether they belong on a shipping leg.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
