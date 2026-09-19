@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -6,6 +7,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
+import { skuKey } from '../assistant/receipt/name-matching';
+
+type Db = Prisma.TransactionClient;
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -70,6 +75,35 @@ export class ProductsService {
     return { data: product };
   }
 
+  /**
+   * Refuses a SKU another product already carries, naming that product.
+   *
+   * Compared as the receipt matcher compares printed codes — case, spaces and
+   * dashes ignored — since `ab-12` and `AB 12` are one code on paper, and a
+   * second product under it would leave the next receipt matching both.
+   */
+  async assertSkuFree(sku: string, db: Db = this.prisma): Promise<void> {
+    const key = skuKey(sku);
+    const all = await db.product.findMany({
+      select: { id: true, name: true, sku: true },
+    });
+    const existing = all.find((p) => skuKey(p.sku) === key);
+    if (existing) {
+      throw conflict(
+        'PRODUCT_SKU_TAKEN',
+        `SKU ${sku} is already used by ${existing.name} (${existing.sku}).`,
+        { sku, product: existing.name },
+      );
+    }
+  }
+
+  /**
+   * `options.sku` is a code printed on a supplier's receipt, which the
+   * assistant keeps as the product's SKU so the next receipt matches it. It is
+   * an option rather than a field of `data` because `data` is the office
+   * form's body as sent, and that form's SKUs are always generated.
+   * `options.db` is the transaction to create it in, when there is one.
+   */
   async create(
     data: {
       name: string;
@@ -80,16 +114,34 @@ export class ProductsService {
       minStock?: number;
     },
     actorId: string,
+    options: { sku?: string; db?: Db } = {},
   ) {
-    // Generate SKU: PRD-XXXXXX
-    const last = await this.prisma.product.findFirst({
-      where: { sku: { startsWith: 'PRD-' } },
-      orderBy: { sku: 'desc' },
-      select: { sku: true },
-    });
-    const sku = `PRD-${pad(nextReferenceNumber(last?.sku, 6), 6)}`;
+    const db = options.db ?? this.prisma;
+    // A category id that is no category failed at the foreign key, deep in
+    // Prisma, as "An unexpected error occurred".
+    if (data.categoryId) {
+      const category = await db.category.findUnique({
+        where: { id: data.categoryId },
+        select: { id: true },
+      });
+      if (!category) throw notFound('category');
+    }
+    const printed = options.sku?.trim();
+    let sku: string;
+    if (printed) {
+      await this.assertSkuFree(printed, db);
+      sku = printed;
+    } else {
+      // Generate SKU: PRD-XXXXXX
+      const last = await db.product.findFirst({
+        where: { sku: { startsWith: 'PRD-' } },
+        orderBy: { sku: 'desc' },
+        select: { sku: true },
+      });
+      sku = `PRD-${pad(nextReferenceNumber(last?.sku, 6), 6)}`;
+    }
 
-    const product = await this.prisma.product.create({
+    const product = await db.product.create({
       data: {
         sku,
         name: data.name,
@@ -102,13 +154,16 @@ export class ProductsService {
       include: { category: true },
     });
 
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'CREATE',
-      entityType: 'Product',
-      entityId: product.id,
-      afterJson: product,
-    });
+    await this.audit.log(
+      {
+        actorUserId: actorId,
+        action: 'CREATE',
+        entityType: 'Product',
+        entityId: product.id,
+        afterJson: product,
+      },
+      db,
+    );
 
     return { data: product };
   }
