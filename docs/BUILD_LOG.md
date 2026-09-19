@@ -4,13 +4,17 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: wired in 2026-09-19
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Wave 1 of 4 **committed on its branches, not yet merged** · **HELD by the user 2026-09-19** — see Handoff
+Current stage: 4 — Build · Wave 1 of 4 **merged into `feature/mcp-assistant`** (resumed 2026-09-19) · handoff steps 1–4 done; 5–6 (local DB migrate + e2e) wait on the user's OK per repo rule 6; step 7 review running
 
 ## Waves
 
 - Wave 1: T0 T1 T2 T3 in parallel, each in its own worktree. T0 is the house lint chore (all three
   package.json files); T1 schema + purchases; T2 surface guard + auth tokens; T3 a new pure module.
   No shared files. T4 T5 wait on T1+T2 · T6-T9 wait on T5.
+
+- Wave 1 merged: T3 `1db5944` → T2 `2079d1a` → T1 `72a271d`, then T0 rebased on top as `f4375ce`
+  with violations re-frozen (api pruned, web +new). Re-checked, not trusted: api jest 165/165, lint +
+  typecheck green in api, web and storefront. Translations `d59a062`. Prisma client regenerated locally.
 
 ## Decisions
 
