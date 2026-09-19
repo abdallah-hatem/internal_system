@@ -2,8 +2,17 @@ import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 
+import { PrismaService } from '../../prisma/prisma.service';
+
 import { unauthorized, forbidden } from '../api-error';
 import { SURFACE_KEY, type Surface } from '../surface';
+
+/** What this guard reads from and leaves on the request. */
+interface SurfaceRequest {
+  headers?: { authorization?: string };
+  surface?: Surface;
+  user?: unknown;
+}
 
 /**
  * The fence between the office and the shop.
@@ -23,16 +32,17 @@ export class SurfaceGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private jwt: JwtService,
+    private prisma: PrismaService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
     const declared =
       this.reflector.getAllAndOverride<Surface>(SURFACE_KEY, [
         context.getHandler(),
         context.getClass(),
       ]) ?? 'internal';
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<SurfaceRequest>();
     request.surface = declared;
 
     // The catalogue and the login pages. A token may be present — a signed-in
@@ -43,7 +53,7 @@ export class SurfaceGuard implements CanActivate {
     const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
     if (!token) throw unauthorized('AUTH_REQUIRED', 'Authentication required');
 
-    let payload: { aud?: string | string[] };
+    let payload: { aud?: string | string[]; sub?: string };
     try {
       payload = this.jwt.verify(token);
     } catch {
@@ -74,6 +84,51 @@ export class SurfaceGuard implements CanActivate {
       );
     }
 
+    if (declared === 'mcp') return this.admitPartner(request, payload.sub);
+
+    return true;
+  }
+
+  /**
+   * The assistant is for core partners, and "is" means now, not when the token
+   * was issued. A partner demoted, or an account switched off, loses the
+   * assistant on the next call rather than an hour later when the token lapses.
+   *
+   * Nothing downstream of an `mcp` route runs passport, so the user is loaded
+   * here and put where passport would have put it: `request.user`, in the same
+   * shape `JwtStrategy.validate` returns.
+   */
+  private async admitPartner(
+    request: SurfaceRequest,
+    userId: string | undefined,
+  ): Promise<boolean> {
+    const user = userId
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            status: true,
+            partner: true,
+          },
+        })
+      : null;
+
+    if (!user || user.status !== 'ACTIVE' || user.role !== 'CORE_PARTNER') {
+      throw forbidden(
+        'ASSISTANT_PARTNERS_ONLY',
+        'Only core partners can use the assistant.',
+      );
+    }
+
+    request.user = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      partner: user.partner,
+      customerId: undefined,
+    };
     return true;
   }
 }
