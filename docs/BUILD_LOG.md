@@ -1,7 +1,7 @@
 # Build log
 
 Run mode: fully autonomous — chosen by the user on 2026-09-19
-Graft: wired in 2026-09-19
+Graft: removed 2026-09-23 — search with grep, not graft
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
 Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite green · **HELD by the user 2026-09-19 before T10** — see Handoff
@@ -157,8 +157,6 @@ in api, web, storefront. Alignment review ALIGNED for T1–T9. Full e2e green (c
 
 ### Things a fresh session will not know
 
-- Graft's MCP tools load in a new session and ask for approval once; the CLI works regardless
-  (`DO_NOT_TRACK=1 graft ask "…"`).
 - Test logins and URLs: `CREDENTIALS.local.md` (gitignored). The office app is at
   `internal-system-web-three.vercel.app` — `-web` is a stranger's app.
 - Preview deployments share the production database (Findings). Do not push feature branches.

@@ -39,8 +39,6 @@ TEST_CREDENTIALS.md
 # alongside the pg_dump instead — see scripts/reset-db.sh.
 apps/api/uploads/
 
-# graft's local graph cache — regenerable, not committed (run `graft build`).
-/graft/
 
 # Test logins for every environment. Never committed — the repo is public.
 *.local.md
