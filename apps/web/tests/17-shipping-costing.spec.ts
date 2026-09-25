@@ -7,7 +7,7 @@
  */
 import { test, expect, Page } from '@playwright/test';
 
-const BASE = 'http://localhost:3000';
+const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
  * suite at the deployed one, which is the only way these flows get exercised

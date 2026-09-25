@@ -1,4 +1,4 @@
-import { restoreAndRelease } from './database';
+import { releaseRunLock, restoreAndRelease } from './database';
 
 /**
  * Put the database back exactly as the suite found it.
@@ -8,6 +8,10 @@ import { restoreAndRelease } from './database';
  * went wrong when nothing did.
  */
 export default async function globalTeardown() {
-  const restored = restoreAndRelease();
-  if (restored) console.log('  [db] snapshot restored');
+  try {
+    const restored = restoreAndRelease();
+    if (restored) console.log('  [db] snapshot restored');
+  } finally {
+    releaseRunLock();
+  }
 }

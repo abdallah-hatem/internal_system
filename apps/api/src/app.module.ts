@@ -27,6 +27,8 @@ import { CostingModule } from './modules/costing/costing.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module';
 import { PortalModule } from './modules/portal/portal.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
+import { OAuthModule } from './modules/oauth/oauth.module';
 
 @Module({
   imports: [
@@ -58,6 +60,8 @@ import { PortalModule } from './modules/portal/portal.module';
     ReturnsModule,
     PaymentPlansModule,
     PortalModule,
+    AssistantModule,
+    OAuthModule,
   ],
   providers: [
     /**

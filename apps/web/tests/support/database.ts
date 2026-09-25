@@ -1,5 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
 const CONTAINER = 'motorcycle_parts_db';
@@ -8,6 +15,50 @@ const SNAPSHOT = '/tmp/motoparts-pretest-snapshot.sql';
 /** Kept alongside the live snapshot so a bad run is recoverable by hand. */
 const ARCHIVE_DIR = '/tmp/motoparts-snapshots';
 const BIG = 256 * 1024 * 1024;
+/** Held for the whole of a run that snapshots the local database. */
+const LOCK = '/tmp/motoparts-e2e.lock';
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * One run at a time against the local database.
+ *
+ * Two runs at once share SNAPSHOT: the second finds the first's snapshot, takes
+ * it for an unfinished run, restores it underneath the first run's tests, and
+ * snapshots again — so one of them ends by "restoring" test data as if it were
+ * the owner's. It happened on 2026-09-19 with two Claude sessions in two
+ * worktrees of this repo, one database between them. The second run now stops
+ * before touching anything and says who holds the database.
+ *
+ * A lock whose process is gone is stale (a run killed before its teardown) and
+ * is taken over; the snapshot it left is then handled as before.
+ */
+export function acquireRunLock(): void {
+  if (existsSync(LOCK)) {
+    const holder = Number(readFileSync(LOCK, 'utf8').trim());
+    if (holder && holder !== process.pid && alive(holder)) {
+      throw new Error(
+        `Another Playwright run (pid ${holder}) is using the local database. ` +
+          'Wait for it to finish — two runs at once restore each other\'s snapshots.',
+      );
+    }
+  }
+  writeFileSync(LOCK, String(process.pid));
+}
+
+export function releaseRunLock(): void {
+  if (!existsSync(LOCK)) return;
+  if (Number(readFileSync(LOCK, 'utf8').trim()) === process.pid) {
+    rmSync(LOCK, { force: true });
+  }
+}
 
 function archive(tag: string) {
   mkdirSync(ARCHIVE_DIR, { recursive: true });
@@ -20,7 +71,8 @@ function archive(tag: string) {
 /** Playwright runs from apps/web; the seed script lives in apps/api. */
 const API_DIR = path.resolve(process.cwd(), '../api');
 
-function psqlStdin(sql: string) {
+/** Runs SQL against the local test database. Exported for tests that must age a row. */
+export function psqlStdin(sql: string) {
   execFileSync(
     'docker',
     ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', DB, '-q', '-v', 'ON_ERROR_STOP=0'],

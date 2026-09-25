@@ -914,8 +914,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       // Only what has not been received yet is sent. An already-received item
       // is refused outright by the server (one batch per purchase order item),
       // and that refusal used to fail the whole step at the last click.
+      //
+      // A line left at 0 did not arrive. It is not booked as an empty batch
+      // (the server refuses one): it stays unreceived and can be received
+      // when it turns up.
       const outstanding = receiveItems.filter(
-        (item) => !receivedByPoItem.has(item.purchaseOrderItemId),
+        (item) =>
+          !receivedByPoItem.has(item.purchaseOrderItemId) &&
+          Number(item.receivedQty) > 0,
       );
 
       if (outstanding.length === 0) {

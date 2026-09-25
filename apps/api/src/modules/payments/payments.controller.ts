@@ -35,6 +35,8 @@ export class PaymentsController {
     @Query()
     query: PaginationDto & {
       customerId?: string;
+      from?: string;
+      to?: string;
     },
   ) {
     return this.paymentsService.findAll(query);

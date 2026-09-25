@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture } from '../../common/dates';
+import { expectedLegs } from '../../common/cycle-routes';
+import { assertUuid } from '../../common/uuid';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
@@ -50,6 +52,25 @@ export function legStatusFromDates(
   return 'PENDING';
 }
 
+/** What `createLeg` accepts — the DTO's fields, with the route's places optional. */
+export interface NewLeg {
+  sequence: number;
+  origin?: string;
+  destination?: string;
+  provider?: string;
+  providerId?: string;
+  trackingRef?: string;
+  departedOn?: string;
+  arrivedOn?: string;
+  costBasis?: ShippingCostBasis;
+  ratePerUnit?: number;
+  chargeablePieces?: number;
+  chargeableWeightKg?: number;
+  currency?: string;
+  fxRateToEgp?: number;
+  amount?: number;
+}
+
 @Injectable()
 export class ShippingService {
   constructor(
@@ -92,31 +113,37 @@ export class ShippingService {
     return { data: legs };
   }
 
-  async createLeg(
-    cycleId: string,
-    data: {
-      sequence: number;
-      origin: string;
-      destination: string;
-      provider?: string;
-      providerId?: string;
-      trackingRef?: string;
-      departedOn?: string;
-      arrivedOn?: string;
-      costBasis?: ShippingCostBasis;
-      ratePerUnit?: number;
-      chargeablePieces?: number;
-      chargeableWeightKg?: number;
-      currency?: string;
-      fxRateToEgp?: number;
-      amount?: number;
-    },
-    actorId: string,
-  ) {
+  /**
+   * Every check `createLeg` makes, and the leg it would write, with nothing
+   * written. The assistant previews a leg from this and `createLeg` saves
+   * exactly what it returns, so the preview's cost and status are the saved ones.
+   *
+   * Origin and destination default to the route's usual places for that leg
+   * (`common/cycle-routes.ts`) when the caller leaves them out.
+   */
+  async planLeg(cycleId: string, data: NewLeg) {
+    assertUuid(cycleId, 'cycleId');
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
     if (!cycle) throw notFound('cycle');
+
+    // A cancelled cycle shipped nothing and a closed one has been settled on
+    // the costs it had; a leg added to either would be freight nobody paid, or
+    // freight the settlement never saw.
+    if (cycle.status === 'CANCELLED' || cycle.status === 'CLOSED') {
+      throw badRequest(
+        'CYCLE_FINAL_NO_LEGS',
+        `Cycle ${cycle.code} is ${cycle.status}, so no shipping leg can be added to it.`,
+        { cycle: cycle.code, status: cycle.status },
+      );
+    }
+
+    const route = expectedLegs(cycle.originType).find(
+      (l) => l.sequence === data.sequence,
+    );
+    const origin = data.origin ?? route?.origin ?? '';
+    const destination = data.destination ?? route?.destination ?? '';
 
     // Validate: UAE_DIRECT cycles only allow sequence 1 (UAE→Egypt)
     if (cycle.originType === 'UAE_DIRECT' && data.sequence !== 1) {
@@ -129,8 +156,8 @@ export class ShippingService {
     // Validate destination for UAE_DIRECT
     if (cycle.originType === 'UAE_DIRECT' && data.sequence === 1) {
       if (
-        !data.origin.toUpperCase().includes('UAE') ||
-        !data.destination.toUpperCase().includes('EGYPT')
+        !origin.toUpperCase().includes('UAE') ||
+        !destination.toUpperCase().includes('EGYPT')
       ) {
         throw badRequest(
           'UAE_DIRECT_LEG_ROUTE',
@@ -141,7 +168,7 @@ export class ShippingService {
 
     // China cycles ship in two legs: 1 = China->UAE (merchant), 2 = UAE->Egypt
     // (shipping company). Anything beyond sequence 2 is not a real route.
-    if (cycle.originType === 'CHINA' && ![1, 2].includes(data.sequence)) {
+    if (cycle.originType === 'CHINA' && !route) {
       throw badRequest(
         'CHINA_TWO_LEGS',
         'CHINA cycles have at most two shipping legs (sequence 1: China to UAE, sequence 2: UAE to Egypt)',
@@ -165,13 +192,18 @@ export class ShippingService {
     // The dates were accepted by the DTO and then dropped on the floor here,
     // so a leg created with a departure date came back without one.
     assertLegDates(data.departedOn, data.arrivedOn);
+    // Editing a leg refused a date in the future and creating one did not, so
+    // a leg could be born "arrived" next week and walk the cycle to Egypt.
+    assertNotFuture(data.departedOn, 'A departure date');
+    assertNotFuture(data.arrivedOn, 'An arrival date');
 
-    const leg = await this.prisma.shippingLeg.create({
-      data: {
+    return {
+      cycle,
+      leg: {
         cycleId,
         sequence: data.sequence,
-        origin: data.origin,
-        destination: data.destination,
+        origin,
+        destination,
         provider: data.provider,
         providerId: data.providerId,
         trackingRef: data.trackingRef,
@@ -180,7 +212,13 @@ export class ShippingService {
         status: legStatusFromDates(data.departedOn, data.arrivedOn),
         ...costFields,
       },
-    });
+    };
+  }
+
+  async createLeg(cycleId: string, data: NewLeg, actorId: string) {
+    const plan = await this.planLeg(cycleId, data);
+
+    const leg = await this.prisma.shippingLeg.create({ data: plan.leg });
 
     await this.audit.log({
       actorUserId: actorId,

@@ -1,0 +1,756 @@
+{
+  "src/app/[locale]/analytics/page.tsx": {
+    "local/no-raw-colors": {
+      "count": 49
+    }
+  },
+  "src/app/[locale]/audit-logs/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 50
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/categories/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
+    "i18next/no-literal-string": {
+      "count": 9
+    },
+    "local/no-raw-colors": {
+      "count": 53
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/customers/[id]/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 5
+    },
+    "i18next/no-literal-string": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 51
+    }
+  },
+  "src/app/[locale]/customers/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
+    },
+    "local/no-raw-colors": {
+      "count": 89
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/cycles/[cycleId]/details/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
+    },
+    "local/no-raw-colors": {
+      "count": 56
+    }
+  },
+  "src/app/[locale]/cycles/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "i18next/no-literal-string": {
+      "count": 4
+    },
+    "local/no-physical-direction": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 84
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/dashboard/page.tsx": {
+    "i18next/no-literal-string": {
+      "count": 4
+    },
+    "local/no-raw-colors": {
+      "count": 33
+    }
+  },
+  "src/app/[locale]/import-requests/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 35
+    }
+  },
+  "src/app/[locale]/inventory/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "i18next/no-literal-string": {
+      "count": 4
+    },
+    "local/no-physical-direction": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 110
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/layout.tsx": {
+    "local/no-raw-colors": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/ledger/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 83
+    },
+    "no-restricted-syntax": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/login/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 14
+    }
+  },
+  "src/app/[locale]/notifications/page.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 16
+    }
+  },
+  "src/app/[locale]/order-requests/page.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
+    "local/no-raw-colors": {
+      "count": 41
+    },
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/partners/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "i18next/no-literal-string": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 31
+    }
+  },
+  "src/app/[locale]/payment-plans/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 55
+    }
+  },
+  "src/app/[locale]/payments/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 4
+    },
+    "local/no-raw-colors": {
+      "count": 88
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/products/[id]/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
+    "i18next/no-literal-string": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 106
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/products/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 64
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/providers/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
+    "local/no-raw-colors": {
+      "count": 66
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/purchases/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 13
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "i18next/no-literal-string": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 95
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/sales/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 17
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 9
+    },
+    "i18next/no-literal-string": {
+      "count": 4
+    },
+    "local/no-raw-colors": {
+      "count": 146
+    },
+    "no-restricted-syntax": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/app/[locale]/settings/page.tsx": {
+    "local/no-raw-colors": {
+      "count": 41
+    }
+  },
+  "src/app/[locale]/settlements/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
+    "local/no-raw-colors": {
+      "count": 59
+    }
+  },
+  "src/app/[locale]/shipments/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 67
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/suppliers/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
+    "local/no-raw-colors": {
+      "count": 60
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/cycles/CycleWizard.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 48
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 4
+    },
+    "i18next/no-literal-string": {
+      "count": 9
+    },
+    "local/no-raw-colors": {
+      "count": 146
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 5
+    }
+  },
+  "src/components/entities/entity-forms.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "src/components/layout/app-shell.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "i18next/no-literal-string": {
+      "count": 3
+    },
+    "local/no-physical-direction": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 32
+    }
+  },
+  "src/components/layout/notification-bell.tsx": {
+    "local/no-raw-colors": {
+      "count": 18
+    }
+  },
+  "src/components/products/product-photos.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 12
+    },
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "src/components/settings/how-to-allow.tsx": {
+    "local/no-raw-colors": {
+      "count": 2
+    }
+  },
+  "src/components/settings/push-alerts.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 13
+    }
+  },
+  "src/components/shipping/ShippingCostFields.tsx": {
+    "i18next/no-literal-string": {
+      "count": 15
+    },
+    "local/no-raw-colors": {
+      "count": 17
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ui/command.tsx": {
+    "local/no-physical-direction": {
+      "count": 1
+    }
+  },
+  "src/components/ui/currency-rate-fields.tsx": {
+    "i18next/no-literal-string": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ui/dialog.tsx": {
+    "i18next/no-literal-string": {
+      "count": 2
+    },
+    "local/no-physical-direction": {
+      "count": 2
+    }
+  },
+  "src/components/ui/pagination.tsx": {
+    "i18next/no-literal-string": {
+      "count": 2
+    }
+  },
+  "src/components/ui/quick-create.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "src/lib/api.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/auth-context.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "tests/02-cycles.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/03-products.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/04-purchases.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/05-inventory.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/06-customers.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/07-sales.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/08-payments.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/09-dashboard.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/10-ledger.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/11-audit.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/12-cross-cutting.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/13-shipments.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/14-providers.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/16-settlements.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    }
+  },
+  "tests/17-shipping-costing.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "tests/18-fifo-and-validation.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "tests/20-analytics.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "tests/21-settlement-close.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 16
+    }
+  },
+  "tests/22-returns.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 13
+    }
+  },
+  "tests/23-supplier-refunds.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 14
+    }
+  },
+  "tests/24-ledger-reversal.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "tests/25-stock-invariants.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    }
+  },
+  "tests/26-notifications.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/27-payment-plans.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "tests/28-suppliers.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "tests/29-edit-round-trip.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/29-entity-links.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/32-customer-hub.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "tests/34-business-invariants.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "tests/35-cycle-details.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "tests/36-order-cancel.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "tests/37-shipping-leg-status.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/38-wizard-step2.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/39-wizard-draft.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/41-error-messages.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/42-partner-capital.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "tests/43-full-cycle.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 23
+    }
+  },
+  "tests/44-provider-link-and-expenses.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/45-client-navigation.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "tests/46-accrued-profit.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 15
+    }
+  },
+  "tests/48-cycle-funding.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "tests/49-roles-and-cash.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "tests/50-date-formatting.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/51-quick-create.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "tests/53-portal.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "tests/55-cursors.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "tests/56-production.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/57-customer-verification.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "tests/57-stock-dates.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/58-office-push.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/58-purchase-order-confirmation.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "tests/60-production-audit.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 22
+    }
+  },
+  "tests/61-production-browser.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/62-production-stock-flow.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/63-supplier-invoice.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "tests/support/fixtures.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  }
+}

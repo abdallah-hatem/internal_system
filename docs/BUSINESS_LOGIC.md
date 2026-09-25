@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-08-22.
+Last updated 2026-09-25.
 
 ---
 
@@ -595,4 +595,102 @@ Cancelling any cycle returned "An unexpected error occurred". `CANCELLED` was in
 the transition machine, in the office app's copy of it, in the badge colours and
 in both locale files — and missing from the `CycleStatus` enum, so the write
 failed at the database. Added, with a migration. TC-PO-04 covers it.
+
+### A supplier's invoice is recorded once  — DECIDED 2026-09-19, built 2026-09-25
+
+**The same supplier invoice cannot become two purchase orders.** A purchase order
+may carry the supplier's own invoice number; when it does, that number is unique
+for that supplier. Numbers are compared trimmed and case-insensitively, since
+`inv-001` and ` INV-001` are the same piece of paper. A receipt with no number
+is allowed and is not checked. Two suppliers may use the same number. An invoice
+number is at most 64 characters.
+
+Why now: receipts are about to arrive by photograph, and the same photo sent twice
+— by two partners, or by one partner who was not sure it went through — would
+otherwise double the stock and the landed cost of a cycle.
+
+### Rules the office app now enforces too  — DECIDED 2026-09-19, guesses marked
+
+The assistant writes through the same services as the office app, so a check
+added for it holds in both places. These were not written down before:
+
+- **A purchase order's FX rate is above zero, and a line discount is between 0
+  and 100 percent.** Line totals are exact decimals, never floats.
+- **Lines can be added to a draft only while its cycle is open for purchasing**
+  (PLANNING, FUNDING, PURCHASING). Adding a receipt to an existing draft needs the
+  same supplier, currency and rate; a draft with no invoice number takes the
+  receipt's, and one with a different number refuses — record it as its own order.
+- **A shipping leg cannot be dated in the future**, and cannot be added to a
+  CLOSED or CANCELLED cycle. A new cycle cannot start in the future.
+- **Receiving stock is a positive quantity, no more than was ordered, each line
+  once.** A line with nothing received is not booked as an empty batch: it stays
+  unreceived and can be received when it turns up. *(Guess: the BRD does not say
+  what a zero line means; this keeps the record honest and loses nothing.)*
+- **Suppliers and SKUs, when the assistant creates them.** *(Guess.)* A supplier
+  whose name matches an existing one — ignoring case, spacing, punctuation and
+  "Co., Ltd." — is refused, naming the existing one. A code printed on the receipt
+  becomes the new product's SKU, and one already used is refused. The office app's
+  own forms are unchanged. Open: a printed code in the house format
+  (`PRD-000050`) could later collide with a generated one.
+
+---
+
+## 16. The assistant  — DECIDED 2026-09-19, built 2026-09-25
+
+Partners can talk to the system through Claude (claude.ai, the phone app, Claude
+Desktop), connected to it as an MCP server. Spec:
+`docs/specs/2026-09-19-mcp-assistant.md`.
+
+**Who.** Core partners only. A temporary investor or a shop owner is refused when
+signing in. Signing in uses the partner's own login. Each Claude app a partner
+connects — the phone, a laptop — signs in once, is remembered, and appears in
+Settings as its own connection.
+
+**What it may read.** Everything a core partner can see: cycles, purchase orders,
+stock with arrival and receipt dates, sales, payments, customer balances, the
+dashboard, FX rates.
+
+**What it may change.** Only the intake path, from receipt to sellable stock:
+suppliers, products, purchase orders and their lines, cycles, shipping legs,
+cycle status, and verifying stock in. It cannot record or change sales, payments,
+instalments, settlements, returns or the ledger — those stay in the office app.
+This is enforced by the system, not by the assistant's good behaviour: its access
+is valid nowhere except the assistant's own tools.
+
+**Nothing is written without a confirmed preview.** Every change is first shown
+to the partner as a preview. It is made only when the partner confirms, within
+15 minutes, and what is made is exactly what was previewed — a changed quantity,
+a different cycle, or a confirmation used twice is refused.
+
+What was shown binds too, where the same request can do more by the time it is
+confirmed: moving a cycle out of PURCHASING is refused if a draft order or a line
+appeared since the preview (it would be locked unseen), and verifying stock is
+refused if a landed cost moved since (it would be booked at a figure nobody saw).
+The partner is shown the new preview instead. The assistant can move a cycle as
+far as SELLING; settling and closing stay in the office app.
+
+**Attribution.** Every change is recorded under the partner who signed in, as if
+they had made it in the office app.
+
+**Revocable.** A partner can disconnect Claude from Settings at any time — one
+device or all — without changing their password. Access also lapses after 30 days
+without use, and a partner who stops being a core partner loses it at once.
+
+**The receipt flow.** A partner sends a supplier's receipt or invoice. Claude
+reads it; the system matches it against suppliers, products, open cycles and
+invoices already recorded, and names what could not be settled. Claude asks
+exactly those questions — an unknown supplier, an unmatched line, lines that do
+not add up to the stated total, a currency with no known rate, which cycle, a
+receipt already recorded — and, when the reading itself failed, a receipt with
+no lines, a date that cannot be read, or a currency that cannot be read. It then
+previews the purchase order and creates it on the partner's word.
+
+A name on the receipt that is close to a known supplier or product — at most
+about one slip in five characters — is offered as a likely match and the partner
+confirms it; a close name is never taken as the same thing without that.
+
+Shipping, fees and tax printed on a receipt are not purchase order lines; the partner decides whether they belong on a shipping leg.
+
+**Not kept.** The receipt image itself is not stored — the purchase order records
+the supplier's invoice number, and the photograph stays in the conversation.
 

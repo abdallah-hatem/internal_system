@@ -7,6 +7,10 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma, ParticipantType } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { isUUID } from 'class-validator';
+import { assertNotFuture } from '../../common/dates';
+import { assertUuid } from '../../common/uuid';
+import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
 // Valid state transitions per the spec
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -22,7 +26,6 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   SETTLEMENT: ['CLOSED', 'SELLING'],
   CLOSED: [],
 };
-
 
 /** Accept only the two participant kinds the business recognises. */
 function assertParticipantType(value: string): ParticipantType {
@@ -81,10 +84,20 @@ export class CyclesService {
         participants: {
           include: {
             partner: {
-              select: { id: true, email: true, role: true, partner: { select: { displayName: true } } },
+              select: {
+                id: true,
+                email: true,
+                role: true,
+                partner: { select: { displayName: true } },
+              },
             },
             investor: {
-              select: { id: true, email: true, role: true, partner: { select: { displayName: true } } },
+              select: {
+                id: true,
+                email: true,
+                role: true,
+                partner: { select: { displayName: true } },
+              },
             },
           },
         },
@@ -101,6 +114,127 @@ export class CyclesService {
     });
     if (!cycle) throw notFound('cycle');
     return { data: cycle };
+  }
+
+  /**
+   * One cycle by its id or its code, as a person would name it.
+   *
+   * Partners say "CYC-2026-0003", not a uuid, and say it in whatever case they
+   * typed it. An exact code wins; otherwise the code is matched ignoring case.
+   * Codes may be entered by hand, so "cyc-7" and "CYC-7" can both exist — then
+   * a case-blind match is two cycles, and picking one would be a guess.
+   *
+   * Something that is not a uuid is never looked up as an id: Postgres refuses
+   * it as a uuid, and that surfaces as a 500 rather than "no such cycle".
+   */
+  async findByRef(ref: string) {
+    const key = ref.trim();
+    if (!key) throw notFound('cycle');
+
+    if (isUUID(key)) {
+      const byId = await this.prisma.importCycle.findUnique({
+        where: { id: key },
+        select: { id: true },
+      });
+      if (byId) return this.findById(byId.id);
+    }
+
+    const exact = await this.prisma.importCycle.findUnique({
+      where: { code: key },
+      select: { id: true },
+    });
+    if (exact) return this.findById(exact.id);
+
+    const matches = await this.prisma.importCycle.findMany({
+      where: { code: { equals: key, mode: 'insensitive' } },
+      select: { id: true, code: true },
+      orderBy: { code: 'asc' },
+      take: 5,
+    });
+    if (matches.length === 1) return this.findById(matches[0].id);
+    if (matches.length > 1) {
+      const codes = matches.map((m) => m.code).join(', ');
+      throw badRequest(
+        'CYCLE_CODE_AMBIGUOUS',
+        `"${key}" matches more than one cycle when case is ignored: ${codes}. Give the code exactly.`,
+        { code: key, matches: codes },
+      );
+    }
+    throw notFound('cycle');
+  }
+
+  /**
+   * Everything `create` decides before it writes, and nothing written.
+   *
+   * The assistant previews a new cycle from this and `create` builds the cycle
+   * from it, so what the partner is shown and what is saved come from one
+   * piece of code. The code shown is the next free one at the time of asking;
+   * a cycle created by someone else in between moves it on by one.
+   */
+  async planCreate(data: {
+    code?: string;
+    originType?: string;
+    origin?: string;
+    currency?: string;
+    startedOn?: string;
+    participants?: unknown[];
+  }) {
+    // Support both 'origin' and 'originType' field names
+    const originType = data.originType || data.origin;
+    if (!originType) {
+      throw badRequest(
+        'ORIGIN_TYPE_REQUIRED',
+        'originType (or origin) is required',
+      );
+    }
+    // An unknown route used to reach the database's enum and fail there as a 500.
+    if (!isCycleRoute(originType)) {
+      throw badRequest(
+        'ORIGIN_TYPE_REQUIRED',
+        `originType must be CHINA or UAE_DIRECT (received "${originType}")`,
+      );
+    }
+
+    // A cycle starts when it is set up, so the wizard does not ask. The field
+    // stays accepted for a back-dated import, which is the only case where the
+    // two differ — and the only way to set it, since a cycle has no update
+    // endpoint. Back-dated, never forward: a cycle has not started next week.
+    assertNotFuture(data.startedOn, 'A cycle start date');
+
+    // Generate cycle code: CYC-YYYY-XXXX (or use provided code)
+    let code = data.code;
+    if (!code) {
+      const year = new Date().getFullYear();
+      const last = await this.prisma.importCycle.findFirst({
+        where: { code: { startsWith: `CYC-${year}` } },
+        orderBy: { code: 'desc' },
+        select: { code: true },
+      });
+      code = `CYC-${year}-${pad(nextReferenceNumber(last?.code, 4), 4)}`;
+    }
+
+    const defaultPartners =
+      !data.participants || data.participants.length === 0
+        ? await this.prisma.user.findMany({
+            where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+            select: {
+              id: true,
+              email: true,
+              partner: { select: { displayName: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          })
+        : null;
+
+    return {
+      code,
+      originType,
+      currency: data.currency || 'EGP',
+      startedOn: data.startedOn ? new Date(data.startedOn) : new Date(),
+      expectedLegs: expectedLegs(originType),
+      /** Null when participants were given; otherwise who joins by default. */
+      defaultPartners,
+    };
   }
 
   async create(
@@ -121,35 +255,15 @@ export class CyclesService {
     },
     actorId: string,
   ) {
-    // Support both 'origin' and 'originType' field names
-    const originType = data.originType || data.origin;
-    if (!originType) {
-      throw badRequest('ORIGIN_TYPE_REQUIRED', 'originType (or origin) is required');
-    }
-
-    // Generate cycle code: CYC-YYYY-XXXX (or use provided code)
-    let code = data.code;
-    if (!code) {
-      const year = new Date().getFullYear();
-      const last = await this.prisma.importCycle.findFirst({
-        where: { code: { startsWith: `CYC-${year}` } },
-        orderBy: { code: 'desc' },
-        select: { code: true },
-      });
-      code = `CYC-${year}-${pad(nextReferenceNumber(last?.code, 4), 4)}`;
-    }
+    const plan = await this.planCreate(data);
 
     const cycle = await this.prisma.importCycle.create({
       data: {
-        code,
-        originType: originType as any,
-        currency: data.currency || 'EGP',
+        code: plan.code,
+        originType: plan.originType,
+        currency: plan.currency,
         status: 'PLANNING',
-        // A cycle starts when it is set up, so the wizard does not ask. The
-        // field stays accepted for a back-dated import, which is the only case
-        // where the two differ — and the only way to set it, since a cycle has
-        // no update endpoint.
-        startedOn: data.startedOn ? new Date(data.startedOn) : new Date(),
+        startedOn: plan.startedOn,
       },
     });
 
@@ -165,13 +279,8 @@ export class CyclesService {
     // why the profit percentage is left alone — three explicit 33.33s add up
     // to 99.99 and are rejected, and picking which partner absorbs the extra
     // 0.01 is not a decision worth encoding.
-    if (!data.participants || data.participants.length === 0) {
-      const partners = await this.prisma.user.findMany({
-        where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
-        select: { id: true },
-        orderBy: { createdAt: 'asc' },
-      });
-      for (const partner of partners) {
+    if (plan.defaultPartners) {
+      for (const partner of plan.defaultPartners) {
         await this.prisma.cycleParticipant.create({
           data: {
             cycleId: cycle.id,
@@ -292,7 +401,7 @@ export class CyclesService {
     // through the wizard, and the early steps happen before that.
     if (legs.length === 0) return;
 
-    const lastSequence = originType === 'UAE_DIRECT' ? 1 : 2;
+    const lastSequence = expectedLegs(originType).length;
     const leg = (sequence: number) => legs.find((l) => l.sequence === sequence);
     const where = (l: { origin: string; destination: string }) =>
       `${l.origin} → ${l.destination}`;
@@ -304,7 +413,11 @@ export class CyclesService {
     ) => {
       const l = leg(sequence);
       if (!l) return;
-      const rank: Record<string, number> = { PENDING: 0, IN_TRANSIT: 1, ARRIVED: 2 };
+      const rank: Record<string, number> = {
+        PENDING: 0,
+        IN_TRANSIT: 1,
+        ARRIVED: 2,
+      };
       if ((rank[l.status] ?? 0) >= rank[minimum]) return;
       throw badRequest(
         minimum === 'ARRIVED' ? 'LEG_NOT_ARRIVED' : 'LEG_NOT_DEPARTED',
@@ -335,24 +448,54 @@ export class CyclesService {
     }
   }
 
-  async transition(id: string, targetStatus: string, actorId: string) {
+  /**
+   * Every check `transition` makes, and what it will do, with nothing written.
+   *
+   * The assistant previews a status change from this and `transition` acts on
+   * it, so the preview's list of orders to confirm and lock (§15) is the list
+   * the same code arrives at when it commits.
+   *
+   * `expectedFrom` is the status the caller last saw. A preview confirmed a few
+   * minutes later is a promise about a cycle that may have moved in between —
+   * another partner advanced it, or cancelled it — and the confirmation was
+   * given for the cycle as it was, not as it is.
+   */
+  async planTransition(
+    id: string,
+    targetStatus: string,
+    opts: { expectedFrom?: string } = {},
+  ) {
+    assertUuid(id, 'cycleId');
     const cycle = await this.prisma.importCycle.findUnique({ where: { id } });
     if (!cycle) throw notFound('cycle');
+
+    if (opts.expectedFrom && cycle.status !== opts.expectedFrom) {
+      throw badRequest(
+        'CYCLE_STATUS_CHANGED',
+        `Cycle ${cycle.code} is ${cycle.status} now, not ${opts.expectedFrom}. Nothing was changed.`,
+        {
+          cycle: cycle.code,
+          status: cycle.status,
+          expected: opts.expectedFrom,
+        },
+      );
+    }
 
     const allowed = VALID_TRANSITIONS[cycle.status];
     if (!allowed || !allowed.includes(targetStatus)) {
       throw badRequest(
         'BAD_STATUS_TRANSITION',
         `Cannot transition from ${cycle.status} to ${targetStatus}. Allowed: ${(allowed || []).join(', ')}`,
-        { from: cycle.status, to: targetStatus, allowed: (allowed || []).join(', ') },
+        {
+          from: cycle.status,
+          to: targetStatus,
+          allowed: (allowed || []).join(', '),
+        },
       );
     }
 
     // Validate UAE-direct cannot add China leg
-    if (
-      targetStatus === 'IN_TRANSIT' &&
-      cycle.originType === 'UAE_DIRECT'
-    ) {
+    if (targetStatus === 'IN_TRANSIT' && cycle.originType === 'UAE_DIRECT') {
       throw badRequest(
         'UAE_DIRECT_NO_CHINA_LEG',
         'UAE_DIRECT cycles cannot have a China-to-UAE leg',
@@ -384,24 +527,57 @@ export class CyclesService {
     const leavingPurchasing =
       cycle.status === 'PURCHASING' && targetStatus !== 'CANCELLED';
 
-    if (leavingPurchasing) {
-      const drafts = await this.prisma.purchaseOrder.findMany({
-        where: { cycleId: id, status: 'DRAFT' },
-        include: { _count: { select: { items: true } } },
-      });
+    const drafts = leavingPurchasing
+      ? await this.prisma.purchaseOrder.findMany({
+          where: { cycleId: id, status: 'DRAFT' },
+          include: {
+            _count: { select: { items: true } },
+            supplier: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
 
-      // An order with no lines is not an order. Confirming one would lock an
-      // empty record that can never be corrected, because the only way to add
-      // a line is while it is a draft.
-      const empty = drafts.filter((po) => po._count.items === 0);
-      if (empty.length > 0) {
-        throw badRequest(
-          'PO_HAS_NO_ITEMS',
-          `Purchase order ${empty[0].reference} has no items. Add what was ordered, or remove the order, before the cycle leaves purchasing.`,
-          { reference: empty[0].reference },
-        );
-      }
+    // An order with no lines is not an order. Confirming one would lock an
+    // empty record that can never be corrected, because the only way to add
+    // a line is while it is a draft.
+    const empty = drafts.filter((po) => po._count.items === 0);
+    if (empty.length > 0) {
+      throw badRequest(
+        'PO_HAS_NO_ITEMS',
+        `Purchase order ${empty[0].reference} has no items. Add what was ordered, or remove the order, before the cycle leaves purchasing.`,
+        { reference: empty[0].reference },
+      );
     }
+
+    return {
+      cycle,
+      from: cycle.status,
+      to: targetStatus,
+      leavingPurchasing,
+      /** Drafts this change confirms, after which they gain no more lines. */
+      ordersToConfirm: drafts.map((po) => ({
+        id: po.id,
+        reference: po.reference,
+        supplier: po.supplier?.name ?? null,
+        lines: po._count.items,
+      })),
+      /** Nothing leaves CANCELLED or CLOSED. */
+      final: (VALID_TRANSITIONS[targetStatus] ?? []).length === 0,
+    };
+  }
+
+  async transition(
+    id: string,
+    targetStatus: string,
+    actorId: string,
+    opts: { expectedFrom?: string } = {},
+  ) {
+    const { cycle, leavingPurchasing } = await this.planTransition(
+      id,
+      targetStatus,
+      opts,
+    );
 
     // One transaction, so a cycle cannot advance while its orders stay drafts.
     // Nothing else is called from inside it — the audit log and the
@@ -423,7 +599,6 @@ export class CyclesService {
         },
       });
     });
-
 
     await this.audit.log({
       actorUserId: actorId,
@@ -491,8 +666,14 @@ export class CyclesService {
       type === 'TEMP_INVESTOR' ? data.investorUserId : data.partnerUserId;
     if (!userId) {
       throw type === 'TEMP_INVESTOR'
-        ? badRequest('INVESTOR_ID_REQUIRED', 'investorUserId is required for a temporary investor')
-        : badRequest('PARTNER_ID_REQUIRED', 'partnerUserId is required for a core partner');
+        ? badRequest(
+            'INVESTOR_ID_REQUIRED',
+            'investorUserId is required for a temporary investor',
+          )
+        : badRequest(
+            'PARTNER_ID_REQUIRED',
+            'partnerUserId is required for a core partner',
+          );
     }
 
     await assertCanParticipate(this.prisma, userId, type);

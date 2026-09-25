@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
+import { owedBy, owedByEach } from '../../common/customer-balance';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -63,7 +64,17 @@ export class CustomersService {
     });
 
     const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
+    const page = hasMore ? items.slice(0, limit) : items;
+    // The balance column, by the same rule as the customer's own page — one
+    // grouped query for the page rather than one per row.
+    const owed = await owedByEach(
+      this.prisma,
+      page.map((c) => c.id),
+    );
+    const data = page.map((c) => ({
+      ...c,
+      outstandingBalance: owed.get(c.id) ?? '0.00',
+    }));
     return {
       data,
       meta: {
@@ -89,7 +100,10 @@ export class CustomersService {
       },
     });
     if (!customer) throw notFound('customer');
-    return { data: customer };
+    // What the shop owes, by the same rule that refuses a payment larger than
+    // it — so the balance shown and the balance enforced cannot disagree.
+    const outstandingBalance = await owedBy(this.prisma, id);
+    return { data: { ...customer, outstandingBalance } };
   }
 
   async create(

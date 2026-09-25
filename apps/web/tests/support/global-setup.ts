@@ -1,4 +1,4 @@
-import { snapshot, resetToSeed } from './database';
+import { acquireRunLock, snapshot, resetToSeed } from './database';
 
 /**
  * Is this run only about the deployed system?
@@ -49,6 +49,7 @@ export default async function globalSetup() {
     return;
   }
 
+  acquireRunLock();
   const bytes = snapshot();
   console.log(`  [db] snapshot taken (${(bytes / 1024).toFixed(0)} KB) — restored after the run`);
   resetToSeed();

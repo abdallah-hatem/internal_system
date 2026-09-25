@@ -15,7 +15,7 @@
  */
 import { test, expect, devices } from '@playwright/test';
 
-const WEB = 'http://localhost:3000';
+const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
 const STORE = process.env.STOREFRONT_BASE ?? 'http://localhost:3002';
 
 /** Every font-size, in px, of the controls a person can focus on this page. */

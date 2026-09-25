@@ -1,0 +1,233 @@
+{
+  "src/app/[locale]/imports/page.tsx": {
+    "local/no-raw-colors": {
+      "count": 1
+    }
+  },
+  "src/app/[locale]/layout.tsx": {
+    "local/no-raw-colors": {
+      "count": 2
+    }
+  },
+  "src/app/[locale]/offline/page.tsx": {
+    "local/no-raw-colors": {
+      "count": 1
+    }
+  },
+  "src/components/account/account-panel.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 29
+    }
+  },
+  "src/components/account/alerts-prompt.tsx": {
+    "local/no-raw-colors": {
+      "count": 7
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/account/fields.tsx": {
+    "local/no-raw-colors": {
+      "count": 13
+    }
+  },
+  "src/components/account/how-to-allow.tsx": {
+    "local/no-raw-colors": {
+      "count": 2
+    }
+  },
+  "src/components/account/language-switch.tsx": {
+    "local/no-raw-colors": {
+      "count": 9
+    }
+  },
+  "src/components/account/notifications.tsx": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 2
+    },
+    "local/no-raw-colors": {
+      "count": 16
+    }
+  },
+  "src/components/account/sign-in-form.tsx": {
+    "local/no-raw-colors": {
+      "count": 1
+    }
+  },
+  "src/components/account/sign-up-form.tsx": {
+    "local/no-raw-colors": {
+      "count": 8
+    }
+  },
+  "src/components/app-shell.tsx": {
+    "local/no-raw-colors": {
+      "count": 5
+    }
+  },
+  "src/components/catalogue/catalogue-list.tsx": {
+    "local/no-raw-colors": {
+      "count": 13
+    }
+  },
+  "src/components/catalogue/price-context.tsx": {
+    "local/no-raw-colors": {
+      "count": 4
+    }
+  },
+  "src/components/catalogue/product-card.tsx": {
+    "local/no-raw-colors": {
+      "count": 12
+    }
+  },
+  "src/components/catalogue/product-detail.tsx": {
+    "local/no-raw-colors": {
+      "count": 19
+    }
+  },
+  "src/components/catalogue/product-image.tsx": {
+    "local/no-raw-colors": {
+      "count": 3
+    }
+  },
+  "src/components/catalogue/query-error.tsx": {
+    "local/no-raw-colors": {
+      "count": 7
+    }
+  },
+  "src/components/catalogue/search-field.tsx": {
+    "local/no-raw-colors": {
+      "count": 7
+    }
+  },
+  "src/components/imports/import-detail.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 41
+    }
+  },
+  "src/components/imports/import-form.tsx": {
+    "local/no-raw-colors": {
+      "count": 29
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/imports/import-list.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 22
+    }
+  },
+  "src/components/imports/photo-uploader.tsx": {
+    "local/no-raw-colors": {
+      "count": 15
+    },
+    "no-restricted-syntax": {
+      "count": 1
+    },
+    "react-hooks/refs": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/imports/photo.tsx": {
+    "local/no-raw-colors": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/imports/queries.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    }
+  },
+  "src/components/install/install-card.tsx": {
+    "local/no-raw-colors": {
+      "count": 5
+    }
+  },
+  "src/components/install/install-guide.tsx": {
+    "local/no-raw-colors": {
+      "count": 54
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/requests/basket-sheet.tsx": {
+    "local/no-raw-colors": {
+      "count": 29
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/requests/quantity-stepper.tsx": {
+    "local/no-raw-colors": {
+      "count": 6
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/requests/queries.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 2
+    }
+  },
+  "src/components/requests/request-detail.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 48
+    }
+  },
+  "src/components/requests/request-list.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "local/no-raw-colors": {
+      "count": 17
+    }
+  },
+  "src/components/ui/command.tsx": {
+    "local/no-physical-direction": {
+      "count": 1
+    }
+  },
+  "src/components/ui/dialog.tsx": {
+    "i18next/no-literal-string": {
+      "count": 2
+    },
+    "local/no-physical-direction": {
+      "count": 2
+    }
+  },
+  "src/i18n/request.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/stores/basket.ts": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  }
+}
