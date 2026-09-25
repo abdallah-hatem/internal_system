@@ -114,11 +114,17 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
 
 ## Findings
 
-- **Preview deployments use the production database and Blob store.** `DATABASE_URL` and
+- **[Being fixed 2026-09-25]** **Preview deployments use the production database and Blob store.** `DATABASE_URL` and
   `BLOB_READ_WRITE_TOKEN` are scoped to Production *and* Preview with the same value. Nothing has
   used a preview yet because the repo only pushes `master`, but any branch pushed to GitHub would
   get a preview wired to live data. Not changed in this run — it is infrastructure the goal does not
   cover — but it must be fixed before a `dev` branch exists.
+  2026-09-25: it did happen: the side-task session pushed `fix/customer-list-balance` on 2026-09-19 and
+  Vercel built previews of all three apps on production data. The same variables were also scoped to
+  Development (what `vercel env pull` fetches), so a pull into `.env` plus the e2e suite would have
+  reset production. Fix: `ignoreCommand` builds production only (all three `vercel.json`); database,
+  Blob and Neon variables narrowed to Production; the frontends' Preview `NEXT_PUBLIC_API_URL` removed.
+  A real `dev` preview later needs its own Neon branch, not these values back.
 
 ## Blocked
 

@@ -1,4 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["fra1"]
+  "ignoreCommand": "[ \"$VERCEL_ENV\" != production ]",
+  "regions": [
+    "fra1"
+  ]
 }
