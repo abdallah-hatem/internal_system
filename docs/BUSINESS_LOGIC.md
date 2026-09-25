@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-09-19.
+Last updated 2026-09-25.
 
 ---
 
@@ -596,7 +596,7 @@ the transition machine, in the office app's copy of it, in the badge colours and
 in both locale files — and missing from the `CycleStatus` enum, so the write
 failed at the database. Added, with a migration. TC-PO-04 covers it.
 
-### A supplier's invoice is recorded once  — PLANNED 2026-09-19
+### A supplier's invoice is recorded once  — DECIDED 2026-09-19, built 2026-09-25
 
 **The same supplier invoice cannot become two purchase orders.** A purchase order
 may carry the supplier's own invoice number; when it does, that number is unique
@@ -635,7 +635,7 @@ added for it holds in both places. These were not written down before:
 
 ---
 
-## 16. The assistant  — PLANNED 2026-09-19
+## 16. The assistant  — DECIDED 2026-09-19, built 2026-09-25
 
 Partners can talk to the system through Claude (claude.ai, the phone app, Claude
 Desktop), connected to it as an MCP server. Spec:

@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-09-19
 Graft: removed 2026-09-23 — search with grep, not graft
 Goal: "an MCP for this application — we talk to it and it does what we want. Send a receipt from
 the merchant I bought the products from and it knows what to do, and asks the right questions."
-Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite green · Build done (T0–T10) · next: release alignment review, then ship on the user's go-ahead
+Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite green · 5 — Verify done · release review ALIGNED · next: ship, **waits for the user's go-ahead**
 
 ## Waves
 
@@ -51,6 +51,7 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
 - Side task merged: customer-list balance `49fcbca` (+ lint `608ccc4`); api jest 416/416.
 - 2026-09-25: user resumed the run for T10. Brief dispatched to a subagent (writes `72-assistant-end-to-end.spec.ts`, no run); main thread runs it. User said: run e2e on the local DB without asking again.
 - T10 `e806f54`: 13/13. Rule 2 checked — dropping the preview rollback fails 'preview writes nothing'; dropping the single-use nonce fails the replay test. OAuth helpers moved from 65 into `tests/support/oauth-flow.ts`; `@modelcontextprotocol/sdk` 1.30.0 added as a web devDependency. Group `(41|5x|6x|7x)`: 158 passed, 1 failed (59, which needs the storefront on :3002 — not started; unrelated). Web lint 0 errors, typecheck green. check-data all zero. Local Postgres needed `open -a Docker` + `docker compose up -d postgres` first.
+- 2026-09-25 release gate: api jest 416/416, lint 0 errors, typecheck green; full e2e with storefront up — 597 passed, 2 skipped (pre-existing), 0 failed. Release alignment review over `master..HEAD`: ALIGNED, no findings; BUSINESS_LOGIC §15 invoice rule and §16 flipped PLANNED → built.
 - Verified on this branch's own API: wave-3 specs 67-71 + 41 → 59/59. Full suite: chromium 583 passed
   (4 groups), 2 skipped (already skipped before this build), 0 failed; storefront 21/21.
 
@@ -137,7 +138,7 @@ in api, web, storefront. Alignment review ALIGNED for T1–T9. Full e2e green (c
    receipt → answer its questions → preview → commit → the PO exists with the invoice number, attributed
    to the partner; then the assistant token on REST endpoints is refused. Class `logic`; run it on this
    branch with the servers below.
-2. Release alignment review over everything since `master`; flip BUSINESS_LOGIC §15/§16 PLANNED → built.
+2. ~~Release alignment review~~ — ALIGNED 2026-09-25; §15/§16 flipped to built.
 3. Ship — **needs the user's go-ahead**: merge to `master`, push (deploys). Production needs: the two
    migrations applied to Neon (`20260919120000_supplier_invoice_ref_and_oauth` + the older `CANCELLED`
    one), `PUBLIC_BASE_URL` set on the API (forwarded host is spoofable), `scripts/confirm-stranded-orders.sh
