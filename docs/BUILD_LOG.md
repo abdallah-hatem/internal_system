@@ -114,7 +114,7 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
 
 ## Findings
 
-- **[Being fixed 2026-09-25]** **Preview deployments use the production database and Blob store.** `DATABASE_URL` and
+- **[Fixed 2026-09-25]** **Preview deployments use the production database and Blob store.** `DATABASE_URL` and
   `BLOB_READ_WRITE_TOKEN` are scoped to Production *and* Preview with the same value. Nothing has
   used a preview yet because the repo only pushes `master`, but any branch pushed to GitHub would
   get a preview wired to live data. Not changed in this run — it is infrastructure the goal does not
@@ -125,6 +125,11 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
   reset production. Fix: `ignoreCommand` builds production only (all three `vercel.json`); database,
   Blob and Neon variables narrowed to Production; the frontends' Preview `NEXT_PUBLIC_API_URL` removed.
   A real `dev` preview later needs its own Neon branch, not these values back.
+  Done: 19 shared vars narrowed to Production (Preview and Development dropped), 6 Preview-only vars
+  deleted — no Preview variables remain in any project; the three live previews removed; the merged
+  remote branch deleted. First `ignoreCommand` (`[ "$VERCEL_ENV" != production ]`) cancelled production
+  too — `VERCEL_ENV` is unset when it runs — fixed in `a12cfe8` to skip only on a positive preview or
+  non-master sign. Production redeployed on `a12cfe8`, smoke 6/6.
 
 ## Blocked
 
