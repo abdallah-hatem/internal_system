@@ -219,7 +219,9 @@ Edge cases:
 ### T10 — End to end over HTTP (backend · logic)
 Depends on: T4–T9, merged.
 
-`apps/web/tests/63-assistant.spec.ts`, using the MCP SDK's client over HTTP: register → sign in → code
+`apps/web/tests/72-assistant-end-to-end.spec.ts` (63 was taken), using the MCP SDK's client over HTTP: register → sign in → code
 → token → `tools/list` → `match_receipt` on a realistic receipt → answer its questions →
 preview → commit → the purchase order exists with the invoice number, attributed to the partner.
 Then the scope check from outside: the assistant token on REST endpoints.
+
+- [x] Done 2026-09-25 — `e806f54`, 13/13; rule-2 reverts (preview rollback, single-use nonce) each fail it.
