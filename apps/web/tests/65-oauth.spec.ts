@@ -18,15 +18,28 @@
  *  refresh token 31 days old is aged in the database.
  */
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 import { API, EMAIL, PASSWORD, apiCtx } from './support/fixtures';
 import { sign } from './support/api-jwt';
 import { psqlStdin } from './support/database';
+import {
+  CLAUDE_CB,
+  ROOT,
+  authorizeFields,
+  claimsOf,
+  codeFor,
+  defined,
+  newClient,
+  pkce,
+  redeem,
+  register,
+  signIn,
+  tokenCall,
+  tokensFor,
+  type Fields,
+} from './support/oauth-flow';
 
-/** OAuth lives at the host's root, outside `api/v1`, where clients look. */
-const ROOT = API.replace(/\/api\/v1\/?$/, '');
-const CLAUDE_CB = 'https://claude.ai/api/mcp/auth_callback';
 const DESKTOP_CB = 'http://localhost:6274/callback';
 const SHOP_EMAIL = 'shop.owner@example.com';
 const SHOP_PASSWORD = 'password123';
@@ -55,41 +68,6 @@ async function updateUser(request: APIRequestContext, id: string, data: object) 
 
 // ──────────────────────────────────────────────────────────────── client
 
-async function register(request: APIRequestContext, redirect_uris: unknown) {
-  const res = await request.post(`${ROOT}/oauth/register`, {
-    data: { client_name: 'Claude', redirect_uris },
-  });
-  return { status: res.status(), body: await res.json() };
-}
-
-async function newClient(request: APIRequestContext, uri = CLAUDE_CB): Promise<string> {
-  const { status, body } = await register(request, [uri]);
-  expect(status, JSON.stringify(body)).toBe(201);
-  return body.client_id;
-}
-
-function pkce() {
-  const verifier = randomBytes(32).toString('base64url');
-  return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') };
-}
-
-type Fields = Record<string, string | undefined>;
-
-function authorizeFields(clientId: string, challenge: string, overrides: Fields = {}): Fields {
-  return {
-    response_type: 'code',
-    client_id: clientId,
-    redirect_uri: CLAUDE_CB,
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    state: `st-${stamp()} /+=&?`,
-    ...overrides,
-  };
-}
-
-const defined = (f: Fields) =>
-  Object.fromEntries(Object.entries(f).filter((e): e is [string, string] => e[1] !== undefined));
-
 async function openPage(request: APIRequestContext, fields: Fields) {
   const res = await request.get(
     `${ROOT}/oauth/authorize?${new URLSearchParams(defined(fields)).toString()}`,
@@ -98,58 +76,11 @@ async function openPage(request: APIRequestContext, fields: Fields) {
   return { status: res.status(), location: res.headers()['location'], html: await res.text() };
 }
 
-async function signIn(request: APIRequestContext, fields: Fields, email: string, password: string) {
-  const res = await request.post(`${ROOT}/oauth/authorize`, {
-    form: defined({ ...fields, email, password }),
-    maxRedirects: 0,
-  });
-  return { status: res.status(), location: res.headers()['location'], html: await res.text() };
-}
-
-async function tokenCall(request: APIRequestContext, fields: Fields) {
-  const res = await request.post(`${ROOT}/oauth/token`, { form: defined(fields) });
-  return { status: res.status(), body: await res.json() };
-}
-
-/** A partner signed in through the page: the code, and what redeems it. */
-async function codeFor(request: APIRequestContext, email: string, password: string, clientId?: string) {
-  const client = clientId ?? (await newClient(request));
-  const { verifier, challenge } = pkce();
-  const res = await signIn(request, authorizeFields(client, challenge), email, password);
-  expect(res.status, res.html).toBe(302);
-  const code = new URL(res.location!).searchParams.get('code')!;
-  return { client, verifier, challenge, code };
-}
-
-const redeem = (
-  request: APIRequestContext,
-  c: { client: string; verifier: string; code: string },
-  overrides: Fields = {},
-) =>
-  tokenCall(request, {
-    grant_type: 'authorization_code',
-    code: c.code,
-    code_verifier: c.verifier,
-    client_id: c.client,
-    redirect_uri: CLAUDE_CB,
-    ...overrides,
-  });
-
-async function tokensFor(request: APIRequestContext, email: string, password: string) {
-  const c = await codeFor(request, email, password);
-  const res = await redeem(request, c);
-  expect(res.status, JSON.stringify(res.body)).toBe(200);
-  return { client: c.client, access: res.body.access_token as string, refresh: res.body.refresh_token as string };
-}
-
 const refreshCall = (request: APIRequestContext, client: string, refresh_token: string) =>
   tokenCall(request, { grant_type: 'refresh_token', client_id: client, refresh_token });
 
 const revokeCall = (request: APIRequestContext, fields: Fields) =>
   request.post(`${ROOT}/oauth/revoke`, { form: defined(fields) });
-
-const claimsOf = (token: string) =>
-  JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
 
 // ═══════════════════════════════════════════════════════════ registration
 
