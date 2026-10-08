@@ -131,6 +131,12 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
   too — `VERCEL_ENV` is unset when it runs — fixed in `a12cfe8` to skip only on a positive preview or
   non-master sign. Production redeployed on `a12cfe8`, smoke 6/6.
 
+## Queued, not started
+
+- Selling on Amazon — raised by the user 2026-10-08. Recorded as BUSINESS_LOGIC §17 PLANNED with seven
+  OPEN questions (which Amazon, who ships, how orders arrive, fees and payouts, price per channel,
+  returns, listing data). Needs those answered, then its own feature run; nothing built.
+
 ## Blocked
 
 _(none)_
