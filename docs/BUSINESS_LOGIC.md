@@ -476,14 +476,24 @@ mistakes it for an agreement.
 
 ## Not yet safe to run the business on
 
-Recorded here so it is not forgotten:
+Recorded here so it is not forgotten. Rewritten 2026-10-08, when the old list
+no longer described the system.
 
-- **No production deployment.** Runs on one laptop via `npm run dev`.
-- **The JWT secret is the development default.** Anyone reading the public
-  repository can forge a login.
-- **No backups.** Losing the database volume loses every financial record.
-- **No real cycle has been through it.** Every figure verified so far comes from
-  invented data.
+- **Partner logins still use the seeded demo password.** Production is live,
+  and the partner accounts open with the password from the seed data, which
+  sits in the public repository. The assistant (§16) can write to the business
+  through those same logins. Each partner changes theirs before relying on it.
+- **Backups have never been tested.** The database's host keeps a short window
+  for restoring to an earlier moment. Its length depends on the plan and has not
+  been checked, no restore has ever been tried, and no copy is kept anywhere
+  else.
+- **No real cycle has been confirmed through it yet.** Two cycles exist in
+  production. Whether they are the business's own or a trial run is not
+  recorded, so no figure from them has been checked against reality.
+
+Fixed since the first version of this list: it runs in production now, not on
+one laptop. Production has its own login-signing secret, and the system refuses
+to start with a default or placeholder one.
 
 ---
 
@@ -713,7 +723,8 @@ Open — each changes the design, so each needs an answer first:
 
 | Question | Why it matters |
 |---|---|
-| **Which Amazon** — Egypt, UAE, or both — OPEN | Decides the currency a sale is priced and paid in, and whether stock sold there ever comes to Egypt. Goods already pass through the UAE. |
+| **Which Amazon** — **DECIDED 2026-10-08: both Egypt and the UAE** | Two currencies, Egyptian pounds and dirhams, each with its own payouts. |
+| **Where UAE stock comes from** — OPEN | Goods already pass through the UAE on their way to Egypt. Today stock can only be sold once it has been received and checked in Egypt. Selling on Amazon UAE means either selling some goods before they reach Egypt, or sending stock back out of Egypt. |
 | **Who ships** — Amazon holds our stock (FBA), or we ship each order — OPEN | With FBA, stock sits in Amazon's warehouse but is still ours until sold. The system has one place stock can be today; this would make it two. |
 | **How orders arrive** — recorded by hand, or pulled from Amazon automatically — OPEN | By hand works with today's sales screens. Automatic needs an Amazon seller account connected, and decides when a sale counts as confirmed. |
 | **Amazon's fees and payouts** — OPEN | Amazon pays out later and net of its fees. The fee is a selling expense, not part of the goods' cost. Until the payout arrives, the money is owed by Amazon, which is not a shop. |

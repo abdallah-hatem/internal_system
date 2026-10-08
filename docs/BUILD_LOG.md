@@ -133,8 +133,8 @@ Current stage: 4 — Build · Waves 1–3 merged, reviewed ALIGNED, full suite g
 
 ## Queued, not started
 
-- Selling on Amazon — raised by the user 2026-10-08. Recorded as BUSINESS_LOGIC §17 PLANNED with seven
-  OPEN questions (which Amazon, who ships, how orders arrive, fees and payouts, price per channel,
+- Selling on Amazon — raised by the user 2026-10-08. Recorded as BUSINESS_LOGIC §17 PLANNED. Decided
+  2026-10-08: both Amazon Egypt and Amazon UAE. Seven OPEN questions (where UAE stock comes from, who ships, how orders arrive, fees and payouts, price per channel,
   returns, listing data). Needs those answered, then its own feature run; nothing built.
 
 ## Blocked
