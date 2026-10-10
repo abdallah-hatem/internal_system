@@ -10,7 +10,10 @@ import { badRequest, notFound } from '../../common/api-error';
 import { isUUID } from 'class-validator';
 import { assertNotFuture } from '../../common/dates';
 import { assertUuid, isUuid } from '../../common/uuid';
-import { shipmentPosition } from '../../common/shipment-position';
+import {
+  legsThatMustHaveDelivered,
+  loadShipment,
+} from '../../common/shipment-load';
 import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
 // Valid state transitions per the spec
@@ -173,83 +176,11 @@ export class CyclesService {
   async getShipment(id: string) {
     // Not a uuid → no such cycle, rather than a cast failing deep in Prisma.
     if (!isUuid(id)) throw notFound('cycle');
-    const cycle = await this.prisma.importCycle.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        code: true,
-        status: true,
-        shippingLegs: {
-          select: {
-            id: true,
-            sequence: true,
-            origin: true,
-            destination: true,
-            departedOn: true,
-            deliveries: {
-              select: {
-                id: true,
-                legId: true,
-                arrivedOn: true,
-                note: true,
-                lines: {
-                  select: { id: true, purchaseOrderItemId: true, qty: true },
-                },
-              },
-            },
-            losses: {
-              select: {
-                id: true,
-                legId: true,
-                purchaseOrderItemId: true,
-                qty: true,
-                costEgp: true,
-                reason: true,
-                createdAt: true,
-              },
-            },
-          },
-        },
-        purchaseOrders: {
-          select: {
-            items: {
-              select: {
-                id: true,
-                orderedQty: true,
-                productId: true,
-                product: { select: { name: true } },
-              },
-            },
-          },
-        },
-        inventoryBatches: {
-          select: {
-            sourcePoItemId: true,
-            sourceDeliveryLineId: true,
-            receivedQty: true,
-          },
-        },
-      },
-    });
-    if (!cycle) throw notFound('cycle');
+    const loaded = await loadShipment(this.prisma, id);
+    if (!loaded) throw notFound('cycle');
+    const { cycle, position } = loaded;
 
-    const legs = cycle.shippingLegs;
-    const position = shipmentPosition({
-      lines: cycle.purchaseOrders.flatMap((po) =>
-        po.items.map((i) => ({
-          id: i.id,
-          orderedQty: i.orderedQty,
-          productId: i.productId,
-          productName: i.product.name,
-        })),
-      ),
-      legs,
-      deliveries: legs.flatMap((l) => l.deliveries),
-      losses: legs.flatMap((l) => l.losses),
-      batches: cycle.inventoryBatches,
-    });
-
-    const legMeta = new Map(legs.map((l) => [l.id, l]));
+    const legMeta = new Map(cycle.shippingLegs.map((l) => [l.id, l]));
     return {
       data: {
         cycleId: cycle.id,
@@ -486,12 +417,19 @@ export class CyclesService {
    * in inventory in the same instant, with no departure or arrival date ever
    * recorded. A cycle that had been approved a moment ago had sellable stock.
    *
-   * Now the shipment's own dates decide. A leg is in transit once it has a
-   * departure date and arrived once it has an arrival date, and the cycle
-   * cannot pass a point its goods have not reached.
+   * What was recorded decides (§1, 2026-10-10). Goods arrive in deliveries, and
+   * the cycle can move on as soon as **some** of them reach a point:
+   *
+   *   In transit (China)    leg 1 has departed
+   *   Arrived UAE (China)   leg 1 has at least one delivery
+   *   In transit to Egypt   the last leg has departed
+   *   Arrived Egypt         the last leg has at least one delivery
    *
    *   China cycle:  leg 1 is China→UAE, leg 2 is UAE→Egypt
    *   UAE direct:   leg 1 is UAE→Egypt
+   *
+   * Which legs need a delivery for which status is `legsThatMustHaveDelivered`,
+   * the same answer deleting a delivery reads.
    */
   private async assertShippingReached(
     cycleId: string,
@@ -501,7 +439,14 @@ export class CyclesService {
     const legs = await this.prisma.shippingLeg.findMany({
       where: { cycleId },
       orderBy: { sequence: 'asc' },
-      select: { sequence: true, status: true, origin: true, destination: true },
+      select: {
+        sequence: true,
+        status: true,
+        departedOn: true,
+        origin: true,
+        destination: true,
+        _count: { select: { deliveries: true } },
+      },
     });
 
     // Nothing to check before the legs are recorded — they are added part-way
@@ -509,50 +454,37 @@ export class CyclesService {
     if (legs.length === 0) return;
 
     const lastSequence = expectedLegs(originType).length;
-    const leg = (sequence: number) => legs.find((l) => l.sequence === sequence);
     const where = (l: { origin: string; destination: string }) =>
       `${l.origin} → ${l.destination}`;
 
-    const needs = (
-      sequence: number,
-      minimum: 'IN_TRANSIT' | 'ARRIVED',
-      what: string,
-    ) => {
-      const l = leg(sequence);
-      if (!l) return;
-      const rank: Record<string, number> = {
-        PENDING: 0,
-        IN_TRANSIT: 1,
-        ARRIVED: 2,
-      };
-      if ((rank[l.status] ?? 0) >= rank[minimum]) return;
+    const departed = (sequence: number) => {
+      const l = legs.find((x) => x.sequence === sequence);
+      if (!l || l.departedOn || l.status !== 'PENDING') return;
       throw badRequest(
-        minimum === 'ARRIVED' ? 'LEG_NOT_ARRIVED' : 'LEG_NOT_DEPARTED',
-        `${where(l)} has not ${what}. Record the ${
-          minimum === 'ARRIVED' ? 'arrival' : 'departure'
-        } date on that leg first.`,
+        'LEG_NOT_DEPARTED',
+        `${where(l)} has not departed. Record the departure date on that leg first.`,
         { leg: where(l) },
       );
     };
 
-    switch (targetStatus) {
-      case 'IN_TRANSIT':
-        needs(1, 'IN_TRANSIT', 'departed');
-        break;
-      case 'ARRIVED_UAE':
-        // Only a China cycle has a leg that lands in the UAE. A UAE-direct
-        // cycle's goods are sitting at its origin and nothing has moved.
-        if (originType !== 'UAE_DIRECT') needs(1, 'ARRIVED', 'arrived');
-        break;
-      case 'IN_TRANSIT_TO_EGYPT':
-        needs(lastSequence, 'IN_TRANSIT', 'departed');
-        break;
-      case 'ARRIVED_EGYPT':
-        for (const l of legs) needs(l.sequence, 'ARRIVED', 'arrived');
-        break;
-      default:
-        break;
-    }
+    const delivered = (l: (typeof legs)[number] | undefined) => {
+      if (!l || l._count.deliveries > 0) return;
+      throw badRequest(
+        'LEG_NOT_ARRIVED',
+        `${where(l)} has not arrived: no delivery has been recorded on it. Record the arrival on that leg first.`,
+        { leg: where(l) },
+      );
+    };
+
+    if (targetStatus === 'IN_TRANSIT') departed(1);
+    if (targetStatus === 'IN_TRANSIT_TO_EGYPT') departed(lastSequence);
+
+    // The last leg recorded, so a China cycle whose second leg was never added
+    // still needs its one leg to have brought something.
+    const need = legsThatMustHaveDelivered(originType, targetStatus);
+    if (need.includes('first'))
+      delivered(legs[0].sequence === 1 ? legs[0] : undefined);
+    if (need.includes('last')) delivered(legs[legs.length - 1]);
   }
 
   /**

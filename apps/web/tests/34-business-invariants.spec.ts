@@ -366,3 +366,58 @@ test.describe('You cannot sell what you do not have', () => {
     expect(r.message).toMatch(/10\.000/);
   });
 });
+
+test.describe('Goods cannot be counted twice on the way (§1, §3 — 2026-10-10)', () => {
+  /** A cycle with 10 ordered and its one leg departed, nothing arrived. */
+  async function shipped(request: APIRequestContext) {
+    const { headers, mk, product, supplier } = await ctx(request);
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1,
+      orderedOn: dayFromNow(-25),
+      items: [{ productId: product.id, orderedQty: 10, unitPrice: 10 }],
+    });
+    const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+      costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+      departedOn: dayFromNow(-20),
+    });
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const item = (full.data ?? full).purchaseOrders[0].items[0];
+    return { headers, mk, cycle, leg, item, product };
+  }
+
+  test('TC-INV-16: a leg cannot deliver more than entered it (delivered ≤ entered)', async ({ request }) => {
+    const { headers, leg, item } = await shipped(request);
+    const one = await attempt(request, headers, `shipping/legs/${leg.id}/deliveries`, {
+      arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty: 10 }],
+    });
+    expect(one.status, one.message).toBeLessThan(300);
+    // Ten entered, ten came. An eleventh is a unit counted twice.
+    const again = await attempt(request, headers, `shipping/legs/${leg.id}/deliveries`, {
+      arrivedOn: dayFromNow(-4), lines: [{ purchaseOrderItemId: item.id, qty: 1 }],
+    });
+    expect(again.status, again.message).toBe(400);
+  });
+
+  test('TC-INV-17: received + lost can never pass what was ordered', async ({ request }) => {
+    // Everything ordered was delivered and received into stock: nothing is
+    // left that could be lost. Marking one lost would put 11 of 10 somewhere —
+    // in stock and lost at once.
+    const { headers, mk, cycle, leg, item, product } = await shipped(request);
+    await mk(`shipping/legs/${leg.id}/deliveries`, {
+      arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty: 10 }],
+    });
+    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+      await mk(`cycles/${cycle.id}/transition`, { status });
+    }
+    await mk('receipts/verify', {
+      cycleId: cycle.id,
+      items: [{ purchaseOrderItemId: item.id, productId: product.id, receivedQty: 10 }],
+    });
+    const lost = await attempt(request, headers, `shipping/legs/${leg.id}/losses`, {
+      lines: [{ purchaseOrderItemId: item.id, qty: 1 }],
+    });
+    expect(lost.status, lost.message).toBe(400);
+  });
+});

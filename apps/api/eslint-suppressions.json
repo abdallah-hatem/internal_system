@@ -278,9 +278,6 @@
   "src/modules/costing/costing.service.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 7
     }
   },
   "src/modules/currency-rates/currency-rates.controller.ts": {
@@ -931,9 +928,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
-    },
-    "prettier/prettier": {
-      "count": 1
     }
   },
   "src/modules/shipping/shipping.service.ts": {
@@ -948,9 +942,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 2
     }
   },
   "src/modules/suppliers/suppliers.controller.ts": {

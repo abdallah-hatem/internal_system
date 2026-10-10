@@ -63,12 +63,59 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 12.2, 'cancelled order still showing a balance',
          count(*) FROM sale_orders
    WHERE status = 'CANCELLED' AND outstanding <> 0
-  UNION ALL SELECT 12.3, 'stock received while a shipping leg says it has not arrived',
-         count(DISTINCT b.cycle_id) FROM inventory_batches b
-   WHERE EXISTS (
-     SELECT 1 FROM shipping_legs l
-      WHERE l.cycle_id = b.cycle_id AND l.status <> 'ARRIVED'
-   )
+  -- 12.3 used to be "stock received while a leg says it has not arrived". A
+  -- shipment arrives in deliveries now (2026-10-10, §1), so a leg that is
+  -- partly arrived and has stock received from its first delivery is the
+  -- normal case, and the old check fired on every one. These four ask what
+  -- deliveries and losses cannot do instead.
+  --
+  -- What a leg can deliver or lose is what entered it: the order, for the
+  -- first leg; what the leg before it delivered, for a later one.
+  UNION ALL SELECT 12.3, 'a leg delivered or lost more of a product than entered it',
+         count(*) FROM (
+           WITH legs AS (
+             SELECT l.id, l.cycle_id,
+                    lag(l.id) OVER (PARTITION BY l.cycle_id ORDER BY l.sequence) AS prev_id
+               FROM shipping_legs l
+           ), moved AS (
+             SELECT d.leg_id, dl.purchase_order_item_id AS item_id, dl.qty, 0::numeric AS lost
+               FROM shipment_delivery_lines dl JOIN shipment_deliveries d ON d.id = dl.delivery_id
+             UNION ALL
+             SELECT x.leg_id, x.purchase_order_item_id, 0, x.qty FROM shipment_losses x
+           ), per_leg AS (
+             SELECT leg_id, item_id, sum(qty) AS delivered, sum(lost) AS lost
+               FROM moved GROUP BY leg_id, item_id
+           )
+           SELECT 1 FROM per_leg p
+             JOIN legs g ON g.id = p.leg_id
+             JOIN purchase_order_items poi ON poi.id = p.item_id
+            WHERE p.delivered + p.lost > CASE
+                    WHEN g.prev_id IS NULL THEN poi.ordered_qty
+                    ELSE coalesce((SELECT q.delivered FROM per_leg q
+                                    WHERE q.leg_id = g.prev_id AND q.item_id = p.item_id), 0)
+                  END
+         ) over_delivered
+  -- Every unit ordered ends up in stock or lost, once. More than that is a
+  -- unit counted twice — in a batch and as a loss, or as losses on two legs.
+  UNION ALL SELECT 12.4, 'order line: received plus lost is more than was ordered',
+         count(*) FROM purchase_order_items poi
+   WHERE coalesce((SELECT sum(b.received_qty) FROM inventory_batches b
+                    WHERE b.source_po_item_id = poi.id), 0)
+       + coalesce((SELECT sum(x.qty) FROM shipment_losses x
+                    WHERE x.purchase_order_item_id = poi.id), 0)
+       > poi.ordered_qty
+  -- A loss is valued when it is marked (§2) and never re-priced; its cost
+  -- must be its quantity at the unit cost it was marked at.
+  UNION ALL SELECT 12.5, 'a loss whose cost is not its quantity times its unit cost',
+         count(*) FROM shipment_losses
+   WHERE cost_egp <> round(qty * unit_cost_egp, 2)
+  -- Stock on a shipped cycle exists only by being received from a delivery
+  -- (§3). The backfill links every older batch; a batch without one was
+  -- received some other way.
+  UNION ALL SELECT 12.6, 'a batch on a cycle with legs that came from no delivery',
+         count(*) FROM inventory_batches b
+   WHERE b.source_delivery_line_id IS NULL
+     AND EXISTS (SELECT 1 FROM shipping_legs l WHERE l.cycle_id = b.cycle_id)
   UNION ALL SELECT 13, 'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'

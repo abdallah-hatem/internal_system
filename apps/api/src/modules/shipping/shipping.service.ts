@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { assertNotFuture } from '../../common/dates';
+import { assertNotFuture, businessDay } from '../../common/dates';
 import { expectedLegs } from '../../common/cycle-routes';
-import { assertUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
+import {
+  loadShipment,
+  lockCycle,
+  syncLegStatuses,
+} from '../../common/shipment-load';
+import { DeliveriesService } from './deliveries.service';
 import { AuditService } from '../audit/audit.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { CostingService } from '../costing/costing.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
@@ -76,8 +81,8 @@ export class ShippingService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
-    private notifications: NotificationsService,
     private costing: CostingService,
+    private deliveries: DeliveriesService,
   ) {}
 
   async findAll(pagination: PaginationDto & { cycleId?: string }) {
@@ -215,22 +220,65 @@ export class ShippingService {
     };
   }
 
+  /**
+   * Create a leg. An arrival date given with it means "everything that
+   * entered this leg arrived that day": the leg is created departed, and the
+   * arrival is recorded as one delivery of what is on the way (§1, 2026-10-10)
+   * — the fixtures, the old wizard and the assistant still send it this way.
+   */
   async createLeg(cycleId: string, data: NewLeg, actorId: string) {
     const plan = await this.planLeg(cycleId, data);
+    // Status and arrival are readings of the deliveries, written by
+    // `syncLegStatuses`, never taken from the plan's dates.
+    const { arrivedOn: _arrivedOn, ...row } = plan.leg;
 
-    const leg = await this.prisma.shippingLeg.create({ data: plan.leg });
-
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'CREATE',
-      entityType: 'ShippingLeg',
-      entityId: leg.id,
-      afterJson: leg,
+    const { leg, changed } = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const created = await tx.shippingLeg.create({
+        data: { ...row, status: legStatusFromDates(data.departedOn, null) },
+      });
+      if (data.arrivedOn) {
+        await this.deliveries.deliverRemainderIn(
+          tx,
+          cycleId,
+          created.id,
+          businessDay(data.arrivedOn),
+          actorId,
+        );
+      }
+      const changed = await syncLegStatuses(tx, cycleId);
+      const leg = await tx.shippingLeg.findUniqueOrThrow({
+        where: { id: created.id },
+      });
+      await this.audit.log(
+        {
+          actorUserId: actorId,
+          action: 'CREATE',
+          entityType: 'ShippingLeg',
+          entityId: leg.id,
+          afterJson: leg,
+        },
+        tx,
+      );
+      return { leg, changed };
     });
 
+    await this.deliveries.notifyArrivals(cycleId, changed);
     return { data: leg };
   }
 
+  /**
+   * Edit a leg.
+   *
+   * - `status` is ignored: it is a reading, never a field anyone sets (§1).
+   * - `arrivedOn` is kept for the old form: a delivery of everything still on
+   *   the way, on that day. With nothing on the way it writes nothing, and a
+   *   null is ignored — an arrival is taken back by deleting its delivery.
+   * - Moving the departure after a delivery already recorded is refused.
+   * - A leg's cost is fixed once any unit of the cycle was received or lost
+   *   (§2): the next delivery would cost differently from the last. A late
+   *   freight charge is a ledger expense on the cycle instead.
+   */
   async updateLeg(
     id: string,
     data: {
@@ -238,7 +286,7 @@ export class ShippingService {
       destination?: string;
       status?: string;
       departedOn?: string;
-      arrivedOn?: string;
+      arrivedOn?: string | null;
       amount?: number;
       provider?: string;
       providerId?: string;
@@ -252,6 +300,7 @@ export class ShippingService {
     },
     actorId: string,
   ) {
+    if (!isUuid(id)) throw notFound('shippingLeg');
     const existing = await this.prisma.shippingLeg.findUnique({
       where: { id },
     });
@@ -263,72 +312,101 @@ export class ShippingService {
       costBasis: data.costBasis ?? existing.costBasis,
       ratePerUnit: data.ratePerUnit ?? existing.ratePerUnit,
       chargeablePieces: data.chargeablePieces ?? existing.chargeablePieces,
-      chargeableWeightKg: data.chargeableWeightKg ?? existing.chargeableWeightKg,
+      chargeableWeightKg:
+        data.chargeableWeightKg ?? existing.chargeableWeightKg,
       amount: data.amount ?? existing.amount,
       fxRateToEgp: data.fxRateToEgp ?? existing.fxRateToEgp,
+      // Merged too: an edit that left the currency out reset a USD leg to EGP.
+      currency: data.currency ?? existing.currency,
     };
-    const costFields = this.buildCostFields({ ...merged, currency: data.currency });
+    const costFields = this.buildCostFields(merged);
 
     // Merged, because a partial update that sets only the arrival date still
     // has to be judged against the departure date already on the leg.
     const departedOn = data.departedOn ?? existing.departedOn;
-    const arrivedOn = data.arrivedOn ?? existing.arrivedOn;
+    const arrivedOn = data.arrivedOn ?? null;
     assertLegDates(departedOn, arrivedOn);
     assertNotFuture(data.departedOn, 'A departure date');
     assertNotFuture(data.arrivedOn, 'An arrival date');
 
-    const updated = await this.prisma.shippingLeg.update({
-      where: { id },
-      data: {
-        origin: data.origin,
-        destination: data.destination,
-        // Derived, never taken from the caller: the dates are the record of
-        // what happened and the status is only a reading of them.
-        status: legStatusFromDates(departedOn, arrivedOn),
-        departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
-        arrivedOn: data.arrivedOn ? new Date(data.arrivedOn) : undefined,
-        provider: data.provider,
-        providerId: data.providerId,
-        trackingRef: data.trackingRef,
-        ...costFields,
-      },
-    });
+    const { updated, changed } = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, existing.cycleId);
+      const loaded = await loadShipment(tx, existing.cycleId);
+      if (!loaded) throw notFound('cycle');
 
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'UPDATE',
-      entityType: 'ShippingLeg',
-      entityId: id,
-      beforeJson: existing,
-      afterJson: updated,
-    });
-
-    // Notify cycle participants if leg arrived
-    if (data.arrivedOn && !existing.arrivedOn) {
-      const participants = await this.prisma.cycleParticipant.findMany({
-        where: { cycleId: existing.cycleId },
-      });
-      const userIds = participants
-        .map((p) => [p.partnerUserId, p.investorUserId])
-        .flat()
-        .filter(Boolean) as string[];
-      if (userIds.length > 0) {
-        const cycle = await this.prisma.importCycle.findUnique({
-          where: { id: existing.cycleId },
-        });
-        await this.notifications.createForMultipleUsers(userIds, {
-          eventType: 'SHIPPING_LEG_ARRIVED',
-          title: `Shipping leg ${existing.sequence} (${existing.origin} → ${existing.destination}) has arrived`,
-          payload: {
-            legId: id,
-            cycleId: existing.cycleId,
-            cycleCode: cycle?.code,
-            sequence: existing.sequence,
-          },
-        });
+      const costMoved =
+        costFields.costBasis !== existing.costBasis ||
+        !costFields.amountEgp.equals(existing.amountEgp ?? 0);
+      const { received, lost } = loaded.position.totals;
+      if (costMoved && (received > 0 || lost > 0)) {
+        throw badRequest(
+          'LEG_COST_LOCKED',
+          `Goods of cycle ${loaded.cycle.code} have already been received or marked lost, so the cost of ${existing.origin} → ${existing.destination} is fixed. Record a late or corrected charge as a cycle expense.`,
+          { cycle: loaded.cycle.code },
+        );
       }
-    }
 
+      if (data.departedOn) {
+        const departed = businessDay(data.departedOn);
+        const legRow = loaded.cycle.shippingLegs.find((l) => l.id === id);
+        const earliest = (legRow?.deliveries ?? [])
+          .map((d) => businessDay(d.arrivedOn))
+          .sort()[0];
+        if (earliest && earliest < departed) {
+          throw badRequest(
+            'DELIVERY_BEFORE_DEPARTURE',
+            `A delivery on ${earliest} is before ${existing.origin} → ${existing.destination} departed on ${departed}.`,
+            {
+              day: earliest,
+              departedOn: departed,
+              leg: `${existing.origin} → ${existing.destination}`,
+            },
+          );
+        }
+      }
+
+      await tx.shippingLeg.update({
+        where: { id },
+        data: {
+          origin: data.origin,
+          destination: data.destination,
+          departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
+          provider: data.provider,
+          providerId: data.providerId,
+          trackingRef: data.trackingRef,
+          ...costFields,
+        },
+      });
+
+      if (data.arrivedOn) {
+        await this.deliveries.deliverRemainderIn(
+          tx,
+          existing.cycleId,
+          id,
+          businessDay(data.arrivedOn),
+          actorId,
+        );
+      }
+
+      const changed = await syncLegStatuses(tx, existing.cycleId);
+      const updated = await tx.shippingLeg.findUniqueOrThrow({
+        where: { id },
+      });
+      await this.audit.log(
+        {
+          actorUserId: actorId,
+          action: 'UPDATE',
+          entityType: 'ShippingLeg',
+          entityId: id,
+          beforeJson: existing,
+          afterJson: updated,
+        },
+        tx,
+      );
+      return { updated, changed };
+    });
+
+    await this.deliveries.notifyArrivals(existing.cycleId, changed);
     return { data: updated };
   }
 

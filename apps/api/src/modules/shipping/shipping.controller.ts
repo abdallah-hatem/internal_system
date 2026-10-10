@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -11,7 +12,12 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ShippingService } from './shipping.service';
-import { CreateShippingLegDto, UpdateShippingLegDto } from './dto/shipping-leg.dto';
+import { DeliveriesService } from './deliveries.service';
+import { CreateDeliveryDto, CreateLossDto } from './dto/delivery.dto';
+import {
+  CreateShippingLegDto,
+  UpdateShippingLegDto,
+} from './dto/shipping-leg.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -21,7 +27,10 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 @UseGuards(AuthGuard('jwt'))
 @Controller('shipping')
 export class ShippingController {
-  constructor(private shippingService: ShippingService) {}
+  constructor(
+    private shippingService: ShippingService,
+    private deliveries: DeliveriesService,
+  ) {}
 
   @Get('legs')
   @ApiOperation({ summary: 'List all shipping legs' })
@@ -39,6 +48,49 @@ export class ShippingController {
     @CurrentUser() user: any,
   ) {
     return this.shippingService.updateLeg(id, body, user.id);
+  }
+
+  // Deliveries and losses (BUSINESS_LOGIC §1, 2026-10-10). Core partners only:
+  // each one moves goods, and a loss books a cost against the cycle (rule 12).
+
+  @Post('legs/:id/deliveries')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Record goods arriving at the end of a leg' })
+  recordDelivery(
+    @Param('id') id: string,
+    @Body() body: CreateDeliveryDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.deliveries.recordDelivery(id, body, user.id);
+  }
+
+  @Delete('deliveries/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Remove a delivery recorded by mistake' })
+  deleteDelivery(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.deliveries.deleteDelivery(id, user.id);
+  }
+
+  @Post('legs/:id/losses')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Mark goods still to come as lost' })
+  recordLoss(
+    @Param('id') id: string,
+    @Body() body: CreateLossDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.deliveries.recordLoss(id, body, user.id);
+  }
+
+  @Delete('losses/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Take a loss back: the goods are on the way again' })
+  takeBackLoss(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.deliveries.takeBackLoss(id, user.id);
   }
 }
 

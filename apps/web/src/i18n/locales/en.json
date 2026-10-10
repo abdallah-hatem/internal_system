@@ -809,7 +809,9 @@
       "user": "User",
       "productRequest": "Import request",
       "orderRequest": "Order request",
-      "assistantConnection": "Claude connection"
+      "assistantConnection": "Claude connection",
+      "shipmentDelivery": "Delivery",
+      "shipmentLoss": "Loss"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -847,7 +849,7 @@
     "INVALID_CREDENTIALS": "Email or password is incorrect.",
     "INVESTOR_ID_REQUIRED": "Choose the investor for a temporary investor.",
     "ITEM_NEEDS_PRODUCT": "Every line needs a product.",
-    "LEG_NOT_ARRIVED": "{leg} has not arrived yet. Record the arrival date on that leg first.",
+    "LEG_NOT_ARRIVED": "{leg} has not arrived yet. Record a delivery on that leg first.",
     "LEG_NOT_DEPARTED": "{leg} has not departed yet. Record the departure date on that leg first.",
     "LEG_SEQUENCE_TAKEN": "This cycle already has a shipping leg numbered {sequence}.",
     "NOT_ENOUGH_STOCK": "Only {available} of {product} is in stock, so {wanted} cannot be sold.",
@@ -948,7 +950,14 @@
     "CYCLE_STATUS_CHANGED": "Cycle {cycle} is {status} now, not {expected}. Nothing was changed — preview again.",
     "CYCLE_FINAL_NO_LEGS": "Cycle {cycle} is {status}, so no shipping leg can be added to it.",
     "RECEIVED_EXCEEDS_ORDERED": "{received} of {product} cannot be received: only {ordered} were ordered.",
-    "PREVIEW_CHANGED": "What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that."
+    "PREVIEW_CHANGED": "What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that.",
+    "CYCLE_CLOSED": "Cycle {cycle} was cancelled, so nothing can be recorded on its shipment.",
+    "CYCLE_SETTLING": "Cycle {cycle} is being settled or is closed, so nothing can be recorded on its shipment. Reverse the settlement first.",
+    "DELIVERY_BEFORE_DEPARTURE": "A delivery on {day} is before {leg} departed on {departedOn}.",
+    "DELIVERY_EXCEEDS_IN_TRANSIT": "Only {onTheWay} of {line} are on the way, so a delivery of {asked} cannot be recorded.",
+    "DELIVERY_IN_USE": "This delivery cannot be deleted: stock was received from it, a later leg carried its goods on, or the cycle has moved on because of it.",
+    "LEG_COST_LOCKED": "Goods of cycle {cycle} have already been received or marked lost, so this leg’s cost is fixed. Record a late or corrected charge as a cycle expense.",
+    "LOSS_EXCEEDS_IN_TRANSIT": "Only {onTheWay} of {line} are still to come, so {asked} cannot be marked lost."
   },
   "orderRequests": {
     "title": "Order requests",
