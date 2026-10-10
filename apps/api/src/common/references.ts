@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 /**
  * The next number in a zero-padded reference like CYC-2026-0004.
  *
@@ -11,8 +13,11 @@
  * and the numbers are zero-padded, so sorting the text descending gives the
  * largest number, and the tail parses back to it.
  *
- * Not a defence against two requests racing — that needs a sequence in the
- * database — but that is not what has been failing.
+ * On its own it is not a defence against two requests racing: both read the
+ * same highest reference before either writes. Each caller closes that gap —
+ * a sale order retries when `order_no`'s unique index refuses it
+ * (`SalesService.create`), and a purchase order, whose reference has no unique
+ * index, takes `lockReferenceSeries` first.
  */
 export function nextReferenceNumber(lastReference: string | null | undefined, width: number): number {
   if (!lastReference) return 1;
@@ -24,4 +29,27 @@ export function nextReferenceNumber(lastReference: string | null | undefined, wi
 /** Format a number into a reference's zero-padded tail. */
 export function pad(n: number, width: number): string {
   return String(n).padStart(width, '0');
+}
+
+/**
+ * Hold one series of references (`PO-2026`, say) until the calling
+ * transaction ends, so the next number is read and written by one request at a
+ * time.
+ *
+ * For a series with no unique index to fall back on. Purchase-order references
+ * never had one, so two orders placed at once were both handed PO-2026-0007
+ * with nothing to object. An index cannot simply be added: production's
+ * existing references have never been checked for a pair, and a migration that
+ * fails there blocks the deploy (check-data.sh 17 now looks).
+ *
+ * A transaction-scoped advisory lock: released by the commit or rollback, so
+ * nothing can leave it held. The second request waits here, and its read of
+ * the highest reference, a new statement under READ COMMITTED, sees the first
+ * one's row.
+ */
+export async function lockReferenceSeries(
+  tx: Pick<Prisma.TransactionClient, '$executeRaw'>,
+  series: string,
+): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${series}))`;
 }

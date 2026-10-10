@@ -226,6 +226,13 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
                  OR (o.status IN ('CONFIRMED', 'PARTIALLY_PAID') AND o.outstanding > 0))
   UNION ALL SELECT 16.1, 'the walk-in record can sign in',
          count(*) FROM customers WHERE is_walk_in AND shop_owner_user_id IS NOT NULL
+  -- A PO reference has no unique index; two orders placed at once were both
+  -- given the same one until F9 (2026-10-11). Zero here, on production too,
+  -- is what would let a unique index be added safely.
+  UNION ALL SELECT 17, 'two purchase orders share a reference',
+         count(*) FROM (
+           SELECT reference FROM purchase_orders GROUP BY reference HAVING count(*) > 1
+         ) shared
 SQL
 )
 
