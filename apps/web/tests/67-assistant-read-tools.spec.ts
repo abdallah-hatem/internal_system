@@ -162,7 +162,7 @@ test.describe('Assistant read tools', () => {
     expect(refusal(await tool(request, token, 'list_sales', { from: '2026-02-30' })).code).toBe('BAD_DATE');
   });
 
-  test('TC-MCP-READ-06: tools/list offers no tool that writes sales, payments, instalments, settlements, returns or the ledger', async ({
+  test('TC-MCP-READ-06: tools/list offers no tool that writes payments, instalments, settlements, returns or the ledger (record_sale is the one sale write)', async ({
     request,
   }) => {
     const token = await assistantToken(request);
@@ -172,8 +172,11 @@ test.describe('Assistant read tools', () => {
     const intake = new Set([
       'create_supplier', 'create_product', 'create_purchase_order',
       'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
+      // record_sale added 2026-10-11 (W3): the owner asked the assistant to record sales (§16).
+      'record_sale',
     ]);
-    const officeOnly = /sale|payment|instal|settle|return|refund|ledger|transaction|allocat/i;
+    // Still office-only: payments, instalments, settlements, returns, refunds and the ledger.
+    const officeOnly = /payment|instal|settle|return|refund|ledger|transaction|allocat/i;
     const writes = tools.filter((t: any) => t.annotations?.readOnlyHint !== true);
 
     expect(writes.filter((t: any) => !intake.has(t.name) || officeOnly.test(t.name)).map((t: any) => t.name)).toEqual([]);

@@ -56,12 +56,15 @@ const EXPECTED_TOOLS = [
   'match_receipt', 'create_purchase_order', 'create_supplier', 'create_product',
   // cycle (record_delivery added 2026-10-10, B4: §16 lets it record deliveries)
   'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
+  // sales (record_sale added 2026-10-11, W3: the owner asked the assistant to record sales, §16)
+  'record_sale',
 ];
 
 /** The intake path, receipt to sellable stock — the only things it may change (§16). */
 const WRITE_TOOLS = [
   'create_purchase_order', 'create_supplier', 'create_product',
   'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
+  'record_sale',
 ];
 
 /**
@@ -69,8 +72,9 @@ const WRITE_TOOLS = [
  * tools `list_sales` and `list_payments` are allowed by name; anything that
  * records, changes or removes those records is not.
  */
+// record_sale is the one sale write §16 allows (2026-10-11); payments, returns, settlements and the ledger stay out.
 const FORBIDDEN_WRITE =
-  /^(create|record|add|update|edit|set|delete|remove|cancel|approve|reverse|refund|allocate|settle|close|pay)_.*(sale|payment|instal|settle|ledger|return|refund|plan)/;
+  /^(?!record_sale$)(create|record|add|update|edit|set|delete|remove|cancel|approve|reverse|refund|allocate|settle|close|pay)_.*(sale|payment|instal|settle|ledger|return|refund|plan)/;
 
 // ════════════════════════════════════════════════════════════ the conversation
 
