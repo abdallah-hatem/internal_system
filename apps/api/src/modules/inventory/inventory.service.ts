@@ -142,7 +142,7 @@ export class InventoryService {
       }
 
       // Check for duplicate batch
-      const existingBatch = await this.prisma.inventoryBatch.findUnique({
+      const existingBatch = await this.prisma.inventoryBatch.findFirst({
         where: { sourcePoItemId: item.purchaseOrderItemId },
       });
       if (existingBatch) {
@@ -243,7 +243,7 @@ export class InventoryService {
 
         // Checked by the plan already; checked again here because another
         // receipt of the same line may have landed since.
-        const existingBatch = await tx.inventoryBatch.findUnique({
+        const existingBatch = await tx.inventoryBatch.findFirst({
           where: { sourcePoItemId: item.purchaseOrderItemId },
         });
         if (existingBatch) throw alreadyVerified(item.purchaseOrderItemId);

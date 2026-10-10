@@ -4,6 +4,8 @@
 #
 #   scripts/ship-prod.sh status            migrations production has not had
 #   scripts/ship-prod.sh migrate           apply them
+#   scripts/ship-prod.sh backfill          deliveries for shipments recorded before
+#                                          2026-10-10 (safe to run twice)
 #   scripts/ship-prod.sh env               set PUBLIC_BASE_URL on the API if absent
 #   git push origin master                 (the deploy — not this script's job)
 #   scripts/ship-prod.sh stranded [--fix]  drafts left on cycles that moved on
@@ -21,7 +23,7 @@ API_URL=https://internal-system-api.vercel.app
 WEB_URL=https://internal-system-web-three.vercel.app
 
 step=${1:-}
-[[ -z "$step" ]] && { sed -n 2,15p "$0"; exit 1; }
+[[ -z "$step" ]] && { sed -n 2,17p "$0"; exit 1; }
 
 env_file=$(mktemp)
 trap 'rm -f "$env_file"' EXIT
@@ -41,6 +43,12 @@ case "$step" in
     verb=$([[ "$step" == status ]] && echo status || echo deploy)
     npx prisma migrate "$verb" 2>&1 | grep -vE '^$|prisma.config|Prisma schema loaded' |
       sed -E 's#(://[^:]+:)[^@]+@#\1***@#'
+    ;;
+
+  backfill)
+    prod_env
+    cd "$API_DIR"
+    npm run --silent db:backfill:deliveries
     ;;
 
   env)
@@ -103,5 +111,5 @@ case "$step" in
     exit $fail
     ;;
 
-  *) sed -n 2,15p "$0"; exit 1 ;;
+  *) sed -n 2,17p "$0"; exit 1 ;;
 esac

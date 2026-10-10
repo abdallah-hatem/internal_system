@@ -180,16 +180,14 @@ function fakePrisma() {
       },
     },
     inventoryBatch: {
-      findUnique: ({ where }: Row) =>
+      // One batch per order line is now the service's check, not a unique
+      // index: a line arrives in several deliveries (2026-10-10).
+      findFirst: ({ where }: Row) =>
         Promise.resolve(
           db.batches.find((b) => b.sourcePoItemId === where.sourcePoItemId) ??
             null,
         ),
       create: ({ data }: Row) => {
-        // The unique index on the batch's source line.
-        if (db.batches.some((b) => b.sourcePoItemId === data.sourcePoItemId)) {
-          return Promise.reject(uniqueViolation());
-        }
         const row = { id: randomUUID(), createdAt: new Date(), ...data };
         db.batches.push(row);
         return Promise.resolve({ ...row });
