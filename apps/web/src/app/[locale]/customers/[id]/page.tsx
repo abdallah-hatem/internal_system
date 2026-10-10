@@ -26,10 +26,11 @@ import { DatePicker } from '../../../../components/ui/date-picker';
 import { useToast } from '../../../../components/ui/toast';
 import { MoneyInput } from '../../../../components/ui/money-input';
 import {
-  ArrowLeft, Loader2, Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
+  Loader2, Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
 } from 'lucide-react';
 
 import { useApiError } from '../../../../lib/api-error';
+import { BackLink } from '../../../../components/ui/back-link';
 interface SaleOrder {
   id: string;
   orderNo: string;
@@ -184,12 +185,7 @@ export default function CustomerPage() {
 
   return (
     <div className="space-y-6">
-      <button
-        onClick={() => router.push(`/${locale}/customers`)}
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" /> {tc('back')}
-      </button>
+      <BackLink onClick={() => router.push(`/${locale}/customers`)} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

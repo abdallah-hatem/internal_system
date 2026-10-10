@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "playwright test",
+    "test:unit": "node --test unit/*.test.mjs",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
     "typecheck": "tsc --noEmit -p tsconfig.json"

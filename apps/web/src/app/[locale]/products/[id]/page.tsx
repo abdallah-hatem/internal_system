@@ -10,13 +10,14 @@ import { MoneyInput } from '../../../../components/ui/money-input';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  ArrowLeft, Package, Tag, Barcode, DollarSign, TrendingUp, TrendingDown,
+  Package, Tag, Barcode, DollarSign, TrendingUp, TrendingDown,
   Boxes, AlertTriangle, ShoppingCart, Truck, Store, Loader2, ChevronDown,
   ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check,
 } from 'lucide-react';
 
 import { useApiError } from '../../../../lib/api-error';
 import { ProductPhotos } from '../../../../components/products/product-photos';
+import { BackLink } from '../../../../components/ui/back-link';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -184,12 +185,7 @@ export default function ProductDetailPage() {
   if (!productData) {
     return (
       <div className="space-y-6">
-        <button
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> {tc('back')}
-        </button>
+        <BackLink onClick={() => router.back()} />
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
           {tc('noData')}
         </div>
@@ -204,12 +200,7 @@ export default function ProductDetailPage() {
     <div className="space-y-6">
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <button
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> {tc('back')}
-        </button>
+        <BackLink onClick={() => router.back()} />
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{productData.name}</h1>
           <span

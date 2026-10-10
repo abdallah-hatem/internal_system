@@ -72,7 +72,18 @@
     },
     "suppliers": "المورّدون",
     "orderRequests": "طلبات الشراء",
-    "importRequests": "طلبات الاستيراد"
+    "importRequests": "طلبات الاستيراد",
+    "more": "المزيد",
+    "phoneBar": "التنقل الرئيسي",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة",
+    "short": {
+      "dashboard": "الرئيسية",
+      "sales": "المبيعات",
+      "customers": "العملاء",
+      "inventory": "المخزون",
+      "cycles": "الدورات"
+    }
   },
   "auth": {
     "login": "تسجيل الدخول",

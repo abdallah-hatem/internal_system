@@ -165,10 +165,11 @@ test.describe('Cross-Cutting Concerns', () => {
 
   // ── Global Search ───────────────────────────────────────────────────
 
-  test('TC-XCUT-15: Global search input exists in header', async ({ page }) => {
+  // The header's search box was never wired to anything and was removed
+  // (2026-10-10 spec A #6); search is out of scope, not rebuilt.
+  test('TC-XCUT-15: The header carries no search box', async ({ page }) => {
     await login(page);
-    const searchInput = page.getByPlaceholder(/search/i).first();
-    await expect(searchInput).toBeVisible();
+    await expect(page.locator('header input')).toHaveCount(0);
   });
 
   // ── Responsive ──────────────────────────────────────────────────────

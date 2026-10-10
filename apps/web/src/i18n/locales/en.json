@@ -72,7 +72,18 @@
     },
     "suppliers": "Suppliers",
     "orderRequests": "Order requests",
-    "importRequests": "Import requests"
+    "importRequests": "Import requests",
+    "more": "More",
+    "phoneBar": "Main navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "short": {
+      "dashboard": "Dashboard",
+      "sales": "Sales",
+      "customers": "Customers",
+      "inventory": "Inventory",
+      "cycles": "Cycles"
+    }
   },
   "auth": {
     "login": "Login",
