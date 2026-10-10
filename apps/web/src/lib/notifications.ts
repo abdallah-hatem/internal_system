@@ -1,8 +1,11 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 
 import { api } from './api';
+import { useCodeLabel, type CodeKind } from './labels';
 
 /**
  * The notifications query, defined once.
@@ -21,6 +24,14 @@ import { api } from './api';
 export interface Notification {
   id: string;
   eventType: string;
+  /**
+   * What happened, as a key under `notifications` in the locale files. Absent
+   * on notifications written before codes existed (U5, 2026-10-10).
+   */
+  code?: string | null;
+  /** The values the translated text needs. */
+  params?: Record<string, string | number> | null;
+  /** The English text the server stored — shown as-is when there is no code. */
   title: string;
   payloadJson?: Record<string, unknown> | null;
   readAt: string | null;
@@ -114,4 +125,49 @@ export function notificationHref(notification: Notification): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Params that are themselves codes, and the family each belongs to, so
+ * "moved to SELLING" reads "moved to Selling" / "انتقلت إلى البيع".
+ */
+const CODE_PARAMS: Record<string, CodeKind> = {
+  toStatus: 'cycleStatus',
+  fromStatus: 'cycleStatus',
+};
+
+/**
+ * A notification in the reader's language.
+ *
+ *   const text = useNotificationText();
+ *   text(n)   // "تمت إضافتك إلى الدورة CYC-2026-0007"
+ *
+ * The server stores a `code` and its `params`; this says it in the language the
+ * reader chose (CLAUDE.md rule 9). A notification with no code — every one
+ * written before codes existed — or with a code this build has no words for
+ * shows the English `title` it was stored with. Old rows are data already
+ * written; they must keep reading, not turn blank.
+ */
+export function useNotificationText(): (
+  n: Pick<Notification, 'code' | 'params' | 'title'>,
+) => string {
+  const t = useTranslations('notifications');
+  const codeLabel = useCodeLabel();
+  return useCallback(
+    (n: Pick<Notification, 'code' | 'params' | 'title'>) => {
+      if (!n.code || !t.has(n.code)) return n.title;
+      const values: Record<string, string | number> = {};
+      for (const [name, value] of Object.entries(n.params ?? {})) {
+        const kind = CODE_PARAMS[name];
+        values[name] = kind && typeof value === 'string' ? codeLabel(kind, value) : value;
+      }
+      try {
+        return t(n.code, values);
+      } catch {
+        // A param missing from an old row must not blank the bell.
+        return n.title;
+      }
+    },
+    [t, codeLabel],
+  );
 }

@@ -12,7 +12,7 @@ import {
 import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Link } from '../../../i18n/navigation';
-import { notificationHref, useNotifications } from '../../../lib/notifications';
+import { notificationHref, useNotificationText, useNotifications } from '../../../lib/notifications';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface Notification {
@@ -37,6 +37,7 @@ const EVENT_ICONS: Record<string, typeof Bell> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function NotificationsPage() {
+  const notificationText = useNotificationText();
   const { timeAgo } = useDateFormat();
   const t = useTranslations('notifications');
   const tc = useTranslations('common');
@@ -127,7 +128,7 @@ export default function NotificationsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className={`text-sm font-medium ${!notification.readAt ? 'text-gray-900' : 'text-gray-700'}`}>
-                          {notification.title}
+                          {notificationText(notification)}
                         </p>
                         {!notification.readAt && (
                           <span className="h-2 w-2 bg-primary-500 rounded-full flex-shrink-0" />

@@ -9,7 +9,7 @@ import { Link } from '../../i18n/navigation';
 import { useDateFormat } from '../../lib/dates';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { notificationHref, useNotifications } from '../../lib/notifications';
+import { notificationHref, useNotificationText, useNotifications } from '../../lib/notifications';
 
 interface Notification {
   id: string;
@@ -31,6 +31,7 @@ const BADGE_CAP = 9;
  * open the notifications page.
  */
 export function NotificationBell() {
+  const notificationText = useNotificationText();
   const { formatDate } = useDateFormat();
   const t = useTranslations('notifications');
   const queryClient = useQueryClient();
@@ -116,7 +117,7 @@ export function NotificationBell() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className={cn('text-sm', n.readAt ? 'text-gray-600' : 'font-medium text-gray-900')}>
-                    {n.title}
+                    {notificationText(n)}
                   </p>
                   <p className="text-xs text-gray-400">{formatDate(n.createdAt)}</p>
                 </div>
