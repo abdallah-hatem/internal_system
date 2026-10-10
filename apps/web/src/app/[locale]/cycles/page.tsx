@@ -4,15 +4,18 @@ import { Money } from '../../../components/ui/money';
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
+import { useCodeLabel } from '../../../lib/labels';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { WIZARD_STATUSES } from '../../../components/cycles/wizard-walk';
 import { useToast } from '../../../components/ui/toast';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import Link from 'next/link';
 import {
-  Route, Plus, Search, Eye, ChevronRight, X, Users, ShoppingCart, Truck, Boxes,
-  Clock, CheckCircle2, Circle, Loader2, AlertCircle, ChevronDown,
+  Route, Plus, Search, ChevronRight, X, Users, ShoppingCart, Truck, Boxes,
+  CheckCircle2, Loader2,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
@@ -35,7 +38,19 @@ const STATUS_ORDER = [
   'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED',
 ];
 
-const WIZARD_ACTIVE_STATUSES = ['PLANNING', 'FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT'];
+/**
+ * One cycle's line from the Analytics page's profitability figure.
+ *
+ * The list reads the same endpoint the Analytics page does rather than adding
+ * up sales itself: profit is defined once, and a second sum here would drift
+ * from it on the first change (rule 11). A cycle with nothing received yet is
+ * absent from that figure, and shows a dash.
+ */
+interface CycleProfit {
+  cycleCode: string;
+  profit: number;
+  roiPct: number | null;
+}
 
 const STATUS_COLORS: Record<string, string> = {
   PLANNING: 'bg-gray-100 text-gray-600',
@@ -52,14 +67,6 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: 'bg-red-100 text-red-700',
 };
 
-const STATUS_LABEL_MAP: Record<string, string> = {
-  PLANNING: 'planning', FUNDING: 'funding', PURCHASING: 'purchasing',
-  IN_TRANSIT: 'inTransit', ARRIVED_UAE: 'arrivedUae',
-  IN_TRANSIT_TO_EGYPT: 'inTransitToEgypt', ARRIVED_EGYPT: 'arrivedEgypt',
-  VERIFICATION: 'verification', SELLING: 'selling',
-  SETTLEMENT: 'settlementStatus', CLOSED: 'closed', CANCELLED: 'cancelled',
-};
-
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function CyclesPage() {
   const apiError = useApiError();
@@ -69,6 +76,8 @@ export default function CyclesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -84,6 +93,21 @@ export default function CyclesPage() {
     queryKey: ['cycles'],
     queryFn: () => api.get('/cycles').then((r) => r.data.data ?? r.data),
   });
+
+  const { data: profitability = [] } = useQuery({
+    queryKey: ['analytics', 'cycle-profitability'],
+    queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
+  });
+  const profitByCode = useMemo(
+    () =>
+      new Map<string, CycleProfit>(
+        (Array.isArray(profitability) ? (profitability as CycleProfit[]) : []).map((p) => [
+          p.cycleCode,
+          p,
+        ]),
+      ),
+    [profitability],
+  );
 
   const { data: cycleDetail } = useQuery({
     queryKey: ['cycle', viewingCycle?.id],
@@ -102,10 +126,10 @@ export default function CyclesPage() {
       queryClient.invalidateQueries({ queryKey: ['cycle'] });
       setShowTransitionModal(false);
       setViewingCycle(null);
-      toast.success('Cycle status updated');
+      toast.success(t('statusUpdated'));
     },
     onError: (error: any) => {
-      toast.error(apiError(error, 'Transition failed'));
+      toast.error(apiError(error, t('transitionFailed')));
     },
   });
 
@@ -118,6 +142,20 @@ export default function CyclesPage() {
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  // Nothing at all says what a cycle is and offers the first one; nothing for
+  // this filter or search says only that.
+  const emptyList =
+    cycleList.length === 0 ? (
+      <EmptyState
+        icon={Route}
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), href: '/cycles/new' }}
+      />
+    ) : (
+      <EmptyState icon={Search} title={t('noMatch')} />
+    );
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -161,7 +199,7 @@ export default function CyclesPage() {
             statusFilter === '' ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
           }`}
         >
-          {tc('filter')} ({cycleList.length})
+          {t('all')} ({cycleList.length})
         </button>
         {STATUS_ORDER.map((s) => {
           const count = cycleList.filter((c) => c.status === s).length;
@@ -174,7 +212,7 @@ export default function CyclesPage() {
                 statusFilter === s ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {t(STATUS_LABEL_MAP[s] as any)} ({count})
+              {codeLabel('cycleStatus', s)} ({count})
             </button>
           );
         })}
@@ -210,6 +248,8 @@ export default function CyclesPage() {
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{t('status')}</th>
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{t('participants')}</th>
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{t('purchases')}</th>
+                <th className="text-end px-4 py-3 font-medium text-gray-600">{t('profit')}</th>
+                <th className="text-end px-4 py-3 font-medium text-gray-600">{t('roi')}</th>
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('date')}</th>
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
               </tr>
@@ -217,11 +257,12 @@ export default function CyclesPage() {
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td>
+                  <td colSpan={9}>{emptyList}</td>
                 </tr>
               ) : (
                 paginated.map((cycle) => {
-                  const canResume = WIZARD_ACTIVE_STATUSES.includes(cycle.status);
+                  const canResume = WIZARD_STATUSES.includes(cycle.status);
+                  const figure = profitByCode.get(cycle.code);
                   return (
                     <tr
                       key={cycle.id}
@@ -236,14 +277,20 @@ export default function CyclesPage() {
                     >
                       <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
                         {cycle.code}
-                        {canResume && <span className="ml-2 text-[10px] text-primary-500 font-normal">Click to resume</span>}
+                        {canResume && <span className="ms-2 text-[10px] text-primary-500 font-normal">{t('clickToResume')}</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{cycle.originType === 'CHINA' ? t('china') : t('uaeDirect')}</td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={cycle.status} />
+                        <StatusBadge status={cycle.status} label={codeLabel('cycleStatus', cycle.status)} />
                       </td>
                       <td className="px-4 py-3 text-gray-600">{cycle.participants?.length ?? 0}</td>
                       <td className="px-4 py-3 text-gray-600">{cycle.purchaseOrders?.length ?? 0}</td>
+                      <td className="px-4 py-3 text-end" data-testid="cycle-profit">
+                        <ProfitFigure figure={figure} />
+                      </td>
+                      <td className="px-4 py-3 text-end" data-testid="cycle-roi">
+                        <RoiFigure figure={figure} />
+                      </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(cycle.startedOn)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-3">
@@ -261,7 +308,7 @@ export default function CyclesPage() {
                           </button>
                           {canResume && (
                             <span className="inline-flex items-center gap-1 text-sm font-medium text-primary-600">
-                              Resume <ChevronRight className="h-4 w-4" />
+                              {t('resume')} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                             </span>
                           )}
                         </div>
@@ -279,10 +326,11 @@ export default function CyclesPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="rounded-xl border border-border bg-card">{emptyList}</div>
           ) : (
             paginated.map((cycle) => {
-                const canResume = WIZARD_ACTIVE_STATUSES.includes(cycle.status);
+                const canResume = WIZARD_STATUSES.includes(cycle.status);
+                const figure = profitByCode.get(cycle.code);
                 return (
               <div
                 key={cycle.id}
@@ -293,15 +341,23 @@ export default function CyclesPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-sm font-bold text-gray-900">{cycle.code}</span>
-                  <StatusBadge status={cycle.status} />
+                  <StatusBadge status={cycle.status} label={codeLabel('cycleStatus', cycle.status)} />
                 </div>
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <span>{cycle.originType === 'CHINA' ? t('china') : t('uaeDirect')}</span>
                    <span>{t('participants')}: {cycle.participants?.length ?? 0}</span>
                   <span>{t('purchases')}: {cycle.purchaseOrders?.length ?? 0}</span>
                 </div>
+                <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>
+                    {t('profit')}: <ProfitFigure figure={figure} />
+                  </span>
+                  <span>
+                    {t('roi')}: <RoiFigure figure={figure} />
+                  </span>
+                </div>
                 {canResume && (
-                  <p className="text-xs text-primary-500 mt-2 font-medium">Tap to resume wizard →</p>
+                  <p className="text-xs text-primary-500 mt-2 font-medium">{t('tapToResume')}</p>
                 )}
               </div>
               );
@@ -333,7 +389,7 @@ export default function CyclesPage() {
             <div className="p-6 space-y-6">
               {/* Status + Transition */}
               <div className="flex items-center justify-between">
-                <StatusBadge status={viewingCycle.status} />
+                <StatusBadge status={viewingCycle.status} label={codeLabel('cycleStatus', viewingCycle.status)} />
                 {getNextStatuses(viewingCycle.status).length > 0 && (
                   <button
                     onClick={() => setShowTransitionModal(true)}
@@ -368,7 +424,7 @@ export default function CyclesPage() {
                             {isPast ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                           </div>
                           <span className="text-[10px] text-gray-500 mt-1 text-center leading-tight">
-                            {t(STATUS_LABEL_MAP[s] as any)}
+                            {codeLabel('cycleStatus', s)}
                           </span>
                         </div>
                       );
@@ -411,7 +467,7 @@ export default function CyclesPage() {
                           <p className="font-medium text-gray-900">{po.reference}</p>
                           <p className="text-xs text-gray-500">{po.supplier?.name ?? '—'}</p>
                         </div>
-                        <StatusBadge status={po.status} />
+                        <StatusBadge status={po.status} label={codeLabel('orderStatus', po.status)} />
                       </div>
                     ))}
                   </div>
@@ -428,7 +484,7 @@ export default function CyclesPage() {
                           <p className="font-medium text-gray-900">{leg.origin} → {leg.destination}</p>
                           <p className="text-xs text-gray-500">{leg.provider} • {leg.trackingRef ?? '—'}</p>
                         </div>
-                        <StatusBadge status={leg.status} />
+                        <StatusBadge status={leg.status} label={codeLabel('legStatus', leg.status)} />
                       </div>
                     ))}
                   </div>
@@ -444,7 +500,7 @@ export default function CyclesPage() {
         <Modal title={t('transition')} onClose={() => setShowTransitionModal(false)}>
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Current status: <StatusBadge status={viewingCycle.status} />
+              {t('currentStatus')} <StatusBadge status={viewingCycle.status} label={codeLabel('cycleStatus', viewingCycle.status)} />
             </p>
             <div className="space-y-2">
               {getNextStatuses(viewingCycle.status).map((ns) => (
@@ -457,7 +513,7 @@ export default function CyclesPage() {
                       : 'border-primary-200 text-primary-700 hover:bg-primary-50'
                   }`}
                 >
-                  {t(STATUS_LABEL_MAP[ns] as any)}
+                  {codeLabel('cycleStatus', ns)}
                 </button>
               ))}
             </div>
@@ -474,14 +530,34 @@ export default function CyclesPage() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-  const labelMap: Record<string, string> = STATUS_LABEL_MAP;
-  const label = labelMap[status] ?? status;
+/** A status pill. The words come from `useCodeLabel`, so they are translated. */
+function StatusBadge({ status, label }: { status: string; label: string }) {
   const color = STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600';
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
       {label}
+    </span>
+  );
+}
+
+/** Profit from the analytics figure; a dash for a cycle it does not cover yet. */
+function ProfitFigure({ figure }: { figure?: CycleProfit }) {
+  if (!figure) return <span className="text-muted-foreground">—</span>;
+  return (
+    <Money
+      value={figure.profit}
+      className={figure.profit < 0 ? 'text-destructive' : 'text-foreground'}
+    />
+  );
+}
+
+/** ROI is only meaningful once something has sold; otherwise a dash. */
+function RoiFigure({ figure }: { figure?: CycleProfit }) {
+  if (!figure || figure.roiPct == null) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span dir="ltr" className={figure.roiPct < 0 ? 'text-destructive' : 'text-foreground'}>
+      {figure.roiPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
     </span>
   );
 }

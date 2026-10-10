@@ -349,15 +349,19 @@ test.describe('FX rates reach the forms', () => {
     await expect(fx).not.toHaveValue(String(rates.AED));
   });
 
-  test('TC-RT-08: a cycle whose stock is already in does not dead-end on step 4', async ({
+  test('TC-RT-08: a cycle whose stock is already in does not dead-end in the wizard', async ({
     page,
     request,
   }) => {
     // Going back to ARRIVED_EGYPT is the only way into the wizard to correct a
     // shipping leg, so the list offers "Resume" — but stock can only be
     // received once, and pressing Complete used to fail at the last click with
-    // "Stock already verified". Step 4 now says what is already in and
-    // finishes the cycle instead of refusing.
+    // "Stock already verified".
+    //
+    // Changed by F1b (2026-10-10): the wizard no longer receives anything or
+    // walks past Arrived Egypt, so step 4 is the money and Finish opens the
+    // cycle page with the cycle where it was. The stock is received through
+    // the API here, as before; receiving on screen is F1a's (the cycle page).
     const { headers, cycleId } = await cycleWithALeg(request);
 
     // The shipment has to have actually arrived before the cycle can pass it,
@@ -417,25 +421,26 @@ test.describe('FX rates reach the forms', () => {
     await listRow.click();
     await expect(page).toHaveURL(new RegExp(cycleId), { timeout: 15000 });
 
-    // Step 4 states what is already in stock rather than offering it again.
-    await expect(page.getByText(/already received into stock/i)).toBeVisible({ timeout: 15000 });
-    const done = page.getByRole('button', { name: /^done$/i });
-    await expect(done).toBeVisible();
-    await done.click();
+    // Step 4 is the money; nothing offers to receive the stock again.
+    const finish = page.getByRole('button', { name: /^finish$/i });
+    await expect(finish).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/receive inventory/i)).toHaveCount(0);
+    await finish.click();
 
-    // It finishes and lands back on the list — and the list must SHOW the new
-    // state. Asserting the API alone passed while the page still displayed the
-    // old status from cache, which is what the owner actually hit: saved,
-    // navigated, and no visible change until a manual refresh.
+    // It finishes on the cycle's page, without a refusal.
+    await expect(page).toHaveURL(new RegExp(`/cycles/${cycleId}/details`), { timeout: 15000 });
+
+    // And the list — reached by clicking, so its cache is the one that could
+    // be stale — shows the cycle where it was: the wizard never walks past
+    // Arrived Egypt; receiving is the cycle page's.
+    await page.getByRole('link', { name: 'Import Cycles', exact: true }).first().click();
     await expect(page).toHaveURL(/\/cycles$/, { timeout: 15000 });
-
     const row = page.locator('tr', { hasText: code });
-    await expect(row).toContainText(/verification/i, { timeout: 15000 });
-    await expect(row).not.toContainText(/resume/i);
+    await expect(row).toContainText(/arrived/i, { timeout: 15000 });
 
     // The server agrees, and no second batch was created for the same item.
     const after = await (await request.get(`${API}/cycles/${cycleId}`, { headers })).json();
-    expect((after.data ?? after).status).toBe('VERIFICATION');
+    expect((after.data ?? after).status).toBe('ARRIVED_EGYPT');
     expect((after.data ?? after).inventoryBatches).toHaveLength(1);
   });
 });

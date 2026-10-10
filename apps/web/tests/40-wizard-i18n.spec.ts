@@ -122,7 +122,8 @@ test.describe('Cycle wizard translations', () => {
     await expect(page.locator('form')).toBeVisible({ timeout: 15000 });
 
     const bar = await page.locator('main').first().innerText();
-    for (const title of ['Cycle Info', 'Purchase Order', 'Shipping Leg', 'Receive Inventory']) {
+    // Step 4 is the money now; receiving moved to the cycle page (F1b).
+    for (const title of ['Cycle Info', 'Purchase Order', 'Shipping Leg', 'Funding']) {
       expect(bar).not.toContain(title);
     }
     expect(bar).toContain(ar.wizard.step1Title);

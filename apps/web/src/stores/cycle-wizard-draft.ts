@@ -27,12 +27,13 @@ export interface WizardLineItem {
   discount: number;
 }
 
-export interface WizardReceiveItem {
-  purchaseOrderItemId: string;
-  productId: string;
-  receivedQty: number;
-  landedUnitCostEgp: number;
-}
+/** A fresh purchase order line: the order starts with one (UX quick win). */
+export const emptyLineItem = (): WizardLineItem => ({
+  productId: '',
+  orderedQty: 0,
+  unitPrice: 0,
+  discount: 0,
+});
 
 export interface CycleWizardDraft {
   currentStep: number;
@@ -45,7 +46,6 @@ export interface CycleWizardDraft {
   poId: string | null;
   poReference: string | null;
   legIds: Record<number, string>;
-  shippingLegId: string | null;
 
   // Typed, not necessarily submitted.
   originType: string;
@@ -54,14 +54,25 @@ export interface CycleWizardDraft {
   poFxRate: string;
   poOrderedOn: string;
   lineItems: WizardLineItem[];
-  receiveItems: WizardReceiveItem[];
-  shippingProvider: string;
-  shippingOrigin: string;
-  shippingDestination: string;
-  shippingTrackingRef: string;
-  shippingDepartedOn: string;
-  shippingArrivedOn: string;
-  shippingAmount: string;
+}
+
+/**
+ * What was typed on the shipping step and not yet saved, per cycle.
+ *
+ * The leg form is uncontrolled — its fields read the saved leg once, on mount —
+ * so stepping back to the order, or leaving for the list and clicking the cycle
+ * again, threw away everything typed there. This holds only the fields that
+ * differ from what the form opened with, keyed by cycle, and is cleared the
+ * moment the legs are saved, so it never sits on top of the server's values
+ * for longer than the edit it protects.
+ *
+ * Kept outside `draft` because it applies to resumed cycles too, which have no
+ * draft: the server is the truth for what was saved, and this is only what was
+ * not.
+ */
+export interface UnsavedLegFields {
+  fields: Record<string, string>;
+  savedAt: number;
 }
 
 /**
@@ -85,10 +96,14 @@ const noopStorage: Storage = {
 interface DraftState {
   draft: CycleWizardDraft | null;
   savedAt: number | null;
+  /** Unsaved shipping-step fields, keyed by cycle id. */
+  legFields: Record<string, UnsavedLegFields>;
   /** False until persisted state has been read back, on the first render. */
   hydrated: boolean;
   save: (draft: CycleWizardDraft) => void;
   clear: () => void;
+  saveLegFields: (cycleId: string, fields: Record<string, string>) => void;
+  clearLegFields: (cycleId: string) => void;
 }
 
 export const useCycleWizardDraft = create<DraftState>()(
@@ -96,9 +111,25 @@ export const useCycleWizardDraft = create<DraftState>()(
     (set) => ({
       draft: null,
       savedAt: null,
+      legFields: {},
       hydrated: false,
       save: (draft) => set({ draft, savedAt: Date.now() }),
       clear: () => set({ draft: null, savedAt: null }),
+      saveLegFields: (cycleId, fields) =>
+        set((s) => {
+          const rest = { ...s.legFields };
+          delete rest[cycleId];
+          return Object.keys(fields).length === 0
+            ? { legFields: rest }
+            : { legFields: { ...rest, [cycleId]: { fields, savedAt: Date.now() } } };
+        }),
+      clearLegFields: (cycleId) =>
+        set((s) => {
+          if (!s.legFields[cycleId]) return s;
+          const rest = { ...s.legFields };
+          delete rest[cycleId];
+          return { legFields: rest };
+        }),
     }),
     {
       name: 'cycle-wizard-draft',
@@ -108,13 +139,14 @@ export const useCycleWizardDraft = create<DraftState>()(
       storage: createJSONStorage(() =>
         typeof window === 'undefined' ? noopStorage : window.localStorage,
       ),
-      partialize: ({ draft, savedAt }) => ({ draft, savedAt }),
+      partialize: ({ draft, savedAt, legFields }) => ({ draft, savedAt, legFields }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         if (state.savedAt && Date.now() - state.savedAt > MAX_DRAFT_AGE_MS) {
           state.draft = null;
           state.savedAt = null;
         }
+        state.legFields = freshLegFields(state.legFields);
         state.hydrated = true;
       },
     },
@@ -138,11 +170,31 @@ export function draftIsWorthKeeping(
 ): draft is CycleWizardDraft {
   if (!draft || typeof draft !== 'object') return false;
   if (typeof draft.currentStep !== 'number') return false;
-  if (!Array.isArray(draft.lineItems) || !Array.isArray(draft.receiveItems)) return false;
+  if (!Array.isArray(draft.lineItems)) return false;
+  // The order starts with one empty row, so a row on its own is not work; a
+  // row with a product chosen is.
   return Boolean(
     draft.cycleId ||
       draft.originType ||
       draft.poSupplierId ||
-      draft.lineItems.length > 0,
+      draft.lineItems.some((item) => item && typeof item === 'object' && item.productId),
   );
+}
+
+/**
+ * The unsaved leg fields still worth offering back: well-formed, and younger
+ * than a draft is allowed to be. Anything else in storage is dropped.
+ */
+function freshLegFields(raw: unknown): Record<string, UnsavedLegFields> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, UnsavedLegFields> = {};
+  for (const [cycleId, entry] of Object.entries(raw as Record<string, unknown>)) {
+    const e = entry as Partial<UnsavedLegFields> | null;
+    if (!e || typeof e !== 'object' || !e.fields || typeof e.fields !== 'object') continue;
+    if (typeof e.savedAt !== 'number' || Date.now() - e.savedAt > MAX_DRAFT_AGE_MS) continue;
+    const fields: Record<string, string> = {};
+    for (const [k, v] of Object.entries(e.fields)) if (typeof v === 'string') fields[k] = v;
+    out[cycleId] = { fields, savedAt: e.savedAt };
+  }
+  return out;
 }
