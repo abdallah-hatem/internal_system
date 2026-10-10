@@ -1,0 +1,22 @@
+# Partial arrivals + UX batch — decisions
+
+- **[Ask] Run mode — fully autonomous.** The user's choice, 2026-10-10.
+- **[Ask] Which legs can arrive in parts — any leg.** The user's choice: China→UAE and UAE→Egypt alike.
+- **[Ask] Selling early — yes, as soon as checked.** The user's choice: each delivery into Egypt is
+  verified into stock and can be sold right away. The cycle cannot settle until the whole shipment
+  is accounted for.
+- **[Ask] Goods that never arrive — the partner chooses each time.** The user's words: "you give me
+  options then and i choose as i want maybe lost, maybe they will be shipped later". So the remainder
+  stays in transit by default, and a partner can mark some or all of it lost at any time.
+  Lost cost becomes a recorded loss on the cycle. It is NOT spread onto the batches that arrived:
+  §3 says a batch's landed cost and a sale's COGS are never re-priced, and earlier deliveries may
+  already be sold. So the rule is derived from an existing invariant, not a new guess.
+  Alternatives: spread over the arrived goods (breaks §3); keep waiting with no way out (blocks
+  settlement forever).
+- **[Ask] The three UX rule decisions — "do all".** (1) A sale can be created and confirmed in one
+  click; drafting stays available. (2) A payment can be recorded against a chosen order from that
+  order; oldest-first stays the default elsewhere. (3) A draft order shows no amount owed.
+- **[Ask] #6 search box — remove it.** The user's choice.
+- **[Context] Branching stays as the repo does it.** A local `feature/` branch, verified, merged to
+  `master` and pushed (which deploys). There is no `dev` branch, and previews are switched off.
+  Why: the 2026-09-19 decision still holds.
