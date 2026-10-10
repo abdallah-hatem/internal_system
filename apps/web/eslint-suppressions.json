@@ -34,16 +34,10 @@
   },
   "src/app/[locale]/customers/[id]/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 5
-    },
-    "i18next/no-literal-string": {
-      "count": 1
+      "count": 3
     },
     "local/no-raw-colors": {
-      "count": 49
+      "count": 39
     }
   },
   "src/app/[locale]/customers/page.tsx": {
@@ -198,13 +192,13 @@
   },
   "src/app/[locale]/payments/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-floating-promises": {
       "count": 4
     },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 3
+    },
     "local/no-raw-colors": {
-      "count": 88
+      "count": 79
     },
     "react-hooks/set-state-in-effect": {
       "count": 1

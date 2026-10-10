@@ -25,8 +25,12 @@ import {
 import {
   Plus, Search, X, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
-  Undo2, ShoppingCart,
+  Undo2, ShoppingCart, Wallet,
 } from 'lucide-react';
+import {
+  RecordPaymentDialog,
+  canTakePayment,
+} from '../../../components/payments/RecordPaymentDialog';
 
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
@@ -97,6 +101,7 @@ function SalesPageContent() {
   const apiError = useApiError();
   const t = useTranslations('sales');
   const tc = useTranslations('common');
+  const tp = useTranslations('payments');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
@@ -115,6 +120,9 @@ function SalesPageContent() {
   // Cancelling is not undoable and the button sits beside Confirm, so it asks
   // first rather than acting on the click.
   const [cancellingOrder, setCancellingOrder] = useState<SaleOrder | null>(null);
+  // "Record payment" on a confirmed order that still owes (U2): the money goes
+  // on that order, through the one payment form.
+  const [payingOrder, setPayingOrder] = useState<SaleOrder | null>(null);
 
   // Arriving from a shop's page with ?customer=<id> opens the order form on
   // that shop, so "New Order" there means what it says instead of dropping you
@@ -637,7 +645,7 @@ function SalesPageContent() {
                       <div key={alloc.id ?? payment.id} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-3 text-sm">
                         <div>
                           <p className="font-medium text-gray-900"><Money value={alloc.amount ?? payment.amount} currency={detail.currency} /></p>
-                          <p className="text-xs text-gray-500">{payment.method} · {payment.reference ?? '—'}</p>
+                          <p className="text-xs text-gray-500">{codeLabel('paymentMethod', payment.method)} · {payment.reference ?? '—'}</p>
                         </div>
                         <span className="text-xs text-gray-500">{formatDate(payment.receivedOn)}</span>
                       </div>
@@ -648,7 +656,18 @@ function SalesPageContent() {
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+            <div className="flex flex-wrap justify-end gap-3 pt-2 border-t border-gray-100">
+              {canTakePayment(detail) && (
+                <button
+                  type="button"
+                  data-testid="order-record-payment"
+                  onClick={() => setPayingOrder(detail)}
+                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                >
+                  <Wallet className="h-4 w-4" />
+                  {tp('recordPayment')}
+                </button>
+              )}
               {detail.status === 'DRAFT' && (
                 <>
                   <button
@@ -695,6 +714,12 @@ function SalesPageContent() {
           </div>
         </Modal>
       )}
+
+      <RecordPaymentDialog
+        open={!!payingOrder}
+        order={payingOrder}
+        onClose={() => setPayingOrder(null)}
+      />
 
       {/* ─── Return Modal ──────────────────────────────────────────── */}
       {cancellingOrder && (

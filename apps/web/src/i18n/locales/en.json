@@ -374,7 +374,11 @@
     "verifiedOnly": "Verified only",
     "awaitingReview": "Awaiting review",
     "awaitingReviewHint": "Signed up on the storefront, not yet vetted",
-    "allCustomers": "All customers"
+    "allCustomers": "All customers",
+    "noOrders": "No orders for this customer yet",
+    "noOrdersHint": "A sale to this customer appears here once it is created.",
+    "noPayments": "No payments from this customer yet",
+    "noPaymentsHint": "Record a payment when they pay, and it is applied to their oldest unpaid orders first."
   },
   "payments": {
     "title": "Payments",
@@ -399,7 +403,24 @@
     "search": "Search payments...",
     "outstanding": "Outstanding",
     "saleOrder": "Sale order",
-    "noOpenOrders": "No open orders for this customer"
+    "noOpenOrders": "No open orders for this customer",
+    "recordFor": "Record payment for {order}",
+    "recordPayment": "Record payment",
+    "orderOwes": "{order} owes",
+    "owedNow": "Owed now",
+    "appliedToOrder": "Applied to this order only.",
+    "appliedOldestFirst": "Applied to the oldest unpaid orders first.",
+    "selectCustomer": "Choose the customer who paid",
+    "referencePlaceholder": "e.g. receipt or transfer number",
+    "recordedToast": "Payment recorded",
+    "recordedNotApplied": "The payment was recorded, but not all of it could be applied to orders. Allocate the rest from Payments.",
+    "recordFailed": "Could not record the payment",
+    "allocated": "Payment allocated",
+    "allocateFailed": "Could not allocate the payment",
+    "reversedToast": "Payment reversed",
+    "reverseFailed": "Could not reverse the payment",
+    "empty": "No payments yet",
+    "emptyHint": "Money a customer pays for a confirmed order is recorded here."
   },
   "ledger": {
     "title": "Financial Ledger",
@@ -948,7 +969,12 @@
     "CYCLE_STATUS_CHANGED": "Cycle {cycle} is {status} now, not {expected}. Nothing was changed — preview again.",
     "CYCLE_FINAL_NO_LEGS": "Cycle {cycle} is {status}, so no shipping leg can be added to it.",
     "RECEIVED_EXCEEDS_ORDERED": "{received} of {product} cannot be received: only {ordered} were ordered.",
-    "PREVIEW_CHANGED": "What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that."
+    "PREVIEW_CHANGED": "What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that.",
+    "AMOUNT_NOT_POSITIVE": "A payment must be more than zero.",
+    "PAYMENT_EXCEEDS_ORDER": "Order {order} owes {owed}, so {asked} cannot be paid on it.",
+    "ORDER_NOT_CONFIRMED": "Order {order} is a draft, so it owes nothing yet.",
+    "ORDER_OWES_NOTHING": "Order {order} owes nothing, so nothing can be paid on it.",
+    "DISCOUNT_NEGATIVE": "A discount cannot be negative ({discount})."
   },
   "orderRequests": {
     "title": "Order requests",

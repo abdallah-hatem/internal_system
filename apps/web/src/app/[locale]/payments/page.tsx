@@ -9,18 +9,22 @@ import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
+import { useCodeLabel } from '../../../lib/labels';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { MoneyInput } from '../../../components/ui/money-input';
+import { EmptyState } from '../../../components/ui/empty-state';
 import {
-  CreditCard, Plus, Search, Eye, X, Loader2,
-  ChevronRight, ArrowRightLeft, Ban, RotateCcw,
+  RecordPaymentDialog,
+  canTakePayment,
+} from '../../../components/payments/RecordPaymentDialog';
+import {
+  Plus, Search, Eye, X, Loader2,
+  ArrowRightLeft, RotateCcw,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
-import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
-import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -34,15 +38,11 @@ interface Payment {
   status: string;
 }
 
-interface Customer {
-  id: string;
-  displayName: string;
-}
-
 interface SaleOrder {
   id: string;
   orderNo: string;
   customerId: string;
+  status: string;
   outstanding: number;
   currency: string;
 }
@@ -52,20 +52,6 @@ const STATUS_COLORS: Record<string, string> = {
   REVERSED: 'bg-red-100 text-red-700',
 };
 
-const STATUS_KEYS: Record<string, string> = {
-  RECORDED: 'recorded',
-  REVERSED: 'reversed',
-};
-
-const METHOD_KEYS: Record<string, string> = {
-  CASH: 'cash',
-  BANK_TRANSFER: 'bankTransfer',
-  MOBILE_WALLET: 'mobileWallet',
-  cash: 'cash',
-  bank: 'bankTransfer',
-  bank_transfer: 'bankTransfer',
-  mobile_wallet: 'mobileWallet',
-};
 
 // ─── Main Page ────────────────────────────────────────────────────────
 /**
@@ -87,11 +73,12 @@ function PaymentsPageContent() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newCustomerId, setNewCustomerId] = useState('');
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -104,11 +91,6 @@ function PaymentsPageContent() {
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ['payments'],
     queryFn: () => api.get('/payments').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: customers = [] } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => api.get('/customers').then((r) => r.data.data ?? r.data),
   });
 
   const { data: orders = [] } = useQuery({
@@ -127,51 +109,39 @@ function PaymentsPageContent() {
   useOpenFromQuery(() => setShowCreateModal(true));
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/payments', data),
-    onSuccess: () => {
-      toast('Payment recorded successfully', 'success');
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      // The dashboard's figures and its recent-activity feed read payments.
-      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
-      setShowCreateModal(false);
-    },
-    onError: (error: any) => {
-      toast(apiError(error, 'Failed to create payment'), 'error');
-    },
-  });
-
+  // Recording is `RecordPaymentDialog` — the customer page's form, applied to
+  // the oldest unpaid orders first. Allocate stays for older payments recorded
+  // before that, which may still hold money attached to no order.
   const allocateMutation = useMutation({
     mutationFn: (data: any) => api.post(`/payments/${selectedPayment!.id}/allocations`, data),
     onSuccess: () => {
-      toast('Payment allocated successfully', 'success');
+      toast(t('allocated'), 'success');
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['payment'] });
       setShowAllocateModal(false);
       setSelectedPayment(null);
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to allocate payment'), 'error');
+      toast(apiError(error, t('allocateFailed')), 'error');
     },
   });
 
   const reverseMutation = useMutation({
     mutationFn: (data: any) => api.post(`/payments/${selectedPayment!.id}/reverse`, data),
     onSuccess: () => {
-      toast('Payment reversed successfully', 'success');
+      toast(t('reversedToast'), 'success');
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       void queryClient.invalidateQueries({ queryKey: ['analytics'] });
       setShowReverseModal(false);
       setSelectedPayment(null);
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to reverse payment'), 'error');
+      toast(apiError(error, t('reverseFailed')), 'error');
     },
   });
 
   // ── Derived ───────────────────────────────────────────────────────
   const paymentList: Payment[] = Array.isArray(payments) ? payments : [];
-  const customerList: Customer[] = Array.isArray(customers) ? customers : [];
   const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
 
   const filtered = paymentList.filter((p) => {
@@ -188,19 +158,6 @@ function PaymentsPageContent() {
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // ── Handlers ──────────────────────────────────────────────────────
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      customerId: fd.get('customerId'),
-      amount: Number(fd.get('amount')),
-      currency: fd.get('currency'),
-      method: fd.get('method'),
-      reference: fd.get('reference'),
-      receivedOn: fd.get('receivedOn'),
-    });
-  };
-
   const handleAllocate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -271,7 +228,19 @@ function PaymentsPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr>
+                    <td colSpan={8}>
+                      {search ? (
+                        <p className="px-4 py-12 text-center text-gray-400">{tc('noData')}</p>
+                      ) : (
+                        <EmptyState
+                          title={t('empty')}
+                          description={t('emptyHint')}
+                          action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+                        />
+                      )}
+                    </td>
+                  </tr>
                   ) : (
                     paginated.map((payment) => (
                       <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
@@ -280,12 +249,12 @@ function PaymentsPageContent() {
                       </td>
                       <td className="px-4 py-3 text-gray-900 font-medium"><Money value={payment.amount} /></td>
                       <td className="px-4 py-3 text-gray-600">{payment.currency}</td>
-                      <td className="px-4 py-3 text-gray-600">{t(METHOD_KEYS[payment.method] ?? payment.method)}</td>
+                      <td className="px-4 py-3 text-gray-600">{codeLabel('paymentMethod', payment.method)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(payment.receivedOn)}</td>
                       <td className="px-4 py-3 text-gray-500 font-mono text-xs">{payment.reference ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[payment.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {t(STATUS_KEYS[payment.status] ?? payment.status)}
+                          {codeLabel('paymentStatus', payment.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -330,7 +299,17 @@ function PaymentsPageContent() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">
+              {search ? (
+                <p className="p-12 text-center text-gray-400">{tc('noData')}</p>
+              ) : (
+                <EmptyState
+                  title={t('empty')}
+                  description={t('emptyHint')}
+                  action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+                />
+              )}
+            </div>
           ) : (
             paginated.map((payment) => (
               <div
@@ -343,12 +322,12 @@ function PaymentsPageContent() {
                     <CustomerLink id={payment.customerId} name={payment.customer?.displayName} />
                   </p>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[payment.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {t(STATUS_KEYS[payment.status] ?? payment.status)}
+                    {codeLabel('paymentStatus', payment.status)}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-sm mb-2">
                   <span className="font-medium text-gray-900"><Money value={payment.amount} currency={payment.currency} /></span>
-                  <span className="text-gray-500">{t(METHOD_KEYS[payment.method] ?? payment.method)}</span>
+                  <span className="text-gray-500">{codeLabel('paymentMethod', payment.method)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>{formatDate(payment.receivedOn)}</span>
@@ -381,73 +360,8 @@ function PaymentsPageContent() {
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
       )}
 
-      {/* ─── Record Payment Modal ──────────────────────────────────── */}
-      {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')}</label>
-              <FieldWithQuickCreate
-                entity="customer"
-                onCreated={(c) => setNewCustomerId(c.id)}
-              >
-                <Select
-                  name="customerId"
-                  required
-                  value={newCustomerId}
-                  onChange={setNewCustomerId}
-                  placeholder={t('customer')}
-                  searchPlaceholder={tc('search')}
-                  options={customerList.map((c) => ({
-                    value: c.id,
-                    label: c.displayName,
-                  }))}
-                />
-              </FieldWithQuickCreate>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                {t('amount')}<span className="ms-1 text-red-500">*</span>
-              </label>
-              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-                <Select
-                  name="currency"
-                  defaultValue="EGP"
-                  options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('method')}</label>
-                <Select
-                  name="method"
-                  required
-                  defaultValue="CASH"
-                  options={[
-                    { value: 'CASH', label: t('cash') },
-                    { value: 'BANK_TRANSFER', label: t('bankTransfer') },
-                    { value: 'MOBILE_WALLET', label: t('mobileWallet') },
-                  ]}
-                />
-              </div>
-              <InputField label={t('receivedOn')} name="receivedOn" type="date" required />
-            </div>
-            <InputField label={t('reference')} name="reference" />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+      {/* ─── Record Payment — the one form, shared with the customer page ── */}
+      <RecordPaymentDialog open={showCreateModal} onClose={() => setShowCreateModal(false)} />
 
       {/* ─── Allocate Modal ────────────────────────────────────────── */}
       {showAllocateModal && selectedPayment && (
@@ -473,7 +387,7 @@ function PaymentsPageContent() {
                   .filter(
                     (o: SaleOrder) =>
                       o.customerId === selectedPayment?.customerId &&
-                      Number(o.outstanding) > 0,
+                      canTakePayment(o),
                   )
                   .map((o: SaleOrder) => ({
                     value: o.id,
@@ -532,10 +446,10 @@ function PaymentsPageContent() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={viewingPayment.customer?.displayName ?? '—'} />
               <Detail label={t('amount')} value={<Money value={viewingPayment.amount} currency={viewingPayment.currency} />} />
-              <Detail label={t('method')} value={t(METHOD_KEYS[viewingPayment.method] ?? viewingPayment.method)} />
+              <Detail label={t('method')} value={codeLabel('paymentMethod', viewingPayment.method)} />
               <Detail label={t('receivedOn')} value={formatDate(viewingPayment.receivedOn)} />
               <Detail label={t('reference')} value={viewingPayment.reference ?? '—'} />
-              <Detail label={t('status')} value={t(STATUS_KEYS[viewingPayment.status] ?? viewingPayment.status)} />
+              <Detail label={t('status')} value={codeLabel('paymentStatus', viewingPayment.status)} />
             </div>
           </div>
         </Modal>

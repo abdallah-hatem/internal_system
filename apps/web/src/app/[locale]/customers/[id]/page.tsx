@@ -11,25 +11,27 @@
  *
  * Taking money was the worst of it: record a payment on one page, find it in
  * a list, then allocate it to an order chosen from every order in the system.
- * Here it is one action — see below.
+ * Here it is one action, through `RecordPaymentDialog` — the same form the
+ * Payments page and an order open (rule 11).
  */
 
 import { useTranslations } from 'next-intl';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { api } from '../../../../lib/api';
-import { formatDate } from '../../../../lib/dates';
+import { useDateFormat } from '../../../../lib/dates';
+import { useCodeLabel } from '../../../../lib/labels';
 import { Money } from '../../../../components/ui/money';
-import { Select } from '../../../../components/ui/select';
-import { DatePicker } from '../../../../components/ui/date-picker';
-import { useToast } from '../../../../components/ui/toast';
-import { MoneyInput } from '../../../../components/ui/money-input';
+import { EmptyState } from '../../../../components/ui/empty-state';
+import {
+  RecordPaymentDialog,
+  oldestFirst,
+} from '../../../../components/payments/RecordPaymentDialog';
 import {
   Loader2, Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
 } from 'lucide-react';
 
-import { useApiError } from '../../../../lib/api-error';
 import { BackLink } from '../../../../components/ui/back-link';
 interface SaleOrder {
   id: string;
@@ -55,16 +57,15 @@ interface PaymentRecord {
 const num = (v: unknown) => Number(v ?? 0);
 
 export default function CustomerPage() {
-  const apiError = useApiError();
   const t = useTranslations('customers');
   const tp = useTranslations('payments');
   const ts = useTranslations('sales');
   const tpl = useTranslations('paymentPlans');
   const tc = useTranslations('common');
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const { addToast } = useToast();
 
   const [showPay, setShowPay] = useState(false);
 
@@ -95,81 +96,13 @@ export default function CustomerPage() {
   const paymentList = Array.isArray(payments) ? payments : [];
   const plan = (Array.isArray(plans) ? plans : []).find((p) => p.status === 'ACTIVE');
 
-  // Oldest first: money clears the oldest debt, which is both what shops
-  // expect and the rule the instalment logic already follows.
-  //
-  // Confirmed orders only. A draft is not a sale yet — it reserves nothing and
-  // counts for nothing — so paying against one would attach money to something
-  // that may never happen. The server counts what is owed the same way, and
-  // allocating here to an order it did not count would strand the difference.
-  const openOrders = useMemo(
-    () =>
-      orderList
-        .filter(
-          (o) => num(o.outstanding) > 0 && ['CONFIRMED', 'PARTIALLY_PAID'].includes(o.status),
-        )
-        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
-    [orderList],
-  );
-
+  // Confirmed orders only, the rule the dialog applies money by. A draft is
+  // not a sale yet — it reserves nothing and counts for nothing (§4).
+  const openOrders = useMemo(() => oldestFirst(orderList), [orderList]);
   const owed = openOrders.reduce((s, o) => s + num(o.outstanding), 0);
   const paid = paymentList
     .filter((p) => p.status === 'RECORDED')
     .reduce((s, p) => s + num(p.amount), 0);
-
-  /**
-   * Record a payment and put it against the oldest open orders.
-   *
-   * This was three steps on two screens: create the payment, find it again,
-   * then allocate it to an order picked from a list of every order in the
-   * system. Nobody takes money from a shop and thinks of it that way — they
-   * think "he paid 5,000 off what he owes".
-   *
-   * More than is owed is refused outright by the server rather than left over
-   * as credit. That was my call originally and it was wrong: money attached to
-   * no order clears nothing, still reads as collected, and is almost always a
-   * typo — which is exactly the moment to catch it.
-   */
-  const pay = useMutation({
-    mutationFn: async (form: { amount: number; method: string; receivedOn: string; reference?: string }) => {
-      const created = await api.post('/payments', {
-        customerId: id,
-        amount: form.amount,
-        currency: customer?.currency ?? 'EGP',
-        method: form.method,
-        receivedOn: form.receivedOn,
-        reference: form.reference || undefined,
-      });
-      const payment = created.data.data ?? created.data;
-
-      let left = form.amount;
-      for (const order of openOrders) {
-        if (left <= 0) break;
-        const take = Math.min(left, num(order.outstanding));
-        if (take <= 0) continue;
-        await api.post(`/payments/${payment.id}/allocations`, {
-          saleOrderId: order.id,
-          amount: take,
-        });
-        left -= take;
-      }
-      return left;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customer', id] });
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['paymentPlans'] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      setShowPay(false);
-      addToast('Payment recorded and applied', 'success');
-    },
-    onError: (e: any) =>
-      addToast(
-        apiError(e, 'Could not record the payment'),
-        'error',
-      ),
-  });
 
   if (isLoading) {
     return (
@@ -191,20 +124,22 @@ export default function CustomerPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{customer.displayName}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {customer.type}
+            {codeLabel('customerType', customer.type)}
             {customer.phone ? ` · ${customer.phone}` : ''}
           </p>
         </div>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => setShowPay(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 sm:min-h-0"
           >
             <Wallet className="h-4 w-4" /> {tp('create')}
           </button>
           <button
+            type="button"
             onClick={() => router.push(`/${locale}/sales?customer=${id}`)}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0"
           >
             <Plus className="h-4 w-4" /> {ts('create')}
           </button>
@@ -228,18 +163,32 @@ export default function CustomerPage() {
 
       <Card title={ts('title')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
         {orderList.length === 0 ? (
-          <Empty>{tc('noData')}</Empty>
+          <EmptyState
+            title={t('noOrders')}
+            description={t('noOrdersHint')}
+            action={{ label: ts('create'), onClick: () => router.push(`/${locale}/sales?customer=${id}`) }}
+          />
         ) : (
           <Rows>
             {orderList.map((o) => (
               <Row key={o.id}>
                 <span className="font-mono text-xs text-gray-500">{o.orderNo}</span>
                 <span className="text-xs text-gray-400">{formatDate(o.createdAt)}</span>
-                <span className="text-sm">{o.status}</span>
+                <span className="text-sm">{codeLabel('orderStatus', o.status)}</span>
                 <span className="text-sm"><Money value={num(o.total)} /></span>
-                <span className={`text-sm font-medium ${num(o.outstanding) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  <Money value={num(o.outstanding)} />
-                </span>
+                {/* A draft owes nothing (§4): a dash and why, not a red number. */}
+                {o.status === 'DRAFT' ? (
+                  <span className="text-sm text-gray-400" data-testid="outstanding">
+                    — <span className="text-xs">({ts('notConfirmed')})</span>
+                  </span>
+                ) : (
+                  <span
+                    data-testid="outstanding"
+                    className={`text-sm font-medium ${num(o.outstanding) > 0 ? 'text-red-600' : 'text-green-600'}`}
+                  >
+                    <Money value={num(o.outstanding)} />
+                  </span>
+                )}
               </Row>
             ))}
           </Rows>
@@ -248,7 +197,11 @@ export default function CustomerPage() {
 
       <Card title={tp('title')} icon={<Wallet className="h-4 w-4 text-gray-400" />}>
         {paymentList.length === 0 ? (
-          <Empty>{tc('noData')}</Empty>
+          <EmptyState
+            title={t('noPayments')}
+            description={t('noPaymentsHint')}
+            action={{ label: tp('create'), onClick: () => setShowPay(true) }}
+          />
         ) : (
           <Rows>
             {paymentList.map((p) => {
@@ -257,9 +210,9 @@ export default function CustomerPage() {
               return (
                 <Row key={p.id}>
                   <span className="text-xs text-gray-400">{formatDate(p.receivedOn)}</span>
-                  <span className="text-sm">{p.method}</span>
+                  <span className="text-sm">{codeLabel('paymentMethod', p.method)}</span>
                   <span className="text-sm font-medium"><Money value={num(p.amount)} /></span>
-                  <span className="text-xs text-gray-500">{p.status}</span>
+                  <span className="text-xs text-gray-500">{codeLabel('paymentStatus', p.status)}</span>
                   <span className="text-xs text-gray-400">
                     {credit > 0 ? <>{tc('unapplied')} <Money value={credit} /></> : ''}
                   </span>
@@ -272,7 +225,7 @@ export default function CustomerPage() {
 
       <Card title={tpl('title')} icon={<CalendarClock className="h-4 w-4 text-gray-400" />}>
         {!plan ? (
-          <Empty>{tpl('noData')}</Empty>
+          <p className="py-6 text-center text-sm text-gray-400">{tpl('noData')}</p>
         ) : (
           <Rows>
             {plan.instalments.map((i: any) => (
@@ -288,14 +241,11 @@ export default function CustomerPage() {
         )}
       </Card>
 
-      {showPay && (
-        <PaymentModal
-          owed={owed}
-          onClose={() => setShowPay(false)}
-          onSubmit={(v) => pay.mutate(v)}
-          pending={pay.isPending}
-        />
-      )}
+      <RecordPaymentDialog
+        open={showPay}
+        onClose={() => setShowPay(false)}
+        customer={{ id, displayName: customer.displayName, currency: customer.currency }}
+      />
     </div>
   );
 }
@@ -320,10 +270,6 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
   );
 }
 
-const Empty = ({ children }: { children: React.ReactNode }) => (
-  <p className="py-6 text-center text-sm text-gray-400">{children}</p>
-);
-
 const Rows = ({ children }: { children: React.ReactNode }) => (
   <div className="divide-y divide-gray-100">{children}</div>
 );
@@ -331,77 +277,3 @@ const Rows = ({ children }: { children: React.ReactNode }) => (
 const Row = ({ children }: { children: React.ReactNode }) => (
   <div className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">{children}</div>
 );
-
-function PaymentModal({
-  owed,
-  onClose,
-  onSubmit,
-  pending,
-}: {
-  owed: number;
-  onClose: () => void;
-  onSubmit: (v: { amount: number; method: string; receivedOn: string; reference?: string }) => void;
-  pending: boolean;
-}) {
-  const tp = useTranslations('payments');
-  const tc = useTranslations('common');
-  const today = new Date();
-  const iso = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-        <h2 className="mb-1 text-lg font-semibold text-gray-900">{tp('create')}</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Applied to the oldest unpaid orders first. Owed now: <Money value={owed} />
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const fd = new FormData(e.currentTarget);
-            onSubmit({
-              amount: Number(fd.get('amount')),
-              method: String(fd.get('method') || 'CASH'),
-              receivedOn: String(fd.get('receivedOn') || iso),
-              reference: String(fd.get('reference') || ''),
-            });
-          }}
-          className="space-y-4"
-        >
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{tp('amount')}</label>
-            <MoneyInput
-              name="amount" required autoFocus
-              placeholder={owed > 0 ? owed.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{tp('method')}</label>
-            <Select
-              name="method"
-              defaultValue="CASH"
-              options={['CASH', 'BANK_TRANSFER', 'CHEQUE'].map((m) => ({ value: m, label: m }))}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{tp('receivedOn')}</label>
-            <DatePicker name="receivedOn" defaultValue={iso} />
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">
-              {tc('cancel')}
-            </button>
-            <button
-              type="submit" disabled={pending}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {tc('save')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
