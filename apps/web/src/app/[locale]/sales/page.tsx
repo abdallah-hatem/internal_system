@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { useOpenFromQuery } from '../../../lib/open-from-query';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
@@ -289,6 +290,9 @@ function SalesPageContent() {
     // the form and a stale link cannot resurrect it later.
     router.replace(`/${locale}/sales`, { scroll: false });
   }, [searchParams, customerList, locale, router]);
+
+  // `?new=1` — the dashboard's "New sale" — opens the same form the button does.
+  useOpenFromQuery(() => setShowCreateModal(true));
 
   /**
    * Switch channel and re-price the lines that are still at list price.

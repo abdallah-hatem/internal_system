@@ -14,7 +14,7 @@
  *
  *  These are API cases. The dashboard page is wired to this endpoint by U4,
  *  whose own case — the latest sale shows after confirming, reached by
- *  clicking — is the last test here, pending until that lands.
+ *  clicking — is the last test here.
  */
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder, API, EMAIL, PASSWORD } from './support/fixtures';
@@ -160,9 +160,9 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
 
-// Pending U4: the dashboard still reads /audit-logs. Remove `fixme` when it
-// reads /analytics/recent-activity.
-test.fixme('TC-RECENT-09: the dashboard lists a sale confirmed a moment ago, reached by clicking', async ({
+// U4: the dashboard reads /analytics/recent-activity and refetches it on every
+// visit, so a sale confirmed elsewhere shows after clicking back.
+test('TC-RECENT-09: the dashboard lists a sale confirmed a moment ago, reached by clicking', async ({
   page,
   request,
 }) => {

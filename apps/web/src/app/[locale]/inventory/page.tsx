@@ -4,11 +4,13 @@ import { ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { isBelowMinStock } from '../../../components/dashboard/list-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
   Boxes, Search, ChevronDown, ChevronRight, X, Loader2, AlertTriangle,
@@ -44,10 +46,27 @@ interface Movement {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────
+/**
+ * Reads `?stock=low` (the dashboard's Low stock tile) to show only products
+ * under their minimum. `useSearchParams` cannot be prerendered, so Next
+ * requires a Suspense boundary or `next build` fails on this page.
+ */
 export default function InventoryPage() {
+  return (
+    <Suspense fallback={null}>
+      <InventoryPageContent />
+    </Suspense>
+  );
+}
+
+function InventoryPageContent() {
   const apiError = useApiError();
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
+  const td = useTranslations('dashboard');
+  const router = useRouter();
+  const locale = useLocale();
+  const lowOnly = useSearchParams().get('stock') === 'low';
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -59,7 +78,7 @@ export default function InventoryPage() {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, lowOnly]);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { data: inventory = [], isLoading } = useQuery({
@@ -101,6 +120,7 @@ export default function InventoryPage() {
   const movementList: Movement[] = Array.isArray(movements) ? movements : [];
 
   const filtered = inventoryList.filter((item) => {
+    if (lowOnly && !isBelowMinStock(item)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -137,6 +157,22 @@ export default function InventoryPage() {
           className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
+
+      {lowOnly && (
+        <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="low-stock-chip">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1 font-medium text-destructive">
+            <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5" />
+            {td('showingLowStock')}
+          </span>
+          <button
+            type="button"
+            onClick={() => router.replace(`/${locale}/inventory`, { scroll: false })}
+            className="min-h-11 cursor-pointer px-2 text-primary hover:underline sm:min-h-0"
+          >
+            {td('showAll')}
+          </button>
+        </div>
+      )}
 
       {/* Loading */}
       {isLoading && (

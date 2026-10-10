@@ -91,14 +91,6 @@
       "count": 1
     }
   },
-  "src/app/[locale]/dashboard/page.tsx": {
-    "i18next/no-literal-string": {
-      "count": 4
-    },
-    "local/no-raw-colors": {
-      "count": 33
-    }
-  },
   "src/app/[locale]/import-requests/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2

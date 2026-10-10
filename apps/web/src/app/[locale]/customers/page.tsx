@@ -4,11 +4,11 @@ import { CustomerLink } from '../../../components/ui/entity-link';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { formatDate } from '../../../lib/dates';
 import {
@@ -20,6 +20,7 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
+import { sortByBalance } from '../../../components/dashboard/list-params';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -51,12 +52,28 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────
+/**
+ * Reads `?sort=balance` (the dashboard's Receivables tile) to put whoever owes
+ * the most first. `useSearchParams` cannot be prerendered, so Next requires a
+ * Suspense boundary or `next build` fails on this page.
+ */
 export default function CustomersPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomersPageContent />
+    </Suspense>
+  );
+}
+
+function CustomersPageContent() {
   const apiError = useApiError();
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations('customers');
   const tc = useTranslations('common');
+  const td = useTranslations('dashboard');
+  const searchParams = useSearchParams();
+  const byBalance = searchParams.get('sort') === 'balance';
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -72,7 +89,7 @@ export default function CustomersPage() {
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, verification]);
+  useEffect(() => { setPage(1); }, [search, verification, byBalance]);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { data: customers = [], isLoading } = useQuery({
@@ -132,7 +149,7 @@ export default function CustomersPage() {
   // ── Derived ───────────────────────────────────────────────────────
   const customerList: Customer[] = Array.isArray(customers) ? customers : [];
 
-  const filtered = customerList.filter((c) => {
+  const matching = customerList.filter((c) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -141,6 +158,7 @@ export default function CustomersPage() {
       c.email?.toLowerCase().includes(q)
     );
   });
+  const filtered = byBalance ? sortByBalance(matching) : matching;
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
@@ -208,6 +226,21 @@ export default function CustomersPage() {
         />
       </div>
 
+      {byBalance && (
+        <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="balance-sort-chip">
+          <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 font-medium text-primary">
+            {td('sortedByBalance')}
+          </span>
+          <button
+            type="button"
+            onClick={() => router.replace(`/${locale}/customers`, { scroll: false })}
+            className="min-h-11 cursor-pointer px-2 text-primary hover:underline sm:min-h-0"
+          >
+            {tc('clear')}
+          </button>
+        </div>
+      )}
+
       {/* Loading */}
       {isLoading && (
         <div className="flex items-center justify-center py-12 text-gray-500">
@@ -226,7 +259,12 @@ export default function CustomersPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('type')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('phone')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('email')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('balance')}</th>
+                  <th
+                    className="text-start px-4 py-3 font-medium text-gray-600"
+                    aria-sort={byBalance ? 'descending' : undefined}
+                  >
+                    {t('balance')}
+                  </th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>

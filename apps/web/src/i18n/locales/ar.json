@@ -108,7 +108,30 @@
     "cashOut": "النقد المدفوع",
     "collected": "المحصّل",
     "cashOnHand": "النقد المتاح",
-    "cashIn": "النقد المستلم"
+    "cashIn": "النقد المستلم",
+    "subtitle": "ما يملكه النشاط وما عليه وما له اليوم",
+    "quickActions": "إجراءات سريعة",
+    "actions": {
+      "newSale": "بيع جديد",
+      "recordPayment": "تسجيل دفعة",
+      "newCycle": "دورة جديدة"
+    },
+    "recentActivity": "النشاط الأخير",
+    "recentActivityEmpty": "لا يوجد نشاط بعد",
+    "recentActivityEmptyHint": "تظهر هنا المبيعات المؤكدة والدفعات المسجلة والمخزون المستلم.",
+    "recentActivityError": "تعذّر تحميل النشاط الأخير.",
+    "kind": {
+      "SALE": "بيع",
+      "PAYMENT": "دفعة",
+      "RECEIPT": "استلام مخزون"
+    },
+    "units": "{count, number} وحدة",
+    "topProducts": "المنتجات الأكثر مبيعًا",
+    "topProductsEmpty": "لا توجد مبيعات بعد",
+    "sold": "تم بيع {count, number}",
+    "sortedByBalance": "الأعلى رصيدًا أولًا",
+    "showingLowStock": "عرض المنتجات التي تحت الحد الأدنى للمخزون",
+    "showAll": "عرض الكل"
   },
   "products": {
     "title": "المنتجات",
