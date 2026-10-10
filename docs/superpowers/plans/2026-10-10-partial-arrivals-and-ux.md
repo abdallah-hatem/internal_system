@@ -19,7 +19,7 @@ thread runs e2e against the shared database.
 | 1 | B1 · U0 · U3 · S1 · U4b | — |
 | 2 | B2 · U1 · U4 | B1 (B2); U0 (U1, U4) |
 | 3 | B3 · U2 | B2 (B3); U1 (U2 edits the sales page U1 owns) |
-| 4 | B4 · F1a · F1b | B3 |
+| 4 | B4 · B5 · F1a · F1b | B3 |
 | 5 | U5 | everything (it sweeps every page) |
 
 File ownership per wave: no two tasks in a wave create or modify the same file. The exception is
@@ -176,6 +176,24 @@ Edge cases:
 - [ ] An `mcp` token on the REST delivery endpoints → `WRONG_SURFACE`   (§16)
 - [ ] Update the old assistant specs that pinned "verify once" or "VERIFICATION only" (cycle.spec.ts :946, :1025; e2e 69 TC-MCP-CYC-31) to the new rule, each with a reason   (regression)
 
+### B5 — Refunds for goods lost on the way (backend · logic)
+Depends on: B3. Owns: `purchases.service.ts` refund path, `common/ledger-categories.ts`, the
+`SupplierRefund` model fields (a small migration), `shipping` losses (the take-back guard).
+Spec Amendment 13; BUSINESS_LOGIC §6.
+
+Edge cases:
+- [ ] A loss of 550 refunded 300 then 250 → both accepted; then 1 more → `REFUND_EXCEEDS_LOSS`   (§6 cap, counting earlier ones)
+- [ ] A refund in USD at FX 50 of 12 → 600 EGP against a 550 loss → refused   (§6: the cap is in EGP)
+- [ ] A refund raises cycle profit by its EGP in settlement and analytics alike, and appears as an INFLOW `loss_refund` with the cycle id   (§6, §9, rule 11)
+- [ ] A refund on a CLOSED cycle → accepted (money arriving)   (§6)
+- [ ] Dated tomorrow (Cairo) → `DATE_IN_FUTURE`; the same now applies to a plain supplier refund   (rule 1)
+- [ ] Amount 0 or negative → refused   (rule 1)
+- [ ] An unknown loss id → 404; a payer that is neither the leg's provider nor the order's supplier → 404   (the wrong owner)
+- [ ] Taking back a refunded loss → `LOSS_REFUNDED`   (§1, §6)
+- [ ] Investor or shop token → refused with a code   (rule 12)
+- [ ] The order-level cap (§6) counts loss refunds too: order 1,000, loss refunds 600, plain refund 500 → refused   (§6)
+- [ ] Double submit → one refund (button disabled; the server accepts duplicates only up to the cap)   (the second time)
+
 ### F1a — The cycle's Shipment panel, receiving and losses on screen (frontend · logic)
 Depends on: B3. Owns: `cycles/[cycleId]/**` pages, new `components/shipment/*`,
 `inventory/page.tsx`, `shipments/page.tsx`.
@@ -195,6 +213,7 @@ Interaction cases:
 - [ ] Future dates are disabled in the delivery date picker, using Cairo's today   (§1, §7a)
 - [ ] The EGP figure in Mark lost comes from the server's preview, not a client recompute; the shown and booked amounts are equal   (rule 11)
 - [ ] Take a loss back from the panel → the units return to on the way   (§1)
+- [ ] Record refund on a loss: shows loss, refunded so far and unrecovered; a too-large amount shows `REFUND_EXCEEDS_LOSS` translated, and the dialog keeps its values   (§6, rule 9)
 - [ ] An empty "Receive stock" list says there is nothing waiting   (empty state)
 
 ### F1b — Wizard ends at "in transit"; the cycle list shows profit (frontend · logic)

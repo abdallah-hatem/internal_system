@@ -36,3 +36,12 @@
   still said "loss → ledger row", "unique delivery line", `DELIVERY_HAS_STOCK`, "stays on the way", and
   U4's cases sat under U4b. All were reworded to match the doc, and the missing role cases (receipts,
   taking a loss back) and the late-freight case were added.
+- **[User, 2026-10-10] A loss can be refunded.** The owner said: "also a loss we can have a refund for it".
+  Built on the existing supplier-refund path (§6), so there is one kind of refund, not two. A refund is
+  recorded against the loss, from the leg's shipping company or the order's supplier, in any currency.
+  It is a ledger inflow and a cost recovery, so it raises profit. Its cap is the loss cost, in EGP,
+  counting earlier refunds. It is allowed in any cycle status, as supplier refunds already are. A
+  refunded loss cannot be taken back. Found on the way: plain supplier refunds accept a future date
+  (rule 1 gap) — fixed in the same task.
+  Alternatives: no cap (pays a profit for losing goods); refuse on settled cycles (the money still
+  arrives, and §9 records money as it moves).

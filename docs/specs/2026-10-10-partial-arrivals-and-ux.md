@@ -257,3 +257,17 @@ override the text above:
     `verify_stock` keeps `PREVIEW_CHANGED` when the landed cost has moved.
 12. **Classes.** F1a and F1b become `logic` (they write deliveries, receipts, losses and cycle
     status). U4's query fix splits out as U4b (`logic`).
+13. **Refunds for a loss** (asked by the owner 2026-10-10, BUSINESS_LOGIC §6).
+    `POST /shipping/losses/:id/refunds` `{amount, currency, fxRateToEgp, recordedOn, payer:
+    {type: 'SHIPPING_PROVIDER'|'SUPPLIER', id}, reason?}`, CORE_PARTNER. It reuses `SupplierRefund`
+    with two new optional fields, `shipmentLossId` and `payerShippingProviderId` (supplier = the
+    order's supplier, as today). Ledger INFLOW, category `loss_refund`, added to
+    `COST_RECOVERY_CATEGORIES` in `common/ledger-categories.ts` (one definition, so settlement and
+    analytics both count it). Refusals:
+    - `REFUND_EXCEEDS_LOSS` when the total EGP on a loss would pass its `costEgp`
+    - `DATE_IN_FUTURE`, which is now also applied to plain supplier refunds (they lacked it)
+    - `QTY_NOT_POSITIVE` / `VALIDATION_FAILED` for amounts
+    - 404 for an unknown loss or a payer that is not the leg's provider / the order's supplier
+    Allowed in any cycle status. Taking back a refunded loss → `LOSS_REFUNDED`. The order-level cap
+    (§6) still counts these refunds too. The UI is a "Record refund" action on each loss in the
+    Shipment panel, which shows the loss, refunded so far, and what is still unrecovered.

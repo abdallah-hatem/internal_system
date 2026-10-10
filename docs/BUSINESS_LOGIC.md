@@ -67,7 +67,8 @@ Anything not yet received can be marked lost: units on the way on any leg, and
 units a last-leg delivery brought but that were never found when it was counted.
 
 **A loss can be taken back** while the cycle is not settled, for when the goods
-turn up after all. Taking it back puts the units on the way again.
+turn up after all. Taking it back puts the units on the way again. A loss that has been
+refunded cannot be taken back (§6).
 
 **Nothing is recorded on a cycle being settled.** No delivery, receipt or loss
 while the cycle is in settlement or closed; reversing the settlement reopens it.
@@ -262,6 +263,24 @@ sold at, and a settlement may already have been agreed on those figures.
 
 Refunding more than the order was worth, counting refunds already recorded, is
 refused.
+
+**DECIDED 2026-10-10 — goods lost on the way can be refunded.** *Building.* Asked
+for by the owner. Whoever lost them — the shipping company, or the supplier — may
+pay some or all of it back. A refund is recorded against **the loss itself**, from
+the leg's shipping company or the order's supplier, in any currency with its FX
+rate, and works like any supplier refund: it is money arriving, so it reaches the
+ledger as an inflow on the cycle and recovers cost, raising the cycle's profit by
+what it brings in.
+
+- Refunds on one loss can never total more than the loss cost, counting earlier
+  ones — compensation is recovery, not a profit on losing goods.
+- Like any supplier refund it can be recorded whenever the money arrives, even
+  after the cycle is settled or closed.
+- A loss that has been refunded cannot be taken back: the goods turning up after
+  being paid for would be counted twice. Record the goods as a new delivery is not
+  possible either; the refund has to be dealt with first (returned money is a
+  ledger correction).
+- Neither kind of refund can be dated in the future.
 
 ---
 
