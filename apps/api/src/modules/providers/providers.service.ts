@@ -98,11 +98,15 @@ export class ProvidersService {
   async remove(id: string, actorId: string) {
     const existing = await this.prisma.provider.findUnique({
       where: { id },
-      include: { _count: { select: { shippingLegs: true } } },
+      include: {
+        _count: { select: { shippingLegs: true, lossRefunds: true } },
+      },
     });
     if (!existing) throw notFound('provider');
 
-    if (existing._count.shippingLegs > 0) {
+    // A loss refund it paid points at it too (§6): once a leg is moved to
+    // another company, the refund still names this one.
+    if (existing._count.shippingLegs > 0 || existing._count.lossRefunds > 0) {
       throw badRequest(
         'PROVIDER_IN_USE',
         'Cannot delete provider: it is referenced by shipping legs',

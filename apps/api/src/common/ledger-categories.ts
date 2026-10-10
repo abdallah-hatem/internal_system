@@ -30,11 +30,32 @@ export const CAPITALISED_CATEGORIES = [
 ] as const;
 
 /**
- * Money recovered from a supplier.
+ * Money recovered: from a supplier against an order (`supplier_refund`), or
+ * from the shipping company or supplier for goods lost on the way
+ * (`loss_refund`, §6 2026-10-10).
  *
  * It does not re-price batches already costed — units sold keep the cost they
  * were sold at — so it lands as a reduction of expenses, which is to say a
  * gain. An allowlist rather than "every inflow", so a new inflow category
  * cannot silently start reducing costs.
+ *
+ * Read by settlement, by analytics' cycle profitability and by the
+ * dashboard's net profit. The cycle profitability used to test for
+ * `'supplier_refund'` by name, and the dashboard did not count recoveries at
+ * all — the same drift as `CAPITALISED_CATEGORIES` had (rule 11).
  */
-export const COST_RECOVERY_CATEGORIES = ['supplier_refund'] as const;
+export const COST_RECOVERY_CATEGORIES = [
+  'supplier_refund',
+  'loss_refund',
+] as const;
+
+/** Is this ledger row money recovered against a cycle's cost? */
+export function isCostRecovery(t: {
+  direction: string;
+  category: string;
+}): boolean {
+  return (
+    t.direction === 'INFLOW' &&
+    (COST_RECOVERY_CATEGORIES as readonly string[]).includes(t.category)
+  );
+}

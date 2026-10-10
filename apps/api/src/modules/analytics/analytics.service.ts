@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import { CAPITALISED_CATEGORIES } from '../../common/ledger-categories';
+import {
+  CAPITALISED_CATEGORIES,
+  COST_RECOVERY_CATEGORIES,
+  isCostRecovery,
+} from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
 
@@ -98,11 +102,24 @@ export class AnalyticsService {
     });
     // Goods lost on the way are an expense with no ledger row (§2, §9): the
     // same figure settlement subtracts, through the one definition.
+    // Money recovered (supplier and loss refunds) raises net profit, as it
+    // does in settlement and the cycle profitability (§6, rule 11). Until
+    // loss refunds the dashboard left it out, so a refund raised a cycle's
+    // profit and not the business's. Shown on its own rather than netted
+    // into totalExpenses, which would read negative on a refund-heavy month.
+    const recoveryAgg = await this.prisma.financialTransaction.aggregate({
+      where: {
+        direction: 'INFLOW',
+        category: { in: [...COST_RECOVERY_CATEGORIES] },
+      },
+      _sum: { amount: true },
+    });
+    const recovered = D(recoveryAgg._sum.amount);
     const operatingExpenses = D(operatingAgg._sum.amount).add(
       await cycleLossesEgp(this.prisma, null),
     );
 
-    const netProfit = revenue.sub(cogs).sub(operatingExpenses);
+    const netProfit = revenue.sub(cogs).sub(operatingExpenses).add(recovered);
 
     // Cash actually paid out, reported separately from accounting profit
     // (BRD 11).
@@ -210,6 +227,8 @@ export class AnalyticsService {
         totalRevenue,
         totalCogs,
         totalExpenses,
+        /** Supplier and loss refunds, added back in netProfit (§6). */
+        totalRecoveredEgp: money(recovered),
         totalCashOut,
         totalCashIn: money(cashIn),
         cashOnHand: money(cashOnHand),
@@ -475,19 +494,15 @@ export class AnalyticsService {
         .reduce((sum, t) => sum.add(D(t.amount)), D(0))
         .sub(
           cycle.financialTransactions
-            .filter(
-              (t) =>
-                t.direction === 'INFLOW' && t.category === 'supplier_refund',
-            )
+            .filter(isCostRecovery)
             .reduce((sum, t) => sum.add(D(t.amount)), D(0)),
         );
 
       // A refund recovers cost, so it improves the cycle's result even though
-      // it changes no batch cost.
+      // it changes no batch cost. Supplier refunds and loss refunds alike,
+      // through the one list settlement reads (rule 11).
       const supplierRefunds = cycle.financialTransactions
-        .filter(
-          (t) => t.direction === 'INFLOW' && t.category === 'supplier_refund',
-        )
+        .filter(isCostRecovery)
         .reduce((sum, t) => sum.add(D(t.amount)), D(0));
 
       const losses = lossesByCycle.get(cycle.id) ?? D(0);

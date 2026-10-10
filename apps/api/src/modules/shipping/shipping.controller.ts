@@ -13,7 +13,12 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ShippingService } from './shipping.service';
 import { DeliveriesService } from './deliveries.service';
-import { CreateDeliveryDto, CreateLossDto } from './dto/delivery.dto';
+import {
+  CreateDeliveryDto,
+  CreateLossDto,
+  CreateLossRefundDto,
+} from './dto/delivery.dto';
+import { PurchasesService } from '../purchases/purchases.service';
 import {
   CreateShippingLegDto,
   UpdateShippingLegDto,
@@ -30,6 +35,7 @@ export class ShippingController {
   constructor(
     private shippingService: ShippingService,
     private deliveries: DeliveriesService,
+    private purchases: PurchasesService,
   ) {}
 
   @Get('legs')
@@ -91,6 +97,23 @@ export class ShippingController {
   @ApiOperation({ summary: 'Take a loss back: the goods are on the way again' })
   takeBackLoss(@Param('id') id: string, @CurrentUser() user: { id: string }) {
     return this.deliveries.takeBackLoss(id, user.id);
+  }
+
+  // Money paid back for a loss (§6, 2026-10-10): a supplier refund on the
+  // loss's order, written by the purchases refund path. Core partners only.
+  @Post('losses/:id/refunds')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary:
+      "Record a refund for goods lost on the way, from the leg's shipping company or the order's supplier",
+  })
+  recordLossRefund(
+    @Param('id') id: string,
+    @Body() body: CreateLossRefundDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.purchases.recordLossRefund(id, body, user.id);
   }
 }
 

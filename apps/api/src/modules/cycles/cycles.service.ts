@@ -16,6 +16,7 @@ import {
   lockCycle,
 } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
+import { lossesWithRefunds } from '../../common/loss-refunds';
 
 /** A client to read and write in: the service's own, or a caller's transaction. */
 type Db = Prisma.TransactionClient;
@@ -186,6 +187,10 @@ export class CyclesService {
     const { cycle, position } = loaded;
 
     const legMeta = new Map(cycle.shippingLegs.map((l) => [l.id, l]));
+    const losses = await lossesWithRefunds(
+      this.prisma,
+      cycle.shippingLegs.flatMap((l) => l.losses),
+    );
     return {
       data: {
         cycleId: cycle.id,
@@ -199,9 +204,11 @@ export class CyclesService {
             origin: leg.origin,
             destination: leg.destination,
             departedOn: leg.departedOn,
-            losses: leg.losses,
+            losses: losses.filter((x) => x.legId === p.legId),
           };
         }),
+        /** Every loss on the cycle, with what has been refunded on it (§6). */
+        losses,
       },
     };
   }

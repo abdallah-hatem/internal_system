@@ -508,3 +508,47 @@ test.describe('A line costs what it cost, once; a cycle settles only when accoun
     expect((now.data ?? now).status).toBe('SELLING');
   });
 });
+
+test.describe('Compensation recovers a loss, never more (§6 — 2026-10-10)', () => {
+  test('TC-INV-20: refunds on a loss never exceed its cost', async ({ request }) => {
+    // 10 at 100 and a 400 leg: 140 a unit landed. 5 lost on the way = 700.
+    const { headers, mk, product, supplier } = await ctx(request);
+    const provider = await mk('providers', { name: `Inv Freight ${Date.now()}` });
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1,
+      orderedOn: dayFromNow(-25),
+      items: [{ productId: product.id, orderedQty: 10, unitPrice: 100 }],
+    });
+    const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', providerId: provider.id,
+      costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1,
+      departedOn: dayFromNow(-20),
+    });
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const item = (full.data ?? full).purchaseOrders[0].items[0];
+    const [loss] = await mk(`shipping/legs/${leg.id}/losses`, {
+      lines: [{ purchaseOrderItemId: item.id, qty: 5 }],
+    });
+    expect(Number(loss.costEgp)).toBe(700);
+
+    const body = (amount: number, extra: object = {}) => ({
+      amount, currency: 'EGP', fxRateToEgp: 1, recordedOn: dayFromNow(0),
+      payer: { type: 'SHIPPING_PROVIDER', id: provider.id }, ...extra,
+    });
+    // Three at once that only fit two at a time, then one in another
+    // currency that would cross the line in EGP but not in its own figure.
+    await Promise.all([300, 300, 300].map((a) =>
+      attempt(request, headers, `shipping/losses/${loss.id}/refunds`, body(a))));
+    const usd = await attempt(request, headers, `shipping/losses/${loss.id}/refunds`,
+      body(3, { currency: 'USD', fxRateToEgp: 50 }));
+    expect(usd.status, usd.message).toBe(400);
+
+    const shipment = (await (await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers })).json()).data;
+    const read = shipment.losses.find((x: any) => x.id === loss.id);
+    const refunded = read.refunds.reduce((s: number, r: any) => s + Math.round(Number(r.amountEgp) * 100), 0);
+    expect(refunded, 'refunds must stay within the loss cost').toBeLessThanOrEqual(70000);
+    expect(refunded).toBe(60000);
+    expect(Number(read.unrecoveredEgp)).toBe(100);
+  });
+});

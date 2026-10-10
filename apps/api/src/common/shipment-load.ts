@@ -45,6 +45,7 @@ const SHIPMENT_SELECT = {
           legId: true,
           purchaseOrderItemId: true,
           qty: true,
+          unitCostEgp: true,
           costEgp: true,
           reason: true,
           createdAt: true,
