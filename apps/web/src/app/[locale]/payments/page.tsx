@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { formatDate } from '../../../lib/dates';
 import { TextareaField } from '../../../components/ui/textarea-field';
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { useOpenFromQuery } from '../../../lib/open-from-query';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
 // ─── Types ────────────────────────────────────────────────────────────
@@ -67,7 +68,20 @@ const METHOD_KEYS: Record<string, string> = {
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────
+/**
+ * The page reads `?new=1` (the dashboard's "Record payment") to open the form
+ * on arrival. `useSearchParams` cannot be prerendered, so Next requires a
+ * Suspense boundary or `next build` fails on this page.
+ */
 export default function PaymentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentsPageContent />
+    </Suspense>
+  );
+}
+
+function PaymentsPageContent() {
   const apiError = useApiError();
   const t = useTranslations('payments');
   const tc = useTranslations('common');
@@ -109,12 +123,17 @@ export default function PaymentsPage() {
     enabled: !!viewingPayment,
   });
 
+  // `?new=1` — the dashboard's "Record payment" — opens the same form the button does.
+  useOpenFromQuery(() => setShowCreateModal(true));
+
   // ── Mutations ─────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post('/payments', data),
     onSuccess: () => {
       toast('Payment recorded successfully', 'success');
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      // The dashboard's figures and its recent-activity feed read payments.
+      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
       setShowCreateModal(false);
     },
     onError: (error: any) => {
@@ -141,6 +160,7 @@ export default function PaymentsPage() {
     onSuccess: () => {
       toast('Payment reversed successfully', 'success');
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
       setShowReverseModal(false);
       setSelectedPayment(null);
     },

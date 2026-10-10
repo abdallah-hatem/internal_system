@@ -108,7 +108,30 @@
     "cashOut": "Cash Paid Out",
     "collected": "Collected",
     "cashOnHand": "Cash on Hand",
-    "cashIn": "Cash Received"
+    "cashIn": "Cash Received",
+    "subtitle": "What the business holds, owes and is owed today",
+    "quickActions": "Quick actions",
+    "actions": {
+      "newSale": "New sale",
+      "recordPayment": "Record payment",
+      "newCycle": "New cycle"
+    },
+    "recentActivity": "Recent activity",
+    "recentActivityEmpty": "Nothing has happened yet",
+    "recentActivityEmptyHint": "Confirmed sales, recorded payments and received stock appear here.",
+    "recentActivityError": "Recent activity could not be loaded.",
+    "kind": {
+      "SALE": "Sale",
+      "PAYMENT": "Payment",
+      "RECEIPT": "Stock received"
+    },
+    "units": "{count, number} units",
+    "topProducts": "Top products",
+    "topProductsEmpty": "No sales yet",
+    "sold": "{count, number} sold",
+    "sortedByBalance": "Largest balance first",
+    "showingLowStock": "Showing products below their minimum stock",
+    "showAll": "Show all"
   },
   "products": {
     "title": "Products",

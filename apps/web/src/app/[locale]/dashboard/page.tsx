@@ -3,10 +3,20 @@
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { formatDate, timeAgo } from '../../../lib/dates';
+import { useAuth } from '../../../lib/auth-context';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { QuickActions } from '../../../components/dashboard/quick-actions';
+import { RecentActivity } from '../../../components/dashboard/recent-activity';
+import { StatTile } from '../../../components/dashboard/stat-tile';
 import {
-  LayoutDashboard, TrendingUp, Package, AlertTriangle, DollarSign, ShoppingCart,
-  Activity, Loader2, Route, Wallet, Clock, Receipt, Landmark,
+  canSeeRecentActivity,
+  tileHref,
+  type TileKey,
+} from '../../../components/dashboard/dashboard-model';
+import {
+  TrendingUp, Package, AlertTriangle, DollarSign,
+  Activity, Route, Wallet, Clock, Receipt, Landmark,
+  type LucideIcon,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -27,15 +37,6 @@ interface DashboardData {
   totalProducts: number;
 }
 
-interface AuditLogEntry {
-  id: string;
-  action: string;
-  entityType: string;
-  entityId: string;
-  actor?: { email: string };
-  createdAt: string;
-}
-
 interface TopProduct {
   productId: string;
   name: string;
@@ -52,17 +53,16 @@ const egp = (v: number | undefined) =>
     maximumFractionDigits: 2,
   })} EGP`;
 
+const TILE_COUNT = 11;
+
 export default function DashboardPage() {
-  const t = useTranslations();
+  const t = useTranslations('dashboard');
+  const { user } = useAuth();
+  const role = user?.role;
 
   const { data: dashData, isLoading: loadingDash } = useQuery({
     queryKey: ['analytics', 'dashboard'],
     queryFn: () => api.get('/analytics/dashboard').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: auditLogs = [], isLoading: loadingAudit } = useQuery({
-    queryKey: ['audit-logs', 'dashboard'],
-    queryFn: () => api.get('/audit-logs?limit=5').then((r) => r.data.data ?? r.data),
   });
 
   const { data: topProducts = [], isLoading: loadingProducts } = useQuery({
@@ -87,12 +87,9 @@ export default function DashboardPage() {
     totalProducts: 0,
   };
 
-  const auditList: AuditLogEntry[] = Array.isArray(auditLogs) ? auditLogs : [];
   const productList: TopProduct[] = Array.isArray(topProducts) ? topProducts : [];
 
-  const isLoading = loadingDash || loadingAudit || loadingProducts;
-
-  const stats = [
+  const stats: { key: TileKey; value: string; icon: LucideIcon; color: string }[] = [
     // Sold, collected and still owed sit together on purpose: the first two
     // differ by the third, and a strong month of selling with an empty till
     // looks identical to a strong month of collecting if only one is shown.
@@ -124,98 +121,70 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('dashboard.title')}</h1>
-          <p className="text-sm text-gray-500 mt-1">Motorcycle Parts Business Overview</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <LayoutDashboard className="h-5 w-5 text-gray-400" />
-        </div>
+        <QuickActions role={role} />
       </div>
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {t('common.loading')}
+      {/* Stat tiles — two columns on a phone, each one a link to its list. */}
+      {loadingDash ? (
+        <div aria-hidden="true" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          {Array.from({ length: TILE_COUNT }, (_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-xl bg-muted sm:h-28" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          {stats.map((stat) => (
+            <StatTile
+              key={stat.key}
+              testId={`tile-${stat.key}`}
+              label={t(stat.key)}
+              value={stat.value}
+              icon={stat.icon}
+              color={stat.color}
+              href={tileHref(stat.key, role)}
+            />
+          ))}
         </div>
       )}
 
-      {!isLoading && (
-        <>
-          {/* Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.key} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">{t(`dashboard.${stat.key}`)}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                    </div>
-                    <div className={`${stat.color} p-3 rounded-lg`}>
-                      <Icon className="h-6 w-6 text-white" />
-                    </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {canSeeRecentActivity(role) && <RecentActivity />}
+
+        <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-card-foreground">
+            <Route aria-hidden="true" className="size-5 text-muted-foreground" />
+            {t('topProducts')}
+          </h3>
+          {loadingProducts ? (
+            <ul aria-hidden="true" className="space-y-3">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <li key={i} className="h-11 animate-pulse rounded-md bg-muted" />
+              ))}
+            </ul>
+          ) : productList.length === 0 ? (
+            <EmptyState icon={Package} title={t('topProductsEmpty')} className="py-6" />
+          ) : (
+            <ul className="divide-y divide-border">
+              {productList.map((item) => (
+                <li key={item.productId} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-card-foreground">{item.name}</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">{item.sku}</p>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Activity — from audit logs */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-              {auditList.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">{t('common.noData')}</p>
-              ) : (
-                <div className="space-y-3">
-                  {auditList.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${
-                          item.action === 'CREATE' ? 'bg-green-100 text-green-700' :
-                          item.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
-                          item.action === 'DELETE' ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {item.action}
-                        </span>
-                        <p className="text-sm text-gray-700 truncate">{item.entityType}</p>
-                      </div>
-                      <span className="text-xs text-gray-400 whitespace-nowrap ms-4 flex-shrink-0">{timeAgo(item.createdAt)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Top Products / Alerts */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Route className="h-5 w-5 text-gray-400" />
-                Top Products
-              </h3>
-              {productList.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">{t('common.noData')}</p>
-              ) : (
-                <div className="space-y-3">
-                  {productList.map((item) => (
-                    <div key={item.productId} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">{item.name}</p>
-                        <p className="text-xs text-gray-500">{item.sku}</p>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{item.totalQuantitySold} sold</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+                  <span className="flex-shrink-0 text-sm font-medium text-card-foreground">
+                    {t('sold', { count: item.totalQuantitySold })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
