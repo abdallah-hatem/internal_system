@@ -36,7 +36,7 @@ function EntityLink({
         className,
       )}
     >
-      {label}
+      <bdi>{label}</bdi>
     </Link>
   );
 }
@@ -47,7 +47,13 @@ function useLocalePrefix() {
   return `/${locale}`;
 }
 
-/** Falls back to plain text (or an em dash) when there is no record to link to. */
+/**
+ * Falls back to plain text (or an em dash) when there is no record to link to.
+ *
+ * Names sit in `<bdi>` (finding #21): a Latin name in an Arabic row is its own
+ * LTR run, so "Delta Motors Co." keeps its full stop at the end and a truncated
+ * name loses its tail, not its start.
+ */
 export function CustomerLink({
   id,
   name,
@@ -59,7 +65,7 @@ export function CustomerLink({
 }) {
   const prefix = useLocalePrefix();
   if (!name) return <span className={className}>—</span>;
-  if (!id) return <span className={className}>{name}</span>;
+  if (!id) return <bdi className={className}>{name}</bdi>;
   return <EntityLink href={`${prefix}/customers/${id}`} label={name} className={className} />;
 }
 
@@ -74,6 +80,6 @@ export function ProductLink({
 }) {
   const prefix = useLocalePrefix();
   if (!name) return <span className={className}>—</span>;
-  if (!id) return <span className={className}>{name}</span>;
+  if (!id) return <bdi className={className}>{name}</bdi>;
   return <EntityLink href={`${prefix}/products/${id}`} label={name} className={className} />;
 }

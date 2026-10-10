@@ -18,6 +18,12 @@ export interface EmptyStateProps {
   action?: EmptyStateAction;
   /** A lucide icon component or any node. Defaults to an inbox. Pass `null` for none. */
   icon?: LucideIcon | ReactNode;
+  /**
+   * `default` for a page or a whole list; `compact` for a section inside a card,
+   * a popover or a picker — the same look with less room around it, so a small
+   * empty slot never falls back to a bare grey sentence.
+   */
+  size?: 'default' | 'compact';
   className?: string;
 }
 
@@ -30,25 +36,42 @@ export interface EmptyStateProps {
  *     action={{ label: t('newSale'), onClick: openForm }}
  *   />
  *
+ * This is the one look for "nothing here": a whole page, a card's section
+ * (`size="compact"`), and the picker's no-match slot all render it, instead of a
+ * bare "No data available" line in each place's own grey.
+ *
  * Every string is passed in translated; the component holds none of its own.
  * Layout is centred and uses theme tokens only, so it reads the same in RTL and
  * dark mode.
  */
-export function EmptyState({ title, description, action, icon, className }: EmptyStateProps) {
-  const iconNode = renderIcon(icon === undefined ? Inbox : icon);
+export function EmptyState({
+  title,
+  description,
+  action,
+  icon,
+  size = 'default',
+  className,
+}: EmptyStateProps) {
+  const compact = size === 'compact';
+  const iconNode = renderIcon(icon === undefined ? Inbox : icon, compact);
 
   return (
     <div
       data-slot="empty-state"
+      data-size={size}
       className={cn(
-        'flex flex-col items-center justify-center gap-3 px-4 py-12 text-center',
+        'flex flex-col items-center justify-center text-center',
+        compact ? 'gap-2 px-3 py-6' : 'gap-3 px-4 py-12',
         className,
       )}
     >
       {iconNode && (
         <div
           aria-hidden="true"
-          className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          className={cn(
+            'flex items-center justify-center rounded-full bg-muted text-muted-foreground',
+            compact ? 'size-9' : 'size-12',
+          )}
         >
           {iconNode}
         </div>
@@ -76,12 +99,12 @@ export function EmptyState({ title, description, action, icon, className }: Empt
   );
 }
 
-function renderIcon(icon: LucideIcon | ReactNode): ReactNode {
+function renderIcon(icon: LucideIcon | ReactNode, compact: boolean): ReactNode {
   if (icon === null || icon === false) return null;
   // A lucide icon is a forwardRef component: an object (or function) with a render.
   if (typeof icon === 'function' || (typeof icon === 'object' && icon !== null && 'render' in icon)) {
     const Icon = icon as LucideIcon;
-    return <Icon className="size-6" />;
+    return <Icon className={compact ? 'size-4' : 'size-6'} />;
   }
   return icon as ReactNode;
 }

@@ -41,7 +41,9 @@
     "optional": "اختياري",
     "operationFailed": "تعذّر تنفيذ العملية",
     "noMatch": "لا توجد نتائج تطابق البحث أو التصفية",
-    "listCapped": "يتم عرض أول {count} فقط. توجد سجلات أخرى غير معروضة هنا."
+    "listCapped": "يتم عرض أول {count} فقط. توجد سجلات أخرى غير معروضة هنا.",
+    "selectPlaceholder": "اختر…",
+    "noOptionsMatch": "لا توجد نتائج"
   },
   "pagination": {
     "showing": "عرض <n>{start}</n> – <n>{end}</n> من <n>{total}</n>",

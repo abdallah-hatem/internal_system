@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useLocale } from 'next-intl';
+import { intlFor } from './numbers';
 
 /**
  * The timezone the business runs in — the web twin of the API's
@@ -21,16 +22,6 @@ export function businessToday(now: Date = new Date()): string {
     month: '2-digit',
     day: '2-digit',
   }).format(now);
-}
-
-/**
- * The Intl locale for an app locale. Arabic gets Arabic month names with Latin
- * digits — the same choice the date picker's header and every money figure
- * already make, so a date never reads in a different script from the amount
- * beside it.
- */
-function intlFor(locale: string | undefined): { tag: string; numberingSystem?: string } {
-  return locale === 'ar' ? { tag: 'ar-EG', numberingSystem: 'latn' } : { tag: 'en-US' };
 }
 
 export interface FormatDateOptions {
