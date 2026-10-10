@@ -20,3 +20,15 @@
 - **[Context] Branching stays as the repo does it.** A local `feature/` branch, verified, merged to
   `master` and pushed (which deploys). There is no `dev` branch, and previews are switched off.
   Why: the 2026-09-19 decision still holds.
+- **[Plan review] CONFLICTS → resolved in the doc** (autonomous: the doc is the authority, so it was
+  completed rather than the code bent). Losses are their own record, not ledger rows (§9: the ledger
+  is money moving). A loss can be taken back until the cycle settles. Nothing is recorded during
+  settlement. The settlement gate also lives in the transition, not only in approve. Receiving needs
+  Arrived Egypt, and the walk to Selling runs each step's checks. A short count waits against its
+  delivery and can be received in several goes. A loss is valued at the full unit cost on any leg; the
+  final event on a line takes the rounding residual. A leg's cost is locked after the first receipt or
+  loss. The migration's zero-cost losses are written down as the one exception to "never by itself".
+  F1a and F1b are reclassed as logic, and U4's query fix is split out as U4b (logic). The cash for
+  lost goods not showing in the ledger is recorded under "Still open" (it predates this change).
+  Why each: the reviewer's findings 1–16; alternatives were a ledger `loss` category (breaks §9) and
+  one batch per delivery line (strands short counts).

@@ -217,3 +217,43 @@ recognises) and fixes the seed if so.
   supplier refund (§6), recorded as today.
 - Selling on Amazon (§17).
 - Search. It is removed, not rebuilt.
+
+---
+
+## Amendments after the plan review (2026-10-10)
+
+The alignment review found contradictions. The business doc now settles each one, and these points
+override the text above:
+
+1. **Short counts.** `sourceDeliveryLineId` is **not** unique: a delivery line can be received in
+   several goes, until the total received reaches the quantity delivered. `STOCK_ALREADY_VERIFIED`
+   means "this delivery line is fully received". The unreceived part of a last-leg delivery is
+   *waiting to be received*, not on the way. `shipmentPosition` reports it separately.
+2. **Losses are not ledger rows.** There is no `loss` ledger category. `ShipmentLoss` is the record,
+   and one shared function, `cycleLossesEgp(cycleId)` in `common/`, adds it to the expenses in both
+   settlement and analytics (rule 11). Cash, Collected and account balances do not move.
+3. **Taking a loss back.** `DELETE /shipping/losses/:id` returns the units to on the way. It is
+   refused with `CYCLE_SETTLING` while the cycle is in SETTLEMENT or CLOSED.
+4. **A frozen cycle.** Deliveries, receipts, losses and taking a loss back are all refused with
+   `CYCLE_SETTLING` in SETTLEMENT or CLOSED (CANCELLED → `CYCLE_CLOSED`).
+5. **The settlement gate lives in the transition.** `SHIPMENT_NOT_ACCOUNTED` is checked in
+   `planTransition` for → SETTLEMENT **and** in settlement `approve`, through the same helper. A
+   cycle with nothing ordered is accounted.
+6. **Receiving needs Arrived Egypt or later** (ARRIVED_EGYPT / VERIFICATION / SELLING). Earlier, it
+   is refused with `CYCLE_NOT_ARRIVED`. The walk to SELLING calls `planTransition` for each step, so
+   every step's own checks and side effects run.
+7. **Deleting a delivery** is refused with `DELIVERY_IN_USE` when stock was received from it, when a
+   later leg has drawn on it, or when it is the only delivery that satisfies the cycle's current
+   status.
+8. **A leg's cost is locked** (`LEG_COST_LOCKED`) once any unit of the cycle has been received or
+   lost.
+9. **Unit cost and residual.** Unit cost = the line's landed total ÷ ordered, to 4 places. The final
+   receipt or loss on a line takes the line's residual, so batches plus losses re-sum to the line
+   total exactly. A loss is valued at the full unit cost on any leg.
+10. **The migration** creates deliveries idempotently (keyed on the leg). A last leg with batches but
+    no `arrivedOn` gets a delivery dated the first batch's receipt day in Cairo. It is safe to run
+    twice.
+11. **Assistant.** `add_shipping_leg` with an arrival date previews the units it will deliver.
+    `verify_stock` keeps `PREVIEW_CHANGED` when the landed cost has moved.
+12. **Classes.** F1a and F1b become `logic` (they write deliveries, receipts, losses and cycle
+    status). U4's query fix splits out as U4b (`logic`).

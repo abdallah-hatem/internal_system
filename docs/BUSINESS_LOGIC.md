@@ -63,6 +63,19 @@ A leg's status is still a reading of what was recorded, never a field anyone set
 otherwise.** At any point a partner can mark some or all of what is still on the
 way as **lost**, on any leg. Nothing is marked lost by itself, however long it
 has been — goods have turned up late before, and the partner is the one who knows.
+Anything not yet received can be marked lost: units on the way on any leg, and
+units a last-leg delivery brought but that were never found when it was counted.
+
+**A loss can be taken back** while the cycle is not settled, for when the goods
+turn up after all. Taking it back puts the units on the way again.
+
+**Nothing is recorded on a cycle being settled.** No delivery, receipt or loss
+while the cycle is in settlement or closed; reversing the settlement reopens it.
+
+**The one exception to "nothing is marked lost by itself"** is the move to
+deliveries on 2026-10-10. Before it, a line counted short at verification had its
+whole cost spread over the units that came. Those shortfalls were recorded as lost
+at **zero** cost, because they were already charged to the batch once.
 
 The cycle can move on as soon as **some** goods reach a point, not only once all
 of them have:
@@ -116,6 +129,19 @@ landed cost as a loss on the cycle. It counts against the cycle's profit and nev
 re-prices a batch: earlier deliveries may already be sold, and a sale's cost is
 never changed after the fact (§3).
 
+A lost unit is valued at the **full** landed unit cost, on whichever leg it was
+lost. That way everything a line cost lands exactly once: in its batches, or in
+its losses.
+
+The unit cost is the line's landed total over the units ordered, to four places.
+So that the line still re-sums exactly, the event that accounts for its last
+units (the final receipt or loss) takes the rounding residual.
+
+**A leg's cost is fixed once any unit of the cycle has been received or marked
+lost.** Changing it after that would cost the next delivery differently from the
+last one. A late or corrected freight charge after that point is a cycle expense,
+recorded in the ledger.
+
 ---
 
 ## 3. Inventory
@@ -142,10 +168,17 @@ drives it today and reserved quantity is honestly zero.
 Each delivery that reaches Egypt is counted and checked into stock as its own
 batch, with its own arrival date, and can be sold the moment it is checked in —
 while the rest of the shipment is still on the way. A count lower than the
-delivery said leaves the difference on the way: it can be checked in when it turns
-up, or marked lost. Receiving more than a delivery brought is refused, and the
-units ever received or lost on an order line can never total more than were
-ordered.
+delivery said leaves the difference **waiting to be received** against that
+delivery: it is checked in when it is found, or marked lost. Receiving more than
+a delivery brought is refused, and the units ever received or lost on an order
+line can never total more than were ordered.
+
+Stock can only be received once the cycle has reached Arrived Egypt. The first
+receipt moves the cycle on to Selling, through each step's own checks, as the
+wizard used to. Selling then continues while later deliveries come in.
+
+FIFO still means the oldest **received** batch first: the day it was checked
+in, not the day it landed.
 
 ---
 
@@ -314,8 +347,8 @@ customer is a clear refusal, not a 500.
 
 ## 8. Cycle profit and settlement
 
-**Profit is revenue less the cost of what actually sold**, plus anything a
-supplier gave back. Revenue and cost are attributed through batch allocations,
+**Profit is revenue less the cost of what actually sold**, less goods lost on
+the way (§2), plus anything a supplier gave back. Revenue and cost are attributed through batch allocations,
 not through the cycle's own transactions — a FIFO sale can span batches from
 several cycles, so a sale's revenue is deliberately recorded without a cycle.
 
@@ -362,8 +395,9 @@ counting it as a cost re-charges the cycle for its own success.
 
 **DECIDED 2026-10-10 — a cycle settles only once every unit is accounted for.**
 *Building.* Every unit ordered must be received into stock or marked lost before
-the settlement can be approved. Goods still on the way make the cycle's profit a
-guess.
+the cycle can move to settlement or a settlement can be approved, by any route.
+Goods still on the way make the cycle's profit a guess. A cycle with nothing
+ordered has nothing to account for.
 
 ---
 
@@ -381,7 +415,14 @@ entry that points back at the original; nothing is edited or deleted.
 
 **Buying stock is not an expense.** It converts cash into inventory and becomes
 a cost when the goods sell. Goods and shipping are already capitalised into
-landed cost, so only other outflows count as period expenses.
+landed cost, so only other outflows count as period expenses — and goods lost
+on the way (§2), which are not a ledger entry at all.
+
+**DECIDED 2026-10-10 — a loss is not money moving.** *Building.* The cash for
+the goods left when they were bought, so marking them lost moves no money and
+writes no ledger entry. The loss is its own record, and profit — on the
+settlement and on the dashboard, read through one shared definition — subtracts
+it.
 
 **Cash flow is reported separately from profit** (BRD §11).
 
@@ -402,8 +443,9 @@ only one figure is given:
 | Receivables | the gap: sold, not yet paid for |
 
 Note the two are separated by a step: a payment adds to Collected when it is
-recorded, and reduces Receivables when it is **allocated** to an order. The
-customer's page does both in one action; the API does not.
+recorded, and reduces Receivables when it is **allocated** to an order. Both
+the customer's page and a payment recorded against a chosen order (§7) do both
+in one action.
 
 ---
 
@@ -529,6 +571,7 @@ mistakes it for an agreement.
 | Payment account and reconciliation workflow | One cash account, no reconciliation. `MoneyAccount` exists for more later. |
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
+| Where the cash for lost goods shows in the ledger | Nowhere. Goods are booked into the ledger when they are received, so units lost on the way never appear in it, though they were paid for. Raised 2026-10-10. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |
 | Whether a shop that is behind on payment may hold stock | It may. A request checks verification and stock, not the balance. Raised 2026-08-30 with the storefront; not decided. |
 
