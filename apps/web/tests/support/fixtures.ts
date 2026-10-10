@@ -9,12 +9,14 @@
  *
  * Laborious to set up is a fact about the domain, not a reason to fake it.
  */
-import { expect, APIRequestContext } from '@playwright/test';
+import { expect, APIRequestContext, APIResponse } from '@playwright/test';
 
 /** Local by default; `API_BASE` aims the same fixtures at the deployed API. */
 export const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
 export const EMAIL = 'partner.a@motoparts.com';
 export const PASSWORD = 'password123';
+/** The seeded shop owner, who signs in at the portal door. */
+export const SHOP_OWNER_EMAIL = 'shop.owner@example.com';
 
 /** A date `n` days back, for shipments that have already happened. */
 export const daysAgo = (n: number) => {
@@ -81,6 +83,43 @@ export async function apiCtx(request: APIRequestContext) {
   };
 
   return { headers, mk };
+}
+
+/**
+ * The callers who must not move money, each with the code its refusal carries.
+ *
+ * An investor signs in at the office door and is refused by the role guard. A
+ * shop owner cannot be registered as one (registration offers office roles
+ * only, since the portal fence of 2026-08-30) and cannot sign in at the office
+ * door at all (USE_PORTAL_LOGIN), so the token a shop owner really holds is a
+ * portal one — and the office API refuses that before any role is read, with
+ * WRONG_SURFACE. Both are refusals with a code; they are different codes.
+ */
+export async function refusedCallers(request: APIRequestContext, label: string) {
+  const { headers } = await apiCtx(request);
+  const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
+  const email = `${label}-investor-${stamp}@motoparts.com`;
+  const made = await request.post(`${API}/auth/register`, {
+    headers,
+    data: { email, password: PASSWORD, displayName: `${label} ${stamp}`, role: 'TEMP_INVESTOR' },
+  });
+  expect(made.ok(), `create investor: ${await made.text()}`).toBeTruthy();
+  const investor = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
+  expect(investor.ok(), `investor login: ${await investor.text()}`).toBeTruthy();
+
+  const shop = await request.post(`${API}/auth/portal/login`, {
+    data: { email: SHOP_OWNER_EMAIL, password: PASSWORD },
+  });
+  expect(shop.ok(), `shop owner login: ${await shop.text()}`).toBeTruthy();
+
+  const bearer = async (res: APIResponse) => {
+    const body = (await res.json()) as { data: { accessToken: string } };
+    return { Authorization: `Bearer ${body.data.accessToken}` };
+  };
+  return [
+    { who: 'TEMP_INVESTOR', headers: await bearer(investor), code: 'ROLE_NOT_ALLOWED' },
+    { who: 'shop owner (portal token)', headers: await bearer(shop), code: 'WRONG_SURFACE' },
+  ];
 }
 
 /**

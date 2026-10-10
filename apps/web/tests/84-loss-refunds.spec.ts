@@ -21,24 +21,9 @@
  *    parallel); its interaction cases belong in F1a's spec.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, daysAgo, today } from './support/fixtures';
+import { apiCtx, API, daysAgo, today, refusedCallers } from './support/fixtures';
 
 type Headers = Record<string, string>;
-
-async function accountWithRole(request: APIRequestContext, role: string) {
-  const { headers } = await apiCtx(request);
-  const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
-  const email = `loss-refunds-${role.toLowerCase()}-${stamp}@motoparts.com`;
-  const made = await request.post(`${API}/auth/register`, {
-    headers,
-    data: { email, password: 'password123', displayName: `Loss refunds ${stamp}`, role },
-  });
-  expect(made.ok(), `create ${role}: ${await made.text()}`).toBeTruthy();
-  const signedIn = await request.post(`${API}/auth/login`, {
-    data: { email, password: 'password123' },
-  });
-  return { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
-}
 
 /**
  * A UAE-direct cycle: `ordered` of one product at 100 and a 400 leg run by a
@@ -203,11 +188,12 @@ test.describe('who can pay (the wrong owner)', () => {
 
   test('TC-LR-31: Investor or shop token → refused with a code', async ({ request }) => {
     const { loss, provider } = await cycleWithALoss(request);
-    for (const role of ['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL']) {
-      const headers = await accountWithRole(request, role);
+    // A shop owner's real token is a portal one: registration offers office roles
+    // only, so it is refused by the surface fence (WRONG_SURFACE), not the role guard.
+    for (const { who, headers, code } of await refusedCallers(request, 'loss-refunds')) {
       const r = await refund(request, headers, loss.id, fromProvider(provider), 10);
-      expect(r.status).toBe(403);
-      expect(r.code).toBe('ROLE_NOT_ALLOWED');
+      expect(r.status, who).toBe(403);
+      expect(r.code, who).toBe(code);
     }
   });
 });

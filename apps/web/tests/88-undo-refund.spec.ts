@@ -17,26 +17,11 @@
  *  the query cache a stale-figure bug lives in.
  */
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
-import { API, EMAIL, PASSWORD, apiCtx, daysAgo, today } from './support/fixtures';
+import { API, EMAIL, PASSWORD, apiCtx, daysAgo, today, refusedCallers } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 type Headers = Record<string, string>;
-
-async function accountWithRole(request: APIRequestContext, role: string) {
-  const { headers } = await apiCtx(request);
-  const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
-  const email = `undo-refund-${role.toLowerCase()}-${stamp}@motoparts.com`;
-  const made = await request.post(`${API}/auth/register`, {
-    headers,
-    data: { email, password: 'password123', displayName: `Undo refund ${stamp}`, role },
-  });
-  expect(made.ok(), `create ${role}: ${await made.text()}`).toBeTruthy();
-  const signedIn = await request.post(`${API}/auth/login`, {
-    data: { email, password: 'password123' },
-  });
-  return { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
-}
 
 /**
  * A UAE-direct cycle walked to In transit to Egypt: 40 of one product at 100
@@ -221,11 +206,12 @@ test.describe('POST /purchases/refunds/:id/reverse', () => {
   test('TC-UR-08: Investor or shop → refused with a code', async ({ request }) => {
     const { headers, loss, provider } = await cycleWithALoss(request);
     const r = await refund(request, headers, loss.id, fromProvider(provider), 100);
-    for (const role of ['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL']) {
-      const other = await accountWithRole(request, role);
+    // A shop owner's real token is a portal one: registration offers office roles
+    // only, so it is refused by the surface fence (WRONG_SURFACE), not the role guard.
+    for (const { who, headers: other, code } of await refusedCallers(request, 'undo-refund')) {
       const u = await undo(request, other, r.id, 'not mine to undo');
-      expect(u.status).toBe(403);
-      expect(u.code).toBe('ROLE_NOT_ALLOWED');
+      expect(u.status, who).toBe(403);
+      expect(u.code, who).toBe(code);
     }
   });
 
