@@ -17,6 +17,7 @@ import { InputField } from '../../../components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
+import { categoryIndent } from './indent';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -263,39 +264,40 @@ export default function CategoriesPage() {
                 <div
                   key={cat.id}
                   className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition-colors"
-                  style={{ paddingLeft: `${16 + cat.depth * 24}px` }}
+                  style={categoryIndent(cat.depth)}
                 >
                   {/* Expand/collapse toggle */}
                   {cat._count && cat._count.children > 0 ? (
                     <button
+                      type="button"
                       onClick={() => toggleExpand(cat.id)}
-                      className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                      className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer shrink-0"
                     >
                       {expandedIds.has(cat.id) ? (
                         <ChevronDown className="h-4 w-4" />
                       ) : (
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                       )}
                     </button>
                   ) : (
-                    <span className="w-5" />
+                    <span className="w-5 shrink-0" />
                   )}
 
                   {/* Icon + Name */}
                   <Tag className="h-4 w-4 text-gray-400 shrink-0" />
-                  <span className="text-sm font-medium text-gray-900 truncate">{cat.name}</span>
+                  <span className="min-w-0 text-sm font-medium text-gray-900 truncate">{cat.name}</span>
 
                   {/* Parent badge */}
                   {cat.parent && (
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    <span className="shrink-0 whitespace-nowrap text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                       {cat.parent.name}
                     </span>
                   )}
 
                   {/* Product count */}
                   {cat._count && cat._count.products > 0 && (
-                    <span className="text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
-                      {cat._count.products} {cat._count.products === 1 ? 'product' : 'products'}
+                    <span className="shrink-0 whitespace-nowrap text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                      {t('productCount', { count: cat._count.products })}
                     </span>
                   )}
 
@@ -361,7 +363,7 @@ export default function CategoriesPage() {
             <InputField label={t('name')} name="name" defaultValue={editingCategory.name} required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('parentCategory')} <span className="text-gray-400 ms-1 text-xs font-normal">(Optional)</span>
+                {t('parentCategory')} <span className="text-gray-400 ms-1 text-xs font-normal">({tc('optional')})</span>
               </label>
               <Select
                 name="parentId"
@@ -405,12 +407,12 @@ export default function CategoriesPage() {
             {deletingCategory._count && (deletingCategory._count.products > 0 || deletingCategory._count.children > 0) && (
               <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 {deletingCategory._count.products > 0 && (
-                  <p>This category has {deletingCategory._count.products} product(s) assigned.</p>
+                  <p>{t('deleteHasProducts', { count: deletingCategory._count.products })}</p>
                 )}
                 {deletingCategory._count.children > 0 && (
-                  <p>This category has {deletingCategory._count.children} subcategor{deletingCategory._count.children === 1 ? 'y' : 'ies'}.</p>
+                  <p>{t('deleteHasChildren', { count: deletingCategory._count.children })}</p>
                 )}
-                <p className="mt-1 font-medium">You must reassign or remove them first.</p>
+                <p className="mt-1 font-medium">{t('deleteReassignFirst')}</p>
               </div>
             )}
             <div className="flex justify-end gap-3 pt-2">

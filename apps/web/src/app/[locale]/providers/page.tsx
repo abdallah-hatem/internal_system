@@ -213,7 +213,7 @@ export default function ProvidersPage() {
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5 text-gray-400" />
-                          {provider.phone ?? '—'}
+                          {provider.phone ? <span dir="ltr">{provider.phone}</span> : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
@@ -304,7 +304,7 @@ export default function ProvidersPage() {
                     <span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5 text-gray-400" />{provider.contactPerson}</span>
                   )}
                   {provider.phone && (
-                    <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-gray-400" />{provider.phone}</span>
+                    <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-gray-400" /><span dir="ltr">{provider.phone}</span></span>
                   )}
                 </div>
                 {provider.email && (
@@ -349,7 +349,7 @@ export default function ProvidersPage() {
               <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingProvider.phone} />
               <InputField label={t('email')} name="email" type="email" defaultValue={editingProvider.email} />
             </div>
-            <TextareaField label={t('notes')} name="notes" defaultValue={editingProvider.notes} placeholder="Additional notes..." />
+            <TextareaField label={t('notes')} name="notes" defaultValue={editingProvider.notes} placeholder={t('notesPlaceholder')} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setEditingProvider(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">

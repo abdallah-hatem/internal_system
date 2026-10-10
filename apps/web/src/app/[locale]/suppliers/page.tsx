@@ -18,6 +18,7 @@ import { useApiError } from '../../../lib/api-error';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
+import { useCountryLabel } from './country';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -44,6 +45,7 @@ export default function SuppliersPage() {
   const apiError = useApiError();
   const t = useTranslations('suppliers');
   const tc = useTranslations('common');
+  const countryLabel = useCountryLabel();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   // Reading suppliers is everyone's; changing them is a partner's (R1c).
@@ -213,7 +215,7 @@ export default function SuppliersPage() {
                   paginated.map((supplier) => (
                     <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-900">{supplier.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{supplier.country || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{countryLabel(supplier.country)}</td>
                       <td className="px-4 py-3 text-gray-600">
                         <ContactLine contact={contactOf(supplier)} />
                       </td>
@@ -271,7 +273,7 @@ export default function SuppliersPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-gray-900">{supplier.name}</p>
-                    <p className="text-xs text-gray-500">{supplier.country}</p>
+                    {supplier.country && <p className="text-xs text-gray-500">{countryLabel(supplier.country)}</p>}
                   </div>
                   {mayRow && (
                   <div className="flex items-center gap-1">
@@ -399,7 +401,8 @@ function ContactLine({ contact }: { contact: SupplierContact }) {
       {parts.map(({ icon: Icon, value }) => (
         <span key={value} className="inline-flex items-center gap-1">
           <Icon className="h-3.5 w-3.5 text-gray-400" />
-          {value}
+          {/* Phone numbers and handles read left to right in Arabic too (UI #15). */}
+          <span dir="ltr">{value}</span>
         </span>
       ))}
     </span>
