@@ -258,6 +258,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       });
     return () => {
       cancelled = true;
+      // Not restored after all: the check was abandoned before it answered.
+      // React's development mode mounts every effect twice — run, clean up,
+      // run — and with the ref left set, the second run returned early, so the
+      // draft was never put back and a reload landed on an empty step 1.
+      draftRestoredRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per hydrated draft; forgetDraft is stable in effect
   }, [isNewWizard, draftHydrated, storedDraft]);

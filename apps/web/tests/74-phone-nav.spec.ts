@@ -73,13 +73,17 @@ test.describe('Phone navigation', () => {
   test('More the second time: closed from the menu, it opens again', async ({ page }) => {
     await page.setViewportSize(PHONE);
     await login(page);
-    const settings = page.locator('aside').getByRole('link', { name: 'Settings' });
+    // A link from the top of the menu. Settings sits at its foot, and the menu
+    // has outgrown a 844px screen (order and import requests joined it), so
+    // Settings is scrolled out of sight inside the open drawer — it read as
+    // "More did not open" when the drawer was open all along.
+    const suppliers = page.locator('aside').getByRole('link', { name: 'Suppliers' });
     await bar(page).getByRole('button', { name: 'More' }).click();
-    await expect(settings).toBeInViewport();
+    await expect(suppliers).toBeInViewport();
     await page.getByRole('button', { name: 'Close menu' }).click();
-    await expect(settings).not.toBeInViewport();
+    await expect(suppliers).not.toBeInViewport();
     await bar(page).getByRole('button', { name: 'More' }).click();
-    await expect(settings).toBeInViewport();
+    await expect(suppliers).toBeInViewport();
   });
 
   test('the last thing on a page can be scrolled clear of the bar', async ({ page }) => {

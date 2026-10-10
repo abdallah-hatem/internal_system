@@ -80,7 +80,9 @@ test.describe('Cycle wizard translations', () => {
         .replace(/\b(?:zero|one|two|few|many|other|offset)\b|[{}#=,]/g, '');
 
     const untranslated = Object.entries(ar.wizard as Record<string, string>)
-      .filter(([k, v]) => v === en.wizard[k] || /[A-Za-z]/.test(strip(v)))
+      // Identical to the English counts only when there are words in it: F1b's
+      // `orderLine` is "{qty} ×" — a number and a sign, the same in both.
+      .filter(([k, v]) => (v === en.wizard[k] && /\p{L}/u.test(strip(v))) || /[A-Za-z]/.test(strip(v)))
       .map(([k]) => k);
 
     expect(untranslated).toEqual([]);

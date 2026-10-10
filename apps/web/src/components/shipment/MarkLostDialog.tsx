@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -18,6 +18,9 @@ import { useLandedUnitCosts } from './ReceiveDeliveryDialog';
 import { losableByLine, num, parseQty, type ShipmentLeg } from './shipment-model';
 
 type Step = 'edit' | 'confirm' | 'done';
+
+/** How long the confirm button stays disabled after it replaces Continue. */
+const CONFIRM_ARM_MS = 400;
 
 /**
  * Mark goods lost on a leg (BUSINESS_LOGIC §1, §2, 2026-10-10).
@@ -62,7 +65,15 @@ export function MarkLostDialog({
   const submitting = useRef(false);
   // A double-click on Continue must not land its second click on the confirm
   // button that takes its place: the loss is only booked by a deliberate click.
-  const confirmShownAt = useRef(0);
+  // So the confirm button arrives disabled and arms itself a moment later. It
+  // used to stay enabled and silently drop a click that came too soon, which
+  // looked like a button that did nothing.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (step !== 'confirm') return;
+    const timer = setTimeout(() => setArmed(true), CONFIRM_ARM_MS);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   const losable = losableByLine(leg);
   const rows = leg.lines.filter(
@@ -93,13 +104,13 @@ export function MarkLostDialog({
   const estimateKnown = estimateRows.every((r) => r.estimate !== null);
   const estimateTotal = estimateRows.reduce((s, r) => s + (r.estimate ?? 0), 0);
 
-  const toConfirm = (at: number) => {
+  const toConfirm = () => {
     if ('problem' in picked) {
       setRefusal(picked.problem);
       return;
     }
     setRefusal(null);
-    confirmShownAt.current = at;
+    setArmed(false);
     setStep('confirm');
   };
 
@@ -107,11 +118,10 @@ export function MarkLostDialog({
     e.preventDefault();
     e.stopPropagation();
     if (step === 'edit') {
-      toConfirm(e.timeStamp);
+      toConfirm();
       return;
     }
-    if (step !== 'confirm' || submitting.current || 'problem' in picked) return;
-    if (e.timeStamp - confirmShownAt.current < 400) return;
+    if (step !== 'confirm' || !armed || submitting.current || 'problem' in picked) return;
 
     submitting.current = true;
     setPending(true);
@@ -145,7 +155,7 @@ export function MarkLostDialog({
     ) : step === 'confirm' ? (
       <>
         <DialogCancel onClick={() => setStep('edit')} disabled={pending} label={t('back')} />
-        <DialogPrimary pending={pending} destructive label={t('confirmLoss')} />
+        <DialogPrimary pending={pending} disabled={!armed} destructive label={t('confirmLoss')} />
       </>
     ) : (
       <DialogPrimary type="button" onClick={onClose} label={t('done')} />

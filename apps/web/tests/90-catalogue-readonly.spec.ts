@@ -51,19 +51,24 @@ async function theInvestorsCatalogue(request: APIRequestContext) {
   const supplier = await mk('suppliers', { name: `${tag} Supplier`, country: 'AE' });
   const provider = await mk('providers', { name: `${tag} Freight` });
 
-  const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
-  await mk(`cycles/${cycle.id}/participants`, {
-    participantType: 'TEMP_INVESTOR', investorUserId: investor, contributionAmount: 400, investorFeePct: 10,
-  });
-  await mk(`cycles/${cycle.id}/participants`, {
-    participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 600,
+  // A new cycle starts with every active core partner on it, unless the
+  // participants are named when it is created (BUSINESS_LOGIC §8, "Naming
+  // participants when creating a cycle overrides the default entirely"); adding
+  // the partner afterwards is refused with ALREADY_A_PARTICIPANT.
+  const cycle = await mk('cycles', {
+    originType: 'UAE_DIRECT', currency: 'EGP',
+    participants: [
+      { participantType: 'TEMP_INVESTOR', investorUserId: investor, contributionAmount: 400, investorFeePct: 10 },
+      { participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 600 },
+    ],
   });
   const po = await mk(`cycles/${cycle.id}/purchases`, {
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
     items: [{ productId: product.id, orderedQty: 10, unitPrice: 20 }],
   });
   await mk(`cycles/${cycle.id}/shipping-legs`, {
-    sequence: 1, origin: `${tag} Dubai`, destination: 'Cairo, Egypt',
+    // A UAE_DIRECT leg must leave from the UAE (UAE_DIRECT_LEG_ROUTE).
+    sequence: 1, origin: `${tag} Dubai, UAE`, destination: 'Cairo, Egypt',
     provider: provider.name, providerId: provider.id, costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
   });
   return { tag, cycle, product, category, supplier, provider, po };

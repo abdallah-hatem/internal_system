@@ -19,24 +19,9 @@
  *    it was run against a throwaway database (docs/build-log/.../B2.md).
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, daysAgo, today } from './support/fixtures';
+import { apiCtx, API, daysAgo, today, refusedCallers } from './support/fixtures';
 
 type Headers = Record<string, string>;
-
-async function accountWithRole(request: APIRequestContext, role: string) {
-  const { headers } = await apiCtx(request);
-  const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
-  const email = `deliveries-${role.toLowerCase()}-${stamp}@motoparts.com`;
-  const made = await request.post(`${API}/auth/register`, {
-    headers,
-    data: { email, password: 'password123', displayName: `Deliveries ${stamp}`, role },
-  });
-  expect(made.ok(), `create ${role}: ${await made.text()}`).toBeTruthy();
-  const signedIn = await request.post(`${API}/auth/login`, {
-    data: { email, password: 'password123' },
-  });
-  return { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
-}
 
 /**
  * A cycle with 40 of one product ordered at 100 and its legs departed 20 days
@@ -419,8 +404,9 @@ test.describe('Roles', () => {
     const { headers, leg, item } = await departedCycle(request);
     const d = await deliver(request, headers, leg.id, item, 5);
     const l = await lose(request, headers, leg.id, item, 5);
-    for (const role of ['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL']) {
-      const h = await accountWithRole(request, role);
+    // A shop owner's real token is a portal one: registration offers office roles
+    // only, so it is refused by the surface fence (WRONG_SURFACE), not the role guard.
+    for (const { who, headers: h, code } of await refusedCallers(request, 'deliveries')) {
       const calls = [
         request.post(`${API}/shipping/legs/${leg.id}/deliveries`, { headers: h, data: { arrivedOn: daysAgo(3), lines: lines(item, 1) } }),
         request.post(`${API}/shipping/legs/${leg.id}/losses`, { headers: h, data: { lines: lines(item, 1) } }),
@@ -428,8 +414,8 @@ test.describe('Roles', () => {
         request.delete(`${API}/shipping/losses/${l.body.data[0].id}`, { headers: h }),
       ];
       for (const res of await Promise.all(calls)) {
-        expect(res.status(), `${role}: ${res.url()}`).toBe(403);
-        expect((await res.json()).error.code).toBe('ROLE_NOT_ALLOWED');
+        expect(res.status(), `${who}: ${res.url()}`).toBe(403);
+        expect((await res.json()).error.code, `${who}: ${res.url()}`).toBe(code);
       }
     }
   });

@@ -92,3 +92,7 @@
   Left (R1c.md): ledger reasons the system writes are English (needs a migration — queued); a few English literals and
   `paddingLeft` in the categories tree (the UI audit will list them).
 **All 20 build tasks merged. → Stage 5: Verify.**
+- **Verify, first full e2e run:** group 1 193 passed / 6 failed; group 2 108 passed; group 3 131 / 10 failed; group 4 216 / 9 failed;
+  group 5 105 / 19 failed. 44 failures in roughly 8 causes: fixtures in the new specs (participant already present; shop
+  account creation), tests outdated by decisions (R1 404, F1b wizard, default dates), click timeouts on new screens,
+  and a phone "More" reopen bug. One agent owns the fix-and-rerun loop (only one e2e run can hold the DB at a time).

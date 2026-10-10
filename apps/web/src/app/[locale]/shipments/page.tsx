@@ -95,7 +95,12 @@ export default function ShipmentsPage() {
   // ── Queries ───────────────────────────────────────────────────────
   const { data: shipments = [], isLoading } = useQuery({
     queryKey: ['shipments'],
-    queryFn: () => api.get('/shipping/legs').then((r) => r.data.data ?? r.data),
+    // The page searches and pages on the client, so it needs the whole list,
+    // not the API's default first 20: with more legs than that, a leg could be
+    // absent from the page and its own cycle code found nothing. 200 is the
+    // API's largest page, as the suppliers page asks for.
+    queryFn: () =>
+      api.get('/shipping/legs', { params: { limit: 200 } }).then((r) => r.data.data ?? r.data),
   });
 
   const { data: cycles = [] } = useQuery({

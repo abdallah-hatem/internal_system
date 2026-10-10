@@ -53,14 +53,15 @@ async function theInvestorsCycles(request: APIRequestContext) {
   const product = await mk('products', { name: `${tag} Part`, minStock: 0 });
   const supplier = await mk('suppliers', { name: `${tag} Supplier`, country: 'AE' });
 
-  const join = async (cycleId: string) => {
-    await mk(`cycles/${cycleId}/participants`, {
-      participantType: 'TEMP_INVESTOR', investorUserId: investor, contributionAmount: 400, investorFeePct: 10,
-    });
-    await mk(`cycles/${cycleId}/participants`, {
-      participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 600,
-    });
-  };
+  // A new cycle starts with every active core partner on it, unless the
+  // participants are named when it is created (BUSINESS_LOGIC §8, "Naming
+  // participants when creating a cycle overrides the default entirely"). So the
+  // investor and one partner are named up front; adding them afterwards would be
+  // refused with ALREADY_A_PARTICIPANT for the partner already on it.
+  const participants = [
+    { participantType: 'TEMP_INVESTOR', investorUserId: investor, contributionAmount: 400, investorFeePct: 10 },
+    { participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 600 },
+  ];
   const buy = async (cycleId: string, departed: boolean) => {
     await mk(`cycles/${cycleId}/purchases`, {
       supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
@@ -74,16 +75,14 @@ async function theInvestorsCycles(request: APIRequestContext) {
   };
 
   // On the way: departed, nothing delivered.
-  const moving = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
-  await join(moving.id);
+  const moving = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP', participants });
   await buy(moving.id, true);
   for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
     await mk(`cycles/${moving.id}/transition`, { status });
   }
 
   // Received and settled to a draft.
-  const settled = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
-  await join(settled.id);
+  const settled = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP', participants });
   await buy(settled.id, true);
   for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
     await mk(`cycles/${settled.id}/transition`, { status });

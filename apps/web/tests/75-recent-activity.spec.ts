@@ -108,7 +108,11 @@ test.describe('Recent activity — what it lists', () => {
   });
 
   test('TC-RECENT-05: a payment appears, and a reversed one does not', async ({ request }) => {
-    const { headers, mk, customer } = await shopWithStock(request, 'Recent Pay');
+    const { headers, mk, product, customer } = await shopWithStock(request, 'Recent Pay');
+    // A payment needs something owed: paying a customer who owes nothing is
+    // refused (CUSTOMER_OWES_NOTHING, CLAUDE.md rule 1 "too much"). 240 owed
+    // covers both payments.
+    await owedOrder(mk, customer.id, product.id, 240);
     const kept = await mk('payments', {
       customerId: customer.id, amount: 150, currency: 'EGP', method: 'CASH',
     });
@@ -172,6 +176,11 @@ test('TC-RECENT-09: the dashboard lists a sale confirmed a moment ago, reached b
 
   // Away and back by clicking, so the cached panel is what is under test.
   await page.getByRole('link', { name: 'Customers', exact: true }).first().click();
+  // Arrive before leaving again. On a cold dev server /customers compiles for a
+  // few seconds, and clicking Dashboard meanwhile never leaves the dashboard —
+  // nothing remounts, so nothing refetches, and the test read the stale list.
+  await expect(page).toHaveURL(/\/customers/);
   await page.getByRole('link', { name: 'Dashboard', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/dashboard/);
   await expect(page.getByText(order.orderNo)).toBeVisible();
 });

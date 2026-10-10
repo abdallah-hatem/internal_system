@@ -31,14 +31,19 @@ async function login(page: Page, locale: 'en' | 'ar' = 'en') {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
 
-/** To the sales page through the navigation — the sidebar, or behind the menu on a phone. */
+/**
+ * To the sales page through the navigation: the sidebar, or on a phone the bar
+ * at the foot (U3). The phone's sidebar is a drawer translated off-screen, which
+ * Playwright still counts as visible, so its link was picked and could never be
+ * clicked ("outside of the viewport"). A person on a phone taps the bar.
+ */
 async function openSales(page: Page, m: Messages = en) {
-  const link = () =>
-    page.getByRole('link', { name: m.nav.sales, exact: true }).filter({ visible: true }).first();
-  if ((await link().count()) === 0) {
-    await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+  const bar = page.getByTestId('phone-bar');
+  if (await bar.isVisible()) {
+    await bar.getByRole('link', { name: m.nav.short.sales, exact: true }).click();
+  } else {
+    await page.getByRole('link', { name: m.nav.sales, exact: true }).filter({ visible: true }).first().click();
   }
-  await link().click();
   await expect(page.getByRole('heading', { name: m.sales.title })).toBeVisible();
 }
 

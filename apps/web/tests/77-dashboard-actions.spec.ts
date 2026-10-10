@@ -129,7 +129,9 @@ test.describe('Quick actions open the existing forms', () => {
     await page.getByTestId('quick-action-newSale').click();
     const heading = page.getByRole('heading', { name: 'New Order', exact: true });
     await expect(heading).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).first().click();
+    // Exact: the status filter's "Cancelled" chip also matches "Cancel" and
+    // sits first in the DOM, under the modal (the form is portalled after it).
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Sales Orders' })).toBeVisible();
     await expect(heading).toHaveCount(0);
@@ -141,7 +143,9 @@ test.describe('Quick actions open the existing forms', () => {
     await login(page);
     await page.getByTestId('quick-action-newSale').click();
     await expect(page.getByRole('heading', { name: 'New Order', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).first().click();
+    // Exact: the status filter's "Cancelled" chip also matches "Cancel" and
+    // sits first in the DOM, under the modal (the form is portalled after it).
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('link', { name: 'Dashboard', exact: true }).first().click();
     await page.getByTestId('quick-action-newSale').click();
     await expect(page.getByRole('heading', { name: 'New Order', exact: true })).toBeVisible();
@@ -176,7 +180,10 @@ test.describe('Roles', () => {
     expect(made.ok(), await made.text()).toBeTruthy();
 
     await login(page, email, 'password123');
-    await expect(tile(page, 'receivables')).toBeVisible();
+    // R1 (owner's decision 2026-10-10): an investor sees only their own cycles,
+    // so the business-wide tiles are replaced by "Your cycles" — no tile at all.
+    await expect(page.getByTestId('your-cycles')).toBeVisible();
+    await expect(page.locator('[data-testid^="tile-"]')).toHaveCount(0);
     await expect(page.getByTestId('quick-action-newSale')).toHaveCount(0);
     await expect(page.getByTestId('quick-action-recordPayment')).toHaveCount(0);
     await expect(page.getByTestId('quick-action-newCycle')).toHaveCount(0);

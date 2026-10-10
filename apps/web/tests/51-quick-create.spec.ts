@@ -214,7 +214,9 @@ test.describe('Quick create', () => {
 
     const cases: [string, RegExp, string][] = [
       ['purchases', /new purchase|create/i, 'supplier'],
-      ['payments', /new payment|create|record/i, 'customer'],
+      // Not the payment form's customer: since U2 a payment settles what is
+      // owed, and a customer made on the spot owes nothing, so it would be
+      // refused (CUSTOMER_OWES_NOTHING) — a + there leads nowhere (rule 13).
       ['shipments', /new shipping leg/i, 'provider'],
       ['sales', /new order|create/i, 'customer'],
       ['products', /new product|create/i, 'category'],
@@ -277,7 +279,8 @@ test.describe('Quick create', () => {
       hostOpen: RegExp;
       prep?: RegExp;
     }[] = [
-      { entity: 'customer', tab: 'customers', tabOpen: /new customer|create/i, host: 'payments', hostOpen: /new payment|create|record/i },
+      // The sale form carries the customer's +; the payment form no longer does (U2).
+      { entity: 'customer', tab: 'customers', tabOpen: /new customer|create/i, host: 'sales', hostOpen: /new order/i },
       { entity: 'category', tab: 'categories', tabOpen: /new category|create/i, host: 'products', hostOpen: /new product|create/i },
       { entity: 'provider', tab: 'providers', tabOpen: /new (shipping )?provider/i, host: 'shipments', hostOpen: /new shipping leg/i },
       { entity: 'supplier', tab: 'suppliers', tabOpen: /new supplier|create/i, host: 'purchases', hostOpen: /new purchase|create/i },
@@ -466,8 +469,9 @@ test.describe('Quick create', () => {
     const { headers } = await apiCtx(request);
 
     await login(page);
-    await page.goto(`${BASE}/en/payments`);
-    await page.getByRole('button', { name: /new payment|create|record/i }).first().click();
+    // From a new sale: the payment form has no customer + since U2 (see TC-QC-07).
+    await page.goto(`${BASE}/en/sales`);
+    await page.getByRole('button', { name: /new order/i }).first().click();
     const name = await quickCreate(page, 'customer', 'QC Shop');
 
     const listed = await (await request.get(`${API}/customers?limit=100`, { headers })).json();
