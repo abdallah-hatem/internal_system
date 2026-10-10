@@ -13,12 +13,45 @@ import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
  */
 const REALISED_SALE_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
 
+/** How many events "Recent activity" shows when not told, and at most. */
+export const RECENT_ACTIVITY_DEFAULT = 10;
+export const RECENT_ACTIVITY_MAX = 50;
+
+/** A count from the query string, kept to 1..RECENT_ACTIVITY_MAX. */
+export function recentActivityLimit(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return RECENT_ACTIVITY_DEFAULT;
+  return Math.min(Math.floor(n), RECENT_ACTIVITY_MAX);
+}
+
+/**
+ * One line of "Recent activity". `kind` is a code the web app translates;
+ * nothing here is display text.
+ */
+export type RecentActivityItem = {
+  kind: 'SALE' | 'PAYMENT' | 'RECEIPT';
+  id: string;
+  /** When it happened in the business: order date, day received, receipt. */
+  occurredAt: Date;
+  /** When it was entered — the tie-break between events on the same day. */
+  recordedAt: Date;
+  reference: string | null;
+  status?: string;
+  amount?: number;
+  currency?: string;
+  quantity?: number;
+  customer?: { id: string; displayName: string };
+  product?: { id: string; name: string; sku: string };
+  cycleId?: string;
+};
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
   async getDashboardKPIs() {
-    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const D = (v: unknown) =>
+      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
     const REALISED = REALISED_SALE_STATUSES;
@@ -46,7 +79,9 @@ export class AnalyticsService {
     });
     // Damaged goods reverse no cost, so cogsReversedEgp is zero for those and
     // their cost correctly stays spent.
-    const cogs = D(cogsAgg._sum.cogsEgp).sub(D(returnsAgg._sum.cogsReversedEgp));
+    const cogs = D(cogsAgg._sum.cogsEgp).sub(
+      D(returnsAgg._sum.cogsReversedEgp),
+    );
 
     // Buying stock is not an expense -- it converts cash into inventory, and
     // becomes a cost only when the goods sell. Goods and shipping are already
@@ -211,7 +246,8 @@ export class AnalyticsService {
     const revenueByMonth: Record<string, number> = {};
     for (const order of orders) {
       const monthKey = order.orderedAt.toISOString().slice(0, 7); // YYYY-MM
-      revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) + Number(order.total);
+      revenueByMonth[monthKey] =
+        (revenueByMonth[monthKey] || 0) + Number(order.total);
     }
 
     // Returns reduce the month they came back in, not the month of the sale:
@@ -226,17 +262,22 @@ export class AnalyticsService {
 
     for (const ret of returns) {
       const monthKey = ret.returnedOn.toISOString().slice(0, 7);
-      revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) - Number(ret.refundEgp);
+      revenueByMonth[monthKey] =
+        (revenueByMonth[monthKey] || 0) - Number(ret.refundEgp);
     }
 
     // Every bucket, including the current month, and zero for the quiet ones.
-    const result = keys.map((key) => ({ month: key, revenue: revenueByMonth[key] || 0 }));
+    const result = keys.map((key) => ({
+      month: key,
+      revenue: revenueByMonth[key] || 0,
+    }));
 
     return { data: result };
   }
 
   async getTopProducts(limit: number = 10) {
-    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const D = (v: unknown) =>
+      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
     const products = await this.prisma.product.findMany({
@@ -253,7 +294,9 @@ export class AnalyticsService {
             quantity: true,
             lineTotal: true,
             allocations: { select: { cogsEgp: true } },
-            returnItems: { select: { qty: true, unitPrice: true, cogsReversedEgp: true } },
+            returnItems: {
+              select: { qty: true, unitPrice: true, cogsReversedEgp: true },
+            },
           },
         },
       },
@@ -265,7 +308,10 @@ export class AnalyticsService {
         // top seller, and counting the gross figure would say it was.
         const units = p.saleItems.reduce(
           (sum, i) =>
-            i.returnItems.reduce((s2, r) => s2.sub(D(r.qty)), sum.add(D(i.quantity))),
+            i.returnItems.reduce(
+              (s2, r) => s2.sub(D(r.qty)),
+              sum.add(D(i.quantity)),
+            ),
           D(0),
         );
         const revenue = p.saleItems.reduce(
@@ -320,7 +366,8 @@ export class AnalyticsService {
    * purpose of comparing cycles while they are still running.
    */
   async getCycleProfitability() {
-    const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const D = (v: unknown) =>
+      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
     const cycles = await this.prisma.importCycle.findMany({
@@ -403,7 +450,9 @@ export class AnalyticsService {
             // is reflected and a part-allocated line is only counted pro rata.
             const lineQty = D(alloc.saleItem.quantity);
             if (lineQty.gt(0)) {
-              revenue = revenue.add(D(alloc.saleItem.lineTotal).div(lineQty).mul(qty));
+              revenue = revenue.add(
+                D(alloc.saleItem.lineTotal).div(lineQty).mul(qty),
+              );
             }
           }
         }
@@ -415,14 +464,19 @@ export class AnalyticsService {
           .reduce((sum, t) => sum.add(D(t.amount)), D(0))
           .sub(
             cycle.financialTransactions
-              .filter((t) => t.direction === 'INFLOW' && t.category === 'supplier_refund')
+              .filter(
+                (t) =>
+                  t.direction === 'INFLOW' && t.category === 'supplier_refund',
+              )
               .reduce((sum, t) => sum.add(D(t.amount)), D(0)),
           );
 
         // A refund recovers cost, so it improves the cycle's result even though
         // it changes no batch cost.
         const supplierRefunds = cycle.financialTransactions
-          .filter((t) => t.direction === 'INFLOW' && t.category === 'supplier_refund')
+          .filter(
+            (t) => t.direction === 'INFLOW' && t.category === 'supplier_refund',
+          )
           .reduce((sum, t) => sum.add(D(t.amount)), D(0));
 
         const profit = revenue.sub(cogs).add(supplierRefunds);
@@ -447,5 +501,114 @@ export class AnalyticsService {
       });
 
     return { data: result };
+  }
+
+  /**
+   * The dashboard's "Recent activity": the latest things that really happened.
+   *
+   * The panel used to read the audit log, which is the wrong source twice over.
+   * It holds only what was done through the API's services, so data entered any
+   * other way — the demo seed, an import, a restore — is real and absent, and
+   * the panel read empty on a database full of confirmed sales. And it holds
+   * everything that was done, so a draft being saved showed up as activity
+   * when a draft counts for nothing (BUSINESS_LOGIC §4).
+   *
+   * So the feed is built from the records themselves:
+   *  - a sale, once it is realised (confirmed, part paid or paid) — never a
+   *    draft, never a cancelled order; dated by its order date;
+   *  - a customer payment that stands — a reversed one is excluded;
+   *  - a stock receipt — a verified batch, the point stock exists.
+   *
+   * Each source is read to the same depth and merged, so one busy source
+   * cannot push the others out of the window by being read deeper.
+   */
+  async getRecentActivity(limit = RECENT_ACTIVITY_DEFAULT) {
+    const take = recentActivityLimit(limit);
+
+    const [sales, payments, receipts] = await Promise.all([
+      this.prisma.saleOrder.findMany({
+        where: { status: { in: [...REALISED_SALE_STATUSES] } },
+        orderBy: [{ orderedAt: 'desc' }, { createdAt: 'desc' }],
+        take,
+        select: {
+          id: true,
+          orderNo: true,
+          status: true,
+          total: true,
+          currency: true,
+          orderedAt: true,
+          createdAt: true,
+          customer: { select: { id: true, displayName: true } },
+        },
+      }),
+      this.prisma.payment.findMany({
+        where: { status: 'RECORDED' },
+        orderBy: [{ receivedOn: 'desc' }, { createdAt: 'desc' }],
+        take,
+        select: {
+          id: true,
+          amount: true,
+          currency: true,
+          method: true,
+          receivedOn: true,
+          createdAt: true,
+          customer: { select: { id: true, displayName: true } },
+        },
+      }),
+      this.prisma.inventoryBatch.findMany({
+        where: { verificationStatus: 'VERIFIED' },
+        orderBy: { createdAt: 'desc' },
+        take,
+        select: {
+          id: true,
+          receivedQty: true,
+          createdAt: true,
+          cycleId: true,
+          product: { select: { id: true, name: true, sku: true } },
+        },
+      }),
+    ]);
+
+    const events: RecentActivityItem[] = [
+      ...sales.map((o) => ({
+        kind: 'SALE' as const,
+        id: o.id,
+        occurredAt: o.orderedAt,
+        recordedAt: o.createdAt,
+        reference: o.orderNo,
+        status: o.status,
+        amount: Number(o.total),
+        currency: o.currency,
+        customer: o.customer,
+      })),
+      ...payments.map((p) => ({
+        kind: 'PAYMENT' as const,
+        id: p.id,
+        occurredAt: p.receivedOn,
+        recordedAt: p.createdAt,
+        reference: p.method ?? null,
+        amount: Number(p.amount),
+        currency: p.currency,
+        customer: p.customer,
+      })),
+      ...receipts.map((b) => ({
+        kind: 'RECEIPT' as const,
+        id: b.id,
+        occurredAt: b.createdAt,
+        recordedAt: b.createdAt,
+        reference: b.product.sku,
+        quantity: Number(b.receivedQty),
+        product: b.product,
+        cycleId: b.cycleId,
+      })),
+    ];
+
+    events.sort(
+      (a, b) =>
+        b.occurredAt.getTime() - a.occurredAt.getTime() ||
+        b.recordedAt.getTime() - a.recordedAt.getTime(),
+    );
+
+    return { data: events.slice(0, take) };
   }
 }
