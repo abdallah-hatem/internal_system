@@ -135,14 +135,20 @@ test.describe('Date picker', () => {
   }
 
   test('TC-UI-09: the field starts empty and opens the app calendar, not the browser one', async ({ page }) => {
-    await openPaymentForm(page);
+    // The payment date now starts on today (U2/U5: the day a payment is
+    // recorded is almost always today), so "starts empty" is pinned on a date
+    // that still has no default: a new purchase order's ordered date.
+    await login(page);
+    await page.goto(`${BASE}/en/purchases`);
+    await page.getByRole('button', { name: 'New Purchase Order' }).first().click();
+    await expect(page.locator('[data-date-picker="orderedDate"]')).toBeVisible({ timeout: 10000 });
 
     // A native date input would still be in the DOM; the value has to travel in
     // a hidden input for FormData to keep working.
     expect(await page.locator('input[type="date"]').count()).toBe(0);
-    await expect(page.locator('input[type="hidden"][name="receivedOn"]')).toHaveValue('');
+    await expect(page.locator('input[type="hidden"][name="orderedDate"]')).toHaveValue('');
 
-    await page.locator('[data-date-picker="receivedOn"]').click();
+    await page.locator('[data-date-picker="orderedDate"]').click();
     await expect(page.getByRole('grid')).toBeVisible();
     // 6 rows of 7 so the panel does not resize between months.
     await expect(page.getByRole('gridcell')).toHaveCount(42);
@@ -185,10 +191,12 @@ test.describe('Date picker', () => {
     const start = grid.locator('[data-day][tabindex="0"]');
     const startIso = await start.getAttribute('data-day');
     await start.focus();
-    await page.keyboard.press('ArrowRight');
+    // Left, not right: the payment date starts on today and refuses later days
+    // (U0 disableFuture, U2's default), so the day to the right is disabled.
+    await page.keyboard.press('ArrowLeft');
 
     const expected = new Date(`${startIso}T00:00:00`);
-    expected.setDate(expected.getDate() + 1);
+    expected.setDate(expected.getDate() - 1);
     const expectedIso = `${expected.getFullYear()}-${`${expected.getMonth() + 1}`.padStart(2, '0')}-${`${expected.getDate()}`.padStart(2, '0')}`;
 
     await expect(grid.locator('[data-day][tabindex="0"]')).toHaveAttribute('data-day', expectedIso);
@@ -209,11 +217,15 @@ test.describe('Date picker', () => {
 });
 
 test.describe('Select — short lists', () => {
-  /** The Record Payment modal carries a three-currency Select and a three-method one. */
-  async function openPaymentForm(page: Page) {
+  /**
+   * The ledger's New Entry modal carries a three-currency Select. The payment
+   * form's currency picker is gone (U2: a payment is in its order's currency),
+   * and its method list is four long, which earns a search box.
+   */
+  async function openLedgerEntryForm(page: Page) {
     await login(page);
-    await page.goto(`${BASE}/en/payments`);
-    await page.getByRole('button', { name: /Record Payment|New|Create/i }).first().click();
+    await page.goto(`${BASE}/en/ledger`);
+    await page.getByRole('button', { name: 'New Entry' }).first().click();
     await expect(page.locator('input[type="hidden"][name="currency"]')).toBeAttached({ timeout: 10000 });
   }
 
@@ -222,12 +234,12 @@ test.describe('Select — short lists', () => {
   }
 
   test('TC-UI-14: no native <select> is left on a form', async ({ page }) => {
-    await openPaymentForm(page);
+    await openLedgerEntryForm(page);
     expect(await page.locator('select').count()).toBe(0);
   });
 
   test('TC-UI-15: a three-option list opens without a search box', async ({ page }) => {
-    await openPaymentForm(page);
+    await openLedgerEntryForm(page);
     await trigger(page, 'currency').click();
 
     await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(3);
@@ -245,7 +257,7 @@ test.describe('Select — short lists', () => {
   });
 
   test('TC-UI-17: without a search box the arrow keys still work', async ({ page }) => {
-    await openPaymentForm(page);
+    await openLedgerEntryForm(page);
     // Nothing inside the panel is tabbable when there is no search input, so
     // this is really a test that focus lands somewhere cmdk can hear.
     await trigger(page, 'currency').click();
@@ -274,10 +286,10 @@ test.describe('Select — short lists', () => {
   });
 
   test('TC-UI-18: a short list keeps the value the native select would have submitted', async ({ page }) => {
-    await openPaymentForm(page);
+    await openLedgerEntryForm(page);
     // The native <select> submitted its first option when untouched; the
     // replacement has to start on that same value, not empty.
     await expect(page.locator('input[type="hidden"][name="currency"]')).toHaveValue('EGP');
-    await expect(page.locator('input[type="hidden"][name="method"]')).toHaveValue('CASH');
+    await expect(page.locator('input[type="hidden"][name="type"]')).toHaveValue('PURCHASE');
   });
 });
