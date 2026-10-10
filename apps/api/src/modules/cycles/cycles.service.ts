@@ -384,7 +384,8 @@ export class CyclesService {
           await this.notifications.create({
             userId: notifyUserId,
             eventType: 'ADDED_TO_CYCLE',
-            title: `You have been added to cycle ${cycle.code}`,
+            code: 'ADDED_TO_CYCLE',
+            params: { cycleCode: cycle.code },
             payload: {
               cycleId: cycle.id,
               cycleCode: cycle.code,
@@ -412,7 +413,8 @@ export class CyclesService {
         corePartners.map((u) => u.id),
         {
           eventType: 'CYCLE_CREATED',
-          title: `New import cycle ${cycle.code} created`,
+          code: 'CYCLE_CREATED',
+          params: { cycleCode: cycle.code },
           payload: { cycleId: cycle.id, cycleCode: cycle.code },
         },
       );
@@ -723,7 +725,9 @@ export class CyclesService {
     if (userIds.length > 0) {
       await this.notifications.createForMultipleUsers(userIds, {
         eventType: 'CYCLE_STATUS_CHANGED',
-        title: `Cycle ${cycle.code} moved to ${targetStatus}`,
+        code: 'CYCLE_STATUS_CHANGED',
+        // `toStatus` is itself a code; the reader's app translates it too.
+        params: { cycleCode: cycle.code, toStatus: targetStatus },
         payload: {
           cycleId: cycle.id,
           cycleCode: cycle.code,
@@ -830,7 +834,8 @@ export class CyclesService {
       await this.notifications.create({
         userId: notifyUserId,
         eventType: 'ADDED_TO_CYCLE',
-        title: `You have been added to cycle ${cycle.code}`,
+        code: 'ADDED_TO_CYCLE',
+        params: { cycleCode: cycle.code },
         payload: {
           cycleId: cycle.id,
           cycleCode: cycle.code,

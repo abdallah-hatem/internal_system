@@ -508,7 +508,10 @@ export class InventoryService {
       if (userIds.length > 0) {
         await this.notifications.createForMultipleUsers(userIds, {
           eventType: 'LOW_STOCK_DETECTED',
-          title: `Low stock detected: ${lowStockProducts.map((p) => p.productName).join(', ')}`,
+          code: 'LOW_STOCK_DETECTED',
+          params: {
+            products: lowStockProducts.map((p) => p.productName).join(', '),
+          },
           payload: { products: lowStockProducts },
         });
       }
