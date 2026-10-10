@@ -1,7 +1,62 @@
+import 'reflect-metadata';
 import { PrismaClient, UserRole, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PaymentsService } from '../src/modules/payments/payments.service';
+import { AuditService } from '../src/modules/audit/audit.service';
+import type { PrismaService } from '../src/prisma/prisma.service';
+import { nextReferenceNumber, pad } from '../src/common/references';
 
 const prisma = new PrismaClient();
+
+/**
+ * The app's own payment service, run against the seed's client.
+ *
+ * The demo orders used to be written straight as PAID and PARTIALLY_PAID with
+ * no payment behind them: the order said 45,000 had come in, the Payments list
+ * was empty and the dashboard's Collected read 0.00. Hand-writing the payment
+ * rows instead would be a second definition of what receiving money produces
+ * (CLAUDE.md rule 11) — the payment, its ledger INFLOW, its allocation, the
+ * order's outstanding and status, and the audit rows. Calling the service
+ * writes exactly what a partner pressing Record payment writes, and runs the
+ * same guards: a verified customer, no more than is owed, not dated forward.
+ */
+const payments = new PaymentsService(
+  prisma as unknown as PrismaService,
+  new AuditService(prisma as unknown as PrismaService),
+);
+
+/** Receive money from a shop and put it on one order, as the customer page does. */
+async function receivePayment(opts: {
+  customerId: string;
+  saleOrderId: string;
+  amount: number;
+  method: string;
+  actorId: string;
+}) {
+  const { data: payment } = await payments.create(
+    { customerId: opts.customerId, amount: opts.amount, currency: 'EGP', method: opts.method },
+    opts.actorId,
+  );
+  await payments.allocateToOrder(payment.id, opts.saleOrderId, opts.amount, opts.actorId);
+}
+
+/**
+ * The next order number, the way the sales service issues one: ORD-YYYY-NNNNN.
+ *
+ * The seed used to call its orders SO-DEMO-0001, so the list showed two styles
+ * side by side and the demo orders looked like they came from somewhere else.
+ * Using the app's format also means the first order a person creates after a
+ * demo reset continues the sequence (00003) instead of starting a second one.
+ */
+async function nextOrderNo() {
+  const year = new Date().getFullYear();
+  const last = await prisma.saleOrder.findFirst({
+    where: { orderNo: { startsWith: `ORD-${year}` } },
+    orderBy: { orderNo: 'desc' },
+    select: { orderNo: true },
+  });
+  return `ORD-${year}-${pad(nextReferenceNumber(last?.orderNo, 5), 5)}`;
+}
 
 /**
  * Post the capital a seeded participant put in.
@@ -573,11 +628,13 @@ async function main() {
     });
 
     // A confirmed sale: 40 brake pads at 180 EGP, drawn from the batch above.
+    // Written as CONFIRMED and owing its whole total; the payment below is what
+    // makes it PARTIALLY_PAID, the same way it happens in the app.
     const sale = await prisma.saleOrder.create({
       data: {
-        orderNo: 'SO-DEMO-0001', customerId: customer.id, channel: 'B2B',
-        status: 'PARTIALLY_PAID', currency: 'EGP',
-        subtotal: D(7200), discount: D(0), total: D(7200), outstanding: D(2200),
+        orderNo: await nextOrderNo(), customerId: customer.id, channel: 'B2B',
+        status: 'CONFIRMED', currency: 'EGP',
+        subtotal: D(7200), discount: D(0), total: D(7200), outstanding: D(7200),
         createdBy: partnerA.id,
         items: { create: [{ productId: brakePad.id, quantity: D(40), unitPrice: D(180), lineTotal: D(7200) }] },
       },
@@ -596,12 +653,14 @@ async function main() {
         referenceType: 'SALE_ORDER', referenceId: sale.id, createdBy: partnerA.id,
       },
     });
-    await prisma.financialTransaction.create({
-      data: {
-        type: 'SALE_REVENUE', category: 'revenue', direction: 'INFLOW',
-        amount: D(7200), currency: 'EGP', cycleId: cycle.id,
-        relatedType: 'SALE_ORDER', relatedId: sale.id, createdBy: partnerA.id,
-      },
+    // No SALE_REVENUE ledger row: confirming a sale raises none (§9, DECIDED
+    // 2026-08-22 — the ledger records money as it is received). The seed used
+    // to write one for each order, booking the same sale twice once paid.
+    //
+    // 5,000 of the 7,200 has come in, leaving 2,200 owed.
+    await receivePayment({
+      customerId: customer.id, saleOrderId: sale.id, amount: 5000,
+      method: 'CASH', actorId: partnerA.id,
     });
 
     console.log('✅ Created demo China cycle CYC-DEMO-001 with two costed legs, stock and a sale');
@@ -669,9 +728,9 @@ async function main() {
 
     const uaeSale = await prisma.saleOrder.create({
       data: {
-        orderNo: 'SO-DEMO-0002', customerId: customer.id, channel: 'B2B',
-        status: 'PAID', currency: 'EGP',
-        subtotal: D(40000), discount: D(0), total: D(40000), outstanding: D(0),
+        orderNo: await nextOrderNo(), customerId: customer.id, channel: 'B2B',
+        status: 'CONFIRMED', currency: 'EGP',
+        subtotal: D(40000), discount: D(0), total: D(40000), outstanding: D(40000),
         createdBy: partnerA.id,
         items: { create: [{ productId: helmet.id, quantity: D(20), unitPrice: D(2000), lineTotal: D(40000) }] },
       },
@@ -689,12 +748,10 @@ async function main() {
         referenceType: 'SALE_ORDER', referenceId: uaeSale.id, createdBy: partnerA.id,
       },
     });
-    await prisma.financialTransaction.create({
-      data: {
-        type: 'SALE_REVENUE', category: 'revenue', direction: 'INFLOW',
-        amount: D(40000), currency: 'EGP', cycleId: uae.id,
-        relatedType: 'SALE_ORDER', relatedId: uaeSale.id, createdBy: partnerA.id,
-      },
+    // Paid in full, by bank transfer.
+    await receivePayment({
+      customerId: customer.id, saleOrderId: uaeSale.id, amount: 40000,
+      method: 'BANK_TRANSFER', actorId: partnerA.id,
     });
 
     await prisma.importCycle.update({
