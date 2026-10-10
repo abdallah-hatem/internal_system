@@ -57,3 +57,10 @@
   unique per user (task U2). Alternative: button-disabling only (fails on a retry after a network drop).
 - **[Decided] A negative discount is refused** (`DISCOUNT_NEGATIVE`), on the server. CLAUDE.md rule 1 lists
   negative values among the things to refuse, and a negative discount is a hidden price rise. Task U2.
+- **[Release review] CONFLICTS → resolved.** Code: the low-stock rule had four copies (the receiving alert ignored
+  "active" and used a different quantity) → task L2 makes one API definition and one pinned web copy. Doc: the
+  behaviours the build shipped but the doc did not say are now written in (correcting a delivery, gates re-checked,
+  deliveries from planning on, a loss without departure, the old one-date arrival; idempotent order creation; payment
+  currency; negative discounts; refund date default and payer; recent activity; R1's two security fixes). The
+  pre-existing reservations contradiction (§3 vs §12) is moved to Still open. System-written English ledger reasons
+  stay queued (needs a migration). CHEQUE was already restored at the U2 merge.

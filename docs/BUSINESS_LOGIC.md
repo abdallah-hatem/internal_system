@@ -73,6 +73,16 @@ refunded cannot be taken back (§6).
 **Nothing is recorded on a cycle being settled.** No delivery, receipt or loss
 while the cycle is in settlement or closed; reversing the settlement reopens it.
 
+**Correcting a delivery** (2026-10-10). A delivery recorded by mistake is deleted
+and recorded again — there is no edit. Deleting is refused once anything depends
+on it: stock was received from it, a later leg carried its goods on, or it is the
+only delivery that lets the cycle stand where it is. A cycle's arrival points
+(§1 table) are re-checked for every move forward, not only the one they name.
+Deliveries can be recorded on any open cycle, from planning on, as soon as the leg
+has departed; a loss does not need the leg to have departed. Setting a leg's
+arrival date the old way (one date for the whole leg) records one delivery of
+everything still on the way.
+
 **The one exception to "nothing is marked lost by itself"** is the move to
 deliveries on 2026-10-10. Before it, a line counted short at verification had its
 whole cost spread over the units that came. Those shortfalls were recorded as lost
@@ -227,6 +237,10 @@ button sits beside Confirm.
 enough stock, say), nothing is saved and the order stays on screen to fix. Saving
 a draft first is still possible. A draft shows no amount owed anywhere — it counts
 for nothing until it is confirmed.
+
+Saving the same new order twice (a double click, a retry after a dropped
+connection) creates it once: the second request is answered with the first
+order. This holds per person, across the server's instances.
 ---
 
 ## 5. Returns
@@ -285,7 +299,11 @@ what it brings in.
 - A loss that has been refunded cannot be taken back: the goods turning up after
   being paid for would be counted twice. If they do turn up, the refund is undone
   first — money handed back is a ledger correction — and then the loss.
-- Neither kind of refund can be dated in the future.
+- Neither kind of refund can be dated in the future. Left blank, it is dated
+  today, Cairo time.
+- The shipping company that pays must be that leg's own provider, as recorded on
+  the leg; a leg whose company was typed in rather than chosen can only be
+  refunded by the supplier.
 
 **2026-10-10 — undoing a refund.** *Built (B5b).* A supplier refund or a loss
 refund can be undone when the money is handed back, by a core partner, with a
@@ -333,6 +351,9 @@ confirmed, with something still owed, and the payment cannot be more than that
 order owes. Recorded from the shop or the payments list, it goes on the oldest
 unpaid orders first, as before.
 
+A payment is in the order's currency or in Egyptian pounds; no other currency is
+offered.
+
 **DECIDED 2026-08-21 — overdue flags and notifies, nothing more.** It appears in
 the overdue summary and raises a notification, at most one per plan per day. It
 does **not** block new sales, warn on the sale screen, or charge a penalty. This
@@ -377,6 +398,9 @@ meant to be in the future.
 **A discount cannot exceed what a line is worth.** A 100 line discounted by
 9,999 produced an order totalling -9,899 — a sale owing money to the customer,
 which would have counted as revenue.
+
+**Nor can it be negative** (2026-10-10). A negative discount is a hidden price
+rise; it is refused on every path that creates an order.
 
 **A payment can only pay the customer who made it.** Allocation checks the
 order belongs to the payer. It did not, and the picker offered every order in
@@ -630,6 +654,16 @@ them; the product catalogue, categories and currency rates are shown whole, as
 shared reference data, but without each product's supplier links; a customer's
 request photo is not served to an investor.
 
+Found while scoping, and fixed: adding or deleting a product photo was open to
+any signed-in account and is now core partners only; a cycle's participant list
+was sending each person's password hash and no longer does.
+
+**Recent activity on the dashboard** (2026-10-10). The latest real events,
+newest first: confirmed sales (dated by their order date — no confirmation time
+is stored), payments that were not reversed, and stock received. Drafts never
+appear; cancelled and fully returned orders do not either. Core partners and
+support see it; an investor's dashboard shows their own cycles instead.
+
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added
@@ -650,6 +684,7 @@ mistakes it for an agreement.
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
 | Where the cash for lost goods shows in the ledger | Nowhere. Goods are booked into the ledger when they are received, so units lost on the way never appear in it, though they were paid for. Raised 2026-10-10. |
+| Whether stock is held for an order request | §3 says reservations are not in use and reserved quantity is zero; §12 says an order request holds its stock for 48 hours. The two predate 2026-10-10 and disagree. Raised by the 2026-10-10 release review. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |
 | Whether a shop that is behind on payment may hold stock | It may. A request checks verification and stock, not the balance. Raised 2026-08-30 with the storefront; not decided. |
 
