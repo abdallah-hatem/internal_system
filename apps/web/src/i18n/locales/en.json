@@ -991,5 +991,64 @@
     "allDisconnected": "All Claude apps disconnected",
     "failed": "Could not disconnect. Please try again.",
     "loadFailed": "Your Claude connections could not be loaded."
+  },
+  "codes": {
+    "orderStatus": {
+      "DRAFT": "Draft",
+      "CONFIRMED": "Confirmed",
+      "PARTIALLY_PAID": "Partially paid",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled",
+      "RETURNED": "Returned"
+    },
+    "paymentStatus": {
+      "RECORDED": "Recorded",
+      "REVERSED": "Reversed"
+    },
+    "cycleStatus": {
+      "PLANNING": "Planning",
+      "FUNDING": "Funding",
+      "PURCHASING": "Purchasing",
+      "IN_TRANSIT": "In transit",
+      "ARRIVED_UAE": "Arrived UAE",
+      "IN_TRANSIT_TO_EGYPT": "In transit to Egypt",
+      "ARRIVED_EGYPT": "Arrived Egypt",
+      "VERIFICATION": "Verification",
+      "SELLING": "Selling",
+      "SETTLEMENT": "Settlement",
+      "CLOSED": "Closed",
+      "CANCELLED": "Cancelled"
+    },
+    "legStatus": {
+      "PENDING": "Not departed",
+      "IN_TRANSIT": "In transit",
+      "PARTLY_ARRIVED": "Partly arrived",
+      "ARRIVED": "Arrived"
+    },
+    "role": {
+      "CORE_PARTNER": "Core partner",
+      "TEMP_INVESTOR": "Temporary investor",
+      "ADMIN_SUPPORT": "Admin support",
+      "SHOP_OWNER_PORTAL": "Shop owner"
+    },
+    "paymentMethod": {
+      "CASH": "Cash",
+      "BANK_TRANSFER": "Bank transfer",
+      "BANK": "Bank transfer",
+      "MOBILE_WALLET": "Mobile wallet"
+    },
+    "costBasis": {
+      "PER_PIECE": "Per piece",
+      "PER_WEIGHT": "Per weight",
+      "FLAT": "Flat amount"
+    },
+    "customerType": {
+      "B2B": "B2B",
+      "B2C": "B2C"
+    },
+    "channel": {
+      "B2B": "B2B",
+      "B2C": "B2C"
+    }
   }
 }

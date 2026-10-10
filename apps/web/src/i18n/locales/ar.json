@@ -991,5 +991,64 @@
     "allDisconnected": "تم قطع اتصال كل تطبيقات Claude",
     "failed": "تعذّر قطع الاتصال. حاول مرة أخرى.",
     "loadFailed": "تعذّر تحميل اتصالات Claude."
+  },
+  "codes": {
+    "orderStatus": {
+      "DRAFT": "مسودة",
+      "CONFIRMED": "مؤكد",
+      "PARTIALLY_PAID": "مدفوع جزئياً",
+      "PAID": "مدفوع",
+      "CANCELLED": "ملغى",
+      "RETURNED": "مرتجع"
+    },
+    "paymentStatus": {
+      "RECORDED": "مسجّلة",
+      "REVERSED": "معكوسة"
+    },
+    "cycleStatus": {
+      "PLANNING": "التخطيط",
+      "FUNDING": "التمويل",
+      "PURCHASING": "الشراء",
+      "IN_TRANSIT": "في الطريق",
+      "ARRIVED_UAE": "وصلت الإمارات",
+      "IN_TRANSIT_TO_EGYPT": "في الطريق إلى مصر",
+      "ARRIVED_EGYPT": "وصلت مصر",
+      "VERIFICATION": "التحقق",
+      "SELLING": "البيع",
+      "SETTLEMENT": "التسوية",
+      "CLOSED": "مغلقة",
+      "CANCELLED": "ملغاة"
+    },
+    "legStatus": {
+      "PENDING": "لم تُشحن بعد",
+      "IN_TRANSIT": "في الطريق",
+      "PARTLY_ARRIVED": "وصلت جزئياً",
+      "ARRIVED": "وصلت"
+    },
+    "role": {
+      "CORE_PARTNER": "شريك أساسي",
+      "TEMP_INVESTOR": "مستثمر مؤقت",
+      "ADMIN_SUPPORT": "دعم إداري",
+      "SHOP_OWNER_PORTAL": "صاحب محل"
+    },
+    "paymentMethod": {
+      "CASH": "نقدي",
+      "BANK_TRANSFER": "تحويل بنكي",
+      "BANK": "تحويل بنكي",
+      "MOBILE_WALLET": "محفظة إلكترونية"
+    },
+    "costBasis": {
+      "PER_PIECE": "بالقطعة",
+      "PER_WEIGHT": "بالوزن",
+      "FLAT": "مبلغ ثابت"
+    },
+    "customerType": {
+      "B2B": "جملة",
+      "B2C": "تجزئة"
+    },
+    "channel": {
+      "B2B": "جملة",
+      "B2C": "تجزئة"
+    }
   }
 }
