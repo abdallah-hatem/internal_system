@@ -176,7 +176,13 @@ function harness(db: Db) {
     [CyclesService, new CyclesService(p, audit, notifications)],
     [
       InventoryService,
-      new InventoryService(p, audit, notifications, {} as CostingService),
+      new InventoryService(
+        p,
+        audit,
+        notifications,
+        {} as CostingService,
+        {} as CyclesService,
+      ),
     ],
     [SalesService, new SalesService(p, audit)],
     [CustomersService, new CustomersService(p, audit)],

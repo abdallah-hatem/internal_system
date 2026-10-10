@@ -68,7 +68,7 @@ far as its dates go is not moved.
   already blocks the second click. The guard is kept as a second line.
 - `npm run test:unit`: vitest 107/107, node 43/43. Typecheck clean. Lint: no errors in
   F1b files. Suppressions for the wizard and list were pruned (counts fell). The 3 remaining
-  lint errors are `no-explicit-any` in `tests/78-deliveries-and-losses.spec.ts` (B2's, untouched).
+  lint errors are `no-explicit-any` in `tests/81-deliveries-and-losses.spec.ts` (B2's, untouched).
 - Playwright, **written, not run**: `tests/80-wizard-ends-in-transit.spec.ts`, 10 cases. Finish
   with no dates through the whole wizard by clicking leaves PURCHASING with a DRAFT order, and
   the list shows Purchasing. A departure gives IN_TRANSIT and CONFIRMED. Arrival dates give

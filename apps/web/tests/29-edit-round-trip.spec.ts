@@ -349,7 +349,12 @@ test.describe('FX rates reach the forms', () => {
     await expect(fx).not.toHaveValue(String(rates.AED));
   });
 
-  test('TC-RT-08: a cycle whose stock is already in does not dead-end in the wizard', async ({
+  // Changed 2026-10-10. B3 (§3): the first receipt walks the cycle to SELLING,
+  // and SELLING cannot go back to ARRIVED_EGYPT, so this re-entry no longer
+  // exists. F1b: the wizard ends at ordered / in transit and receives nothing,
+  // so step 4 is gone. Kept as a record of the old dead end; covered now by
+  // 80-wizard-ends-in-transit and 82-receiving-deliveries.
+  test.fixme('TC-RT-08: a cycle whose stock is already in does not dead-end in the wizard', async ({
     page,
     request,
   }) => {

@@ -15,10 +15,15 @@ import {
   CAPITALISED_CATEGORIES,
   COST_RECOVERY_CATEGORIES,
 } from '../../common/ledger-categories';
+import { cycleLossesEgp } from '../../common/cycle-losses';
+import { lockCycle } from '../../common/shipment-load';
+import { assertShipmentAccounted } from '../../common/shipment-accounted';
 /** Sale states whose stock has genuinely left the business. */
-const REALISED_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
-
-
+const REALISED_ORDER_STATUSES = [
+  'CONFIRMED',
+  'PARTIALLY_PAID',
+  'PAID',
+] as const;
 
 const SETTLEMENT_INCLUDE = {
   cycle: { select: { id: true, code: true, status: true } },
@@ -34,15 +39,15 @@ const SETTLEMENT_INCLUDE = {
             },
           },
           investor: {
-                  select: {
-                    id: true,
-                    email: true,
-                    // An investor may also hold a partner record; prefer that
-                    // name so the settlement table does not show a bare email
-                    // next to properly named partners.
-                    partner: { select: { id: true, displayName: true } },
-                  },
-                },
+            select: {
+              id: true,
+              email: true,
+              // An investor may also hold a partner record; prefer that
+              // name so the settlement table does not show a bare email
+              // next to properly named partners.
+              partner: { select: { id: true, displayName: true } },
+            },
+          },
         },
       },
     },
@@ -203,7 +208,9 @@ export class SettlementsService {
         // Must match the allocation filter above: a fully returned order is no
         // longer realised, so its revenue is already excluded and netting its
         // return too would subtract the same money twice.
-        saleItem: { saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } } },
+        saleItem: {
+          saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } },
+        },
       },
       select: { qty: true, unitPrice: true, cogsReversedEgp: true },
     });
@@ -226,7 +233,8 @@ export class SettlementsService {
       new Prisma.Decimal(0),
     );
     const unsoldValue = batches.reduce(
-      (s, b) => s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
+      (s, b) =>
+        s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
       new Prisma.Decimal(0),
     );
 
@@ -251,9 +259,18 @@ export class SettlementsService {
       select: { amount: true },
     });
 
+    // Goods lost on the way are a loss against the cycle (§2, §8). No money
+    // moved when they were marked, so they are not in the ledger and are
+    // added here on purpose — through the one definition analytics reads too
+    // (§9, rule 11).
+    const losses = await cycleLossesEgp(this.prisma, cycleId);
+
     const expenses = expenseTxns
       .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
-      .sub(recoveryTxns.reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0)));
+      .sub(
+        recoveryTxns.reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0)),
+      )
+      .add(losses);
 
     const pnl = summarizeCyclePnl({
       allocations: allocationInputs,
@@ -265,14 +282,30 @@ export class SettlementsService {
     // --- Distribute -------------------------------------------------------
     const participantInputs: ParticipantInput[] = participants.map((p) => ({
       id: p.id,
-      type: p.participantType === 'TEMP_INVESTOR' ? 'TEMP_INVESTOR' : 'CORE_PARTNER',
+      type:
+        p.participantType === 'TEMP_INVESTOR'
+          ? 'TEMP_INVESTOR'
+          : 'CORE_PARTNER',
       contribution: new Prisma.Decimal(p.contributionAmount),
-      customProfitPct: p.customProfitPct ? new Prisma.Decimal(p.customProfitPct) : null,
-      investorFeePct: p.investorFeePct ? new Prisma.Decimal(p.investorFeePct) : null,
+      customProfitPct: p.customProfitPct
+        ? new Prisma.Decimal(p.customProfitPct)
+        : null,
+      investorFeePct: p.investorFeePct
+        ? new Prisma.Decimal(p.investorFeePct)
+        : null,
     }));
 
-    const distribution = distributeCycleProfit(participantInputs, pnl.grossProfit);
-    return { pnl, distribution, participants };
+    const distribution = distributeCycleProfit(
+      participantInputs,
+      pnl.grossProfit,
+    );
+    return {
+      pnl,
+      distribution,
+      participants,
+      lossesEgp: losses,
+      hasAllocations: allocationInputs.length > 0,
+    };
   }
 
   /**
@@ -283,12 +316,17 @@ export class SettlementsService {
    * they commit to it.
    */
   async preview(cycleId: string) {
-    const cycle = await this.prisma.importCycle.findUnique({ where: { id: cycleId } });
+    const cycle = await this.prisma.importCycle.findUnique({
+      where: { id: cycleId },
+    });
     if (!cycle) throw notFound('cycle');
 
     const projected = await this.project(cycleId);
     if (!projected) {
-      throw badRequest('CYCLE_NO_PARTICIPANTS', 'No participants found for this cycle');
+      throw badRequest(
+        'CYCLE_NO_PARTICIPANTS',
+        'No participants found for this cycle',
+      );
     }
 
     return {
@@ -299,6 +337,8 @@ export class SettlementsService {
         revenueEgp: projected.pnl.revenue.toFixed(2),
         cogsEgp: projected.pnl.cogs.toFixed(2),
         expensesEgp: projected.pnl.expenses.toFixed(2),
+        /** Goods lost on the way, already inside expensesEgp (§2). */
+        lossesEgp: projected.lossesEgp.toFixed(2),
         grossProfitEgp: projected.pnl.grossProfit.toFixed(2),
         unsoldValueEgp: projected.pnl.unsoldValue.toFixed(2),
         fullySold: projected.pnl.fullySold,
@@ -334,7 +374,10 @@ export class SettlementsService {
       orderBy: { createdAt: 'asc' },
     });
     if (participants.length === 0) {
-      throw badRequest('CYCLE_NO_PARTICIPANTS', 'No participants found for this cycle');
+      throw badRequest(
+        'CYCLE_NO_PARTICIPANTS',
+        'No participants found for this cycle',
+      );
     }
 
     // A settled cycle must not be silently recalculated underneath the
@@ -350,109 +393,17 @@ export class SettlementsService {
       );
     }
 
-    // --- Revenue and COGS from this cycle's batches ------------------------
-    const allocations = await this.prisma.saleItemAllocation.findMany({
-      where: {
-        inventoryBatch: { cycleId },
-        saleItem: {
-          saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } },
-        },
-      },
-      include: { saleItem: true },
-    });
-
-    const allocationInputs = allocations.map((a) => {
-      const qty = new Prisma.Decimal(a.qty);
-      const itemQty = new Prisma.Decimal(a.saleItem.quantity);
-      // Use the line total so a line-level discount is reflected in revenue.
-      const unitPrice = itemQty.gt(0)
-        ? new Prisma.Decimal(a.saleItem.lineTotal).div(itemQty)
-        : new Prisma.Decimal(0);
-      return { qty, unitPrice, cogs: new Prisma.Decimal(a.cogsEgp) };
-    });
-
-    // Goods that came back. Netted as negative allocations rather than by
-    // editing the sale, so history survives (BRD 9) and the arithmetic stays
-    // in one place.
-    //
-    // A damaged return reverses the revenue but reverses no cost, because the
-    // stock never went back on the shelf: cogsReversedEgp is zero for those,
-    // and the cost stays spent as a write-off.
-    const returnItems = await this.prisma.saleReturnItem.findMany({
-      where: {
-        inventoryBatch: { cycleId },
-        // Must match the allocation filter above: a fully returned order is no
-        // longer realised, so its revenue is already excluded and netting its
-        // return too would subtract the same money twice.
-        saleItem: { saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } } },
-      },
-      select: { qty: true, unitPrice: true, cogsReversedEgp: true },
-    });
-
-    for (const r of returnItems) {
-      allocationInputs.push({
-        qty: new Prisma.Decimal(r.qty).neg(),
-        unitPrice: new Prisma.Decimal(r.unitPrice),
-        cogs: new Prisma.Decimal(r.cogsReversedEgp).neg(),
-      });
+    // The same arithmetic `preview` shows, so what a partner was shown is
+    // what is settled — losses on the way included (§8).
+    const projected = await this.project(cycleId);
+    if (!projected) {
+      throw badRequest(
+        'CYCLE_NO_PARTICIPANTS',
+        'No participants found for this cycle',
+      );
     }
-
-    // --- Stock still on the shelf -----------------------------------------
-    const batches = await this.prisma.inventoryBatch.findMany({
-      where: { cycleId },
-      select: { remainingQty: true, landedUnitCostEgp: true },
-    });
-    const unitsRemaining = batches.reduce(
-      (s, b) => s.add(b.remainingQty),
-      new Prisma.Decimal(0),
-    );
-    const unsoldValue = batches.reduce(
-      (s, b) => s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
-      new Prisma.Decimal(0),
-    );
-
-    // --- Expenses not already inside landed cost ---------------------------
-    const expenseTxns = await this.prisma.financialTransaction.findMany({
-      where: {
-        cycleId,
-        direction: 'OUTFLOW',
-        category: { notIn: [...CAPITALISED_CATEGORIES] },
-      },
-      select: { amount: true },
-    });
-    // Money recovered from suppliers reduces what the cycle cost. It is netted
-    // here rather than by re-pricing batches: units already sold keep the cost
-    // they were sold at, and a settlement may already have been agreed on it.
-    const recoveryTxns = await this.prisma.financialTransaction.findMany({
-      where: {
-        cycleId,
-        direction: 'INFLOW',
-        category: { in: [...COST_RECOVERY_CATEGORIES] },
-      },
-      select: { amount: true },
-    });
-
-    const expenses = expenseTxns
-      .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
-      .sub(recoveryTxns.reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0)));
-
-    const pnl = summarizeCyclePnl({
-      allocations: allocationInputs,
-      expenses,
-      unsoldValue,
-      unitsRemaining,
-    });
-
-    // --- Distribute -------------------------------------------------------
-    const participantInputs: ParticipantInput[] = participants.map((p) => ({
-      id: p.id,
-      type: p.participantType === 'TEMP_INVESTOR' ? 'TEMP_INVESTOR' : 'CORE_PARTNER',
-      contribution: new Prisma.Decimal(p.contributionAmount),
-      customProfitPct: p.customProfitPct ? new Prisma.Decimal(p.customProfitPct) : null,
-      investorFeePct: p.investorFeePct ? new Prisma.Decimal(p.investorFeePct) : null,
-    }));
-
-    const distribution = distributeCycleProfit(participantInputs, pnl.grossProfit);
+    const { pnl, distribution } = projected;
+    const unitsRemaining = pnl.unitsRemaining;
 
     const warnings: string[] = [];
     if (!pnl.fullySold) {
@@ -460,7 +411,7 @@ export class SettlementsService {
         `${formatQty(unitsRemaining)} units are still in stock (${formatMoney(pnl.unsoldValue)} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.`,
       );
     }
-    if (allocationInputs.length === 0) {
+    if (!projected.hasAllocations) {
       warnings.push('This cycle has no realised sales yet.');
     }
 
@@ -473,7 +424,9 @@ export class SettlementsService {
       });
       if (drafts.length > 0) {
         const ids = drafts.map((d) => d.id);
-        await tx.settlementLine.deleteMany({ where: { settlementId: { in: ids } } });
+        await tx.settlementLine.deleteMany({
+          where: { settlementId: { in: ids } },
+        });
         await tx.settlement.deleteMany({ where: { id: { in: ids } } });
       }
 
@@ -561,6 +514,8 @@ export class SettlementsService {
         revenueEgp: pnl.revenue.toFixed(2),
         cogsEgp: pnl.cogs.toFixed(2),
         expensesEgp: pnl.expenses.toFixed(2),
+        /** Goods lost on the way, already inside expensesEgp (§2). */
+        lossesEgp: projected.lossesEgp.toFixed(2),
         grossProfitEgp: pnl.grossProfit.toFixed(2),
         unsoldValueEgp: pnl.unsoldValue.toFixed(2),
         unitsSold: pnl.unitsSold.toFixed(3),
@@ -579,13 +534,24 @@ export class SettlementsService {
    * longer trading while the payout is arranged.
    */
   async approve(id: string, actorId?: string) {
-    const settlement = await this.prisma.settlement.findUnique({ where: { id } });
+    const settlement = await this.prisma.settlement.findUnique({
+      where: { id },
+    });
     if (!settlement) throw notFound('settlement');
     if (settlement.status !== 'DRAFT') {
-      throw badRequest('ONLY_DRAFT_APPROVABLE', 'Only DRAFT settlements can be approved');
+      throw badRequest(
+        'ONLY_DRAFT_APPROVABLE',
+        'Only DRAFT settlements can be approved',
+      );
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Every unit ordered received or marked lost first (§8, amendment 5):
+      // the same gate the plain transition to SETTLEMENT runs, under the
+      // cycle's lock so a loss taken back cannot slip in between.
+      await lockCycle(tx, settlement.cycleId);
+      await assertShipmentAccounted(tx, settlement.cycleId);
+
       // Update the cycle first: the settlement is read back with its cycle
       // included, so doing it the other way round returns a stale status.
       await tx.importCycle.update({
@@ -639,7 +605,10 @@ export class SettlementsService {
     });
     if (!settlement) throw notFound('settlement');
     if (settlement.status !== 'APPROVED') {
-      throw badRequest('ONLY_APPROVED_PAYABLE', 'Only APPROVED settlements can be marked as paid');
+      throw badRequest(
+        'ONLY_APPROVED_PAYABLE',
+        'Only APPROVED settlements can be marked as paid',
+      );
     }
 
     const unitsRemaining = new Prisma.Decimal(settlement.unitsRemaining ?? 0);
@@ -665,7 +634,11 @@ export class SettlementsService {
     // already inside that participant's PROFIT_SHARE. Counting it again here
     // makes the payouts disagree with both the settlement screen and
     // settlement-math, and the total stops reconciling to capital plus profit.
-    const PAYABLE_COMPONENTS = ['CAPITAL_RETURN', 'PROFIT_SHARE', 'INVESTOR_FEE_RECEIVED'];
+    const PAYABLE_COMPONENTS = [
+      'CAPITAL_RETURN',
+      'PROFIT_SHARE',
+      'INVESTOR_FEE_RECEIVED',
+    ];
 
     const payouts = new Map<string, Prisma.Decimal>();
     for (const line of settlement.lines) {
@@ -673,7 +646,9 @@ export class SettlementsService {
       const key = line.participantId;
       payouts.set(
         key,
-        (payouts.get(key) ?? new Prisma.Decimal(0)).add(new Prisma.Decimal(line.amount)),
+        (payouts.get(key) ?? new Prisma.Decimal(0)).add(
+          new Prisma.Decimal(line.amount),
+        ),
       );
     }
 
@@ -749,10 +724,16 @@ export class SettlementsService {
     });
     if (!settlement) throw notFound('settlement');
     if (settlement.status === 'REVERSED') {
-      throw badRequest('SETTLEMENT_ALREADY_REVERSED', 'Settlement is already reversed');
+      throw badRequest(
+        'SETTLEMENT_ALREADY_REVERSED',
+        'Settlement is already reversed',
+      );
     }
     if (!reason?.trim()) {
-      throw badRequest('SETTLEMENT_REASON_REQUIRED', 'A reason is required to reverse a settlement');
+      throw badRequest(
+        'SETTLEMENT_REASON_REQUIRED',
+        'A reason is required to reverse a settlement',
+      );
     }
 
     const paid = await this.prisma.financialTransaction.findMany({

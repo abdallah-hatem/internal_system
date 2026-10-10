@@ -123,11 +123,8 @@ async function main() {
       receivedQty: QTY,
     })),
   });
-  say('Receipt verified — the stock is on the shelf');
-
-  // Selling, so the cycle is in the state an order expects rather than one
-  // still being received.
-  await call('POST', `cycles/${cycle.id}/transition`, { status: 'SELLING' });
+  // The first receipt walks the cycle on to SELLING itself (§3, 2026-10-10).
+  say('Receipt verified — the stock is on the shelf, and the cycle is selling');
 
   console.log();
   const catalogue = await (await fetch(`${API}/portal/catalogue?limit=60`)).json();

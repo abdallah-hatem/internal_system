@@ -106,9 +106,33 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
        > poi.ordered_qty
   -- A loss is valued when it is marked (§2) and never re-priced; its cost
   -- must be its quantity at the unit cost it was marked at.
+  --
+  -- One exception, by design (§2, amendment 9): the event that accounts for
+  -- the last units of an order line takes the rounding residual, so the
+  -- batches and losses of the line re-sum to its landed total. That loss
+  -- stores the residual as its cost and the residual over its quantity (to
+  -- four places) as its unit cost, so the two can differ by the four-place
+  -- rounding — never by more than half a piastre plus half a ten-thousandth
+  -- per unit. It is allowed only on the final event of the line: fully
+  -- accounted for, and no batch or loss on it recorded after this one.
   UNION ALL SELECT 12.5, 'a loss whose cost is not its quantity times its unit cost',
-         count(*) FROM shipment_losses
-   WHERE cost_egp <> round(qty * unit_cost_egp, 2)
+         count(*) FROM shipment_losses x
+   WHERE x.cost_egp <> round(x.qty * x.unit_cost_egp, 2)
+     AND NOT (
+       abs(x.cost_egp - x.qty * x.unit_cost_egp) <= 0.005 + x.qty * 0.00005
+       AND (SELECT poi.ordered_qty FROM purchase_order_items poi
+             WHERE poi.id = x.purchase_order_item_id)
+         = coalesce((SELECT sum(b.received_qty) FROM inventory_batches b
+                      WHERE b.source_po_item_id = x.purchase_order_item_id), 0)
+         + (SELECT sum(y.qty) FROM shipment_losses y
+             WHERE y.purchase_order_item_id = x.purchase_order_item_id)
+       AND NOT EXISTS (SELECT 1 FROM shipment_losses y
+                        WHERE y.purchase_order_item_id = x.purchase_order_item_id
+                          AND y.created_at > x.created_at)
+       AND NOT EXISTS (SELECT 1 FROM inventory_batches b
+                        WHERE b.source_po_item_id = x.purchase_order_item_id
+                          AND b.created_at > x.created_at)
+     )
   -- Stock on a shipped cycle exists only by being received from a delivery
   -- (§3). The backfill links every older batch; a batch without one was
   -- received some other way.
@@ -116,6 +140,13 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM inventory_batches b
    WHERE b.source_delivery_line_id IS NULL
      AND EXISTS (SELECT 1 FROM shipping_legs l WHERE l.cycle_id = b.cycle_id)
+  -- A delivery line is received in as many goes as it takes, never past what
+  -- it brought (§3, 2026-10-10). Two receipts racing past each other are the
+  -- way this would happen; a receipt locks the cycle row against it.
+  UNION ALL SELECT 12.7, 'a delivery line received more than it brought',
+         count(*) FROM shipment_delivery_lines dl
+   WHERE (SELECT coalesce(sum(b.received_qty), 0) FROM inventory_batches b
+           WHERE b.source_delivery_line_id = dl.id) > dl.qty
   UNION ALL SELECT 13, 'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'

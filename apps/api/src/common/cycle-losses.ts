@@ -16,15 +16,18 @@ import { Prisma } from '@prisma/client';
  *
  * The backfill's losses are recorded at zero cost (their cost was already
  * spread over the batches, §1), so they add nothing here, as intended.
+ *
+ * `cycleId` null is every cycle at once — the dashboard's net profit, which
+ * is the business's, not one cycle's, and must subtract the same figure.
  */
 export async function cycleLossesEgp(
   db: {
     shipmentLoss: Pick<Prisma.TransactionClient['shipmentLoss'], 'aggregate'>;
   },
-  cycleId: string,
+  cycleId: string | null,
 ): Promise<Prisma.Decimal> {
   const { _sum } = await db.shipmentLoss.aggregate({
-    where: { leg: { cycleId } },
+    where: cycleId === null ? {} : { leg: { cycleId } },
     _sum: { costEgp: true },
   });
   return new Prisma.Decimal(_sum.costEgp ?? 0);

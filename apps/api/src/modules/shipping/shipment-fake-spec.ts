@@ -35,6 +35,14 @@ export interface Store {
   losses: Row[];
   batches: Row[];
   participants: Row[];
+  /** B3: receipts, the ledger, and the sales and settlements that read them. */
+  movements: Row[];
+  ledger: Row[];
+  customers: Row[];
+  saleOrders: Row[];
+  saleItems: Row[];
+  allocations: Row[];
+  settlements: Row[];
   /** How many times the lock was taken, so a test can see it was. */
   locksTaken: number;
 }
@@ -50,6 +58,13 @@ export function emptyStore(): Store {
     losses: [],
     batches: [],
     participants: [],
+    movements: [],
+    ledger: [],
+    customers: [],
+    saleOrders: [],
+    saleItems: [],
+    allocations: [],
+    settlements: [],
     locksTaken: 0,
   };
 }
@@ -65,6 +80,26 @@ function copy<T>(v: T): T {
   ) as T;
 }
 const tick = () => new Promise<void>((r) => setImmediate(r));
+
+/**
+ * Put the store back as `snapshot` had it — keeping each row object a test may
+ * hold (a fixture's `cycle`), so a test that changes it after a rollback
+ * changes the row the fake reads.
+ */
+function restore(db: Store, snapshot: Store) {
+  for (const key of Object.keys(snapshot) as (keyof Store)[]) {
+    if (!Array.isArray(snapshot[key])) continue;
+    const current = new Map((db[key] as Row[]).map((r) => [r.id, r]));
+    const rows = (snapshot[key] as Row[]).map((saved) => {
+      const live = saved.id !== undefined ? current.get(saved.id) : undefined;
+      if (!live) return saved;
+      for (const k of Object.keys(live)) delete live[k];
+      return Object.assign(live, saved);
+    });
+    (db[key] as Row[]).length = 0;
+    (db[key] as Row[]).push(...rows);
+  }
+}
 
 export function fakePrisma(db: Store) {
   const legsOf = (cycleId: string) =>
@@ -98,6 +133,42 @@ export function fakePrisma(db: Store) {
     return copy(v);
   };
 
+  const REALISED = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'];
+  const realised = (a: Row) => {
+    const item = db.saleItems.find((i) => i.id === a.saleItemId)!;
+    const order = db.saleOrders.find((o) => o.id === item.saleOrderId)!;
+    return REALISED.includes(order.status);
+  };
+  const ledgerMatches = (t: Row, where: Row = {}) =>
+    (where.cycleId === undefined || t.cycleId === where.cycleId) &&
+    (where.direction === undefined || t.direction === where.direction) &&
+    (where.category?.in === undefined ||
+      where.category.in.includes(t.category)) &&
+    (where.category?.notIn === undefined ||
+      !where.category.notIn.includes(t.category));
+  const decrement = (current: Prisma.Decimal, change: any) =>
+    change?.decrement !== undefined
+      ? current.sub(change.decrement)
+      : change === undefined
+        ? current
+        : D(change);
+  const orderWithItems = (order: Row | undefined, include: Row | undefined) => {
+    if (!order) return null;
+    const out: Row = { ...order };
+    if (include?.items) {
+      out.items = db.saleItems
+        .filter((i) => i.saleOrderId === order.id)
+        .map((i) => ({
+          ...i,
+          product: db.products.find((p) => p.id === i.productId),
+        }));
+    }
+    if (include?.customer) {
+      out.customer = db.customers.find((c) => c.id === order.customerId);
+    }
+    return out;
+  };
+
   const prisma: Row = {
     importCycle: {
       findUnique: ({ where, select, include }: Row) => {
@@ -105,6 +176,272 @@ export function fakePrisma(db: Store) {
         if (!c) return after(null);
         return after(select || include ? fullCycle(c) : c);
       },
+      update: ({ where, data }: Row) => {
+        const c = db.cycles.find((x) => x.id === where.id)!;
+        for (const [k, v] of Object.entries(data))
+          if (v !== undefined) c[k] = v;
+        return after(c);
+      },
+      // Analytics' cycle profitability: the shape it selects, no more.
+      findMany: () =>
+        after(
+          db.cycles.map((c) => ({
+            ...c,
+            financialTransactions: db.ledger.filter((t) => t.cycleId === c.id),
+            inventoryBatches: db.batches
+              .filter((b) => b.cycleId === c.id)
+              .map((b) => ({
+                ...b,
+                saleItemAllocations: db.allocations
+                  .filter((a) => a.inventoryBatchId === b.id && realised(a))
+                  .map((a) => ({
+                    ...a,
+                    saleItem: db.saleItems.find((i) => i.id === a.saleItemId),
+                  })),
+                returnItems: [],
+              })),
+          })),
+        ),
+    },
+    purchaseOrderItem: {
+      findUnique: ({ where }: Row) =>
+        after(db.items.find((i) => i.id === where.id) ?? null),
+      update: ({ where, data }: Row) => {
+        const i = db.items.find((x) => x.id === where.id)!;
+        Object.assign(i, data);
+        return after(i);
+      },
+    },
+    inventoryBatch: {
+      create: ({ data }: Row) => {
+        const row = {
+          id: randomUUID(),
+          createdAt: new Date(),
+          reservedQty: D(0),
+          ...data,
+          receivedQty: D(data.receivedQty),
+          remainingQty: D(data.remainingQty),
+          saleableQty: D(data.saleableQty),
+          landedUnitCostEgp: D(data.landedUnitCostEgp),
+        };
+        db.batches.push(row);
+        return after(row);
+      },
+      aggregate: ({ where }: Row) =>
+        after({
+          _sum: where.sourcePoItemId
+            ? {
+                receivedQty: db.batches
+                  .filter((b) => b.sourcePoItemId === where.sourcePoItemId)
+                  .reduce((t, b) => t.add(b.receivedQty), D(0)),
+              }
+            : {
+                saleableQty: db.batches
+                  .filter((b) => b.productId === where.productId)
+                  .reduce((t, b) => t.add(b.saleableQty), D(0)),
+              },
+        }),
+      groupBy: ({ where }: Row) =>
+        after(
+          (where.productId.in as string[])
+            .map((productId) => {
+              const rows = db.batches.filter(
+                (b) =>
+                  b.productId === productId &&
+                  b.verificationStatus === 'VERIFIED',
+              );
+              if (rows.length === 0) return null;
+              return {
+                productId,
+                _sum: {
+                  saleableQty: rows.reduce(
+                    (t, b) => t.add(b.saleableQty),
+                    D(0),
+                  ),
+                },
+              };
+            })
+            .filter(Boolean),
+        ),
+      // FIFO (sales: sellable, oldest receipt first), or a plain filter by
+      // product and/or cycle (settlement's unsold stock, the inventory read).
+      findMany: ({ where = {}, include }: Row) =>
+        after(
+          where.verificationStatus
+            ? db.batches
+                .filter(
+                  (b) =>
+                    b.productId === where.productId &&
+                    b.verificationStatus === 'VERIFIED' &&
+                    b.saleableQty.gt(0),
+                )
+                .sort(
+                  (a, b) =>
+                    a.createdAt.getTime() - b.createdAt.getTime() ||
+                    (a.id < b.id ? -1 : 1),
+                )
+            : db.batches
+                .filter(
+                  (b) =>
+                    (!where.cycleId || b.cycleId === where.cycleId) &&
+                    (!where.productId || b.productId === where.productId),
+                )
+                .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+                .map((b) =>
+                  include
+                    ? {
+                        ...b,
+                        product: db.products.find((p) => p.id === b.productId),
+                        cycle: {
+                          ...db.cycles.find((c) => c.id === b.cycleId),
+                          shippingLegs: legsOf(b.cycleId),
+                        },
+                      }
+                    : b,
+                ),
+        ),
+      update: ({ where, data }: Row) => {
+        const b = db.batches.find((x) => x.id === where.id)!;
+        b.saleableQty = decrement(b.saleableQty, data.saleableQty);
+        b.remainingQty = decrement(b.remainingQty, data.remainingQty);
+        return after(b);
+      },
+    },
+    inventoryReservation: { findMany: () => after([]) },
+    inventoryMovement: {
+      create: ({ data }: Row) => {
+        db.movements.push({ id: randomUUID(), ...data });
+        return after(data);
+      },
+    },
+    financialTransaction: {
+      create: ({ data }: Row) => {
+        const row = { id: randomUUID(), ...data, amount: D(data.amount) };
+        db.ledger.push(row);
+        return after(row);
+      },
+      findMany: ({ where }: Row) =>
+        after(db.ledger.filter((t) => ledgerMatches(t, where))),
+      aggregate: ({ where }: Row) =>
+        after({
+          _sum: {
+            amount: db.ledger
+              .filter((t) => ledgerMatches(t, where))
+              .reduce((s, t) => s.add(t.amount), D(0)),
+          },
+        }),
+    },
+    product: {
+      findUnique: ({ where }: Row) =>
+        after(db.products.find((p) => p.id === where.id) ?? null),
+    },
+    user: { findMany: () => after([]) },
+    customer: {
+      findUnique: ({ where }: Row) =>
+        after(db.customers.find((c) => c.id === where.id) ?? null),
+    },
+    saleOrder: {
+      findFirst: ({ where }: Row) => {
+        const prefix = where?.orderNo?.startsWith ?? '';
+        const rows = db.saleOrders
+          .filter((o) => String(o.orderNo).startsWith(prefix))
+          .sort((a, b) => (a.orderNo < b.orderNo ? 1 : -1));
+        return after(rows[0] ? { orderNo: rows[0].orderNo } : null);
+      },
+      findUnique: ({ where, include }: Row) =>
+        after(
+          orderWithItems(
+            db.saleOrders.find((o) => o.id === where.id),
+            include,
+          ),
+        ),
+      create: ({ data, include }: Row) => {
+        const { items, ...rest } = data;
+        const order = {
+          id: randomUUID(),
+          version: 1,
+          ...rest,
+          subtotal: D(rest.subtotal),
+          total: D(rest.total),
+          outstanding: D(rest.outstanding),
+        };
+        db.saleOrders.push(order);
+        for (const it of items.create) {
+          db.saleItems.push({
+            id: randomUUID(),
+            saleOrderId: order.id,
+            ...it,
+            quantity: D(it.quantity),
+            unitPrice: D(it.unitPrice),
+            discount: D(it.discount ?? 0),
+            lineTotal: D(it.lineTotal),
+          });
+        }
+        return after(orderWithItems(order, include));
+      },
+      update: ({ where, data, include }: Row) => {
+        const order = db.saleOrders.find(
+          (o) =>
+            o.id === where.id &&
+            (where.version === undefined || o.version === where.version),
+        )!;
+        order.status = data.status ?? order.status;
+        if (data.version?.increment) order.version += data.version.increment;
+        return after(orderWithItems(order, include));
+      },
+    },
+    saleItemAllocation: {
+      create: ({ data }: Row) => {
+        const row = { id: randomUUID(), ...data };
+        db.allocations.push(row);
+        return after(row);
+      },
+      findMany: ({ where }: Row) =>
+        after(
+          db.allocations
+            .filter(
+              (a) =>
+                db.batches.find((b) => b.id === a.inventoryBatchId)?.cycleId ===
+                  where.inventoryBatch.cycleId && realised(a),
+            )
+            .map((a) => ({
+              ...a,
+              saleItem: db.saleItems.find((i) => i.id === a.saleItemId),
+            })),
+        ),
+    },
+    saleReturnItem: { findMany: () => after([]) },
+    settlement: {
+      findFirst: ({ where }: Row) =>
+        after(
+          db.settlements.find(
+            (x) =>
+              x.cycleId === where.cycleId && where.status.in.includes(x.status),
+          ) ?? null,
+        ),
+      findUnique: ({ where }: Row) =>
+        after(db.settlements.find((x) => x.id === where.id) ?? null),
+      findMany: ({ where }: Row) =>
+        after(
+          db.settlements.filter(
+            (x) => x.cycleId === where.cycleId && x.status === where.status,
+          ),
+        ),
+      create: ({ data }: Row) => {
+        const row = { id: randomUUID(), ...data };
+        db.settlements.push(row);
+        return after(row);
+      },
+      update: ({ where, data }: Row) => {
+        const x = db.settlements.find((r) => r.id === where.id)!;
+        Object.assign(x, data);
+        return after(x);
+      },
+      deleteMany: () => after({ count: 0 }),
+    },
+    settlementLine: {
+      create: ({ data }: Row) => after(data),
+      deleteMany: () => after({ count: 0 }),
     },
     shippingLeg: {
       findUnique: ({ where }: Row) =>
@@ -195,9 +532,10 @@ export function fakePrisma(db: Store) {
         return after(row);
       },
       aggregate: ({ where }: Row) => {
+        // `{}` is every cycle (the dashboard); `{ leg: { cycleId } }` one.
         const legIds = new Set(
           db.legs
-            .filter((l) => l.cycleId === where.leg.cycleId)
+            .filter((l) => !where.leg || l.cycleId === where.leg.cycleId)
             .map((l) => l.id),
         );
         const rows = db.losses.filter((x) => legIds.has(x.legId));
@@ -220,6 +558,10 @@ export function fakePrisma(db: Store) {
   const locks = new Map<string, Promise<void>>();
   prisma.$transaction = async (fn: (tx: Row) => Promise<unknown>) => {
     const held: (() => void)[] = [];
+    // Rolled back on a throw, as Postgres does. Snapshotted once the lock is
+    // held, so a transaction that waited sees — and on failure restores —
+    // what the one before it committed, not what was there when it began.
+    let snapshot: Store | null = null;
     const tx: Row = {
       ...prisma,
       $queryRaw: async (_sql: TemplateStringsArray, cycleId: string) => {
@@ -227,6 +569,7 @@ export function fakePrisma(db: Store) {
         let release!: () => void;
         locks.set(cycleId, new Promise<void>((r) => (release = r)));
         db.locksTaken += 1;
+        snapshot ??= copy(db);
         held.push(() => {
           locks.delete(cycleId);
           release();
@@ -236,6 +579,9 @@ export function fakePrisma(db: Store) {
     };
     try {
       return await fn(tx);
+    } catch (e) {
+      if (snapshot) restore(db, snapshot);
+      throw e;
     } finally {
       for (const h of held) h();
     }

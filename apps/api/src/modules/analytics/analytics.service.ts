@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CAPITALISED_CATEGORIES } from '../../common/ledger-categories';
+import { cycleLossesEgp } from '../../common/cycle-losses';
 import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
 
 /**
@@ -95,7 +96,11 @@ export class AnalyticsService {
       },
       _sum: { amount: true },
     });
-    const operatingExpenses = D(operatingAgg._sum.amount);
+    // Goods lost on the way are an expense with no ledger row (§2, §9): the
+    // same figure settlement subtracts, through the one definition.
+    const operatingExpenses = D(operatingAgg._sum.amount).add(
+      await cycleLossesEgp(this.prisma, null),
+    );
 
     const netProfit = revenue.sub(cogs).sub(operatingExpenses);
 
@@ -416,89 +421,98 @@ export class AnalyticsService {
       orderBy: { code: 'asc' },
     });
 
-    const result = cycles
-      .filter((c) => c.inventoryBatches.length > 0)
-      .map((cycle) => {
-        let revenue = D(0);
-        let cogs = D(0);
-        let unitsSold = D(0);
-        let unsoldValue = D(0);
-        let unitsRemaining = D(0);
+    // Goods lost on the way, per cycle: the figure settlement subtracts,
+    // read through the one definition (§2, §9; rule 11).
+    const withStock = cycles.filter((c) => c.inventoryBatches.length > 0);
+    const lossesByCycle = new Map<string, Prisma.Decimal>();
+    for (const c of withStock) {
+      lossesByCycle.set(c.id, await cycleLossesEgp(this.prisma, c.id));
+    }
 
-        for (const batch of cycle.inventoryBatches) {
-          unitsRemaining = unitsRemaining.add(D(batch.remainingQty));
-          unsoldValue = unsoldValue.add(
-            D(batch.remainingQty).mul(D(batch.landedUnitCostEgp)),
-          );
+    const result = withStock.map((cycle) => {
+      let revenue = D(0);
+      let cogs = D(0);
+      let unitsSold = D(0);
+      let unsoldValue = D(0);
+      let unitsRemaining = D(0);
 
-          // A return reverses the sale it came from: fewer units sold, less
-          // revenue, and the cost back — except for damaged goods, whose
-          // cogsReversedEgp is zero because they never returned to stock.
-          for (const ret of batch.returnItems) {
-            const qty = D(ret.qty);
-            unitsSold = unitsSold.sub(qty);
-            revenue = revenue.sub(D(ret.unitPrice).mul(qty));
-            cogs = cogs.sub(D(ret.cogsReversedEgp));
-          }
+      for (const batch of cycle.inventoryBatches) {
+        unitsRemaining = unitsRemaining.add(D(batch.remainingQty));
+        unsoldValue = unsoldValue.add(
+          D(batch.remainingQty).mul(D(batch.landedUnitCostEgp)),
+        );
 
-          for (const alloc of batch.saleItemAllocations) {
-            const qty = D(alloc.qty);
-            unitsSold = unitsSold.add(qty);
-            cogs = cogs.add(D(alloc.cogsEgp));
-
-            // Price per unit from the line it was sold on, so a line discount
-            // is reflected and a part-allocated line is only counted pro rata.
-            const lineQty = D(alloc.saleItem.quantity);
-            if (lineQty.gt(0)) {
-              revenue = revenue.add(
-                D(alloc.saleItem.lineTotal).div(lineQty).mul(qty),
-              );
-            }
-          }
+        // A return reverses the sale it came from: fewer units sold, less
+        // revenue, and the cost back — except for damaged goods, whose
+        // cogsReversedEgp is zero because they never returned to stock.
+        for (const ret of batch.returnItems) {
+          const qty = D(ret.qty);
+          unitsSold = unitsSold.sub(qty);
+          revenue = revenue.sub(D(ret.unitPrice).mul(qty));
+          cogs = cogs.sub(D(ret.cogsReversedEgp));
         }
 
-        // What the cycle consumed in cash: goods, shipping and fees, less
-        // anything a supplier gave back.
-        const investment = cycle.financialTransactions
-          .filter((t) => t.direction === 'OUTFLOW')
-          .reduce((sum, t) => sum.add(D(t.amount)), D(0))
-          .sub(
-            cycle.financialTransactions
-              .filter(
-                (t) =>
-                  t.direction === 'INFLOW' && t.category === 'supplier_refund',
-              )
-              .reduce((sum, t) => sum.add(D(t.amount)), D(0)),
-          );
+        for (const alloc of batch.saleItemAllocations) {
+          const qty = D(alloc.qty);
+          unitsSold = unitsSold.add(qty);
+          cogs = cogs.add(D(alloc.cogsEgp));
 
-        // A refund recovers cost, so it improves the cycle's result even though
-        // it changes no batch cost.
-        const supplierRefunds = cycle.financialTransactions
-          .filter(
-            (t) => t.direction === 'INFLOW' && t.category === 'supplier_refund',
-          )
-          .reduce((sum, t) => sum.add(D(t.amount)), D(0));
+          // Price per unit from the line it was sold on, so a line discount
+          // is reflected and a part-allocated line is only counted pro rata.
+          const lineQty = D(alloc.saleItem.quantity);
+          if (lineQty.gt(0)) {
+            revenue = revenue.add(
+              D(alloc.saleItem.lineTotal).div(lineQty).mul(qty),
+            );
+          }
+        }
+      }
 
-        const profit = revenue.sub(cogs).add(supplierRefunds);
+      // What the cycle consumed in cash: goods, shipping and fees, less
+      // anything a supplier gave back.
+      const investment = cycle.financialTransactions
+        .filter((t) => t.direction === 'OUTFLOW')
+        .reduce((sum, t) => sum.add(D(t.amount)), D(0))
+        .sub(
+          cycle.financialTransactions
+            .filter(
+              (t) =>
+                t.direction === 'INFLOW' && t.category === 'supplier_refund',
+            )
+            .reduce((sum, t) => sum.add(D(t.amount)), D(0)),
+        );
 
-        return {
-          cycleCode: cycle.code,
-          status: cycle.status,
-          originType: cycle.originType,
-          investment: money(investment),
-          supplierRefundsEgp: money(supplierRefunds),
-          totalCost: money(cogs),
-          totalRevenue: money(revenue),
-          profit: money(profit),
-          // Return on the cost of goods actually sold; meaningless with no sales.
-          roiPct: cogs.gt(0)
-            ? Number(profit.div(cogs).mul(100).toDecimalPlaces(1))
-            : null,
-          unitsSold: Number(unitsSold.toDecimalPlaces(3)),
-          unitsRemaining: Number(unitsRemaining.toDecimalPlaces(3)),
-          unsoldValueEgp: money(unsoldValue),
-        };
-      });
+      // A refund recovers cost, so it improves the cycle's result even though
+      // it changes no batch cost.
+      const supplierRefunds = cycle.financialTransactions
+        .filter(
+          (t) => t.direction === 'INFLOW' && t.category === 'supplier_refund',
+        )
+        .reduce((sum, t) => sum.add(D(t.amount)), D(0));
+
+      const losses = lossesByCycle.get(cycle.id) ?? D(0);
+      const profit = revenue.sub(cogs).add(supplierRefunds).sub(losses);
+
+      return {
+        cycleCode: cycle.code,
+        status: cycle.status,
+        originType: cycle.originType,
+        investment: money(investment),
+        supplierRefundsEgp: money(supplierRefunds),
+        /** Goods lost on the way, already taken off profit (§2). */
+        lossesEgp: money(losses),
+        totalCost: money(cogs),
+        totalRevenue: money(revenue),
+        profit: money(profit),
+        // Return on the cost of goods actually sold; meaningless with no sales.
+        roiPct: cogs.gt(0)
+          ? Number(profit.div(cogs).mul(100).toDecimalPlaces(1))
+          : null,
+        unitsSold: Number(unitsSold.toDecimalPlaces(3)),
+        unitsRemaining: Number(unitsRemaining.toDecimalPlaces(3)),
+        unsoldValueEgp: money(unsoldValue),
+      };
+    });
 
     return { data: result };
   }

@@ -89,18 +89,26 @@ export class CostingService {
   }
 
   /**
-   * Compute landed cost per purchase-order item for a cycle.
+   * Compute landed cost per purchase-order item for a cycle, per unit ORDERED
+   * (BUSINESS_LOGIC §2, DECIDED 2026-10-10).
    *
    * Every shipping leg in the cycle is allocated across the cycle's purchased
    * items. A PER_WEIGHT leg allocates by line weight; PER_PIECE and FLAT legs
    * allocate by piece count. Both shipment shapes fall out of this naturally:
    * a China cycle has two legs (China->UAE, UAE->Egypt) and a UAE-direct cycle
    * has one (UAE->Egypt).
+   *
+   * The quantities are always what was ordered. They used to be what was
+   * received, so a short delivery made every unit that came dearer and quietly
+   * charged the missing goods to them; a unit now costs the same whichever
+   * delivery brought it, and goods that never come are a loss (§2). The unit
+   * cost is the line's landed total over the units ordered, to four places;
+   * `lineEventCost` gives the event that accounts for a line's last units the
+   * rounding residual.
    */
   async computeCycleLandedCosts(
     cycleId: string,
     opts: {
-      qtyOverrides?: Record<string, Prisma.Decimal.Value>;
       /**
        * The transaction to read in, when the caller holds one. On a serverless
        * host the pool is one connection, so a read on `this.prisma` from
@@ -130,15 +138,8 @@ export class CostingService {
     for (const po of cycle.purchaseOrders) {
       const fx = D(po.fxRateToEgp);
       for (const item of po.items) {
-        // Quantities being verified right now win, then recorded receipts, then
-        // the ordered quantity (used while the cycle is still in flight).
-        const override = opts.qtyOverrides?.[item.id];
-        const qty =
-          override !== undefined
-            ? D(override)
-            : item.receivedQty !== null
-              ? D(item.receivedQty)
-              : D(item.orderedQty);
+        // What was ordered, never what was received (§2, 2026-10-10).
+        const qty = D(item.orderedQty);
         const goods = money(D(item.lineTotal).mul(fx));
 
         const unitWeight = item.product.unitWeightKg;
@@ -271,13 +272,12 @@ export class CostingService {
     };
   }
 
-  /** Landed unit cost for one purchase-order item, used at verification time. */
+  /** Landed unit cost for one purchase-order item, per unit ordered. */
   async landedUnitCostForItem(
     cycleId: string,
     purchaseOrderItemId: string,
-    opts: { qtyOverrides?: Record<string, Prisma.Decimal.Value> } = {},
   ): Promise<Prisma.Decimal> {
-    const result = await this.computeCycleLandedCosts(cycleId, opts);
+    const result = await this.computeCycleLandedCosts(cycleId);
     const line = result.items.find(
       (i) => i.purchaseOrderItemId === purchaseOrderItemId,
     );
@@ -289,4 +289,59 @@ export class CostingService {
     }
     return line.landedUnitCostEgp;
   }
+}
+
+/** Quantities compared in whole thousandths, as `shipmentPosition` sums them. */
+const milli = (q: Prisma.Decimal.Value) =>
+  Math.round(Number(new Prisma.Decimal(q).toString()) * 1000);
+
+/**
+ * What one receipt or loss on an order line costs (BUSINESS_LOGIC §2 —
+ * DECIDED 2026-10-10).
+ *
+ * Every unit of a line costs the same, `unitCostEgp` (the line's landed total
+ * over the units ordered, to four places), so an event is `qty × unit`
+ * rounded to the piastre. Rounding twice — the unit to four places, each event
+ * to two — would leave the line a few piastres off its landed total, so the
+ * event that accounts for the line's LAST units (received + lost reaches
+ * ordered) takes the residual instead: the landed total less what every
+ * earlier event on the line cost. Batches and losses then re-sum to the line's
+ * landed total exactly.
+ *
+ * Earlier batches are counted at the standard `qty × unit`, not at whatever a
+ * partner may have typed over it: a manual cost applies to that batch only and
+ * must not be pushed onto the final one.
+ *
+ * Pure: the caller loads the line's earlier batches and losses.
+ */
+export function lineEventCost(input: {
+  orderedQty: Prisma.Decimal.Value;
+  landedTotalEgp: Prisma.Decimal.Value;
+  unitCostEgp: Prisma.Decimal.Value;
+  /** Every batch already received on this line. */
+  priorReceivedQtys: Prisma.Decimal.Value[];
+  /** Every loss already recorded on this line, any leg. */
+  priorLosses: { qty: Prisma.Decimal.Value; costEgp: Prisma.Decimal.Value }[];
+  qty: Prisma.Decimal.Value;
+}): { unitCostEgp: Prisma.Decimal; costEgp: Prisma.Decimal; final: boolean } {
+  const unit = D(input.unitCostEgp);
+  const qty = D(input.qty);
+  const accountedAfter =
+    input.priorReceivedQtys.reduce<number>((s, q) => s + milli(q), 0) +
+    input.priorLosses.reduce<number>((s, l) => s + milli(l.qty), 0) +
+    milli(qty);
+  const final = accountedAfter === milli(input.orderedQty) && qty.gt(0);
+  if (!final) {
+    return { unitCostEgp: unit, costEgp: money(qty.mul(unit)), final };
+  }
+  const before = input.priorReceivedQtys
+    .reduce<Prisma.Decimal>((s, q) => s.add(money(D(q).mul(unit))), ZERO)
+    .add(
+      input.priorLosses.reduce<Prisma.Decimal>(
+        (s, l) => s.add(D(l.costEgp)),
+        ZERO,
+      ),
+    );
+  const costEgp = money(D(input.landedTotalEgp).sub(before));
+  return { unitCostEgp: unitCost(costEgp.div(qty)), costEgp, final };
 }

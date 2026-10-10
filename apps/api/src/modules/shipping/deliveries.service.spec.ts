@@ -29,7 +29,7 @@ import {
  * §9). One test per edge case in the plan, named after it. The database is an
  * in-memory fake (`shipment-fake-spec.ts`); the services, the costing and the
  * position arithmetic are the real ones. e2e for the same cases:
- * apps/web/tests/78-deliveries-and-losses.spec.ts.
+ * apps/web/tests/81-deliveries-and-losses.spec.ts.
  */
 
 // 12:00 in Cairo on 2026-10-10 (UTC+3, summer time). Only the clock is faked:

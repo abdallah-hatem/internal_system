@@ -828,7 +828,8 @@
       "orderRequest": "Order request",
       "assistantConnection": "Claude connection",
       "shipmentDelivery": "Delivery",
-      "shipmentLoss": "Loss"
+      "shipmentLoss": "Loss",
+      "shipmentDeliveryLine": "Delivery line"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -851,7 +852,6 @@
     "CUSTOMER_REQUIRED": "Choose a customer first.",
     "CYCLE_CLOSED_NO_PARTICIPANTS": "Participants cannot be added to a closed cycle.",
     "CYCLE_HAS_UNSOLD_STOCK": "Cycle {cycle} still holds {units} units worth {value} EGP at landed cost. Closing now writes that cost off against this cycle — sell the remaining stock first, or confirm to accept it.",
-    "CYCLE_NOT_IN_VERIFICATION": "Stock can only be verified while the cycle is in verification. It is currently {status}.",
     "CYCLE_NO_PARTICIPANTS": "This cycle has no participants to settle.",
     "CYCLE_STATUS_BLOCKS_PO": "A purchase order can only be created while the cycle is planning, funding or purchasing. It is currently {status}.",
     "DATE_IN_FUTURE": "{label} cannot be in the future ({day}).",
@@ -906,7 +906,7 @@
     "SETTLEMENT_LOCKED": "This cycle already has a {status} settlement. Reverse it before recalculating.",
     "SETTLEMENT_REASON_REQUIRED": "Give a reason for reversing this settlement.",
     "SPLIT_NOT_100": "Custom profit percentages must add up to 100 — they currently total {total}.",
-    "STOCK_ALREADY_VERIFIED": "Stock for this purchase order item has already been verified.",
+    "STOCK_ALREADY_VERIFIED": "Everything this delivery brought of {product} has already been received into stock.",
     "SUPPLIER_HAS_ORDERS": "This supplier has {count} purchase orders and cannot be deleted.",
     "SUPPLIER_HAS_PRODUCTS": "This supplier has {count} products linked to it and cannot be deleted.",
     "UAE_DIRECT_LEG_ROUTE": "A UAE-direct cycle ships from UAE to Egypt.",
@@ -966,7 +966,6 @@
     "PO_HAS_OTHER_INVOICE": "Purchase order {reference} already records invoice {invoice}; record {ref} as a separate order.",
     "CYCLE_STATUS_CHANGED": "Cycle {cycle} is {status} now, not {expected}. Nothing was changed — preview again.",
     "CYCLE_FINAL_NO_LEGS": "Cycle {cycle} is {status}, so no shipping leg can be added to it.",
-    "RECEIVED_EXCEEDS_ORDERED": "{received} of {product} cannot be received: only {ordered} were ordered.",
     "PREVIEW_CHANGED": "What this would save has changed since the preview. Nothing was saved — show the new preview and confirm that.",
     "CYCLE_CLOSED": "Cycle {cycle} was cancelled, so nothing can be recorded on its shipment.",
     "CYCLE_SETTLING": "Cycle {cycle} is being settled or is closed, so nothing can be recorded on its shipment. Reverse the settlement first.",
@@ -979,7 +978,12 @@
     "PAYMENT_EXCEEDS_ORDER": "Order {order} owes {owed}, so {asked} cannot be paid on it.",
     "ORDER_NOT_CONFIRMED": "Order {order} is a draft, so it owes nothing yet.",
     "ORDER_OWES_NOTHING": "Order {order} owes nothing, so nothing can be paid on it.",
-    "DISCOUNT_NEGATIVE": "A discount cannot be negative ({discount})."
+    "DISCOUNT_NEGATIVE": "A discount cannot be negative ({discount}).",
+    "CYCLE_NOT_ARRIVED": "Cycle {cycle} is {status}. Stock can be received once the cycle has arrived in Egypt.",
+    "NOT_LAST_LEG_DELIVERY": "This delivery reached the UAE, not Egypt. Stock is received from deliveries on the leg that ends in Egypt.",
+    "DELIVERY_REQUIRED": "{deliveries} deliveries of {product} are waiting to be received. Choose the delivery the goods came in.",
+    "RECEIVED_EXCEEDS_DELIVERED": "{received} of {product} cannot be received: only {available} are waiting to be received from this delivery.",
+    "SHIPMENT_NOT_ACCOUNTED": "Cycle {cycle} cannot be settled yet: {onTheWay} unit(s) are still on the way and {waiting} delivered but not received, across {lines} order line(s). Receive them, or mark them lost, first."
   },
   "orderRequests": {
     "title": "Order requests",

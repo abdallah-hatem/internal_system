@@ -578,11 +578,6 @@
       "count": 2
     }
   },
-  "tests/34-business-invariants.spec.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    }
-  },
   "tests/35-cycle-details.spec.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 9
