@@ -27,3 +27,4 @@
 - U1 merged `0cd7117`: create & confirm in one transaction (`confirmWithin`), SaleOrderForm component, one total
   formula (`common/sale-totals.ts`, a web copy pinned by an 891-line equality test). Conflict with U4 on the sales
   page resolved (re-added `?new=1` against `createFor`). api jest 509/509, web vitest 75/75.
+- Wave 3: U2 dispatched from `7076e51` (U1 merged), with the two U1 follow-ups (stored idempotency key, DISCOUNT_NEGATIVE).
