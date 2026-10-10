@@ -130,7 +130,14 @@ async function cycleAwaitingVerification(request: APIRequestContext, headers: an
     await mk(`cycles/${run.cycle.id}/transition`, { status });
   }
   const full = await cycleOf(request, headers, run.cycle.id);
-  return { ...run, poItem: full.purchaseOrders[0].items[0] };
+  // The leg's arrival date recorded one delivery of everything (B2). Since
+  // 2026-10-10 (B4) verify_stock names that delivery and its line.
+  const shipment = await request.get(`${API}/cycles/${run.cycle.id}/shipment`, { headers });
+  expect(shipment.ok(), await shipment.text()).toBeTruthy();
+  const body = await shipment.json();
+  const legs: any[] = (body.data ?? body).legs;
+  const delivery = legs[legs.length - 1].deliveries[0];
+  return { ...run, poItem: full.purchaseOrders[0].items[0], delivery, deliveryLine: delivery.lines[0] };
 }
 
 test.describe('create_cycle', () => {
@@ -293,25 +300,37 @@ test.describe('add_shipping_leg', () => {
     for (const [name, rest] of [
       ['add_shipping_leg', { sequence: 1, amount: 300 }],
       ['transition_cycle', { fromStatus: 'PLANNING', status: 'FUNDING' }],
-      ['verify_stock', { items: [] }],
     ] as const) {
       const r = await tool(request, name, { cycleId: 'CYC-2026-0001', ...rest });
       expect(codeOf(r), name).toBe('VALIDATION_FAILED');
     }
+    // Changed 2026-10-10 (B4): verify_stock takes a delivery, not a cycle; a
+    // delivery id that is not a UUID is no such delivery.
+    const r = await tool(request, 'verify_stock', { deliveryId: 'DEL-1', items: [] });
+    expect(codeOf(r)).toBe('NOT_FOUND');
   });
 });
 
+// Changed 2026-10-10 (B4, §3): verify_stock names a delivery and its line, not a
+// cycle and an order line — which delivery brought the goods decides their
+// arrival date (§14). The rules each case pins are unchanged unless it says so.
 test.describe('verify_stock', () => {
+  const receipt = (run: { delivery: any; deliveryLine: any }, receivedQty: number) => ({
+    deliveryId: run.delivery.id,
+    items: [{ deliveryLineId: run.deliveryLine.id, receivedQty }],
+  });
+
   test('TC-MCP-CYC-30: the verify_stock preview shows the landed unit cost per line before anything is written (money)', async ({
     request,
   }) => {
     const { headers, mk } = await apiCtx(request);
-    const { cycle, poItem, product } = await cycleAwaitingVerification(request, headers, mk);
-    const args = { cycleId: cycle.id, items: [{ purchaseOrderItemId: poItem.id, receivedQty: 40 }] };
+    const run = await cycleAwaitingVerification(request, headers, mk);
+    const { cycle, product } = run;
+    const args = receipt(run, 40);
 
     const preview = await tool(request, 'verify_stock', args);
 
-    expect(text(preview)).toContain(`${product.name}: 40 of 40 ordered, landed 32.5000 EGP/unit = 1,300.00 EGP`);
+    expect(text(preview)).toContain(`${product.name}: 40 counted in (40 ordered), landed 32.5000 EGP/unit = 1,300.00 EGP`);
     expect(preview.structuredContent?.data.lines[0].landedUnitCostEgp).toBe('32.5000');
     expect(await batchesOf(request, headers, cycle.id)).toHaveLength(0);
 
@@ -324,25 +343,27 @@ test.describe('verify_stock', () => {
     expect(Number(batches[0].landedUnitCostEgp)).toBeCloseTo(32.5, 4);
   });
 
-  test('TC-MCP-CYC-31: verify_stock twice for one order line → STOCK_ALREADY_VERIFIED, surfaced', async ({
+  // Changed 2026-10-10 (B4): "verified once" is now "a delivery line, once it
+  // is fully received" — the same refusal, for the line of the delivery.
+  test('TC-MCP-CYC-31: verify_stock twice for one delivery line → STOCK_ALREADY_VERIFIED, surfaced', async ({
     request,
   }) => {
     const { headers, mk } = await apiCtx(request);
-    const { cycle, poItem } = await cycleAwaitingVerification(request, headers, mk);
-    const args = { cycleId: cycle.id, items: [{ purchaseOrderItemId: poItem.id, receivedQty: 40 }] };
+    const run = await cycleAwaitingVerification(request, headers, mk);
+    const args = receipt(run, 40);
     await confirm(request, 'verify_stock', args);
 
     const again = await tool(request, 'verify_stock', args);
 
     expect(codeOf(again)).toBe('STOCK_ALREADY_VERIFIED');
-    expect(await batchesOf(request, headers, cycle.id)).toHaveLength(1);
+    expect(await batchesOf(request, headers, run.cycle.id)).toHaveLength(1);
   });
 
   test('TC-MCP-CYC-32: verifying more than was ordered, zero, or less than zero → refused, nothing written', async ({
     request,
   }) => {
     const { headers, mk } = await apiCtx(request);
-    const { cycle, poItem } = await cycleAwaitingVerification(request, headers, mk);
+    const run = await cycleAwaitingVerification(request, headers, mk);
 
     for (const [qty, code] of [
       // Changed 2026-10-10 (B3, §3): the cap is what the delivery brought.
@@ -350,24 +371,26 @@ test.describe('verify_stock', () => {
       [0, 'QTY_NOT_POSITIVE'],
       [-5, 'QTY_NOT_POSITIVE'],
     ] as const) {
-      const r = await tool(request, 'verify_stock', {
-        cycleId: cycle.id,
-        items: [{ purchaseOrderItemId: poItem.id, receivedQty: qty }],
-      });
+      const r = await tool(request, 'verify_stock', receipt(run, qty));
       expect(codeOf(r), String(qty)).toBe(code);
     }
-    expect(await batchesOf(request, headers, cycle.id)).toHaveLength(0);
+    expect(await batchesOf(request, headers, run.cycle.id)).toHaveLength(0);
   });
 
-  test("TC-MCP-CYC-33: another cycle's order line → PO_ITEM_NOT_IN_CYCLE", async ({ request }) => {
+  // Changed 2026-10-10 (B4): another cycle's goods are now another delivery's
+  // line, which is no line of this delivery — NOT_FOUND, where it used to be
+  // another cycle's order line (PO_ITEM_NOT_IN_CYCLE).
+  test("TC-MCP-CYC-33: another delivery's line → NOT_FOUND, nothing written", async ({ request }) => {
     const { headers, mk } = await apiCtx(request);
     const mine = await cycleAwaitingVerification(request, headers, mk);
     const theirs = await cycleAwaitingVerification(request, headers, mk);
 
     const r = await tool(request, 'verify_stock', {
-      cycleId: mine.cycle.id,
-      items: [{ purchaseOrderItemId: theirs.poItem.id, receivedQty: 1 }],
+      deliveryId: mine.delivery.id,
+      items: [{ deliveryLineId: theirs.deliveryLine.id, receivedQty: 1 }],
     });
-    expect(codeOf(r)).toBe('PO_ITEM_NOT_IN_CYCLE');
+    expect(codeOf(r)).toBe('NOT_FOUND');
+    expect(await batchesOf(request, headers, mine.cycle.id)).toHaveLength(0);
+    expect(await batchesOf(request, headers, theirs.cycle.id)).toHaveLength(0);
   });
 });

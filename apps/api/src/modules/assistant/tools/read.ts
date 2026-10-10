@@ -267,7 +267,7 @@ export function registerReadTools(
     {
       title: 'Get one cycle',
       description:
-        'One import cycle by its code (e.g. CYC-2026-0003, any case) or its id. Returns status, origin, currency, dates, participants with their contributions, purchase orders with supplier and lines, shipping legs in order with departure and arrival dates and cost, and how many stock batches were received. Refuses with NOT_FOUND when no cycle has that code or id.',
+        "One import cycle by its code (e.g. CYC-2026-0003, any case) or its id. Returns status, origin, currency, dates, participants with their contributions, purchase orders with supplier and lines (each line's id is the purchaseOrderItemId the delivery tools take), shipping legs in order with their id, departure date and cost, how many stock batches were received, and the shipment: goods arrive in deliveries, so for each leg its status (PENDING, IN_TRANSIT, PARTLY_ARRIVED, ARRIVED), every delivery with its lines, and per product what entered the leg, was delivered, lost, and is still on the way — and on the last leg what was received into stock and what was delivered but is still waiting to be received. Refuses with NOT_FOUND when no cycle has that code or id.",
       inputSchema: {
         cycle: z
           .string()
@@ -275,7 +275,13 @@ export function registerReadTools(
       },
     },
     async ({ cycle: ref }) => {
-      const { data: c } = await ctx.resolve(CyclesService).findByRef(ref);
+      const cycles = ctx.resolve(CyclesService);
+      const { data: c } = await cycles.findByRef(ref);
+      // The office app's shipment panel reads the same method (§1, §3).
+      const { data: shipment } = await cycles.getShipment(c.id);
+      const productOf = new Map(
+        shipment.lines.map((l) => [l.purchaseOrderItemId, l.productName]),
+      );
       const data = {
         id: c.id,
         code: c.code,
@@ -304,6 +310,7 @@ export function registerReadTools(
           currency: po.currency,
           fxRateToEgp: dec(po.fxRateToEgp),
           lines: po.items.map((i) => ({
+            id: i.id,
             sku: i.product.sku,
             product: i.product.name,
             orderedQty: dec(i.orderedQty),
@@ -316,6 +323,7 @@ export function registerReadTools(
         shippingLegs: [...c.shippingLegs]
           .sort((a, b) => a.sequence - b.sequence)
           .map((l) => ({
+            id: l.id,
             sequence: l.sequence,
             origin: l.origin,
             destination: l.destination,
@@ -329,8 +337,60 @@ export function registerReadTools(
           })),
         stockBatches: c.inventoryBatches.length,
         settlements: c.settlements.length,
+        shipment: {
+          accounted: shipment.accounted,
+          totals: shipment.totals,
+          products: shipment.lines.map((l) => ({
+            purchaseOrderItemId: l.purchaseOrderItemId,
+            product: l.productName ?? null,
+            ordered: l.ordered,
+            received: l.received,
+            lost: l.lost,
+            onTheWay: l.onTheWay,
+            waiting: l.waiting,
+          })),
+          legs: shipment.legs.map((l) => ({
+            legId: l.legId,
+            sequence: l.sequence,
+            route: `${l.origin} → ${l.destination}`,
+            endsInEgypt: l.isLast,
+            status: l.status,
+            arrivedOn: l.arrivedOn,
+            entered: l.entered,
+            delivered: l.delivered,
+            lost: l.lost,
+            onTheWay: l.onTheWay,
+            received: l.received,
+            waiting: l.waiting,
+            products: l.lines.map((x) => ({
+              purchaseOrderItemId: x.purchaseOrderItemId,
+              product: productOf.get(x.purchaseOrderItemId) ?? null,
+              entered: x.entered,
+              delivered: x.delivered,
+              lost: x.lost,
+              onTheWay: x.onTheWay,
+              received: x.received,
+              waiting: x.waiting,
+            })),
+            deliveries: l.deliveries.map((d) => ({
+              deliveryId: d.id,
+              arrivedOn: d.arrivedOn,
+              lines: d.lines.map((x) => ({
+                deliveryLineId: x.id,
+                purchaseOrderItemId: x.purchaseOrderItemId,
+                product: productOf.get(x.purchaseOrderItemId) ?? null,
+                qty: x.qty,
+                received: l.isLast ? x.received : null,
+              })),
+            })),
+          })),
+        },
       };
-      return answer(`Cycle ${c.code}, ${c.status}.`, data);
+      const t = shipment.totals;
+      return answer(
+        `Cycle ${c.code}, ${c.status}. Shipment: ${t.onTheWay} on the way, ${t.waiting} waiting to be received, ${t.received} received, ${t.lost} lost, of ${t.ordered} ordered.`,
+        data,
+      );
     },
   );
 
@@ -340,7 +400,7 @@ export function registerReadTools(
     {
       title: 'Get stock',
       description:
-        "Stock on hand per product, with each batch: which cycle it came from, quantities received, remaining, reserved and available to sell, landed unit cost in EGP, and two dates — arrivedOn (when the shipment landed in Egypt: the cycle's last dated shipping leg; null when nobody dated it) and receivedAt (when it was verified into stock and became sellable). They are usually days apart. Filter by product id, by cycle (code or id), or leave both out for everything.",
+        'Stock on hand per product, with each batch: which cycle it came from, quantities received, remaining, reserved and available to sell, landed unit cost in EGP, and two dates — arrivedOn (the day the delivery that brought this batch reached Egypt — each batch has its own, since a shipment arrives in several deliveries, so two batches of one product from the same cycle can show two dates) and receivedAt (when it was received into stock and became sellable). They are usually days apart. Filter by product id, by cycle (code or id), or leave both out for everything.',
       inputSchema: {
         productId: z
           .string()

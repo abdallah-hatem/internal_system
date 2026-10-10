@@ -168,9 +168,10 @@ test.describe('Assistant read tools', () => {
     const token = await assistantToken(request);
     const { tools } = await rpc(request, token, 'tools/list', {});
 
+    // record_delivery added 2026-10-10 (B4): §16 lets the assistant record deliveries.
     const intake = new Set([
       'create_supplier', 'create_product', 'create_purchase_order',
-      'create_cycle', 'add_shipping_leg', 'transition_cycle', 'verify_stock',
+      'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
     ]);
     const officeOnly = /sale|payment|instal|settle|return|refund|ledger|transaction|allocat/i;
     const writes = tools.filter((t: any) => t.annotations?.readOnlyHint !== true);
