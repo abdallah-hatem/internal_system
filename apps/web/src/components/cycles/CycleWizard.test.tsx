@@ -49,6 +49,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace, back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/en/cycles',
   useSearchParams: () => new URLSearchParams(),
+  // The wizard's pickers render EmptyState, which reaches next-intl's navigation;
+  // building it reads these two at import time.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
 }));
 
 beforeAll(() => {

@@ -13,5 +13,10 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     env: { TZ: 'UTC' },
+    // next-intl's navigation imports "next/navigation" without an extension, which
+    // Node's ESM resolver refuses. Inlined, Vite resolves it — so a component that
+    // reaches `@/i18n/navigation` (EmptyState, through every Select) renders in a
+    // test without each file mocking the module.
+    server: { deps: { inline: ['next-intl'] } },
   },
 });

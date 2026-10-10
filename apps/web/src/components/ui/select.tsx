@@ -13,6 +13,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import { EmptyState } from '@/components/ui/empty-state';
 
 /** Lists shorter than this are faster to scan than to search. */
 const SEARCH_THRESHOLD = 4;
@@ -44,6 +45,10 @@ export interface SelectOption {
  * The search box only appears once the list is long enough to need it
  * (SEARCH_THRESHOLD). On three currencies a search field is noise, and it also
  * steals the first keystroke from someone who just wants to arrow down.
+ *
+ * Labels sit in `<bdi>`: a Latin name inside an Arabic form is isolated, so it
+ * truncates at its own end rather than losing its start, and a trailing "." in
+ * "Guangzhou Trading Co." stays after the name instead of jumping in front of it.
  */
 export function Select({
   name,
@@ -51,9 +56,9 @@ export function Select({
   value,
   defaultValue,
   onChange,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search…',
-  emptyText = 'No matches',
+  placeholder,
+  searchPlaceholder,
+  emptyText,
   required,
   disabled,
   clearable = false,
@@ -148,14 +153,15 @@ export function Select({
               invalid && !open && 'border-destructive ring-2 ring-destructive/20',
             )}
           >
-            <span
+            <bdi
+              data-slot="select-value"
               className={cn(
-                'flex-1 truncate',
+                'block min-w-0 flex-1 truncate text-start',
                 selectedOption ? 'text-foreground' : 'text-muted-foreground',
               )}
             >
-              {selectedOption?.label ?? placeholder}
-            </span>
+              {selectedOption?.label ?? placeholder ?? t('selectPlaceholder')}
+            </bdi>
 
             {clearable && selectedOption && !disabled && (
               <span
@@ -204,9 +210,13 @@ export function Select({
               return haystack.includes(search.toLowerCase()) ? 1 : 0;
             }}
           >
-            {showSearch && <CommandInput placeholder={searchPlaceholder} className="h-9" />}
+            {showSearch && <CommandInput placeholder={searchPlaceholder ?? t('search')} className="h-9" />}
             <CommandList>
-              {showSearch && <CommandEmpty>{emptyText}</CommandEmpty>}
+              {showSearch && (
+                <CommandEmpty className="p-0">
+                  <EmptyState size="compact" icon={null} title={emptyText ?? t('noOptionsMatch')} />
+                </CommandEmpty>
+              )}
               <CommandGroup>
                 {options.map((opt) => (
                   <CommandItem
@@ -217,18 +227,18 @@ export function Select({
                     className="gap-2"
                   >
                     <span className="min-w-0 flex-1">
-                      <span
+                      <bdi
                         className={cn(
-                          'block truncate',
+                          'block truncate text-start',
                           opt.value === selected && 'font-medium',
                         )}
                       >
                         {opt.label}
-                      </span>
+                      </bdi>
                       {opt.hint && (
-                        <span className="block truncate text-xs text-muted-foreground">
+                        <bdi className="block truncate text-start text-xs text-muted-foreground">
                           {opt.hint}
-                        </span>
+                        </bdi>
                       )}
                     </span>
                     <Check

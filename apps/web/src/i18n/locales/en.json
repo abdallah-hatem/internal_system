@@ -41,7 +41,9 @@
     "optional": "Optional",
     "operationFailed": "Operation failed",
     "noMatch": "Nothing matches this search or filter",
-    "listCapped": "Showing the first {count} only. More exist and are not listed here."
+    "listCapped": "Showing the first {count} only. More exist and are not listed here.",
+    "selectPlaceholder": "Select…",
+    "noOptionsMatch": "No matches"
   },
   "nav": {
     "dashboard": "Dashboard",
