@@ -6,7 +6,7 @@ Goal (current): (A) "make the UI/UX easier" — the 12 recommendations and the q
 2026-10-10 UX review, with the dead search box removed. (B) "a shipment can arrive in batches — ship 40,
 and it arrives 15, then 10, then 5, then 10 across 40 days or so; I have no control". The user said
 "do all" to the three rule decisions.
-Current stage: 1 — Context · mapping the arrival code; spec next
+Current stage: 4 — Build · plan reviewed ALIGNED (2 rounds) · wave 1 dispatching: B1 U0 U3 S1 U4b
 
 ## Waiting on the user
 _(none)_
@@ -15,7 +15,7 @@ _(none)_
 _(none)_
 
 ## Next up
-- Spec `docs/specs/2026-10-10-partial-arrivals-and-ux.md` → business doc edit → plan → alignment review.
+- Plan `docs/superpowers/plans/2026-10-10-partial-arrivals-and-ux.md` — waves 1–5, then verify and ship.
 
 ## Queued, not started
 - Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.

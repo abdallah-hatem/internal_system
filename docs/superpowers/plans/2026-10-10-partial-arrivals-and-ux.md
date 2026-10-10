@@ -33,7 +33,8 @@ Depends on: —. Owns: `prisma/schema.prisma`, a new migration, `src/common/ship
 `GET /cycles/:id/shipment` (cycles controller/service, a read method only).
 
 - `ShipmentDelivery`, `ShipmentDeliveryLine`, `ShipmentLoss` as in the spec. `InventoryBatch`: drop
-  `sourcePoItemId @unique`, add `sourceDeliveryLineId @unique` and `arrivedOn`. Leg status gains
+  `sourcePoItemId @unique`, add `sourceDeliveryLineId` (**not unique** — a delivery line can be
+  received in several goes) and `arrivedOn`. Leg status gains
   `PARTLY_ARRIVED`.
 - Migration backfill: a delivery for every dated leg; batches linked to their last-leg delivery
   line, with its date; short-received lines → a loss with `costEgp 0` and the "absorbed" reason.
@@ -45,7 +46,7 @@ Edge cases:
 - [ ] One leg, 40 ordered, 15 delivered, 5 lost → on the way 20, not accounted   (§1)
 - [ ] Two legs: leg 1 delivered 30 of 40 → leg 2 entered 30, not 40   (§1: a later leg carries what the one before delivered)
 - [ ] Leg 2 delivered 30, leg 1 lost 10 → line accounted only when received + all losses = ordered   (§8)
-- [ ] Received less than a last-leg delivery said → the difference stays on the way on the last leg   (§3)
+- [ ] Received less than a last-leg delivery said → the difference is waiting to be received against that delivery, not on the way   (§3)
 - [ ] Several order lines move independently on one leg   (§1)
 - [ ] A cycle with no legs and every unit received → accounted; a cycle with nothing ordered → accounted   (§8)
 - [ ] A last-leg delivery of 15 received 14 → 1 waiting to be received (not on the way); the leg reads arrived, the cycle is not accounted   (§1, §3)
@@ -62,18 +63,19 @@ Edge cases:
 
 ### B2 — Recording deliveries and losses (backend · logic)
 Depends on: B1. Owns: `shipping.service/controller`, the cycle transition gates in
-`cycles.service.ts` (`assertShippingReached`), `common/ledger-categories.ts`, `scripts/check-data.sh`.
+`cycles.service.ts` (`assertShippingReached`), `common/cycle-losses.ts` (new: `cycleLossesEgp`),
+`scripts/check-data.sh`.
 
 - `POST /shipping/legs/:id/deliveries`, `DELETE /shipping/deliveries/:id`,
   `POST /shipping/legs/:id/losses`, all CORE_PARTNER.
 - The leg's `status` and `arrivedOn` are derived from `shipmentPosition` after every write.
 - `PUT /shipping/legs/:id` with `arrivedOn` → a delivery of the remainder (compatibility).
 - Gates per §1's new table.
-- `loss` is a ledger category that is not capitalised, in the shared file. A loss books an OUTFLOW
-  with the cycle id at the line's landed unit cost. Until B3 lands, use the current costing call;
-  B3 switches it to the per-ordered-unit cost.
+- A loss is its own record (`ShipmentLoss`) valued at the line's landed unit cost. **No ledger row**
+  (§9). `cycleLossesEgp(cycleId)` in `common/` is the one definition settlement and analytics both
+  read (B3 wires them in). Use the costing service's per-unit figure; B3 makes it per ordered unit.
 - check-data: 12.3 is replaced by "delivered more than entered", "received + lost > ordered",
-  "a loss with no ledger row (cost > 0)", and "a batch with no delivery line".
+  "a loss whose cost is not qty × its unit cost", and "a batch with no delivery line".
 
 Edge cases:
 - [ ] Delivery of 41 when 40 are on the way → `DELIVERY_EXCEEDS_IN_TRANSIT`, nothing written   (§1)
@@ -82,7 +84,7 @@ Edge cases:
 - [ ] Delivery dated tomorrow → `DATE_IN_FUTURE`   (rule 1: backwards in time)
 - [ ] Delivery dated before the leg departed → `DELIVERY_BEFORE_DEPARTURE`   (§1)
 - [ ] Delivery on a leg not yet departed → `LEG_NOT_DEPARTED`   (§1)
-- [ ] Delivery or loss on a CLOSED or CANCELLED cycle → `CYCLE_CLOSED`   (§1)
+- [ ] Delivery or loss on a SETTLEMENT or CLOSED cycle → `CYCLE_SETTLING`; on a CANCELLED cycle → `CYCLE_CLOSED`   (§1)
 - [ ] qty 0 or negative → `QTY_NOT_POSITIVE`   (rule 1)
 - [ ] A line from another cycle's order → 404 `purchaseOrderItem`, not 500   (rule 1: the wrong owner)
 - [ ] The same line twice in one delivery → `VALIDATION_FAILED`   (contract)
@@ -102,12 +104,13 @@ Edge cases:
 - [ ] Changing a leg's cost after a receipt or loss → `LEG_COST_LOCKED`   (§2)
 - [ ] A delivery on a cycle with no order lines → `VALIDATION_FAILED` (nothing can be delivered)   (contract)
 - [ ] Loss then a delivery: on the way shrinks by both, and a delivery for the lost units is refused   (§1)
-- [ ] Delete a delivery whose lines were received into stock → `DELIVERY_HAS_STOCK`   (§3)
+- [ ] Delete a delivery whose lines were received into stock → `DELIVERY_IN_USE`   (§3)
 - [ ] Delete a delivery that was not received → removed, and the leg status is re-derived   (the second visit)
 - [ ] `PUT` leg with `arrivedOn` and 25 still on the way → one delivery of 25; again with the same date → no new delivery   (compatibility; the second time)
 - [ ] Cycle → ARRIVED_UAE after leg 1's first delivery of 15/40 → allowed; with no delivery → `LEG_NOT_ARRIVED`   (§1 gates)
 - [ ] Cycle → ARRIVED_EGYPT with the last leg partly arrived → allowed   (§1)
-- [ ] Investor or shop token on each endpoint → refused with a code   (rule 12)
+- [ ] Investor or shop token on each endpoint, including `DELETE /shipping/losses/:id` → refused with a code   (rule 12)
+- [ ] A late freight charge after the cost lock → recorded as an ordinary ledger expense on the cycle; counted once in settlement and analytics; no batch's cost changes   (§2)
 - [ ] check-data after a correct partial flow → all zeros; after a forced bad row → its check counts it   (rule 7)
 
 ### B3 — Receiving per delivery, fixed unit cost, settlement gate (backend · logic)
@@ -129,10 +132,12 @@ Edge cases:
 - [ ] Deliveries 15 then 10 received → two batches, same landed unit cost, both sellable   (§2, §3)
 - [ ] The first delivery received and **sold** before the second arrives → the sale's COGS is unchanged after the second delivery and after a loss   (§3 invariant: COGS never re-priced)
 - [ ] Unit cost: 40 ordered, goods 4,000, shipping 400 → 110.00 per unit for every batch, not 4,400 / received   (§2)
-- [ ] Received 14 of a delivery of 15 → batch 14; 1 stays on the way and can be received later or marked lost   (§3)
+- [ ] Received 14 of a delivery of 15 → batch 14; 1 is waiting to be received against that delivery, and can be received later or marked lost   (§3)
 - [ ] Receive 16 of a delivery of 15 → `RECEIVED_EXCEEDS_DELIVERED`   (§3)
 - [ ] Receive 14 of a delivery of 15, then the 1 later → a second batch on the same delivery line; a third receipt → `STOCK_ALREADY_VERIFIED`   (§3)
 - [ ] Receipt on a cycle still IN_TRANSIT → `CYCLE_NOT_ARRIVED`   (§3)
+- [ ] An investor or shop token on `POST /receipts/verify` → refused with a code   (rule 12)
+- [ ] Settlement and analytics both subtract `cycleLossesEgp`, and agree   (§9, rule 11)
 - [ ] The first receipt walks ARRIVED_EGYPT → VERIFICATION → SELLING through `planTransition` (each step's checks run; a refused step stops the walk with its own code, nothing received)   (§3, §15)
 - [ ] With 5 on the way, the plain transition SELLING → SETTLEMENT → `SHIPMENT_NOT_ACCOUNTED`, as approve is   (§8)
 - [ ] Rounding: 3 ordered, 100 shipping → batches + losses re-sum to the line's landed total exactly; the final event takes the residual   (§2)
@@ -263,6 +268,9 @@ Depends on: U0. Owns: `dashboard/page.tsx` and its components.
 
 - Quick actions. Tiles link to their lists (Receivables → customers by balance, Low stock →
   inventory). Two columns on a phone.
+Interaction cases:
+- [ ] Each tile navigates to its list, filtered as labelled   (UX #8)
+- [ ] Recent activity lists the latest sale after one is confirmed, reached by clicking   (the stale cache)
 
 ### U4b — Why "Recent activity" is empty (backend · logic)
 Depends on: —. Owns: the dashboard/analytics recent-activity query only.
@@ -271,9 +279,6 @@ Edge cases:
 - [ ] Confirming a sale → it appears in recent activity; a draft does not   (§4)
 - [ ] An investor sees only what their role may see   (rule 12)
 
-Interaction cases:
-- [ ] Each tile navigates to its list, filtered as labelled   (UX #8)
-- [ ] Recent activity lists the latest sale after one is confirmed, reached by clicking   (the stale cache)
 
 ### S1 — The demo seed's paid orders with no payments (backend · logic)
 Depends on: —. Owns: the demo seed files only (B3 later adds deliveries to them).

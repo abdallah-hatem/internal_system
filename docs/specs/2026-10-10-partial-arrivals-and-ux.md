@@ -103,12 +103,11 @@ office app only: it books a loss, and a partner should decide that on screen."
   has at least one line, and the same order line at most once per delivery.
 - **New: loss** (`ShipmentLoss`): leg, purchase order item, `qty` (> 0), `unitCostEgp` (the
   line's landed unit cost when it was marked), `costEgp`, `reason` (optional), `createdBy`,
-  `createdAt`. Each one books a ledger OUTFLOW, category **`loss`**, with the cycle id. `loss` is
-  NOT a capitalised category, so settlement and analytics both count it as an expense, through the
-  single definition in `common/ledger-categories.ts` (rule 11).
+  `createdAt`. It is **not** a ledger row (§9: no money moves). Settlement and analytics both
+  subtract it through one function, `cycleLossesEgp` in `common/` (rule 11).
 - **Inventory batch**: drop `sourcePoItemId @unique` (one batch per order line). Keep
-  `sourcePoItemId`, add `sourceDeliveryLineId @unique` (one batch per delivery line on the last
-  leg), and add `arrivedOn` (copied from the delivery).
+  `sourcePoItemId`, add `sourceDeliveryLineId` (not unique: a delivery line can be received in
+  several goes, up to what it delivered), and add `arrivedOn` (copied from the delivery).
 - **Shipping leg**: `arrivedOn` and `status` stay as stored columns, but the service now derives
   them. `arrivedOn` is the date of the delivery that completed the leg, or null while anything is
   unaccounted. `status` can also be `PARTLY_ARRIVED`.
@@ -131,15 +130,16 @@ so it must not be charged twice. `check-data` runs before and after the migratio
 |---|---|---|
 | `GET /cycles/:id/shipment` | the shipment position: per leg and line, entered / delivered / received / lost / on the way, plus each delivery | 404 for an unknown cycle |
 | `POST /shipping/legs/:id/deliveries` `{arrivedOn, lines:[{purchaseOrderItemId, qty}], note?}` | records a delivery; re-derives the leg's status and arrivedOn | `DELIVERY_EXCEEDS_IN_TRANSIT` (with params: line, onTheWay, asked), `LEG_NOT_DEPARTED`, `DATE_IN_FUTURE`, `DELIVERY_BEFORE_DEPARTURE`, `CYCLE_CLOSED`, `QTY_NOT_POSITIVE`, a line from another cycle → `notFound('purchaseOrderItem')`, the same line twice → `VALIDATION_FAILED`, no lines → `VALIDATION_FAILED` |
-| `DELETE /shipping/deliveries/:id` | removes a delivery recorded by mistake | `DELIVERY_HAS_STOCK` once any line has been received into stock |
+| `DELETE /shipping/deliveries/:id` | removes a delivery recorded by mistake | `DELIVERY_IN_USE` (see Amendment 7) |
 | `POST /shipping/legs/:id/losses` `{lines:[{purchaseOrderItemId, qty}], reason?}` | marks units on the way as lost and books the loss | `LOSS_EXCEEDS_IN_TRANSIT`, `QTY_NOT_POSITIVE`, `CYCLE_CLOSED` |
 | `POST /receipts/verify` `{cycleId, deliveryId, items:[{deliveryLineId, receivedQty, landedUnitCostEgp?}]}` | receives one last-leg delivery into stock, one batch per line, at the fixed unit cost. The first receipt moves the cycle through Arrived Egypt and Verification to Selling | `RECEIVED_EXCEEDS_DELIVERED`, `STOCK_ALREADY_VERIFIED` (that delivery line), `NOT_LAST_LEG_DELIVERY`, `CYCLE_CLOSED`, plus the existing checks |
 | `PUT /shipping/legs/:id` with `arrivedOn` | **kept for compatibility** (the shipments page, the old wizard, the fixtures): "everything still on the way arrived on this date", i.e. one delivery of the remainder. With nothing remaining, a no-op | as for deliveries |
 | `POST /settlements/:id/approve` | unchanged, plus the gate | `SHIPMENT_NOT_ACCOUNTED` (params: units on the way, lines) |
 | `GET /costing/cycles/:id/landed-cost` | now per ordered unit | — |
 
-Receiving is allowed while the cycle is Arrived Egypt, Verification or Selling. It used to need
-exactly Verification, which is why a second delivery could never be received.
+Receiving is allowed while the cycle is Arrived Egypt, Verification or Selling (earlier →
+`CYCLE_NOT_ARRIVED`; Settlement or Closed → `CYCLE_SETTLING`). It used to need exactly
+Verification, which is why a second delivery could never be received.
 
 `POST /receipts/verify` with the old body shape (`purchaseOrderItemId`, no `deliveryId`) keeps
 working when the line has exactly one last-leg delivery waiting. Otherwise it is refused with

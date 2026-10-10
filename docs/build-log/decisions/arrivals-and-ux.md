@@ -32,3 +32,7 @@
   lost goods not showing in the ledger is recorded under "Still open" (it predates this change).
   Why each: the reviewer's findings 1–16; alternatives were a ledger `loss` category (breaks §9) and
   one batch per delivery line (strands short counts).
+- **[Plan review, round 2] Seven stale lines fixed → ALIGNED.** The doc held; the plan and spec bodies
+  still said "loss → ledger row", "unique delivery line", `DELIVERY_HAS_STOCK`, "stays on the way", and
+  U4's cases sat under U4b. All were reworded to match the doc, and the missing role cases (receipts,
+  taking a loss back) and the late-freight case were added.
