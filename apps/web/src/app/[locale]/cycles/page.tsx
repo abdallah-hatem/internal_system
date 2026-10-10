@@ -248,8 +248,12 @@ export default function CyclesPage() {
 
       {/* Desktop Table */}
       {!isLoading && (
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        // Short values — the code, a status chip, money, a date — never
+        // wrap: they were breaking at 1440 while the counts beside them sat
+        // half empty. Only the origin may wrap. At tablet width, if the row
+        // still does not fit, the table scrolls inside its own box.
+        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm [&_th]:whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{t('code')}</th>
@@ -285,23 +289,29 @@ export default function CyclesPage() {
                       className="cursor-pointer transition-colors hover:bg-primary-50"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                        {cycle.code}
-                        {canResume && <span className="ms-2 text-[10px] text-primary-500 font-normal">{t('clickToResume')}</span>}
+                        <bdi className="whitespace-nowrap">{cycle.code}</bdi>
+                        {canResume && (
+                          <span className="block whitespace-nowrap font-sans text-[10px] font-normal text-primary-500">
+                            {t('clickToResume')}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{cycle.originType === 'CHINA' ? t('china') : t('uaeDirect')}</td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <StatusBadge status={cycle.status} label={codeLabel('cycleStatus', cycle.status)} />
                       </td>
                       <td className="px-4 py-3 text-gray-600">{cycle.participants?.length ?? 0}</td>
                       <td className="px-4 py-3 text-gray-600">{cycle.purchaseOrders?.length ?? 0}</td>
-                      <td className="px-4 py-3 text-end" data-testid="cycle-profit">
+                      <td className="whitespace-nowrap px-4 py-3 text-end" data-testid="cycle-profit">
                         <ProfitFigure figure={figure} />
                       </td>
-                      <td className="px-4 py-3 text-end" data-testid="cycle-roi">
+                      <td className="whitespace-nowrap px-4 py-3 text-end" data-testid="cycle-roi">
                         <RoiFigure figure={figure} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(cycle.startedOn)}</td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-gray-500 text-xs">
+                        <bdi>{formatDate(cycle.startedOn)}</bdi>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex items-center justify-end gap-3">
                           {/* Details is offered for every cycle, in every
                               status. A closed one is the one you most want to
@@ -566,7 +576,7 @@ function RoiFigure({ figure }: { figure?: CycleProfit }) {
   if (!figure || figure.roiPct == null) return <span className="text-muted-foreground">—</span>;
   return (
     <span dir="ltr" className={figure.roiPct < 0 ? 'text-destructive' : 'text-foreground'}>
-      {figure.roiPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+      {figure.roiPct.toLocaleString('en-US', { maximumFractionDigits: 1 })}%
     </span>
   );
 }
