@@ -113,3 +113,8 @@
   spots → `EmptyState`; `order-requests` forces ar-EG; `ar.json` photosHint holds "٨".
 - UF7 merged: 23 number-format calls → useNumberFormat/Money, 30 empty states, guard test `unit/latin-digits.test.mjs`.
 - UF8 merged: N1–N8 fixed and self-checked on screen (40 checks, no sideways scroll): one-line routes in the shipments table, shared LatinText (bidi isolation, end truncation) and NoMatch (clear search), consistent Arabic vocabulary (تسليمة/تشغيلة/دفعة). web 338 + 87.
+- **Final full e2e (master after UF8):** group 1 199 passed / 1 skipped; group 2 108 / 2 skipped; group 3 141; group 4 225;
+  group 5 129 / 3 failed → three specs asserting text a later UI fix replaced (no-match sentence; "Refunds" now also in an
+  empty line; the ledger list never had a reason column). Updated to what is on screen; re-run 24/24.
+  Unit: api 837 + 9 skipped, web 338 + 87, lint 0 errors, typecheck clean. **Verify done.**
+- BUSINESS_LOGIC: every *Building* mark flipped to *Built 2026-10-11 (task)*.
