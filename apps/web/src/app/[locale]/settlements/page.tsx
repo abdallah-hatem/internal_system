@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { useCodeLabel } from '@/lib/labels';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Line {
   id: string;
@@ -70,6 +71,7 @@ const nameOf = (l: Line) =>
 
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function SettlementsPage() {
+  const codeLabel = useCodeLabel();
   const apiError = useApiError();
   const t = useTranslations('settlementsPage');
   const tc = useTranslations('common');
@@ -195,7 +197,7 @@ export default function SettlementsPage() {
             options={cycleList.map((c: any) => ({
               value: c.id,
               label: c.code,
-              hint: [c.originType, c.status].filter(Boolean).join(' · '),
+              hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
             }))}
           />
           <button
@@ -364,6 +366,7 @@ function SettlementCard({
   busy: boolean;
   t: (key: string, values?: Record<string, string | number | Date>) => string;
 }) {
+  const codeLabel = useCodeLabel();
   const profit = Number(s.grossProfitEgp ?? 0);
   const remaining = Number(s.unitsRemaining ?? 0);
 
@@ -386,7 +389,7 @@ function SettlementCard({
               STATUS_STYLE[s.status] ?? 'bg-gray-100 text-gray-600'
             }`}
           >
-            {s.status}
+            {codeLabel('settlementStatus', s.status)}
           </span>
         </div>
 

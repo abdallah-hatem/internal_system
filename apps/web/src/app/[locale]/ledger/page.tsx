@@ -11,7 +11,7 @@ import {
   BookOpen, Plus, Search, Eye, X, Loader2,
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
@@ -77,6 +77,7 @@ const DIRECTION_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function LedgerPage() {
+  const { formatDate } = useDateFormat();
   const t = useTranslations('ledger');
   const tc = useTranslations('common');
 

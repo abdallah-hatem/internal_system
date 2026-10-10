@@ -19,7 +19,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '../../../../../lib/api';
-import { formatDate } from '../../../../../lib/dates';
 import { Money } from '../../../../../components/ui/money';
 import { Select } from '../../../../../components/ui/select';
 import { useToast } from '../../../../../components/ui/toast';
@@ -226,7 +225,7 @@ export default function CycleDetailsPage() {
                     p.investor?.email ??
                     '—'}
                 </span>
-                <span className="text-xs text-gray-500">{p.participantType}</span>
+                <span className="text-xs text-gray-500">{codeLabel('role', p.participantType)}</span>
                 <span className="text-sm"><Money value={num(p.contributionAmount)} /></span>
                 <span className="text-xs text-gray-500">
                   {p.customProfitPct != null ? `${p.customProfitPct}%` : t('byContribution')}
@@ -283,7 +282,7 @@ export default function CycleDetailsPage() {
               <Row key={o.id}>
                 <span className="font-mono text-xs text-gray-500">{o.reference}</span>
                 <span className="text-sm">{o.supplier?.name ?? '—'}</span>
-                <span className="text-xs text-gray-400">{formatDate(o.orderedOn)}</span>
+                <span className="text-xs text-gray-400">{formatLocalDate(o.orderedOn)}</span>
                 <span className="text-sm">{o.currency} @ {num(o.fxRateToEgp)}</span>
                 <span className="text-xs text-gray-500">{(o.items ?? []).length} {t('items')}</span>
               </Row>
@@ -341,7 +340,7 @@ export default function CycleDetailsPage() {
                 <span className="text-xs text-gray-500">{t('received')} {num(b.receivedQty)}</span>
                 <span className="text-xs text-gray-500">{t('remaining')} {num(b.remainingQty)}</span>
                 <span className="text-sm"><Money value={num(b.landedUnitCostEgp)} /></span>
-                <span className="text-xs text-gray-400">{b.verificationStatus}</span>
+                <span className="text-xs text-gray-400">{codeLabel('verificationStatus', b.verificationStatus)}</span>
               </Row>
             ))}
           </Rows>

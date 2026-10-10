@@ -740,7 +740,8 @@
     "finish": "Finish",
     "finishHint": "Finishing moves the cycle only as far as the shipping dates allow. Deliveries are recorded and received into stock on the cycle page as they arrive.",
     "finished": "Cycle saved — {status}",
-    "finishFailed": "The cycle could not be moved on"
+    "finishFailed": "The cycle could not be moved on",
+    "baseCurrency": "base currency"
   },
   "settlementsPage": {
     "title": "Settlements",
@@ -1144,6 +1145,97 @@
     "channel": {
       "B2B": "B2B",
       "B2C": "B2C"
+    },
+    "poStatus": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "CONFIRMED": "Confirmed",
+      "SHIPPED": "Shipped",
+      "PARTIAL": "Partly received",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "settlementStatus": {
+      "DRAFT": "Draft",
+      "APPROVED": "Approved",
+      "PAID": "Paid",
+      "REVERSED": "Reversed"
+    },
+    "originType": {
+      "CHINA": "China",
+      "UAE_DIRECT": "UAE direct"
+    },
+    "verificationStatus": {
+      "PENDING": "Pending",
+      "VERIFIED": "Verified",
+      "REJECTED": "Rejected",
+      "UNVERIFIED": "Not verified"
+    },
+    "movementType": {
+      "RECEIVE": "Received",
+      "RESERVE": "Reserved",
+      "RELEASE": "Released",
+      "SALE": "Sold",
+      "RETURN": "Returned",
+      "ADJUSTMENT": "Adjustment",
+      "WRITE_OFF": "Written off",
+      "PURCHASE_RECEIPT": "Received",
+      "SALE_ALLOCATION": "Sold"
+    },
+    "referenceType": {
+      "PURCHASE_ORDER_ITEM": "Purchase order",
+      "SALE_ORDER": "Sale order",
+      "SALE_ORDER_CANCEL": "Cancelled sale",
+      "SALE_RETURN": "Sale return"
+    },
+    "auditAction": {
+      "CREATE": "Created",
+      "UPDATE": "Updated",
+      "DELETE": "Deleted",
+      "READ": "Viewed",
+      "REVERSE": "Reversed",
+      "LOGIN": "Signed in",
+      "CANCEL": "Cancelled",
+      "ALLOCATE": "Allocated",
+      "VERIFY_STOCK": "Stock received",
+      "VERIFY": "Verified",
+      "UPDATE_PARTICIPANT": "Participant updated",
+      "TRANSITION": "Status changed",
+      "RECORD_REFUND": "Refund recorded",
+      "PRICE_CHANGE": "Price changed",
+      "PAY": "Paid",
+      "CONFIRM": "Confirmed",
+      "CALCULATE": "Calculated",
+      "APPROVE": "Approved",
+      "ADD_PARTICIPANT": "Participant added",
+      "ADD_ITEM": "Item added"
+    },
+    "entityType": {
+      "Product": "Product",
+      "Customer": "Customer",
+      "SaleOrder": "Sale order",
+      "SaleReturn": "Sale return",
+      "Payment": "Payment",
+      "PaymentPlan": "Payment plan",
+      "PurchaseOrder": "Purchase order",
+      "PurchaseOrderItem": "Purchase order item",
+      "Shipment": "Shipment",
+      "ShippingLeg": "Shipping leg",
+      "ShipmentDelivery": "Delivery",
+      "ShipmentLoss": "Loss in transit",
+      "InventoryBatch": "Stock batch",
+      "Cycle": "Cycle",
+      "ImportCycle": "Cycle",
+      "CycleParticipant": "Cycle participant",
+      "Settlement": "Settlement",
+      "User": "User",
+      "LedgerEntry": "Ledger entry",
+      "FinancialTransaction": "Ledger entry",
+      "Supplier": "Supplier",
+      "SupplierRefund": "Supplier refund",
+      "Provider": "Shipping provider",
+      "Category": "Category",
+      "CurrencyRate": "Exchange rate"
     }
   },
   "shipment": {
@@ -1254,5 +1346,22 @@
     "waitingLine": "{product}: {qty} waiting",
     "cycleNotArrived": "The cycle is {status}; move it to Arrived Egypt from its page first.",
     "openCycle": "Open cycle"
+  },
+  "shippingCost": {
+    "title": "Shipment cost",
+    "howCharged": "How this leg is charged",
+    "chargedBy": "Charged by",
+    "perWeightKg": "Per weight (kg)",
+    "costPerPiece": "Cost per piece",
+    "numberOfPieces": "Number of pieces",
+    "piecesPrefilled": "Pieces the forwarder billed for — prefilled from the {ordered} ordered. Change it if they charged by carton.",
+    "orderHasPieces": "The order has {ordered} pieces.",
+    "useThat": "Use that",
+    "costPerKg": "Cost per kg",
+    "totalWeightKg": "Total weight (kg)",
+    "totalCost": "Total shipment cost",
+    "currency": "Currency",
+    "fxRate": "FX rate to EGP",
+    "legTotal": "Leg total"
   }
 }

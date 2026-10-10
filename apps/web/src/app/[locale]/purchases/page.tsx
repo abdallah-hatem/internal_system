@@ -12,7 +12,7 @@ import {
   ShoppingCart, Plus, Search, Eye, X, MinusCircle, Loader2, ChevronRight,
   Package, DollarSign,
 } from 'lucide-react';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
@@ -22,6 +22,7 @@ import { MoneyInput } from '../../../components/ui/money-input';
 import { useApiError } from '../../../lib/api-error';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
+import { useCodeLabel } from '@/lib/labels';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -59,6 +60,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PurchasesPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('purchases');
   const tc = useTranslations('common');
@@ -247,7 +250,7 @@ export default function PurchasesPage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(po.orderedOn)}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {po.status}
+                          {codeLabel('poStatus', po.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -282,7 +285,7 @@ export default function PurchasesPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-sm font-bold text-primary-600">{po.reference}</span>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {po.status}
+                    {codeLabel('poStatus', po.status)}
                   </span>
                 </div>
                 <p className="text-sm text-gray-700">{po.supplier?.name ?? '—'}</p>
@@ -317,7 +320,7 @@ export default function PurchasesPage() {
                   options={cycleList.map((c: any) => ({
                     value: c.id,
                     label: c.code,
-                    hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                    hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
                   }))}
                 />
               </div>
@@ -449,7 +452,7 @@ export default function PurchasesPage() {
               <Detail label={t('currency')} value={viewingPO.currency} />
                <Detail label={t('fxRate')} value={String(viewingPO.fxRateToEgp)} />
               <Detail label={t('orderedDate')} value={formatDate(viewingPO.orderedOn)} />
-              <Detail label={tc('status')} value={viewingPO.status} />
+              <Detail label={tc('status')} value={codeLabel('poStatus', viewingPO.status)} />
             </div>
 
             {/* Items table */}

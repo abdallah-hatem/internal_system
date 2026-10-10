@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { useCodeLabel } from '@/lib/labels';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -78,6 +79,8 @@ function nextSundayAfter(day: string) {
 const today = () => asDay(new Date());
 
 export default function PaymentPlansPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('paymentPlans');
   const tc = useTranslations('common');
@@ -330,7 +333,7 @@ export default function PaymentPlansPage() {
                   options={(Array.isArray(customers) ? customers : []).map((c: any) => ({
                     value: c.id,
                     label: c.displayName,
-                    hint: c.phone ?? c.type,
+                    hint: c.phone ?? codeLabel('customerType', c.type),
                   }))}
                 />
               </div>

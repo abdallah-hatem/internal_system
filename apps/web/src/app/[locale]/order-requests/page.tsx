@@ -10,7 +10,7 @@ import { useApiError } from '../../../lib/api-error';
 import { useToast } from '../../../components/ui/toast';
 import { MoneyInput } from '../../../components/ui/money-input';
 import { CustomerLink } from '../../../components/ui/entity-link';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 
 /**
  * Answering what the shops have asked for.
@@ -124,6 +124,7 @@ function RequestCard({
   onError: (e: unknown) => void;
   onSuccess: (message: string) => void;
 }) {
+  const { formatDate } = useDateFormat();
   const t = useTranslations('orderRequests');
   const tc = useTranslations('common');
 

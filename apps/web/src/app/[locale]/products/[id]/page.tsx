@@ -5,7 +5,7 @@ import { Money } from '../../../../components/ui/money';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../../lib/api';
 import { useToast } from '../../../../components/ui/toast';
-import { formatDate } from '../../../../lib/dates';
+import { useDateFormat } from '../../../../lib/dates';
 import { MoneyInput } from '../../../../components/ui/money-input';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -18,6 +18,7 @@ import {
 import { useApiError } from '../../../../lib/api-error';
 import { ProductPhotos } from '../../../../components/products/product-photos';
 import { BackLink } from '../../../../components/ui/back-link';
+import { useCodeLabel } from '@/lib/labels';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -114,6 +115,8 @@ function movementTypeIcon(type: string) {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const t = useTranslations('products');
   // Inventory owns these two labels; they are the same words the
   // inventory screen uses and should not be a second translation of them.
@@ -362,7 +365,7 @@ export default function ProductDetailPage() {
                                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${movementTypeBadge(mov.movementType)}`}
                                     >
                                       {movementTypeIcon(mov.movementType)}
-                                      {mov.movementType}
+                                      {codeLabel('movementType', mov.movementType)}
                                     </span>
                                     <span
                                       className={`font-medium ${mov.qtyDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}
@@ -377,7 +380,7 @@ export default function ProductDetailPage() {
                                     </span>
                                     {(mov.referenceType || mov.referenceId) && (
                                       <p className="text-xs text-gray-400">
-                                        {mov.referenceType}
+                                        {codeLabel('referenceType', mov.referenceType)}
                                         {mov.referenceId ? ` (${mov.referenceId})` : ''}
                                       </p>
                                     )}
@@ -432,7 +435,7 @@ export default function ProductDetailPage() {
                               <span
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${movementTypeBadge(mov.movementType)}`}
                               >
-                                {mov.movementType}
+                                {codeLabel('movementType', mov.movementType)}
                               </span>
                               <span
                                 className={`text-sm font-semibold ${mov.qtyDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}
@@ -447,7 +450,7 @@ export default function ProductDetailPage() {
                           </div>
                           {(mov.referenceType || mov.referenceId) && (
                             <p className="text-xs text-gray-400 mt-1">
-                              {mov.referenceType}
+                              {codeLabel('referenceType', mov.referenceType)}
                               {mov.referenceId ? ` (${mov.referenceId})` : ''}
                             </p>
                           )}
@@ -518,7 +521,7 @@ export default function ProductDetailPage() {
                         ) : (
                           <ShoppingCart className="h-3 w-3" />
                         )}
-                        {entry.channel}
+                        {codeLabel('channel', entry.channel)}
                       </span>
                     </div>
                     <div className="text-end">

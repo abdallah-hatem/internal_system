@@ -44,6 +44,7 @@ import {
   systemForRole,
   type NavItem,
 } from './nav-model';
+import { useCodeLabel } from '@/lib/labels';
 
 type Icon = React.ComponentType<{ className?: string }>;
 
@@ -119,6 +120,7 @@ export function AppShell({
 }: {
   children: React.ReactNode;
 }) {
+  const codeLabel = useCodeLabel();
   const t = useTranslations('nav');
   const locale = useLocale();
   const pathname = usePathname();
@@ -126,7 +128,7 @@ export function AppShell({
   const { user, isLoading } = useAuth();
   const displayName = user?.partner?.displayName ?? user?.email ?? '';
   const roleLabel = user?.role
-    ? user.role.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    ? codeLabel('role', user.role)
     : '';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);

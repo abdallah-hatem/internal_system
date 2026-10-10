@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, Check } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Link } from '../../i18n/navigation';
-import { formatDate } from '../../lib/dates';
+import { useDateFormat } from '../../lib/dates';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { notificationHref, useNotifications } from '../../lib/notifications';
@@ -31,6 +31,7 @@ const BADGE_CAP = 9;
  * open the notifications page.
  */
 export function NotificationBell() {
+  const { formatDate } = useDateFormat();
   const t = useTranslations('notifications');
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);

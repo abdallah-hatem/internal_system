@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
+import { useCodeLabel } from '@/lib/labels';
 
 export interface SaleFormCustomer {
   id: string;
@@ -103,6 +104,7 @@ export function SaleOrderForm({
   onCancel: () => void;
   onSaved: (saved: SavedOrder) => void;
 }) {
+  const codeLabel = useCodeLabel();
   const t = useTranslations('sales');
   const tc = useTranslations('common');
   const apiError = useApiError();
@@ -216,7 +218,7 @@ export function SaleOrderForm({
               onChange={(id) => onCustomerChange(id)}
               placeholder={t('customer')}
               searchPlaceholder={tc('search')}
-              options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: c.type }))}
+              options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: codeLabel('customerType', c.type) }))}
             />
           </FieldWithQuickCreate>
         </div>
@@ -352,12 +354,12 @@ export function SaleOrderForm({
                     />
                     {line.productId && list == null && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        {t('noChannelPrice', { channel })}
+                        {t('noChannelPrice', { channel: codeLabel('channel', channel) })}
                       </p>
                     )}
                     {line.productId && list != null && Number(line.unitPrice) !== list && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        {channel} <span dir="ltr">{list.toLocaleString()}</span>
+                        {codeLabel('channel', channel)} <span dir="ltr">{list.toLocaleString()}</span>
                       </p>
                     )}
                   </div>

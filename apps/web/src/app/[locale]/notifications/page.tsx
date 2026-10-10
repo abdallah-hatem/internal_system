@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { timeAgo } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import {
   Bell, Loader2, CheckCheck, Check,
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
@@ -36,6 +36,7 @@ const EVENT_ICONS: Record<string, typeof Bell> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function NotificationsPage() {
+  const { timeAgo } = useDateFormat();
   const t = useTranslations('notifications');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();

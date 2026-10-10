@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import { PushAlerts } from '../../../components/settings/push-alerts';
 import { AssistantConnections } from '../../../components/settings/assistant-connections';
+import { useCodeLabel } from '@/lib/labels';
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
+  const codeLabel = useCodeLabel();
   const t = useTranslations('settings');
   const tc = useTranslations('common');
   const { user } = useAuth();
@@ -108,7 +110,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('role')}</label>
                 <input
                   type="text"
-                  value={profileData?.role ?? ''}
+                  value={profileData?.role ? codeLabel('role', profileData.role) : ''}
                   readOnly
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
                 />

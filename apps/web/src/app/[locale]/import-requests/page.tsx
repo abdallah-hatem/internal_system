@@ -11,7 +11,7 @@ import { useToast } from '../../../components/ui/toast';
 import { AuthedImage } from '../../../components/ui/authed-image';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Select } from '../../../components/ui/select';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 
 /**
  * What shops have asked us to bring in.
@@ -109,6 +109,7 @@ function RequestCard({
   onError: (e: unknown) => void;
   onSuccess: (message: string) => void;
 }) {
+  const { formatDate } = useDateFormat();
   const t = useTranslations('importRequests');
   const tc = useTranslations('common');
   const locale = useLocale();

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download } from 'lucide-react';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
+import { useCodeLabel } from '@/lib/labels';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PartnerCycle {
@@ -46,6 +47,7 @@ const egp = (n: number) =>
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PartnersPage() {
+  const codeLabel = useCodeLabel();
   const t = useTranslations('partners');
   const tc = useTranslations('common');
 
@@ -111,9 +113,9 @@ export default function PartnersPage() {
               [
                 { header: t('name'), value: (r) => r.person.displayName ?? r.person.email },
                 { header: t('email'), value: (r) => r.person.email },
-                { header: t('role'), value: (r) => r.person.role },
+                { header: t('role'), value: (r) => codeLabel('role', r.person.role) },
                 { header: t('cycleHistory'), value: (r) => r.cycle?.code ?? '' },
-                { header: t('status'), value: (r) => r.cycle?.status ?? '' },
+                { header: t('status'), value: (r) => (r.cycle?.status ? codeLabel('cycleStatus', r.cycle.status) : '') },
                 { header: t('capitalIn'), value: (r) => r.cycle?.contributionEgp ?? r.person.contributedEgp },
                 { header: t('profitEarned'), value: (r) => r.cycle?.profitShareEgp ?? r.person.profitShareEgp },
                 { header: t('accrued'), value: (r) => r.cycle?.accruedProfitEgp ?? r.person.accruedProfitEgp },

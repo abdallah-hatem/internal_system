@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
@@ -55,6 +55,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('shipments');
   const tc = useTranslations('common');
@@ -364,7 +365,7 @@ export default function ShipmentsPage() {
                   options={cycleList.map((c: any) => ({
                     value: c.id,
                     label: c.code,
-                    hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                    hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
                   }))}
                 />
               </div>

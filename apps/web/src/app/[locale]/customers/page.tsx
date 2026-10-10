@@ -10,7 +10,7 @@ import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import {
   Users, Plus, Search, Eye, Edit, X, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
@@ -21,6 +21,7 @@ import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
 import { sortByBalance } from '../../../components/dashboard/list-params';
+import { useCodeLabel } from '@/lib/labels';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -66,6 +67,8 @@ export default function CustomersPage() {
 }
 
 function CustomersPageContent() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const router = useRouter();
   const locale = useLocale();
@@ -517,7 +520,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                       <div className="text-end">
                         <p className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></p>
                         <span className={`text-xs font-medium ${order.status === 'PAID' ? 'text-green-600' : 'text-orange-600'}`}>
-                          {order.status}
+                          {codeLabel('orderStatus', order.status)}
                         </span>
                       </div>
                     </div>

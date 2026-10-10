@@ -768,7 +768,8 @@
     "finish": "إنهاء",
     "finishHint": "الإنهاء ينقل الدورة فقط بقدر ما تسمح به تواريخ الشحن. تُسجَّل الدفعات الواصلة وتُستلم في المخزون من صفحة الدورة عند وصولها.",
     "finished": "تم حفظ الدورة — {status}",
-    "finishFailed": "تعذّر نقل الدورة إلى المرحلة التالية"
+    "finishFailed": "تعذّر نقل الدورة إلى المرحلة التالية",
+    "baseCurrency": "العملة الأساسية"
   },
   "paymentPlans": {
     "title": "خطط السداد",
@@ -1144,6 +1145,97 @@
     "channel": {
       "B2B": "جملة",
       "B2C": "تجزئة"
+    },
+    "poStatus": {
+      "DRAFT": "مسودة",
+      "SUBMITTED": "مُرسل",
+      "CONFIRMED": "مؤكد",
+      "SHIPPED": "تم الشحن",
+      "PARTIAL": "مستلم جزئياً",
+      "RECEIVED": "مستلم",
+      "CANCELLED": "ملغى"
+    },
+    "settlementStatus": {
+      "DRAFT": "مسودة",
+      "APPROVED": "معتمدة",
+      "PAID": "مسددة",
+      "REVERSED": "معكوسة"
+    },
+    "originType": {
+      "CHINA": "الصين",
+      "UAE_DIRECT": "إمارات مباشرة"
+    },
+    "verificationStatus": {
+      "PENDING": "قيد الانتظار",
+      "VERIFIED": "تم التحقق",
+      "REJECTED": "مرفوض",
+      "UNVERIFIED": "لم يتم التحقق"
+    },
+    "movementType": {
+      "RECEIVE": "استلام",
+      "RESERVE": "حجز",
+      "RELEASE": "فك حجز",
+      "SALE": "بيع",
+      "RETURN": "مرتجع",
+      "ADJUSTMENT": "تسوية جرد",
+      "WRITE_OFF": "شطب",
+      "PURCHASE_RECEIPT": "استلام",
+      "SALE_ALLOCATION": "بيع"
+    },
+    "referenceType": {
+      "PURCHASE_ORDER_ITEM": "طلب شراء",
+      "SALE_ORDER": "طلب بيع",
+      "SALE_ORDER_CANCEL": "إلغاء بيع",
+      "SALE_RETURN": "مرتجع بيع"
+    },
+    "auditAction": {
+      "CREATE": "إنشاء",
+      "UPDATE": "تعديل",
+      "DELETE": "حذف",
+      "READ": "عرض",
+      "REVERSE": "عكس",
+      "LOGIN": "تسجيل دخول",
+      "CANCEL": "إلغاء",
+      "ALLOCATE": "توزيع",
+      "VERIFY_STOCK": "استلام بضاعة",
+      "VERIFY": "تحقق",
+      "UPDATE_PARTICIPANT": "تعديل مشارك",
+      "TRANSITION": "تغيير الحالة",
+      "RECORD_REFUND": "تسجيل مرتجع",
+      "PRICE_CHANGE": "تغيير السعر",
+      "PAY": "سداد",
+      "CONFIRM": "تأكيد",
+      "CALCULATE": "احتساب",
+      "APPROVE": "اعتماد",
+      "ADD_PARTICIPANT": "إضافة مشارك",
+      "ADD_ITEM": "إضافة صنف"
+    },
+    "entityType": {
+      "Product": "منتج",
+      "Customer": "عميل",
+      "SaleOrder": "طلب بيع",
+      "SaleReturn": "مرتجع بيع",
+      "Payment": "دفعة",
+      "PaymentPlan": "خطة سداد",
+      "PurchaseOrder": "طلب شراء",
+      "PurchaseOrderItem": "صنف طلب شراء",
+      "Shipment": "شحنة",
+      "ShippingLeg": "مرحلة شحن",
+      "ShipmentDelivery": "دفعة واصلة",
+      "ShipmentLoss": "فاقد في الطريق",
+      "InventoryBatch": "دفعة مخزون",
+      "Cycle": "دورة",
+      "ImportCycle": "دورة",
+      "CycleParticipant": "مشارك في دورة",
+      "Settlement": "تسوية",
+      "User": "مستخدم",
+      "LedgerEntry": "قيد",
+      "FinancialTransaction": "قيد",
+      "Supplier": "مورد",
+      "SupplierRefund": "مرتجع من المورد",
+      "Provider": "شركة شحن",
+      "Category": "فئة",
+      "CurrencyRate": "سعر صرف"
     }
   },
   "shipment": {
@@ -1254,5 +1346,22 @@
     "waitingLine": "{product}: {qty} بانتظار الاستلام",
     "cycleNotArrived": "حالة الدورة {status}؛ انقلها إلى «وصلت مصر» من صفحتها أولاً.",
     "openCycle": "فتح الدورة"
+  },
+  "shippingCost": {
+    "title": "تكلفة الشحن",
+    "howCharged": "طريقة احتساب تكلفة هذه المرحلة",
+    "chargedBy": "الاحتساب",
+    "perWeightKg": "بالوزن (كجم)",
+    "costPerPiece": "التكلفة للقطعة",
+    "numberOfPieces": "عدد القطع",
+    "piecesPrefilled": "عدد القطع التي حاسب عليها الشاحن — مُعبّأ من الكمية المطلوبة ({ordered}). غيّره إن كانت المحاسبة بالكرتونة.",
+    "orderHasPieces": "الطلب فيه {ordered} قطعة.",
+    "useThat": "استخدم هذا العدد",
+    "costPerKg": "التكلفة للكيلو",
+    "totalWeightKg": "الوزن الإجمالي (كجم)",
+    "totalCost": "إجمالي تكلفة الشحن",
+    "currency": "العملة",
+    "fxRate": "سعر الصرف إلى الجنيه",
+    "legTotal": "إجمالي المرحلة"
   }
 }

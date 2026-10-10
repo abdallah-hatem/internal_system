@@ -15,6 +15,7 @@ import {
   Search, ChevronDown, Loader2, AlertTriangle,
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
 } from 'lucide-react';
+import { useCodeLabel } from '@/lib/labels';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface InventorySummary {
@@ -50,6 +51,8 @@ export default function InventoryPage() {
 }
 
 function InventoryPageContent() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
@@ -277,13 +280,13 @@ function InventoryPageContent() {
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                                   mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                                 }`}>
-                                                  {mov.movementType}
+                                                  {codeLabel('movementType', mov.movementType)}
                                                 </span>
                                                 <span className="text-gray-700">{mov.qtyDelta}</span>
                                               </div>
                                               <div className="text-right">
                                                 <span className="text-gray-500 text-xs">{formatDate(mov.occurredAt)}</span>
-                                                {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{mov.referenceType}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
+                                                {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{codeLabel('referenceType', mov.referenceType)}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
                                               </div>
                                             </div>
                                           ))}
@@ -402,7 +405,7 @@ function InventoryPageContent() {
                                    <span className={`px-1.5 py-0.5 rounded-full font-medium ${
                                     mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                   }`}>
-                                    {mov.movementType}
+                                    {codeLabel('movementType', mov.movementType)}
                                   </span>
                                   <span>{mov.qtyDelta}</span>
                                   <span className="text-gray-500">{formatDate(mov.occurredAt)}</span>
@@ -433,7 +436,7 @@ function InventoryPageContent() {
 // ─── Helpers ──────────────────────────────────────────────────────────
 import { Fragment } from 'react';
 
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 function VerificationBadge({ status }: { status: string }) {
   const t = useTranslations('inventory');
   if (status === 'VERIFIED') {

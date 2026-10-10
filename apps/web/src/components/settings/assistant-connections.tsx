@@ -7,7 +7,7 @@ import { Bot, Loader2, Unplug } from 'lucide-react';
 
 import { api, MCP_SERVER_URL } from '../../lib/api';
 import { useApiError } from '../../lib/api-error';
-import { formatDate } from '../../lib/dates';
+import { useDateFormat } from '../../lib/dates';
 import { Button } from '../ui/button';
 import { useToast } from '../ui/toast';
 import {
@@ -46,6 +46,7 @@ const CONNECTIONS_KEY = ['assistant-connections'];
  * list catching up is the right answer to that too.
  */
 export function AssistantConnections() {
+  const { formatDate } = useDateFormat();
   const t = useTranslations('claudeConnections');
   const tc = useTranslations('common');
   const apiError = useApiError();
