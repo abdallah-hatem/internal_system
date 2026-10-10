@@ -20,6 +20,7 @@ import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { Download } from 'lucide-react';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCodeLabel } from '@/lib/labels';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -79,6 +80,7 @@ const DIRECTION_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function LedgerPage() {
+  const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const t = useTranslations('ledger');
   const tc = useTranslations('common');
@@ -479,7 +481,7 @@ export default function LedgerPage() {
               <Detail label={t('fxRate')} value={detail.fxRateToEgp?.toString() ?? '—'} />
               <Detail label={t('account')} value={detail.account?.name ?? '—'} />
               <Detail label={t('cycle')} value={detail.cycle?.code ?? '—'} />
-              <Detail label={t('relatedTo')} value={detail.relatedType && detail.relatedId ? `${detail.relatedType} (${detail.relatedId})` : '—'} />
+              <Detail label={t('relatedTo')} value={detail.relatedType && detail.relatedId ? `${codeLabel('referenceType', detail.relatedType)} (${detail.relatedId})` : '—'} />
               <Detail label={t('reason')} value={detail.reason ?? '—'} />
             </div>
           </div>

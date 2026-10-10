@@ -1267,7 +1267,11 @@
       "PURCHASE_ORDER_ITEM": "Purchase order",
       "SALE_ORDER": "Sale order",
       "SALE_ORDER_CANCEL": "Cancelled sale",
-      "SALE_RETURN": "Sale return"
+      "SALE_RETURN": "Sale return",
+      "PAYMENT": "Payment",
+      "SETTLEMENT": "Settlement",
+      "SUPPLIER_REFUND": "Supplier refund",
+      "CYCLE_PARTICIPANT": "Cycle participant"
     },
     "auditAction": {
       "CREATE": "Created",

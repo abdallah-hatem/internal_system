@@ -1267,7 +1267,11 @@
       "PURCHASE_ORDER_ITEM": "طلب شراء",
       "SALE_ORDER": "طلب بيع",
       "SALE_ORDER_CANCEL": "إلغاء بيع",
-      "SALE_RETURN": "مرتجع بيع"
+      "SALE_RETURN": "مرتجع بيع",
+      "PAYMENT": "دفعة",
+      "SETTLEMENT": "تسوية",
+      "SUPPLIER_REFUND": "مرتجع من المورد",
+      "CYCLE_PARTICIPANT": "مشارك في دورة"
     },
     "auditAction": {
       "CREATE": "إنشاء",
