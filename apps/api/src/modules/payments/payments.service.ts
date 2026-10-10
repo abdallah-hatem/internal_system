@@ -1,7 +1,11 @@
 import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { assertNotFuture, calendarRange } from '../../common/dates';
+import {
+  assertNotFuture,
+  businessToday,
+  calendarRange,
+} from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 
 import { badRequest, notFound } from '../../common/api-error';
@@ -155,7 +159,12 @@ export class PaymentsService {
           // A payment with no stated date is one received today; without this
           // an omitted value became an Invalid Date and Prisma rejected the
           // write as an opaque 500.
-          receivedOn: data.receivedOn ? new Date(data.receivedOn) : new Date(),
+          //
+          // Today where the business is (§7a), not the UTC day: `new Date()`
+          // stored in a date column keeps the UTC date, so a payment taken at
+          // 00:30 in Cairo landed on yesterday. The walk-in sale dates its
+          // payment the same way.
+          receivedOn: new Date(data.receivedOn || businessToday()),
           method: data.method,
           reference: data.reference || idempotencyKey,
           orderId: data.orderId,

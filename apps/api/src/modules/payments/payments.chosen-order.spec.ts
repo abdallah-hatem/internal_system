@@ -526,3 +526,77 @@ describe('who may record a payment', () => {
     expect(guard.canActivate(contextFor('ADMIN_SUPPORT'))).toBe(true);
   });
 });
+
+/**
+ * A payment sent with no date is one received today — today in Cairo (§7a),
+ * not in UTC. At 22:30 UTC on the 10th it is already past midnight on the
+ * 11th in Cairo; dating it by the UTC day put the money into yesterday.
+ */
+describe('POST /payments with no date', () => {
+  beforeEach(() => {
+    jest.useFakeTimers({
+      doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'],
+    });
+  });
+  afterEach(() => jest.useRealTimers());
+
+  // A @db.Date column keeps the UTC calendar day of the value it is given,
+  // which is what this reads back.
+  const storedDay = (p: { receivedOn: Date }) =>
+    p.receivedOn.toISOString().slice(0, 10);
+
+  it('at 22:30 UTC on the 10th, an undated payment is dated the 11th (Cairo)', async () => {
+    jest.setSystemTime(new Date('2026-10-10T22:30:00Z'));
+    const owing = order({ outstanding: 800 });
+    const { service, db } = build([owing]);
+
+    await service.create(pay(100, owing.id), 'actor-1');
+
+    expect(db.store.payments).toHaveLength(1);
+    expect(storedDay(db.store.payments[0])).toBe('2026-10-11');
+  });
+
+  it('undated and unallocated, at 22:30 UTC on the 10th → the 11th too', async () => {
+    jest.setSystemTime(new Date('2026-10-10T22:30:00Z'));
+    const { service, db } = build([order({ outstanding: 800 })]);
+
+    await service.create(pay(100), 'actor-1');
+
+    expect(storedDay(db.store.payments[0])).toBe('2026-10-11');
+  });
+
+  it('at 12:00 UTC the Cairo day and the UTC day agree', async () => {
+    jest.setSystemTime(new Date('2026-10-10T12:00:00Z'));
+    const { service, db } = build([order({ outstanding: 800 })]);
+
+    await service.create(pay(100), 'actor-1');
+
+    expect(storedDay(db.store.payments[0])).toBe('2026-10-10');
+  });
+
+  it('a stated date is kept as given, whatever the clock says', async () => {
+    jest.setSystemTime(new Date('2026-10-10T22:30:00Z'));
+    const owing = order({ outstanding: 800 });
+    const { service, db } = build([owing]);
+
+    await service.create(
+      pay(100, owing.id, { receivedOn: '2026-10-09' }),
+      'actor-1',
+    );
+
+    expect(storedDay(db.store.payments[0])).toBe('2026-10-09');
+  });
+
+  it('the 12th, typed at 22:30 UTC on the 10th, is still the future → refused', async () => {
+    jest.setSystemTime(new Date('2026-10-10T22:30:00Z'));
+    const owing = order({ outstanding: 800 });
+    const { service, db } = build([owing]);
+
+    const r = await refused(
+      service.create(pay(100, owing.id, { receivedOn: '2026-10-12' }), 'a'),
+    );
+
+    expect(r.code).toBe('DATE_IN_FUTURE');
+    nothingSaved(db);
+  });
+});
