@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: 6 — Build · W1 dispatching (walk-in on the server)
+Current stage: shipped 2026-10-11 (`aedabe9`): walk-in sales + assistant record_sale + matching fixes · next: live assistant test with receipt images and a spoken sale (needs the connector reconnected)
 
 ## Waiting on the user
 _(none)_
@@ -22,7 +22,7 @@ _(none)_
 - Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
 
 ## Phases
-- Walk-in + assistant sales — building · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)
+- Walk-in + assistant sales — shipped 2026-10-11 · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)
 - MCP assistant — shipped 2026-09-25 · [log](build-log/decisions/mcp-assistant.md)
 - Partial arrivals + UX batch — shipped 2026-10-11 · [decisions](build-log/decisions/arrivals-and-ux.md) · [waves](build-log/waves/arrivals-and-ux/)
 
