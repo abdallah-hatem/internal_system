@@ -103,10 +103,10 @@ export default function ProductsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       closeCreate();
-      toast('Product created successfully', 'success');
+      toast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to create product'), 'error');
+      toast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -116,10 +116,10 @@ export default function ProductsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       closeEditProduct();
-      toast('Product updated successfully', 'success');
+      toast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to update product'), 'error');
+      toast(apiError(error, t('updateFailed')), 'error');
     },
   });
 

@@ -118,10 +118,10 @@ function CustomersPageContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setShowCreateModal(false);
-      toast('Customer created successfully', 'success');
+      toast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to create customer'), 'error');
+      toast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -131,10 +131,10 @@ function CustomersPageContent() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customer'] });
       setEditingCustomer(null);
-      toast('Customer updated successfully', 'success');
+      toast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to update customer'), 'error');
+      toast(apiError(error, t('updateFailed')), 'error');
     },
   });
 
@@ -145,7 +145,7 @@ function CustomersPageContent() {
       toast(t('verifySuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to verify customer'), 'error');
+      toast(apiError(error, t('verifyFailed')), 'error');
     },
   });
 

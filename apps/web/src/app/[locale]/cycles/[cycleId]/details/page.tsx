@@ -142,7 +142,7 @@ export default function CycleDetailsPage() {
     onSuccess: (total) => {
       queryClient.invalidateQueries({ queryKey: ['cycle', id] });
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
-      addToast(`${t('splitEqually')} — ${total.toLocaleString()} EGP`, 'success');
+      addToast(t('splitDone', { total: total.toLocaleString() }), 'success');
     },
     onError: (e: any) =>
       addToast(

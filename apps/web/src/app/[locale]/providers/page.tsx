@@ -56,7 +56,7 @@ export default function ProvidersPage() {
       addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to create provider'), 'error');
+      addToast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -68,7 +68,7 @@ export default function ProvidersPage() {
       addToast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to update provider'), 'error');
+      addToast(apiError(error, t('updateFailed')), 'error');
     },
   });
 
@@ -80,7 +80,7 @@ export default function ProvidersPage() {
       addToast(t('deleteSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to delete provider'), 'error');
+      addToast(apiError(error, t('deleteFailed')), 'error');
     },
   });
 

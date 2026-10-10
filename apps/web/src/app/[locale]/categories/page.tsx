@@ -88,7 +88,7 @@ export default function CategoriesPage() {
       addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to create category'), 'error');
+      addToast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -100,7 +100,7 @@ export default function CategoriesPage() {
       addToast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to update category'), 'error');
+      addToast(apiError(error, t('updateFailed')), 'error');
     },
   });
 
@@ -112,7 +112,7 @@ export default function CategoriesPage() {
       addToast(t('deleteSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to delete category'), 'error');
+      addToast(apiError(error, t('deleteFailed')), 'error');
     },
   });
 

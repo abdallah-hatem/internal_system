@@ -98,7 +98,7 @@ export default function SettlementsPage() {
 
   const onError = (e: any) =>
     addToast(
-      apiError(e, 'Operation failed'),
+      apiError(e, tc('operationFailed')),
       'error',
     );
 
@@ -108,7 +108,7 @@ export default function SettlementsPage() {
     onSuccess: (data: any) => {
       setWarnings(data?.warnings ?? []);
       refresh();
-      addToast('Settlement calculated', 'success');
+      addToast(t('calculated'), 'success');
     },
     onError,
   });
@@ -131,7 +131,7 @@ export default function SettlementsPage() {
       setReversing(null);
       setReverseReason('');
       setStockPrompt(null);
-      addToast('Settlement updated', 'success');
+      addToast(t('updated'), 'success');
     },
     onError,
   });
@@ -142,7 +142,7 @@ export default function SettlementsPage() {
     onSuccess: () => {
       refresh();
       setStockPrompt(null);
-      addToast('Settlement paid', 'success');
+      addToast(t('paid'), 'success');
     },
     onError: (e: any, variables) => {
       // Closing a cycle that still holds stock writes that cost off, so the API

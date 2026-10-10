@@ -35,7 +35,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       setPasswordSuccess(true);
       setTimeout(() => setPasswordSuccess(false), 3000);
-      toast('Password changed successfully', 'success');
+      toast(t('passwordChanged'), 'success');
     },
   });
 

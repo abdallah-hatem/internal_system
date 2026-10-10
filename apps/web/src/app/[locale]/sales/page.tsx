@@ -211,7 +211,7 @@ function SalesPageContent() {
     },
     onError: (error: any) => {
       addToast(
-        apiError(error, 'Failed to record the return'),
+        apiError(error, t('returnFailed')),
         'error',
       );
     },

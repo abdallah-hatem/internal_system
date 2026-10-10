@@ -116,7 +116,7 @@ export default function LedgerPage() {
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post('/ledger', data),
     onSuccess: () => {
-      toast('Entry created successfully', 'success');
+      toast(t('entryCreated'), 'success');
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
       setShowCreateModal(false);
     },
@@ -125,7 +125,7 @@ export default function LedgerPage() {
   const reverseMutation = useMutation({
     mutationFn: (data: any) => api.post(`/ledger/${selectedEntry!.id}/reverse`, data),
     onSuccess: () => {
-      toast('Entry reversed successfully', 'success');
+      toast(t('entryReversed'), 'success');
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
       setShowReverseModal(false);
       setSelectedEntry(null);

@@ -666,6 +666,7 @@ function PriceRow({
   current?: { amount: number; currency: string };
 }) {
   const tc = useTranslations('common');
+  const tp = useTranslations('products');
   const apiError = useApiError();
   const { addToast } = useToast();
   const queryClient = useQueryClient();
@@ -689,11 +690,11 @@ function PriceRow({
       queryClient.invalidateQueries({ queryKey: ['product', productId] });
       queryClient.invalidateQueries({ queryKey: ['priceHistory', productId] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      addToast(`${label} updated`, 'success');
+      addToast(tp('priceUpdated', { label }), 'success');
     },
     onError: (e: any) =>
       addToast(
-        apiError(e, 'Could not save the price'),
+        apiError(e, tp('priceSaveFailed')),
         'error',
       ),
   });

@@ -117,10 +117,10 @@ export default function PurchasesPage() {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       setShowCreateModal(false);
       setLineItems([]);
-      toast('Purchase order created successfully', 'success');
+      toast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to create purchase order'), 'error');
+      toast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -129,10 +129,10 @@ export default function PurchasesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase'] });
       setShowRefundModal(false);
-      toast('Refund recorded successfully', 'success');
+      toast(t('refundRecorded'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to record refund'), 'error');
+      toast(apiError(error, t('refundFailed')), 'error');
     },
   });
 

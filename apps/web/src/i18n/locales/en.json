@@ -38,7 +38,8 @@
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "unapplied": "unapplied",
-    "optional": "Optional"
+    "optional": "Optional",
+    "operationFailed": "Operation failed"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -171,7 +172,13 @@
     "photos": "Photos",
     "addPhoto": "Add photos",
     "noPhotos": "No photos yet. The store shows a placeholder without one.",
-    "photosHint": "JPEG, PNG or WebP, up to 8 MB. Resized automatically for the store."
+    "photosHint": "JPEG, PNG or WebP, up to 8 MB. Resized automatically for the store.",
+    "createSuccess": "Product created successfully",
+    "updateSuccess": "Product updated successfully",
+    "createFailed": "Failed to create product",
+    "updateFailed": "Failed to update product",
+    "priceUpdated": "{label} updated",
+    "priceSaveFailed": "Could not save the price"
   },
   "cycles": {
     "title": "Import Cycles",
@@ -242,7 +249,8 @@
     "legDeparted": "Departed {date}",
     "legNotDeparted": "Not departed",
     "legNoDeliveries": "No deliveries yet",
-    "legDelivery": "{date}: {units} units"
+    "legDelivery": "{date}: {units} units",
+    "splitDone": "Split equally — {total} EGP"
   },
   "purchases": {
     "title": "Purchases",
@@ -265,7 +273,11 @@
     "recordRefund": "Record Refund",
     "reason": "Reason",
     "amount": "Amount",
-    "search": "Search purchases..."
+    "search": "Search purchases...",
+    "createSuccess": "Purchase order created successfully",
+    "refundRecorded": "Refund recorded successfully",
+    "createFailed": "Failed to create purchase order",
+    "refundFailed": "Failed to record refund"
   },
   "shipments": {
     "title": "Shipments",
@@ -283,7 +295,8 @@
     "search": "Search shipments...",
     "arrivalsAreDeliveries": "Arrivals are recorded as deliveries, one per batch that turns up.",
     "openShipmentPanel": "Open the cycle’s Shipment panel",
-    "legUpdated": "Shipping leg updated"
+    "legUpdated": "Shipping leg updated",
+    "createSuccess": "Shipment created successfully"
   },
   "inventory": {
     "title": "Inventory",
@@ -371,7 +384,8 @@
     "removeItem": "Remove item",
     "noChannelPrice": "No {channel} price set",
     "discountTooLarge": "More than the line is worth",
-    "openOrder": "Open order {orderNo}"
+    "openOrder": "Open order {orderNo}",
+    "returnFailed": "Failed to record the return"
   },
   "customers": {
     "title": "Customers",
@@ -397,7 +411,12 @@
     "noOrders": "No orders for this customer yet",
     "noOrdersHint": "A sale to this customer appears here once it is created.",
     "noPayments": "No payments from this customer yet",
-    "noPaymentsHint": "Record a payment when they pay, and it is applied to their oldest unpaid orders first."
+    "noPaymentsHint": "Record a payment when they pay, and it is applied to their oldest unpaid orders first.",
+    "createSuccess": "Customer created successfully",
+    "updateSuccess": "Customer updated successfully",
+    "createFailed": "Failed to create customer",
+    "updateFailed": "Failed to update customer",
+    "verifyFailed": "Failed to verify customer"
   },
   "payments": {
     "title": "Payments",
@@ -482,7 +501,9 @@
     "supplierRefund": "Supplier Refund",
     "saleReturn": "Sale Return",
     "refundPaid": "Refund Paid",
-    "expense": "Expense"
+    "expense": "Expense",
+    "entryCreated": "Entry created successfully",
+    "entryReversed": "Entry reversed successfully"
   },
   "settlements": {
     "title": "Settlements",
@@ -597,7 +618,8 @@
     "newPassword": "New Password",
     "confirmPassword": "Confirm Password",
     "save": "Save Changes",
-    "saved": "Settings saved successfully"
+    "saved": "Settings saved successfully",
+    "passwordChanged": "Password changed successfully"
   },
   "providers": {
     "title": "Shipping Providers",
@@ -614,7 +636,10 @@
     "confirmDelete": "Are you sure you want to delete this shipping provider?",
     "deleteSuccess": "Shipping provider deleted successfully",
     "createSuccess": "Shipping provider created successfully",
-    "updateSuccess": "Shipping provider updated successfully"
+    "updateSuccess": "Shipping provider updated successfully",
+    "createFailed": "Failed to create provider",
+    "updateFailed": "Failed to update provider",
+    "deleteFailed": "Failed to delete provider"
   },
   "suppliers": {
     "title": "Suppliers",
@@ -636,7 +661,10 @@
     "deleteBlocked": "This supplier has purchase orders, so it cannot be deleted — the cost history of that stock traces back through it.",
     "deleteSuccess": "Supplier deleted successfully",
     "createSuccess": "Supplier created successfully",
-    "updateSuccess": "Supplier updated successfully"
+    "updateSuccess": "Supplier updated successfully",
+    "createFailed": "Failed to create supplier",
+    "updateFailed": "Failed to update supplier",
+    "deleteFailed": "Failed to delete supplier"
   },
   "categories": {
     "title": "Product Categories",
@@ -653,7 +681,10 @@
     "confirmDelete": "Are you sure you want to delete this category?",
     "deleteSuccess": "Category deleted successfully",
     "createSuccess": "Category created successfully",
-    "updateSuccess": "Category updated successfully"
+    "updateSuccess": "Category updated successfully",
+    "createFailed": "Failed to create category",
+    "updateFailed": "Failed to update category",
+    "deleteFailed": "Failed to delete category"
   },
   "wizard": {
     "step1Title": "Cycle Info",
@@ -769,7 +800,10 @@
     "reverseReason": "Why is this being reversed?",
     "reverseReasonHint": "e.g. costing correction — a supplier invoice arrived late",
     "acceptRemainingStockHint": "Closing now writes off the cost of the unsold stock against this cycle. That cannot be undone without reversing the settlement.",
-    "closeAnyway": "Close anyway"
+    "closeAnyway": "Close anyway",
+    "calculated": "Settlement calculated",
+    "updated": "Settlement updated",
+    "paid": "Settlement paid"
   },
   "paymentPlans": {
     "title": "Payment Plans",

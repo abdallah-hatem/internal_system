@@ -38,7 +38,8 @@
     "previousMonth": "الشهر السابق",
     "nextMonth": "الشهر التالي",
     "unapplied": "غير مخصص",
-    "optional": "اختياري"
+    "optional": "اختياري",
+    "operationFailed": "تعذّر تنفيذ العملية"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -171,7 +172,13 @@
     "photos": "الصور",
     "addPhoto": "أضف صورًا",
     "noPhotos": "لا توجد صور بعد. يعرض المتجر صورة بديلة بدونها.",
-    "photosHint": "JPEG أو PNG أو WebP، حتى ٨ ميجابايت. يتم تغيير المقاس تلقائيًا للمتجر."
+    "photosHint": "JPEG أو PNG أو WebP، حتى ٨ ميجابايت. يتم تغيير المقاس تلقائيًا للمتجر.",
+    "createSuccess": "تمت إضافة المنتج",
+    "updateSuccess": "تم تحديث المنتج",
+    "createFailed": "تعذّرت إضافة المنتج",
+    "updateFailed": "تعذّر تحديث المنتج",
+    "priceUpdated": "تم تحديث {label}",
+    "priceSaveFailed": "تعذّر حفظ السعر"
   },
   "cycles": {
     "title": "دورات الاستيراد",
@@ -242,7 +249,8 @@
     "legDeparted": "غادرت في {date}",
     "legNotDeparted": "لم تغادر",
     "legNoDeliveries": "لا دفعات واصلة بعد",
-    "legDelivery": "{date}: {units} وحدة"
+    "legDelivery": "{date}: {units} وحدة",
+    "splitDone": "تم التقسيم بالتساوي — {total} جنيه"
   },
   "purchases": {
     "title": "المشتريات",
@@ -265,7 +273,11 @@
     "recordRefund": "تسجيل مرتجع",
     "reason": "السبب",
     "amount": "المبلغ",
-    "search": "بحث في المشتريات..."
+    "search": "بحث في المشتريات...",
+    "createSuccess": "تم إنشاء طلب الشراء",
+    "refundRecorded": "تم تسجيل المرتجع",
+    "createFailed": "تعذّر إنشاء طلب الشراء",
+    "refundFailed": "تعذّر تسجيل المرتجع"
   },
   "shipments": {
     "title": "الشحن",
@@ -283,7 +295,8 @@
     "search": "بحث في الشحنات...",
     "arrivalsAreDeliveries": "يُسجَّل الوصول دفعاتٍ، دفعة لكل شحنة تصل.",
     "openShipmentPanel": "افتح لوحة الشحنة في صفحة الدورة",
-    "legUpdated": "حُدّثت مرحلة الشحن"
+    "legUpdated": "حُدّثت مرحلة الشحن",
+    "createSuccess": "تم إنشاء الشحنة"
   },
   "inventory": {
     "title": "المخزون",
@@ -371,7 +384,8 @@
     "removeItem": "إزالة الصنف",
     "noChannelPrice": "لا يوجد سعر {channel}",
     "discountTooLarge": "أكبر من قيمة البند",
-    "openOrder": "فتح الطلب {orderNo}"
+    "openOrder": "فتح الطلب {orderNo}",
+    "returnFailed": "تعذّر تسجيل المرتجع"
   },
   "customers": {
     "title": "العملاء",
@@ -397,7 +411,12 @@
     "noOrders": "لا توجد طلبات لهذا العميل بعد",
     "noOrdersHint": "يظهر هنا أي بيع لهذا العميل بمجرد إنشائه.",
     "noPayments": "لا توجد مدفوعات من هذا العميل بعد",
-    "noPaymentsHint": "سجّل الدفعة عند الدفع، وتُطبَّق على أقدم طلباته غير المدفوعة أولاً."
+    "noPaymentsHint": "سجّل الدفعة عند الدفع، وتُطبَّق على أقدم طلباته غير المدفوعة أولاً.",
+    "createSuccess": "تمت إضافة العميل",
+    "updateSuccess": "تم تحديث بيانات العميل",
+    "createFailed": "تعذّرت إضافة العميل",
+    "updateFailed": "تعذّر تحديث بيانات العميل",
+    "verifyFailed": "تعذّر توثيق العميل"
   },
   "payments": {
     "title": "المدفوعات",
@@ -482,7 +501,9 @@
     "supplierRefund": "استرداد من المورد",
     "saleReturn": "مرتجع مبيعات",
     "refundPaid": "استرداد مدفوع",
-    "expense": "مصروف"
+    "expense": "مصروف",
+    "entryCreated": "تم تسجيل القيد",
+    "entryReversed": "تم عكس القيد"
   },
   "settlements": {
     "title": "التسويات",
@@ -597,7 +618,8 @@
     "newPassword": "كلمة المرور الجديدة",
     "confirmPassword": "تأكيد كلمة المرور",
     "save": "حفظ التغييرات",
-    "saved": "تم حفظ الإعدادات بنجاح"
+    "saved": "تم حفظ الإعدادات بنجاح",
+    "passwordChanged": "تم تغيير كلمة المرور"
   },
   "settlementsPage": {
     "title": "التسويات",
@@ -625,7 +647,10 @@
     "reverseReason": "ما سبب عكس التسوية؟",
     "reverseReasonHint": "مثلاً: تصحيح تكلفة — وصلت فاتورة المورّد متأخرة",
     "acceptRemainingStockHint": "الإغلاق الآن يحمّل تكلفة المخزون غير المُباع على هذه الدورة، ولا يمكن التراجع عن ذلك إلا بعكس التسوية.",
-    "closeAnyway": "إغلاق على أي حال"
+    "closeAnyway": "إغلاق على أي حال",
+    "calculated": "تم احتساب التسوية",
+    "updated": "تم تحديث التسوية",
+    "paid": "تم تسجيل سداد التسوية"
   },
   "providers": {
     "title": "شركات الشحن",
@@ -642,7 +667,10 @@
     "confirmDelete": "هل أنت متأكد من حذف شركة الشحن هذه؟",
     "deleteSuccess": "تم حذف شركة الشحن",
     "createSuccess": "تم إنشاء شركة الشحن",
-    "updateSuccess": "تم تحديث شركة الشحن"
+    "updateSuccess": "تم تحديث شركة الشحن",
+    "createFailed": "تعذّرت إضافة شركة الشحن",
+    "updateFailed": "تعذّر تحديث شركة الشحن",
+    "deleteFailed": "تعذّر حذف شركة الشحن"
   },
   "suppliers": {
     "title": "المورّدون",
@@ -664,7 +692,10 @@
     "deleteBlocked": "لهذا المورّد أوامر شراء، لذا لا يمكن حذفه — فتاريخ تكلفة تلك البضاعة يعود إليه.",
     "deleteSuccess": "تم حذف المورّد بنجاح",
     "createSuccess": "تم إنشاء المورّد بنجاح",
-    "updateSuccess": "تم تحديث المورّد بنجاح"
+    "updateSuccess": "تم تحديث المورّد بنجاح",
+    "createFailed": "تعذّرت إضافة المورّد",
+    "updateFailed": "تعذّر تحديث المورّد",
+    "deleteFailed": "تعذّر حذف المورّد"
   },
   "categories": {
     "title": "فئات المنتجات",
@@ -681,7 +712,10 @@
     "confirmDelete": "هل أنت متأكد من حذف هذه الفئة؟",
     "deleteSuccess": "تم حذف الفئة",
     "createSuccess": "تم إنشاء الفئة",
-    "updateSuccess": "تم تحديث الفئة"
+    "updateSuccess": "تم تحديث الفئة",
+    "createFailed": "تعذّرت إضافة الفئة",
+    "updateFailed": "تعذّر تحديث الفئة",
+    "deleteFailed": "تعذّر حذف الفئة"
   },
   "wizard": {
     "step1Title": "بيانات الدورة",

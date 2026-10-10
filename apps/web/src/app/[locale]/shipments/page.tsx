@@ -112,10 +112,10 @@ export default function ShipmentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       setShowCreateModal(false);
-      addToast('Shipment created successfully', 'success');
+      addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
+      addToast(apiError(error, tc('operationFailed')), 'error');
     },
   });
 
@@ -128,7 +128,7 @@ export default function ShipmentsPage() {
       addToast(t('legUpdated'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
+      addToast(apiError(error, tc('operationFailed')), 'error');
     },
   });
 

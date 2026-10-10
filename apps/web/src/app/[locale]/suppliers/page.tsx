@@ -76,7 +76,7 @@ export default function SuppliersPage() {
       setShowCreateModal(false);
       addToast(t('createSuccess'), 'success');
     },
-    onError: (e: any) => onError(e, 'Failed to create supplier'),
+    onError: (e: any) => onError(e, t('createFailed')),
   });
 
   const updateMutation = useMutation({
@@ -86,7 +86,7 @@ export default function SuppliersPage() {
       setEditingSupplier(null);
       addToast(t('updateSuccess'), 'success');
     },
-    onError: (e: any) => onError(e, 'Failed to update supplier'),
+    onError: (e: any) => onError(e, t('updateFailed')),
   });
 
   const deleteMutation = useMutation({
@@ -96,7 +96,7 @@ export default function SuppliersPage() {
       setDeletingSupplier(null);
       addToast(t('deleteSuccess'), 'success');
     },
-    onError: (e: any) => onError(e, 'Failed to delete supplier'),
+    onError: (e: any) => onError(e, t('deleteFailed')),
   });
 
   // ── Derived ───────────────────────────────────────────────────────
