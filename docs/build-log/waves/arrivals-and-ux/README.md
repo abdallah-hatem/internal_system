@@ -82,3 +82,8 @@
   to `20261010190000_notification_code_params` (it collided with B5b's timestamp). api 789 + 9 skipped, web 172 + 45.
 - R1b dispatched: hide write actions from investors; stop `GET /users` for them; ledger refusal param `owner: 'sale return'`
   is English inside an Arabic message (rule 9); prune stale lint suppressions. Spec number 89.
+- R1b merged: `lib/permissions.ts` + `useCan`, pinned to `@Roles` by `unit/can-roles.test.mjs`; investor sees no write
+  actions on shipment/cycle/settlements/inventory/cycles list; wizard URLs gated; refusal params coded
+  (`SALE_RETURN`, `DATE_FIELDS`, statuses) and translated via `PARAM_KINDS`. api 800 + 9 skipped, web 186 + 66.
+- R1c dispatched (last build task): settlement `warnings` as codes (rule 9); catalogue pages hide partner-only actions
+  via `useCan`. Spec number 90.
