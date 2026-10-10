@@ -983,8 +983,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       )}
 
       {/* Progress Bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-between relative">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        <div className="flex items-start justify-between gap-2 relative">
           {/* Connector line (background) */}
           <div className="absolute top-5 start-0 end-0 h-0.5 bg-gray-200 z-0" />
 
@@ -999,7 +999,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 type="button"
                 onClick={() => isClickable && setCurrentStep(idx)}
                 disabled={!isClickable}
-                className={`relative z-10 flex flex-col items-center gap-2 ${
+                aria-current={isCurrent ? 'step' : undefined}
+                className={`relative z-10 flex min-w-0 flex-1 flex-col items-center gap-2 ${
                   isClickable ? 'cursor-pointer' : 'cursor-default'
                 }`}
               >
@@ -1019,7 +1020,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   )}
                 </div>
                 <span
-                  className={`text-xs font-medium whitespace-nowrap ${
+                  className={`max-w-full text-center text-xs font-medium leading-tight text-balance break-words ${
+                    // Four labels cannot sit side by side on a narrow phone, so
+                    // there only the current step's label shows. The others stay
+                    // for screen readers and return from the sm breakpoint.
+                    isCurrent ? '' : 'sr-only sm:not-sr-only'
+                  } ${
                     isCurrent ? 'text-primary-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
                   }`}
                 >
@@ -1032,7 +1038,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       </div>
 
       {/* Step Content */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
         {/* Step 1 — Cycle Info */}
         {currentStep === 0 && (
           <ValidatedForm onSubmit={handleStep1Submit} className="space-y-5">
@@ -1117,7 +1123,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {po.supplier?.name ?? '—'} · {formatDate(po.orderedOn)}
+                    <bdi>{po.supplier?.name ?? '—'}</bdi> · <bdi>{formatDate(po.orderedOn)}</bdi>
                   </p>
                   <ul className="divide-y divide-border">
                     {(po.items ?? []).map((item: any) => (
@@ -1125,9 +1131,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         key={item.id}
                         className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm"
                       >
-                        <span className="min-w-0 break-words text-foreground">
+                        <bdi className="min-w-0 break-words text-foreground">
                           {item.product?.name ?? '—'}
-                        </span>
+                        </bdi>
                         <span className="text-muted-foreground">
                           {t('orderLine', { qty: Number(item.orderedQty) })}{' '}
                           <Money value={item.unitPrice} currency={po.currency} />
@@ -1373,7 +1379,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onClick={() => setCurrentStep(0)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> {t('back')}
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t('back')}
               </button>
               <button
                 type="submit"
@@ -1417,7 +1423,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 <div
                   key={leg.sequence}
                   data-testid={`wizard-leg-${leg.sequence}`}
-                  className="rounded-xl border border-gray-200 p-4 space-y-4"
+                  // A card from sm up; on a phone a section under a rule, so the
+                  // fields keep the step card's full width instead of losing
+                  // another border and padding on each side.
+                  className="space-y-4 border-t border-gray-200 pt-4 sm:rounded-xl sm:border sm:p-4"
                 >
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-white text-xs font-semibold">
@@ -1544,7 +1553,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onClick={() => setCurrentStep(1)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> {t('back')}
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t('back')}
               </button>
               <button
                 type="submit"
@@ -1570,7 +1579,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 before it leaves the wizard. It used to live on another page,
                 which made it a step you could finish without. */}
             {participants.length > 0 && (
-              <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+              <div className="space-y-3 border-t border-gray-200 pt-4 sm:rounded-xl sm:border sm:p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900">{t('funding')}</h3>
@@ -1588,9 +1597,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
                 <div className="space-y-2">
                   {participants.map((p: any) => (
-                    <div key={p.id} className="flex items-center gap-3">
-                      <span className="flex-1 text-sm text-gray-700">
-                        {participantName(p)}
+                    <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="min-w-[8rem] flex-1 text-sm text-gray-700">
+                        <bdi>{participantName(p)}</bdi>
                         {p.participantType !== 'CORE_PARTNER' && (
                           <span className="ms-2 text-xs text-purple-600">
                             {t('tempInvestorTag')}
@@ -1699,7 +1708,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     type="button"
                     onClick={() => void saveFunding()}
                     disabled={isFunding || isFinishing}
-                    className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {isFunding && <Loader2 className="h-3 w-3 animate-spin" />}
                     {tc('save')}
@@ -1735,7 +1744,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onClick={() => setCurrentStep(2)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> {t('back')}
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t('back')}
               </button>
               <button
                 type="button"

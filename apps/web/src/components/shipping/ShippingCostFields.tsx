@@ -95,8 +95,11 @@ export function ShippingCostFields({
   const label = 'block text-sm font-medium text-gray-700 mb-1';
 
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 p-4 bg-gray-50/60">
-      <div className="flex items-center justify-between">
+    // On a phone this sits inside a leg inside the step card. A third box with
+    // its own border and padding left a ~200px column, so below sm it is a
+    // section divided by a rule rather than a card.
+    <div className="space-y-4 border-t border-gray-200 pt-4 sm:rounded-xl sm:border sm:bg-gray-50/60 sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h3 className="text-sm font-semibold text-gray-900">{title ?? t('title')}</h3>
         <span className="text-xs text-gray-500">{t('howCharged')}</span>
       </div>
@@ -237,15 +240,20 @@ export function ShippingCostFields({
 
       <div
         data-testid={`leg-cost-preview${namePrefix ? "-" + namePrefix.replace(/\W/g, "") : ""}`}
-        className="flex items-center justify-between rounded-lg bg-white border border-gray-200 px-3 py-2"
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg bg-white border border-gray-200 px-3 py-2"
       >
         <span className="text-sm text-gray-600">{t('legTotal')}</span>
-        <span className="text-sm font-semibold text-gray-900">
-          {egp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
+        {/* Latin digits in both languages, and each figure kept whole: the
+            browser's locale used to give Arabic-Indic digits, and the
+            bracketed amount broke across lines in RTL. */}
+        <span className="flex flex-wrap items-baseline justify-end gap-x-2 text-sm font-semibold text-gray-900">
+          <bdi className="whitespace-nowrap">
+            {egp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
+          </bdi>
           {currency !== 'EGP' && (
-            <span className="ms-2 text-xs font-normal text-gray-500">
-              ({native.toLocaleString(undefined, { maximumFractionDigits: 2 })} {currency})
-            </span>
+            <bdi className="whitespace-nowrap text-xs font-normal text-gray-500">
+              ({native.toLocaleString('en-US', { maximumFractionDigits: 2 })} {currency})
+            </bdi>
           )}
         </span>
       </div>
