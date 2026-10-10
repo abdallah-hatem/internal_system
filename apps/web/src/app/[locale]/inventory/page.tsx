@@ -16,6 +16,7 @@ import {
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface InventorySummary {
@@ -100,6 +101,19 @@ function InventoryPageContent() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    inventoryList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('emptyAction'), href: '/cycles' }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -172,7 +186,7 @@ function InventoryPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={6}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((item) => {
                     const isExpanded = expandedProduct === item.productId;
@@ -313,7 +327,7 @@ function InventoryPageContent() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((item) => {
               const isExpanded = expandedProduct === item.productId;

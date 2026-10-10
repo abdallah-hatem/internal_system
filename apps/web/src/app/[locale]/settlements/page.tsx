@@ -11,6 +11,7 @@ import {
   Scale, Loader2, AlertTriangle, TrendingUp, TrendingDown,
   CheckCircle2, Wallet, RotateCcw, Calculator, X,
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
@@ -235,12 +236,8 @@ export default function SettlementsPage() {
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       ) : list.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <Scale className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">{t('empty')}</p>
-          <p className="text-sm text-gray-400 mt-1">
-            {t('emptyHint')}
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState icon={Scale} title={t('empty')} description={t('emptyHint')} />
         </div>
       ) : (
         <div className="space-y-5">

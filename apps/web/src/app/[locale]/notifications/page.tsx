@@ -9,6 +9,7 @@ import {
   Bell, Loader2, CheckCheck, Check,
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Link } from '../../../i18n/navigation';
 import { notificationHref, useNotifications } from '../../../lib/notifications';
@@ -106,10 +107,7 @@ export default function NotificationsPage() {
       {!isLoading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {notificationList.length === 0 ? (
-            <div className="p-12 text-center text-gray-400">
-              <Bell className="h-8 w-8 mx-auto mb-3 text-gray-300" />
-              <p>{t('noNotifications')}</p>
-            </div>
+            <EmptyState icon={Bell} title={t('noNotifications')} description={t('emptyHint')} />
           ) : (
             <div className="divide-y divide-gray-100">
               {paginated.map((notification) => {

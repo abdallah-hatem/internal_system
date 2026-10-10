@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Clock, Loader2, Store, X } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 import { api } from '../../../lib/api';
 import { useApiError } from '../../../lib/api-error';
@@ -89,9 +90,8 @@ export default function OrderRequestsPage() {
       )}
 
       {!isLoading && requests.length === 0 && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
-          <Store className="mx-auto h-8 w-8 text-gray-300" />
-          <p className="mt-3 text-sm text-gray-500">{t('empty')}</p>
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white">
+          <EmptyState icon={Store} title={t('empty')} description={t('emptyHint')} />
         </div>
       )}
 

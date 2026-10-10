@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog {
@@ -91,6 +92,18 @@ export default function AuditLogsPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    logList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   const detail = (logDetail as AuditLog) ?? viewingLog;
 
   // ── Render ────────────────────────────────────────────────────────
@@ -147,7 +160,7 @@ export default function AuditLogsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">{t('noLogs')}</td></tr>
+                  <tr><td colSpan={6}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
@@ -182,7 +195,7 @@ export default function AuditLogsPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{t('noLogs')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((log) => (
               <div

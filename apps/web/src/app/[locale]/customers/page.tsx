@@ -23,6 +23,7 @@ import { InputField } from '../../../components/ui/fields';
 import { sortByBalance } from '../../../components/dashboard/list-params';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -167,6 +168,19 @@ function CustomersPageContent() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    customerList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   const detail = (customerDetail as Customer) ?? viewingCustomer;
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -274,7 +288,7 @@ function CustomersPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={6}>{emptyList}</td></tr>
                   ) : (
                   paginated.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
@@ -357,7 +371,7 @@ function CustomersPageContent() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((customer) => (
               <div

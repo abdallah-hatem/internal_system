@@ -18,6 +18,7 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -161,6 +162,19 @@ export default function ProductsPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    productList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: openCreate }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   // ── Handlers ──────────────────────────────────────────────────────
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -249,11 +263,7 @@ export default function ProductsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
-                      {tc('noData')}
-                    </td>
-                  </tr>
+                  <tr><td colSpan={8}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
@@ -310,9 +320,7 @@ export default function ProductsPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-              {tc('noData')}
-            </div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((product) => (
               <div

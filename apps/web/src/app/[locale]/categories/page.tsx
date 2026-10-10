@@ -8,13 +8,14 @@ import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Tag, Plus, Search, Edit, X, Loader2, Trash2, ChevronRight, ChevronDown, FolderTree,
+  Tag, Plus, Search, Edit, X, Loader2, Trash2, ChevronRight, ChevronDown,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -147,6 +148,19 @@ export default function CategoriesPage() {
   const totalPages = Math.ceil(flatFiltered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(flatFiltered, page), [flatFiltered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    categoryList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   // ── Handlers ──────────────────────────────────────────────────────
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -230,10 +244,7 @@ export default function CategoriesPage() {
       {!isLoading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {flatFiltered.length === 0 ? (
-            <div className="px-4 py-12 text-center text-gray-400">
-              <FolderTree className="h-10 w-10 mx-auto mb-3 text-gray-300" />
-              {t('noData')}
-            </div>
+            emptyList
           ) : (
             <div className="divide-y divide-gray-100">
               {paginated.map((cat) => (

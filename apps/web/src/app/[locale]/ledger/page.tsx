@@ -19,6 +19,7 @@ import { MoneyInput } from '../../../components/ui/money-input';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { Download } from 'lucide-react';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -152,6 +153,19 @@ export default function LedgerPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    entryList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   const detail = (entryDetail as LedgerEntry) ?? viewingEntry;
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -280,7 +294,7 @@ export default function LedgerPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={8}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
@@ -331,7 +345,7 @@ export default function LedgerPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((entry) => (
               <div

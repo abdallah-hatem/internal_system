@@ -39,7 +39,8 @@
     "nextMonth": "Next month",
     "unapplied": "unapplied",
     "optional": "Optional",
-    "operationFailed": "Operation failed"
+    "operationFailed": "Operation failed",
+    "noMatch": "Nothing matches this search or filter"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -178,7 +179,9 @@
     "createFailed": "Failed to create product",
     "updateFailed": "Failed to update product",
     "priceUpdated": "{label} updated",
-    "priceSaveFailed": "Could not save the price"
+    "priceSaveFailed": "Could not save the price",
+    "emptyTitle": "No products yet",
+    "emptyHint": "The parts you import and sell, each with its SKU and prices."
   },
   "cycles": {
     "title": "Import Cycles",
@@ -277,7 +280,9 @@
     "createSuccess": "Purchase order created successfully",
     "refundRecorded": "Refund recorded successfully",
     "createFailed": "Failed to create purchase order",
-    "refundFailed": "Failed to record refund"
+    "refundFailed": "Failed to record refund",
+    "emptyTitle": "No purchase orders yet",
+    "emptyHint": "What a cycle ordered from a supplier, line by line."
   },
   "shipments": {
     "title": "Shipments",
@@ -296,7 +301,9 @@
     "arrivalsAreDeliveries": "Arrivals are recorded as deliveries, one per batch that turns up.",
     "openShipmentPanel": "Open the cycle’s Shipment panel",
     "legUpdated": "Shipping leg updated",
-    "createSuccess": "Shipment created successfully"
+    "createSuccess": "Shipment created successfully",
+    "emptyTitle": "No shipping legs yet",
+    "emptyHint": "Each leg of a cycle's journey, with its carrier, dates and cost."
   },
   "inventory": {
     "title": "Inventory",
@@ -320,7 +327,10 @@
     "arrivedHint": "When the shipment landed",
     "receivedHint": "When it was booked into stock",
     "receiveStock": "Receive stock",
-    "low": "Low"
+    "low": "Low",
+    "emptyTitle": "Nothing in stock yet",
+    "emptyHint": "Stock arrives when a cycle's shipment is received.",
+    "emptyAction": "Go to cycles"
   },
   "sales": {
     "title": "Sales Orders",
@@ -416,7 +426,9 @@
     "updateSuccess": "Customer updated successfully",
     "createFailed": "Failed to create customer",
     "updateFailed": "Failed to update customer",
-    "verifyFailed": "Failed to verify customer"
+    "verifyFailed": "Failed to verify customer",
+    "emptyTitle": "No customers yet",
+    "emptyHint": "Shops and walk-in buyers you sell to — add one to start a sale."
   },
   "payments": {
     "title": "Payments",
@@ -503,7 +515,9 @@
     "refundPaid": "Refund Paid",
     "expense": "Expense",
     "entryCreated": "Entry created successfully",
-    "entryReversed": "Entry reversed successfully"
+    "entryReversed": "Entry reversed successfully",
+    "emptyTitle": "No ledger entries yet",
+    "emptyHint": "Money in and out — payments, expenses and contributions land here."
   },
   "settlements": {
     "title": "Settlements",
@@ -552,7 +566,11 @@
     "totalsTitle": "Across all partners",
     "cycleCount": "{count, plural, =0 {no cycles} one {# cycle} other {# cycles}}",
     "accrued": "Earned so far",
-    "accruedHint": "Profit on what has sold in open cycles — not yet paid out, and still able to move"
+    "accruedHint": "Profit on what has sold in open cycles — not yet paid out, and still able to move",
+    "noPartners": "No core partners yet",
+    "noPartnersHint": "Partners appear here once they hold a share in a cycle.",
+    "noInvestors": "No temporary investors yet",
+    "noInvestorsHint": "An investor appears here once added to a cycle."
   },
   "analytics": {
     "title": "Analytics & Reports",
@@ -582,7 +600,8 @@
     "time": "Time",
     "unread": "unread",
     "viewAll": "View all",
-    "noData": "Nothing yet"
+    "noData": "Nothing yet",
+    "emptyHint": "Requests from shops, payments and shipment news will show up here."
   },
   "auditLogs": {
     "title": "Audit Logs",
@@ -601,7 +620,9 @@
     "after": "After",
     "created": "Created",
     "updated": "Updated",
-    "deleted": "Deleted"
+    "deleted": "Deleted",
+    "emptyTitle": "No activity recorded yet",
+    "emptyHint": "Every change to a record is logged here, with who made it."
   },
   "settings": {
     "title": "Settings",
@@ -639,7 +660,9 @@
     "updateSuccess": "Shipping provider updated successfully",
     "createFailed": "Failed to create provider",
     "updateFailed": "Failed to update provider",
-    "deleteFailed": "Failed to delete provider"
+    "deleteFailed": "Failed to delete provider",
+    "emptyTitle": "No shipping providers yet",
+    "emptyHint": "The forwarders and carriers that move a cycle's goods."
   },
   "suppliers": {
     "title": "Suppliers",
@@ -664,7 +687,9 @@
     "updateSuccess": "Supplier updated successfully",
     "createFailed": "Failed to create supplier",
     "updateFailed": "Failed to update supplier",
-    "deleteFailed": "Failed to delete supplier"
+    "deleteFailed": "Failed to delete supplier",
+    "emptyTitle": "No suppliers yet",
+    "emptyHint": "The factories and traders a cycle buys from."
   },
   "categories": {
     "title": "Product Categories",
@@ -684,7 +709,9 @@
     "updateSuccess": "Category updated successfully",
     "createFailed": "Failed to create category",
     "updateFailed": "Failed to update category",
-    "deleteFailed": "Failed to delete category"
+    "deleteFailed": "Failed to delete category",
+    "emptyTitle": "No categories yet",
+    "emptyHint": "Groups for the product list — engine, brakes, electrical…"
   },
   "wizard": {
     "step1Title": "Cycle Info",
@@ -838,7 +865,8 @@
     "cumulativeNote": "Payments clear the earliest instalment first, so paying early covers what comes next.",
     "paid_": "Paid",
     "due": "Due",
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "emptyHint": "Instalments agreed with a customer, with what is due and when."
   },
   "errors": {
     "NOT_FOUND": "{entity} not found",
@@ -1048,7 +1076,8 @@
     "changedWarning": "This differs from what was asked for. The shop will see both figures — a note explaining why saves them asking.",
     "holdHours": "Held for {hours}h more",
     "holdMinutes": "Held for {minutes}m more",
-    "holdExpired": "Hold expired"
+    "holdExpired": "Hold expired",
+    "emptyHint": "When a shop orders from the storefront, its request waits here for an answer."
   },
   "importRequests": {
     "title": "Import requests",
@@ -1071,7 +1100,8 @@
     "lookingForIt": "Looking for it",
     "cannotSource": "Cannot source it",
     "answer": "Answer",
-    "sent": "The shop has been told."
+    "sent": "The shop has been told.",
+    "emptyHint": "When a shop asks for a part we do not stock, the request lands here."
   },
   "push": {
     "title": "Alerts on this device",

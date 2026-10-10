@@ -7,6 +7,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
 
@@ -176,7 +177,7 @@ export default function PartnersPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('partners')}</h2>
             {corePartners.length === 0 ? (
-              <Empty text={tc('noData')} />
+              <Empty title={t('noPartners')} hint={t('noPartnersHint')} />
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {corePartners.map((p) => (
@@ -189,7 +190,7 @@ export default function PartnersPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('investors')}</h2>
             {tempInvestors.length === 0 ? (
-              <Empty text={tc('noData')} />
+              <Empty title={t('noInvestors')} hint={t('noInvestorsHint')} />
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {tempInvestors.map((p) => (
@@ -205,10 +206,10 @@ export default function PartnersPage() {
 }
 
 // ─── Pieces ───────────────────────────────────────────────────────────
-function Empty({ text }: { text: string }) {
+function Empty({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-      {text}
+    <div className="bg-white rounded-xl border border-gray-200">
+      <EmptyState title={title} description={hint} />
     </div>
   );
 }

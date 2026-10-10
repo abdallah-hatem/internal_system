@@ -21,6 +21,7 @@ import { useCodeLabel } from '../../../lib/labels';
 import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
 import { Link } from '../../../i18n/navigation';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -193,6 +194,19 @@ export default function ShipmentsPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    shipmentList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -248,7 +262,7 @@ export default function ShipmentsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={10}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((ship) => (
                     <tr key={ship.id} className="hover:bg-gray-50 transition-colors">
@@ -294,7 +308,7 @@ export default function ShipmentsPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
             ) : (
             paginated.map((ship) => (
               <div
