@@ -38,13 +38,20 @@ export type NavGroup = { key: string; items: readonly NavItem[] };
  * When a controller's `@Roles` changes, the entry here changes with it.
  */
 const BOOKS_READERS = ['CORE_PARTNER', 'ADMIN_SUPPORT'] as const;
+/** The settlement reads also let an investor in, scoped to their own cycles
+ *  and their own payout line (R1, owner 2026-10-10). */
+const SETTLEMENT_READERS = ['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR'] as const;
 
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
     key: 'overview',
     items: [
+      // Every role: an investor's dashboard shows their own cycles'
+      // profitability (GET /analytics/cycle-profitability, scoped) in place of
+      // the business-wide figures they may not read.
       { key: 'dashboard', href: '/dashboard' },
-      { key: 'analytics', href: '/analytics' },
+      // GET /analytics/revenue-by-month — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
+      { key: 'analytics', href: '/analytics', roles: BOOKS_READERS },
     ],
   },
   {
@@ -83,7 +90,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { key: 'importRequests', href: '/import-requests', roles: BOOKS_READERS },
       // GET /sales/orders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
       { key: 'sales', href: '/sales', roles: BOOKS_READERS },
-      { key: 'customers', href: '/customers' },
+      // GET /customers — @Roles(CORE_PARTNER, ADMIN_SUPPORT) since R1
+      { key: 'customers', href: '/customers', roles: BOOKS_READERS },
     ],
   },
   {
@@ -91,7 +99,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       // GET /payments — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
       { key: 'payments', href: '/payments', roles: BOOKS_READERS },
-      { key: 'paymentPlans', href: '/payment-plans' },
+      // GET /payment-plans — @Roles(CORE_PARTNER, ADMIN_SUPPORT) since R1
+      { key: 'paymentPlans', href: '/payment-plans', roles: BOOKS_READERS },
       // GET /ledger — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
       { key: 'ledger', href: '/ledger', roles: BOOKS_READERS },
     ],
@@ -101,8 +110,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       // GET /users/participation — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
       { key: 'partners', href: '/partners', roles: BOOKS_READERS },
-      // GET /settlements — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
-      { key: 'settlements', href: '/settlements', roles: BOOKS_READERS },
+      // GET /settlements — @Roles(CORE_PARTNER, ADMIN_SUPPORT, TEMP_INVESTOR)
+      { key: 'settlements', href: '/settlements', roles: SETTLEMENT_READERS },
     ],
   },
 ];

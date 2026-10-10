@@ -22,7 +22,7 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ user: auth.role ? { id: 'u1', email: 'x@y.z', role: auth.role } : null }),
 }));
 
-const responses = vi.hoisted(() => ({ recent: [] as unknown[], fail: false }));
+const responses = vi.hoisted(() => ({ recent: [] as unknown[], fail: false, cycles: [] as unknown[] }));
 const get = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api', () => ({ api: { get } }));
 
@@ -38,10 +38,14 @@ beforeEach(() => {
   auth.role = 'CORE_PARTNER';
   responses.recent = [];
   responses.fail = false;
+  responses.cycles = [];
   get.mockReset();
   get.mockImplementation((url: string) => {
     if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: KPIS } });
     if (url.startsWith('/analytics/top-products')) return Promise.resolve({ data: { data: [] } });
+    if (url.startsWith('/analytics/cycle-profitability')) {
+      return Promise.resolve({ data: { data: responses.cycles } });
+    }
     if (url.startsWith('/analytics/recent-activity')) {
       return responses.fail
         ? Promise.reject(new Error('boom'))
@@ -86,21 +90,58 @@ describe('dashboard tiles lead to their lists', () => {
     expect(el.getAttribute('href')).toBe(href);
   });
 
-  it('a temporary investor gets no link to a list the API refuses them, but keeps the open ones', async () => {
-    auth.role = 'TEMP_INVESTOR';
+  it('admin support gets the same business figures', async () => {
+    auth.role = 'ADMIN_SUPPORT';
     renderPage();
-    for (const key of ['revenue', 'collected', 'expenses', 'cashOut', 'cashOnHand']) {
-      expect((await tile(key)).tagName, key).toBe('DIV');
-    }
     expect((await tile('receivables')).getAttribute('href')).toBe('/customers?sort=balance');
-    expect((await tile('lowStockAlerts')).getAttribute('href')).toBe('/inventory?stock=low');
   });
 
-  it('nobody signed in (the auth state still loading) links nothing that needs a role', async () => {
+  it('nobody signed in (the auth state still loading) fetches and links nothing', async () => {
     auth.role = undefined;
     renderPage();
-    expect((await tile('revenue')).tagName).toBe('DIV');
+    expect(screen.queryByTestId('tile-revenue')).toBeNull();
     expect(screen.queryByTestId('quick-action-newSale')).toBeNull();
+    expect(get).not.toHaveBeenCalled();
+  });
+});
+
+// ── R1: a temporary investor sees only their own cycles ──────────────
+describe('a temporary investor sees only their own cycles (R1)', () => {
+  beforeEach(() => {
+    auth.role = 'TEMP_INVESTOR';
+  });
+
+  it('no business-wide tile or top products, and those endpoints (403 for them) are never called', async () => {
+    renderPage();
+    await screen.findByTestId('your-cycles');
+    expect(screen.queryByTestId('tile-revenue')).toBeNull();
+    expect(screen.queryByText('Top products')).toBeNull();
+    const urls = get.mock.calls.map((c) => String(c[0]));
+    for (const refused of ['/analytics/dashboard', '/analytics/top-products', '/analytics/recent-activity']) {
+      expect(urls.some((u) => u.startsWith(refused)), refused).toBe(false);
+    }
+  });
+
+  it('their cycles, each with its profit so far and a link to the cycle', async () => {
+    responses.cycles = [
+      { cycleId: 'c1', cycleCode: 'CYC-1', status: 'SELLING', totalRevenue: 300, totalCost: 210, profit: 90 },
+      { cycleId: 'c3', cycleCode: 'CYC-3', status: 'CLOSED', totalRevenue: 50, totalCost: 80, profit: -30 },
+    ];
+    renderPage();
+    const link = (await screen.findByText('CYC-1')).closest('a');
+    expect(link?.getAttribute('href')).toBe('/cycles/c1/details');
+    expect(screen.getByText('CYC-3')).toBeTruthy();
+    expect(screen.getAllByText('Profit so far')).toHaveLength(2);
+  });
+
+  it('an investor with no cycle stock yet → the empty state, not an error', async () => {
+    renderPage();
+    expect(await screen.findByText('None of your cycles has stock yet')).toBeTruthy();
+  });
+
+  it('renders in Arabic', async () => {
+    renderPage('ar');
+    expect(await screen.findByText('دوراتك')).toBeTruthy();
   });
 });
 
@@ -126,7 +167,7 @@ describe('quick actions follow the API roles', () => {
   it.each(['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL'])('%s sees no quick actions at all', async (role) => {
     auth.role = role;
     renderPage();
-    await tile('revenue');
+    await screen.findByTestId('your-cycles');
     expect(screen.queryByRole('navigation', { name: 'Quick actions' })).toBeNull();
     expect(screen.queryByText('New sale')).toBeNull();
     expect(screen.queryByText('Record payment')).toBeNull();
@@ -147,7 +188,7 @@ describe('recent activity', () => {
   it('an investor is not shown the panel and the endpoint (403 for them) is never called', async () => {
     auth.role = 'TEMP_INVESTOR';
     renderPage();
-    await tile('revenue');
+    await screen.findByTestId('your-cycles');
     expect(screen.queryByText('Recent activity')).toBeNull();
     expect(get.mock.calls.some((c) => String(c[0]).startsWith('/analytics/recent-activity'))).toBe(false);
   });

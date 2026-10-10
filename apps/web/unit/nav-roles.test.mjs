@@ -74,7 +74,9 @@ function endpointRoles(file, cls, route) {
 
 /** Each entry's page, and the endpoint it lists from. */
 const SOURCES = {
-  dashboard: ['analytics/analytics.controller.ts', 'AnalyticsController', 'dashboard'],
+  // The part of the dashboard every role loads: an investor's dashboard lists
+  // their cycles' profitability instead of the business-wide figures (R1).
+  dashboard: ['analytics/analytics.controller.ts', 'AnalyticsController', 'cycle-profitability'],
   analytics: ['analytics/analytics.controller.ts', 'AnalyticsController', 'revenue-by-month'],
   cycles: ['cycles/cycles.controller.ts', 'CyclesController', ''],
   purchases: ['purchases/purchases.controller.ts', 'PurchasesController', ''],
@@ -123,36 +125,41 @@ test('admin support sees all 22 entries — every restricted endpoint lets them 
   assert.deepEqual(menuKeys('ADMIN_SUPPORT'), menuKeys('CORE_PARTNER'));
 });
 
+// R1 (owner, 2026-10-10): an investor sees only their own cycles — the
+// importing and catalogue pages (each scoped by the API) and their cycles'
+// settlements. No analytics, customers or payment plans.
 const INVESTOR_MENU = [
-  'dashboard', 'analytics',
+  'dashboard',
   'cycles', 'purchases', 'suppliers', 'shipments', 'providers',
   'products', 'categories', 'inventory',
-  'customers',
-  'paymentPlans',
+  'settlements',
   'notifications', 'settings',
 ];
+
+/** What any signed-in role is offered: the entries naming no roles. */
+const OPEN_MENU = INVESTOR_MENU.filter((k) => k !== 'settlements');
 
 test('a temporary investor sees only the entries whose endpoints let them in', () => {
   assert.deepEqual(menuKeys('TEMP_INVESTOR'), INVESTOR_MENU);
 });
 
-test('a temporary investor is not offered sales, money, partners or the audit log', () => {
+test('a temporary investor is not offered analytics, customers, sales, money, partners or the audit log', () => {
   const seen = menuKeys('TEMP_INVESTOR');
-  for (const k of ['orderRequests', 'importRequests', 'sales', 'payments', 'ledger',
-    'partners', 'settlements', 'auditLogs']) {
+  for (const k of ['analytics', 'orderRequests', 'importRequests', 'sales', 'customers',
+    'payments', 'paymentPlans', 'ledger', 'partners', 'auditLogs']) {
     assert.ok(!seen.includes(k), k);
   }
 });
 
-test('the partners group, emptied for an investor, goes rather than showing a bare heading', () => {
-  const groups = navForRole('TEMP_INVESTOR').map((g) => g.key);
-  assert.ok(!groups.includes('partners'));
+test('the partners group keeps only Settlements for an investor, and no group is left empty', () => {
+  const partners = navForRole('TEMP_INVESTOR').find((g) => g.key === 'partners');
+  assert.deepEqual(keys(partners.items), ['settlements']);
   for (const g of navForRole('TEMP_INVESTOR')) assert.ok(g.items.length > 0, g.key);
 });
 
-test("an investor's phone bar drops Sales and closes the gap", () => {
+test("an investor's phone bar drops Sales and Customers and closes the gap", () => {
   assert.deepEqual(keys(phoneBarItems('TEMP_INVESTOR')), [
-    'dashboard', 'customers', 'inventory', 'cycles',
+    'dashboard', 'inventory', 'cycles',
   ]);
 });
 
@@ -174,8 +181,8 @@ test('every role, and a role still loading, keeps the Dashboard and Settings', (
 });
 
 test('a role the app has never heard of sees no restricted entry', () => {
-  assert.deepEqual(menuKeys('SOMETHING_NEW'), INVESTOR_MENU);
-  assert.deepEqual(menuKeys(undefined), INVESTOR_MENU);
+  assert.deepEqual(menuKeys('SOMETHING_NEW'), OPEN_MENU);
+  assert.deepEqual(menuKeys(undefined), OPEN_MENU);
 });
 
 test('for every role the phone bar is a subset of that role\'s menu', () => {

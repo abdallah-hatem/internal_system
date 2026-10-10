@@ -10,9 +10,11 @@ import { RecentActivity } from '../../../components/dashboard/recent-activity';
 import { StatTile } from '../../../components/dashboard/stat-tile';
 import {
   canSeeRecentActivity,
+  dashboardView,
   tileHref,
   type TileKey,
 } from '../../../components/dashboard/dashboard-model';
+import { YourCycles } from '../../../components/dashboard/your-cycles';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
   Activity, Route, Wallet, Clock, Receipt, Landmark,
@@ -59,15 +61,20 @@ export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const { user } = useAuth();
   const role = user?.role;
+  // A temporary investor sees only their own cycles (R1): the business-wide
+  // figures are refused them, so they are neither fetched nor shown.
+  const view = dashboardView(role);
 
   const { data: dashData, isLoading: loadingDash } = useQuery({
     queryKey: ['analytics', 'dashboard'],
     queryFn: () => api.get('/analytics/dashboard').then((r) => r.data.data ?? r.data),
+    enabled: view === 'business',
   });
 
   const { data: topProducts = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['analytics', 'top-products', 'dashboard'],
     queryFn: () => api.get('/analytics/top-products?limit=5').then((r) => r.data.data ?? r.data),
+    enabled: view === 'business',
   });
 
   const data: DashboardData = dashData ?? {
@@ -118,6 +125,24 @@ export default function DashboardPage() {
     { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
     { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
   ];
+
+  if (view !== 'business') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+          {view === 'cycles' && (
+            <p className="mt-1 text-sm text-muted-foreground">{t('investorSubtitle')}</p>
+          )}
+        </div>
+        {view === 'cycles' ? (
+          <YourCycles />
+        ) : (
+          <div aria-hidden="true" className="h-40 animate-pulse rounded-xl bg-muted" />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

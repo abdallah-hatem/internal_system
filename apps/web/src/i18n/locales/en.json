@@ -131,7 +131,13 @@
     "sold": "{count, number} sold",
     "sortedByBalance": "Largest balance first",
     "showingLowStock": "Showing products below their minimum stock",
-    "showAll": "Show all"
+    "showAll": "Show all",
+    "investorSubtitle": "The cycles you put money into, and what each has earned so far",
+    "yourCycles": "Your cycles",
+    "yourCyclesEmpty": "None of your cycles has stock yet",
+    "yourCyclesEmptyHint": "A cycle's profit appears here once its goods are received.",
+    "yourCyclesError": "Your cycles could not be loaded.",
+    "cycleProfit": "Profit so far"
   },
   "products": {
     "title": "Products",

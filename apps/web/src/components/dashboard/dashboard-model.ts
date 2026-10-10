@@ -7,8 +7,11 @@
  * guard changes, change the matching list here.
  *
  *   sales, payments, ledger, recent activity → CORE_PARTNER, ADMIN_SUPPORT
+ *   the business-wide figures, top products,
+ *   customers, analytics                      → CORE_PARTNER, ADMIN_SUPPORT (R1)
  *   creating a cycle                          → CORE_PARTNER
- *   customers, inventory, cycles, analytics   → any signed-in role
+ *   inventory, cycles, cycle profitability    → any signed-in role, scoped by
+ *                                               the API to an investor's cycles
  */
 
 /** May list and record sales and payments, read the ledger and the activity feed. */
@@ -43,10 +46,10 @@ export interface TileTarget {
 export const TILE_TARGETS: Record<TileKey, TileTarget> = {
   revenue: { href: '/sales', roles: SELLING_ROLES },
   collected: { href: '/payments', roles: SELLING_ROLES },
-  receivables: { href: '/customers?sort=balance' },
-  cogs: { href: '/analytics' },
+  receivables: { href: '/customers?sort=balance', roles: SELLING_ROLES },
+  cogs: { href: '/analytics', roles: SELLING_ROLES },
   expenses: { href: '/ledger', roles: SELLING_ROLES },
-  netProfit: { href: '/analytics' },
+  netProfit: { href: '/analytics', roles: SELLING_ROLES },
   cashOut: { href: '/ledger', roles: SELLING_ROLES },
   cashOnHand: { href: '/ledger', roles: SELLING_ROLES },
   activeCycles: { href: '/cycles' },
@@ -86,4 +89,20 @@ export function quickActionsFor(role: string | undefined): QuickAction[] {
 
 export function canSeeRecentActivity(role: string | undefined): boolean {
   return allows(SELLING_ROLES, role);
+}
+
+/**
+ * Which dashboard a role gets (R1, owner 2026-10-10).
+ *
+ *   'business' — the figures, top products and activity: the API's
+ *                /analytics/dashboard and /top-products let these roles in.
+ *   'cycles'   — a temporary investor, or any role the business-wide reads
+ *                refuse: their own cycles' profitability, which the API scopes.
+ *   'loading'  — the role is not known yet, so nothing is fetched; fetching
+ *                the business figures first would put a 403 in front of an
+ *                investor on every visit.
+ */
+export function dashboardView(role: string | undefined): 'business' | 'cycles' | 'loading' {
+  if (role === undefined) return 'loading';
+  return allows(SELLING_ROLES, role) ? 'business' : 'cycles';
 }

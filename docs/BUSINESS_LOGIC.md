@@ -586,10 +586,11 @@ signed-in account could read it.
 **The menu shows a role what it may open.** DECIDED 2026-10-10 (U4c). An
 entry is shown exactly when the endpoint its page lists from lets the role in;
 the menu copies the controllers' `@Roles` rather than deciding anything itself.
-So a temporary investor sees the dashboard, analytics, the importing and
-catalogue pages, customers, payment plans, notifications and settings, and not
-order or import requests, sales, payments, the ledger, partners, settlements or
-the audit log.
+Since R1 (below) a temporary investor sees the dashboard (their own cycles),
+the importing and catalogue pages (scoped to their cycles), settlements (theirs,
+with their own line), notifications and settings — and not analytics,
+customers, payment plans, order or import requests, sales, payments, the
+ledger, partners or the audit log.
 
 **DECIDED 2026-10-10 by the owner — a temporary investor sees only their own
 cycles.** *Building.* The cycles they put money into, and for each: their
@@ -600,6 +601,16 @@ enforced by the server on every read — a menu that hides a page is not a guard
 (rule 12) — so every list and figure an investor can reach is scoped to the
 cycles they participate in, and anything outside them is refused with a code or
 simply absent from the list.
+
+*Built 2026-10-10 (R1).* One definition, `common/investor-scope.ts`. Another
+cycle's id answers 404 — as if it did not exist — not 403. On a shared cycle an
+investor sees the cycle's totals and their own participant row and settlement
+line, not another participant's contribution or payout. **Guesses, not yet
+agreed** (per-endpoint list in `docs/build-log/waves/arrivals-and-ux/R1.md`):
+suppliers and providers are shown only where one of the investor's cycles used
+them; the product catalogue, categories and currency rates are shown whole, as
+shared reference data, but without each product's supplier links; a customer's
+request photo is not served to an investor.
 
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost

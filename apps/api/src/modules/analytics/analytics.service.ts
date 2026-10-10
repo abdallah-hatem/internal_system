@@ -512,6 +512,8 @@ export class AnalyticsService {
       const profit = revenue.sub(cogs).add(supplierRefunds).sub(losses);
 
       return {
+        // So a row can link to its cycle (an investor's dashboard, R1).
+        cycleId: cycle.id,
         cycleCode: cycle.code,
         status: cycle.status,
         originType: cycle.originType,
