@@ -28,3 +28,10 @@
   formula (`common/sale-totals.ts`, a web copy pinned by an 891-line equality test). Conflict with U4 on the sales
   page resolved (re-added `?new=1` against `createFor`). api jest 509/509, web vitest 75/75.
 - Wave 3: U2 dispatched from `7076e51` (U1 merged), with the two U1 follow-ups (stored idempotency key, DISCOUNT_NEGATIVE).
+- B2 merged: deliveries / losses / take-back endpoints (`deliveries.service.ts`), cycle-row lock `FOR UPDATE` on
+  every write (race verified on a throwaway DB: 5/5 with, 3/3 fail without), gates via
+  `common/shipment-load.ts`, `cycleLossesEgp`, cost lock, check-data 12.3–12.6. api jest 558 + 3 skipped (DB suite).
+  B2's guesses are accepted and logged in B2.md. Carried to B3: (1) check-data 12.6 flags old-path receipts until per-delivery
+  receipts land; (2) 12.5 is strict, so it must allow the final-event residual (Amendment 9); (3) `transition` does not take
+  the cycle lock — it must for → SETTLEMENT (gate race); (4) receipts cap at the line's waiting quantity too.
+  B2 left Docker running; the main thread quit it.
