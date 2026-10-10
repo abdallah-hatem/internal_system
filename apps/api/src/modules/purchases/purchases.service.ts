@@ -219,7 +219,7 @@ export class PurchasesService {
     cycleId: string,
     data: CreatePurchaseOrderDto,
   ): Promise<CheckedOrder> {
-    assertNotFuture(data.orderedOn, 'The date an order was placed');
+    assertNotFuture(data.orderedOn, 'ORDER_PLACED');
     assertRate(data.fxRateToEgp);
 
     const cycle = await db.importCycle.findUnique({
@@ -892,7 +892,7 @@ function checkRefund(data: RefundInput) {
     });
   }
   // Money is received when it is received, never next week (rule 1, §6).
-  assertNotFuture(data.recordedOn, 'The date a refund was received');
+  assertNotFuture(data.recordedOn, 'REFUND_RECEIVED');
 }
 
 /** The order a refund is against, with what its cap reads. */

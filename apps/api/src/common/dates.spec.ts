@@ -43,27 +43,37 @@ describe('assertNotFuture', () => {
 
   it('accepts a date entered just after midnight in Cairo', () => {
     freezeAt('2026-08-22T21:37:00Z'); // 00:37 on the 23rd, Cairo
-    expect(() => assertNotFuture('2026-08-23', 'A payment')).not.toThrow();
+    expect(() =>
+      assertNotFuture('2026-08-23', 'PAYMENT_RECEIVED'),
+    ).not.toThrow();
   });
 
   it('still refuses a genuinely future day', () => {
     freezeAt('2026-08-22T21:37:00Z');
-    expect(() => assertNotFuture('2026-08-24', 'A payment')).toThrow(/future/i);
+    expect(() => assertNotFuture('2026-08-24', 'PAYMENT_RECEIVED')).toThrow(
+      /future/i,
+    );
   });
 
   it('accepts yesterday and today', () => {
     freezeAt('2026-08-22T09:00:00Z');
-    expect(() => assertNotFuture('2026-08-21', 'A payment')).not.toThrow();
-    expect(() => assertNotFuture('2026-08-22', 'A payment')).not.toThrow();
+    expect(() =>
+      assertNotFuture('2026-08-21', 'PAYMENT_RECEIVED'),
+    ).not.toThrow();
+    expect(() =>
+      assertNotFuture('2026-08-22', 'PAYMENT_RECEIVED'),
+    ).not.toThrow();
   });
 
   it('ignores an absent value rather than guessing one', () => {
-    expect(() => assertNotFuture(undefined, 'A payment')).not.toThrow();
-    expect(() => assertNotFuture(null, 'A payment')).not.toThrow();
+    expect(() => assertNotFuture(undefined, 'PAYMENT_RECEIVED')).not.toThrow();
+    expect(() => assertNotFuture(null, 'PAYMENT_RECEIVED')).not.toThrow();
   });
 
   it('leaves malformed input to the DTO', () => {
-    expect(() => assertNotFuture('not-a-date', 'A payment')).not.toThrow();
+    expect(() =>
+      assertNotFuture('not-a-date', 'PAYMENT_RECEIVED'),
+    ).not.toThrow();
   });
 });
 

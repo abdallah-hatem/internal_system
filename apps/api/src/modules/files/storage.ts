@@ -83,7 +83,6 @@ export class VercelBlobStorage implements StorageAdapter {
    * build reported success.
    */
   private get blob() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('@vercel/blob');
   }
 

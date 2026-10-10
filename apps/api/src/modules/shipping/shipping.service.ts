@@ -215,8 +215,8 @@ export class ShippingService {
     assertLegDates(data.departedOn, data.arrivedOn);
     // Editing a leg refused a date in the future and creating one did not, so
     // a leg could be born "arrived" next week and walk the cycle to Egypt.
-    assertNotFuture(data.departedOn, 'A departure date');
-    assertNotFuture(data.arrivedOn, 'An arrival date');
+    assertNotFuture(data.departedOn, 'DEPARTURE');
+    assertNotFuture(data.arrivedOn, 'ARRIVAL');
 
     return {
       cycle,
@@ -342,8 +342,8 @@ export class ShippingService {
     const departedOn = data.departedOn ?? existing.departedOn;
     const arrivedOn = data.arrivedOn ?? null;
     assertLegDates(departedOn, arrivedOn);
-    assertNotFuture(data.departedOn, 'A departure date');
-    assertNotFuture(data.arrivedOn, 'An arrival date');
+    assertNotFuture(data.departedOn, 'DEPARTURE');
+    assertNotFuture(data.arrivedOn, 'ARRIVAL');
 
     const { updated, changed } = await this.prisma.$transaction(async (tx) => {
       await lockCycle(tx, existing.cycleId);

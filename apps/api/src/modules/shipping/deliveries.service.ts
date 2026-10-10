@@ -98,7 +98,7 @@ export function deliveryDay(value: string | undefined): string {
       fields: 'arrivedOn',
     });
   }
-  assertNotFuture(value, 'A delivery date');
+  assertNotFuture(value, 'DELIVERY');
   return businessDay(value);
 }
 

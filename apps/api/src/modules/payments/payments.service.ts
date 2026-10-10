@@ -106,7 +106,7 @@ export class PaymentsService {
       );
     }
 
-    assertNotFuture(data.receivedOn, 'The date a payment was received');
+    assertNotFuture(data.receivedOn, 'PAYMENT_RECEIVED');
 
     // The customer must exist. Without this the foreign key failed deep in
     // Prisma and surfaced as a 500 "An unexpected error occurred", which tells
