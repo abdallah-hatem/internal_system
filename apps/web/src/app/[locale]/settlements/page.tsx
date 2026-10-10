@@ -8,7 +8,7 @@ import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { Money } from '../../../components/ui/money';
 import {
-  Scale, Loader2, AlertTriangle, TrendingUp, TrendingDown,
+  Scale, Loader2, TrendingUp, TrendingDown,
   CheckCircle2, Wallet, RotateCcw, Calculator, X,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -17,6 +17,7 @@ import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { SettlementWarnings, type SettlementWarning } from '@/components/settlements/settlement-warnings';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Line {
   id: string;
@@ -83,7 +84,7 @@ export default function SettlementsPage() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [selectedCycle, setSelectedCycle] = useState('');
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<SettlementWarning[]>([]);
   // An investor reads their cycles' settlements and their own line; every
   // write here is a partner's (R1b). Each flag mirrors its endpoint's @Roles.
   const may: SettlementPermissions = {
@@ -231,19 +232,7 @@ export default function SettlementsPage() {
         )}
       </div>
 
-      {warnings.length > 0 && (
-        <div
-          role="status"
-          className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1"
-        >
-          {warnings.map((w, i) => (
-            <p key={i} className="text-sm text-amber-800 flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-              {w}
-            </p>
-          ))}
-        </div>
-      )}
+      <SettlementWarnings warnings={warnings} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

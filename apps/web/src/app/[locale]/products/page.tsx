@@ -19,6 +19,7 @@ import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -67,6 +68,8 @@ export default function ProductsPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // Reading products is everyone's; adding and changing them is a partner's (R1c).
+  const may = { create: useCan('product.create'), edit: useCan('product.edit') };
   const router = useRouter();
   const { locale } = useParams();
 
@@ -169,7 +172,7 @@ export default function ProductsPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: openCreate }}
+        action={may.create ? { label: t('create'), onClick: openCreate } : undefined}
       />
     ) : (
       <EmptyState icon={null} title={tc('noMatch')} />
@@ -202,13 +205,17 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {may.create && (
         <button
+          type="button"
+          data-testid="create-action"
           onClick={() => openCreate()}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -298,13 +305,17 @@ export default function ProductsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
+                          {may.edit && (
                           <button
+                            type="button"
+                            data-testid="edit-action"
                             onClick={() => openEditProduct(product)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                             title={tc('edit')}
                           >
                             <Edit className="h-4 w-4" />
                           </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -359,12 +370,16 @@ export default function ProductsPage() {
                   >
                     <Eye className="h-3.5 w-3.5" /> {tc('view')}
                   </button>
+                  {may.edit && (
                   <button
+                    type="button"
+                    data-testid="edit-action"
                     onClick={() => openEditProduct(product)}
-                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-amber-600 px-2 py-1 rounded"
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-amber-600 px-2 py-1 rounded cursor-pointer"
                   >
                     <Edit className="h-3.5 w-3.5" /> {tc('edit')}
                   </button>
+                  )}
                 </div>
               </div>
             ))

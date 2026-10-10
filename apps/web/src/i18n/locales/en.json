@@ -187,7 +187,8 @@
     "priceUpdated": "{label} updated",
     "priceSaveFailed": "Could not save the price",
     "emptyTitle": "No products yet",
-    "emptyHint": "The parts you import and sell, each with its SKU and prices."
+    "emptyHint": "The parts you import and sell, each with its SKU and prices.",
+    "priceNotSet": "not set"
   },
   "cycles": {
     "title": "Import Cycles",
@@ -853,7 +854,12 @@
     "closeAnyway": "Close anyway",
     "calculated": "Settlement calculated",
     "updated": "Settlement updated",
-    "paid": "Settlement paid"
+    "paid": "Settlement paid",
+    "warnings": {
+      "UNSOLD_STOCK": "{units} units are still in stock ({valueEgp} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.",
+      "NO_REALISED_SALES": "This cycle has no realised sales yet.",
+      "unknown": "This calculation has a warning this version of the app cannot show. Refresh the page."
+    }
   },
   "paymentPlans": {
     "title": "Payment Plans",

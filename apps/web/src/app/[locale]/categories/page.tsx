@@ -16,6 +16,7 @@ import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -65,6 +66,13 @@ export default function CategoriesPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  // Reading categories is everyone's; changing them is a partner's (R1c).
+  const may = {
+    create: useCan('category.create'),
+    edit: useCan('category.edit'),
+    delete: useCan('category.delete'),
+  };
+  const mayRow = may.edit || may.delete;
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -155,7 +163,7 @@ export default function CategoriesPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+        action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
       <EmptyState icon={null} title={tc('noMatch')} />
@@ -202,13 +210,17 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {may.create && (
         <button
+          type="button"
+          data-testid="create-action"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        )}
       </div>
 
       {/* Search + Expand All */}
@@ -288,22 +300,32 @@ export default function CategoriesPage() {
                   )}
 
                   {/* Spacer + Actions */}
+                  {mayRow && (
                   <div className="ms-auto flex items-center gap-1 shrink-0">
+                    {may.edit && (
                     <button
+                      type="button"
+                      data-testid="edit-action"
                       onClick={() => setEditingCategory(cat)}
-                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                       title={tc('edit')}
                     >
                       <Edit className="h-4 w-4" />
                     </button>
+                    )}
+                    {may.delete && (
                     <button
+                      type="button"
+                      data-testid="delete-action"
                       onClick={() => setDeletingCategory(cat)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                       title={tc('delete')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    )}
                   </div>
+                  )}
                 </div>
               ))}
             </div>

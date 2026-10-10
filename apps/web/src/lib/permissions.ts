@@ -33,6 +33,28 @@ export const ACTION_ROLES = {
   'settlement.approve': PARTNERS, //      POST /settlements/:id/approve
   'settlement.pay': PARTNERS, //          POST /settlements/:id/pay
   'settlement.reverse': PARTNERS, //      POST /settlements/:id/reverse
+  // Catalogue — ProductsController, CategoriesController, FilesController (R1c)
+  'product.create': PARTNERS, //          POST /products
+  'product.edit': PARTNERS, //            PUT  /products/:id
+  'product.setPrice': PARTNERS, //        POST /products/:id/prices
+  'product.addPhoto': PARTNERS, //        POST   /files/products/:productId
+  'product.deletePhoto': PARTNERS, //     DELETE /files/:id
+  'category.create': PARTNERS, //         POST   /categories
+  'category.edit': PARTNERS, //           PUT    /categories/:id
+  'category.delete': PARTNERS, //         DELETE /categories/:id
+  // SuppliersController, ProvidersController
+  'supplier.create': PARTNERS, //         POST   /suppliers
+  'supplier.edit': PARTNERS, //           PUT    /suppliers/:id
+  'supplier.delete': PARTNERS, //         DELETE /suppliers/:id
+  'provider.create': PARTNERS, //         POST   /providers
+  'provider.edit': PARTNERS, //           PUT    /providers/:id
+  'provider.delete': PARTNERS, //         DELETE /providers/:id
+  // Purchases — CyclePurchasesController, PurchasesController
+  'purchase.create': PARTNERS, //         POST /cycles/:cycleId/purchases
+  'purchase.recordRefund': PARTNERS, //   POST /purchases/:id/refunds
+  // Shipping legs — CycleShippingController, ShippingController
+  'shippingLeg.create': PARTNERS, //      POST /cycles/:cycleId/shipping-legs
+  'shippingLeg.edit': PARTNERS, //        PUT  /shipping/legs/:id
   // Reads a page makes on the side — UsersController
   'users.list': BOOKS_READERS, //         GET /users (the participant picker)
 } as const satisfies Record<string, readonly string[]>;
