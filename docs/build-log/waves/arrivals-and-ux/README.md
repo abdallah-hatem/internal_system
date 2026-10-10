@@ -43,3 +43,4 @@
   oldest-first still one request per order from the client (as before); the dialog relies on a ref
   guard for double submit (the payment key would show in `reference`).
 - F1b dispatched early from `c292c78` (needs B2, not B3; owns no B3 file).
+- F1b merged: wizard ends at in-transit (`wizard-walk.ts`), resume reads every order and leg, list shows profit and ROI from analytics. Guesses accepted (F1b.md). Fixed B2's 3 `any` lint errors in spec 78.
