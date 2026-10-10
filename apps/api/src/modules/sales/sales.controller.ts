@@ -5,11 +5,12 @@ import {
   Param,
   Body,
   Query,
+  Headers,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { SalesService } from './sales.service';
+import { SalesService, type CreateSaleOrderInput } from './sales.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
@@ -50,9 +51,16 @@ export class SalesController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a draft sale order' })
-  create(@Body() body: any, @CurrentUser() user: any) {
-    return this.salesService.create(body, user.id);
+  @ApiOperation({
+    summary:
+      'Create a draft sale order, or with `confirm: true` create and confirm it in one transaction (idempotent via Idempotency-Key header)',
+  })
+  create(
+    @Body() body: CreateSaleOrderInput,
+    @CurrentUser() user: any,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.salesService.create(body, user.id, idempotencyKey);
   }
 
   @Post(':id/confirm')
