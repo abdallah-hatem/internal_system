@@ -23,7 +23,22 @@ Edge cases:
 ### W2 — Walk-in on the sale form (web · logic)
 Cases: the switch hides the customer and shows the method; B2C prices fill in, but a typed price is kept; only "Sell & take payment"; a refusal keeps the values; double submit → one sale; RTL; 390px.
 
-### W3 — `record_sale` for the assistant (assistant · logic)
+### W3 — `record_sale` for the assistant, and better product matching (assistant · logic)
+Found by testing the live assistant with a real invoice image (2026-10-11): "Honda CBR brake pads (front)" matched
+nothing though "Honda CBR Brake Pad" is on file (plural + extra words), and "Full face helmet, matt black, size L" was
+auto-matched to "Full Face Helmet" on a weak contains-match (score 0.5) with no question — §16 says a close name is never
+the same thing until the partner says so. One shared matcher (`receipt/name-matching.ts`) serves both receipts and sales:
+token-based (case, plurals, punctuation, word order, extra descriptors), returning ranked candidates; only an exact or
+SKU match is "matched"; anything weaker is a question with candidates.
+
+Edge cases (matching):
+- [ ] "Honda CBR brake pads (front)" → candidate "Honda CBR Brake Pad", asked (not "new", not auto-matched)   (§16)
+- [ ] "Full face helmet, matt black, size L" → candidate "Full Face Helmet", asked, not auto-matched   (§16)
+- [ ] An exact name, ignoring case and spacing, or a SKU → matched without a question   (§16)
+- [ ] Nothing similar → LINE_NEW_OR_EXISTING with no candidates   (§16)
+- [ ] The two test images' extractions (kept as fixtures in the repo) give exactly the expected questions   (regression from a real image)
+
+Edge cases (sales):
 Edge cases:
 - [ ] "Sold 25 of <product> at 300 to anyone" → a walk-in preview with 25 × 300 and stock shown; confirm writes one paid order   (§16)
 - [ ] A close product name → candidates, nothing written   (§16)
