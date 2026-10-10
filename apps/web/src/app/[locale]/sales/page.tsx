@@ -1,4 +1,6 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
+import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
@@ -416,7 +418,7 @@ function SalesPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8}><EmptyState icon={null} title={tc('noMatch')} /></td></tr>
+                  <tr><td colSpan={8}><NoMatch filtered={statusFilter !== 'all'} onClear={() => { setSearch(''); setStatusFilter('all'); }} /></td></tr>
                 ) : (
                   paginated.map((order) => (
                     // The whole row opens the order. The order number is a
@@ -473,7 +475,7 @@ function SalesPageContent() {
       {!isLoading && !noOrdersYet && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200"><EmptyState icon={null} title={tc('noMatch')} /></div>
+            <div className="bg-white rounded-xl border border-gray-200"><NoMatch filtered={statusFilter !== 'all'} onClear={() => { setSearch(''); setStatusFilter('all'); }} /></div>
           ) : (
             paginated.map((order) => (
               <div
@@ -553,10 +555,13 @@ function SalesPageContent() {
                           together on a phone ("DiscountLine Total"). Numbers
                           end-aligned and kept on one line. */}
                       <tr className="border-b border-gray-200 [&>th]:px-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('product')}</th>
-                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('quantity')}</th>
-                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('unitPrice')}</th>
-                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('discount')}</th>
+                        {/* On a phone the product takes the room: quantity,
+                            price and discount move under its name and only the
+                            line total keeps a column (re-audit N5). */}
+                        <th className="w-full text-start py-2 text-xs text-gray-500 font-medium sm:w-auto">{t('product')}</th>
+                        <th className="hidden sm:table-cell text-end py-2 text-xs text-gray-500 font-medium">{t('quantity')}</th>
+                        <th className="hidden sm:table-cell text-end py-2 text-xs text-gray-500 font-medium">{t('unitPrice')}</th>
+                        <th className="hidden sm:table-cell text-end py-2 text-xs text-gray-500 font-medium">{t('discount')}</th>
                         <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('lineTotal')}</th>
                       </tr>
                     </thead>
@@ -567,11 +572,22 @@ function SalesPageContent() {
                             <p className="font-medium text-gray-900">
                               <ProductLink id={item.productId} name={item.product?.name} />
                             </p>
-                            <p className="text-xs text-gray-500"><bdi dir="ltr">{item.product?.sku}</bdi></p>
+                            <p className="text-xs text-muted-foreground whitespace-nowrap"><LatinText dir="ltr">{item.product?.sku}</LatinText></p>
+                            <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
+                              <LatinText dir="ltr" className="whitespace-nowrap">{item.quantity} × {formatAmount(item.unitPrice)}</LatinText>
+                              {item.discount > 0 && (
+                                <>
+                                  {' · '}
+                                  <span className="whitespace-nowrap">
+                                    {t('discount')} <LatinText dir="ltr">- {formatAmount(item.discount)}</LatinText>
+                                  </span>
+                                </>
+                              )}
+                            </p>
                           </td>
-                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.quantity}</td>
-                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600"><bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi></td>
-                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.discount > 0 ? <bdi dir="ltr">- {formatAmount(item.discount)}</bdi> : '—'}</td>
+                          <td className="hidden sm:table-cell py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.quantity}</td>
+                          <td className="hidden sm:table-cell py-2 text-end whitespace-nowrap tabular-nums text-gray-600"><bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi></td>
+                          <td className="hidden sm:table-cell py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.discount > 0 ? <bdi dir="ltr">- {formatAmount(item.discount)}</bdi> : '—'}</td>
                           <td className="py-2 text-end whitespace-nowrap tabular-nums font-medium text-gray-900">
                             {/* What the server stored for the line, not a
                                 re-derivation of it. */}
@@ -603,17 +619,23 @@ function SalesPageContent() {
                         <div className="flex items-center gap-2 min-w-0">
                           <Package className="h-4 w-4 text-blue-500 shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 truncate">
-                              <ProductLink id={item.productId} name={item.product?.name} />
+                            <p className="font-medium text-gray-900">
+                              <ProductLink truncate id={item.productId} name={item.product?.name} />
                             </p>
+                            {/* Each piece stays whole, so a narrow card breaks
+                                between the batch and its cost, never inside
+                                "117.30 EGP /unit" (re-audit N5). */}
                             <p className="text-xs text-gray-500">
-                              {t('batch')} <BatchRef id={alloc.inventoryBatchId} />
+                              <span className="whitespace-nowrap">{t('batch')} <BatchRef id={alloc.inventoryBatchId} /></span>
                               {alloc.unitCostEgp != null && (
                                 <>
-                                  {' · '}
-                                  <Money value={alloc.unitCostEgp} />
                                   {' '}
-                                  {t('perUnitCost')}
+                                  <span data-testid="allocation-unit-cost" className="whitespace-nowrap">
+                                    {'· '}
+                                    <Money value={alloc.unitCostEgp} />
+                                    {' '}
+                                    {t('perUnitCost')}
+                                  </span>
                                 </>
                               )}
                             </p>

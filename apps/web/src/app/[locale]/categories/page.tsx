@@ -1,4 +1,6 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
+import { LatinText } from '@/components/ui/latin-text';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
@@ -167,7 +169,7 @@ export default function CategoriesPage() {
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch onClear={() => setSearch('')} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -285,12 +287,12 @@ export default function CategoriesPage() {
 
                   {/* Icon + Name */}
                   <Tag className="h-4 w-4 text-gray-400 shrink-0" />
-                  <span className="min-w-0 text-sm font-medium text-gray-900 truncate">{cat.name}</span>
+                  <LatinText truncate className="flex-initial text-sm font-medium text-gray-900">{cat.name}</LatinText>
 
                   {/* Parent badge */}
                   {cat.parent && (
                     <span className="shrink-0 whitespace-nowrap text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {cat.parent.name}
+                      <bdi>{cat.parent.name}</bdi>
                     </span>
                   )}
 

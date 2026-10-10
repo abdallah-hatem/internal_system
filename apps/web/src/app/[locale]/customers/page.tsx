@@ -1,4 +1,6 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
+import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Money } from '../../../components/ui/money';
@@ -177,7 +179,7 @@ function CustomersPageContent() {
         action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch filtered={!!verification} onClear={() => { setSearch(''); setVerification(''); }} />
     );
 
   const detail = (customerDetail as Customer) ?? viewingCustomer;
@@ -315,13 +317,13 @@ function CustomersPageContent() {
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5 text-gray-400" />
-                          {customer.phone ?? '—'}
+                          {customer.phone ? <LatinText dir="ltr">{customer.phone}</LatinText> : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1">
                           <Mail className="h-3.5 w-3.5 text-gray-400" />
-                          {customer.email ?? '—'}
+                          {customer.email ? <LatinText>{customer.email}</LatinText> : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -389,8 +391,8 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                  <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-gray-400" />{customer.phone ?? '—'}</span>
-                  <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-gray-400" />{customer.email ?? '—'}</span>
+                  <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-gray-400" />{customer.phone ? <LatinText dir="ltr">{customer.phone}</LatinText> : '—'}</span>
+                  <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-gray-400" />{customer.email ? <LatinText>{customer.email}</LatinText> : '—'}</span>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <span className={`font-medium text-sm ${customer.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -404,7 +406,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                     >
                       <Edit className="h-3.5 w-3.5" />
                     </button>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <ChevronRight className="h-4 w-4 text-gray-400 rtl:rotate-180" />
                   </div>
                 </div>
               </div>
@@ -506,7 +508,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('name')} value={detail.displayName} />
               <Detail label={t('type')} value={detail.type === 'B2B' ? t('b2b') : t('b2c')} />
-              <Detail label={t('phone')} value={detail.phone ?? '—'} />
+              <Detail label={t('phone')} value={detail.phone ? <LatinText dir="ltr">{detail.phone}</LatinText> : '—'} />
               <Detail label={t('email')} value={detail.email ?? '—'} />
               <Detail
                 label={t('balance')}

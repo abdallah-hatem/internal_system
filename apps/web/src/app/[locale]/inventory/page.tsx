@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
@@ -115,7 +116,7 @@ function InventoryPageContent() {
         action={{ label: t('emptyAction'), href: '/cycles' }}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch onClear={() => setSearch('')} />
     );
 
   // ── Render ────────────────────────────────────────────────────────

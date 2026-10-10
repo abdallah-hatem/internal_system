@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -160,9 +161,9 @@ export function ReceiveDeliveryDialog({
             return (
               <li key={id} className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-[1fr_7rem_8rem_9rem] sm:items-center">
                 <div className="col-span-2 min-w-0 sm:col-span-1">
-                  <p className="truncate text-sm font-medium text-foreground">
+                  <LatinText truncate className="text-sm font-medium text-foreground">
                     {productNames[row.purchaseOrderItemId] ?? '—'}
-                  </p>
+                  </LatinText>
                   <p className="text-xs text-muted-foreground">
                     {t('deliveredReceived', { delivered: row.qty, received: row.received })}
                   </p>

@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -105,9 +106,9 @@ export function RecentActivity() {
                       <span className="text-xs text-muted-foreground">{codeLabel('orderStatus', item.status)}</span>
                     )}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <LatinText truncate className="text-xs text-muted-foreground">
                     {item.customer?.displayName ?? item.product?.name ?? '—'}
-                  </p>
+                  </LatinText>
                 </div>
                 <div className="flex-shrink-0 text-end">
                   {item.amount !== undefined ? (

@@ -41,6 +41,8 @@
     "optional": "Optional",
     "operationFailed": "Operation failed",
     "noMatch": "Nothing matches this search or filter",
+    "clearSearch": "Clear search",
+    "clearSearchAndFilters": "Clear search and filters",
     "listCapped": "Showing the first {count} only. More exist and are not listed here.",
     "selectPlaceholder": "Select…",
     "noOptionsMatch": "No matches"
@@ -270,7 +272,6 @@
     "roi": "ROI",
     "emptyTitle": "No import cycles yet",
     "emptyHint": "A cycle is one shipment: what was ordered, how it travelled, and what it sold for.",
-    "noMatch": "No cycles match this filter",
     "statusUpdated": "Cycle status updated",
     "transitionFailed": "The status could not be changed",
     "currentStatus": "Current status:",

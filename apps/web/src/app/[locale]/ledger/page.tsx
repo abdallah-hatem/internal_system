@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Money } from '../../../components/ui/money';
@@ -164,7 +165,7 @@ export default function LedgerPage() {
         action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch filtered={!!(directionFilter || typeFilter)} onClear={() => { setSearch(''); setDirectionFilter(''); setTypeFilter(''); }} />
     );
 
   const detail = (entryDetail as LedgerEntry) ?? viewingEntry;

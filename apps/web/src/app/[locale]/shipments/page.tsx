@@ -1,4 +1,6 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
+import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
@@ -207,7 +209,7 @@ export default function ShipmentsPage() {
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch onClear={() => setSearch('')} />
     );
 
   // ── Render ────────────────────────────────────────────────────────
@@ -256,47 +258,51 @@ export default function ShipmentsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('cycle')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('sequence')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('route')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('provider')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('trackingRef')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('departedOn')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('arrivedOn')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('amount')}</th>
-                  {may.edit && <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{tc('actions')}</th>}
+                <tr className="bg-gray-50 border-b border-gray-200 [&>th:first-child]:ps-4 [&>th:last-child]:pe-4">
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('cycle')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('route')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('provider')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('trackingRef')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('status')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('departedOn')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('arrivedOn')}</th>
+                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('amount')}</th>
+                  {may.edit && <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{tc('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={may.edit ? 10 : 9}>{emptyList}</td></tr>
+                  <tr><td colSpan={may.edit ? 9 : 8}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((ship) => (
-                    <tr key={ship.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={ship.id} className="hover:bg-gray-50 transition-colors [&>td:first-child]:ps-4 [&>td:last-child]:pe-4">
                       {/* Short values never wrap (UI audit #29): a code, a date or an
-                          amount split over two lines while the route column had room. */}
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap"><bdi>{ship.cycle?.code ?? '—'}</bdi></td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap"><bdi>#{ship.sequence}</bdi></td>
-                      <td className="px-4 py-3">
+                          amount split over two lines while the route column had room.
+                          The leg number shares the cycle's cell, as on the phone card,
+                          so the table fits its card at 1440 with the route on one line
+                          (re-audit N1). */}
+                      <td className="px-2.5 py-3 text-gray-600 whitespace-nowrap">
+                        <bdi className="font-mono text-xs">{ship.cycle?.code ?? '—'}</bdi>{' '}
+                        <bdi data-testid="leg-sequence" className="text-xs text-gray-500">#{ship.sequence}</bdi>
+                      </td>
+                      <td className="px-2.5 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 text-gray-700">
                           <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                          <LegRoute origin={ship.origin} destination={ship.destination} />
+                          <LegRoute nowrap origin={ship.origin} destination={ship.destination} />
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600"><bdi>{ship.provider}</bdi></td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap"><bdi>{ship.trackingRef ?? '—'}</bdi></td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-2.5 py-3 text-gray-600"><LatinText>{ship.provider}</LatinText></td>
+                      <td className="px-2.5 py-3 font-mono text-xs text-gray-500 whitespace-nowrap"><bdi>{ship.trackingRef ?? '—'}</bdi></td>
+                      <td className="px-2.5 py-3 whitespace-nowrap">
                         <StatusBadge status={ship.status} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.departedOn)}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.arrivedOn)}</td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                      <td className="px-2.5 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.departedOn)}</td>
+                      <td className="px-2.5 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.arrivedOn)}</td>
+                      <td className="px-2.5 py-3 text-gray-700 whitespace-nowrap">
                         <LegCost ship={ship} />
                       </td>
                       {may.edit && (
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-3">
                         <button
                           type="button"
                           data-testid="edit-action"
@@ -339,7 +345,7 @@ export default function ShipmentsPage() {
                   <LegRoute origin={ship.origin} destination={ship.destination} />
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500">
-                  <bdi>{ship.provider}</bdi>
+                  <LatinText>{ship.provider}</LatinText>
                   {ship.trackingRef && <bdi className="font-mono">{ship.trackingRef}</bdi>}
                 </div>
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">

@@ -1,4 +1,6 @@
 'use client';
+import { LegRoute } from '@/components/shipment/LegRoute';
+import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 
 /**
@@ -311,9 +313,9 @@ export default function CycleDetailsPage() {
             {orders.map((o) => (
               <Row key={o.id}>
                 <span className="font-mono text-xs text-gray-500">{o.reference}</span>
-                <span className="text-sm">{o.supplier?.name ?? '—'}</span>
+                <span className="text-sm"><LatinText>{o.supplier?.name ?? '—'}</LatinText></span>
                 <span className="text-xs text-gray-400">{formatLocalDate(o.orderedOn)}</span>
-                <span className="text-sm">{o.currency} @ {num(o.fxRateToEgp)}</span>
+                <span className="text-sm"><bdi dir="ltr">{o.currency} @ {num(o.fxRateToEgp)}</bdi></span>
                 <span className="text-xs text-gray-500">{(o.items ?? []).length} {t('items')}</span>
               </Row>
             ))}
@@ -340,8 +342,8 @@ export default function CycleDetailsPage() {
               return (
                 <div key={l.id} data-testid="shipping-card-leg" className="space-y-1 py-2">
                   <Row>
-                    <span className="text-sm">{l.origin} → {l.destination}</span>
-                    <span className="text-xs text-muted-foreground">{l.provider ?? '—'}</span>
+                    <LegRoute className="text-sm" origin={l.origin} destination={l.destination} />
+                    <span className="text-xs text-muted-foreground"><LatinText>{l.provider ?? '—'}</LatinText></span>
                     <span className="text-xs text-muted-foreground">
                       {l.departedOn ? t('legDeparted', { date: formatLocalDate(l.departedOn) }) : t('legNotDeparted')}
                     </span>

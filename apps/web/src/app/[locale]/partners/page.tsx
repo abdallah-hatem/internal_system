@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -175,7 +176,9 @@ export default function PartnersPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('partners')}</h2>
-            {corePartners.length === 0 ? (
+            {corePartners.length === 0 && search ? (
+              <div className="bg-card rounded-xl border border-border"><NoMatch onClear={() => setSearch('')} /></div>
+            ) : corePartners.length === 0 ? (
               <Empty title={t('noPartners')} hint={t('noPartnersHint')} />
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -188,7 +191,9 @@ export default function PartnersPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('investors')}</h2>
-            {tempInvestors.length === 0 ? (
+            {tempInvestors.length === 0 && search ? (
+              <div className="bg-card rounded-xl border border-border"><NoMatch onClear={() => setSearch('')} /></div>
+            ) : tempInvestors.length === 0 ? (
               <Empty title={t('noInvestors')} hint={t('noInvestorsHint')} />
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
