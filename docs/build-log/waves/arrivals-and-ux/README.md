@@ -87,3 +87,8 @@
   (`SALE_RETURN`, `DATE_FIELDS`, statuses) and translated via `PARAM_KINDS`. api 800 + 9 skipped, web 186 + 66.
 - R1c dispatched (last build task): settlement `warnings` as codes (rule 9); catalogue pages hide partner-only actions
   via `useCan`. Spec number 90.
+- R1c merged: settlement warnings are codes (`UNSOLD_STOCK`, `NO_REALISED_SALES`) translated on the web; 18 catalogue actions
+  hidden from roles the endpoint refuses, pinned by `can-roles.test.mjs`. api 806 + 9 skipped, web 213 + 84.
+  Left (R1c.md): ledger reasons the system writes are English (needs a migration — queued); a few English literals and
+  `paddingLeft` in the categories tree (the UI audit will list them).
+**All 20 build tasks merged. → Stage 5: Verify.**
