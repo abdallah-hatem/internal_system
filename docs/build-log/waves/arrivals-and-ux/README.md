@@ -35,3 +35,10 @@
   receipts land; (2) 12.5 is strict, so it must allow the final-event residual (Amendment 9); (3) `transition` does not take
   the cycle lock — it must for → SETTLEMENT (gate race); (4) receipts cap at the line's waiting quantity too.
   B2 left Docker running; the main thread quit it.
+- U2 merged: payments on a chosen order in one transaction (`allocateWithin`, shared with Allocate);
+  RecordPaymentDialog is the one form (customer page, Payments page, order); stored sale idempotency key
+  (migration `20261010140000_sale_order_idempotency_key`); `DISCOUNT_NEGATIVE`. api 583 + 3 skipped, web 86 + 43.
+  **Overruled one guess:** U2 had dropped CHEQUE because it had no label; it is restored and labelled.
+  Accepted guesses (U2.md): 404 for another customer's order; payments in the order's currency or EGP;
+  oldest-first still one request per order from the client (as before); the dialog relies on a ref
+  guard for double submit (the payment key would show in `reference`).
