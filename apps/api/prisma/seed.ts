@@ -238,6 +238,18 @@ async function seedWalkIn() {
   return walkInCustomer(prisma);
 }
 
+/**
+ * The shop is verified, and given the store login unless another shop already
+ * has it.
+ *
+ * One login belongs to one shop (`shop_owner_user_id` is unique). The
+ * reference level gives it to El Nasr Motors and the demo level to El-Sayed,
+ * so running the demo seed on top of the reference one tried to hand the same
+ * login to a second shop and the whole seed failed on the unique index. The
+ * login now stays where it was first given: a seed layered onto a database
+ * adds to it and does not move what is already there. The demo's sales and
+ * payments only need El-Sayed verified, which it is either way.
+ */
 async function giveStoreLogin(customerId: string) {
   const shopUser = await prisma.user.upsert({
     where: { email: 'shop.owner@example.com' },
@@ -249,10 +261,23 @@ async function giveStoreLogin(customerId: string) {
       status: 'ACTIVE',
     },
   });
+  const holder = await prisma.customer.findUnique({
+    where: { shopOwnerUserId: shopUser.id },
+    select: { id: true, displayName: true },
+  });
+  const loginFree = !holder || holder.id === customerId;
   await prisma.customer.update({
     where: { id: customerId },
-    data: { shopOwnerUserId: shopUser.id, verificationStatus: 'VERIFIED' },
+    data: {
+      verificationStatus: 'VERIFIED',
+      ...(loginFree ? { shopOwnerUserId: shopUser.id } : {}),
+    },
   });
+  if (!loginFree) {
+    console.log(
+      `ℹ️  The store login stays with ${holder.displayName}, which already had it`,
+    );
+  }
   return shopUser;
 }
 
