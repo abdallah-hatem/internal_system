@@ -1,4 +1,5 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
 import { Select } from '../ui/select';
 import { DatePicker } from '../ui/date-picker';
 import { useCurrencyRates } from '../../lib/currency-rates';
@@ -377,9 +378,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
    * says TEMP_INVESTOR. A core partner backing a cycle separately is a real
    * case, and the demo data has one.
    */
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => api.get('/users').then((r) => r.data.data ?? r.data),
+  const { items: allUsers } = useAllRecords(['users'], '/users', undefined, {
     enabled: !!cycleId && currentStep === LAST_STEP,
   });
 
@@ -527,15 +526,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // Queries
   // ---------------------------------------------------------------------------
 
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ['suppliers'],
-    queryFn: () => api.get('/suppliers').then((r) => r.data.data ?? r.data),
+  const { items: suppliers } = useAllRecords(['suppliers'], '/suppliers', undefined, {
     enabled: currentStep >= 1,
   });
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api.get('/products').then((r) => r.data.data ?? r.data),
+  const { items: products } = useAllRecords(['products'], '/products', undefined, {
     enabled: currentStep >= 1,
   });
 

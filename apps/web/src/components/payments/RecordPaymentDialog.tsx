@@ -1,9 +1,10 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -147,20 +148,18 @@ function RecordPaymentForm({
   }, [onClose]);
 
   // A picker only when nobody said whose payment this is.
-  const { data: customers = [] } = useQuery<PaymentCustomer[]>({
-    queryKey: ['customers'],
-    queryFn: () => api.get('/customers').then((r) => r.data.data ?? r.data),
+  const { items: customers } = useAllRecords<PaymentCustomer>(['customers'], '/customers', undefined, {
     enabled: !fixedCustomerId,
   });
 
   // The customer's orders, for what they owe and where the money goes. The same
   // key the customer page reads, so both share one cache entry.
-  const { data: orders = [], isFetching: ordersLoading } = useQuery<OrderRow[]>({
-    queryKey: ['sales', customerId],
-    queryFn: () =>
-      api.get(`/sales/orders?customerId=${customerId}&limit=100`).then((r) => r.data.data ?? r.data),
-    enabled: !order && !!customerId,
-  });
+  const { items: orders, isFetching: ordersLoading } = useAllRecords<OrderRow>(
+    ['sales', customerId],
+    '/sales/orders',
+    { customerId },
+    { enabled: !order && !!customerId },
+  );
 
   const openOrders = useMemo(() => oldestFirst(Array.isArray(orders) ? orders : []), [orders]);
   const owed = order ? num(order.outstanding) : openOrders.reduce((s, o) => s + num(o.outstanding), 0);

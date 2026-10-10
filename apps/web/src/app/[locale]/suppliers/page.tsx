@@ -1,7 +1,9 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
@@ -61,14 +63,9 @@ export default function SuppliersPage() {
   useEffect(() => { setPage(1); }, [search]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  // The list endpoint pages at 20 by default, which hides suppliers behind a
-  // cursor the page does not follow; ask for the full list and page locally,
-  // the way every other directory page here works.
-  const { data: suppliers = [], isLoading } = useQuery({
-    queryKey: ['suppliers'],
-    queryFn: () =>
-      api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data.data ?? r.data),
-  });
+  // The list endpoint pages at 20 by default, and asking for 200 only moved
+  // the wall; walk every page and page locally (L1).
+  const { items: suppliers, capped, isLoading } = useAllRecords(['suppliers'], '/suppliers');
 
   const onError = (error: any, fallback: string) =>
     addToast(
@@ -186,6 +183,8 @@ export default function SuppliersPage() {
           className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
+
+      <ListCapNotice capped={capped} count={suppliers.length} />
 
       {isLoading && (
         <div className="flex items-center justify-center py-12 text-gray-500">

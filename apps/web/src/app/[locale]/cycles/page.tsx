@@ -20,6 +20,8 @@ import {
 
 import { useApiError } from '../../../lib/api-error';
 import { useCan } from '../../../lib/can';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Cycle {
   id: string;
@@ -95,10 +97,7 @@ export default function CyclesPage() {
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: cycles = [], isLoading } = useQuery({
-    queryKey: ['cycles'],
-    queryFn: () => api.get('/cycles').then((r) => r.data.data ?? r.data),
-  });
+  const { items: cycles, capped, isLoading } = useAllRecords(['cycles'], '/cycles');
 
   const { data: profitability = [] } = useQuery({
     queryKey: ['analytics', 'cycle-profitability'],
@@ -237,6 +236,8 @@ export default function CyclesPage() {
           className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
+
+      <ListCapNotice capped={capped} count={cycles.length} />
 
       {/* Loading */}
       {isLoading && (

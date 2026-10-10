@@ -26,6 +26,8 @@ import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -86,25 +88,10 @@ export default function PurchasesPage() {
   useEffect(() => { setPage(1); }, [search]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: purchases = [], isLoading } = useQuery({
-    queryKey: ['purchases'],
-    queryFn: () => api.get('/purchases').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: cycles = [] } = useQuery({
-    queryKey: ['cycles'],
-    queryFn: () => api.get('/cycles').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ['suppliers'],
-    queryFn: () => api.get('/suppliers').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api.get('/products').then((r) => r.data.data ?? r.data),
-  });
+  const { items: purchases, capped, isLoading } = useAllRecords(['purchases'], '/purchases');
+  const { items: cycles } = useAllRecords(['cycles'], '/cycles');
+  const { items: suppliers } = useAllRecords(['suppliers'], '/suppliers');
+  const { items: products } = useAllRecords(['products'], '/products');
 
   const { data: poDetail } = useQuery({
     queryKey: ['purchase', viewingPO?.id],
@@ -234,6 +221,8 @@ export default function PurchasesPage() {
           className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
+
+      <ListCapNotice capped={capped} count={purchases.length} />
 
       {/* Loading */}
       {isLoading && (

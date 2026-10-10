@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink, ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
@@ -137,20 +139,9 @@ function SalesPageContent() {
   useEffect(() => { setPage(1); }, [search]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['sales'],
-    queryFn: () => api.get('/sales/orders').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: customers = [] } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => api.get('/customers').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api.get('/products').then((r) => r.data.data ?? r.data),
-  });
+  const { items: orders, capped, isLoading } = useAllRecords(['sales'], '/sales/orders');
+  const { items: customers } = useAllRecords(['customers'], '/customers');
+  const { items: products } = useAllRecords(['products'], '/products');
 
   // What is actually on the shelf, so the form can say so before a quantity is
   // typed rather than refusing after one has been priced and built.
@@ -380,6 +371,8 @@ function SalesPageContent() {
           ))}
         </div>
       </div>
+
+      <ListCapNotice capped={capped} count={orders.length} />
 
       {/* Loading */}
       {isLoading && (

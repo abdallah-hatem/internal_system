@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
 /**
  * Everything about one shop, in one place.
@@ -74,22 +76,18 @@ export default function CustomerPage() {
     queryFn: () => api.get(`/customers/${id}`).then((r) => r.data.data ?? r.data),
   });
 
-  const { data: orders = [] } = useQuery<SaleOrder[]>({
-    queryKey: ['sales', id],
-    queryFn: () =>
-      api.get(`/sales/orders?customerId=${id}&limit=100`).then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: payments = [] } = useQuery<PaymentRecord[]>({
-    queryKey: ['payments', id],
-    queryFn: () =>
-      api.get(`/payments?customerId=${id}&limit=100`).then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: plans = [] } = useQuery<any[]>({
-    queryKey: ['paymentPlans', id],
-    queryFn: () =>
-      api.get(`/payment-plans?customerId=${id}&limit=20`).then((r) => r.data.data ?? r.data),
+  const { items: orders, capped: ordersCapped } = useAllRecords<SaleOrder>(
+    ['sales', id],
+    '/sales/orders',
+    { customerId: id },
+  );
+  const { items: payments, capped: paymentsCapped } = useAllRecords<PaymentRecord>(
+    ['payments', id],
+    '/payments',
+    { customerId: id },
+  );
+  const { items: plans } = useAllRecords(['paymentPlans', id], '/payment-plans', {
+    customerId: id,
   });
 
   const orderList = Array.isArray(orders) ? orders : [];
@@ -162,6 +160,7 @@ export default function CustomerPage() {
       </div>
 
       <Card title={ts('title')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
+        <ListCapNotice capped={ordersCapped} count={orderList.length} />
         {orderList.length === 0 ? (
           <EmptyState
             title={t('noOrders')}
@@ -196,6 +195,7 @@ export default function CustomerPage() {
       </Card>
 
       <Card title={tp('title')} icon={<Wallet className="h-4 w-4 text-gray-400" />}>
+        <ListCapNotice capped={paymentsCapped} count={paymentList.length} />
         {paymentList.length === 0 ? (
           <EmptyState
             title={t('noPayments')}

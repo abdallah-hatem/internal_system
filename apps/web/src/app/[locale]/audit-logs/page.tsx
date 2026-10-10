@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -59,14 +61,11 @@ export default function AuditLogsPage() {
   useEffect(() => { setPage(1); }, [search, entityFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['audit-logs', entityFilter],
-    queryFn: () => {
-      const params: Record<string, string> = {};
-      if (entityFilter) params.entityType = entityFilter;
-      return api.get('/audit-logs', { params }).then((r) => r.data.data ?? r.data);
-    },
-  });
+  const { items: logs, capped, isLoading } = useAllRecords(
+    ['audit-logs', entityFilter],
+    '/audit-logs',
+    entityFilter ? { entityType: entityFilter } : {},
+  );
 
   const { data: logDetail } = useQuery({
     queryKey: ['audit-log', viewingLog?.id],
@@ -135,6 +134,8 @@ export default function AuditLogsPage() {
           options={ENTITY_TYPES.map((type) => ({ value: type, label: codeLabel('entityType', type) }))}
         />
       </div>
+
+      <ListCapNotice capped={capped} count={logs.length} />
 
       {/* Loading */}
       {isLoading && (

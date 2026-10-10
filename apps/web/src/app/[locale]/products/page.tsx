@@ -20,6 +20,8 @@ import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -92,10 +94,7 @@ export default function ProductsPage() {
   useEffect(() => { setPage(1); }, [search, categoryFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api.get('/products').then((r) => r.data.data ?? r.data),
-  });
+  const { items: products, capped, isLoading } = useAllRecords(['products'], '/products');
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -243,6 +242,8 @@ export default function ProductsPage() {
           />
         </div>
       </div>
+
+      <ListCapNotice capped={capped} count={products.length} />
 
       {/* Loading */}
       {isLoading && (

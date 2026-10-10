@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
@@ -93,20 +95,11 @@ export default function ShipmentsPage() {
   useEffect(() => { setPage(1); }, [search]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: shipments = [], isLoading } = useQuery({
-    queryKey: ['shipments'],
-    // The page searches and pages on the client, so it needs the whole list,
-    // not the API's default first 20: with more legs than that, a leg could be
-    // absent from the page and its own cycle code found nothing. 200 is the
-    // API's largest page, as the suppliers page asks for.
-    queryFn: () =>
-      api.get('/shipping/legs', { params: { limit: 200 } }).then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: cycles = [] } = useQuery({
-    queryKey: ['cycles'],
-    queryFn: () => api.get('/cycles').then((r) => r.data.data ?? r.data),
-  });
+  // The page searches and pages on the client, so it needs the whole list,
+  // not the API's default first 20: with more legs than that, a leg could be
+  // absent from the page and its own cycle code found nothing (L1).
+  const { items: shipments, capped, isLoading } = useAllRecords(['shipments'], '/shipping/legs');
+  const { items: cycles } = useAllRecords(['cycles'], '/cycles');
 
   const { data: providersData = [] } = useQuery({
     queryKey: ['providers'],
@@ -245,6 +238,8 @@ export default function ShipmentsPage() {
           className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
+
+      <ListCapNotice capped={capped} count={shipments.length} />
 
       {/* Loading */}
       {isLoading && (

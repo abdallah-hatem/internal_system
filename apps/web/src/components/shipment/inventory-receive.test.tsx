@@ -35,7 +35,8 @@ vi.mock('@/lib/api', () => ({
   api: {
     get: (url: string) => {
       if (url === '/inventory') return Promise.resolve({ data: { data: data.inventory } });
-      if (url.startsWith('/cycles?')) return Promise.resolve({ data: { data: data.cycles } });
+      // The list helper sends its page size as params, not in the URL (L1).
+      if (url === '/cycles' || url.startsWith('/cycles?')) return Promise.resolve({ data: { data: data.cycles } });
       const m = url.match(/^\/cycles\/([^/]+)\/shipment$/);
       if (m) return Promise.resolve({ data: { data: data.shipments[m[1]] } });
       if (url.startsWith('/costing/')) return Promise.resolve({ data: { items: [] } });

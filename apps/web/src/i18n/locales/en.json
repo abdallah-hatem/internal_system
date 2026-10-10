@@ -40,7 +40,8 @@
     "unapplied": "unapplied",
     "optional": "Optional",
     "operationFailed": "Operation failed",
-    "noMatch": "Nothing matches this search or filter"
+    "noMatch": "Nothing matches this search or filter",
+    "listCapped": "Showing the first {count} only. More exist and are not listed here."
   },
   "nav": {
     "dashboard": "Dashboard",

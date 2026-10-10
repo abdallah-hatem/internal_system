@@ -1,8 +1,10 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
@@ -94,17 +96,11 @@ export default function SettlementsPage() {
     reverse: useCan('settlement.reverse'),
   };
 
-  const { data: settlements = [], isLoading } = useQuery({
-    queryKey: ['settlements'],
-    queryFn: () => api.get('/settlements').then((r) => r.data.data ?? r.data),
-  });
+  const { items: settlements, capped, isLoading } = useAllRecords(['settlements'], '/settlements');
 
-  // The default page size hides older cycles, which are exactly the ones
-  // ready to settle. Ask for a full list here.
-  const { data: cycles = [] } = useQuery({
-    queryKey: ['cycles', 'for-settlement'],
-    queryFn: () =>
-      api.get('/cycles', { params: { limit: 200 } }).then((r) => r.data.data ?? r.data),
+  // The default page size hid older cycles, which are exactly the ones ready
+  // to settle. Every cycle, the same list the cycles page reads.
+  const { items: cycles } = useAllRecords(['cycles'], '/cycles', undefined, {
     enabled: may.calculate,
   });
 
@@ -233,6 +229,8 @@ export default function SettlementsPage() {
       </div>
 
       <SettlementWarnings warnings={warnings} />
+
+      <ListCapNotice capped={capped} count={settlements.length} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

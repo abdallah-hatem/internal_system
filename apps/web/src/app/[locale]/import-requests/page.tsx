@@ -1,4 +1,5 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
 
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -121,9 +122,7 @@ function RequestCard({
   // Only fetched when the answer might name one, so opening the page does not
   // pull the whole product list per card.
   const [linking, setLinking] = useState(false);
-  const { data: products = [] } = useQuery<any[]>({
-    queryKey: ['products'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((r) => r.data.data ?? r.data),
+  const { items: products } = useAllRecords(['products'], '/products', undefined, {
     enabled: linking,
   });
 

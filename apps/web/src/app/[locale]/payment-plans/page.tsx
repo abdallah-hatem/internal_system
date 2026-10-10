@@ -1,7 +1,9 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
 import { useDateFormat } from '../../../lib/dates';
@@ -94,15 +96,8 @@ export default function PaymentPlansPage() {
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const { data: plans = [], isLoading } = useQuery<Plan[]>({
-    queryKey: ['paymentPlans'],
-    queryFn: () => api.get('/payment-plans?limit=100').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: customers = [] } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => api.get('/customers?limit=200').then((r) => r.data.data ?? r.data),
-  });
+  const { items: plans, capped, isLoading } = useAllRecords<Plan>(['paymentPlans'], '/payment-plans');
+  const { items: customers } = useAllRecords(['customers'], '/customers');
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post('/payment-plans', data),
@@ -179,6 +174,8 @@ export default function PaymentPlansPage() {
           </p>
         </div>
       )}
+
+      <ListCapNotice capped={capped} count={plans.length} />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-gray-500">

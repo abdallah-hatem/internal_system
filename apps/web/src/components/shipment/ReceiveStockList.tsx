@@ -1,8 +1,9 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { PackageCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useCodeLabel } from '@/lib/labels';
@@ -34,10 +35,10 @@ export function ReceiveStockList() {
   const { formatDate } = useDateFormat();
   const [open, setOpen] = useState<{ cycleId: string; legId: string; deliveryId: string } | null>(null);
 
-  const { data: cycles = [], isLoading: cyclesLoading } = useQuery<{ id: string; status: string }[]>({
-    queryKey: ['cycles', 'receivable'],
-    queryFn: () => api.get('/cycles?limit=200').then((r) => r.data.data ?? r.data),
-  });
+  const { items: cycles, isLoading: cyclesLoading } = useAllRecords<{ id: string; status: string }>(
+    ['cycles'],
+    '/cycles',
+  );
   const candidates = (Array.isArray(cycles) ? cycles : []).filter((c) => mayHaveWaiting(c.status));
 
   const shipments = useQueries({
