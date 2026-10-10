@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const PAGE_SIZE = 10;
@@ -16,6 +17,7 @@ interface PaginationProps {
 }
 
 export function Pagination({ page, totalPages, onPageChange, totalItems }: PaginationProps) {
+  const t = useTranslations('pagination');
   if (totalPages <= 1) return null;
 
   const start = (page - 1) * PAGE_SIZE + 1;
@@ -34,21 +36,24 @@ export function Pagination({ page, totalPages, onPageChange, totalItems }: Pagin
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4">
       <p className="text-sm text-gray-500">
-        Showing <span className="font-medium text-gray-700">{start}</span>
-        {' '}&ndash;{' '}
-        <span className="font-medium text-gray-700">{end}</span>
-        {' '}of{' '}
-        <span className="font-medium text-gray-700">{totalItems}</span>
+        {t.rich('showing', {
+          start: String(start),
+          end: String(end),
+          total: String(totalItems),
+          n: (chunks) => <span className="font-medium text-gray-700 tabular-nums">{chunks}</span>,
+        })}
       </p>
 
       <div className="flex items-center gap-1">
         {/* Previous */}
         <button
+          type="button"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          aria-label={t('previous')}
+          className="cursor-pointer p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft data-testid="pagination-prev-icon" className="h-4 w-4 rtl:rotate-180" />
         </button>
 
         {/* Page numbers */}
@@ -59,9 +64,11 @@ export function Pagination({ page, totalPages, onPageChange, totalItems }: Pagin
             </span>
           ) : (
             <button
+              type="button"
               key={p}
               onClick={() => onPageChange(p)}
-              className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${
+              aria-current={p === page ? 'page' : undefined}
+              className={`cursor-pointer min-w-[32px] tabular-nums h-8 px-2 rounded-lg text-sm font-medium transition-colors ${
                 p === page
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-600 hover:bg-gray-100'
@@ -74,11 +81,13 @@ export function Pagination({ page, totalPages, onPageChange, totalItems }: Pagin
 
         {/* Next */}
         <button
+          type="button"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          aria-label={t('next')}
+          className="cursor-pointer p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight data-testid="pagination-next-icon" className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
     </div>

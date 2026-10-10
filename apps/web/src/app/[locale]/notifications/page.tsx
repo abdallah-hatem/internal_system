@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Link } from '../../../i18n/navigation';
 import { notificationHref, useNotificationText, useNotifications } from '../../../lib/notifications';
+import { isolateCodes } from '@/components/layout/isolate-codes';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface Notification {
@@ -126,12 +127,12 @@ export default function NotificationsPage() {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-sm font-medium ${!notification.readAt ? 'text-gray-900' : 'text-gray-700'}`}>
-                          {notificationText(notification)}
+                      <div className="flex items-start gap-2">
+                        <p className={`min-w-0 break-words text-sm font-medium ${!notification.readAt ? 'text-gray-900' : 'text-gray-700'}`}>
+                          {isolateCodes(notificationText(notification))}
                         </p>
                         {!notification.readAt && (
-                          <span className="h-2 w-2 bg-primary-500 rounded-full flex-shrink-0" />
+                          <span className="mt-1.5 h-2 w-2 bg-primary-500 rounded-full flex-shrink-0" />
                         )}
                       </div>
                       {notification.message && (
@@ -181,7 +182,7 @@ function NotificationRow({
   unread: boolean;
   children: React.ReactNode;
 }) {
-  const className = `flex items-start gap-4 px-4 py-4 transition-colors ${
+  const className = `flex items-start gap-3 sm:gap-4 px-4 py-4 transition-colors ${
     unread ? 'bg-primary-50/30' : ''
   } ${href ? 'cursor-pointer hover:bg-gray-50' : ''}`;
 

@@ -57,6 +57,11 @@ const OLD = {
   createdAt: '2026-09-01T10:00:00.000Z',
 };
 
+// The record code is its own LTR isolate (UI audit #35), so the sentence spans
+// several nodes; match the paragraph that holds all of it.
+const wholeText = (text: string) => (_: string, el: Element | null) =>
+  el?.tagName === 'P' && el.textContent === text;
+
 async function openBellInArabic(items: unknown[]) {
   stored.items = items;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -73,14 +78,14 @@ async function openBellInArabic(items: unknown[]) {
 describe('notifications in the reader’s language', () => {
   it('a new notification (code + params) reads in Arabic, its status code translated too', async () => {
     await openBellInArabic([NEW]);
-    expect(await screen.findByText('انتقلت الدورة CYC-2026-0007 إلى البيع')).toBeTruthy();
+    expect(await screen.findByText(wholeText('انتقلت الدورة CYC-2026-0007 إلى البيع'))).toBeTruthy();
     expect(screen.queryByText(NEW.title)).toBeNull();
   });
 
   it('an old notification with no code still shows the text it was stored with', async () => {
     await openBellInArabic([OLD, NEW]);
     expect(await screen.findByText(OLD.title)).toBeTruthy();
-    expect(screen.getByText('انتقلت الدورة CYC-2026-0007 إلى البيع')).toBeTruthy();
+    expect(screen.getByText(wholeText('انتقلت الدورة CYC-2026-0007 إلى البيع'))).toBeTruthy();
   });
 
   it('a code this build has never heard of falls back to the stored text, not to a key', async () => {

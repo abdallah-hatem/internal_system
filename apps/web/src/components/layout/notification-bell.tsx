@@ -10,6 +10,7 @@ import { useDateFormat } from '../../lib/dates';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { notificationHref, useNotificationText, useNotifications } from '../../lib/notifications';
+import { isolateCodes } from './isolate-codes';
 
 interface Notification {
   id: string;
@@ -72,7 +73,8 @@ export function NotificationBell() {
           {unread.length > 0 && (
             <span
               data-testid="notification-badge"
-              className="absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
+              dir="ltr"
+              className="absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold tabular-nums text-white [unicode-bidi:isolate]"
             >
               {unread.length > BADGE_CAP ? `${BADGE_CAP}+` : unread.length}
             </span>
@@ -117,7 +119,7 @@ export function NotificationBell() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className={cn('text-sm', n.readAt ? 'text-gray-600' : 'font-medium text-gray-900')}>
-                    {notificationText(n)}
+                    {isolateCodes(notificationText(n))}
                   </p>
                   <p className="text-xs text-gray-400">{formatDate(n.createdAt)}</p>
                 </div>

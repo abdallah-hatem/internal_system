@@ -43,6 +43,11 @@
     "noMatch": "Nothing matches this search or filter",
     "listCapped": "Showing the first {count} only. More exist and are not listed here."
   },
+  "pagination": {
+    "showing": "Showing <n>{start}</n> – <n>{end}</n> of <n>{total}</n>",
+    "previous": "Previous page",
+    "next": "Next page"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "cycles": "Import Cycles",
@@ -853,6 +858,9 @@
     "reverseReasonHint": "e.g. costing correction — a supplier invoice arrived late",
     "acceptRemainingStockHint": "Closing now writes off the cost of the unsold stock against this cycle. That cannot be undone without reversing the settlement.",
     "closeAnyway": "Close anyway",
+    "unitsCount": "{units} units",
+    "unknownParticipant": "Unknown participant",
+    "feeAlreadyDeducted": "Already deducted from the profit share shown",
     "calculated": "Settlement calculated",
     "updated": "Settlement updated",
     "paid": "Settlement paid",
