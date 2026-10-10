@@ -1328,6 +1328,15 @@
       "Provider": "Shipping provider",
       "Category": "Category",
       "CurrencyRate": "Exchange rate"
+    },
+    "dateField": {
+      "CYCLE_START": "A cycle start date",
+      "PAYMENT_RECEIVED": "The date a payment was received",
+      "ORDER_PLACED": "The date an order was placed",
+      "REFUND_RECEIVED": "The date a refund was received",
+      "DEPARTURE": "A departure date",
+      "ARRIVAL": "An arrival date",
+      "DELIVERY": "A delivery date"
     }
   },
   "shipment": {

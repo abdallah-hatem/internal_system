@@ -50,9 +50,26 @@ export function businessDay(value: string | Date): string {
  * today look like the future for anyone east of Greenwich — which is everyone
  * here.
  */
+/**
+ * The dates `assertNotFuture` guards, each a code the refusal carries in its
+ * `label` param — never the English phrase, which an Arabic reader would get
+ * pasted into an Arabic sentence (rule 9). The web says the code as
+ * `codes.dateField.<CODE>`; the phrase here is only the English message.
+ */
+export const DATE_FIELDS = {
+  CYCLE_START: 'A cycle start date',
+  PAYMENT_RECEIVED: 'The date a payment was received',
+  ORDER_PLACED: 'The date an order was placed',
+  REFUND_RECEIVED: 'The date a refund was received',
+  DEPARTURE: 'A departure date',
+  ARRIVAL: 'An arrival date',
+  DELIVERY: 'A delivery date',
+} as const;
+export type DateField = keyof typeof DATE_FIELDS;
+
 export function assertNotFuture(
   value: string | Date | undefined | null,
-  label: string,
+  field: DateField,
 ) {
   if (!value) return;
 
@@ -64,8 +81,8 @@ export function assertNotFuture(
   if (givenDay > businessToday()) {
     throw badRequest(
       'DATE_IN_FUTURE',
-      `${label} cannot be in the future (${givenDay}).`,
-      { label, day: givenDay },
+      `${DATE_FIELDS[field]} cannot be in the future (${givenDay}).`,
+      { label: field, day: givenDay },
     );
   }
 }

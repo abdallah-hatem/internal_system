@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useCodeLabel, type CodeKind } from './labels';
 
 /**
  * Turns whatever the API refused with into a sentence the reader can act on.
@@ -36,8 +37,33 @@ interface ApiErrorShape {
 }
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
+/** Says one code of one kind in the reader's language — `useCodeLabel`'s shape. */
+export type CodeLabel = (kind: CodeKind, code: string) => string;
 
-export function resolveApiError(err: unknown, t: Translate, fallback: string): string {
+/**
+ * Params that are codes, by refusal: which `codes.<kind>` says each one. The
+ * API sends `owner: 'SALE_RETURN'`, never "sale return" — an English noun in
+ * a param lands verbatim inside the Arabic sentence (R1b, rule 9). A list
+ * param (`allowed`) is comma-separated codes, each said on its own.
+ */
+export const PARAM_KINDS: Record<string, Record<string, CodeKind>> = {
+  ENTRY_OWNED_ELSEWHERE: { owner: 'referenceType' },
+  DATE_IN_FUTURE: { label: 'dateField' },
+  BAD_STATUS_TRANSITION: { from: 'cycleStatus', to: 'cycleStatus', allowed: 'cycleStatus' },
+  CYCLE_STATUS_CHANGED: { status: 'cycleStatus', expected: 'cycleStatus' },
+  CYCLE_NOT_ARRIVED: { status: 'cycleStatus' },
+  CYCLE_STATUS_BLOCKS_PO: { status: 'cycleStatus' },
+  CYCLE_FINAL_NO_LEGS: { status: 'cycleStatus' },
+  SETTLEMENT_LOCKED: { status: 'settlementStatus' },
+  ONLY_CONFIRMED_RETURNABLE: { status: 'orderStatus' },
+};
+
+export function resolveApiError(
+  err: unknown,
+  t: Translate,
+  fallback: string,
+  codeLabel?: CodeLabel,
+): string {
   const e = err as ApiErrorShape;
   const body = e?.response?.data?.error;
   const serverMessage = body?.message || e?.message || fallback;
@@ -50,8 +76,28 @@ export function resolveApiError(err: unknown, t: Translate, fallback: string): s
   if (typeof params.entity === 'string') {
     params.entity = lookup(t, `entity.${params.entity}`, params.entity);
   }
+  const kinds = PARAM_KINDS[body.code];
+  if (kinds && codeLabel) {
+    for (const [name, kind] of Object.entries(kinds)) {
+      const value = params[name];
+      if (typeof value !== 'string' || !value) continue;
+      params[name] = value
+        .split(',')
+        .map((c) => safeLabel(codeLabel, kind, c.trim()))
+        .join(', ');
+    }
+  }
 
   return lookup(t, body.code, serverMessage, params);
+}
+
+/** A code's words, or the code itself — a missing label must not crash an error. */
+function safeLabel(codeLabel: CodeLabel, kind: CodeKind, code: string): string {
+  try {
+    return codeLabel(kind, code) || code;
+  } catch {
+    return code;
+  }
 }
 
 /**
@@ -81,5 +127,6 @@ function lookup(
 /** The hook form, for components. */
 export function useApiError() {
   const t = useTranslations('errors');
-  return (err: unknown, fallback: string) => resolveApiError(err, t, fallback);
+  const codeLabel = useCodeLabel();
+  return (err: unknown, fallback: string) => resolveApiError(err, t, fallback, codeLabel);
 }

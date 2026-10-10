@@ -489,21 +489,13 @@
   },
   "src/modules/notifications/notifications.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
+      "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
+      "count": 1
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 5
-    }
-  },
-  "src/modules/notifications/portal-notifier.service.ts": {
-    "prettier/prettier": {
-      "count": 7
     }
   },
   "src/modules/notifications/push.service.ts": {
@@ -544,7 +536,7 @@
       "count": 1
     },
     "prettier/prettier": {
-      "count": 14
+      "count": 13
     }
   },
   "src/modules/payments/dto/payment.dto.ts": {

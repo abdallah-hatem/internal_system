@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { useCan } from '../../../lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Cycle {
   id: string;
@@ -84,6 +85,11 @@ export default function CyclesPage() {
   const [page, setPage] = useState(1);
   const [viewingCycle, setViewingCycle] = useState<Cycle | null>(null);
   const [showTransitionModal, setShowTransitionModal] = useState(false);
+  // The wizard writes the cycle (POST /cycles and the steps after it) and the
+  // transition moves it — both a partner's. An investor is offered neither:
+  // a cycle still in the wizard opens its details page instead (R1b).
+  const canCreate = useCan('cycle.create');
+  const canTransition = useCan('cycle.transition');
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search, statusFilter]);
@@ -151,7 +157,7 @@ export default function CyclesPage() {
         icon={Route}
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), href: '/cycles/new' }}
+        action={canCreate ? { label: t('create'), href: '/cycles/new' } : undefined}
       />
     ) : (
       <EmptyState icon={Search} title={t('noMatch')} />
@@ -182,6 +188,7 @@ export default function CyclesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {canCreate && (
         <Link
           href={`/${locale}/cycles/new`}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
@@ -189,6 +196,7 @@ export default function CyclesPage() {
           <Plus className="h-4 w-4" />
           {t('create')}
         </Link>
+        )}
       </div>
 
       {/* Status filter tabs */}
@@ -261,7 +269,7 @@ export default function CyclesPage() {
                 </tr>
               ) : (
                 paginated.map((cycle) => {
-                  const canResume = WIZARD_STATUSES.includes(cycle.status);
+                  const canResume = canCreate && WIZARD_STATUSES.includes(cycle.status);
                   const figure = profitByCode.get(cycle.code);
                   return (
                     <tr
@@ -329,7 +337,7 @@ export default function CyclesPage() {
             <div className="rounded-xl border border-border bg-card">{emptyList}</div>
           ) : (
             paginated.map((cycle) => {
-                const canResume = WIZARD_STATUSES.includes(cycle.status);
+                const canResume = canCreate && WIZARD_STATUSES.includes(cycle.status);
                 const figure = profitByCode.get(cycle.code);
                 return (
               <div
@@ -390,7 +398,7 @@ export default function CyclesPage() {
               {/* Status + Transition */}
               <div className="flex items-center justify-between">
                 <StatusBadge status={viewingCycle.status} label={codeLabel('cycleStatus', viewingCycle.status)} />
-                {getNextStatuses(viewingCycle.status).length > 0 && (
+                {canTransition && getNextStatuses(viewingCycle.status).length > 0 && (
                   <button
                     onClick={() => setShowTransitionModal(true)}
                     className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary-100"

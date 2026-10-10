@@ -162,7 +162,9 @@ export class LedgerService {
           .toLowerCase()
           .replace(/_/g, ' ')} and cannot be reversed on its own — the ledger and ` +
           'that record would stop agreeing. Reverse it from there instead.',
-        { owner: original.relatedType.toLowerCase().replace(/_/g, ' ') },
+        // The code (SALE_RETURN), not the English words: the web says it as
+        // `codes.referenceType.<CODE>` in the reader's language (rule 9).
+        { owner: original.relatedType },
       );
     }
 

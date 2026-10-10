@@ -16,6 +16,7 @@ import {
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
+import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -67,6 +68,9 @@ function InventoryPageContent() {
   // "Receive stock" replaced a dialog that asked for product IDs typed by hand
   // (UX #4): it now lists the deliveries waiting to be counted in.
   const [showReceive, setShowReceive] = useState(false);
+  // Receiving is a partner's act (POST /receipts/verify); an investor reads
+  // the stock and is not offered the list of deliveries to receive (R1b).
+  const canReceive = useCan('inventory.receive');
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   // Reset page when filters change
@@ -120,6 +124,7 @@ function InventoryPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {canReceive && (
         <button
           type="button"
           data-testid="receive-stock-toggle"
@@ -130,9 +135,10 @@ function InventoryPageContent() {
           <PackageCheck className="h-4 w-4" aria-hidden="true" />
           {t('receiveStock')}
         </button>
+        )}
       </div>
 
-      {showReceive && <ReceiveStockList />}
+      {canReceive && showReceive && <ReceiveStockList />}
 
       {/* Search */}
       <div className="relative max-w-md">

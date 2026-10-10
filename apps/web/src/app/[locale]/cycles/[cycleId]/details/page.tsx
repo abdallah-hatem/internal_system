@@ -35,6 +35,7 @@ import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
 import { num as qtyNum } from '../../../../../components/shipment/shipment-model';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { useCan } from '@/lib/can';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -61,6 +62,12 @@ export default function CycleDetailsPage() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [adding, setAdding] = useState(false);
+  // An investor reads their own cycle and acts on nothing (R1b). The people
+  // list only feeds the add-participant picker, and GET /users refuses an
+  // investor, so it is not asked for unless that picker can be offered.
+  const canAddParticipant = useCan('cycle.addParticipant');
+  const canEditParticipant = useCan('cycle.editParticipant');
+  const canListUsers = useCan('users.list');
 
   const { data: cycle, isLoading } = useQuery<any>({
     queryKey: ['cycle', id],
@@ -70,6 +77,7 @@ export default function CycleDetailsPage() {
   const { data: users = [] } = useQuery<any[]>({
     queryKey: ['users'],
     queryFn: () => api.get('/users').then((r) => r.data.data ?? r.data),
+    enabled: canListUsers && canAddParticipant,
   });
 
   const codeLabel = useCodeLabel();
@@ -240,7 +248,7 @@ export default function CycleDetailsPage() {
         )}
 
         {/* A closed cycle is history: it can be read, not rewritten. */}
-        {!isClosed && (
+        {!isClosed && canAddParticipant && (
           adding ? (
             <AddParticipantForm
               users={users}
@@ -256,7 +264,8 @@ export default function CycleDetailsPage() {
               >
                 <Plus className="h-4 w-4" /> {t('addParticipant')}
               </button>
-              {participants.some((p) => p.participantType === 'CORE_PARTNER') &&
+              {canEditParticipant &&
+                participants.some((p) => p.participantType === 'CORE_PARTNER') &&
                 num(costing?.totals?.landedEgp) > 0 && (
                   <button
                     onClick={() => splitEqually.mutate()}

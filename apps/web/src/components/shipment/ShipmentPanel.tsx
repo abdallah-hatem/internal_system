@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { PackageCheck, PackageX, Plus, Trash2, Undo2, HandCoins, Truck, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
+import { useCan } from '@/lib/can';
 import { useCodeLabel } from '@/lib/labels';
 import { useDateFormat } from '@/lib/dates';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,26 @@ type Open =
   | { kind: 'undoRefund'; legId: string; lossId: string; refundId: string }
   | null;
 
+/**
+ * What the signed-in person may do in the panel, one flag per button, each from
+ * the endpoint's own `@Roles` (lib/permissions.ts). An investor reads the
+ * shipment — every count, delivery, loss and refund — and is offered nothing
+ * the server would refuse (R1b).
+ */
+type ShipmentPermissions = ReturnType<typeof useShipmentPermissions>;
+function useShipmentPermissions() {
+  return {
+    transition: useCan('cycle.transition'),
+    recordDelivery: useCan('shipment.recordDelivery'),
+    deleteDelivery: useCan('shipment.deleteDelivery'),
+    markLost: useCan('shipment.markLost'),
+    takeBack: useCan('shipment.takeBack'),
+    recordRefund: useCan('shipment.recordRefund'),
+    undoRefund: useCan('shipment.undoRefund'),
+    receive: useCan('inventory.receive'),
+  };
+}
+
 /** The cycle's shipment, one cache entry per cycle — the inventory list reads the same one. */
 export function useShipment(cycleId: string | undefined) {
   return useQuery<Shipment>({
@@ -85,6 +106,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
   const close = () => setOpen(null);
   const [walking, setWalking] = useState(false);
   const walkingRef = useRef(false);
+  const may = useShipmentPermissions();
 
   const productNames = useMemo(
     () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, l.productName ?? '—'])),
@@ -118,7 +140,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
         status,
         legs.map((l) => ({ sequence: l.sequence, departedOn: l.departedOn ?? null, status: l.status })),
       );
-  const canWalkToEgypt = !canReceive && walk.includes('ARRIVED_EGYPT');
+  const canWalkToEgypt = may.transition && !canReceive && walk.includes('ARRIVED_EGYPT');
 
   const walkToEgypt = async () => {
     if (walkingRef.current) return;
@@ -201,6 +223,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
               ordered={ordered}
               frozen={frozen}
               canReceive={canReceive}
+              may={may}
               onOpen={setOpen}
             />
           ))}
@@ -278,6 +301,7 @@ function LegBlock({
   ordered,
   frozen,
   canReceive,
+  may,
   onOpen,
 }: {
   leg: ShipmentLeg;
@@ -285,6 +309,7 @@ function LegBlock({
   ordered: Map<string, number>;
   frozen: boolean;
   canReceive: boolean;
+  may: ShipmentPermissions;
   onOpen: (open: Open) => void;
 }) {
   const t = useTranslations('shipment');
@@ -312,7 +337,7 @@ function LegBlock({
         </div>
         {!frozen && (
           <div className="flex flex-wrap gap-2">
-            {leg.onTheWay > 0 && leg.departedOn && (
+            {may.recordDelivery && leg.onTheWay > 0 && leg.departedOn && (
               <button
                 type="button"
                 data-testid="record-delivery"
@@ -322,7 +347,7 @@ function LegBlock({
                 <Plus className="h-4 w-4" aria-hidden="true" /> {t('recordDelivery')}
               </button>
             )}
-            {losable && (
+            {may.markLost && losable && (
               <button
                 type="button"
                 data-testid="mark-lost"
@@ -421,7 +446,7 @@ function LegBlock({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {waiting && canReceive && (
+                    {may.receive && waiting && canReceive && (
                       <button
                         type="button"
                         data-testid="receive-delivery"
@@ -431,7 +456,7 @@ function LegBlock({
                         <PackageCheck className="h-4 w-4" aria-hidden="true" /> {t('receiveIntoStock')}
                       </button>
                     )}
-                    {!frozen && (
+                    {may.deleteDelivery && !frozen && (
                       <button
                         type="button"
                         data-testid="delete-delivery"
@@ -485,7 +510,7 @@ function LegBlock({
                                 date: formatDate(r.recordedOn),
                               })}
                             </span>
-                            {refundStands(r) ? (
+                            {refundStands(r) ? (may.undoRefund && (
                               <button
                                 type="button"
                                 data-testid="undo-refund"
@@ -496,7 +521,7 @@ function LegBlock({
                               >
                                 <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t('undoRefund')}
                               </button>
-                            ) : (
+                            )) : (
                               <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">
                                 {t('refundUndoneBadge')}
                                 {r.reversalReason ? ` · ${r.reversalReason}` : ''}
@@ -508,7 +533,7 @@ function LegBlock({
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {unrecovered > 0 && (
+                    {may.recordRefund && unrecovered > 0 && (
                       <button
                         type="button"
                         data-testid="record-refund"
@@ -519,7 +544,7 @@ function LegBlock({
                       </button>
                     )}
                     {/* A refunded loss cannot be taken back (§6): the goods would be paid for twice. */}
-                    {!frozen && !hasRefunds && (
+                    {may.takeBack && !frozen && !hasRefunds && (
                       <button
                         type="button"
                         data-testid="take-back-loss"

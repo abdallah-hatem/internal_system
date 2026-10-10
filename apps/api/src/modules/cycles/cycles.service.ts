@@ -271,7 +271,7 @@ export class CyclesService {
     // stays accepted for a back-dated import, which is the only case where the
     // two differ — and the only way to set it, since a cycle has no update
     // endpoint. Back-dated, never forward: a cycle has not started next week.
-    assertNotFuture(data.startedOn, 'A cycle start date');
+    assertNotFuture(data.startedOn, 'CYCLE_START');
 
     // Generate cycle code: CYC-YYYY-XXXX (or use provided code)
     let code = data.code;

@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 
 import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
+import { useCan } from '@/lib/can';
 import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Line {
@@ -71,6 +72,8 @@ const nameOf = (l: Line) =>
   l.participant?.investor?.email ||
   'Unknown';
 
+type SettlementPermissions = { calculate: boolean; approve: boolean; pay: boolean; reverse: boolean };
+
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function SettlementsPage() {
   const codeLabel = useCodeLabel();
@@ -81,6 +84,14 @@ export default function SettlementsPage() {
   const { addToast } = useToast();
   const [selectedCycle, setSelectedCycle] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
+  // An investor reads their cycles' settlements and their own line; every
+  // write here is a partner's (R1b). Each flag mirrors its endpoint's @Roles.
+  const may: SettlementPermissions = {
+    calculate: useCan('settlement.calculate'),
+    approve: useCan('settlement.approve'),
+    pay: useCan('settlement.pay'),
+    reverse: useCan('settlement.reverse'),
+  };
 
   const { data: settlements = [], isLoading } = useQuery({
     queryKey: ['settlements'],
@@ -93,6 +104,7 @@ export default function SettlementsPage() {
     queryKey: ['cycles', 'for-settlement'],
     queryFn: () =>
       api.get('/cycles', { params: { limit: 200 } }).then((r) => r.data.data ?? r.data),
+    enabled: may.calculate,
   });
 
   const refresh = () =>
@@ -185,6 +197,7 @@ export default function SettlementsPage() {
           <Scale className="h-6 w-6 text-primary-600" /> {t('title')}
         </h1>
 
+        {may.calculate && (
         <div className="flex items-center gap-2">
           <label htmlFor="cycle-select" className="sr-only">
             {t('selectCycle')}
@@ -215,6 +228,7 @@ export default function SettlementsPage() {
             {t('calculate')}
           </button>
         </div>
+        )}
       </div>
 
       {warnings.length > 0 && (
@@ -246,6 +260,7 @@ export default function SettlementsPage() {
               key={s.id}
               settlement={s}
               t={t}
+              may={may}
               onAction={(action) => onAction(s.id, action)}
               busy={actionMutation.isPending || payMutation.isPending}
             />
@@ -355,11 +370,13 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 // ─── Card ─────────────────────────────────────────────────────────────
 function SettlementCard({
   settlement: s,
+  may,
   onAction,
   busy,
   t,
 }: {
   settlement: Settlement;
+  may: SettlementPermissions;
   onAction: (action: string) => void;
   busy: boolean;
   t: (key: string, values?: Record<string, string | number | Date>) => string;
@@ -392,17 +409,17 @@ function SettlementCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {s.status === 'DRAFT' && (
+          {may.approve && s.status === 'DRAFT' && (
             <ActionButton onClick={() => onAction('approve')} busy={busy} icon={CheckCircle2}>
               {t('approve')}
             </ActionButton>
           )}
-          {s.status === 'APPROVED' && (
+          {may.pay && s.status === 'APPROVED' && (
             <ActionButton onClick={() => onAction('pay')} busy={busy} icon={Wallet}>
               {t('markPaid')}
             </ActionButton>
           )}
-          {s.status !== 'REVERSED' && (
+          {may.reverse && s.status !== 'REVERSED' && (
             <ActionButton
               onClick={() => onAction('reverse')}
               busy={busy}
