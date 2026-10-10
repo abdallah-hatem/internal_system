@@ -202,17 +202,9 @@
       "count": 2
     }
   },
-  "src/modules/analytics/analytics.controller.ts": {
-    "prettier/prettier": {
-      "count": 3
-    }
-  },
   "src/modules/analytics/analytics.service.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 12
     }
   },
   "src/modules/assistant/receipt/analyze-receipt.ts": {
