@@ -123,7 +123,14 @@ export default function CustomerPage() {
           <h1 className="text-2xl font-bold text-gray-900">{customer.displayName}</h1>
           <p className="mt-1 text-sm text-gray-500">
             {codeLabel('customerType', customer.type)}
-            {customer.phone ? ` · ${customer.phone}` : ''}
+            {/* A phone number is a left-to-right run: un-isolated, the "+"
+                of "+20…" jumps to the far end on an Arabic page. */}
+            {customer.phone && (
+              <>
+                {' · '}
+                <bdi dir="ltr">{customer.phone}</bdi>
+              </>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -168,26 +175,35 @@ export default function CustomerPage() {
             action={{ label: ts('create'), onClick: () => router.push(`/${locale}/sales?customer=${id}`) }}
           />
         ) : (
-          <Rows>
+          <Rows
+            headers={[ts('orderNo'), ts('date'), tc('status'), ts('total'), ts('outstanding')]}
+            numeric={[3, 4]}
+          >
             {orderList.map((o) => (
               <Row key={o.id}>
-                <span className="font-mono text-xs text-gray-500">{o.orderNo}</span>
-                <span className="text-xs text-gray-400">{formatDate(o.createdAt)}</span>
-                <span className="text-sm">{codeLabel('orderStatus', o.status)}</span>
-                <span className="text-sm"><Money value={num(o.total)} /></span>
+                <Cell label={ts('orderNo')}>
+                  <bdi dir="ltr" className="font-mono text-xs text-gray-500">{o.orderNo}</bdi>
+                </Cell>
+                <Cell label={ts('date')} className="text-xs text-gray-400">{formatDate(o.createdAt)}</Cell>
+                <Cell label={tc('status')} className="text-sm">{codeLabel('orderStatus', o.status)}</Cell>
+                <Cell label={ts('total')} numeric className="text-sm">
+                  <Money value={num(o.total)} currency={o.currency} />
+                </Cell>
                 {/* A draft owes nothing (§4): a dash and why, not a red number. */}
-                {o.status === 'DRAFT' ? (
-                  <span className="text-sm text-gray-400" data-testid="outstanding">
-                    — <span className="text-xs">({ts('notConfirmed')})</span>
-                  </span>
-                ) : (
-                  <span
-                    data-testid="outstanding"
-                    className={`text-sm font-medium ${num(o.outstanding) > 0 ? 'text-red-600' : 'text-green-600'}`}
-                  >
-                    <Money value={num(o.outstanding)} />
-                  </span>
-                )}
+                <Cell label={ts('outstanding')} numeric>
+                  {o.status === 'DRAFT' ? (
+                    <span className="text-sm text-gray-400" data-testid="outstanding">
+                      — <span className="text-xs">({ts('notConfirmed')})</span>
+                    </span>
+                  ) : (
+                    <span
+                      data-testid="outstanding"
+                      className={`text-sm font-medium ${num(o.outstanding) > 0 ? 'text-red-600' : 'text-green-600'}`}
+                    >
+                      <Money value={num(o.outstanding)} currency={o.currency} />
+                    </span>
+                  )}
+                </Cell>
               </Row>
             ))}
           </Rows>
@@ -203,19 +219,24 @@ export default function CustomerPage() {
             action={{ label: tp('create'), onClick: () => setShowPay(true) }}
           />
         ) : (
-          <Rows>
+          <Rows
+            headers={[tp('receivedOn'), tp('method'), tp('amount'), tp('status'), t('unappliedColumn')]}
+            numeric={[2, 4]}
+          >
             {paymentList.map((p) => {
               const allocated = (p.allocations ?? []).reduce((s, a) => s + num(a.amount), 0);
               const credit = num(p.amount) - allocated;
               return (
                 <Row key={p.id}>
-                  <span className="text-xs text-gray-400">{formatDate(p.receivedOn)}</span>
-                  <span className="text-sm">{codeLabel('paymentMethod', p.method)}</span>
-                  <span className="text-sm font-medium"><Money value={num(p.amount)} /></span>
-                  <span className="text-xs text-gray-500">{codeLabel('paymentStatus', p.status)}</span>
-                  <span className="text-xs text-gray-400">
-                    {credit > 0 ? <>{tc('unapplied')} <Money value={credit} /></> : ''}
-                  </span>
+                  <Cell label={tp('receivedOn')} className="text-xs text-gray-400">{formatDate(p.receivedOn)}</Cell>
+                  <Cell label={tp('method')} className="text-sm">{codeLabel('paymentMethod', p.method)}</Cell>
+                  <Cell label={tp('amount')} numeric className="text-sm font-medium">
+                    <Money value={num(p.amount)} currency={p.currency} />
+                  </Cell>
+                  <Cell label={tp('status')} className="text-xs text-gray-500">{codeLabel('paymentStatus', p.status)}</Cell>
+                  <Cell label={t('unappliedColumn')} numeric className="text-xs text-gray-400">
+                    {credit > 0 ? <Money value={credit} currency={p.currency} /> : '—'}
+                  </Cell>
                 </Row>
               );
             })}
@@ -270,10 +291,60 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
   );
 }
 
-const Rows = ({ children }: { children: React.ReactNode }) => (
-  <div className="divide-y divide-gray-100">{children}</div>
-);
+/**
+ * A list that reads as a table from `sm` up — one header row, money
+ * end-aligned under its header — and as labelled pairs on a phone, where a
+ * header row would sit too far from the amounts it names (UI audit #31).
+ */
+function Rows({
+  headers,
+  numeric = [],
+  children,
+}: {
+  headers?: string[];
+  /** Column indexes holding amounts: end-aligned, like money everywhere else. */
+  numeric?: number[];
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="divide-y divide-gray-100">
+      {headers && (
+        <div className="hidden grid-cols-5 gap-2 pb-2 sm:grid">
+          {headers.map((h, i) => (
+            <span
+              key={h}
+              className={`text-xs font-medium text-muted-foreground ${numeric.includes(i) ? 'text-end' : 'text-start'}`}
+            >
+              {h}
+            </span>
+          ))}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
 
 const Row = ({ children }: { children: React.ReactNode }) => (
   <div className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">{children}</div>
 );
+
+/** One value, with its column's name above it on a phone only. */
+function Cell({
+  label,
+  numeric,
+  className = '',
+  children,
+}: {
+  label: string;
+  numeric?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`min-w-0 ${numeric ? 'text-end' : 'text-start'}`}>
+      <span className="block text-[11px] text-muted-foreground sm:hidden">{label}</span>
+      <span className={`${numeric ? 'whitespace-nowrap tabular-nums' : ''} ${className}`}>{children}</span>
+    </div>
+  );
+}

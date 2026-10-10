@@ -430,6 +430,7 @@
     "noOrdersHint": "A sale to this customer appears here once it is created.",
     "noPayments": "No payments from this customer yet",
     "noPaymentsHint": "Record a payment when they pay, and it is applied to their oldest unpaid orders first.",
+    "unappliedColumn": "Unapplied",
     "createSuccess": "Customer created successfully",
     "updateSuccess": "Customer updated successfully",
     "createFailed": "Failed to create customer",

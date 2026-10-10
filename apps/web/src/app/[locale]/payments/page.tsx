@@ -215,7 +215,8 @@ function PaymentsPageContent() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('customer')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
+                  {/* Money end-aligned, as on every other table. */}
+                  <th className="text-end px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('currency')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('method')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('receivedOn')}</th>
@@ -245,11 +246,13 @@ function PaymentsPageContent() {
                       <td className="px-4 py-3 text-gray-900 font-medium">
                         <CustomerLink id={payment.customerId} name={payment.customer?.displayName} />
                       </td>
-                      <td className="px-4 py-3 text-gray-900 font-medium"><Money value={payment.amount} /></td>
+                      {/* The amount carries its own currency: without it a USD
+                          payment rendered as "… EGP" beside a USD column. */}
+                      <td className="px-4 py-3 text-end whitespace-nowrap tabular-nums text-gray-900 font-medium"><Money value={payment.amount} currency={payment.currency} /></td>
                       <td className="px-4 py-3 text-gray-600">{payment.currency}</td>
                       <td className="px-4 py-3 text-gray-600">{codeLabel('paymentMethod', payment.method)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(payment.receivedOn)}</td>
-                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{payment.reference ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{payment.reference ? <bdi dir="ltr">{payment.reference}</bdi> : '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[payment.status] ?? 'bg-gray-100 text-gray-600'}`}>
                           {codeLabel('paymentStatus', payment.status)}
@@ -329,7 +332,7 @@ function PaymentsPageContent() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>{formatDate(payment.receivedOn)}</span>
-                  <span className="font-mono">{payment.reference ?? '—'}</span>
+                  <span className="font-mono">{payment.reference ? <bdi dir="ltr">{payment.reference}</bdi> : '—'}</span>
                 </div>
                 {payment.status === 'RECORDED' && (
                   <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100">
