@@ -227,7 +227,9 @@ describe('analyzeReceipt — lines', () => {
     expect(a.lines[0].match).toMatchObject({ id: 'p-plug', via: 'name' });
   });
 
-  it('Line matches by name with extra words on the receipt → matched', () => {
+  // Changed 2026-10-11 (W3): this was "→ matched". A name with extra words is
+  // a different listing as often as the same one (§16), so it is asked.
+  it('Line with extra words around a product name → asked with it as the candidate, not matched', () => {
     const a = analyze({
       lines: [
         {
@@ -238,11 +240,11 @@ describe('analyzeReceipt — lines', () => {
       ],
       statedSubtotal: 5,
     });
-    expect(a.lines[0].status).toBe('matched');
-    expect(a.lines[0].match).toMatchObject({
-      id: 'p-chain',
-      via: 'name-contains',
-    });
+    expect(a.lines[0].status).toBe('candidates');
+    expect(a.lines[0].match).toBeUndefined();
+    expect(
+      question(a, 'LINE_NEW_OR_EXISTING:1')?.options?.map((o) => o.value),
+    ).toEqual(['p-chain', 'new']);
   });
 
   it('Line matches by name → candidates when several', () => {
@@ -720,7 +722,7 @@ describe('analyzeReceipt — a realistic receipt, end to end', () => {
             description: 'Drive chain 428 gold',
             quantity: 12.5,
             unitPrice: '21.00',
-          }, // 262.50 — contains the name
+          }, // 262.50 — contains the name, so asked (W3)
           {
             description: 'Handlebar grip rubber',
             quantity: 30,
@@ -769,7 +771,7 @@ describe('analyzeReceipt — a realistic receipt, end to end', () => {
     expect(a.lines.map((l) => l.status)).toEqual([
       'matched',
       'candidates',
-      'matched',
+      'candidates',
       'unknown',
       'matched',
     ]);
@@ -786,6 +788,7 @@ describe('analyzeReceipt — a realistic receipt, end to end', () => {
       'CHARGES_WHERE',
       'CYCLE_CONFIRM',
       'FX_RATE_CONFIRM',
+      'LINE_NEW_OR_EXISTING:3',
       'LINE_NEW_OR_EXISTING:4',
       'LINE_WHICH:2',
       'SUPPLIER_WHICH',
@@ -795,7 +798,12 @@ describe('analyzeReceipt — a realistic receipt, end to end', () => {
         .filter((q) => q.blocking)
         .map((q) => q.id)
         .sort(),
-    ).toEqual(['LINE_NEW_OR_EXISTING:4', 'LINE_WHICH:2', 'SUPPLIER_WHICH']);
+    ).toEqual([
+      'LINE_NEW_OR_EXISTING:3',
+      'LINE_NEW_OR_EXISTING:4',
+      'LINE_WHICH:2',
+      'SUPPLIER_WHICH',
+    ]);
     expect(a.blocked).toBe(true);
     expect(a.findings.totals).toMatchObject({
       difference: '0.00',

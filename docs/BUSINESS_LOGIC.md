@@ -918,7 +918,7 @@ dashboard, FX rates.
 
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,
-cycle status, and verifying stock in. It cannot record or change sales, payments,
+cycle status, and verifying stock in — and, since 2026-10-11, recording a sale (below). It cannot change sales, payments,
 instalments, settlements, returns or the ledger — those stay in the office app.
 This is enforced by the system, not by the assistant's good behaviour: its access
 is valid nowhere except the assistant's own tools.
@@ -965,6 +965,26 @@ whether the stock is there — and saves only on a clear yes. "To anyone" or a
 walk-in buyer is a walk-in sale (§4), paid on the spot. Without a stated price
 it offers the list price for that kind of buyer and asks. It creates and
 confirms in one step; it records no other payments, returns or settlements.
+
+*Built 2026-10-11 (W3), the `record_sale` tool.* One matcher now serves
+receipts and sales: a name is the same thing only when it is the same once
+case, spacing and punctuation are ignored (or the SKU or id is), and anything
+close — a plural, another word order, extra words like "matt black, size L" —
+is offered as a candidate and asked. This replaces the "about one slip in five
+characters" wording above for what is *offered*; what is *taken* only got
+stricter. Guesses made while building it, open until confirmed:
+- A receipt line that contains a product's whole name plus more words used to
+  be taken as that product; it is now asked, like any other close name.
+- A plural alone ("Spark plugs" against "Spark plug") is asked, not taken.
+- A sale with an unsettled name or no price returns its questions and no
+  confirmation token at all, rather than a refusal; an unknown customer is
+  offered "a walk-in sale" as one answer.
+- The assistant's sales are in EGP; the list price offered is the open price
+  on the buyer's channel (the customer's type, B2C for a walk-in).
+- The stock shown in the preview binds: if any of that product is sold
+  elsewhere before the partner confirms, even leaving enough, the partner is
+  shown a fresh preview (`PREVIEW_CHANGED`).
+- A payment method on a named customer's sale is refused, not ignored.
 
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it

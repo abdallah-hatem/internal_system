@@ -10,6 +10,7 @@ import type { AssistantContext, AssistantUser } from './tool-kit';
 import { registerReadTools } from './tools/read';
 import { registerReceiptTools } from './tools/receipt';
 import { registerCycleTools } from './tools/cycle';
+import { registerSalesTools } from './tools/sales';
 
 export const ASSISTANT_SERVER_NAME = 'motoparts';
 
@@ -39,6 +40,7 @@ export class AssistantServer {
     registerReadTools(server, ctx);
     registerReceiptTools(server, ctx);
     registerCycleTools(server, ctx);
+    registerSalesTools(server, ctx);
     return server;
   }
 

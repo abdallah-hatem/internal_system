@@ -108,7 +108,8 @@ export interface ProductCandidate {
   id: string;
   name: string;
   sku: string | null;
-  via: 'sku' | 'name' | 'name-contains' | 'name-similar';
+  /** Only `sku` and `name` are ever a match; `name-similar` is only offered. */
+  via: 'sku' | 'name' | 'name-similar';
   score: number;
 }
 

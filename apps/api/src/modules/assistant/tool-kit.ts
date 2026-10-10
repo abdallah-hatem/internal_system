@@ -41,6 +41,12 @@ export interface AssistantContext {
 export interface ToolOutcome {
   summary: string;
   data?: unknown;
+  /**
+   * A preview that cannot be confirmed yet — a close name, an unknown
+   * customer, a missing price. `writeTool` returns it as questions and issues
+   * no confirmation token, so nothing about it can be committed.
+   */
+  needsAnswers?: boolean;
 }
 
 type Shape = z.ZodRawShape;
@@ -209,6 +215,23 @@ export function writeTool<S extends Shape>(
       try {
         if (!confirmationToken) {
           const preview = await handlers.preview(input);
+          if (preview.needsAnswers) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text:
+                    `${preview.summary}\n\n` +
+                    'Nothing has been saved and there is nothing to confirm yet. Ask the partner these questions, ' +
+                    `then call ${name} again, without a token, with their answers.`,
+                },
+              ],
+              structuredContent: {
+                status: 'needs_answers',
+                data: preview.data ?? null,
+              },
+            } satisfies CallToolResult;
+          }
           const issued = ctx.confirmations.issue(
             ctx.user.id,
             name,
