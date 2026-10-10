@@ -325,7 +325,7 @@ test.describe('The old leg form and the cycle gates', () => {
       expect(res.ok(), await res.text()).toBeTruthy();
     }
     const s = await shipment(request, headers, cycle.id);
-    expect(s.legs[0].deliveries.map((d: any) => d.lines[0].qty)).toEqual([15, 25]);
+    expect(s.legs[0].deliveries.map((d: { lines: { qty: number }[] }) => d.lines[0].qty)).toEqual([15, 25]);
   });
 
   test('TC-DL-41: PUT leg with a future arrivedOn → refused; with arrivedOn: null or a status → ignored', async ({ request }) => {
@@ -367,8 +367,8 @@ test.describe('The old leg form and the cycle gates', () => {
     });
     const batchCost = async () => {
       const body = await (await request.get(`${API}/inventory`, { headers })).json();
-      const row = (body.data ?? []).find((i: any) => i.productId === product.id);
-      return (row?.batches ?? []).map((b: any) => b.landedUnitCostEgp);
+      const row = (body.data ?? []).find((i: { productId: string }) => i.productId === product.id);
+      return (row?.batches ?? []).map((b: { landedUnitCostEgp: string | number }) => b.landedUnitCostEgp);
     };
     const costBefore = await batchCost();
 
