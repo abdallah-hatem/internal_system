@@ -11,9 +11,10 @@ import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/paginati
 import { useToast } from '../../../components/ui/toast';
 import { ShippingCostFields, readShippingCostFields } from '../../../components/shipping/ShippingCostFields';
 import {
-  Truck, Plus, Search, Edit, X, Loader2, MapPin, Package, Calendar,
-  ArrowRight,
+  Plus, Search, Edit, X, Loader2, MapPin,
 } from 'lucide-react';
+import { LegRoute } from '@/components/shipment/LegRoute';
+import { Money } from '@/components/ui/money';
 
 import { useApiError } from '../../../lib/api-error';
 import { useDateFormat } from '../../../lib/dates';
@@ -255,16 +256,16 @@ export default function ShipmentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('cycle')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('sequence')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('origin')} → {t('destination')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('provider')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('trackingRef')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('departedOn')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('arrivedOn')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
-                  {may.edit && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('cycle')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('sequence')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('route')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('provider')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('trackingRef')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('status')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('departedOn')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('arrivedOn')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('amount')}</th>
+                  {may.edit && <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{tc('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -273,24 +274,24 @@ export default function ShipmentsPage() {
                 ) : (
                   paginated.map((ship) => (
                     <tr key={ship.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{ship.cycle?.code ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">#{ship.sequence}</td>
+                      {/* Short values never wrap (UI audit #29): a code, a date or an
+                          amount split over two lines while the route column had room. */}
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap"><bdi>{ship.cycle?.code ?? '—'}</bdi></td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap"><bdi>#{ship.sequence}</bdi></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 text-gray-700">
-                          <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                          <span>{ship.origin}</span>
-                          <ArrowRight className="h-3 w-3 text-gray-400" />
-                          <span>{ship.destination}</span>
+                          <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                          <LegRoute origin={ship.origin} destination={ship.destination} />
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{ship.provider}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{ship.trackingRef ?? '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-gray-600"><bdi>{ship.provider}</bdi></td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap"><bdi>{ship.trackingRef ?? '—'}</bdi></td>
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <StatusBadge status={ship.status} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(ship.departedOn)}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(ship.arrivedOn)}</td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.departedOn)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.arrivedOn)}</td>
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
                         <LegCost ship={ship} />
                       </td>
                       {may.edit && (
@@ -329,18 +330,16 @@ export default function ShipmentsPage() {
                 className={`bg-white rounded-xl border border-gray-200 p-4 ${may.edit ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-mono text-xs text-gray-500">{ship.cycle?.code ?? '—'} #{ship.sequence}</span>
+                  <bdi className="font-mono text-xs text-gray-500">{ship.cycle?.code ?? '—'} #{ship.sequence}</bdi>
                   <StatusBadge status={ship.status} />
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-gray-700 mb-1">
-                  <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                  <span>{ship.origin}</span>
-                  <ArrowRight className="h-3 w-3 text-gray-400" />
-                  <span>{ship.destination}</span>
+                  <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <LegRoute origin={ship.origin} destination={ship.destination} />
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500">
-                  <span>{ship.provider}</span>
-                  {ship.trackingRef && <span className="font-mono">{ship.trackingRef}</span>}
+                  <bdi>{ship.provider}</bdi>
+                  {ship.trackingRef && <bdi className="font-mono">{ship.trackingRef}</bdi>}
                 </div>
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
                   {/* Through formatDate, not raw. These printed
@@ -538,28 +537,35 @@ export default function ShipmentsPage() {
 }
 
 
-/** Leg cost in EGP, with the rate that produced it. */
+/**
+ * Leg cost in EGP, with the rate that produced it.
+ *
+ * The amount goes through `Money`, and the basis line ("22 × 180 kg") is a
+ * translated string with its unit in the reader's language — it was English,
+ * and its Latin run scrambled inside Arabic (UI audit #23).
+ */
 function LegCost({ ship }: { ship: Shipment }) {
+  const t = useTranslations('shipments');
   const egp = ship.amountEgp ?? ship.amount;
   if (egp === null || egp === undefined || egp === '') return <span>—</span>;
 
   const value = Number(egp);
   if (!Number.isFinite(value)) return <span>—</span>;
 
+  // Latin digits in both languages (the app's rule for Arabic).
+  const fmt = (n: number, max = 0) => n.toLocaleString('en-US', { maximumFractionDigits: max });
   const rate = ship.ratePerUnit != null ? Number(ship.ratePerUnit) : null;
   const basisHint =
     ship.costBasis === 'PER_PIECE' && rate != null
-      ? `${rate.toLocaleString(undefined, { maximumFractionDigits: 4 })} x ${Number(ship.chargeablePieces ?? 0).toLocaleString()} pcs`
+      ? t('basisPerPiece', { rate: fmt(rate, 4), qty: fmt(Number(ship.chargeablePieces ?? 0)) })
       : ship.costBasis === 'PER_WEIGHT' && rate != null
-        ? `${rate.toLocaleString(undefined, { maximumFractionDigits: 4 })} x ${Number(ship.chargeableWeightKg ?? 0).toLocaleString()} kg`
+        ? t('basisPerWeight', { rate: fmt(rate, 4), qty: fmt(Number(ship.chargeableWeightKg ?? 0), 3) })
         : null;
 
   return (
     <span className="inline-flex flex-col leading-tight">
-      <span className="font-medium text-gray-800">
-        {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
-      </span>
-      {basisHint && <span className="text-[11px] text-gray-400">{basisHint}</span>}
+      <Money value={value} className="font-medium text-gray-800 whitespace-nowrap" />
+      {basisHint && <span data-testid="leg-cost-basis" className="text-[11px] text-gray-400 whitespace-nowrap">{basisHint}</span>}
     </span>
   );
 }

@@ -11,6 +11,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { useDateFormat } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 import { Money } from '@/components/ui/money';
+import { LegRoute } from './LegRoute';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
 import { statusesToWalk } from '@/components/cycles/wizard-walk';
@@ -316,16 +317,17 @@ function LegBlock({
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const losable = Object.values(losableByLine(leg)).some((q) => q > 0);
-  const route = [leg.origin, leg.destination].filter(Boolean).join(' → ');
   const losses = leg.losses ?? [];
 
   return (
     <div data-testid="shipment-leg" data-leg-sequence={leg.sequence} className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground">
-            {t('legHeading', { leg: leg.sequence })}
-            {route && <span className="ms-2 font-normal text-muted-foreground">{route}</span>}
+          {/* The leg number and the route are separate flex items, so a Latin
+              route cannot run into the number in Arabic (UI audit #11). */}
+          <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-foreground">
+            <span className="whitespace-nowrap">{t('legHeading', { leg: leg.sequence })}</span>
+            <LegRoute origin={leg.origin} destination={leg.destination} className="font-normal text-muted-foreground" />
           </h3>
           <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span data-testid="leg-status" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
@@ -435,15 +437,26 @@ function LegBlock({
                 <li key={d.id} data-testid="shipment-delivery" className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium text-foreground">{formatDate(d.arrivedOn)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {d.lines
-                        .map((l) =>
-                          leg.isLast
-                            ? t('deliveryLineLast', { product: productNames[l.purchaseOrderItemId] ?? '—', qty: l.qty, received: l.received })
-                            : t('deliveryLine', { product: productNames[l.purchaseOrderItemId] ?? '—', qty: l.qty }),
-                        )
-                        .join(' · ')}
-                    </p>
+                    {/* One item per product, each name isolated: joined into one
+                        string, a Latin name dragged the quantities and the
+                        separators to the wrong side in Arabic (UI audit #12). */}
+                    <ul data-testid="delivery-summary" className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                      {d.lines.map((l) => {
+                        const values = {
+                          product: productNames[l.purchaseOrderItemId] ?? '—',
+                          qty: l.qty,
+                          received: l.received,
+                        };
+                        return (
+                          <li key={l.purchaseOrderItemId}>
+                            {t.rich(leg.isLast ? 'deliveryLineLast' : 'deliveryLine', {
+                              ...values,
+                              name: (chunks) => <bdi>{chunks}</bdi>,
+                            })}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {may.receive && waiting && canReceive && (
@@ -486,7 +499,11 @@ function LegBlock({
                 <li key={loss.id} data-testid="shipment-loss" className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium text-foreground">
-                      {t('lossLine', { product: productNames[loss.purchaseOrderItemId] ?? '—', qty: num(loss.qty) })}
+                      {t.rich('lossLine', {
+                        product: productNames[loss.purchaseOrderItemId] ?? '—',
+                        qty: num(loss.qty),
+                        name: (chunks) => <bdi>{chunks}</bdi>,
+                      })}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(loss.createdAt)} · {t('lossCost')} <Money value={cost} /> · {t('refundedSoFar')}{' '}
@@ -503,11 +520,14 @@ function LegBlock({
                             data-reversed={r.reversedAt ? 'true' : undefined}
                             className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
                           >
-                            <span className={cn(!refundStands(r) && 'line-through')}>
-                              {t('refundLine', {
-                                amount: num(r.amountEgp).toFixed(2),
+                            {/* The amount is `Money`, like every other amount on the
+                                panel — the string used to carry its own "ج.م" (#24). */}
+                            <span data-testid="loss-refund-line" className={cn(!refundStands(r) && 'line-through')}>
+                              {t.rich('refundLine', {
+                                amount: () => <Money value={r.amountEgp} />,
                                 payer: r.payerName ?? '—',
                                 date: formatDate(r.recordedOn),
+                                name: (chunks) => <bdi>{chunks}</bdi>,
                               })}
                             </span>
                             {refundStands(r) ? (may.undoRefund && (

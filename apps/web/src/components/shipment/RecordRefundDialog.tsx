@@ -108,7 +108,8 @@ export function RecordRefundDialog({
   return (
     <ShipmentDialog
       testId="record-refund"
-      title={t('refundTitle', { product: productName })}
+      title={t('refundTitle')}
+      subtitle={productName}
       onClose={onClose}
       busy={pending}
       onSubmit={(e) => void submit(e)}
