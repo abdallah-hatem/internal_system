@@ -364,9 +364,13 @@ model PurchaseOrderItem {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  purchaseOrder  PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id])
-  product        Product         @relation(fields: [productId], references: [id])
-  inventoryBatch InventoryBatch?
+  purchaseOrder    PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
+  product          Product                @relation(fields: [productId], references: [id])
+  /// One per receipt. Used to be one per order line (`@unique`); a line now
+  /// arrives in several deliveries, each received as its own batch (§3).
+  inventoryBatches InventoryBatch[]
+  deliveryLines    ShipmentDeliveryLine[]
+  losses           ShipmentLoss[]
 
   @@map("purchase_order_items")
 }
@@ -528,6 +532,9 @@ model ShippingLeg {
   provider           String?
   providerId         String?           @map("provider_id") @db.Uuid
   trackingRef        String?           @map("tracking_ref")
+  /// PENDING · IN_TRANSIT · PARTLY_ARRIVED · ARRIVED (LEG_STATUSES in
+  /// common/shipment-position.ts). A reading of the dates and deliveries,
+  /// never a value anyone sets (§1).
   status             String            @default("PENDING")
   departedOn         DateTime?         @map("departed_on") @db.Timestamptz()
   arrivedOn          DateTime?         @map("arrived_on") @db.Timestamptz()
@@ -544,11 +551,74 @@ model ShippingLeg {
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int               @default(1)
 
-  cycle          ImportCycle @relation(fields: [cycleId], references: [id])
-  providerRecord Provider?   @relation(fields: [providerId], references: [id])
+  cycle          ImportCycle        @relation(fields: [cycleId], references: [id])
+  providerRecord Provider?          @relation(fields: [providerId], references: [id])
+  deliveries     ShipmentDelivery[]
+  losses         ShipmentLoss[]
 
   @@unique([cycleId, sequence])
   @@map("shipping_legs")
+}
+
+/// One arrival of goods at the end of a leg (BUSINESS_LOGIC §1, 2026-10-10).
+/// A leg's goods leave together and arrive in pieces, weeks apart, so a leg
+/// has any number of these. A leg's `status` and `arrivedOn` are read from
+/// them through `shipmentPosition`, never set by hand.
+model ShipmentDelivery {
+  id        String   @id @default(uuid()) @db.Uuid
+  legId     String   @map("leg_id") @db.Uuid
+  /// The calendar day it arrived, in Cairo.
+  arrivedOn DateTime @map("arrived_on") @db.Date
+  note      String?
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  leg   ShippingLeg            @relation(fields: [legId], references: [id])
+  lines ShipmentDeliveryLine[]
+
+  @@index([legId])
+  @@map("shipment_deliveries")
+}
+
+/// How many of one ordered product a delivery brought. The same order line
+/// appears at most once per delivery.
+model ShipmentDeliveryLine {
+  id                  String  @id @default(uuid()) @db.Uuid
+  deliveryId          String  @map("delivery_id") @db.Uuid
+  purchaseOrderItemId String  @map("purchase_order_item_id") @db.Uuid
+  qty                 Decimal @db.Decimal(18, 3)
+
+  delivery          ShipmentDelivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  /// Not unique: a delivery line can be received in several goes, up to what
+  /// it brought (spec amendment 1).
+  inventoryBatches  InventoryBatch[]
+
+  @@unique([deliveryId, purchaseOrderItemId])
+  @@index([purchaseOrderItemId])
+  @@map("shipment_delivery_lines")
+}
+
+/// Units a partner marked lost on a leg (§1, §2). Not a ledger row: no money
+/// moves (§9). Settlement and analytics both subtract it through one function.
+model ShipmentLoss {
+  id                  String   @id @default(uuid()) @db.Uuid
+  legId               String   @map("leg_id") @db.Uuid
+  purchaseOrderItemId String   @map("purchase_order_item_id") @db.Uuid
+  qty                 Decimal  @db.Decimal(18, 3)
+  /// The line's landed unit cost when it was marked.
+  unitCostEgp         Decimal  @map("unit_cost_egp") @db.Decimal(18, 4)
+  costEgp             Decimal  @map("cost_egp") @db.Decimal(18, 2)
+  reason              String?
+  createdBy           String?  @map("created_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  leg               ShippingLeg       @relation(fields: [legId], references: [id])
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+
+  @@index([legId])
+  @@index([purchaseOrderItemId])
+  @@map("shipment_losses")
 }
 
 // ─── Inventory ─────────────────────────────────────────────────────
@@ -570,28 +640,36 @@ enum VerificationStatus {
 }
 
 model InventoryBatch {
-  id                 String             @id @default(uuid()) @db.Uuid
-  cycleId            String             @map("cycle_id") @db.Uuid
-  productId          String             @map("product_id") @db.Uuid
-  sourcePoItemId     String?            @unique @map("source_po_item_id") @db.Uuid
-  receivedQty        Decimal            @map("received_qty") @db.Decimal(18, 3)
-  remainingQty       Decimal            @map("remaining_qty") @db.Decimal(18, 3)
-  reservedQty        Decimal            @default(0) @map("reserved_qty") @db.Decimal(18, 3)
-  saleableQty        Decimal            @map("saleable_qty") @db.Decimal(18, 3)
-  landedUnitCostEgp  Decimal            @map("landed_unit_cost_egp") @db.Decimal(18, 4)
-  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
-  version            Int                @default(1)
+  id                   String             @id @default(uuid()) @db.Uuid
+  cycleId              String             @map("cycle_id") @db.Uuid
+  productId            String             @map("product_id") @db.Uuid
+  sourcePoItemId       String?            @map("source_po_item_id") @db.Uuid
+  /// The last-leg delivery line this batch was received from. Not unique: one
+  /// delivery line can be received in several goes.
+  sourceDeliveryLineId String?            @map("source_delivery_line_id") @db.Uuid
+  /// The day the delivery that brought it reached Egypt (§14).
+  arrivedOn            DateTime?          @map("arrived_on") @db.Date
+  receivedQty          Decimal            @map("received_qty") @db.Decimal(18, 3)
+  remainingQty         Decimal            @map("remaining_qty") @db.Decimal(18, 3)
+  reservedQty          Decimal            @default(0) @map("reserved_qty") @db.Decimal(18, 3)
+  saleableQty          Decimal            @map("saleable_qty") @db.Decimal(18, 3)
+  landedUnitCostEgp    Decimal            @map("landed_unit_cost_egp") @db.Decimal(18, 4)
+  verificationStatus   VerificationStatus @default(PENDING) @map("verification_status")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
+  version              Int                @default(1)
 
   cycle               ImportCycle            @relation(fields: [cycleId], references: [id])
   product             Product                @relation(fields: [productId], references: [id])
   sourcePoItem        PurchaseOrderItem?     @relation(fields: [sourcePoItemId], references: [id])
+  sourceDeliveryLine  ShipmentDeliveryLine?  @relation(fields: [sourceDeliveryLineId], references: [id])
   movements           InventoryMovement[]
   reservations        InventoryReservation[]
   saleItemAllocations SaleItemAllocation[]
   returnItems         SaleReturnItem[]
 
+  @@index([sourcePoItemId])
+  @@index([sourceDeliveryLineId])
   @@map("inventory_batches")
 }
 
@@ -945,8 +1023,10 @@ enum ProductRequestStatus {
   SOURCING
   ANSWERED
   DECLINED
-  /** The shop changed its own mind. Not the same as being turned down, and a
-      screen that showed it as DECLINED told a customer we had refused them. */
+  /**
+   * The shop changed its own mind. Not the same as being turned down, and a
+   * screen that showed it as DECLINED told a customer we had refused them.
+   */
   CANCELLED
 }
 
@@ -1042,9 +1122,11 @@ model OrderRequest {
    */
   holdExpiresAt  DateTime? @map("hold_expires_at") @db.Timestamptz()
   holdReleasedAt DateTime? @map("hold_released_at") @db.Timestamptz()
-  /** When the office was nudged that this is about to lapse. Stops the same
-      request alerting every half hour until it does — twelve identical alerts
-      is how people learn to ignore the bell. */
+  /**
+   * When the office was nudged that this is about to lapse. Stops the same
+   * request alerting every half hour until it does — twelve identical alerts
+   * is how people learn to ignore the bell.
+   */
   holdWarnedAt   DateTime? @map("hold_warned_at") @db.Timestamptz()
 
   saleOrderId String?   @unique @map("sale_order_id") @db.Uuid

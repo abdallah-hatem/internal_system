@@ -9,7 +9,8 @@ import { Prisma, ParticipantType } from '@prisma/client';
 import { badRequest, notFound } from '../../common/api-error';
 import { isUUID } from 'class-validator';
 import { assertNotFuture } from '../../common/dates';
-import { assertUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
+import { shipmentPosition } from '../../common/shipment-position';
 import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
 // Valid state transitions per the spec
@@ -161,6 +162,112 @@ export class CyclesService {
       );
     }
     throw notFound('cycle');
+  }
+
+  /**
+   * Where every ordered unit of the cycle is: per leg and order line, what
+   * entered, was delivered, received, lost, and is still on the way or waiting
+   * to be received (§1, §3, §8). The arithmetic is `shipmentPosition`'s; this
+   * only loads the rows it reads.
+   */
+  async getShipment(id: string) {
+    // Not a uuid → no such cycle, rather than a cast failing deep in Prisma.
+    if (!isUuid(id)) throw notFound('cycle');
+    const cycle = await this.prisma.importCycle.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        shippingLegs: {
+          select: {
+            id: true,
+            sequence: true,
+            origin: true,
+            destination: true,
+            departedOn: true,
+            deliveries: {
+              select: {
+                id: true,
+                legId: true,
+                arrivedOn: true,
+                note: true,
+                lines: {
+                  select: { id: true, purchaseOrderItemId: true, qty: true },
+                },
+              },
+            },
+            losses: {
+              select: {
+                id: true,
+                legId: true,
+                purchaseOrderItemId: true,
+                qty: true,
+                costEgp: true,
+                reason: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
+        purchaseOrders: {
+          select: {
+            items: {
+              select: {
+                id: true,
+                orderedQty: true,
+                productId: true,
+                product: { select: { name: true } },
+              },
+            },
+          },
+        },
+        inventoryBatches: {
+          select: {
+            sourcePoItemId: true,
+            sourceDeliveryLineId: true,
+            receivedQty: true,
+          },
+        },
+      },
+    });
+    if (!cycle) throw notFound('cycle');
+
+    const legs = cycle.shippingLegs;
+    const position = shipmentPosition({
+      lines: cycle.purchaseOrders.flatMap((po) =>
+        po.items.map((i) => ({
+          id: i.id,
+          orderedQty: i.orderedQty,
+          productId: i.productId,
+          productName: i.product.name,
+        })),
+      ),
+      legs,
+      deliveries: legs.flatMap((l) => l.deliveries),
+      losses: legs.flatMap((l) => l.losses),
+      batches: cycle.inventoryBatches,
+    });
+
+    const legMeta = new Map(legs.map((l) => [l.id, l]));
+    return {
+      data: {
+        cycleId: cycle.id,
+        code: cycle.code,
+        status: cycle.status,
+        ...position,
+        legs: position.legs.map((p) => {
+          const leg = legMeta.get(p.legId)!;
+          return {
+            ...p,
+            origin: leg.origin,
+            destination: leg.destination,
+            departedOn: leg.departedOn,
+            losses: leg.losses,
+          };
+        }),
+      },
+    };
   }
 
   /**

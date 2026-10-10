@@ -35,6 +35,19 @@ export class CyclesController {
     return this.cyclesService.findById(id);
   }
 
+  // Core partners only, as receiving, shipping and settlement are (spec
+  // 2026-10-10, CLAUDE.md rule 12).
+  @Get(':id/shipment')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary:
+      'Shipment position: per leg and line, entered / delivered / received / lost / on the way (CORE_PARTNER only)',
+  })
+  getShipment(@Param('id') id: string) {
+    return this.cyclesService.getShipment(id);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
