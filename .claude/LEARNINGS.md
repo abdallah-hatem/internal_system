@@ -196,3 +196,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   none — which is how a rule-6 check ends up refusing to run for no reason. Match on
   `node.*playwright`, not the bare string. — 2026-08-31
 
+
+## Build and deploy
+- `apps/web` unit tests may import `apps/api/src` to pin a shared rule (sale totals, low stock, settlement warnings,
+  notification messages). Vercel installs only the web app's packages, so anything that type-checks those tests breaks
+  the web build ("Cannot find module '@prisma/client'"). The build uses `tsconfig.build.json`, which excludes tests.
+  When a subagent reports "2 errors, @prisma/client not found" in a web typecheck, that is exactly this; reproduce with
+  `apps/api/node_modules` moved aside and `next build` before calling it a worktree artifact. — 2026-10-11

@@ -118,3 +118,8 @@
   empty line; the ledger list never had a reason column). Updated to what is on screen; re-run 24/24.
   Unit: api 837 + 9 skipped, web 338 + 87, lint 0 errors, typecheck clean. **Verify done.**
 - BUSINESS_LOGIC: every *Building* mark flipped to *Built 2026-10-11 (task)*.
+- **Shipped 2026-10-11.** Neon: 5 migrations applied; backfill 4 cycles → 6 deliveries, 5 batches linked, 0 absorbed
+  losses; a second run changed nothing. Push `2e663c8`: api and storefront READY, **web ERROR** — unit tests importing
+  API source (`@prisma/client`) broke Next's build type-check on a web-only install. Fixed in `57734d3`
+  (`tsconfig.build.json` for the build; verified with `next build` while apps/api/node_modules was hidden). All three
+  READY on `57734d3`; smoke 6/6; web pages 200 in en and ar; every production cycle reads accounted, legs ARRIVED.
