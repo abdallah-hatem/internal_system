@@ -27,15 +27,15 @@ const UNSOLD: SettlementWarning = { code: 'UNSOLD_STOCK', params: { units: 1284,
 const NO_SALES: SettlementWarning = { code: 'NO_REALISED_SALES', params: {} };
 
 describe('settlement warnings', () => {
-  it('in Arabic, both warnings are Arabic, with the numbers grouped and the amount at 2dp', () => {
+  it('in Arabic, both warnings are Arabic, with the numbers grouped in Latin digits and the amount at 2dp', () => {
     show('ar', [UNSOLD, NO_SALES]);
     const lines = screen.getAllByRole('status')[0].querySelectorAll('p');
     expect(lines).toHaveLength(2);
     expect(lines[0].textContent).toContain(ar.settlementsPage.warnings.UNSOLD_STOCK.split('{')[0].trim());
-    expect(lines[0].textContent).toContain((1284).toLocaleString());
-    expect(lines[0].textContent).toContain(
-      (1250000.5).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    );
+    // Latin digits on an Arabic page (decision log, 2026-10-10).
+    expect(lines[0].textContent).toContain('1,284');
+    expect(lines[0].textContent).toContain('1,250,000.50');
+    expect(lines[0].textContent).not.toMatch(/[٠-٩]/);
     expect(lines[1].textContent).toBe(ar.settlementsPage.warnings.NO_REALISED_SALES);
     // No English word reaches an Arabic reader.
     for (const p of lines) expect(p.textContent).not.toMatch(/[A-Za-z]{3,}/);

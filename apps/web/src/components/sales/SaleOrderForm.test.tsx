@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import { ToastProvider } from '@/components/ui/toast';
+import { formatAmount } from '@/lib/numbers';
 // The server's own formula, to hold the screen to.
 import { saleOrderTotals } from '../../../../api/src/common/sale-totals';
 import { SaleOrderForm, type SaleFormProduct } from './SaleOrderForm';
@@ -84,8 +85,7 @@ function pick(nth: number, label: string) {
   fireEvent.click(screen.getByRole('option', { name: new RegExp(label) }));
 }
 
-const amount = (cents: number) =>
-  (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const amount = (cents: number) => formatAmount(cents / 100);
 
 beforeEach(() => post.mockReset());
 afterEach(cleanup);

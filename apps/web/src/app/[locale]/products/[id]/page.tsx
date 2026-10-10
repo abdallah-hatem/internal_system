@@ -20,6 +20,8 @@ import { ProductPhotos } from '../../../../components/products/product-photos';
 import { BackLink } from '../../../../components/ui/back-link';
 import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useNumberFormat } from '@/lib/numbers';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -123,6 +125,7 @@ export default function ProductDetailPage() {
   // inventory screen uses and should not be a second translation of them.
   const tInv = useTranslations('inventory');
   const tc = useTranslations('common');
+  const { formatMoney, formatNumber } = useNumberFormat();
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
@@ -190,8 +193,13 @@ export default function ProductDetailPage() {
     return (
       <div className="space-y-6">
         <BackLink onClick={() => router.back()} />
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-          {tc('noData')}
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={Package}
+            title={t('notFoundTitle')}
+            description={t('notFoundHint')}
+            action={{ label: t('backToProducts'), href: '/products' }}
+          />
         </div>
       </div>
     );
@@ -223,27 +231,27 @@ export default function ProductDetailPage() {
         <StatCard
           icon={<Boxes className="h-5 w-5" />}
           label={t('totalStock')}
-          value={stock?.totalStock ?? 0}
+          value={formatNumber(stock?.totalStock ?? 0)}
           iconBg="bg-gray-100 text-gray-600"
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
           label={t('available')}
-          value={stock?.availableStock ?? 0}
+          value={formatNumber(stock?.availableStock ?? 0)}
           iconBg="bg-green-100 text-green-600"
           valueColor="text-green-600"
         />
         <StatCard
           icon={<AlertTriangle className="h-5 w-5" />}
           label={t('reserved')}
-          value={stock?.reservedStock ?? 0}
+          value={formatNumber(stock?.reservedStock ?? 0)}
           iconBg="bg-amber-100 text-amber-600"
           valueColor="text-amber-600"
         />
         <StatCard
           icon={<DollarSign className="h-5 w-5" />}
           label={t('b2cPrice')}
-          value={activeB2C ? `${activeB2C.currency} ${activeB2C.amount.toLocaleString()}` : '—'}
+          value={activeB2C ? formatMoney(activeB2C.amount, activeB2C.currency) : '—'}
           iconBg="bg-primary-100 text-primary-600"
           valueColor="text-primary-600"
         />
@@ -297,7 +305,7 @@ export default function ProductDetailPage() {
               {t('inventoryBatches') ?? 'Inventory Batches'}
             </h2>
             {!stock || !stock.batches || stock.batches.length === 0 ? (
-              <p className="text-sm text-gray-400">{tc('noData')}</p>
+              <EmptyState size="compact" icon={Layers} title={t('noBatchesTitle')} description={t('noBatchesHint')} />
             ) : (
               <div className="space-y-3">
                 {stock.batches.map((batch: Batch) => {
@@ -353,7 +361,7 @@ export default function ProductDetailPage() {
                               <Loader2 className="h-4 w-4 animate-spin me-2" /> {tc('loading')}
                             </div>
                           ) : allMovements.length === 0 ? (
-                            <p className="text-sm text-gray-400 text-center py-4">{tc('noData')}</p>
+                            <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
                           ) : (
                             <div className="space-y-2">
                               {allMovements.map((mov) => (
@@ -406,7 +414,12 @@ export default function ProductDetailPage() {
               {t('movementHistory') ?? 'Movement History'}
             </h2>
             {allMovements.length === 0 ? (
-              <p className="text-sm text-gray-400">{tc('noData')}</p>
+              <EmptyState
+                size="compact"
+                icon={History}
+                title={expandedBatch ? t('noMovementsTitle') : t('pickBatchTitle')}
+                description={expandedBatch ? undefined : t('pickBatchHint')}
+              />
             ) : (
               <div className="relative">
                 {/* Timeline line */}
@@ -501,7 +514,7 @@ export default function ProductDetailPage() {
                 <Loader2 className="h-4 w-4 animate-spin me-2" /> {tc('loading')}
               </div>
             ) : priceHistory.length === 0 ? (
-              <p className="text-sm text-gray-400">{tc('noData')}</p>
+              <EmptyState size="compact" icon={DollarSign} title={t('noPriceHistoryTitle')} description={t('noPriceHistoryHint')} />
             ) : (
               <div className="space-y-2">
                 {priceHistory.map((entry: PriceHistoryEntry) => (
@@ -527,7 +540,7 @@ export default function ProductDetailPage() {
                     </div>
                     <div className="text-end">
                       <span className="text-sm font-medium text-gray-900">
-                        {entry.currency} {entry.amount.toLocaleString()}
+                        <Money value={entry.amount} currency={entry.currency} />
                       </span>
                       <p className="text-xs text-gray-500">
                         {formatDate(entry.effectiveFrom)}
@@ -546,7 +559,7 @@ export default function ProductDetailPage() {
               {t('suppliers') ?? 'Suppliers'}
             </h2>
             {!productData.suppliers || productData.suppliers.length === 0 ? (
-              <p className="text-sm text-gray-400">{tc('noData')}</p>
+              <EmptyState size="compact" icon={Truck} title={t('noSuppliersTitle')} description={t('noSuppliersHint')} />
             ) : (
               <div className="space-y-2">
                 {productData.suppliers.map((s, idx) => (
@@ -573,7 +586,7 @@ export default function ProductDetailPage() {
               {t('compatibility') ?? 'Compatibility'}
             </h2>
             {!productData.compatibilities || productData.compatibilities.length === 0 ? (
-              <p className="text-sm text-gray-400">{tc('noData')}</p>
+              <EmptyState size="compact" icon={Tag} title={t('noCompatibilityTitle')} description={t('noCompatibilityHint')} />
             ) : (
               <div className="flex flex-wrap gap-2">
                 {productData.compatibilities.map((c, idx) => (

@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { notificationHref, useNotificationText, useNotifications } from '../../lib/notifications';
 import { isolateCodes } from './isolate-codes';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface Notification {
   id: string;
@@ -99,7 +100,7 @@ export function NotificationBell() {
 
         <div className="max-h-80 overflow-y-auto">
           {list.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-gray-400">{t('noData')}</p>
+            <EmptyState size="compact" icon={Bell} title={t('noData')} description={t('emptyHint')} />
           ) : (
             list.slice(0, 8).map((n) => (
               <BellRow

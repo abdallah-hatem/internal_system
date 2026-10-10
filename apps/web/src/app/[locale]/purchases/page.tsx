@@ -471,7 +471,7 @@ export default function PurchasesPage() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('items')}</h3>
               {(poDetail?.items ?? viewingPO.items ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
+                <EmptyState size="compact" title={t('noItemsTitle')} description={t('noItemsHint')} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -533,7 +533,7 @@ export default function PurchasesPage() {
                 )}
               </div>
               {(poDetail?.refunds ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
+                <EmptyState size="compact" title={t('noRefundsTitle')} description={t('noRefundsHint')} />
               ) : (
                 <div className="space-y-2">
                   {(poDetail?.refunds ?? []).map((refund: any) => (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useNumberFormat } from '@/lib/numbers';
 import { Select } from '../ui/select';
 import { MoneyInput } from '../ui/money-input';
 import { useCurrencyRates } from '../../lib/currency-rates';
@@ -55,6 +56,7 @@ export function ShippingCostFields({
 }) {
   const t = useTranslations('shippingCost');
   const tw = useTranslations('wizard');
+  const { formatMoney, formatNumber } = useNumberFormat();
   const codeLabel = useCodeLabel();
   const n = (field: string) => `${namePrefix}${field}`;
   const [basis, setBasis] = useState<CostBasis>(defaults?.costBasis ?? 'PER_PIECE');
@@ -248,11 +250,11 @@ export function ShippingCostFields({
             bracketed amount broke across lines in RTL. */}
         <span className="flex flex-wrap items-baseline justify-end gap-x-2 text-sm font-semibold text-gray-900">
           <bdi className="whitespace-nowrap">
-            {egp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
+            {formatMoney(egp)}
           </bdi>
           {currency !== 'EGP' && (
             <bdi className="whitespace-nowrap text-xs font-normal text-gray-500">
-              ({native.toLocaleString('en-US', { maximumFractionDigits: 2 })} {currency})
+              ({formatNumber(native, { maximumFractionDigits: 2 })} {currency})
             </bdi>
           )}
         </span>

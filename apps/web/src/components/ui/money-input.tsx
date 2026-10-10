@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { InputHTMLAttributes } from 'react';
 import { selectOnFocus } from '../../lib/select-on-focus';
+import { formatNumber } from '../../lib/numbers';
 
 /**
  * An amount field that reads like money while it is being typed.
@@ -34,7 +35,7 @@ function clean(raw: string): string {
 function group(value: string): string {
   if (value === '') return '';
   const [whole, decimals] = value.split('.');
-  const grouped = whole === '' ? '' : Number(whole).toLocaleString('en-US');
+  const grouped = whole === '' ? '' : formatNumber(Number(whole), { maximumFractionDigits: 0 });
   if (value.includes('.')) return `${grouped}.${decimals ?? ''}`;
   return grouped;
 }

@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { AlertTriangle } from 'lucide-react';
+import { useNumberFormat } from '@/lib/numbers';
 
 /**
  * What a settlement calculation wants noticed before it is approved.
@@ -19,12 +20,15 @@ export interface SettlementWarning {
 }
 
 /** Numbers grouped the way `Money` groups them; amounts at 2dp, counts as they are. */
-function formatParams(params: Record<string, number> = {}) {
+function formatParams(
+  params: Record<string, number> = {},
+  formatNumber: ReturnType<typeof useNumberFormat>['formatNumber'],
+) {
   return Object.fromEntries(
     Object.entries(params).map(([key, value]) => [
       key,
-      Number(value).toLocaleString(
-        undefined,
+      formatNumber(
+        value,
         key.endsWith('Egp')
           ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }
           : { maximumFractionDigits: 3 },
@@ -35,6 +39,7 @@ function formatParams(params: Record<string, number> = {}) {
 
 export function SettlementWarnings({ warnings }: { warnings: SettlementWarning[] }) {
   const t = useTranslations('settlementsPage.warnings');
+  const { formatNumber } = useNumberFormat();
   if (warnings.length === 0) return null;
 
   return (
@@ -42,7 +47,7 @@ export function SettlementWarnings({ warnings }: { warnings: SettlementWarning[]
       {warnings.map((w, i) => (
         <p key={i} className="text-sm text-accent-800 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-          {t.has(w.code) ? t(w.code, formatParams(w.params)) : t('unknown')}
+          {t.has(w.code) ? t(w.code, formatParams(w.params, formatNumber)) : t('unknown')}
         </p>
       ))}
     </div>

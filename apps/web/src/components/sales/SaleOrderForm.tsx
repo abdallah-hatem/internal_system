@@ -11,6 +11,7 @@ import { saleOrderTotals } from '@/lib/sale-totals';
 import { Select } from '@/components/ui/select';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
 import { FieldMark } from '@/components/ui/fields';
 import { invalidFields } from '@/components/ui/validated-form';
@@ -118,6 +119,7 @@ export function SaleOrderForm({
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
   const locale = useLocale();
+  const { formatNumber } = useNumberFormat();
   const apiError = useApiError();
 
   const channelOf = (id: string | undefined) => {
@@ -345,7 +347,7 @@ export function SaleOrderForm({
                           label: p.name,
                           // The count belongs where the product is chosen, not
                           // in an error after the order is built.
-                          hint: `${p.sku} · ${available.toLocaleString()} ${t('inStock')}`,
+                          hint: `${p.sku} · ${formatNumber(available)} ${t('inStock')}`,
                           disabled: available <= 0,
                         };
                       })}
@@ -381,7 +383,7 @@ export function SaleOrderForm({
                     />
                     {overStock && (
                       <p className="mt-1 text-[11px] text-destructive">
-                        {inStock.toLocaleString()} {t('inStock')}
+                        {formatNumber(inStock)} {t('inStock')}
                       </p>
                     )}
                   </div>
@@ -403,7 +405,7 @@ export function SaleOrderForm({
                     )}
                     {line.productId && list != null && Number(line.unitPrice) !== list && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        {codeLabel('channel', channel)} <span dir="ltr">{list.toLocaleString()}</span>
+                        {codeLabel('channel', channel)} <span dir="ltr">{formatNumber(list, { maximumFractionDigits: 2 })}</span>
                       </p>
                     )}
                   </div>

@@ -196,7 +196,21 @@
     "priceSaveFailed": "Could not save the price",
     "emptyTitle": "No products yet",
     "emptyHint": "The parts you import and sell, each with its SKU and prices.",
-    "priceNotSet": "not set"
+    "priceNotSet": "not set",
+    "notFoundTitle": "This product could not be found",
+    "notFoundHint": "It may have been removed, or the link is wrong.",
+    "backToProducts": "Back to products",
+    "noBatchesTitle": "No stock of this product yet",
+    "noBatchesHint": "Each batch is one delivery received from a cycle, at its own landed cost.",
+    "noMovementsTitle": "No stock movements in this batch",
+    "pickBatchTitle": "Open a batch to see its movements",
+    "pickBatchHint": "Receipts, sales and adjustments for that batch are listed here.",
+    "noPriceHistoryTitle": "No prices set yet",
+    "noPriceHistoryHint": "Every wholesale and retail price this product has had is kept here.",
+    "noSuppliersTitle": "No suppliers linked",
+    "noSuppliersHint": "The suppliers this product is bought from appear here.",
+    "noCompatibilityTitle": "No motorcycle models listed",
+    "noCompatibilityHint": "The models this part fits are listed here."
   },
   "cycles": {
     "title": "Import Cycles",
@@ -268,7 +282,18 @@
     "legNotDeparted": "Not departed",
     "legNoDeliveries": "No deliveries yet",
     "legDelivery": "{date}: {units} units",
-    "splitDone": "Split equally — {total} EGP"
+    "splitDone": "Split equally — {total} EGP",
+    "notFoundTitle": "This cycle could not be found",
+    "notFoundHint": "It may have been removed, or the link is wrong.",
+    "backToCycles": "Back to cycles",
+    "noPurchasesTitle": "No purchase orders in this cycle yet",
+    "noPurchasesHint": "What this cycle orders from suppliers is listed here.",
+    "goToPurchases": "Go to purchase orders",
+    "noLegsTitle": "No shipping legs yet",
+    "noLegsHint": "Each leg is one stretch of the journey, with its carrier and cost.",
+    "goToShipments": "Go to shipments",
+    "noBatchesTitle": "Nothing received into stock yet",
+    "noBatchesHint": "Stock appears here once a delivery from this cycle is received."
   },
   "purchases": {
     "title": "Purchases",
@@ -298,7 +323,11 @@
     "refundFailed": "Failed to record refund",
     "emptyTitle": "No purchase orders yet",
     "emptyHint": "What a cycle ordered from a supplier, line by line.",
-    "noItemsYet": "No items added. Click \"Add Item\" to begin."
+    "noItemsYet": "No items added. Click \"Add Item\" to begin.",
+    "noItemsTitle": "No lines on this order",
+    "noItemsHint": "Each line is a product, its quantity and the unit price agreed with the supplier.",
+    "noRefundsTitle": "No refunds from the supplier",
+    "noRefundsHint": "Money the supplier pays back for short or damaged goods is recorded here."
   },
   "shipments": {
     "title": "Shipments",
@@ -349,7 +378,9 @@
     "low": "Low",
     "emptyTitle": "Nothing in stock yet",
     "emptyHint": "Stock arrives when a cycle's shipment is received.",
-    "emptyAction": "Go to cycles"
+    "emptyAction": "Go to cycles",
+    "noBatchesTitle": "No batches left for this product",
+    "noMovementsTitle": "No movements in this batch yet"
   },
   "sales": {
     "title": "Sales Orders",
@@ -414,7 +445,14 @@
     "noChannelPrice": "No {channel} price set",
     "discountTooLarge": "More than the line is worth",
     "openOrder": "Open order {orderNo}",
-    "returnFailed": "Failed to record the return"
+    "returnFailed": "Failed to record the return",
+    "noItemsTitle": "No lines on this order",
+    "noItemsHint": "Each line is a product, its quantity and price.",
+    "noAllocationsTitle": "No stock assigned yet",
+    "noAllocationsDraftHint": "Stock is taken from batches when the order is confirmed.",
+    "noPaymentsTitle": "No payments against this order yet",
+    "noPaymentsHint": "Money the customer pays toward this order is listed here.",
+    "noPaymentsDraftHint": "A draft takes no payment until it is confirmed."
   },
   "customers": {
     "title": "Customers",
@@ -448,7 +486,13 @@
     "updateFailed": "Failed to update customer",
     "verifyFailed": "Failed to verify customer",
     "emptyTitle": "No customers yet",
-    "emptyHint": "Shops and walk-in buyers you sell to — add one to start a sale."
+    "emptyHint": "Shops and walk-in buyers you sell to — add one to start a sale.",
+    "notFoundTitle": "This customer could not be found",
+    "notFoundHint": "They may have been removed, or the link is wrong.",
+    "backToCustomers": "Back to customers",
+    "noPlanTitle": "No payment plan for this customer",
+    "noPlanHint": "A plan splits what they owe into agreed instalments with due dates.",
+    "openPlans": "Open payment plans"
   },
   "payments": {
     "title": "Payments",
@@ -608,7 +652,10 @@
     "margin": "Margin",
     "noData": "No analytics data available yet",
     "unsoldStock": "Unsold stock",
-    "noRevenueInPeriod": "No sales recorded in this period yet."
+    "noRevenueInPeriod": "No sales recorded in this period yet.",
+    "noRevenueHint": "Revenue from confirmed sales is charted here month by month.",
+    "noTopProductsHint": "Your best-selling products appear here once sales are confirmed.",
+    "noCycleProfitHint": "Each cycle shows its profit here once its stock is received."
   },
   "notifications": {
     "title": "Notifications",

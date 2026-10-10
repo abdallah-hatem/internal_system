@@ -233,7 +233,7 @@ function InventoryPageContent() {
                           <tr>
                             <td colSpan={6} className="px-4 py-4 bg-gray-50">
                               {(item.batches ?? []).length === 0 ? (
-                                <p className="text-sm text-gray-400 text-center py-4">{tc('noData')}</p>
+                                <EmptyState size="compact" icon={null} title={t('noBatchesTitle')} />
                               ) : (
                                 <div className="space-y-3">
                                   <div className="overflow-x-auto">
@@ -291,7 +291,7 @@ function InventoryPageContent() {
                                     <div className="bg-white rounded-lg border border-gray-200 p-4">
                                       <h4 className="text-sm font-semibold text-gray-900 mb-3">{t('movements')}</h4>
                                       {movementList.length === 0 ? (
-                                        <p className="text-sm text-gray-400">{tc('noData')}</p>
+                                        <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
                                       ) : (
                                         <div className="space-y-2">
                                           {movementList.map((mov) => (

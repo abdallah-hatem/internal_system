@@ -6,6 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { businessToday, useDateFormat } from '@/lib/dates';
+import { intlFor } from '@/lib/numbers';
 
 // ---------------------------------------------------------------------------
 // Date helpers — everything stays in LOCAL time.
@@ -62,8 +63,9 @@ function weekStartFor(locale: string): number {
   return locale === 'ar' ? 6 : 0;
 }
 
+/** The Intl tag `lib/numbers.ts` chooses, so the picker cannot drift from dates. */
 function intlLocale(locale: string): string {
-  return locale === 'ar' ? 'ar-EG' : 'en-US';
+  return intlFor(locale).tag;
 }
 
 // ---------------------------------------------------------------------------

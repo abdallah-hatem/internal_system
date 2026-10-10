@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { Money } from '../../../components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 import {
   Scale, Loader2, TrendingUp, TrendingDown,
   CheckCircle2, Wallet, RotateCcw, Calculator, X,
@@ -343,6 +344,7 @@ function SettlementCard({
   t: (key: string, values?: Record<string, string | number | Date>) => string;
 }) {
   const codeLabel = useCodeLabel();
+  const { formatNumber } = useNumberFormat();
   const profit = Number(s.grossProfitEgp ?? 0);
   const remaining = Number(s.unitsRemaining ?? 0);
 
@@ -400,13 +402,13 @@ function SettlementCard({
         <Metric
           label={t('unsoldStock')}
           value={s.unsoldValueEgp}
-          hint={remaining > 0 ? t('unitsCount', { units: remaining.toLocaleString('en-US') }) : undefined}
+          hint={remaining > 0 ? t('unitsCount', { units: formatNumber(remaining) }) : undefined}
         />
       </div>
 
       {remaining > 0 && (
         <p className="px-5 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
-          {t('unsoldWarning', { units: remaining.toLocaleString('en-US') })}
+          {t('unsoldWarning', { units: formatNumber(remaining) })}
         </p>
       )}
 

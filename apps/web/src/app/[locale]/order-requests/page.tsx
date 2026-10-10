@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Clock, Loader2, Store, X } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Money } from '@/components/ui/money';
 
 import { api } from '../../../lib/api';
 import { useApiError } from '../../../lib/api-error';
@@ -55,7 +56,6 @@ interface PendingRequest {
 export default function OrderRequestsPage() {
   const t = useTranslations('orderRequests');
   const tc = useTranslations('common');
-  const locale = useLocale();
   const toast = useToast();
   const apiError = useApiError();
   const queryClient = useQueryClient();
@@ -100,7 +100,6 @@ export default function OrderRequestsPage() {
           <RequestCard
             key={request.id}
             request={request}
-            locale={locale}
             onDone={invalidate}
             onError={(e) => toast.error(apiError(e, tc('error')))}
             onSuccess={(m) => toast.success(m)}
@@ -113,13 +112,11 @@ export default function OrderRequestsPage() {
 
 function RequestCard({
   request,
-  locale,
   onDone,
   onError,
   onSuccess,
 }: {
   request: PendingRequest;
-  locale: string;
   onDone: () => void;
   onError: (e: unknown) => void;
   onSuccess: (message: string) => void;
@@ -287,10 +284,7 @@ function RequestCard({
           <p className="text-sm text-gray-600">
             {t('orderTotal')}{' '}
             <span className="font-semibold text-gray-900">
-              {total.toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-EG', {
-                style: 'currency',
-                currency: 'EGP',
-              })}
+              <Money value={total} />
             </span>
           </p>
 

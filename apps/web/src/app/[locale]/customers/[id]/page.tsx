@@ -111,7 +111,15 @@ export default function CustomerPage() {
   }
 
   if (!customer) {
-    return <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-400">{tc('noData')}</div>;
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <EmptyState
+          title={t('notFoundTitle')}
+          description={t('notFoundHint')}
+          action={{ label: t('backToCustomers'), href: '/customers' }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -246,7 +254,13 @@ export default function CustomerPage() {
 
       <Card title={tpl('title')} icon={<CalendarClock className="h-4 w-4 text-gray-400" />}>
         {!plan ? (
-          <p className="py-6 text-center text-sm text-gray-400">{tpl('noData')}</p>
+          <EmptyState
+            size="compact"
+            icon={CalendarClock}
+            title={t('noPlanTitle')}
+            description={t('noPlanHint')}
+            action={owed > 0 ? { label: t('openPlans'), href: '/payment-plans' } : undefined}
+          />
         ) : (
           <Rows>
             {plan.instalments.map((i: any) => (

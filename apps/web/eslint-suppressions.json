@@ -1,7 +1,7 @@
 {
   "src/app/[locale]/analytics/page.tsx": {
     "local/no-raw-colors": {
-      "count": 49
+      "count": 46
     }
   },
   "src/app/[locale]/audit-logs/page.tsx": {
@@ -37,7 +37,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 39
+      "count": 37
     }
   },
   "src/app/[locale]/customers/page.tsx": {
@@ -48,7 +48,7 @@
       "count": 4
     },
     "local/no-raw-colors": {
-      "count": 87
+      "count": 86
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -62,7 +62,7 @@
       "count": 4
     },
     "local/no-raw-colors": {
-      "count": 50
+      "count": 48
     }
   },
   "src/app/[locale]/cycles/page.tsx": {
@@ -98,7 +98,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 90
+      "count": 88
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -186,7 +186,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 79
+      "count": 77
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -200,7 +200,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 102
+      "count": 95
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -242,7 +242,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 93
+      "count": 91
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -253,7 +253,7 @@
       "count": 9
     },
     "local/no-raw-colors": {
-      "count": 117
+      "count": 112
     },
     "no-restricted-syntax": {
       "count": 1
@@ -341,7 +341,7 @@
   },
   "src/components/layout/notification-bell.tsx": {
     "local/no-raw-colors": {
-      "count": 18
+      "count": 17
     }
   },
   "src/components/products/product-photos.tsx": {

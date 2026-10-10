@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { LegRoute } from '@/components/shipment/LegRoute';
 import { Money } from '@/components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 
 import { useApiError } from '../../../lib/api-error';
 import { useDateFormat } from '../../../lib/dates';
@@ -546,6 +547,7 @@ export default function ShipmentsPage() {
  */
 function LegCost({ ship }: { ship: Shipment }) {
   const t = useTranslations('shipments');
+  const { formatNumber } = useNumberFormat();
   const egp = ship.amountEgp ?? ship.amount;
   if (egp === null || egp === undefined || egp === '') return <span>—</span>;
 
@@ -553,7 +555,7 @@ function LegCost({ ship }: { ship: Shipment }) {
   if (!Number.isFinite(value)) return <span>—</span>;
 
   // Latin digits in both languages (the app's rule for Arabic).
-  const fmt = (n: number, max = 0) => n.toLocaleString('en-US', { maximumFractionDigits: max });
+  const fmt = (n: number, max = 0) => formatNumber(n, { maximumFractionDigits: max });
   const rate = ship.ratePerUnit != null ? Number(ship.ratePerUnit) : null;
   const basisHint =
     ship.costBasis === 'PER_PIECE' && rate != null
