@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProvidersService } from './providers.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Providers')
 @ApiBearerAuth()
@@ -21,16 +22,17 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class ProvidersController {
   constructor(private providersService: ProvidersService) {}
 
+  // An investor reads only the providers that carried their cycles (R1).
   @Get()
   @ApiOperation({ summary: 'List all providers' })
-  findAll() {
-    return this.providersService.findAll();
+  findAll(@CurrentUser() user: Viewer) {
+    return this.providersService.findAll(user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get provider details' })
-  findById(@Param('id') id: string) {
-    return this.providersService.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.providersService.findById(id, user);
   }
 
   @Post()

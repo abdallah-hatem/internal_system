@@ -26,16 +26,18 @@ const PHONE = { width: 390, height: 844 };
  *  the one expected refusal. Nothing else may 403. */
 const EXPECTED_REFUSALS = [/\/audit-logs\?limit=5/, /\/analytics\/recent-activity/];
 
+// R1 (owner, 2026-10-10): an investor sees only their own cycles — no
+// analytics, customers or payment plans; their cycles' settlements, scoped.
 const INVESTOR_HREFS = [
-  '/dashboard', '/analytics',
+  '/dashboard',
   '/cycles', '/purchases', '/suppliers', '/shipments', '/providers',
   '/products', '/categories', '/inventory',
-  '/customers', '/payment-plans',
+  '/settlements',
   '/notifications', '/settings',
 ];
 const PARTNER_ONLY_HREFS = [
-  '/order-requests', '/import-requests', '/sales', '/payments', '/ledger',
-  '/partners', '/settlements', '/audit-logs',
+  '/analytics', '/order-requests', '/import-requests', '/sales', '/customers',
+  '/payments', '/payment-plans', '/ledger', '/partners', '/audit-logs',
 ];
 
 /** A fresh account with the given role, created by a partner. */
@@ -104,13 +106,15 @@ test.describe('The menu by role', () => {
     const signedIn = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
     const headers = { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
     const endpoints: Record<string, string> = {
+      '/analytics': '/analytics/revenue-by-month',
       '/order-requests': '/order-requests/pending',
       '/import-requests': '/import-requests',
       '/sales': '/sales/orders',
+      '/customers': '/customers',
       '/payments': '/payments',
+      '/payment-plans': '/payment-plans',
       '/ledger': '/ledger',
       '/partners': '/users/participation',
-      '/settlements': '/settlements',
       '/audit-logs': '/audit-logs',
     };
     for (const href of PARTNER_ONLY_HREFS) {
@@ -157,11 +161,11 @@ test.describe('The menu by role', () => {
     await page.setViewportSize(PHONE);
     await login(page, email);
     const bar = page.getByTestId('phone-bar');
-    await expect(bar.getByRole('link')).toHaveText(['Dashboard', 'Customers', 'Inventory', 'Cycles']);
+    await expect(bar.getByRole('link')).toHaveText(['Dashboard', 'Inventory', 'Cycles']);
     await bar.getByRole('button', { name: 'More' }).click();
     const aside = page.locator('aside');
-    await expect(aside.getByRole('link', { name: 'Payment Plans' })).toBeInViewport();
-    for (const name of ['Sales', 'Payments', 'Ledger', 'Settlements', 'Audit Logs']) {
+    await expect(aside.getByRole('link', { name: 'Settlements' })).toBeInViewport();
+    for (const name of ['Sales', 'Customers', 'Payments', 'Payment Plans', 'Ledger', 'Audit Logs']) {
       await expect(aside.getByRole('link', { name, exact: true })).toHaveCount(0);
     }
   });

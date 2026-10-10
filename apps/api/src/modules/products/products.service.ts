@@ -8,6 +8,7 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { skuKey } from '../assistant/receipt/name-matching';
+import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
 
 type Db = Prisma.TransactionClient;
 
@@ -25,8 +26,15 @@ export class ProductsService {
       status?: string;
       search?: string;
     },
+    viewer: ScopeViewer = 'internal',
   ) {
-    const { cursor, limit: rawLimit = 20, categoryId, status, search } = pagination;
+    const {
+      cursor,
+      limit: rawLimit = 20,
+      categoryId,
+      status,
+      search,
+    } = pagination;
     const limit = pageSize(rawLimit);
     const where: any = {};
     if (categoryId) where.categoryId = categoryId;
@@ -45,7 +53,11 @@ export class ProductsService {
       orderBy: { createdAt: 'desc' },
       include: {
         category: true,
-        suppliers: { include: { supplier: true } },
+        // The catalogue is shared reference data an investor's cycle pages
+        // need; who else the business buys each part from is not (R1).
+        suppliers: seesEveryCycle(viewer)
+          ? { include: { supplier: true } }
+          : false,
         prices: true,
       },
     });
@@ -61,12 +73,16 @@ export class ProductsService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string, viewer: ScopeViewer = 'internal') {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
         category: true,
-        suppliers: { include: { supplier: true } },
+        // The catalogue is shared reference data an investor's cycle pages
+        // need; who else the business buys each part from is not (R1).
+        suppliers: seesEveryCycle(viewer)
+          ? { include: { supplier: true } }
+          : false,
         prices: true,
         compatibilities: { include: { motorcycleModel: true } },
       },
@@ -227,7 +243,10 @@ export class ProductsService {
       where: { name: data.name },
     });
     if (existing) {
-      throw conflict('CATEGORY_NAME_TAKEN', 'Category with this name already exists');
+      throw conflict(
+        'CATEGORY_NAME_TAKEN',
+        'Category with this name already exists',
+      );
     }
 
     const category = await this.prisma.category.create({ data });
@@ -246,7 +265,11 @@ export class ProductsService {
   async findCategoryById(id: string) {
     const category = await this.prisma.category.findUnique({
       where: { id },
-      include: { children: true, parent: true, _count: { select: { products: true, children: true } } },
+      include: {
+        children: true,
+        parent: true,
+        _count: { select: { products: true, children: true } },
+      },
     });
     if (!category) throw notFound('category');
     return { data: category };
@@ -262,13 +285,22 @@ export class ProductsService {
 
     // Check name uniqueness if changing
     if (data.name && data.name !== existing.name) {
-      const dup = await this.prisma.category.findUnique({ where: { name: data.name } });
-      if (dup) throw conflict('CATEGORY_NAME_TAKEN', 'Category with this name already exists');
+      const dup = await this.prisma.category.findUnique({
+        where: { name: data.name },
+      });
+      if (dup)
+        throw conflict(
+          'CATEGORY_NAME_TAKEN',
+          'Category with this name already exists',
+        );
     }
 
     // Prevent setting self as parent
     if (data.parentId === id) {
-      throw badRequest('CATEGORY_OWN_PARENT', 'Category cannot be its own parent');
+      throw badRequest(
+        'CATEGORY_OWN_PARENT',
+        'Category cannot be its own parent',
+      );
     }
 
     const updated = await this.prisma.category.update({ where: { id }, data });

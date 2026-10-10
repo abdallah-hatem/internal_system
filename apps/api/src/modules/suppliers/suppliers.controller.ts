@@ -15,6 +15,7 @@ import { SuppliersService } from './suppliers.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Suppliers')
 @ApiBearerAuth()
@@ -23,16 +24,20 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class SuppliersController {
   constructor(private suppliersService: SuppliersService) {}
 
+  // An investor reads only the suppliers their cycles bought from (R1).
   @Get()
   @ApiOperation({ summary: 'List suppliers with pagination' })
-  findAll(@Query() query: PaginationDto & { search?: string }) {
-    return this.suppliersService.findAll(query);
+  findAll(
+    @Query() query: PaginationDto & { search?: string },
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.suppliersService.findAll(query, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get supplier details' })
-  findById(@Param('id') id: string) {
-    return this.suppliersService.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.suppliersService.findById(id, user);
   }
 
   @Post()

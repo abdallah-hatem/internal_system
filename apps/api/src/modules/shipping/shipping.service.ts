@@ -4,6 +4,12 @@ import { assertNotFuture, businessDay } from '../../common/dates';
 import { expectedLegs } from '../../common/cycle-routes';
 import { assertUuid, isUuid } from '../../common/uuid';
 import {
+  assertInScope,
+  cycleIdWhere,
+  cyclesVisibleTo,
+  type ScopeViewer,
+} from '../../common/investor-scope';
+import {
   loadShipment,
   lockCycle,
   syncLegStatuses,
@@ -85,11 +91,19 @@ export class ShippingService {
     private deliveries: DeliveriesService,
   ) {}
 
-  async findAll(pagination: PaginationDto & { cycleId?: string }) {
+  async findAll(
+    pagination: PaginationDto & { cycleId?: string },
+    viewer: ScopeViewer = 'internal',
+  ) {
     const { cursor, limit: rawLimit = 20, cycleId } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
-    if (cycleId) where.cycleId = cycleId;
+    const where: Prisma.ShippingLegWhereInput = {};
+    // An investor: only their cycles' legs (R1).
+    const cycleFilter = cycleIdWhere(
+      await cyclesVisibleTo(viewer, this.prisma),
+      cycleId,
+    );
+    if (cycleFilter) where.cycleId = cycleFilter;
 
     const items = await this.prisma.shippingLeg.findMany({
       where,
@@ -110,7 +124,9 @@ export class ShippingService {
     };
   }
 
-  async findByCycle(cycleId: string) {
+  async findByCycle(cycleId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), cycleId);
     const legs = await this.prisma.shippingLeg.findMany({
       where: { cycleId },
       orderBy: { sequence: 'asc' },

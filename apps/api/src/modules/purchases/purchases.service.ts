@@ -15,6 +15,12 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
 import { isUuid } from '../../common/uuid';
+import {
+  assertInScope,
+  cycleIdWhere,
+  cyclesVisibleTo,
+  type ScopeViewer,
+} from '../../common/investor-scope';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -115,11 +121,16 @@ export class PurchasesService {
     private notifications: NotificationsService,
   ) {}
 
-  async findAll(pagination: PaginationDto & { cycleId?: string }) {
+  async findAll(
+    pagination: PaginationDto & { cycleId?: string },
+    viewer: ScopeViewer = 'internal',
+  ) {
     const { cursor, limit: rawLimit = 20, cycleId } = pagination;
     const limit = pageSize(rawLimit);
     const where: Prisma.PurchaseOrderWhereInput = {};
-    if (cycleId) where.cycleId = cycleId;
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
+    const cycleFilter = cycleIdWhere(scope, cycleId);
+    if (cycleFilter) where.cycleId = cycleFilter;
 
     const items = await this.prisma.purchaseOrder.findMany({
       where,
@@ -144,7 +155,9 @@ export class PurchasesService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(id)) throw notFound('purchaseOrder');
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: {
@@ -155,10 +168,14 @@ export class PurchasesService {
       },
     });
     if (!po) throw notFound('purchaseOrder');
+    // Another cycle's order reads as missing to an investor (R1).
+    assertInScope(scope, po.cycleId, 'purchaseOrder');
     return { data: po };
   }
 
-  async findByCycle(cycleId: string) {
+  async findByCycle(cycleId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), cycleId);
     const items = await this.prisma.purchaseOrder.findMany({
       where: { cycleId },
       include: {

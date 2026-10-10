@@ -3,6 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
+import { isUuid } from '../../common/uuid';
 @Injectable()
 export class ProvidersService {
   constructor(
@@ -10,18 +12,35 @@ export class ProvidersService {
     private audit: AuditService,
   ) {}
 
-  async findAll() {
+  /**
+   * An investor: only the providers that carried their cycles' legs, with
+   * only those legs counted (R1). Everyone else: every provider.
+   */
+  private async legScope(viewer: ScopeViewer) {
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
+    return scope === null ? undefined : { cycleId: { in: [...scope] } };
+  }
+
+  async findAll(viewer: ScopeViewer = 'internal') {
+    const ours = await this.legScope(viewer);
     const items = await this.prisma.provider.findMany({
+      where: ours ? { shippingLegs: { some: ours } } : undefined,
       orderBy: { name: 'asc' },
-      include: { _count: { select: { shippingLegs: true } } },
+      include: {
+        _count: { select: { shippingLegs: ours ? { where: ours } : true } },
+      },
     });
     return { data: items };
   }
 
-  async findById(id: string) {
-    const provider = await this.prisma.provider.findUnique({
-      where: { id },
-      include: { _count: { select: { shippingLegs: true } } },
+  async findById(id: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(id)) throw notFound('provider');
+    const ours = await this.legScope(viewer);
+    const provider = await this.prisma.provider.findFirst({
+      where: ours ? { id, shippingLegs: { some: ours } } : { id },
+      include: {
+        _count: { select: { shippingLegs: ours ? { where: ours } : true } },
+      },
     });
     if (!provider) throw notFound('provider');
     return { data: provider };

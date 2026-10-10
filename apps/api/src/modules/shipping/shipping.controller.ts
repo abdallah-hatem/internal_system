@@ -26,6 +26,7 @@ import {
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Shipping')
 @ApiBearerAuth()
@@ -39,9 +40,14 @@ export class ShippingController {
   ) {}
 
   @Get('legs')
-  @ApiOperation({ summary: 'List all shipping legs' })
-  findAll(@Query() query: PaginationDto & { cycleId?: string }) {
-    return this.shippingService.findAll(query);
+  @ApiOperation({
+    summary: 'List shipping legs (an investor: their cycles only)',
+  })
+  findAll(
+    @Query() query: PaginationDto & { cycleId?: string },
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.shippingService.findAll(query, user);
   }
 
   @Put('legs/:id')
@@ -126,8 +132,8 @@ export class CycleShippingController {
 
   @Get(':cycleId/shipping-legs')
   @ApiOperation({ summary: 'List shipping legs for a cycle' })
-  findByCycle(@Param('cycleId') cycleId: string) {
-    return this.shippingService.findByCycle(cycleId);
+  findByCycle(@Param('cycleId') cycleId: string, @CurrentUser() user: Viewer) {
+    return this.shippingService.findByCycle(cycleId, user);
   }
 
   @Post(':cycleId/shipping-legs')

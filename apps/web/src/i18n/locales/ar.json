@@ -131,7 +131,13 @@
     "sold": "تم بيع {count, number}",
     "sortedByBalance": "الأعلى رصيدًا أولًا",
     "showingLowStock": "عرض المنتجات التي تحت الحد الأدنى للمخزون",
-    "showAll": "عرض الكل"
+    "showAll": "عرض الكل",
+    "investorSubtitle": "الدورات التي ساهمت فيها بأموالك، وما حققته كل منها حتى الآن",
+    "yourCycles": "دوراتك",
+    "yourCyclesEmpty": "لا توجد بضاعة مستلمة في أي من دوراتك بعد",
+    "yourCyclesEmptyHint": "يظهر ربح الدورة هنا بعد استلام بضاعتها.",
+    "yourCyclesError": "تعذّر تحميل دوراتك.",
+    "cycleProfit": "الربح حتى الآن"
   },
   "products": {
     "title": "المنتجات",

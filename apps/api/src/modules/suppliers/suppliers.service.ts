@@ -6,6 +6,8 @@ import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { supplierKey } from '../assistant/receipt/name-matching';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
+import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
+import { isUuid } from '../../common/uuid';
 
 type Db = Prisma.TransactionClient;
 
@@ -16,16 +18,25 @@ export class SuppliersService {
     private audit: AuditService,
   ) {}
 
-  async findAll(pagination: PaginationDto & { search?: string }) {
+  async findAll(
+    pagination: PaginationDto & { search?: string },
+    viewer: ScopeViewer = 'internal',
+  ) {
     const { cursor, limit: rawLimit = 20, search } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
+    const where: Prisma.SupplierWhereInput = {};
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { country: { contains: search, mode: 'insensitive' } },
       ];
     }
+    // An investor: only the suppliers their cycles bought from, and only
+    // those orders counted — the rest of the business's buying is not theirs
+    // to read (R1).
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
+    const ours = scope === null ? undefined : { cycleId: { in: [...scope] } };
+    if (ours) where.purchaseOrders = { some: ours };
 
     const items = await this.prisma.supplier.findMany({
       where,
@@ -37,7 +48,12 @@ export class SuppliersService {
       // deleting it is even possible.
       include: {
         products: true,
-        _count: { select: { purchaseOrders: true, products: true } },
+        _count: {
+          select: {
+            purchaseOrders: ours ? { where: ours } : true,
+            products: true,
+          },
+        },
       },
     });
 
@@ -52,15 +68,21 @@ export class SuppliersService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(id)) throw notFound('supplier');
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
+    const ours = scope === null ? undefined : { cycleId: { in: [...scope] } };
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
       include: {
         products: { include: { product: true } },
-        purchaseOrders: true,
+        purchaseOrders: ours ? { where: ours } : true,
       },
     });
     if (!supplier) throw notFound('supplier');
+    // A supplier none of an investor's cycles bought from reads as missing.
+    if (ours && supplier.purchaseOrders.length === 0)
+      throw notFound('supplier');
     return { data: supplier };
   }
 

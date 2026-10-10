@@ -14,19 +14,28 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class PaymentPlansController {
   constructor(private plans: PaymentPlansService) {}
 
+  // Customer data — every shop, its balance, what it owes and returned — is
+  // the office's. A temporary investor sees only their own cycles (BUSINESS_LOGIC
+  // roles, owner 2026-10-10), so the reads refuse them with ROLE_NOT_ALLOWED.
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'List payment plans with their progress' })
   findAll(@Query() query: PaginationDto & { customerId?: string; overdueOnly?: string }) {
     return this.plans.findAll(query);
   }
 
   @Get('overdue')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Everything behind schedule right now' })
   overdue(@CurrentUser() user: any) {
     return this.plans.overdueSummary(user?.id ? [user.id] : []);
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'A plan with each instalment and its state' })
   findOne(@Param('id') id: string) {
     return this.plans.findOne(id);

@@ -19,6 +19,14 @@ import {
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { lockCycle } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
+import {
+  assertInScope,
+  cycleIdWhere,
+  cyclesVisibleTo,
+  ownParticipantIds,
+  type ScopeViewer,
+} from '../../common/investor-scope';
+import { isUuid } from '../../common/uuid';
 /** Sale states whose stock has genuinely left the business. */
 const REALISED_ORDER_STATUSES = [
   'CONFIRMED',
@@ -67,13 +75,21 @@ export class SettlementsService {
       cycleId?: string;
       status?: string;
     },
+    viewer: ScopeViewer = 'internal',
   ) {
     const { cursor, limit: rawLimit = 20, cycleId, status } = query;
     const limit = pageSize(rawLimit);
 
-    const where: any = {};
-    if (cycleId) where.cycleId = cycleId;
-    if (status) where.status = status;
+    const where: Prisma.SettlementWhereInput = {};
+    // An investor: their cycles' settlements, and on each only their own
+    // lines; the settlement's totals are the cycle's, which they may see (R1).
+    const cycleFilter = cycleIdWhere(
+      await cyclesVisibleTo(viewer, this.prisma),
+      cycleId,
+    );
+    if (cycleFilter) where.cycleId = cycleFilter;
+    if (status) where.status = status as Prisma.SettlementWhereInput['status'];
+    const own = await ownParticipantIds(viewer, this.prisma);
 
     const items = await this.prisma.settlement.findMany({
       where,
@@ -83,6 +99,7 @@ export class SettlementsService {
       include: {
         cycle: { select: { id: true, code: true, status: true } },
         lines: {
+          ...(own ? { where: { participantId: { in: [...own] } } } : {}),
           include: {
             participant: {
               include: {
@@ -121,12 +138,15 @@ export class SettlementsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(id)) throw notFound('settlement');
+    const own = await ownParticipantIds(viewer, this.prisma);
     const settlement = await this.prisma.settlement.findUnique({
       where: { id },
       include: {
         cycle: { select: { id: true, code: true, status: true } },
         lines: {
+          ...(own ? { where: { participantId: { in: [...own] } } } : {}),
           include: {
             participant: {
               include: {
@@ -154,6 +174,12 @@ export class SettlementsService {
       },
     });
     if (!settlement) throw notFound('settlement');
+    // Another cycle's settlement reads as missing to an investor (R1).
+    assertInScope(
+      await cyclesVisibleTo(viewer, this.prisma),
+      settlement.cycleId,
+      'settlement',
+    );
     return { data: settlement };
   }
 
@@ -316,7 +342,10 @@ export class SettlementsService {
    * partners page needs, and which anyone about to settle wants to see before
    * they commit to it.
    */
-  async preview(cycleId: string) {
+  async preview(cycleId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), cycleId);
+    const own = await ownParticipantIds(viewer, this.prisma);
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id: cycleId },
     });
@@ -343,15 +372,18 @@ export class SettlementsService {
         grossProfitEgp: projected.pnl.grossProfit.toFixed(2),
         unsoldValueEgp: projected.pnl.unsoldValue.toFixed(2),
         fullySold: projected.pnl.fullySold,
-        lines: projected.distribution.lines.map((l) => ({
-          participantId: l.participantId,
-          type: l.type,
-          sharePct: l.sharePct.toFixed(4),
-          netProfitEgp: l.netProfit.toFixed(2),
-          feeReceivedEgp: l.feeReceived.toFixed(2),
-          capitalReturnEgp: l.capitalReturn.toFixed(2),
-          payoutEgp: l.payout.toFixed(2),
-        })),
+        // An investor: their own payout line only (R1).
+        lines: projected.distribution.lines
+          .filter((l) => own === null || own.includes(l.participantId))
+          .map((l) => ({
+            participantId: l.participantId,
+            type: l.type,
+            sharePct: l.sharePct.toFixed(4),
+            netProfitEgp: l.netProfit.toFixed(2),
+            feeReceivedEgp: l.feeReceived.toFixed(2),
+            capitalReturnEgp: l.capitalReturn.toFixed(2),
+            payoutEgp: l.payout.toFixed(2),
+          })),
       },
     };
   }

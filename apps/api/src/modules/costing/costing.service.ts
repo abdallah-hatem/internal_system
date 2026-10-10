@@ -3,6 +3,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
+import {
+  assertInScope,
+  cyclesVisibleTo,
+  type ScopeViewer,
+} from '../../common/investor-scope';
+import { isUuid } from '../../common/uuid';
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
 
@@ -106,6 +112,19 @@ export class CostingService {
    * `lineEventCost` gives the event that accounts for a line's last units the
    * rounding residual.
    */
+  /**
+   * The landed cost a caller may read: their own cycle's, or 404 (R1). An id
+   * that is not a uuid is no such cycle, not a cast failure.
+   */
+  async landedCostFor(
+    cycleId: string,
+    viewer: ScopeViewer,
+  ): Promise<CycleLandedCostResult> {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), cycleId);
+    return this.computeCycleLandedCosts(cycleId);
+  }
+
   async computeCycleLandedCosts(
     cycleId: string,
     opts: {

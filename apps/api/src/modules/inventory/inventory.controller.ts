@@ -13,6 +13,7 @@ import { InventoryService } from './inventory.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { VerifyStockDto } from './dto/verify-stock.dto';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
@@ -32,14 +33,20 @@ export class InventoryController {
   }
 
   @Get('inventory')
-  @ApiOperation({ summary: 'List stock levels (filter by product/cycle)' })
-  getStock(@Query() query: { productId?: string; cycleId?: string }) {
-    return this.inventoryService.getStock(query);
+  @ApiOperation({
+    summary:
+      'List stock levels (filter by product/cycle; an investor: their cycles only)',
+  })
+  getStock(
+    @Query() query: { productId?: string; cycleId?: string },
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.inventoryService.getStock(query, user);
   }
 
   @Get('inventory/batches/:id/movements')
   @ApiOperation({ summary: 'Get movement history for an inventory batch' })
-  getMovements(@Param('id') id: string) {
-    return this.inventoryService.getMovements(id);
+  getMovements(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.inventoryService.getMovements(id, user);
   }
 }
