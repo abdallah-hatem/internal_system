@@ -10,3 +10,11 @@
 - U4b merged: recent activity comes from `GET /analytics/recent-activity` (confirmed sales, unreversed
   payments, receipts; core partner + admin support). Root cause: it read the audit log, which seeds never
   write and which counts drafts. Found: `/audit-logs` has no RolesGuard → task U4c.
+- B1 merged `45decba`: deliveries/losses model, migration `20261010120000_shipment_deliveries` (only destructive
+  line: the intended drop of the one-batch-per-line unique index), `shipmentPosition`, `GET /cycles/:id/shipment`.
+  Backfill is a **separate script** (`scripts/ship-prod.sh backfill`, `npm run db:backfill:deliveries`), so the
+  ship order becomes migrate → backfill → env → push. api jest on master: 469/469, typecheck clean.
+  Guesses B1 made (accepted, logged): a loss on the last leg comes out of on-the-way first, then waiting; the
+  backfill also dates an undated earlier leg to the first batch's day; legless cycles' batches stay unlinked.
+  Carried to B3: receipts must also cap at the line's waiting quantity, and must guard concurrency now that the
+  unique index is gone.
