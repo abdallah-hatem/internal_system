@@ -44,3 +44,12 @@
   guard for double submit (the payment key would show in `reference`).
 - F1b dispatched early from `c292c78` (needs B2, not B3; owns no B3 file).
 - F1b merged: wizard ends at in-transit (`wizard-walk.ts`), resume reads every order and leg, list shows profit and ROI from analytics. Guesses accepted (F1b.md). Fixed B2's 3 `any` lint errors in spec 78.
+- B3 merged `ddfb3cb`: receipts per delivery under `lockCycle`, the first receipt walks to SELLING through
+  `transitionIn`/`planTransition`; per-ordered-unit cost with the residual on the final event (`lineEventCost`);
+  `assertShipmentAccounted` in planTransition → SETTLEMENT and in approve; losses subtracted in settlement,
+  analytics and dashboard net profit; batches carry their own `arrivedOn`; demo seed builds deliveries
+  (check-data all zero on both resets). api 625 + 5 skipped, web 107 + 43, lint/typecheck clean.
+  Merge fixes: locales key-merged; spec 29 TC-RT-08 stays fixme (the re-entry it pinned no longer exists);
+  spec numbers collided (78/79 twice) → B2's is now 81, B3's 82. From wave 4 on, briefs assign spec numbers.
+  B3 left Docker running; the main thread quit it.
+- Wave 4: B4 ‖ B5 ‖ F1a from master. Spec numbers: B4 → 83, B5 → 84, F1a → 85 (U5 → 86, R1 → 87 later).
