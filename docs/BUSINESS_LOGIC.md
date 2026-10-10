@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11.
+Last updated 2026-10-11 (walk-in, assistant sales).
 
 ---
 
@@ -245,6 +245,16 @@ for nothing until it is confirmed.
 Saving the same new order twice (a double click, a retry after a dropped
 connection) creates it once: the second request is answered with the first
 order. This holds per person, across the server's instances.
+
+**DECIDED 2026-10-11 by the owner — a walk-in sale is paid on the spot.**
+*Building.* A buyer who is not a shop does not need a customer record. A
+walk-in sale is created, confirmed and paid in full in one step, at retail
+(B2C) prices, by the method chosen (cash by default), dated now. It cannot be a
+draft and never leaves anything owed. Behind it is one shared "Walk-in" record
+the system keeps: it cannot sign in, cannot be edited or deleted, and never
+shows a balance. Stock, discount and price rules are the same as any sale. A
+walk-in return is refunded in money, not as credit — there is no account to
+hold it.
 ---
 
 ## 5. Returns
@@ -929,6 +939,15 @@ about one slip in five characters — is offered as a likely match and the partn
 confirms it; a close name is never taken as the same thing without that.
 
 Shipping, fees and tax printed on a receipt are not purchase order lines; the partner decides whether they belong on a shipping leg.
+
+**DECIDED 2026-10-11 by the owner — the assistant can record a sale.**
+*Building.* "I sold 25 of X at Y to Z" is a sale the assistant records, the
+same two-call way as every write: it matches the product and the customer
+(close names are asked, never assumed), shows the preview — lines, total,
+whether the stock is there — and saves only on a clear yes. "To anyone" or a
+walk-in buyer is a walk-in sale (§4), paid on the spot. Without a stated price
+it offers the list price for that kind of buyer and asks. It creates and
+confirms in one step; it records no other payments, returns or settlements.
 
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it

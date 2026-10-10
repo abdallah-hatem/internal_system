@@ -2,11 +2,9 @@
 
 Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The MCP run before it was
 fully autonomous too, chosen 2026-09-19.
-Goal (current): (A) "make the UI/UX easier" — the 12 recommendations and the quick wins from the
-2026-10-10 UX review, with the dead search box removed. (B) "a shipment can arrive in batches — ship 40,
-and it arrives 15, then 10, then 5, then 10 across 40 days or so; I have no control". The user said
-"do all" to the three rule decisions.
-Current stage: done — **shipped 2026-10-11** (`57734d3`), live in production, smoke 6/6
+Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
+photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
+Current stage: 6 — Build · W1 dispatching (walk-in on the server)
 
 ## Waiting on the user
 _(none)_
@@ -24,6 +22,7 @@ _(none)_
 - Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
 
 ## Phases
+- Walk-in + assistant sales — building · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)
 - MCP assistant — shipped 2026-09-25 · [log](build-log/decisions/mcp-assistant.md)
 - Partial arrivals + UX batch — shipped 2026-10-11 · [decisions](build-log/decisions/arrivals-and-ux.md) · [waves](build-log/waves/arrivals-and-ux/)
 
