@@ -274,6 +274,26 @@ function fakePrisma() {
     product: {
       findUnique: ({ where }: Row) =>
         Promise.resolve(db.products.find((p) => p.id === where.id) ?? null),
+      // The low-stock query after a receipt (common/low-stock.ts), its filter
+      // read honestly: active (the schema default), a minimum set, these ids.
+      findMany: ({ where = {} }: Row) =>
+        Promise.resolve(
+          db.products
+            .filter(
+              (p) =>
+                (where.status === undefined ||
+                  (p.status ?? 'ACTIVE') === where.status) &&
+                (where.minStock?.not !== null || p.minStock != null) &&
+                (!where.id?.in || where.id.in.includes(p.id)),
+            )
+            .map((p) => ({
+              ...p,
+              status: p.status ?? 'ACTIVE',
+              inventoryBatches: db.batches
+                .filter((b) => b.productId === p.id)
+                .map((b) => ({ remainingQty: b.remainingQty })),
+            })),
+        ),
     },
     usedNonce: {
       create: ({ data }: Row) => {

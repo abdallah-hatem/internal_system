@@ -8,6 +8,7 @@ import {
   netRecoveredEgp,
 } from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
+import { countLowStock } from '../../common/low-stock';
 import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 
@@ -179,23 +180,8 @@ export class AnalyticsService {
       0,
     );
 
-    // Low stock alerts: count of products where current stock < minStock
-    // Current stock = sum of remainingQty from all batches for the product
-    const productsWithMinStock = await this.prisma.product.findMany({
-      where: { minStock: { not: null }, status: 'ACTIVE' },
-      select: {
-        id: true,
-        minStock: true,
-        inventoryBatches: { select: { remainingQty: true } },
-      },
-    });
-    const lowStockAlerts = productsWithMinStock.filter((p) => {
-      const currentStock = p.inventoryBatches.reduce(
-        (sum, b) => sum + Number(b.remainingQty),
-        0,
-      );
-      return currentStock < Number(p.minStock!);
-    }).length;
+    // Low stock: the one rule (common/low-stock.ts, BUSINESS_LOGIC §3).
+    const lowStockAlerts = await countLowStock(this.prisma);
 
     // Total customers
     // Money actually in hand, as opposed to money earned.

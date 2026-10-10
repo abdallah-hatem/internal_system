@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { CostingService, lineEventCost } from '../costing/costing.service';
 import { CyclesService } from '../cycles/cycles.service';
 import { formatMoney, formatQty } from '../../common/money';
+import { findLowStock } from '../../common/low-stock';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
@@ -403,12 +404,6 @@ export class InventoryService {
 
         const batches: Awaited<ReturnType<Db['inventoryBatch']['create']>>[] =
           [];
-        const lowStockProducts: {
-          productId: string;
-          productName: string;
-          currentStock: number;
-          minStock: number;
-        }[] = [];
 
         for (const line of plan.lines) {
           const batch = await tx.inventoryBatch.create({
@@ -465,26 +460,15 @@ export class InventoryService {
               createdBy: actorId,
             },
           });
-
-          const product = await tx.product.findUnique({
-            where: { id: line.productId },
-          });
-          if (product?.minStock) {
-            const totalStockAgg = await tx.inventoryBatch.aggregate({
-              where: { productId: line.productId },
-              _sum: { saleableQty: true },
-            });
-            const totalStock = Number(totalStockAgg._sum.saleableQty || 0);
-            if (totalStock < Number(product.minStock)) {
-              lowStockProducts.push({
-                productId: line.productId,
-                productName: product.name,
-                currentStock: totalStock,
-                minStock: Number(product.minStock),
-              });
-            }
-          }
         }
+
+        // Low stock after this receipt, by the one rule (common/low-stock.ts):
+        // active, a minimum set, on hand (remaining) below it. Once per product,
+        // after every line is in, so two lines of one product raise one alert
+        // with the final figure.
+        const lowStockProducts = await findLowStock(tx, [
+          ...new Set(plan.lines.map((l) => l.productId)),
+        ]);
 
         return { batches, lowStockProducts, walked };
       });

@@ -5,7 +5,7 @@ import { Money } from '../../../components/ui/money';
 
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { isBelowMinStock } from '../../../components/dashboard/list-params';
+import { isBelowMinStock } from '@/lib/low-stock';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { ReceiveStockList } from '../../../components/shipment/ReceiveStockList';
