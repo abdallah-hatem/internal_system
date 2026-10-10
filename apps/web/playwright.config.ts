@@ -3,8 +3,18 @@ import { defineConfig, devices } from '@playwright/test';
 /** True when the suite is aimed at a deployed API rather than localhost. */
 const REMOTE = Boolean(process.env.API_BASE) && !/localhost|127\.0\.0\.1/.test(process.env.API_BASE!);
 
+/**
+ * The production specs (56, 60, 61, 62) talk to the live system by hard-coded
+ * URL, and 62 writes there. They used to run in every local full-suite run:
+ * on 2026-10-10 a local run's browser half sold a test part in production.
+ * They now run only when asked for: `PRODUCTION_CHECKS=1` (or a remote
+ * `API_BASE`), never as a side effect of testing a laptop.
+ */
+const PRODUCTION_CHECKS = process.env.PRODUCTION_CHECKS === '1' || REMOTE;
+
 export default defineConfig({
   testDir: './tests',
+  testIgnore: PRODUCTION_CHECKS ? [] : ['**/56-production.spec.ts', '**/60-production-audit.spec.ts', '**/61-production-browser.spec.ts', '**/62-production-stock-flow.spec.ts'],
 
   // The suite shares one API and one database, so it stays sequential. What
   // globalSetup adds is a known starting point: it snapshots the developer's
