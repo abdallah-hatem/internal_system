@@ -280,6 +280,19 @@ Edge cases:
 - [ ] An investor sees only what their role may see   (rule 12)
 
 
+### U4c — The audit log is open to every role; the menu ignores roles (fullstack · logic)
+Depends on: U3. Owns: the audit-logs controller, `components/layout/nav-model.ts`.
+
+Found by U4b and U3. `/audit-logs` has no RolesGuard (rule 12: silence means open), so a temporary
+investor reads every before/after row. The menu shows all 22 entries to every role. The menu should
+show a role exactly the pages whose list endpoint that role may call, read from the existing
+`@Roles` declarations, so it is not a second definition (rule 11).
+
+Edge cases:
+- [ ] Investor or shop token on `GET /audit-logs` → refused with a code; core partner → allowed   (rule 12, both directions)
+- [ ] For each role, every menu entry it sees opens a page whose data loads (no 403); every entry hidden is one whose endpoint refuses it   (rule 11, rule 12)
+- [ ] The phone bar and More follow the same filter   (U3)
+
 ### S1 — The demo seed's paid orders with no payments (backend · logic)
 Depends on: —. Owns: the demo seed files only (B3 later adds deliveries to them).
 
