@@ -19,6 +19,7 @@ import { ReceiveDeliveryDialog } from './ReceiveDeliveryDialog';
 import { MarkLostDialog } from './MarkLostDialog';
 import { RecordRefundDialog, type RefundPayer } from './RecordRefundDialog';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
+import { UndoRefundDialog } from './UndoRefundDialog';
 import {
   FROZEN_STATUSES,
   RECEIVING_STATUSES,
@@ -27,6 +28,7 @@ import {
   losableByLine,
   lossRecovery,
   num,
+  refundStands,
   type Shipment,
   type ShipmentLeg,
 } from './shipment-model';
@@ -52,6 +54,7 @@ type Open =
   | { kind: 'deleteDelivery'; deliveryId: string }
   | { kind: 'refund'; legId: string; lossId: string }
   | { kind: 'takeBack'; lossId: string }
+  | { kind: 'undoRefund'; legId: string; lossId: string; refundId: string }
   | null;
 
 /** The cycle's shipment, one cache entry per cycle — the inventory list reads the same one. */
@@ -248,6 +251,12 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           onClose={close}
         />
       )}
+      {open?.kind === 'undoRefund' && (() => {
+        const refund = legById(open.legId)
+          ?.losses?.find((l) => l.id === open.lossId)
+          ?.refunds?.find((r) => r.id === open.refundId);
+        return refund ? <UndoRefundDialog refund={refund} onClose={close} /> : null;
+      })()}
       {open?.kind === 'refund' && (() => {
         const loss = legById(open.legId)?.losses?.find((l) => l.id === open.lossId);
         return loss ? (
@@ -460,6 +469,43 @@ function LegBlock({
                       <span data-testid="loss-unrecovered"><Money value={unrecovered} /></span>
                     </p>
                     {loss.reason && <p className="text-xs text-muted-foreground">{loss.reason}</p>}
+                    {(loss.refunds?.length ?? 0) > 0 && (
+                      <ul aria-label={t('refundsOnLoss')} className="mt-1 space-y-1">
+                        {loss.refunds!.map((r) => (
+                          <li
+                            key={r.id}
+                            data-testid="loss-refund"
+                            data-reversed={r.reversedAt ? 'true' : undefined}
+                            className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                          >
+                            <span className={cn(!refundStands(r) && 'line-through')}>
+                              {t('refundLine', {
+                                amount: num(r.amountEgp).toFixed(2),
+                                payer: r.payerName ?? '—',
+                                date: formatDate(r.recordedOn),
+                              })}
+                            </span>
+                            {refundStands(r) ? (
+                              <button
+                                type="button"
+                                data-testid="undo-refund"
+                                onClick={() =>
+                                  onOpen({ kind: 'undoRefund', legId: leg.legId, lossId: loss.id, refundId: r.id })
+                                }
+                                className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-lg px-2 py-1 font-medium text-muted-foreground hover:bg-muted hover:text-destructive sm:min-h-0"
+                              >
+                                <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t('undoRefund')}
+                              </button>
+                            ) : (
+                              <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">
+                                {t('refundUndoneBadge')}
+                                {r.reversalReason ? ` · ${r.reversalReason}` : ''}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {unrecovered > 0 && (

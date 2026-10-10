@@ -153,6 +153,21 @@ export function fakePrisma(db: Store) {
       where.category.in.includes(t.category)) &&
     (where.category?.notIn === undefined ||
       !where.category.notIn.includes(t.category));
+  // B5b: the refund filters the services use — un-reversed (`reversedAt:
+  // null`), reversed (`{ not: null }`), by loss, by id.
+  const refundMatches = (r: Row, where: Row = {}) =>
+    (where.id === undefined ||
+      (typeof where.id === 'string'
+        ? r.id === where.id
+        : where.id.in.includes(r.id))) &&
+    (where.shipmentLossId === undefined ||
+      (typeof where.shipmentLossId === 'string'
+        ? r.shipmentLossId === where.shipmentLossId
+        : where.shipmentLossId.in.includes(r.shipmentLossId))) &&
+    (where.reversedAt === undefined ||
+      (where.reversedAt === null
+        ? r.reversedAt == null
+        : r.reversedAt != null));
   const decrement = (current: Prisma.Decimal, change: any) =>
     change?.decrement !== undefined
       ? current.sub(change.decrement)
@@ -329,6 +344,23 @@ export function fakePrisma(db: Store) {
       },
       findMany: ({ where }: Row) =>
         after(db.ledger.filter((t) => ledgerMatches(t, where))),
+      findUnique: ({ where }: Row) =>
+        after(db.ledger.find((t) => t.id === where.id) ?? null),
+      // B5b: a refund's own inflow, and whether it was already reversed.
+      findFirst: ({ where }: Row) =>
+        after(
+          db.ledger.find(
+            (t) =>
+              (where.relatedType === undefined ||
+                t.relatedType === where.relatedType) &&
+              (where.relatedId === undefined ||
+                t.relatedId === where.relatedId) &&
+              (where.reversalOfId === undefined ||
+                (where.reversalOfId === null
+                  ? t.reversalOfId == null
+                  : t.reversalOfId === where.reversalOfId)),
+          ) ?? null,
+        ),
       aggregate: ({ where }: Row) =>
         after({
           _sum: {
@@ -529,7 +561,7 @@ export function fakePrisma(db: Store) {
       },
       // Every shape asked for at once: the leg, the order line with its
       // product, and the refunds on the loss (B5).
-      findUnique: ({ where }: Row) => {
+      findUnique: ({ where, select, include }: Row) => {
         const x = db.losses.find((l) => l.id === where.id);
         if (!x) return after(null);
         const leg = db.legs.find((l) => l.id === x.legId)!;
@@ -541,7 +573,14 @@ export function fakePrisma(db: Store) {
             ...item,
             product: db.products.find((p) => p.id === item.productId),
           },
-          refunds: db.refunds.filter((r) => r.shipmentLossId === x.id),
+          refunds: db.refunds.filter(
+            (r) =>
+              r.shipmentLossId === x.id &&
+              refundMatches(
+                r,
+                select?.refunds?.where ?? include?.refunds?.where,
+              ),
+          ),
         });
       },
       delete: ({ where }: Row) => {
@@ -572,13 +611,17 @@ export function fakePrisma(db: Store) {
     },
     purchaseOrder: {
       findMany: () => after([]),
-      findUnique: ({ where }: Row) => {
+      findUnique: ({ where, include }: Row) => {
         const o = db.orders.find((x) => x.id === where.id);
         if (!o) return after(null);
         return after({
           ...o,
           items: db.items.filter((i) => i.purchaseOrderId === o.id),
-          supplierRefunds: db.refunds.filter((r) => r.purchaseOrderId === o.id),
+          supplierRefunds: db.refunds.filter(
+            (r) =>
+              r.purchaseOrderId === o.id &&
+              refundMatches(r, include?.supplierRefunds?.where),
+          ),
           cycle: db.cycles.find((c) => c.id === o.cycleId),
         });
       },
@@ -596,14 +639,23 @@ export function fakePrisma(db: Store) {
         return after(row);
       },
       count: ({ where }: Row) =>
-        after(
-          db.refunds.filter((r) => r.shipmentLossId === where.shipmentLossId)
-            .length,
-        ),
+        after(db.refunds.filter((r) => refundMatches(r, where)).length),
+      // B5b: the undo reads the refund, with its order's cycle.
+      findUnique: ({ where }: Row) => {
+        const r = db.refunds.find((x) => x.id === where.id);
+        if (!r) return after(null);
+        const order = db.orders.find((o) => o.id === r.purchaseOrderId)!;
+        return after({ ...r, purchaseOrder: { cycleId: order.cycleId } });
+      },
+      updateMany: ({ where, data }: Row) => {
+        const rows = db.refunds.filter((r) => refundMatches(r, where));
+        for (const r of rows) Object.assign(r, data);
+        return after({ count: rows.length });
+      },
       findMany: ({ where }: Row) =>
         after(
           db.refunds
-            .filter((r) => where.shipmentLossId.in.includes(r.shipmentLossId))
+            .filter((r) => refundMatches(r, where))
             .map((r) => {
               const order = db.orders.find((o) => o.id === r.purchaseOrderId)!;
               const provider = db.providers.find(

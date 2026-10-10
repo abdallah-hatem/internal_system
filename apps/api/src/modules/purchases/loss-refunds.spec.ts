@@ -731,6 +731,8 @@ describe('GET /cycles/:id/shipment — losses with their refunds', () => {
           recordedOn: '2026-10-10',
           payerType: 'SHIPPING_PROVIDER',
           payerName: provider.name,
+          reversedAt: null,
+          reversalReason: null,
         },
         {
           id: db.refunds[1].id,
@@ -740,6 +742,8 @@ describe('GET /cycles/:id/shipment — losses with their refunds', () => {
           recordedOn: '2026-10-10',
           payerType: 'SUPPLIER',
           payerName: supplier.name,
+          reversedAt: null,
+          reversalReason: null,
         },
       ],
     };

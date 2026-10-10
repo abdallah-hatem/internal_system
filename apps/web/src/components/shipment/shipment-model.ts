@@ -16,7 +16,13 @@ export interface ShipmentLossRefund {
   recordedOn: string;
   payerType: 'SHIPPING_PROVIDER' | 'SUPPLIER';
   payerName?: string | null;
+  /** Set when the refund was undone (B5b): listed, but it counts toward nothing. */
+  reversedAt?: string | null;
+  reversalReason?: string | null;
 }
+
+/** A refund that still stands — not undone. */
+export const refundStands = (r: ShipmentLossRefund) => !r.reversedAt;
 
 export interface ShipmentLoss {
   id: string;
@@ -225,7 +231,8 @@ export function lossRecovery(loss: ShipmentLoss) {
     loss.unrecoveredEgp !== undefined && loss.unrecoveredEgp !== null
       ? num(loss.unrecoveredEgp)
       : Math.max(0, Math.round((cost - refunded) * 100) / 100);
-  return { cost, refunded, unrecovered, hasRefunds: refunded > 0 || (loss.refunds?.length ?? 0) > 0 };
+  // Only refunds still standing block a take-back: once each is undone the loss can go (§6, B5b).
+  return { cost, refunded, unrecovered, hasRefunds: refunded > 0 || (loss.refunds ?? []).some(refundStands) };
 }
 
 /**

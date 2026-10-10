@@ -11,7 +11,10 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PurchasesService } from './purchases.service';
-import { RecordSupplierRefundDto } from './dto/refund.dto';
+import {
+  RecordSupplierRefundDto,
+  ReverseSupplierRefundDto,
+} from './dto/refund.dto';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -28,6 +31,22 @@ export class PurchasesController {
   @ApiOperation({ summary: 'List purchase orders' })
   findAll(@Query() query: PaginationDto & { cycleId?: string }) {
     return this.purchasesService.findAll(query);
+  }
+
+  /**
+   * Undo a supplier or loss refund: the money was handed back (§6, §9).
+   * Declared before `:id` routes so `refunds` is never read as an order id.
+   */
+  @Post('refunds/:id/reverse')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Undo a supplier refund (balancing ledger entry)' })
+  reverseRefund(
+    @Param('id') id: string,
+    @Body() body: ReverseSupplierRefundDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.purchasesService.reverseRefund(id, body, user.id);
   }
 
   @Get(':id')
