@@ -24,6 +24,13 @@ import {
 /** The client or a transaction — whichever the caller holds. */
 type Db = Prisma.TransactionClient;
 
+/**
+ * How many times a sale is tried when another took its order number first.
+ * Each loss means one more sale committed in between, so this is how many
+ * sales may land at the same instant before the last of them is refused.
+ */
+const ORDER_NUMBER_ATTEMPTS = 10;
+
 export interface CreateSaleOrderInput {
   /** Who is buying. Left out of a walk-in sale, which has no customer of its own. */
   customerId?: string;
@@ -159,14 +166,23 @@ export class SalesService {
       const existing = await this.findByKey(actorId, key);
       if (existing) return existing;
     }
-    try {
-      return await this.createOnce(data, actorId, key);
-    } catch (e) {
-      if (key && isUniqueViolation(e)) {
-        const existing = await this.findByKey(actorId, key);
-        if (existing) return existing;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.createOnce(data, actorId, key);
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+        if (key) {
+          const existing = await this.findByKey(actorId, key);
+          if (existing) return existing;
+        }
+        // Not this request's own retry, so it lost the race for the order
+        // number: two sales read the same highest ORD- number before either
+        // wrote, and `order_no`'s unique index refused the second. Its
+        // transaction has rolled back, nothing of it is left, and running it
+        // again reads the winner's number and takes the next one. Every check
+        // runs again too — the winner may have sold the last of the stock.
+        if (attempt >= ORDER_NUMBER_ATTEMPTS) throw e;
       }
-      throw e;
     }
   }
 

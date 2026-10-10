@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isUniqueViolation } from '../../prisma/unique-violation';
-import { nextReferenceNumber, pad } from '../../common/references';
+import {
+  lockReferenceSeries,
+  nextReferenceNumber,
+  pad,
+} from '../../common/references';
 import {
   assertNotFuture,
   businessDay,
@@ -36,6 +40,9 @@ import {
 import { OPEN_FOR_PURCHASING, isOpenForPurchasing } from './purchase-rules';
 
 type Db = Prisma.TransactionClient;
+
+/** The lock every new purchase order's number is taken under. */
+const PO_SERIES = 'PO';
 
 /** One line of a purchase order. `discount` is percent off the line. */
 export interface PurchaseLine {
@@ -204,7 +211,12 @@ export class PurchasesService {
     const checked = await this.validateOrder(this.prisma, cycleId, data);
 
     const order = await this.prisma
-      .$transaction((tx) => this.writeOrder(tx, checked, data, actorId))
+      .$transaction(async (tx) => {
+        // One order numbered at a time: the reference has no unique index,
+        // so two orders at once were both handed the same PO number, silently.
+        await lockReferenceSeries(tx, PO_SERIES);
+        return this.writeOrder(tx, checked, data, actorId);
+      })
       .catch((err: unknown) =>
         this.explainDuplicateInvoice(err, checked.supplier, data),
       );
