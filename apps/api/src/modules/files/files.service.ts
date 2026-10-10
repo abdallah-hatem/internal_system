@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { badRequest, notFound } from '../../common/api-error';
+import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
 import { storageForEnvironment, type StorageAdapter } from './storage';
 import { processImage } from './image-pipeline';
 
@@ -118,12 +119,18 @@ export class FilesService {
     return { data: files };
   }
 
-  async serveFile(objectKey: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  async serveFile(
+    objectKey: string,
+    viewer: ScopeViewer = 'internal',
+  ): Promise<{ buffer: Buffer; mimeType: string }> {
     // Looked up before it is read: the row is what says this key is something
     // we put there, and serving a file the database has never heard of is how a
     // download route becomes a way to read the disk.
     const asset = await this.prisma.fileAsset.findFirst({ where: { objectKey } });
     if (!asset) throw notFound('file');
+    // Anyone restricted to their own cycles reads catalogue photos only; a
+    // shop's request photo reads as missing, not forbidden (R1).
+    if (!seesEveryCycle(viewer) && !asset.productId) throw notFound('file');
 
     try {
       return { buffer: await this.storage.get(objectKey), mimeType: asset.mimeType };

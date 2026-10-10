@@ -15,6 +15,7 @@ import { AddParticipantDto } from './dto/participant.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Import Cycles')
 @ApiBearerAuth()
@@ -23,29 +24,40 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class CyclesController {
   constructor(private cyclesService: CyclesService) {}
 
+  // Every read here is scoped by `cyclesVisibleTo` (common/investor-scope): a
+  // temporary investor gets only the cycles they participate in, and another
+  // cycle's id is 404 — not 403, which would confirm it exists (R1).
+
   @Get()
-  @ApiOperation({ summary: 'List import cycles with pagination' })
-  findAll(@Query() query: PaginationDto & { status?: string }) {
-    return this.cyclesService.findAll(query);
+  @ApiOperation({
+    summary:
+      'List import cycles with pagination (an investor: their cycles only)',
+  })
+  findAll(
+    @Query() query: PaginationDto & { status?: string },
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.cyclesService.findAll(query, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get cycle details with all relations' })
-  findById(@Param('id') id: string) {
-    return this.cyclesService.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.cyclesService.findById(id, user);
   }
 
-  // Core partners only, as receiving, shipping and settlement are (spec
-  // 2026-10-10, CLAUDE.md rule 12).
+  // Core partners, who record deliveries and losses, and — since R1 — a
+  // temporary investor on their own cycles: the owner's decision of
+  // 2026-10-10 is that an investor sees their cycle's deliveries and losses.
   @Get(':id/shipment')
   @UseGuards(RolesGuard)
-  @Roles('CORE_PARTNER')
+  @Roles('CORE_PARTNER', 'TEMP_INVESTOR')
   @ApiOperation({
     summary:
-      'Shipment position: per leg and line, entered / delivered / received / lost / on the way (CORE_PARTNER only)',
+      'Shipment position: per leg and line, entered / delivered / received / lost / on the way',
   })
-  getShipment(@Param('id') id: string) {
-    return this.cyclesService.getShipment(id);
+  getShipment(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.cyclesService.getShipment(id, user);
   }
 
   @Post()
@@ -70,8 +82,8 @@ export class CyclesController {
 
   @Get(':id/participants')
   @ApiOperation({ summary: 'List participants for a cycle' })
-  getParticipants(@Param('id') id: string) {
-    return this.cyclesService.getParticipants(id);
+  getParticipants(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.cyclesService.getParticipants(id, user);
   }
 
   @Post(':id/participants')

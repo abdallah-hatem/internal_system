@@ -66,13 +66,12 @@ describe('GET /cycles/:id/shipment', () => {
     expect(findUnique).not.toHaveBeenCalled();
   });
 
-  it('as an investor or shop → refused with a code', () => {
+  // R1 (owner, 2026-10-10): an investor sees their own cycles' deliveries and
+  // losses, so the guard lets them in and the service scopes them — see
+  // common/investor-scope.spec.ts for another cycle's id → 404.
+  it('as admin support or a shop → refused with a code', () => {
     const guard = new RolesGuard(new Reflector());
-    for (const role of [
-      'TEMP_INVESTOR',
-      'ADMIN_SUPPORT',
-      'SHOP_OWNER_PORTAL',
-    ]) {
+    for (const role of ['ADMIN_SUPPORT', 'SHOP_OWNER_PORTAL']) {
       let thrown: HttpException | undefined;
       try {
         guard.canActivate(contextFor(role));
@@ -86,9 +85,10 @@ describe('GET /cycles/:id/shipment', () => {
     }
   });
 
-  it('as a core partner → allowed (a guard that refuses everybody passes half a suite)', () => {
+  it('as a core partner or an investor → allowed (a guard that refuses everybody passes half a suite)', () => {
     const guard = new RolesGuard(new Reflector());
     expect(guard.canActivate(contextFor('CORE_PARTNER'))).toBe(true);
+    expect(guard.canActivate(contextFor('TEMP_INVESTOR'))).toBe(true);
   });
 
   it('returns the position for a real cycle, with each leg named', async () => {

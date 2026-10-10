@@ -16,6 +16,7 @@ import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Purchases')
 @ApiBearerAuth()
@@ -24,16 +25,22 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class PurchasesController {
   constructor(private purchasesService: PurchasesService) {}
 
+  // Reads are scoped to the caller's cycles (common/investor-scope, R1).
   @Get()
-  @ApiOperation({ summary: 'List purchase orders' })
-  findAll(@Query() query: PaginationDto & { cycleId?: string }) {
-    return this.purchasesService.findAll(query);
+  @ApiOperation({
+    summary: 'List purchase orders (an investor: their cycles only)',
+  })
+  findAll(
+    @Query() query: PaginationDto & { cycleId?: string },
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.purchasesService.findAll(query, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get purchase order details' })
-  findById(@Param('id') id: string) {
-    return this.purchasesService.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.purchasesService.findById(id, user);
   }
 
   @Post('items')
@@ -100,7 +107,7 @@ export class CyclePurchasesController {
 
   @Get(':cycleId/purchases')
   @ApiOperation({ summary: 'List purchase orders for a cycle' })
-  findByCycle(@Param('cycleId') cycleId: string) {
-    return this.purchasesService.findByCycle(cycleId);
+  findByCycle(@Param('cycleId') cycleId: string, @CurrentUser() user: Viewer) {
+    return this.purchasesService.findByCycle(cycleId, user);
   }
 }

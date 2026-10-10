@@ -340,15 +340,12 @@
   },
   "src/modules/cycles/cycles.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
@@ -376,7 +373,7 @@
   },
   "src/modules/files/files.service.ts": {
     "prettier/prettier": {
-      "count": 5
+      "count": 4
     }
   },
   "src/modules/files/image-pipeline.ts": {
@@ -428,19 +425,19 @@
   },
   "src/modules/inventory/inventory.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 4
+      "count": 3
     },
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 9
+      "count": 7
     }
   },
   "src/modules/ledger/dto/ledger.dto.ts": {
@@ -754,9 +751,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 3
-    },
-    "prettier/prettier": {
-      "count": 6
     }
   },
   "src/modules/providers/providers.controller.ts": {
@@ -868,17 +862,8 @@
     }
   },
   "src/modules/settlements/settlements.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 2
     }
   },
   "src/modules/shipping/dto/shipping-leg.dto.ts": {
@@ -901,16 +886,7 @@
     }
   },
   "src/modules/shipping/shipping.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
     "@typescript-eslint/no-restricted-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
     }
   },
@@ -927,13 +903,10 @@
   },
   "src/modules/suppliers/suppliers.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
+      "count": 2
     }
   },
   "src/modules/users/users.controller.ts": {

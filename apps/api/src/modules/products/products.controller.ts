@@ -15,6 +15,7 @@ import { ProductsService } from './products.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -32,14 +33,15 @@ export class ProductsController {
       status?: string;
       search?: string;
     },
+    @CurrentUser() user: Viewer,
   ) {
-    return this.productsService.findAll(query);
+    return this.productsService.findAll(query, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get product details' })
-  findById(@Param('id') id: string) {
-    return this.productsService.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.productsService.findById(id, user);
   }
 
   @Post()

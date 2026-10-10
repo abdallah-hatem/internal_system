@@ -3,6 +3,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Analytics')
 @ApiBearerAuth()
@@ -11,13 +13,22 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class AnalyticsController {
   constructor(private analyticsService: AnalyticsService) {}
 
+  // Business-wide figures — revenue, cash, profit, what sells — are the
+  // partners' and the office's. A temporary investor sees only their own
+  // cycles (BUSINESS_LOGIC roles, owner 2026-10-10), so these refuse them with
+  // ROLE_NOT_ALLOWED; their cycles' profitability is below, scoped.
+
   @Get('dashboard')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get dashboard KPIs' })
   getDashboardKPIs() {
     return this.analyticsService.getDashboardKPIs();
   }
 
   @Get('revenue-by-month')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get revenue grouped by month' })
   getRevenueByMonth(@Query('months') months?: string) {
     return this.analyticsService.getRevenueByMonth(
@@ -26,6 +37,8 @@ export class AnalyticsController {
   }
 
   @Get('top-products')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get top products by quantity sold' })
   getTopProducts(@Query('limit') limit?: string) {
     return this.analyticsService.getTopProducts(
@@ -51,9 +64,13 @@ export class AnalyticsController {
     );
   }
 
+  /** Every role; an investor gets only the cycles they participate in. */
   @Get('cycle-profitability')
-  @ApiOperation({ summary: 'Get profitability per closed cycle' })
-  getCycleProfitability() {
-    return this.analyticsService.getCycleProfitability();
+  @ApiOperation({
+    summary:
+      'Profitability per cycle with stock (an investor: their cycles only)',
+  })
+  getCycleProfitability(@CurrentUser() user: Viewer) {
+    return this.analyticsService.getCycleProfitability(user);
   }
 }

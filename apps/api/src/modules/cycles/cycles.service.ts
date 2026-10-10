@@ -17,6 +17,12 @@ import {
 } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
 import { lossesWithRefunds } from '../../common/loss-refunds';
+import {
+  assertInScope,
+  cyclesVisibleTo,
+  participantFilter,
+  type ScopeViewer,
+} from '../../common/investor-scope';
 
 /** A client to read and write in: the service's own, or a caller's transaction. */
 type Db = Prisma.TransactionClient;
@@ -55,11 +61,18 @@ export class CyclesService {
     private notifications: NotificationsService,
   ) {}
 
-  async findAll(pagination: PaginationDto & { status?: string }) {
+  async findAll(
+    pagination: PaginationDto & { status?: string },
+    viewer: ScopeViewer = 'internal',
+  ) {
     const { cursor, limit: rawLimit = 20, status } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
-    if (status) where.status = status;
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
+    const where: Prisma.ImportCycleWhereInput = {};
+    if (status) where.status = status as Prisma.ImportCycleWhereInput['status'];
+    // An investor: only the cycles they put money into (R1).
+    if (scope !== null) where.id = { in: [...scope] };
+    const ownRows = participantFilter(viewer);
 
     const items = await this.prisma.importCycle.findMany({
       where,
@@ -67,7 +80,9 @@ export class CyclesService {
       cursor: cursor ? { id: cursor } : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
-        participants: true,
+        // An investor sees their own participation, never another
+        // participant's contribution (BUSINESS_LOGIC roles, 2026-10-10).
+        participants: ownRows ? { where: ownRows } : true,
         purchaseOrders: true,
         shippingLegs: true,
       },
@@ -84,7 +99,12 @@ export class CyclesService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string, viewer: ScopeViewer = 'internal') {
+    // Not a uuid → no such cycle, rather than a cast failing deep in Prisma.
+    if (!isUuid(id)) throw notFound('cycle');
+    // Outside an investor's cycles → 404, as if it did not exist (R1).
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), id);
+    const ownRows = participantFilter(viewer);
     const cycle = await this.prisma.importCycle.findUnique({
       where: { id },
       include: {
@@ -92,6 +112,7 @@ export class CyclesService {
         // and including them whole sent every participant's bcrypt password
         // hash to the browser with the cycle.
         participants: {
+          ...(ownRows ? { where: ownRows } : {}),
           include: {
             partner: {
               select: {
@@ -179,9 +200,10 @@ export class CyclesService {
    * to be received (§1, §3, §8). The arithmetic is `shipmentPosition`'s; this
    * only loads the rows it reads.
    */
-  async getShipment(id: string) {
+  async getShipment(id: string, viewer: ScopeViewer = 'internal') {
     // Not a uuid → no such cycle, rather than a cast failing deep in Prisma.
     if (!isUuid(id)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), id);
     const loaded = await loadShipment(this.prisma, id);
     if (!loaded) throw notFound('cycle');
     const { cycle, position } = loaded;
@@ -947,10 +969,23 @@ export class CyclesService {
     return { data: updated };
   }
 
-  async getParticipants(cycleId: string) {
+  async getParticipants(cycleId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), cycleId);
+    const ownRows = participantFilter(viewer);
+    // Named fields: `include: { partner: true }` sent each participant's
+    // password hash with the list.
+    const person = {
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        partner: { select: { displayName: true } },
+      },
+    } as const;
     const participants = await this.prisma.cycleParticipant.findMany({
-      where: { cycleId },
-      include: { partner: true, investor: true },
+      where: ownRows ? { cycleId, AND: [ownRows] } : { cycleId },
+      include: { partner: person, investor: person },
     });
     return { data: participants };
   }

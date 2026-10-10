@@ -14,6 +14,7 @@ import { MarkSettlementPaidDto, ReverseSettlementDto } from './dto/settlement.dt
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('Settlements')
 @ApiBearerAuth()
@@ -30,7 +31,10 @@ import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 export class SettlementsController {
   constructor(private settlementsService: SettlementsService) {}
 
+  // The reads also let a temporary investor in, scoped: their cycles'
+  // settlements and only their own payout lines (owner 2026-10-10, R1).
   @Get()
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR')
   @ApiOperation({ summary: 'List settlements with filtering and pagination' })
   findAll(
     @Query()
@@ -38,24 +42,27 @@ export class SettlementsController {
       cycleId?: string;
       status?: string;
     },
+    @CurrentUser() user: Viewer,
   ) {
-    return this.settlementsService.findAll(query);
+    return this.settlementsService.findAll(query, user);
   }
 
   // Declared before ':id' — Nest matches in order, so the other way round
   // "preview" is read as a settlement id and 404s.
   @Get('preview/:cycleId')
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR')
   @ApiOperation({
     summary: "A cycle's profit as it stands, and how it would split, without writing anything",
   })
-  preview(@Param('cycleId') cycleId: string) {
-    return this.settlementsService.preview(cycleId);
+  preview(@Param('cycleId') cycleId: string, @CurrentUser() user: Viewer) {
+    return this.settlementsService.preview(cycleId, user);
   }
 
   @Get(':id')
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR')
   @ApiOperation({ summary: 'Get a settlement by ID' })
-  findOne(@Param('id') id: string) {
-    return this.settlementsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.settlementsService.findOne(id, user);
   }
 
   @Post('calculate/:cycleId')

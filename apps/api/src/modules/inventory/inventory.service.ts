@@ -10,6 +10,12 @@ import { formatMoney, formatQty } from '../../common/money';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
 import { loadShipment, lockCycle } from '../../common/shipment-load';
+import {
+  assertInScope,
+  cycleIdWhere,
+  cyclesVisibleTo,
+  type ScopeViewer,
+} from '../../common/investor-scope';
 
 type Db = Prisma.TransactionClient;
 
@@ -517,10 +523,19 @@ export class InventoryService {
     return { data: batches };
   }
 
-  async getStock(params: { productId?: string; cycleId?: string }) {
-    const where: any = {};
+  async getStock(
+    params: { productId?: string; cycleId?: string },
+    viewer: ScopeViewer = 'internal',
+  ) {
+    const where: Prisma.InventoryBatchWhereInput = {};
     if (params.productId) where.productId = params.productId;
-    if (params.cycleId) where.cycleId = params.cycleId;
+    // An investor: only batches their cycles brought in (R1). Every batch has
+    // a source cycle, so stock from anyone else's cycle simply is not listed.
+    const cycleFilter = cycleIdWhere(
+      await cyclesVisibleTo(viewer, this.prisma),
+      params.cycleId,
+    );
+    if (cycleFilter) where.cycleId = cycleFilter;
 
     const batches = await this.prisma.inventoryBatch.findMany({
       where,
@@ -591,11 +606,17 @@ export class InventoryService {
     return { data: Object.values(productTotals) };
   }
 
-  async getMovements(batchId: string) {
+  async getMovements(batchId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(batchId)) throw notFound('inventoryBatch');
     const batch = await this.prisma.inventoryBatch.findUnique({
       where: { id: batchId },
     });
     if (!batch) throw notFound('inventoryBatch');
+    assertInScope(
+      await cyclesVisibleTo(viewer, this.prisma),
+      batch.cycleId,
+      'inventoryBatch',
+    );
 
     const movements = await this.prisma.inventoryMovement.findMany({
       where: { batchId },

@@ -22,7 +22,12 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class CustomersController {
   constructor(private customersService: CustomersService) {}
 
+  // Customer data — every shop, its balance, what it owes and returned — is
+  // the office's. A temporary investor sees only their own cycles (BUSINESS_LOGIC
+  // roles, owner 2026-10-10), so the reads refuse them with ROLE_NOT_ALLOWED.
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'List customers with filtering and pagination' })
   findAll(
     @Query()
@@ -37,6 +42,8 @@ export class CustomersController {
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get customer details with orders and payments' })
   findById(@Param('id') id: string) {
     return this.customersService.findById(id);

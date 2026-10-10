@@ -8,6 +8,7 @@ import {
 } from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
+import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 
 /**
  * Sale states whose revenue is realised: the goods have left the business, so
@@ -389,12 +390,14 @@ export class AnalyticsService {
    * CLOSED cycles made the comparison permanently empty, which defeats the
    * purpose of comparing cycles while they are still running.
    */
-  async getCycleProfitability() {
+  async getCycleProfitability(viewer: ScopeViewer = 'internal') {
+    const scope = await cyclesVisibleTo(viewer, this.prisma);
     const D = (v: unknown) =>
       new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
     const cycles = await this.prisma.importCycle.findMany({
+      where: scope === null ? undefined : { id: { in: [...scope] } },
       select: {
         id: true,
         code: true,

@@ -14,13 +14,20 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 export class ReturnsController {
   constructor(private returnsService: ReturnsService) {}
 
+  // Customer data — every shop, its balance, what it owes and returned — is
+  // the office's. A temporary investor sees only their own cycles (BUSINESS_LOGIC
+  // roles, owner 2026-10-10), so the reads refuse them with ROLE_NOT_ALLOWED.
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'List returns' })
   findAll(@Query() query: PaginationDto & { saleOrderId?: string }) {
     return this.returnsService.findAll(query);
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Get a return with its lines' })
   findOne(@Param('id') id: string) {
     return this.returnsService.findOne(id);

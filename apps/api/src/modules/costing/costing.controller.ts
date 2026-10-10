@@ -2,6 +2,8 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CostingService } from './costing.service';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { Viewer } from '../../common/investor-scope';
 
 @ApiTags('costing')
 @ApiBearerAuth()
@@ -15,8 +17,12 @@ export class CostingController {
     summary:
       'Landed cost per purchased item for a cycle, per unit ordered, with shipping allocated across legs by piece or weight',
   })
-  async cycleLandedCost(@Param('cycleId') cycleId: string) {
-    const r = await this.costing.computeCycleLandedCosts(cycleId);
+  async cycleLandedCost(
+    @Param('cycleId') cycleId: string,
+    @CurrentUser() user: Viewer,
+  ) {
+    // Scoped: an investor reads their own cycles' costs only (R1).
+    const r = await this.costing.landedCostFor(cycleId, user);
     return {
       cycleId: r.cycleId,
       totals: {
