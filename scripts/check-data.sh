@@ -73,6 +73,26 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM payments p
    WHERE p.status='RECORDED'
      AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.payment_id=p.id)
+  -- The other direction of 13: money on an order that no payment put there.
+  -- The demo seed wrote orders as PAID and PARTIALLY_PAID with no payment at
+  -- all, so the order said 45,000 had come in while Payments was empty and
+  -- Collected read 0.00. What an order has been paid (total less outstanding)
+  -- must equal what live payments have allocated to it; a reversed payment
+  -- gives its allocation back to outstanding, so it is left out. An order with
+  -- a credit-note return is skipped: the credit lowers outstanding with no
+  -- allocation, clamped at zero, so its paid figure cannot be rebuilt here.
+  UNION ALL SELECT 13.1, 'order shows money paid that no payment allocated to it',
+         count(*) FROM sale_orders o
+   WHERE o.status NOT IN ('DRAFT', 'CANCELLED')
+     AND NOT EXISTS (
+       SELECT 1 FROM sale_returns r
+        WHERE r.sale_order_id = o.id AND r.refund_method = 'CREDIT_NOTE'
+     )
+     AND o.total - o.outstanding <> (
+       SELECT coalesce(sum(a.amount), 0) FROM payment_allocations a
+         JOIN payments p ON p.id = a.payment_id
+        WHERE a.sale_order_id = o.id AND p.status <> 'REVERSED'
+     )
   UNION ALL SELECT 14, 'partner capital declared but never recorded as arriving',
          count(*) FROM cycle_participants cp
    WHERE cp.contribution_amount > 0
