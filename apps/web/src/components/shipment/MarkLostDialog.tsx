@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -183,7 +184,7 @@ export function MarkLostDialog({
                 return (
                   <li key={id} className="grid grid-cols-[1fr_7rem] items-center gap-3">
                     <label htmlFor={inputId} className="min-w-0 text-sm">
-                      <span className="block truncate font-medium text-foreground">{productNames[id] ?? '—'}</span>
+                      <LatinText truncate className="font-medium text-foreground">{productNames[id] ?? '—'}</LatinText>
                       <span className="text-xs text-muted-foreground">{t('upTo', { count: losable[id] ?? 0 })}</span>
                     </label>
                     <input
@@ -230,8 +231,9 @@ export function MarkLostDialog({
           <ul className="divide-y divide-border rounded-lg border border-border text-sm">
             {estimateRows.map((r) => (
               <li key={r.purchaseOrderItemId} className="flex items-center justify-between gap-3 px-3 py-2">
-                <span className="min-w-0 truncate">
-                  {productNames[r.purchaseOrderItemId] ?? '—'} × {r.qty}
+                <span className="flex min-w-0 items-baseline gap-1">
+                  <LatinText truncate>{productNames[r.purchaseOrderItemId] ?? '—'}</LatinText>
+                  <bdi className="shrink-0">× {r.qty}</bdi>
                 </span>
                 <span className="shrink-0">{r.estimate === null ? '—' : <Money value={r.estimate} />}</span>
               </li>

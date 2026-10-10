@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -194,7 +195,7 @@ export default function DashboardPage() {
               {productList.map((item) => (
                 <li key={item.productId} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-card-foreground">{item.name}</p>
+                    <LatinText truncate className="text-sm font-medium text-card-foreground">{item.name}</LatinText>
                     <p className="text-xs text-muted-foreground" dir="ltr">{item.sku}</p>
                   </div>
                   <span className="flex-shrink-0 text-sm font-medium text-card-foreground">

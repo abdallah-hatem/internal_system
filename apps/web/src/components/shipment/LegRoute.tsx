@@ -12,19 +12,33 @@ import { cn } from '@/lib/utils';
  * destination. Each place name is a `<bdi>`, so a Latin "Dubai, UAE" keeps its
  * own order and its comma inside an Arabic line (UI audit #6, #11). A bare
  * "A → B" string in RTL put the arrow pointing back at the origin.
+ *
+ * `nowrap` keeps the whole route on one line, for a table column where a
+ * route stacked over four lines made every row tall and pushed the table
+ * wider than its card (re-audit N1). A phone card leaves it off, so a long
+ * route can break between the two places rather than run off the card.
  */
 export function LegRoute({
   origin,
   destination,
   className,
+  nowrap = false,
 }: {
   origin?: string | null;
   destination?: string | null;
   className?: string;
+  nowrap?: boolean;
 }) {
   if (!origin && !destination) return null;
   return (
-    <span data-testid="leg-route" className={cn('inline-flex min-w-0 flex-wrap items-center gap-1.5', className)}>
+    <span
+      data-testid="leg-route"
+      className={cn(
+        'inline-flex min-w-0 items-center gap-1.5',
+        nowrap ? 'flex-nowrap whitespace-nowrap' : 'flex-wrap',
+        className,
+      )}
+    >
       <bdi data-testid="leg-route-origin">{origin || '—'}</bdi>
       <ArrowRight
         data-testid="leg-route-arrow"

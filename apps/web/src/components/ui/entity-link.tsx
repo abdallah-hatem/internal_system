@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { LatinText } from '@/components/ui/latin-text';
 
 /**
  * A named record in a table, linked to its own page.
@@ -20,10 +21,12 @@ function EntityLink({
   href,
   label,
   className,
+  truncate = false,
 }: {
   href: string;
   label: string;
   className?: string;
+  truncate?: boolean;
 }) {
   return (
     <Link
@@ -33,10 +36,11 @@ function EntityLink({
       onClick={(e) => e.stopPropagation()}
       className={cn(
         'underline-offset-2 transition-colors hover:text-primary-600 hover:underline',
+        truncate && 'block min-w-0',
         className,
       )}
     >
-      <bdi>{label}</bdi>
+      <LatinText truncate={truncate}>{label}</LatinText>
     </Link>
   );
 }
@@ -58,28 +62,34 @@ export function CustomerLink({
   id,
   name,
   className,
+  truncate = false,
 }: {
   id?: string | null;
   name?: string | null;
   className?: string;
+  /** Cut a long name at its end with an ellipsis, in either direction. */
+  truncate?: boolean;
 }) {
   const prefix = useLocalePrefix();
   if (!name) return <span className={className}>—</span>;
-  if (!id) return <bdi className={className}>{name}</bdi>;
-  return <EntityLink href={`${prefix}/customers/${id}`} label={name} className={className} />;
+  if (!id) return <LatinText truncate={truncate} className={className}>{name}</LatinText>;
+  return <EntityLink href={`${prefix}/customers/${id}`} label={name} className={className} truncate={truncate} />;
 }
 
 export function ProductLink({
   id,
   name,
   className,
+  truncate = false,
 }: {
   id?: string | null;
   name?: string | null;
   className?: string;
+  /** Cut a long name at its end with an ellipsis, in either direction. */
+  truncate?: boolean;
 }) {
   const prefix = useLocalePrefix();
   if (!name) return <span className={className}>—</span>;
-  if (!id) return <bdi className={className}>{name}</bdi>;
-  return <EntityLink href={`${prefix}/products/${id}`} label={name} className={className} />;
+  if (!id) return <LatinText truncate={truncate} className={className}>{name}</LatinText>;
+  return <EntityLink href={`${prefix}/products/${id}`} label={name} className={className} truncate={truncate} />;
 }

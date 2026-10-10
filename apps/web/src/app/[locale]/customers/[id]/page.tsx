@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
@@ -136,7 +137,7 @@ export default function CustomerPage() {
             {customer.phone && (
               <>
                 {' · '}
-                <bdi dir="ltr">{customer.phone}</bdi>
+                <LatinText dir="ltr">{customer.phone}</LatinText>
               </>
             )}
           </p>
@@ -228,8 +229,11 @@ export default function CustomerPage() {
           />
         ) : (
           <Rows
-            headers={[tp('receivedOn'), tp('method'), tp('amount'), tp('status'), t('unappliedColumn')]}
-            numeric={[2, 4]}
+            // Status before the amount, so the two money columns sit together
+            // and an end-aligned amount never runs into a start-aligned status
+            // (re-audit N8), as the orders table above already reads.
+            headers={[tp('receivedOn'), tp('method'), tp('status'), tp('amount'), t('unappliedColumn')]}
+            numeric={[3, 4]}
           >
             {paymentList.map((p) => {
               const allocated = (p.allocations ?? []).reduce((s, a) => s + num(a.amount), 0);
@@ -238,10 +242,10 @@ export default function CustomerPage() {
                 <Row key={p.id}>
                   <Cell label={tp('receivedOn')} className="text-xs text-gray-400">{formatDate(p.receivedOn)}</Cell>
                   <Cell label={tp('method')} className="text-sm">{codeLabel('paymentMethod', p.method)}</Cell>
+                  <Cell label={tp('status')} className="text-xs text-gray-500">{codeLabel('paymentStatus', p.status)}</Cell>
                   <Cell label={tp('amount')} numeric className="text-sm font-medium">
                     <Money value={num(p.amount)} currency={p.currency} />
                   </Cell>
-                  <Cell label={tp('status')} className="text-xs text-gray-500">{codeLabel('paymentStatus', p.status)}</Cell>
                   <Cell label={t('unappliedColumn')} numeric className="text-xs text-gray-400">
                     {credit > 0 ? <Money value={credit} currency={p.currency} /> : '—'}
                   </Cell>

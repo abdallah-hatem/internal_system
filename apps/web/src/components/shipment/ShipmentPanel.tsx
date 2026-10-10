@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -386,8 +387,8 @@ function LegBlock({
                 data-testid="shipment-line"
                 data-product={productNames[line.purchaseOrderItemId]}
               >
-                <td className="max-w-56 truncate py-2 font-medium text-foreground">
-                  {productNames[line.purchaseOrderItemId]}
+                <td className="max-w-56 py-2 font-medium text-foreground">
+                  <LatinText truncate>{productNames[line.purchaseOrderItemId]}</LatinText>
                 </td>
                 <Cell id="line-ordered" value={ordered.get(line.purchaseOrderItemId) ?? 0} />
                 <Cell id="line-delivered" value={line.delivered} />
@@ -452,7 +453,7 @@ function LegBlock({
                           <li key={l.purchaseOrderItemId}>
                             {t.rich(leg.isLast ? 'deliveryLineLast' : 'deliveryLine', {
                               ...values,
-                              name: (chunks) => <bdi>{chunks}</bdi>,
+                              name: (chunks) => <LatinText>{chunks}</LatinText>,
                             })}
                           </li>
                         );
@@ -503,7 +504,7 @@ function LegBlock({
                       {t.rich('lossLine', {
                         product: productNames[loss.purchaseOrderItemId] ?? '—',
                         qty: num(loss.qty),
-                        name: (chunks) => <bdi>{chunks}</bdi>,
+                        name: (chunks) => <LatinText>{chunks}</LatinText>,
                       })}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -528,7 +529,7 @@ function LegBlock({
                                 amount: () => <Money value={r.amountEgp} />,
                                 payer: r.payerName ?? '—',
                                 date: formatDate(r.recordedOn),
-                                name: (chunks) => <bdi>{chunks}</bdi>,
+                                name: (chunks) => <LatinText>{chunks}</LatinText>,
                               })}
                             </span>
                             {refundStands(r) ? (may.undoRefund && (

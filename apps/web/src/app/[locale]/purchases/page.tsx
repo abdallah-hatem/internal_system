@@ -1,4 +1,6 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
+import { LatinText } from '@/components/ui/latin-text';
 import { Select } from '../../../components/ui/select';
 import { ProductLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
@@ -160,7 +162,7 @@ export default function PurchasesPage() {
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch onClear={() => setSearch('')} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -255,7 +257,7 @@ export default function PurchasesPage() {
                   paginated.map((po) => (
                     <tr key={po.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs font-medium text-primary-600">{po.reference}</td>
-                      <td className="px-4 py-3 text-gray-900">{po.supplier?.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-900"><LatinText>{po.supplier?.name ?? '—'}</LatinText></td>
                       <td className="px-4 py-3 text-gray-600 font-mono text-xs">{po.cycle?.code ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{po.currency}</td>
                        <td className="px-4 py-3 text-gray-600">{po.fxRateToEgp}</td>
@@ -300,7 +302,7 @@ export default function PurchasesPage() {
                     {codeLabel('poStatus', po.status)}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700">{po.supplier?.name ?? '—'}</p>
+                <p className="text-sm text-gray-700"><LatinText>{po.supplier?.name ?? '—'}</LatinText></p>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                   <span>{po.cycle?.code ?? '—'}</span>
                   <span>{po.currency}</span>
@@ -609,7 +611,7 @@ function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <span className="text-gray-500 text-xs">{label}</span>
-      <p className="font-medium text-gray-900">{value}</p>
+      <p className="font-medium text-gray-900"><LatinText>{value}</LatinText></p>
     </div>
   );
 }

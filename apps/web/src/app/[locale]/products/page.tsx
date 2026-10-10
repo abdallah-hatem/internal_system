@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { Select } from '../../../components/ui/select';
 import { ProductLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
@@ -176,7 +177,7 @@ export default function ProductsPage() {
         action={may.create ? { label: t('create'), onClick: openCreate } : undefined}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch filtered={!!categoryFilter} onClear={() => { setSearch(''); setCategoryFilter(''); }} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────

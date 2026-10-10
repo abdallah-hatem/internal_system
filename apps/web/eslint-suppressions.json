@@ -253,7 +253,7 @@
       "count": 9
     },
     "local/no-raw-colors": {
-      "count": 112
+      "count": 111
     },
     "no-restricted-syntax": {
       "count": 1
@@ -286,7 +286,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 62
+      "count": 61
     },
     "react-hooks/set-state-in-effect": {
       "count": 1

@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
@@ -100,7 +101,7 @@ export default function AuditLogsPage() {
         description={t('emptyHint')}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch filtered={!!entityFilter} onClear={() => { setSearch(''); setEntityFilter(''); }} />
     );
 
   const detail = (logDetail as AuditLog) ?? viewingLog;

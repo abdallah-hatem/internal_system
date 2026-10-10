@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { Money } from '../../../components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
 
@@ -160,7 +161,7 @@ export default function CyclesPage() {
         action={canCreate ? { label: t('create'), href: '/cycles/new' } : undefined}
       />
     ) : (
-      <EmptyState icon={Search} title={t('noMatch')} />
+      <NoMatch filtered={!!statusFilter} onClear={() => { setSearch(''); setStatusFilter(''); }} />
     );
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 

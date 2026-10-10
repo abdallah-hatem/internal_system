@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
@@ -232,7 +233,7 @@ function PaymentsPageContent() {
                   <tr>
                     <td colSpan={8}>
                       {search ? (
-                        <EmptyState icon={null} title={tc('noMatch')} />
+                        <NoMatch onClear={() => setSearch('')} />
                       ) : (
                         <EmptyState
                           title={t('empty')}
@@ -304,7 +305,7 @@ function PaymentsPageContent() {
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">
               {search ? (
-                <EmptyState icon={null} title={tc('noMatch')} />
+                <NoMatch onClear={() => setSearch('')} />
               ) : (
                 <EmptyState
                   title={t('empty')}

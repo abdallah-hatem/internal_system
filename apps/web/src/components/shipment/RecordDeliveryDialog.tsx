@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -135,7 +136,7 @@ export function RecordDeliveryDialog({
               return (
                 <li key={id} className="grid grid-cols-[1fr_7rem] items-center gap-3">
                   <label htmlFor={inputId} className="min-w-0 text-sm">
-                    <span className="block truncate font-medium text-foreground">{productNames[id] ?? '—'}</span>
+                    <LatinText truncate className="font-medium text-foreground">{productNames[id] ?? '—'}</LatinText>
                     <span className="text-xs text-muted-foreground">{t('onTheWayCount', { count: row.onTheWay })}</span>
                   </label>
                   <input

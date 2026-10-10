@@ -1,4 +1,6 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -121,7 +123,7 @@ export default function ProvidersPage() {
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch onClear={() => setSearch('')} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -203,11 +205,11 @@ export default function ProvidersPage() {
                 ) : (
                   paginated.map((provider) => (
                     <tr key={provider.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">{provider.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900"><LatinText>{provider.name}</LatinText></td>
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1">
                           <User className="h-3.5 w-3.5 text-gray-400" />
-                          {provider.contactPerson ?? '—'}
+                          {provider.contactPerson ? <LatinText>{provider.contactPerson}</LatinText> : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
@@ -219,7 +221,7 @@ export default function ProvidersPage() {
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1">
                           <Mail className="h-3.5 w-3.5 text-gray-400" />
-                          {provider.email ?? '—'}
+                          {provider.email ? <LatinText>{provider.email}</LatinText> : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -271,7 +273,7 @@ export default function ProvidersPage() {
                 className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-gray-900">{provider.name}</p>
+                  <p className="min-w-0 font-medium text-gray-900"><LatinText>{provider.name}</LatinText></p>
                   {mayRow && (
                   <div className="flex items-center gap-1">
                     {may.edit && (
@@ -301,7 +303,7 @@ export default function ProvidersPage() {
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-1">
                   {provider.contactPerson && (
-                    <span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5 text-gray-400" />{provider.contactPerson}</span>
+                    <span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5 text-gray-400" /><LatinText>{provider.contactPerson}</LatinText></span>
                   )}
                   {provider.phone && (
                     <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-gray-400" /><span dir="ltr">{provider.phone}</span></span>
@@ -309,7 +311,7 @@ export default function ProvidersPage() {
                 </div>
                 {provider.email && (
                   <span className="inline-flex items-center gap-1 text-sm text-gray-600">
-                    <Mail className="h-3.5 w-3.5 text-gray-400" />{provider.email}
+                    <Mail className="h-3.5 w-3.5 text-gray-400" /><LatinText>{provider.email}</LatinText>
                   </span>
                 )}
               </div>
@@ -366,7 +368,7 @@ export default function ProvidersPage() {
         <Modal title={t('delete')} onClose={() => setDeletingProvider(null)}>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
-            <p className="text-sm font-medium text-gray-900">{deletingProvider.name}</p>
+            <p className="text-sm font-medium text-gray-900"><LatinText>{deletingProvider.name}</LatinText></p>
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setDeletingProvider(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button

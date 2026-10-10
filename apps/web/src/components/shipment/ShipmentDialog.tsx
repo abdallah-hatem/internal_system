@@ -1,4 +1,5 @@
 'use client';
+import { LatinText } from '@/components/ui/latin-text';
 
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -92,8 +93,8 @@ export function ShipmentDialog({
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-foreground">{title}</h2>
             {subtitle && (
-              <p data-testid="dialog-subtitle" title={subtitle} className="truncate text-sm text-muted-foreground">
-                <bdi>{subtitle}</bdi>
+              <p data-testid="dialog-subtitle" className="text-sm text-muted-foreground">
+                <LatinText truncate>{subtitle}</LatinText>
               </p>
             )}
           </div>

@@ -1,4 +1,5 @@
 'use client';
+import { NoMatch } from '@/components/ui/no-match';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 
@@ -136,7 +137,7 @@ export default function SuppliersPage() {
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <EmptyState icon={null} title={tc('noMatch')} />
+      <NoMatch onClear={() => setSearch('')} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
