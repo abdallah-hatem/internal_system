@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-08.
+Last updated 2026-10-10.
 
 ---
 
@@ -37,28 +37,49 @@ click and receive the stock, so goods departed, arrived and became sellable in
 the same instant with no date recorded anywhere. A cycle approved a moment ago
 had inventory.
 
-A leg's status is a reading of its dates, never a field anyone sets:
+~~A leg's status is a reading of its dates~~ — superseded 2026-10-10 by the
+rule below: a leg's goods arrive in deliveries, not on one date.
 
-| Dates recorded | Leg reads |
+**DECIDED 2026-10-10 — a leg's goods arrive in deliveries.** *Building.* Goods
+leave in one shipment but arrive in pieces, weeks apart, and nobody here controls
+the split — ship 40 and they come 15, then 10, then 5, then 10. So a leg records
+each **delivery**: the date it arrived and how many of each ordered product it
+brought. One leg can have any number of deliveries, on either leg.
+
+What a leg can deliver is what entered it: everything ordered, for the first leg;
+for a later leg, what the leg before it delivered. A delivery that would bring
+more than that is refused.
+
+A leg's status is still a reading of what was recorded, never a field anyone sets:
+
+| Recorded | Leg reads |
 |---|---|
-| none | pending |
-| departure | in transit |
-| departure and arrival | arrived |
+| nothing | pending |
+| a departure | in transit |
+| a departure and at least one delivery, with goods still unaccounted for | partly arrived |
+| every unit that entered it delivered or marked lost | arrived |
 
-And the cycle cannot pass a point its goods have not reached:
+**Goods that have not come are still on the way until a partner says
+otherwise.** At any point a partner can mark some or all of what is still on the
+way as **lost**, on any leg. Nothing is marked lost by itself, however long it
+has been — goods have turned up late before, and the partner is the one who knows.
+
+The cycle can move on as soon as **some** goods reach a point, not only once all
+of them have:
 
 | Cycle step | Requires |
 |---|---|
 | In transit (China) | leg 1 has departed |
-| Arrived UAE (China) | leg 1 has arrived |
+| Arrived UAE (China) | leg 1 has at least one delivery |
 | In transit to Egypt | the last leg has departed |
-| Arrived Egypt | every leg has arrived |
+| Arrived Egypt | the last leg has at least one delivery |
 
 A UAE-direct cycle's single leg is UAE→Egypt, so arriving in the UAE asks
 nothing of it — the goods are sitting at its origin and it has not started.
 
-Arriving without a departure date, arriving before departing, and either date
-in the future are all refused.
+A departure or a delivery cannot be dated in the future; a delivery cannot be
+dated before its leg departed, and none can be recorded on a cancelled or closed
+cycle.
 
 Rate-based legs derive their total rather than asking for it, so the per-piece
 rate itself stays on the record. A leg can be priced in another currency with an
@@ -82,6 +103,19 @@ leg total exactly.
 **Landed cost is computed, not typed.** Verification suggests it; a manual value
 still overrides.
 
+**DECIDED 2026-10-10 — a unit costs the same whichever delivery brought it.**
+*Building.* Landed cost is worked out per unit **ordered** — the goods' price plus
+each leg's cost spread over everything the leg was charged for — and every batch
+from the same order line gets that same unit cost, whether it came in the first
+delivery or the fifth. It used to be worked out over what was received, so a
+short delivery made every unit dearer and quietly charged the missing goods to the
+ones that came.
+
+**Lost goods are a loss, not a dearer batch.** Marking units lost records their
+landed cost as a loss on the cycle. It counts against the cycle's profit and never
+re-prices a batch: earlier deliveries may already be sold, and a sale's cost is
+never changed after the fact (§3).
+
 ---
 
 ## 3. Inventory
@@ -103,6 +137,15 @@ stock physically held. Cancelling or returning restores it.
 **Reservations are not in use.** `InventoryReservation` exists in the schema for
 holding stock against a quote, which is a real future feature, but nothing
 drives it today and reserved quantity is honestly zero.
+
+**DECIDED 2026-10-10 — stock is received one delivery at a time.** *Building.*
+Each delivery that reaches Egypt is counted and checked into stock as its own
+batch, with its own arrival date, and can be sold the moment it is checked in —
+while the rest of the shipment is still on the way. A count lower than the
+delivery said leaves the difference on the way: it can be checked in when it turns
+up, or marked lost. Receiving more than a delivery brought is refused, and the
+units ever received or lost on an order line can never total more than were
+ordered.
 
 ---
 
@@ -138,6 +181,12 @@ and a refund is a return (§5), where the goods, the cost and the cash move
 together. Cancelling also asks before acting, since it cannot be undone and the
 button sits beside Confirm.
 
+
+**DECIDED 2026-10-10 — an order can be created and confirmed in one step.**
+*Building.* Both happen together or neither does: if confirming is refused (not
+enough stock, say), nothing is saved and the order stays on screen to fix. Saving
+a draft first is still possible. A draft shows no amount owed anywhere — it counts
+for nothing until it is confirmed.
 ---
 
 ## 5. Returns
@@ -202,6 +251,12 @@ instalments first, and a surplus flows forward.
 
 **Overdue means a genuine shortfall** — the cumulative amount promised by today,
 less what has actually come in. Due today is not overdue until tomorrow.
+
+**DECIDED 2026-10-10 — a payment can be put on a chosen order.** *Building.*
+Recorded from an order, the money goes on that order: it must be the same shop's,
+confirmed, with something still owed, and the payment cannot be more than that
+order owes. Recorded from the shop or the payments list, it goes on the oldest
+unpaid orders first, as before.
 
 **DECIDED 2026-08-21 — overdue flags and notifies, nothing more.** It appears in
 the overdue summary and raises a notification, at most one per plan per day. It
@@ -304,6 +359,11 @@ never rewrites history. A reason is required.
 
 **Paying out is not a cycle expense.** It distributes profit already earned;
 counting it as a cost re-charges the cycle for its own success.
+
+**DECIDED 2026-10-10 — a cycle settles only once every unit is accounted for.**
+*Building.* Every unit ordered must be received into stock or marked lost before
+the settlement can be approved. Goods still on the way make the cycle's profit a
+guess.
 
 ---
 
@@ -547,7 +607,7 @@ button belongs is a design decision, not a defect to fix quietly.
 
 | shown as | is | source |
 |---|---|---|
-| **Arrived** | when the shipment physically landed in Egypt | the cycle's **last dated** shipping leg's `arrivedOn` |
+| **Arrived** | when the delivery that brought this batch landed in Egypt | the batch's own delivery date (until 2026-10-10: the cycle's last dated leg) |
 | **Received** | when it was verified into stock and became sellable | the batch's own creation |
 
 They are routinely days apart — the reference seed has them five days apart —
@@ -571,6 +631,11 @@ it means "nobody entered it yet". TC-ARR-03 pins the refusal.
 
 Both screens read the same `/inventory` endpoint, so there is one definition of
 arrival rather than two (rule 11). TC-ARR-05 asserts they agree.
+
+**DECIDED 2026-10-10 — each batch has its own arrival.** *Building.* With
+deliveries (§1), Arrived is the date of the delivery that brought the batch into
+Egypt, not the cycle's last leg date. Two batches of one product from one cycle
+can show two dates. Still the last leg, never the first.
 
 ---
 
@@ -700,6 +765,10 @@ about one slip in five characters — is offered as a likely match and the partn
 confirms it; a close name is never taken as the same thing without that.
 
 Shipping, fees and tax printed on a receipt are not purchase order lines; the partner decides whether they belong on a shipping leg.
+
+**Deliveries (2026-10-10, building).** The assistant can record a delivery on a
+leg and receive a delivery into stock. Marking goods lost is office-app only: it
+books a loss, and a partner should decide that on a screen.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
 the supplier's invoice number, and the photograph stays in the conversation.
