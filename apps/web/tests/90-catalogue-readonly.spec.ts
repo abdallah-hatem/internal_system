@@ -141,7 +141,8 @@ test.describe('R1c — the catalogue is read-only for an investor', () => {
     const refusals = watchRefusals(page);
     await openList(page, '/purchases', d.po.reference);
     await page.locator('tr', { hasText: d.po.reference }).getByRole('button', { name: en.common.view }).click();
-    await expect(page.getByText(en.purchases.refunds)).toBeVisible();
+    // The refunds section heading; UF7's empty line "No refunds from the supplier" also contains the word.
+    await expect(page.getByRole('heading', { name: en.purchases.refunds })).toBeVisible();
     await expect(page.getByTestId('record-refund-action')).toHaveCount(0);
     expect(refusals).toEqual([]);
   });

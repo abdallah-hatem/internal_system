@@ -18,6 +18,7 @@
  *  still shows the old state" and "the form forgot what I typed" bugs live.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import en from '../src/i18n/locales/en.json';
 import { apiCtx, API, EMAIL, PASSWORD, daysAgo, today, stockedProduct } from './support/fixtures';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
@@ -355,6 +356,9 @@ test.describe('The cycle list', () => {
     await login(page);
     await openCycleList(page);
     await page.getByPlaceholder(/search/i).fill(`no-such-cycle-${Date.now()}`);
-    await expect(page.getByText('No cycles match this filter').first()).toBeVisible();
+    // Since UF8 a search with no match shows the shared no-match state, with a way back.
+    await expect(page.getByText(en.common.noMatch).first()).toBeVisible();
+    await page.getByRole('button', { name: en.common.clearSearch }).click();
+    await expect(page.getByPlaceholder(/search/i)).toHaveValue('');
   });
 });

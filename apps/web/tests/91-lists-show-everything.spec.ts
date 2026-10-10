@@ -151,6 +151,11 @@ test.describe('L1 — a list shows the record that is not among the newest 20', 
 
     await login(page);
     await searchList(page, '/ledger', en.ledger.search, `${tag} target`);
+    // The ledger list has no reason column; the reason is in the entry's detail. The search
+    // matches on it, so exactly one row comes back, and opening it shows the reason.
+    const rows = page.getByRole('row').filter({ has: page.getByRole('button', { name: en.common.view }) });
+    await expect(rows).toHaveCount(1);
+    await rows.first().getByRole('button', { name: en.common.view }).click();
     await expect(page.getByText(`${tag} target freight surcharge`).first()).toBeVisible();
   });
 });
