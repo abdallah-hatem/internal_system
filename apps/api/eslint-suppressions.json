@@ -221,9 +221,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 7
-    },
-    "prettier/prettier": {
-      "count": 1
     }
   },
   "src/modules/audit/audit.service.ts": {

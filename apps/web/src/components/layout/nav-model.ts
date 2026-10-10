@@ -26,6 +26,19 @@ export type NavItem = {
 
 export type NavGroup = { key: string; items: readonly NavItem[] };
 
+/**
+ * The roles on each entry are copied from the `@Roles` on the API endpoint
+ * that page lists from — the menu does not decide permissions, it mirrors
+ * them, so an entry is shown exactly when its page's data would load. An entry
+ * with no `roles` is one whose list endpoint names none (any signed-in office
+ * account may call it). A shop never reaches this menu: the office login
+ * refuses SHOP_OWNER_PORTAL with USE_PORTAL_LOGIN, and the API's SurfaceGuard
+ * refuses a portal token on every office route.
+ *
+ * When a controller's `@Roles` changes, the entry here changes with it.
+ */
+const BOOKS_READERS = ['CORE_PARTNER', 'ADMIN_SUPPORT'] as const;
+
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
     key: 'overview',
@@ -61,28 +74,35 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       // First in this group on purpose: every pending request is holding stock
       // on a clock, so it is the one thing here that goes stale if it waits.
-      { key: 'orderRequests', href: '/order-requests' },
+      // GET /order-requests/pending — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
+      { key: 'orderRequests', href: '/order-requests', roles: BOOKS_READERS },
       // Beside order requests, because they are the same conversation from the
       // shop's side: one asks for what is on the shelf, the other for what is
       // not.
-      { key: 'importRequests', href: '/import-requests' },
-      { key: 'sales', href: '/sales' },
+      // GET /import-requests — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
+      { key: 'importRequests', href: '/import-requests', roles: BOOKS_READERS },
+      // GET /sales/orders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
+      { key: 'sales', href: '/sales', roles: BOOKS_READERS },
       { key: 'customers', href: '/customers' },
     ],
   },
   {
     key: 'money',
     items: [
-      { key: 'payments', href: '/payments' },
+      // GET /payments — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
+      { key: 'payments', href: '/payments', roles: BOOKS_READERS },
       { key: 'paymentPlans', href: '/payment-plans' },
-      { key: 'ledger', href: '/ledger' },
+      // GET /ledger — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
+      { key: 'ledger', href: '/ledger', roles: BOOKS_READERS },
     ],
   },
   {
     key: 'partners',
     items: [
-      { key: 'partners', href: '/partners' },
-      { key: 'settlements', href: '/settlements' },
+      // GET /users/participation — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
+      { key: 'partners', href: '/partners', roles: BOOKS_READERS },
+      // GET /settlements — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
+      { key: 'settlements', href: '/settlements', roles: BOOKS_READERS },
     ],
   },
 ];
@@ -91,7 +111,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  *  daily flow, and better out of the way than padding the list above. */
 export const SYSTEM_ITEMS: readonly NavItem[] = [
   { key: 'notifications', href: '/notifications' },
-  { key: 'auditLogs', href: '/audit-logs' },
+  // GET /audit-logs — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
+  { key: 'auditLogs', href: '/audit-logs', roles: BOOKS_READERS },
   { key: 'settings', href: '/settings' },
 ];
 

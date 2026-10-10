@@ -1,19 +1,24 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+
+/**
+ * Every audit row carries the full before/after of what changed — sale
+ * orders, payments, settlements, users. It is a reading of the whole business,
+ * so it is open to the roles that may already read that business: core
+ * partners, and admin support, who list sales, payments, the ledger and
+ * settlements too. A temporary investor or a shop is refused. Before this the
+ * controller named no roles, and the guard's silence meant open (rule 12).
+ */
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
 @Controller('audit-logs')
 export class AuditController {
   constructor(private prisma: PrismaService) {}

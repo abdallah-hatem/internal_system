@@ -570,6 +570,22 @@ does. A shop account can be neither. An office account with no stake can be
 neither. `RolesGuard` answers who may *call* the endpoint; this answers who the
 call may *name*, and only the first question was being asked.
 
+**Who may read the audit log.** DECIDED 2026-10-10 (U4c). Core partners and
+admin support — the roles that already list sales, payments, the ledger and
+settlements. Every audit row holds the full before and after of what changed,
+so it is those same books in another shape; a temporary investor or a shop is
+refused (`ROLE_NOT_ALLOWED`). Before this the endpoint named no roles and any
+signed-in account could read it.
+
+**The menu shows a role what it may open.** DECIDED 2026-10-10 (U4c). An
+entry is shown exactly when the endpoint its page lists from lets the role in;
+the menu copies the controllers' `@Roles` rather than deciding anything itself.
+So a temporary investor sees the dashboard, analytics, the importing and
+catalogue pages, customers, payment plans, notifications and settings, and not
+order or import requests, sales, payments, the ledger, partners, settlements or
+the audit log. *Open:* whether an investor should see customers and payment
+plans at all — their endpoints name no roles today, so the menu shows them.
+
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added
