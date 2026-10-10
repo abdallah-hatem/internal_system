@@ -51,6 +51,6 @@ Edge cases:
 - [ ] `tools/list` has `record_sale` and still no payment, return or settlement tool   (§16)
 
 ### F9 — Three older bugs W1 found (backend · logic)
-- [ ] Two sales at once never get the same order number (a unique constraint plus a retry, or a sequence)   (rule 1: race)
-- [ ] An undated payment is dated by the Cairo day, not UTC — 22:30 UTC on the 10th is the 11th   (§7a)
-- [ ] The demo seed runs on top of the reference seed (`db:reset:demo` after `db:reset`), idempotent   (rule 4)
+- [x] Two sales at once never get the same order number (a unique constraint plus a retry, or a sequence)   (rule 1: race)
+- [x] An undated payment is dated by the Cairo day, not UTC — 22:30 UTC on the 10th is the 11th   (§7a)
+- [x] The demo seed runs on top of the reference seed (`db:reset:demo` after `db:reset`), idempotent   (rule 4)
