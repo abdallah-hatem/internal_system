@@ -12,6 +12,8 @@ import { Select } from '@/components/ui/select';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
+import { FieldMark } from '@/components/ui/fields';
+import { invalidFields } from '@/components/ui/validated-form';
 import { useCodeLabel } from '@/lib/labels';
 
 export interface SaleFormCustomer {
@@ -88,6 +90,13 @@ function newIdempotencyKey(): string {
  * sale) and **Create & confirm** (primary), which the server does in one
  * transaction. A refusal leaves the form open with every line as typed and
  * the reason shown, translated, above the buttons.
+ *
+ * Required pickers are checked the way `ValidatedForm` checks them — the
+ * constraint API, so each empty picker shows its own "Required" and the first
+ * takes the focus — but the line naming them is worked out from the form's
+ * state on every render rather than stored at submit. A picker fires no
+ * `input` event, so ValidatedForm's own clearing never saw it chosen, and the
+ * banner outlived the problem (UI audit #5).
  */
 export function SaleOrderForm({
   customers,
@@ -120,7 +129,10 @@ export function SaleOrderForm({
   const [channel, setChannel] = useState<string>(() => channelOf(initialCustomerId) ?? 'B2B');
   const [currency, setCurrency] = useState('EGP');
   const [lines, setLines] = useState<Line[]>(() => [emptyLine()]);
+  /** The server's refusal, translated. */
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** A submit was stopped for empty required fields, and they are still empty. */
+  const [checked, setChecked] = useState(false);
   const [idempotencyKey] = useState(newIdempotencyKey);
 
   // Set synchronously on submit. `isPending` only disables the buttons after
@@ -171,6 +183,15 @@ export function SaleOrderForm({
 
   const totals = useMemo(() => saleOrderTotals(lines), [lines]);
 
+  // What is still empty, from state — never a snapshot taken at submit.
+  const missing = [
+    !customerId && t('customer'),
+    lines.some((l) => !l.productId) && t('product'),
+  ].filter((f): f is string => !!f);
+  // Once everything is filled the check is spent: a line added afterwards is
+  // not nagged about until the next submit.
+  if (checked && missing.length === 0) setChecked(false);
+
   const mutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api.post('/sales/orders', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
@@ -189,15 +210,16 @@ export function SaleOrderForm({
     if (submitting.current) return;
     // The form is noValidate (the browser would answer in English); the
     // pickers' `required` is checked here instead, in the reader's language.
-    const missing = [
-      !customerId && t('customer'),
-      lines.some((l) => !l.productId) && t('product'),
-    ].filter(Boolean);
     if (missing.length > 0) {
-      setRefusal(tv('requiredNamed', { fields: missing.join(locale === 'ar' ? '، ' : ', ') }));
+      // Fires `invalid` on each empty picker, which marks it under itself.
+      const invalid = invalidFields(e.currentTarget);
+      invalid[0]?.parentElement?.querySelector<HTMLElement>('[role="combobox"]')?.focus();
+      setRefusal(null);
+      setChecked(true);
       return;
     }
     submitting.current = true;
+    setChecked(false);
     setRefusal(null);
     mutation.mutate({
       customerId,
@@ -222,10 +244,14 @@ export function SaleOrderForm({
     <form onSubmit={submit} noValidate className="space-y-4" data-testid="sale-order-form">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-foreground">{t('customer')}</label>
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            {t('customer')}
+            <FieldMark required />
+          </label>
           <FieldWithQuickCreate entity="customer" onCreated={(c) => onCustomerChange(c.id, c)}>
             <Select
               name="customerId"
+              required
               value={customerId}
               onChange={(id) => onCustomerChange(id)}
               placeholder={t('customer')}
@@ -280,13 +306,19 @@ export function SaleOrderForm({
               <li
                 key={line.key}
                 data-testid="sale-line"
-                className="rounded-lg bg-muted p-3 md:flex md:items-start md:gap-2"
+                className="rounded-lg bg-muted p-3"
               >
-                {/* Row 1 on a phone: the product, and the way to remove it. */}
-                <div className="flex items-end gap-2 md:min-w-0 md:flex-1">
+                {/* Row 1 at every width: the product, and the way to remove it.
+                    Sharing a row with the numbers left the product ~75px on a
+                    desktop dialog, too narrow to read a name (UI audit #4). */}
+                <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <label className="mb-1 block text-xs text-muted-foreground">{t('product')}</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                      {t('product')}
+                      <FieldMark required />
+                    </label>
                     <Select
+                      required
                       value={line.productId}
                       onChange={(v) =>
                         setLines((prev) =>
@@ -324,15 +356,15 @@ export function SaleOrderForm({
                     onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
                     aria-label={t('removeItem')}
                     title={t('removeItem')}
-                    className="flex size-11 shrink-0 items-center justify-center text-destructive hover:text-destructive/80 md:hidden"
+                    className="mt-5 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-destructive hover:text-destructive/80 sm:size-9"
                   >
                     <MinusCircle className="h-4 w-4" />
                   </button>
                 </div>
 
-                {/* Row 2 on a phone: quantity / price / discount, with room for their values. */}
-                <div className="mt-2 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2 md:mt-0 md:flex md:shrink-0">
-                  <div className="md:w-20">
+                {/* Row 2: quantity / price / discount, with room for their values. */}
+                <div className="mt-2 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
+                  <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('quantity')}</label>
                     <input
                       type="number"
@@ -353,7 +385,7 @@ export function SaleOrderForm({
                       </p>
                     )}
                   </div>
-                  <div className="md:w-28">
+                  <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('unitPrice')}</label>
                     <MoneyInput
                       placeholder="0.00"
@@ -375,7 +407,7 @@ export function SaleOrderForm({
                       </p>
                     )}
                   </div>
-                  <div className="md:w-24">
+                  <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('discount')}</label>
                     <MoneyInput
                       placeholder="0.00"
@@ -395,21 +427,12 @@ export function SaleOrderForm({
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center justify-between gap-2 text-sm md:mt-0 md:w-36 md:shrink-0 md:flex-col md:items-end md:justify-start">
+                <div className="mt-2 flex items-center justify-between gap-2 text-sm">
                   <span className="text-xs text-muted-foreground">{t('lineTotal')}</span>
-                  <span className="font-medium text-foreground" data-testid="line-total">
+                  <span className="whitespace-nowrap font-medium text-foreground" data-testid="line-total">
                     <Money value={lineTotals.lineTotalCents / 100} currency={currency} />
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
-                  aria-label={t('removeItem')}
-                  title={t('removeItem')}
-                  className="hidden shrink-0 self-center p-1.5 text-destructive hover:text-destructive/80 md:block"
-                >
-                  <MinusCircle className="h-4 w-4" />
-                </button>
               </li>
             );
           })}
@@ -423,13 +446,23 @@ export function SaleOrderForm({
         </div>
       </div>
 
-      {refusal && (
+      {checked && missing.length > 0 ? (
         <p
           role="alert"
+          data-testid="form-problem"
           className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
-          {refusal}
+          {tv('requiredNamed', { fields: missing.join(locale === 'ar' ? '، ' : ', ') })}
         </p>
+      ) : (
+        refusal && (
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {refusal}
+          </p>
+        )
       )}
 
       <div className="flex flex-col-reverse gap-2 border-t border-border pt-3 sm:flex-row sm:justify-end sm:gap-3">

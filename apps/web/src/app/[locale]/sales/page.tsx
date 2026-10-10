@@ -404,8 +404,10 @@ function SalesPageContent() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('customer')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('channel')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('total')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('outstanding')}</th>
+                  {/* Money is end-aligned, as on every other table, so the
+                      digits line up down the column. */}
+                  <th className="text-end px-4 py-3 font-medium text-gray-600">{t('total')}</th>
+                  <th className="text-end px-4 py-3 font-medium text-gray-600">{t('outstanding')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('date')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
@@ -441,8 +443,8 @@ function SalesPageContent() {
                       </td>
                       <td className="px-4 py-3">{channelBadge(order.channel)}</td>
                       <td className="px-4 py-3">{statusBadge(order.status)}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium"><Money value={order.total} currency={order.currency} /></td>
-                      <td className="px-4 py-3">{outstandingCell(order)}</td>
+                      <td className="px-4 py-3 text-end whitespace-nowrap tabular-nums text-gray-900 font-medium"><Money value={order.total} currency={order.currency} /></td>
+                      <td className="px-4 py-3 text-end whitespace-nowrap tabular-nums">{outstandingCell(order)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.createdAt)}</td>
                       <td className="px-4 py-3">
                         <button
@@ -545,27 +547,30 @@ function SalesPageContent() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-200">
+                      {/* Side padding on every cell: without it the headers run
+                          together on a phone ("DiscountLine Total"). Numbers
+                          end-aligned and kept on one line. */}
+                      <tr className="border-b border-gray-200 [&>th]:px-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
                         <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('product')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('quantity')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('unitPrice')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('discount')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('lineTotal')}</th>
+                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('quantity')}</th>
+                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('unitPrice')}</th>
+                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('discount')}</th>
+                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('lineTotal')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {(detail.items ?? []).map((item: SaleOrderItem) => (
-                        <tr key={item.id}>
+                        <tr key={item.id} className="[&>td]:px-2 [&>td:first-child]:ps-0 [&>td:last-child]:pe-0">
                           <td className="py-2">
                             <p className="font-medium text-gray-900">
                               <ProductLink id={item.productId} name={item.product?.name} />
                             </p>
-                            <p className="text-xs text-gray-500">{item.product?.sku}</p>
+                            <p className="text-xs text-gray-500"><bdi dir="ltr">{item.product?.sku}</bdi></p>
                           </td>
-                          <td className="py-2 text-gray-600">{item.quantity}</td>
-                          <td className="py-2 text-gray-600">{item.unitPrice?.toLocaleString()}</td>
-                          <td className="py-2 text-gray-600">{item.discount > 0 ? `- ${item.discount.toLocaleString()}` : '—'}</td>
-                          <td className="py-2 font-medium text-gray-900">
+                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.quantity}</td>
+                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600"><bdi dir="ltr">{item.unitPrice?.toLocaleString()}</bdi></td>
+                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.discount > 0 ? <bdi dir="ltr">- {item.discount.toLocaleString()}</bdi> : '—'}</td>
+                          <td className="py-2 text-end whitespace-nowrap tabular-nums font-medium text-gray-900">
                             {/* What the server stored for the line, not a
                                 re-derivation of it. */}
                             <Money value={item.lineTotal} currency={detail.currency} />

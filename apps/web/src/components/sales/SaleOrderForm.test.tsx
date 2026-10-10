@@ -263,11 +263,71 @@ describe('SaleOrderForm', () => {
     const form = screen.getByTestId('sale-order-form');
     expect(form.hasAttribute('novalidate')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
-    const alert = screen.getByRole('alert');
+    const alert = screen.getByTestId('form-problem');
+    expect(alert.getAttribute('role')).toBe('alert');
     expect(alert.textContent).toBe(
       en.validation.requiredNamed.replace('{fields}', `${en.sales.customer}, ${en.sales.product}`),
     );
     expect(post).not.toHaveBeenCalled();
+  });
+
+  // UI audit #5: the banner outlived the problem — both pickers chosen and it
+  // still said to fill them in, until the next submit.
+  it('the "fill in the required fields" banner follows the fields: it narrows as one is chosen and goes when both are', () => {
+    renderForm(vi.fn(), '');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+    expect(screen.getByTestId('form-problem')).toBeTruthy();
+
+    pick(0, 'Nile Motors');
+    expect(screen.getByTestId('form-problem').textContent).toBe(
+      en.validation.requiredNamed.replace('{fields}', en.sales.product),
+    );
+
+    pick(3, 'Piston kit');
+    expect(screen.queryByTestId('form-problem')).toBeNull();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('a line added after a refused submit does not bring the banner back before the next submit', () => {
+    renderForm(vi.fn(), '');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.saveDraft }));
+    pick(0, 'Nile Motors');
+    pick(3, 'Piston kit');
+    fireEvent.click(screen.getByRole('button', { name: /add item/i }));
+    expect(screen.queryByTestId('form-problem')).toBeNull();
+
+    // The second submit finds the new empty line and says so again.
+    fireEvent.click(screen.getByRole('button', { name: en.sales.saveDraft }));
+    expect(screen.getByTestId('form-problem').textContent).toBe(
+      en.validation.requiredNamed.replace('{fields}', en.sales.product),
+    );
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  // UI audit #33: only the banner reported; nothing showed which field was empty.
+  it('a refused submit marks the empty pickers themselves, and only those; choosing one clears its mark', () => {
+    renderForm(vi.fn(), '');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+
+    // A picker is marked when "Required" shows under it, inside its own box.
+    const marked = () =>
+      screen
+        .getAllByRole('combobox')
+        .filter((c) => c.parentElement?.querySelector('[data-slot="select-error"]'));
+    const [customer, , , product] = screen.getAllByRole('combobox');
+    expect(marked()).toEqual([customer, product]);
+    expect(within(lines()[0]).getByText(en.common.required)).toBeTruthy();
+
+    pick(0, 'Nile Motors');
+    expect(marked()).toEqual([product]);
+    pick(3, 'Piston kit');
+    expect(marked()).toEqual([]);
+  });
+
+  it('the first empty picker takes the focus on a refused submit', () => {
+    renderForm(vi.fn(), SHOP.id);
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+    expect(document.activeElement).toBe(screen.getAllByRole('combobox')[3]);
   });
 
   it('the remove button on a line is a button that does not submit', () => {
