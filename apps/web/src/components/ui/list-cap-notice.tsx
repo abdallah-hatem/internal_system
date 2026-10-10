@@ -1,6 +1,7 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import { Info } from 'lucide-react';
+import { useNumberFormat } from '@/lib/numbers';
 
 /**
  * Said when a list stopped at `LIST_CAP` (see `lib/list-all.ts`), so a list
@@ -8,6 +9,7 @@ import { Info } from 'lucide-react';
  */
 export function ListCapNotice({ capped, count }: { capped: boolean; count: number }) {
   const tc = useTranslations('common');
+  const { formatNumber } = useNumberFormat();
   if (!capped) return null;
   return (
     <p
@@ -16,7 +18,7 @@ export function ListCapNotice({ capped, count }: { capped: boolean; count: numbe
       className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
     >
       <Info className="h-4 w-4 shrink-0" aria-hidden />
-      {tc('listCapped', { count: count.toLocaleString() })}
+      {tc('listCapped', { count: formatNumber(count) })}
     </p>
   );
 }

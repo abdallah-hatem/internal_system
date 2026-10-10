@@ -5,6 +5,7 @@ import { Select } from '../../../components/ui/select';
 import { CustomerLink, ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -105,6 +106,7 @@ function SalesPageContent() {
   const t = useTranslations('sales');
   const tc = useTranslations('common');
   const tp = useTranslations('payments');
+  const { formatAmount } = useNumberFormat();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
@@ -414,7 +416,7 @@ function SalesPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={8}><EmptyState icon={null} title={tc('noMatch')} /></td></tr>
                 ) : (
                   paginated.map((order) => (
                     // The whole row opens the order. The order number is a
@@ -471,7 +473,7 @@ function SalesPageContent() {
       {!isLoading && !noOrdersYet && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200"><EmptyState icon={null} title={tc('noMatch')} /></div>
           ) : (
             paginated.map((order) => (
               <div
@@ -542,7 +544,7 @@ function SalesPageContent() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('items')}</h3>
               {(detail.items ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
+                <EmptyState size="compact" icon={Package} title={t('noItemsTitle')} description={t('noItemsHint')} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -568,8 +570,8 @@ function SalesPageContent() {
                             <p className="text-xs text-gray-500"><bdi dir="ltr">{item.product?.sku}</bdi></p>
                           </td>
                           <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.quantity}</td>
-                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600"><bdi dir="ltr">{item.unitPrice?.toLocaleString()}</bdi></td>
-                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.discount > 0 ? <bdi dir="ltr">- {item.discount.toLocaleString()}</bdi> : '—'}</td>
+                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600"><bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi></td>
+                          <td className="py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.discount > 0 ? <bdi dir="ltr">- {formatAmount(item.discount)}</bdi> : '—'}</td>
                           <td className="py-2 text-end whitespace-nowrap tabular-nums font-medium text-gray-900">
                             {/* What the server stored for the line, not a
                                 re-derivation of it. */}
@@ -587,7 +589,12 @@ function SalesPageContent() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('allocations')}</h3>
               {(detail.items ?? []).flatMap((item: SaleOrderItem) => item.allocations ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
+                <EmptyState
+                  size="compact"
+                  icon={Package}
+                  title={t('noAllocationsTitle')}
+                  description={detail.status === 'DRAFT' ? t('noAllocationsDraftHint') : undefined}
+                />
               ) : (
                 <div className="space-y-2">
                   {(detail.items ?? []).flatMap((item: SaleOrderItem) =>
@@ -634,7 +641,12 @@ function SalesPageContent() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('paymentHistory')}</h3>
               {(detail.paymentAllocations ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
+                <EmptyState
+                  size="compact"
+                  icon={Wallet}
+                  title={t('noPaymentsTitle')}
+                  description={detail.status === 'DRAFT' ? t('noPaymentsDraftHint') : t('noPaymentsHint')}
+                />
               ) : (
                 <div className="space-y-2">
                   {(detail.paymentAllocations ?? []).map((alloc: any) => {

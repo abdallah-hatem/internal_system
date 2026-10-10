@@ -9,6 +9,7 @@ import { api, MCP_SERVER_URL } from '../../lib/api';
 import { useApiError } from '../../lib/api-error';
 import { useDateFormat } from '../../lib/dates';
 import { Button } from '../ui/button';
+import { EmptyState } from '../ui/empty-state';
 import { useToast } from '../ui/toast';
 import {
   Dialog,
@@ -123,8 +124,7 @@ export function AssistantConnections() {
         </p>
       ) : list.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-4 space-y-3">
-          <p className="text-sm font-medium text-foreground">{t('empty')}</p>
-          <p className="text-sm text-muted-foreground">{t('howTo')}</p>
+          <EmptyState size="compact" icon={Bot} title={t('empty')} description={t('howTo')} className="py-2" />
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">{t('serverUrl')}</p>
             {/* A URL reads left to right in both languages. */}

@@ -10,6 +10,7 @@ import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download 
 import { EmptyState } from '@/components/ui/empty-state';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
+import { useNumberFormat } from '@/lib/numbers';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PartnerCycle {
@@ -43,14 +44,12 @@ const ROLE_COLORS: Record<string, string> = {
   ADMIN: 'bg-amber-100 text-amber-700',
 };
 
-const egp = (n: number) =>
-  `${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP`;
-
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PartnersPage() {
   const codeLabel = useCodeLabel();
   const t = useTranslations('partners');
   const tc = useTranslations('common');
+  const { formatMoney: egp } = useNumberFormat();
 
   const [search, setSearch] = useState('');
 
@@ -243,6 +242,7 @@ function Total({
 
 function PartnerCard({ person, t }: { person: Participation; t: any }) {
   const locale = useLocale();
+  const { formatMoney: egp } = useNumberFormat();
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">

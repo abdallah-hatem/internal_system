@@ -1,5 +1,6 @@
 'use client';
 import { Money } from '../../../components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -573,10 +574,11 @@ function ProfitFigure({ figure }: { figure?: CycleProfit }) {
 
 /** ROI is only meaningful once something has sold; otherwise a dash. */
 function RoiFigure({ figure }: { figure?: CycleProfit }) {
+  const { formatNumber } = useNumberFormat();
   if (!figure || figure.roiPct == null) return <span className="text-muted-foreground">—</span>;
   return (
     <span dir="ltr" className={figure.roiPct < 0 ? 'text-destructive' : 'text-foreground'}>
-      {figure.roiPct.toLocaleString('en-US', { maximumFractionDigits: 1 })}%
+      {formatNumber(figure.roiPct, { maximumFractionDigits: 1 })}%
     </span>
   );
 }

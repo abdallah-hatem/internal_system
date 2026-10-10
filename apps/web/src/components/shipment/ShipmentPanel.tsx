@@ -11,6 +11,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { useDateFormat } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 import { Money } from '@/components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 import { LegRoute } from './LegRoute';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
@@ -586,19 +587,21 @@ function LegBlock({
 }
 
 function Cell({ id, value }: { id: string; value: number | null }) {
+  const { formatNumber } = useNumberFormat();
   return (
     <td data-testid={id} className="py-2 text-end tabular-nums text-foreground">
-      {value === null ? '—' : value.toLocaleString()}
+      {value === null ? '—' : formatNumber(value, { maximumFractionDigits: 3 })}
     </td>
   );
 }
 
 function Stat({ id, label, value }: { id: string; label: string; value: number | null }) {
+  const { formatNumber } = useNumberFormat();
   return (
     <div>
       <dt className="text-muted-foreground">{label}</dt>
       <dd data-testid={id} className="font-medium tabular-nums text-foreground">
-        {value === null ? '—' : value.toLocaleString()}
+        {value === null ? '—' : formatNumber(value, { maximumFractionDigits: 3 })}
       </dd>
     </div>
   );

@@ -79,6 +79,7 @@ function CustomersPageContent() {
   const t = useTranslations('customers');
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
+  const ts = useTranslations('sales');
   const searchParams = useSearchParams();
   const byBalance = searchParams.get('sort') === 'balance';
   const queryClient = useQueryClient();
@@ -523,7 +524,13 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 </span>
               </div>
               {(detail.orders ?? []).length === 0 ? (
-                <p className="text-sm text-gray-400">{tc('noData')}</p>
+                <EmptyState
+                  size="compact"
+                  icon={ShoppingCart}
+                  title={t('noOrders')}
+                  description={t('noOrdersHint')}
+                  action={{ label: ts('create'), href: `/sales?customer=${detail.id}` }}
+                />
               ) : (
                 <div className="space-y-2">
                   {(detail.orders ?? []).map((order: CustomerOrder) => (

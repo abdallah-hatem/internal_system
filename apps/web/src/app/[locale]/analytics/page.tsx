@@ -9,6 +9,8 @@ import {
   BarChart3, Loader2, TrendingUp, TrendingDown, Package, Route,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
+import { useNumberFormat } from '@/lib/numbers';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface MonthlyRevenue {
@@ -46,6 +48,8 @@ export default function AnalyticsPage() {
   const codeLabel = useCodeLabel();
   const t = useTranslations('analytics');
   const tc = useTranslations('common');
+  const { formatNumber, formatMoney } = useNumberFormat();
+  const pct = (v: number) => `${formatNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
   const { data: monthlyRevenue = [], isLoading: loadingRevenue } = useQuery({
     queryKey: ['analytics', 'revenue-by-month'],
@@ -102,7 +106,7 @@ export default function AnalyticsPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('revenueByMonth')}</h2>
             {revenueList.length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">{t('noData')}</p>
+              <EmptyState size="compact" icon={BarChart3} title={t('noData')} description={t('noRevenueHint')} />
             ) : (
               <>
                 {!hasAnyRevenue && (
@@ -120,13 +124,13 @@ export default function AnalyticsPage() {
                     return (
                       <div
                         key={item.month}
-                        title={`${item.month}: ${item.revenue.toLocaleString()} EGP`}
+                        title={`${item.month}: ${formatMoney(item.revenue)}`}
                         className="flex h-full flex-col items-center gap-1 min-w-[3rem] flex-1"
                       >
                         <span className={`text-[10px] font-medium ${item.revenue > 0 ? 'text-gray-700' : 'text-gray-300'}`}>
                           {item.revenue >= 1000
-                            ? `${(item.revenue / 1000).toFixed(1)}k`
-                            : item.revenue}
+                            ? `${formatNumber(item.revenue / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`
+                            : formatNumber(item.revenue)}
                         </span>
                         {/* The bar's height is a percentage, so it needs a
                             parent with a resolved height — inside an auto-height
@@ -155,7 +159,7 @@ export default function AnalyticsPage() {
                 {t('topProducts')}
               </h2>
               {productList.length === 0 ? (
-                <p className="text-sm text-gray-400 py-8 text-center">{t('noData')}</p>
+                <EmptyState size="compact" icon={Package} title={t('noData')} description={t('noTopProductsHint')} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -173,14 +177,14 @@ export default function AnalyticsPage() {
                         <tr key={p.productId} className="hover:bg-gray-50">
                           <td className="py-2.5 text-gray-900 font-medium">{p.name}</td>
                           <td className="py-2.5 text-gray-500 font-mono text-xs">{p.sku}</td>
-                          <td className="py-2.5 text-end text-gray-900">{p.totalQuantitySold}</td>
+                          <td className="py-2.5 text-end text-gray-900">{formatNumber(p.totalQuantitySold)}</td>
                           <td className="py-2.5 text-end text-gray-900"><Money value={p.revenueEgp} /></td>
                           <td className="py-2.5 text-end">
                             {p.marginPct === null ? (
                               <span className="text-gray-400">—</span>
                             ) : (
                               <span className={p.marginPct >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                {p.marginPct.toFixed(1)}%
+                                {pct(p.marginPct)}
                               </span>
                             )}
                           </td>
@@ -199,7 +203,7 @@ export default function AnalyticsPage() {
                 {t('cycleProfitability')}
               </h2>
               {cycleList.length === 0 ? (
-                <p className="text-sm text-gray-400 py-8 text-center">{t('noData')}</p>
+                <EmptyState size="compact" icon={Route} title={t('noData')} description={t('noCycleProfitHint')} />
               ) : (
                 <div className="space-y-3">
                   {cycleList.map((c) => (
@@ -225,7 +229,7 @@ export default function AnalyticsPage() {
                             <Money value={c.profit} />
                           </p>
                           {c.roiPct !== null && (
-                            <p className="text-xs text-gray-500">ROI {c.roiPct.toFixed(1)}%</p>
+                            <p className="text-xs text-gray-500">ROI {pct(c.roiPct)}</p>
                           )}
                         </div>
                       </div>

@@ -4,6 +4,7 @@ import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -73,6 +74,7 @@ export default function PaymentsPage() {
 function PaymentsPageContent() {
   const apiError = useApiError();
   const t = useTranslations('payments');
+  const { formatMoney } = useNumberFormat();
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -230,7 +232,7 @@ function PaymentsPageContent() {
                   <tr>
                     <td colSpan={8}>
                       {search ? (
-                        <p className="px-4 py-12 text-center text-gray-400">{tc('noData')}</p>
+                        <EmptyState icon={null} title={tc('noMatch')} />
                       ) : (
                         <EmptyState
                           title={t('empty')}
@@ -302,7 +304,7 @@ function PaymentsPageContent() {
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">
               {search ? (
-                <p className="p-12 text-center text-gray-400">{tc('noData')}</p>
+                <EmptyState icon={null} title={tc('noMatch')} />
               ) : (
                 <EmptyState
                   title={t('empty')}
@@ -393,10 +395,7 @@ function PaymentsPageContent() {
                   .map((o: SaleOrder) => ({
                     value: o.id,
                     label: o.orderNo,
-                    hint: `${t('outstanding')}: ${Number(o.outstanding).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })} ${o.currency}`,
+                    hint: `${t('outstanding')}: ${formatMoney(o.outstanding, o.currency)}`,
                   }))}
                 emptyText={t('noOpenOrders')}
               />

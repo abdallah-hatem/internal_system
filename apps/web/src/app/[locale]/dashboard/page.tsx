@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
+import { useNumberFormat } from '@/lib/numbers';
 import { useAuth } from '../../../lib/auth-context';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { QuickActions } from '../../../components/dashboard/quick-actions';
@@ -48,17 +49,12 @@ interface TopProduct {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 
-/** Money tiles read as money: always two decimals, grouped thousands. */
-const egp = (v: number | undefined) =>
-  `${Number(v ?? 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} EGP`;
-
 const TILE_COUNT = 11;
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
+  // Money tiles read as money: two decimals, grouped thousands, Latin digits.
+  const { formatMoney: egp } = useNumberFormat();
   const { user } = useAuth();
   const role = user?.role;
   // A temporary investor sees only their own cycles (R1): the business-wide

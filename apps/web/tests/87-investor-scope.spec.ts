@@ -106,7 +106,7 @@ test.describe('R1 — an investor sees only their own cycles', () => {
     const seen = page.waitForResponse((r) => r.url().endsWith(`/cycles/${other.id}`));
     await page.goto(`${BASE}/en/cycles/${other.id}/details`);
     expect((await seen).status()).toBe(404);
-    await expect(page.getByText('No data available')).toBeVisible();
+    await expect(page.getByText('This cycle could not be found')).toBeVisible();
     await expect(page.getByText(other.code)).toHaveCount(0);
   });
 

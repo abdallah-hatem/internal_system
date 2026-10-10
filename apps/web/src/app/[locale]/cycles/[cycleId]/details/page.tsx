@@ -37,6 +37,8 @@ import { ShipmentPanel, useShipment } from '../../../../../components/shipment/S
 import { num as qtyNum } from '../../../../../components/shipment/shipment-model';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { useCan } from '@/lib/can';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useNumberFormat } from '@/lib/numbers';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -69,6 +71,9 @@ export default function CycleDetailsPage() {
   const canAddParticipant = useCan('cycle.addParticipant');
   const canEditParticipant = useCan('cycle.editParticipant');
   const canListUsers = useCan('users.list');
+  const canAddPurchase = useCan('purchase.create');
+  const canAddLeg = useCan('shippingLeg.create');
+  const { formatNumber } = useNumberFormat();
 
   const { data: cycle, isLoading } = useQuery<any>({
     queryKey: ['cycle', id],
@@ -150,7 +155,7 @@ export default function CycleDetailsPage() {
     onSuccess: (total) => {
       queryClient.invalidateQueries({ queryKey: ['cycle', id] });
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
-      addToast(t('splitDone', { total: total.toLocaleString() }), 'success');
+      addToast(t('splitDone', { total: formatNumber(total, { maximumFractionDigits: 2 }) }), 'success');
     },
     onError: (e: any) =>
       addToast(
@@ -167,7 +172,15 @@ export default function CycleDetailsPage() {
     );
   }
   if (!cycle) {
-    return <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-400">{tc('noData')}</div>;
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <EmptyState
+          title={t('notFoundTitle')}
+          description={t('notFoundHint')}
+          action={{ label: t('backToCycles'), href: '/cycles' }}
+        />
+      </div>
+    );
   }
 
   const participants: any[] = cycle.participants ?? [];
@@ -285,7 +298,15 @@ export default function CycleDetailsPage() {
       </Card>
 
       <Card title={t('purchases')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
-        {orders.length === 0 ? <Empty>{tc('noData')}</Empty> : (
+        {orders.length === 0 ? (
+          <EmptyState
+            size="compact"
+            icon={ShoppingCart}
+            title={t('noPurchasesTitle')}
+            description={t('noPurchasesHint')}
+            action={canAddPurchase && !isClosed ? { label: t('goToPurchases'), href: '/purchases' } : undefined}
+          />
+        ) : (
           <Rows>
             {orders.map((o) => (
               <Row key={o.id}>
@@ -303,7 +324,15 @@ export default function CycleDetailsPage() {
       {/* Each leg's status and deliveries, as the shipment reads them; the
           old card showed a departure and never an arrival. */}
       <Card title={t('shipping')} icon={<Truck className="h-4 w-4 text-muted-foreground" />}>
-        {legs.length === 0 ? <Empty>{tc('noData')}</Empty> : (
+        {legs.length === 0 ? (
+          <EmptyState
+            size="compact"
+            icon={Truck}
+            title={t('noLegsTitle')}
+            description={t('noLegsHint')}
+            action={canAddLeg && !isClosed ? { label: t('goToShipments'), href: '/shipments' } : undefined}
+          />
+        ) : (
           <Rows>
             {legs.map((l) => {
               const position = shipment?.legs?.find((p) => p.legId === l.id);
@@ -341,7 +370,9 @@ export default function CycleDetailsPage() {
       </Card>
 
       <Card title={t('inventory')} icon={<Boxes className="h-4 w-4 text-gray-400" />}>
-        {batches.length === 0 ? <Empty>{tc('noData')}</Empty> : (
+        {batches.length === 0 ? (
+          <EmptyState size="compact" icon={Boxes} title={t('noBatchesTitle')} description={t('noBatchesHint')} />
+        ) : (
           <Rows>
             {batches.map((b) => (
               <Row key={b.id}>
@@ -548,9 +579,6 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
   );
 }
 
-const Empty = ({ children }: { children: React.ReactNode }) => (
-  <p className="py-6 text-center text-sm text-gray-400">{children}</p>
-);
 const Rows = ({ children }: { children: React.ReactNode }) => (
   <div className="divide-y divide-gray-100">{children}</div>
 );
