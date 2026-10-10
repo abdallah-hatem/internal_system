@@ -15,19 +15,8 @@ export function sortByBalance<T extends { outstandingBalance?: number | string |
   );
 }
 
-interface StockRow {
-  totalStock: number | string;
-  batches?: readonly { product?: { minStock?: number | string | null; status?: string } | null }[];
-}
-
 /**
- * `?stock=low` on inventory. The same rule as the dashboard's Low stock count
- * (`AnalyticsService.getDashboardKPIs`): an active product with a minimum set
- * whose stock on hand — every batch's remaining quantity — is under it.
+ * `?stock=low` on inventory: the one web copy of the low-stock rule, pinned to
+ * the API's (the dashboard count) by `lib/low-stock.test.ts`.
  */
-export function isBelowMinStock(row: StockRow): boolean {
-  const product = row.batches?.find((b) => b.product)?.product;
-  if (!product || product.minStock === null || product.minStock === undefined) return false;
-  if (product.status && product.status !== 'ACTIVE') return false;
-  return Number(row.totalStock) < Number(product.minStock);
-}
+export { isBelowMinStock } from '@/lib/low-stock';

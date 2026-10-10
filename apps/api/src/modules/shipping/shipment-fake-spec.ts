@@ -373,6 +373,28 @@ export function fakePrisma(db: Store) {
     product: {
       findUnique: ({ where }: Row) =>
         after(db.products.find((p) => p.id === where.id) ?? null),
+      // The low-stock query (common/low-stock.ts): the filter it sends, read
+      // honestly, so a product the database would not return is not returned.
+      // A product with no status is ACTIVE, the schema's default.
+      findMany: ({ where = {} }: Row) =>
+        after(
+          db.products
+            .filter(
+              (p) =>
+                (where.status === undefined ||
+                  (p.status ?? 'ACTIVE') === where.status) &&
+                (where.minStock?.not !== null || p.minStock != null) &&
+                (!where.id?.in || where.id.in.includes(p.id)),
+            )
+            .map((p) => ({
+              ...p,
+              status: p.status ?? 'ACTIVE',
+              minStock: p.minStock ?? null,
+              inventoryBatches: db.batches
+                .filter((b) => b.productId === p.id)
+                .map((b) => ({ remainingQty: b.remainingQty })),
+            })),
+        ),
     },
     user: { findMany: () => after([]) },
     customer: {

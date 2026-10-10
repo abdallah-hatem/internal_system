@@ -185,7 +185,11 @@ in, not the day it landed.
 active, has a minimum set, and the stock on hand is below that minimum. A product
 with no minimum is never low. The dashboard count, the inventory filter and the
 inventory highlight all use this one rule; the inventory page used to colour any
-batch under 10 instead, so the two screens could disagree.
+batch under 10 instead, so the two screens could disagree. *Stock on hand* is
+what is on the shelf — every batch's remaining quantity summed — not what is left
+after holds: a held unit is still on the shelf, and a minimum is a reorder point
+(L2, 2026-10-10). The alert raised on receiving uses the same rule. Defined once
+in `apps/api/src/common/low-stock.ts`, with one pinned web copy.
 
 ---
 
