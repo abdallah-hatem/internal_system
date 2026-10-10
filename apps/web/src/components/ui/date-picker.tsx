@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { formatDate } from '@/lib/dates';
+import { businessToday, useDateFormat } from '@/lib/dates';
 
 // ---------------------------------------------------------------------------
 // Date helpers — everything stays in LOCAL time.
@@ -77,16 +77,35 @@ export interface CalendarProps {
   max?: Date | null;
   /** Month to open on when nothing is selected (defaults to today). */
   defaultMonth?: Date;
+  /**
+   * Grey out every day after **Cairo's** today (§7a) — for records of things
+   * that happened, which the server refuses to date forward. Combines with
+   * `max` (the earlier of the two wins). Also makes the "today" marker Cairo's.
+   */
+  disableFuture?: boolean;
   className?: string;
 }
 
-export function Calendar({ selected, onSelect, min, max, defaultMonth, className }: CalendarProps) {
+export function Calendar({
+  selected,
+  onSelect,
+  min,
+  max: maxProp,
+  defaultMonth,
+  disableFuture = false,
+  className,
+}: CalendarProps) {
   const locale = useLocale();
   const t = useTranslations('common');
   const rtl = locale === 'ar';
   const weekStart = weekStartFor(locale);
 
-  const today = useMemo(() => startOfDay(new Date()), []);
+  // With disableFuture, "today" is Cairo's: the boundary and the marker must agree.
+  const today = useMemo(
+    () => (disableFuture ? parseISODate(businessToday())! : startOfDay(new Date())),
+    [disableFuture],
+  );
+  const max = disableFuture && (!maxProp || startOfDay(maxProp) > today) ? today : maxProp;
   const [view, setView] = useState<Date>(() => selected ?? defaultMonth ?? today);
   const [mode, setMode] = useState<'days' | 'months'>('days');
   // The cell that owns the tab stop — arrow keys move it without changing the value.
@@ -325,6 +344,12 @@ export interface DatePickerProps {
   clearable?: boolean;
   min?: string;
   max?: string;
+  /**
+   * Refuse days after Cairo's today, as the server does for payments, orders and
+   * receipts (§7a). Future days are greyed out and "Today" picks Cairo's day.
+   * Off by default, so existing pickers are unchanged.
+   */
+  disableFuture?: boolean;
   className?: string;
   id?: string;
 }
@@ -350,10 +375,12 @@ export function DatePicker({
   clearable,
   min,
   max,
+  disableFuture = false,
   className,
   id,
 }: DatePickerProps) {
   const t = useTranslations('common');
+  const { formatDate } = useDateFormat();
   const controlled = value !== undefined;
   const [internal, setInternal] = useState(() => (defaultValue ? defaultValue.slice(0, 10) : ''));
   const current = controlled ? (value ?? '').slice(0, 10) : internal;
@@ -439,6 +466,7 @@ export function DatePicker({
             selected={selected}
             min={parseISODate(min)}
             max={parseISODate(max)}
+            disableFuture={disableFuture}
             onSelect={(d) => {
               commit(toISODate(d));
               setOpen(false);
@@ -450,7 +478,7 @@ export function DatePicker({
               type="button"
               data-testid="date-picker-today"
               onClick={() => {
-                commit(toISODate(new Date()));
+                commit(disableFuture ? businessToday() : toISODate(new Date()));
                 setOpen(false);
               }}
               className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
