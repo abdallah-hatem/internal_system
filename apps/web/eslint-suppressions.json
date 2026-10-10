@@ -34,7 +34,7 @@
   },
   "src/app/[locale]/customers/[id]/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
+      "count": 2
     },
     "local/no-raw-colors": {
       "count": 39
@@ -56,7 +56,7 @@
   },
   "src/app/[locale]/cycles/[cycleId]/details/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 12
+      "count": 11
     },
     "@typescript-eslint/no-floating-promises": {
       "count": 4
@@ -81,7 +81,7 @@
   },
   "src/app/[locale]/import-requests/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-misused-promises": {
       "count": 1

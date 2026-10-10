@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 
 import type { Prisma } from '@prisma/client';
 import { notFound } from '../../common/api-error';
@@ -25,9 +29,8 @@ export class NotificationsService {
 
     const items = await this.prisma.notification.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     const hasMore = items.length > limit;

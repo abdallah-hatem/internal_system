@@ -1,4 +1,4 @@
-import { pageSize } from '../../common/dto/pagination.dto';
+import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
@@ -69,9 +69,8 @@ export class SalesService {
 
     const items = await this.prisma.saleOrder.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         customer: true,
         items: { include: { product: true } },

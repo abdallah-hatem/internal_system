@@ -2,7 +2,11 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -61,9 +65,8 @@ export class AuditController {
 
     const items = await this.prisma.auditLog.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { occurredAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       include: {
         actor: { select: { id: true, email: true } },
       },

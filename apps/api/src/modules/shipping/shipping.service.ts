@@ -16,7 +16,11 @@ import {
 } from '../../common/shipment-load';
 import { DeliveriesService } from './deliveries.service';
 import { AuditService } from '../audit/audit.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 import { CostingService } from '../costing/costing.service';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
@@ -107,8 +111,7 @@ export class ShippingService {
 
     const items = await this.prisma.shippingLeg.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
+      ...cursorPage(cursor, limit),
       // Newest cycle first, its legs in route order. Ordering by cycleId (a
       // random uuid) put a new cycle's legs anywhere, so whichever legs fell
       // past the page were arbitrary; now a full page drops the oldest.
@@ -116,6 +119,7 @@ export class ShippingService {
         { cycle: { createdAt: 'desc' } },
         { cycleId: 'asc' },
         { sequence: 'asc' },
+        { id: 'asc' },
       ],
       include: { cycle: true },
     });

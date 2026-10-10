@@ -3,7 +3,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
 import { owedBy, owedByEach } from '../../common/customer-balance';
@@ -53,9 +57,8 @@ export class CustomersService {
 
     const items = await this.prisma.customer.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         _count: {
           select: { saleOrders: true, payments: true },

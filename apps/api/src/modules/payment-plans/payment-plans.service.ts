@@ -3,7 +3,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { CreatePaymentPlanDto } from './dto/payment-plan.dto';
 import { formatMoney } from '../../common/money';
@@ -142,10 +146,8 @@ export class PaymentPlansService {
 
     const plans = await this.prisma.paymentPlan.findMany({
       where: { ...(customerId ? { customerId } : {}), status: { not: 'CANCELLED' } },
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: PLAN_INCLUDE,
     });
 

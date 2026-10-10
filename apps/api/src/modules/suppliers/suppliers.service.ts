@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 import { supplierKey } from '../assistant/receipt/name-matching';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
@@ -40,9 +44,8 @@ export class SuppliersService {
 
     const items = await this.prisma.supplier.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { name: 'asc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
       // The list is what the suppliers page renders, and it needs to know what
       // points at each row: how many orders were bought from it, and whether
       // deleting it is even possible.

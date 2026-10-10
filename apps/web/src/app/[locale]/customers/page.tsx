@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Money } from '../../../components/ui/money';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Select } from '../../../components/ui/select';
@@ -97,15 +99,11 @@ function CustomersPageContent() {
   useEffect(() => { setPage(1); }, [search, verification, byBalance]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: customers = [], isLoading } = useQuery({
-    queryKey: ['customers', verification],
-    queryFn: () =>
-      api
-        .get('/customers', {
-          params: { limit: 200, ...(verification ? { verification } : {}) },
-        })
-        .then((r) => r.data.data ?? r.data),
-  });
+  const { items: customers, capped, isLoading } = useAllRecords(
+    ['customers', verification],
+    '/customers',
+    verification ? { verification } : {},
+  );
 
   const { data: customerDetail } = useQuery({
     queryKey: ['customer', viewingCustomer?.id],
@@ -258,6 +256,8 @@ function CustomersPageContent() {
           </button>
         </div>
       )}
+
+      <ListCapNotice capped={capped} count={customers.length} />
 
       {/* Loading */}
       {isLoading && (

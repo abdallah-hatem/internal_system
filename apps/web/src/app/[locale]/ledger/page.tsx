@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Money } from '../../../components/ui/money';
 import { Select } from '../../../components/ui/select';
 
@@ -104,10 +106,7 @@ export default function LedgerPage() {
   useEffect(() => { setPage(1); }, [search, directionFilter, typeFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['ledger'],
-    queryFn: () => api.get('/ledger').then((r) => r.data.data ?? r.data),
-  });
+  const { items: entries, capped, isLoading } = useAllRecords(['ledger'], '/ledger');
 
   const { data: entryDetail } = useQuery({
     queryKey: ['ledger-entry', viewingEntry?.id],
@@ -269,6 +268,8 @@ export default function LedgerPage() {
           }))}
         />
       </div>
+
+      <ListCapNotice capped={capped} count={entries.length} />
 
       {/* Loading */}
       {isLoading && (

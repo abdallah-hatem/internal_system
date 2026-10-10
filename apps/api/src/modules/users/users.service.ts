@@ -3,7 +3,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { SettlementsService } from '../settlements/settlements.service';
 import * as bcrypt from 'bcrypt';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 
 import { conflict, notFound } from '../../common/api-error';
 @Injectable()
@@ -22,9 +26,8 @@ export class UsersService {
 
     const items = await this.prisma.user.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: { partner: true },
     });
 

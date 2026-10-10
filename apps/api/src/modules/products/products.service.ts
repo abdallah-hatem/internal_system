@@ -4,7 +4,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { skuKey } from '../assistant/receipt/name-matching';
@@ -48,9 +52,8 @@ export class ProductsService {
 
     const items = await this.prisma.product.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         category: true,
         // The catalogue is shared reference data an investor's cycle pages

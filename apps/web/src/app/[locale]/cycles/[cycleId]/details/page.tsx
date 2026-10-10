@@ -1,4 +1,5 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
 
 /**
  * Everything a cycle contains, at any point in its life.
@@ -74,9 +75,7 @@ export default function CycleDetailsPage() {
     queryFn: () => api.get(`/cycles/${id}`).then((r) => r.data.data ?? r.data),
   });
 
-  const { data: users = [] } = useQuery<any[]>({
-    queryKey: ['users'],
-    queryFn: () => api.get('/users').then((r) => r.data.data ?? r.data),
+  const { items: users } = useAllRecords(['users'], '/users', undefined, {
     enabled: canListUsers && canAddParticipant,
   });
 

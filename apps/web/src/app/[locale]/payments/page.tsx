@@ -1,4 +1,6 @@
 'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
@@ -89,15 +91,8 @@ function PaymentsPageContent() {
   useEffect(() => { setPage(1); }, [search]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: payments = [], isLoading } = useQuery({
-    queryKey: ['payments'],
-    queryFn: () => api.get('/payments').then((r) => r.data.data ?? r.data),
-  });
-
-  const { data: orders = [] } = useQuery({
-    queryKey: ['sales'],
-    queryFn: () => api.get('/sales/orders').then((r) => r.data.data ?? r.data),
-  });
+  const { items: payments, capped, isLoading } = useAllRecords(['payments'], '/payments');
+  const { items: orders } = useAllRecords(['sales'], '/sales/orders');
 
   const { data: paymentDetail } = useQuery({
     queryKey: ['payment', viewingPayment?.id],
@@ -202,6 +197,8 @@ function PaymentsPageContent() {
           className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
+
+      <ListCapNotice capped={capped} count={payments.length} />
 
       {/* Loading */}
       {isLoading && (
