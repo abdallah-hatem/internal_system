@@ -186,7 +186,7 @@ function harness(db: Db) {
         {} as CyclesService,
       ),
     ],
-    [SalesService, new SalesService(p, audit)],
+    [SalesService, new SalesService(p, audit, new PaymentsService(p, audit))],
     [CustomersService, new CustomersService(p, audit)],
     [PaymentsService, new PaymentsService(p, audit)],
     [PaymentPlansService, new PaymentPlansService(p, audit, notifications)],
@@ -605,6 +605,7 @@ describe('get_customer', () => {
       phone: '0100',
       email: null,
       verificationStatus: 'VERIFIED',
+      isWalkIn: false,
     };
     const order = (
       id: string,
@@ -649,6 +650,7 @@ describe('get_customer', () => {
       phone: '0101',
       email: null,
       verificationStatus: 'VERIFIED',
+      isWalkIn: false,
       saleOrders: [],
       payments: [],
     });

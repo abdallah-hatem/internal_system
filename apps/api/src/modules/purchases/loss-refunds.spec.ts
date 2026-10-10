@@ -10,6 +10,7 @@ import { CostingService } from '../costing/costing.service';
 import { CyclesService } from '../cycles/cycles.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { SalesService } from '../sales/sales.service';
+import { PaymentsService } from '../payments/payments.service';
 import { SettlementsService } from '../settlements/settlements.service';
 import { DeliveriesService } from '../shipping/deliveries.service';
 import { ShippingController } from '../shipping/shipping.controller';
@@ -76,7 +77,7 @@ beforeEach(() => {
   purchases = new PurchasesService(prisma, audit, notifications);
   settlements = new SettlementsService(prisma, audit);
   analytics = new AnalyticsService(prisma);
-  sales = new SalesService(prisma, audit);
+  sales = new SalesService(prisma, audit, new PaymentsService(prisma, audit));
 });
 
 async function refusal(p: Promise<unknown>) {

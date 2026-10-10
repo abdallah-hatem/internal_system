@@ -775,6 +775,11 @@ model Customer {
   // happened to return first — an ownership bug that reads as a caching one.
   shopOwnerUserId    String?      @unique @map("shop_owner_user_id") @db.Uuid
   verificationStatus String       @default("UNVERIFIED") @map("verification_status")
+  // The one shared record behind every walk-in sale (BUSINESS_LOGIC §4,
+  // 2026-10-11). At most one row may carry true: the migration adds a unique
+  // index WHERE is_walk_in, which Prisma cannot express, so two first walk-in
+  // sales at once cannot make two of it. Found or made by `walkInCustomer`.
+  isWalkIn           Boolean      @default(false) @map("is_walk_in")
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int          @default(1)

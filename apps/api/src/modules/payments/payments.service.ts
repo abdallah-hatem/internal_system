@@ -145,9 +145,10 @@ export class PaymentsService {
       }
     }
 
-    const outcome = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
+    const outcome = await this.prisma.$transaction((tx) =>
+      this.recordWithin(
+        tx,
+        {
           customerId: data.customerId,
           amount: data.amount,
           currency: data.currency,
@@ -157,40 +158,89 @@ export class PaymentsService {
           receivedOn: data.receivedOn ? new Date(data.receivedOn) : new Date(),
           method: data.method,
           reference: data.reference || idempotencyKey,
-          status: 'RECORDED',
-          createdBy: actorId,
+          orderId: data.orderId,
         },
-      });
-
-      // The ledger records money as it is received (§9).
-      await tx.financialTransaction.create({
-        data: {
-          type: 'PAYMENT_RECEIVED',
-          category: 'revenue',
-          direction: 'INFLOW',
-          amount: data.amount,
-          currency: data.currency,
-          relatedType: 'PAYMENT',
-          relatedId: payment.id,
-          reason: `Auto: Payment received from customer ${data.customerId}${data.method ? ` via ${data.method}` : ''}`,
-          createdBy: actorId,
-        },
-      });
-
-      const allocated = data.orderId
-        ? await this.allocateWithin(
-            tx,
-            payment,
-            data.orderId,
-            Number(data.amount),
-            { chosenByPayer: true },
-          )
-        : null;
-
-      return { payment, allocated };
-    });
+        actorId,
+      ),
+    );
 
     // Audit rows after the commit — see `allocateToOrder` for why.
+    await this.logRecorded(outcome, actorId);
+
+    return { data: outcome.payment };
+  }
+
+  /**
+   * Money arriving, inside a transaction the caller owns: the payment, its
+   * ledger INFLOW (§9) and, with `orderId`, its allocation through
+   * `allocateWithin`. The one definition of what receiving money writes —
+   * `create` and the walk-in sale (`SalesService`, §4) both come through here.
+   *
+   * The caller has already run its own checks (owed, dated, verified); the
+   * order's own cap is checked by `allocateWithin`.
+   */
+  async recordWithin(
+    tx: Prisma.TransactionClient,
+    data: {
+      customerId: string;
+      amount: number;
+      currency: string;
+      receivedOn: Date;
+      method?: string;
+      reference?: string;
+      orderId?: string;
+    },
+    actorId: string,
+  ) {
+    const payment = await tx.payment.create({
+      data: {
+        customerId: data.customerId,
+        amount: data.amount,
+        currency: data.currency,
+        receivedOn: data.receivedOn,
+        method: data.method,
+        reference: data.reference,
+        status: 'RECORDED',
+        createdBy: actorId,
+      },
+    });
+
+    // The ledger records money as it is received (§9).
+    await tx.financialTransaction.create({
+      data: {
+        type: 'PAYMENT_RECEIVED',
+        category: 'revenue',
+        direction: 'INFLOW',
+        amount: data.amount,
+        currency: data.currency,
+        relatedType: 'PAYMENT',
+        relatedId: payment.id,
+        reason: `Auto: Payment received from customer ${data.customerId}${data.method ? ` via ${data.method}` : ''}`,
+        createdBy: actorId,
+      },
+    });
+
+    const allocated = data.orderId
+      ? await this.allocateWithin(
+          tx,
+          payment,
+          data.orderId,
+          Number(data.amount),
+          { chosenByPayer: true },
+        )
+      : null;
+
+    return { payment, allocated };
+  }
+
+  /** The audit rows for what `recordWithin` wrote, once it has committed. */
+  async logRecorded(
+    outcome: {
+      payment: { id: string };
+      allocated: { audit: unknown } | null;
+    },
+    actorId: string,
+  ) {
     await this.audit.log({
       actorUserId: actorId,
       action: 'CREATE',
@@ -207,8 +257,6 @@ export class PaymentsService {
         afterJson: outcome.allocated.audit,
       });
     }
-
-    return { data: outcome.payment };
   }
 
   async allocateToOrder(

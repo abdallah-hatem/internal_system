@@ -196,7 +196,10 @@ export class AnalyticsService {
     });
     const collected = money(D(collectedAgg._sum.amount));
 
-    const totalCustomers = await this.prisma.customer.count();
+    // The walk-in record is not a customer the business has (§4).
+    const totalCustomers = await this.prisma.customer.count({
+      where: { isWalkIn: false },
+    });
 
     // Total active products
     const totalProducts = await this.prisma.product.count({

@@ -5,6 +5,7 @@ import { PaymentsService } from '../src/modules/payments/payments.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../src/common/references';
+import { WALK_IN_NAME, walkInCustomer } from '../src/common/walk-in';
 
 const prisma = new PrismaClient();
 
@@ -201,6 +202,40 @@ async function priceProduct(productId: string, b2b: number, b2c: number) {
       });
     }
   }
+}
+
+/**
+ * The walk-in record (BUSINESS_LOGIC §4, 2026-10-11), at every level that has
+ * customers.
+ *
+ * The reference level always carried a "Walk-in Customer" B2C row, typed in
+ * like any shop. That row becomes THE walk-in record rather than sitting
+ * beside a second one: it is renamed, verified and flagged. A database that
+ * never had it gets one from `walkInCustomer`, the same function the first
+ * walk-in sale would call. Idempotent — run twice, it finds the flagged row.
+ */
+async function seedWalkIn() {
+  const flagged = await prisma.customer.findFirst({
+    where: { isWalkIn: true },
+  });
+  if (!flagged) {
+    const typedIn = await prisma.customer.findFirst({
+      where: { displayName: 'Walk-in Customer', isWalkIn: false },
+    });
+    if (typedIn) {
+      await prisma.customer.update({
+        where: { id: typedIn.id },
+        data: {
+          displayName: WALK_IN_NAME,
+          type: 'B2C',
+          phone: null,
+          verificationStatus: 'VERIFIED',
+          isWalkIn: true,
+        },
+      });
+    }
+  }
+  return walkInCustomer(prisma);
 }
 
 async function giveStoreLogin(customerId: string) {
@@ -427,7 +462,8 @@ async function main() {
       'B2B',
       '+20 122 555 6677',
     );
-    await customerOf('Walk-in Customer', 'B2C', '+20 111 888 9900');
+    // B2C buyers are sold to as walk-ins, on the one shared record.
+    await seedWalkIn();
 
     await giveStoreLogin(elNasr.id);
     await seedTempInvestor();
@@ -436,7 +472,7 @@ async function main() {
       '✅ Reference seed — 2 categories, 2 suppliers, 2 shipping providers,',
     );
     console.log(
-      '   2 products (priced B2B/B2C) and 2 customers. No cycles or orders.',
+      '   2 products (priced B2B/B2C), a shop and the walk-in record. No cycles or orders.',
     );
     console.log('   El Nasr Motors has a store login: shop.owner@example.com');
     console.log('   A temporary investor: investor@motoparts.com');
@@ -632,6 +668,7 @@ async function main() {
   // uses exactly that.
   await giveStoreLogin(customer.id);
   await seedTempInvestor();
+  await seedWalkIn();
 
   // ── Cycle 1 — China route ───────────────────────────────────────────────
   const existingCycle = await prisma.importCycle.findUnique({

@@ -11,6 +11,7 @@ import {
 
 import { notFound } from '../../common/api-error';
 import { owedBy, owedByEach } from '../../common/customer-balance';
+import { assertNotWalkIn } from '../../common/walk-in';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -27,7 +28,12 @@ export class CustomersService {
   ) {
     const { cursor, limit: rawLimit = 20, type, search, verification } = pagination;
     const limit = pageSize(rawLimit);
-    const where: any = {};
+    // The walk-in record is not a customer anyone chose (BUSINESS_LOGIC §4,
+    // 2026-10-11): it is behind every walk-in sale and is reached with the
+    // sale form's Walk-in switch, never picked. Every picker reads this list,
+    // so leaving it out here leaves it out of all of them. Its sales still
+    // count in revenue and the dashboard, which read orders, not this list.
+    const where: any = { isWalkIn: false };
     if (type) where.type = type;
 
     // Unverified shops are hidden unless asked for.
@@ -162,6 +168,7 @@ export class CustomersService {
   async verify(id: string, actorId: string) {
     const existing = await this.prisma.customer.findUnique({ where: { id } });
     if (!existing) throw notFound('customer');
+    assertNotWalkIn(existing);
 
     if (existing.verificationStatus === 'VERIFIED') return { data: existing };
 
@@ -194,6 +201,7 @@ export class CustomersService {
   ) {
     const existing = await this.prisma.customer.findUnique({ where: { id } });
     if (!existing) throw notFound('customer');
+    assertNotWalkIn(existing);
 
     const updated = await this.prisma.customer.update({
       where: { id },
