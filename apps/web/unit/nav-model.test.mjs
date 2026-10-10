@@ -3,9 +3,9 @@
  * page the role's own menu hides. Run with `npm run test:unit` (Node's own
  * runner — the module imports nothing, so it loads without a bundler).
  *
- * Today no entry carries a role restriction, so every signed-in role sees the
- * full menu, as the sidebar always has. The restricted cases below build their
- * own menu to prove the bar follows a restriction the day one is added.
+ * The restricted cases near the top build their own menu to prove the bar
+ * follows a restriction. The real menu's restrictions are checked per role in
+ * `nav-roles.test.mjs`, against the API controllers they mirror.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
