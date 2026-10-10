@@ -12,10 +12,10 @@
  *  Recording deliveries arrives with B2. Until then a cycle here has none, so
  *  these cases do not assert on delivered quantities.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
 import { apiCtx, API, today } from './support/fixtures';
 
-async function accountWithRole(request: any, role: string) {
+async function accountWithRole(request: APIRequestContext, role: string) {
   const { headers } = await apiCtx(request);
   const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
   const email = `shipment-${role.toLowerCase()}-${stamp}@motoparts.com`;
@@ -31,7 +31,7 @@ async function accountWithRole(request: any, role: string) {
 }
 
 /** A cycle with one order line of 40 and its one leg, nothing yet arrived. */
-async function orderedCycle(request: any) {
+async function orderedCycle(request: APIRequestContext) {
   const { headers, mk } = await apiCtx(request);
   const stamp = Date.now();
   const product = await mk('products', { name: `Shipment ${stamp} Part`, minStock: 0 });
