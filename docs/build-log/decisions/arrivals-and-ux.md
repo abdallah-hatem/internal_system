@@ -64,3 +64,7 @@
   currency; negative discounts; refund date default and payer; recent activity; R1's two security fixes). The
   pre-existing reservations contradiction (§3 vs §12) is moved to Still open. System-written English ledger reasons
   stay queued (needs a migration). CHEQUE was already restored at the U2 merge.
+- **[UI audit] Arabic screens use Latin digits everywhere**, with Arabic month names. Dates already did (U0); `Money`
+  followed the browser and showed Arabic-Indic, so one screen mixed "30" with "٣٠" (finding #14). One system: Latin.
+  Alternative: Arabic-Indic everywhere (would mean changing dates, inputs and the date picker too, and inputs accept Latin).
+- **[UI audit] Dark mode is out of scope.** The app never had a dark theme; the audit confirmed it renders light. Logged.
