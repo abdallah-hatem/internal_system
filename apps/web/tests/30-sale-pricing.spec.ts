@@ -103,7 +103,8 @@ async function pricedProductAndCustomer(request: APIRequestContext) {
 async function openOrderForm(page: Page) {
   await page.goto(`${BASE}/en/sales`);
   await page.getByRole('button', { name: /new order/i }).click();
-  await page.getByRole('button', { name: /add item/i }).click();
+  // The form opens with one empty line already (U1); adding another here would
+  // leave the picker below pointing at the second row and the price at the first.
 }
 
 async function pick(page: Page, name: string, label: string | RegExp) {

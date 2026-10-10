@@ -37,7 +37,7 @@ async function token(request: APIRequestContext) {
 async function openOrderWithARow(page: Page) {
   await page.goto(`${BASE}/en/sales`);
   await page.getByRole('button', { name: /new order/i }).first().click();
-  await page.getByRole('button', { name: /add item/i }).click();
+  // The sale form opens with its one empty row already (U1).
 }
 
 /**

@@ -274,21 +274,12 @@
   },
   "src/app/[locale]/sales/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 17
-    },
-    "@typescript-eslint/no-floating-promises": {
       "count": 9
     },
-    "i18next/no-literal-string": {
-      "count": 4
-    },
     "local/no-raw-colors": {
-      "count": 146
+      "count": 117
     },
     "no-restricted-syntax": {
-      "count": 1
-    },
-    "react-hooks/immutability": {
       "count": 1
     },
     "react-hooks/set-state-in-effect": {

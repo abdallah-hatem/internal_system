@@ -842,10 +842,10 @@
   },
   "src/modules/sales/sales.controller.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 4
+      "count": 3
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
+      "count": 3
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 3
@@ -853,16 +853,13 @@
   },
   "src/modules/sales/sales.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 10
     }
   },
   "src/modules/settlements/dto/settlement.dto.ts": {
