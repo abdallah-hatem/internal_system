@@ -42,3 +42,4 @@
   Accepted guesses (U2.md): 404 for another customer's order; payments in the order's currency or EGP;
   oldest-first still one request per order from the client (as before); the dialog relies on a ref
   guard for double submit (the payment key would show in `reference`).
+- F1b dispatched early from `c292c78` (needs B2, not B3; owns no B3 file).
