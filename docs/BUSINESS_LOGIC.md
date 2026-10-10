@@ -277,9 +277,8 @@ what it brings in.
 - Like any supplier refund it can be recorded whenever the money arrives, even
   after the cycle is settled or closed.
 - A loss that has been refunded cannot be taken back: the goods turning up after
-  being paid for would be counted twice. Record the goods as a new delivery is not
-  possible either; the refund has to be dealt with first (returned money is a
-  ledger correction).
+  being paid for would be counted twice. If they do turn up, the refund is undone
+  first — money handed back is a ledger correction — and then the loss.
 - Neither kind of refund can be dated in the future.
 
 ---
