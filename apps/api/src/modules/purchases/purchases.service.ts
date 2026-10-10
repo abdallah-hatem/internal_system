@@ -11,7 +11,11 @@ import { lockCycle } from '../../common/shipment-load';
 import { COUNTING_REFUND, refundEgp } from '../../common/loss-refunds';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
 import { isUuid } from '../../common/uuid';
@@ -134,9 +138,8 @@ export class PurchasesService {
 
     const items = await this.prisma.purchaseOrder.findMany({
       where,
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         supplier: true,
         cycle: true,

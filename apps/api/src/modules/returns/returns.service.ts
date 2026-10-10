@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
-import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  pageSize,
+  cursorPage,
+} from '../../common/dto/pagination.dto';
 import { Prisma, RefundMethod } from '@prisma/client';
 import { CreateReturnDto } from './dto/return.dto';
 
@@ -38,10 +42,8 @@ export class ReturnsService {
 
     const items = await this.prisma.saleReturn.findMany({
       where: saleOrderId ? { saleOrderId } : {},
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      orderBy: { createdAt: 'desc' },
+      ...cursorPage(cursor, limit),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: RETURN_INCLUDE,
     });
 
