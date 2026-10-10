@@ -13,16 +13,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
-import { selectOnFocus } from '../../../lib/select-on-focus';
-import { MoneyInput } from '../../../components/ui/money-input';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { useCodeLabel } from '../../../lib/labels';
 import {
-  BadgePercent, Plus, Search, Eye, X, MinusCircle, Loader2,
-  ChevronRight, DollarSign, CheckCircle, Ban, Package,
-  Undo2,
+  SaleOrderForm,
+  type SavedOrder,
+  type SaleFormCustomer,
+  type SaleFormProduct,
+  type SaleFormStockRow,
+} from '../../../components/sales/SaleOrderForm';
+import {
+  Plus, Search, X, Loader2,
+  ChevronRight, CheckCircle, Ban, Package,
+  Undo2, ShoppingCart,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
-import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -54,6 +60,7 @@ interface SaleOrderItem {
   quantity: number;
   unitPrice: number;
   discount: number;
+  lineTotal?: number | string;
   allocatedQty: number;
   allocations?: {
     id: string;
@@ -73,18 +80,6 @@ interface PaymentRecord {
   receivedOn: string;
 }
 
-interface Customer {
-  id: string;
-  displayName: string;
-  type: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  sku: string;
-}
-
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-600',
   CONFIRMED: 'bg-blue-100 text-blue-700',
@@ -92,15 +87,6 @@ const STATUS_COLORS: Record<string, string> = {
   PAID: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
   RETURNED: 'bg-purple-100 text-purple-700',
-};
-
-const STATUS_KEYS: Record<string, string> = {
-  DRAFT: 'draft',
-  CONFIRMED: 'confirmed',
-  PARTIALLY_PAID: 'partiallyPaid',
-  PAID: 'paid',
-  CANCELLED: 'cancelled',
-  RETURNED: 'returned',
 };
 
 const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled'] as const;
@@ -116,16 +102,14 @@ function SalesPageContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // The new-order form, open or not, and the customer it opened on. The form
+  // owns its own lines; unmounting it on close is what resets them.
+  const [createFor, setCreateFor] = useState<{ customerId?: string } | null>(null);
   const [viewingOrder, setViewingOrder] = useState<SaleOrder | null>(null);
-  const [lineItems, setLineItems] = useState<Array<{ productId: string; quantity: number; unitPrice: number; discount: number }>>([]);
-  // Controlled so the customer can set the channel and the channel can price
-  // the lines. Both still carry their `name`, so the form submits unchanged.
+  const codeLabel = useCodeLabel();
   // Cancelling is not undoable and the button sits beside Confirm, so it asks
   // first rather than acting on the click.
   const [cancellingOrder, setCancellingOrder] = useState<SaleOrder | null>(null);
-  const [customerId, setCustomerId] = useState('');
-  const [channel, setChannel] = useState('B2B');
 
   // Arriving from a shop's page with ?customer=<id> opens the order form on
   // that shop, so "New Order" there means what it says instead of dropping you
@@ -169,32 +153,29 @@ function SalesPageContent() {
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/sales/orders', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      setShowCreateModal(false);
-      setLineItems([]);
-      setCustomerId('');
-      setChannel('B2B');
-      addToast('Order created successfully', 'success');
-    },
-    onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
-    },
-  });
+  const onOrderSaved = ({ confirmed }: SavedOrder) => {
+    void queryClient.invalidateQueries({ queryKey: ['sales'] });
+    if (confirmed) {
+      // Confirming took stock off the shelf and added to what the shop owes.
+      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      void queryClient.invalidateQueries({ queryKey: ['customers'] });
+    }
+    setCreateFor(null);
+    addToast(confirmed ? t('orderCreatedConfirmed') : t('draftSaved'), 'success');
+  };
 
   const confirmMutation = useMutation({
     mutationFn: ({ id, version }: { id: string; version: number }) =>
       api.post(`/sales/orders/${id}/confirm`, { version }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      queryClient.invalidateQueries({ queryKey: ['sale'] });
+      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      void queryClient.invalidateQueries({ queryKey: ['sale'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
       setViewingOrder(null);
-      addToast('Order confirmed successfully', 'success');
+      addToast(t('orderConfirmed'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
+      addToast(apiError(error, tc('error')), 'error');
     },
   });
 
@@ -207,10 +188,10 @@ function SalesPageContent() {
     mutationFn: (data: any) => api.post('/returns', data),
     onSuccess: () => {
       addToast(t('returnRecorded'), 'success');
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      queryClient.invalidateQueries({ queryKey: ['sale'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      void queryClient.invalidateQueries({ queryKey: ['sale'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
       setReturningOrder(null);
       setReturnQty({});
       setReturnRestock({});
@@ -226,51 +207,24 @@ function SalesPageContent() {
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.post(`/sales/orders/${id}/cancel`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      queryClient.invalidateQueries({ queryKey: ['sale'] });
+      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      void queryClient.invalidateQueries({ queryKey: ['sale'] });
       setViewingOrder(null);
-      addToast('Order cancelled successfully', 'success');
+      addToast(t('orderCancelled'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
+      addToast(apiError(error, tc('error')), 'error');
     },
   });
 
   // ── Derived ───────────────────────────────────────────────────────
   const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
-  const customerList: Customer[] = Array.isArray(customers) ? customers : [];
-
-  /** Units of a product available to sell right now. */
-  const stockFor = (productId: string): number => {
-    const row: any = (Array.isArray(stockLevels) ? stockLevels : []).find(
-      (r: any) => r.productId === productId,
-    );
-    return row ? Number(row.availableStock ?? 0) : 0;
-  };
-
-  /** The product's current price for a channel, or null if none is set. */
-  const priceFor = (productId: string, ch: string): number | null => {
-    const product: any = productList.find((p: any) => p.id === productId);
-    const active = product?.prices?.find(
-      (pr: any) => pr.channel === ch && !pr.effectiveTo,
-    );
-    return active ? Number(active.amount) : null;
-  };
-
-  /**
-   * Choosing a customer sets the channel to the kind of customer they are.
-   *
-   * A shop is B2B and a walk-in is B2C; asking for both was asking the same
-   * question twice and letting the answers disagree. It stays changeable —
-   * a shop occasionally buys at retail.
-   */
-  const onCustomerChange = (id: string) => {
-    setCustomerId(id);
-    const customer = customerList.find((c) => c.id === id);
-    if (customer?.type === 'B2B' || customer?.type === 'B2C') {
-      applyChannel(customer.type);
-    }
-  };
+  const customerList: SaleFormCustomer[] = useMemo(
+    () => (Array.isArray(customers) ? customers : []),
+    [customers],
+  );
+  const productList: SaleFormProduct[] = Array.isArray(products) ? products : [];
+  const stockList: SaleFormStockRow[] = Array.isArray(stockLevels) ? stockLevels : [];
 
   // Wait for the customers to load before opening: the channel is taken from
   // the customer's own type, and acting on an empty list would pick nothing
@@ -281,95 +235,101 @@ function SalesPageContent() {
     if (!customerList.some((c) => c.id === wanted)) return;
 
     openedFromCustomer.current = true;
-    setLineItems([{ productId: '', quantity: 1, unitPrice: 0, discount: 0 }]);
-    setShowCreateModal(true);
-    onCustomerChange(wanted);
+    setCreateFor({ customerId: wanted });
 
     // Drop the parameter once it has been used, so a refresh does not reopen
     // the form and a stale link cannot resurrect it later.
     router.replace(`/${locale}/sales`, { scroll: false });
   }, [searchParams, customerList, locale, router]);
 
-  /**
-   * Switch channel and re-price the lines that are still at list price.
-   *
-   * A price the seller typed is theirs and is left alone; one that is still
-   * whatever the old channel quoted is stale under the new one. Same rule as
-   * the FX rate: fill what nobody has touched, never overwrite a decision.
-   */
-  const applyChannel = (next: string) => {
-    setLineItems((prev) =>
-      prev.map((item) => {
-        if (!item.productId) return item;
-        const previousList = priceFor(item.productId, channel);
-        const untouched = !item.unitPrice || item.unitPrice === previousList;
-        if (!untouched) return item;
-        return { ...item, unitPrice: priceFor(item.productId, next) ?? item.unitPrice };
-      }),
-    );
-    setChannel(next);
+  const STATUS_FILTER: Record<string, string> = {
+    draft: 'DRAFT',
+    confirmed: 'CONFIRMED',
+    partiallyPaid: 'PARTIALLY_PAID',
+    paid: 'PAID',
+    cancelled: 'CANCELLED',
   };
-  const productList: Product[] = Array.isArray(products) ? products : [];
-
   const filtered = orderList.filter((o) => {
     const matchSearch =
       !search ||
       o.orderNo?.toLowerCase().includes(search.toLowerCase()) ||
       o.customer?.displayName?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus =
-      statusFilter === 'all' || o.status === statusFilter.toUpperCase().replace(/([A-Z])/g, '_$1').toUpperCase();
-    // Simple match for status filter
-    const statusMap: Record<string, string> = {
-      draft: 'DRAFT',
-      confirmed: 'CONFIRMED',
-      partiallyPaid: 'PARTIALLY_PAID',
-      paid: 'PAID',
-      cancelled: 'CANCELLED',
-    };
-    const matchStatusFinal = statusFilter === 'all' || o.status === statusMap[statusFilter];
-    return matchSearch && matchStatusFinal;
+    const matchStatus = statusFilter === 'all' || o.status === STATUS_FILTER[statusFilter];
+    return matchSearch && matchStatus;
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
-  // ── Handlers ──────────────────────────────────────────────────────
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      customerId: fd.get('customerId'),
-      channel: fd.get('channel'),
-      currency: fd.get('currency'),
-      items: lineItems,
-    });
+  const openCreate = () => setCreateFor({});
+  const closeCreate = () => setCreateFor(null);
+
+  /** Enter or Space on a focused row opens it, as a click does. */
+  const openOnKey = (order: SaleOrder) => (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setViewingOrder(order);
+    }
   };
 
-  const addLineItem = () => {
-    setLineItems((prev) => [...prev, { productId: '', quantity: 1, unitPrice: 0, discount: 0 }]);
-  };
-
-  const updateLineItem = (idx: number, field: string, value: any) => {
-    setLineItems((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item))
+  /**
+   * What a row says is owed. A draft owes nothing (BUSINESS_LOGIC §4) — its
+   * stored `outstanding` is only the figure it would owe once confirmed — so
+   * it shows a dash and says why, rather than a red number nobody owes.
+   */
+  const outstandingCell = (order: SaleOrder, withLabel = false) => {
+    if (order.status === 'DRAFT') {
+      return (
+        <span className="text-gray-400" data-testid="outstanding">
+          {withLabel && `${t('outstanding')}: `}—{' '}
+          <span className="text-xs">({t('notConfirmed')})</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        data-testid="outstanding"
+        className={`font-medium ${Number(order.outstanding) > 0 ? 'text-red-600' : 'text-green-600'}`}
+      >
+        {withLabel && `${t('outstanding')}: `}
+        <Money value={order.outstanding} currency={order.currency} />
+      </span>
     );
-  };
-
-  const removeLineItem = (idx: number) => {
-    setLineItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const detail = (orderDetail as SaleOrder) ?? viewingOrder;
 
+
   // ── Render ────────────────────────────────────────────────────────
+  const statusBadge = (status: string) => (
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600'}`}
+    >
+      {codeLabel('orderStatus', status)}
+    </span>
+  );
+  const channelBadge = (channel: string) => (
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        channel === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+      }`}
+    >
+      {channel === 'B2B' ? t('b2b') : t('b2c')}
+    </span>
+  );
+  // Nothing at all yet, as opposed to nothing matching the search or chip.
+  const noOrdersYet = !isLoading && orderList.length === 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          type="button"
+          onClick={openCreate}
+          className="inline-flex min-h-11 items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors sm:min-h-0"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
@@ -392,6 +352,8 @@ function SalesPageContent() {
           {FILTER_TABS.map((tab) => (
             <button
               key={tab}
+              type="button"
+              aria-pressed={statusFilter === tab}
               onClick={() => setStatusFilter(tab)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 statusFilter === tab
@@ -399,7 +361,7 @@ function SalesPageContent() {
                   : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {tab === 'all' ? tc('filter') : t(tab)}
+              {t(tab)}
             </button>
           ))}
         </div>
@@ -412,8 +374,20 @@ function SalesPageContent() {
         </div>
       )}
 
+      {/* Nothing sold yet: say what goes here, and offer the way to start. */}
+      {noOrdersYet && (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={ShoppingCart}
+            title={t('noSales')}
+            description={t('noSalesHint')}
+            action={{ label: t('create'), onClick: openCreate }}
+          />
+        </div>
+      )}
+
       {/* Desktop Table */}
-      {!isLoading && (
+      {!isLoading && !noOrdersYet && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -434,36 +408,45 @@ function SalesPageContent() {
                   <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
                 ) : (
                   paginated.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-primary-600">{order.orderNo}</td>
-                      <td className="px-4 py-3 text-gray-900">
+                    // The whole row opens the order. The order number is a
+                    // real button, so a keyboard reaches the same place.
+                    <tr
+                      key={order.id}
+                      data-testid="sale-row"
+                      onClick={() => setViewingOrder(order)}
+                      className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingOrder(order);
+                          }}
+                          aria-label={t('openOrder', { orderNo: order.orderNo })}
+                          className="font-mono text-xs font-medium text-primary-600 hover:underline"
+                        >
+                          {order.orderNo}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900" onClick={(e) => e.stopPropagation()}>
                         <CustomerLink id={order.customerId} name={order.customer?.displayName} />
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          order.channel === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {order.channel === 'B2B' ? t('b2b') : t('b2c')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {t(STATUS_KEYS[order.status] ?? order.status)}
-                        </span>
-                      </td>
+                      <td className="px-4 py-3">{channelBadge(order.channel)}</td>
+                      <td className="px-4 py-3">{statusBadge(order.status)}</td>
                       <td className="px-4 py-3 text-gray-900 font-medium"><Money value={order.total} currency={order.currency} /></td>
-                      <td className="px-4 py-3">
-                        <span className={`font-medium ${order.outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          <Money value={order.outstanding} currency={order.currency} />
-                        </span>
-                      </td>
+                      <td className="px-4 py-3">{outstandingCell(order)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.createdAt)}</td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => setViewingOrder(order)}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingOrder(order);
+                          }}
                           className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 text-sm font-medium"
                         >
-                          {tc('view')} <ChevronRight className="h-4 w-4" />
+                          {tc('view')} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                         </button>
                       </td>
                     </tr>
@@ -476,7 +459,7 @@ function SalesPageContent() {
       )}
 
       {/* Mobile Cards */}
-      {!isLoading && (
+      {!isLoading && !noOrdersYet && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
@@ -484,31 +467,28 @@ function SalesPageContent() {
             paginated.map((order) => (
               <div
                 key={order.id}
+                role="button"
+                tabIndex={0}
+                data-testid="sale-card"
+                aria-label={t('openOrder', { orderNo: order.orderNo })}
                 onClick={() => setViewingOrder(order)}
-                className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
+                onKeyDown={openOnKey(order)}
+                className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer select-none hover:shadow-md active:bg-gray-50 transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-sm font-bold text-primary-600">{order.orderNo}</span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {t(STATUS_KEYS[order.status] ?? order.status)}
-                  </span>
+                  {statusBadge(order.status)}
                 </div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-gray-700" onClick={(e) => e.stopPropagation()}>
                   <CustomerLink id={order.customerId} name={order.customer?.displayName} />
                 </p>
                 <div className="flex items-center gap-3 mt-2 text-sm">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    order.channel === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                  }`}>
-                    {order.channel === 'B2B' ? t('b2b') : t('b2c')}
-                  </span>
+                  {channelBadge(order.channel)}
                   <span className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></span>
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                   <span>{formatDate(order.createdAt)}</span>
-                  <span className={`font-medium ${order.outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {t('outstanding')}: <Money value={order.outstanding} currency={order.currency} />
-                  </span>
+                  {outstandingCell(order, true)}
                 </div>
               </div>
             ))
@@ -522,176 +502,16 @@ function SalesPageContent() {
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
-      {showCreateModal && (
-        <Modal title={t('create')} onClose={() => { setShowCreateModal(false); setLineItems([]); setCustomerId(''); setChannel('B2B'); }}>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('customer')}</label>
-                <FieldWithQuickCreate
-                  entity="customer"
-                  onCreated={(c) => onCustomerChange(c.id)}
-                >
-                  <Select
-                    name="customerId"
-                    required
-                    value={customerId}
-                    onChange={onCustomerChange}
-                    placeholder={t('customer')}
-                    searchPlaceholder={tc('search')}
-                    options={customerList.map((c) => ({
-                      value: c.id,
-                      label: c.displayName,
-                      hint: c.type,
-                    }))}
-                  />
-                </FieldWithQuickCreate>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('channel')}</label>
-                <Select
-                  name="channel"
-                  required
-                  value={channel}
-                  onChange={applyChannel}
-                  options={[
-                    { value: 'B2B', label: t('b2b') },
-                    { value: 'B2C', label: t('b2c') },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('currency')}</label>
-                <Select
-                  name="currency"
-                  defaultValue="EGP"
-                  options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
-                />
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-900">{t('items')}</h3>
-                <button type="button" onClick={addLineItem} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium">
-                  <Plus className="h-3.5 w-3.5" /> {t('addItem')}
-                </button>
-              </div>
-
-              {lineItems.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4 border border-dashed border-gray-200 rounded-lg">
-                  No items added. Click &quot;{t('addItem')}&quot; to begin.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {lineItems.map((item, idx) => (
-                    <div key={idx} className="flex items-end gap-2 bg-gray-50 rounded-lg p-3">
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-500 mb-1">{t('product')}</label>
-                        <Select
-                          value={item.productId}
-                          onChange={(v) => {
-                            // Price the line from the chosen channel. Left
-                            // editable — a negotiated price is still a price.
-                            const listPrice = priceFor(v, channel);
-                            setLineItems((prev) =>
-                              prev.map((it, i) =>
-                                i === idx
-                                  ? { ...it, productId: v, unitPrice: listPrice ?? it.unitPrice }
-                                  : it,
-                              ),
-                            );
-                          }}
-                          placeholder={t('product')}
-                          searchPlaceholder={tc('search')}
-                          options={productList.map((p) => {
-                            const inStock = stockFor(p.id);
-                            return {
-                              value: p.id,
-                              label: p.name,
-                              // The count belongs where the product is chosen,
-                              // not in an error after the order is built.
-                              hint: `${p.sku} · ${inStock.toLocaleString()} ${t('inStock')}`,
-                              disabled: inStock <= 0,
-                            };
-                          })}
-                        />
-                      </div>
-                      <div className="w-20">
-                        <label className="block text-xs text-gray-500 mb-1">{t('quantity')}</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          value={item.quantity}
-                          onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))}
-                          {...selectOnFocus}
-                          className={`w-full rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 ${
-                            item.productId && item.quantity > stockFor(item.productId)
-                              ? 'border-red-300 focus:ring-red-400'
-                              : 'border-gray-200 focus:ring-primary-500'
-                          }`}
-                        />
-                        {item.productId && item.quantity > stockFor(item.productId) && (
-                          <p className="mt-1 text-[10px] text-red-600">
-                            {stockFor(item.productId).toLocaleString()} {t('inStock')}
-                          </p>
-                        )}
-                      </div>
-                      <div className="w-24">
-                        <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>
-                        <MoneyInput
-                          placeholder="0.00"
-                          value={item.unitPrice}
-                          onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                        {item.productId &&
-                          (() => {
-                            const list = priceFor(item.productId, channel);
-                            if (list == null) {
-                              return (
-                                <p className="mt-1 text-[10px] text-amber-600">
-                                  No {channel} price set
-                                </p>
-                              );
-                            }
-                            // Only worth saying when it differs; repeating the
-                            // number under itself is noise.
-                            if (Number(item.unitPrice) === list) return null;
-                            return (
-                              <p className="mt-1 text-[10px] text-gray-400">
-                                {channel} {list.toLocaleString()}
-                              </p>
-                            );
-                          })()}
-                      </div>
-                      <div className="w-20">
-                        <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
-                        <MoneyInput
-                          placeholder="0.00"
-                          value={item.discount}
-                          onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                      <button type="button" onClick={() => removeLineItem(idx)} className="p-1.5 text-red-400 hover:text-red-600">
-                        <MinusCircle className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-              <button type="button" onClick={() => { setShowCreateModal(false); setLineItems([]); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('create')}
-              </button>
-            </div>
-          </form>
+      {createFor && (
+        <Modal title={t('create')} onClose={closeCreate}>
+          <SaleOrderForm
+            customers={customerList}
+            products={productList}
+            stock={stockList}
+            initialCustomerId={createFor.customerId}
+            onCancel={closeCreate}
+            onSaved={onOrderSaved}
+          />
         </Modal>
       )}
 
@@ -704,9 +524,9 @@ function SalesPageContent() {
               <Detail label={t('customer')} value={detail.customer?.displayName ?? '—'} />
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
               <Detail label={t('total')} value={<Money value={detail.total} currency={detail.currency} />} />
-              <Detail label={t('outstanding')} value={<Money value={detail.outstanding} currency={detail.currency} />} />
+              <Detail label={t('outstanding')} value={outstandingCell(detail)} />
               <Detail label={t('date')} value={formatDate(detail.createdAt)} />
-              <Detail label={tc('status')} value={t(STATUS_KEYS[detail.status] ?? detail.status)} />
+              <Detail label={tc('status')} value={codeLabel('orderStatus', detail.status)} />
             </div>
 
             {/* Items */}
@@ -739,7 +559,9 @@ function SalesPageContent() {
                           <td className="py-2 text-gray-600">{item.unitPrice?.toLocaleString()}</td>
                           <td className="py-2 text-gray-600">{item.discount > 0 ? `- ${item.discount.toLocaleString()}` : '—'}</td>
                           <td className="py-2 font-medium text-gray-900">
-                            {((item.quantity * item.unitPrice) - item.discount).toLocaleString()}
+                            {/* What the server stored for the line, not a
+                                re-derivation of it. */}
+                            <Money value={item.lineTotal} currency={detail.currency} />
                           </td>
                         </tr>
                       ))}
@@ -1041,15 +863,16 @@ function SalesPageContent() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const tc = useTranslations('common');
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90dvh]">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} aria-label={tc('close')} className="-me-2 flex size-11 items-center justify-center text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
         </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain min-h-0">{children}</div>
       </div>
     </div>
   );
