@@ -82,6 +82,7 @@ export class ReturnsService {
     const order = await this.prisma.saleOrder.findUnique({
       where: { id: dto.saleOrderId },
       include: {
+        customer: { select: { isWalkIn: true } },
         items: {
           include: {
             allocations: { include: { inventoryBatch: true } },
@@ -198,7 +199,23 @@ export class ReturnsService {
 
     const refundEgp = money(refundTotal);
     const cogsReversedEgp = money(cogsTotal);
-    const refundMethod = dto.refundMethod ?? RefundMethod.CREDIT_NOTE;
+    // A walk-in buyer is refunded in money (BUSINESS_LOGIC §4, 2026-10-11).
+    // There is no account to hold a credit note: the walk-in record is shared
+    // by every walk-in sale and owes nothing, so a credit on it would be money
+    // nobody can ever use. Asking for one is refused, not quietly changed.
+    if (
+      order.customer.isWalkIn &&
+      dto.refundMethod === RefundMethod.CREDIT_NOTE
+    ) {
+      throw badRequest(
+        'WALK_IN_REFUND_IN_MONEY',
+        `${order.orderNo} was a walk-in sale, so it is refunded in money, not as credit.`,
+        { order: order.orderNo },
+      );
+    }
+    const refundMethod =
+      dto.refundMethod ??
+      (order.customer.isWalkIn ? RefundMethod.CASH : RefundMethod.CREDIT_NOTE);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const year = new Date().getFullYear();

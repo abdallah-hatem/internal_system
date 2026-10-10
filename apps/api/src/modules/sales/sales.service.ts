@@ -9,7 +9,13 @@ import { isUniqueViolation } from '../../prisma/unique-violation';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { availableQty } from '../../common/available-stock';
-import { instantRange } from '../../common/dates';
+import { businessToday, instantRange } from '../../common/dates';
+import {
+  PAYMENT_METHODS,
+  type PaymentMethod,
+  walkInCustomer,
+} from '../../common/walk-in';
+import { PaymentsService } from '../payments/payments.service';
 import {
   centsToDecimalString,
   saleOrderTotals,
@@ -19,7 +25,8 @@ import {
 type Db = Prisma.TransactionClient;
 
 export interface CreateSaleOrderInput {
-  customerId: string;
+  /** Who is buying. Left out of a walk-in sale, which has no customer of its own. */
+  customerId?: string;
   channel: string;
   currency: string;
   items: {
@@ -30,13 +37,24 @@ export interface CreateSaleOrderInput {
   }[];
   /** Create and confirm in one transaction (BUSINESS_LOGIC §4, 2026-10-10). */
   confirm?: boolean;
+  /**
+   * A buyer who is not a shop (BUSINESS_LOGIC §4, 2026-10-11): created,
+   * confirmed and paid in full in one step, on the shared walk-in record.
+   */
+  walkIn?: boolean;
+  /** How a walk-in sale was paid. Only with `walkIn`; cash when unsaid. */
+  payment?: { method?: string };
 }
+
+const refuseShape = (field: string, message: string) =>
+  badRequest('VALIDATION_FAILED', message, { fields: field });
 
 @Injectable()
 export class SalesService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private payments: PaymentsService,
   ) {}
 
   async findAll(pagination: {
@@ -168,6 +186,11 @@ export class SalesService {
     actorId: string,
     idempotencyKey?: string,
   ): Promise<{ data: unknown }> {
+    const walkIn = this.walkInRequest(data);
+    if (walkIn) {
+      return this.createWalkIn(data, walkIn.method, actorId, idempotencyKey);
+    }
+
     if (data?.confirm !== true) {
       const draft = await this.prepareDraft(
         this.prisma,
@@ -222,6 +245,150 @@ export class SalesService {
   }
 
   /**
+   * Whether this is a walk-in sale, and how it was paid — or a refusal for a
+   * body that asks for two contradictory things.
+   *
+   * Checked before anything is read or written. A walk-in sale names no
+   * customer, cannot be a draft (it is paid on the spot, §4), and is always
+   * B2C; a payment method on an ordinary sale would be silently ignored, so it
+   * is refused rather than dropped.
+   */
+  private walkInRequest(
+    data: CreateSaleOrderInput,
+  ): { method: PaymentMethod } | null {
+    if (data?.walkIn !== undefined && typeof data.walkIn !== 'boolean') {
+      throw refuseShape('walkIn', 'walkIn must be true or false.');
+    }
+    if (data?.walkIn !== true) {
+      if (data?.payment !== undefined) {
+        throw refuseShape(
+          'payment',
+          'A payment is taken with the sale only on a walk-in sale.',
+        );
+      }
+      return null;
+    }
+    if (data.customerId !== undefined && data.customerId !== null) {
+      throw refuseShape(
+        'customerId',
+        'A walk-in sale has no customer; send walkIn or customerId, not both.',
+      );
+    }
+    if (data.confirm === false) {
+      throw badRequest(
+        'WALK_IN_NOT_DRAFT',
+        'A walk-in sale is paid on the spot, so it cannot be saved as a draft.',
+      );
+    }
+    if (data.channel !== undefined && data.channel !== 'B2C') {
+      throw refuseShape('channel', 'A walk-in sale is always at B2C prices.');
+    }
+    if (
+      data.payment !== undefined &&
+      (data.payment === null || typeof data.payment !== 'object')
+    ) {
+      throw refuseShape('payment', 'payment must be { method }.');
+    }
+    const method = data.payment?.method ?? 'CASH';
+    if (!(PAYMENT_METHODS as readonly string[]).includes(method)) {
+      throw refuseShape(
+        'payment.method',
+        `payment.method must be one of ${PAYMENT_METHODS.join(', ')}.`,
+      );
+    }
+    return { method: method as PaymentMethod };
+  }
+
+  /**
+   * A walk-in sale (BUSINESS_LOGIC §4, DECIDED 2026-10-11): created, confirmed
+   * and paid in full, in ONE transaction, or none of it.
+   *
+   * Nothing here is a second copy. The order is checked and built by
+   * `prepareDraft`, confirmed by `confirmWithin`, and the money is received
+   * by `PaymentsService.recordWithin`, which allocates through
+   * `allocateWithin` — the same paths a sale and a payment take on their own.
+   * A refusal from any of them (not enough stock, a discount larger than its
+   * line) rolls back the order, the stock, the payment and, on the first
+   * walk-in sale ever, the walk-in record itself.
+   *
+   * Dated today in Cairo (§7a), not in UTC: a sale at 00:30 is that day's.
+   * An order worth nothing (every line free) owes nothing and takes no
+   * payment — a zero payment would say money moved when none did.
+   */
+  private async createWalkIn(
+    data: CreateSaleOrderInput,
+    method: PaymentMethod,
+    actorId: string,
+    idempotencyKey?: string,
+  ): Promise<{ data: unknown }> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const walkIn = await walkInCustomer(tx);
+      const draft = await this.prepareDraft(
+        tx,
+        {
+          ...data,
+          customerId: walkIn.id,
+          channel: 'B2C',
+          currency: data.currency ?? 'EGP',
+        },
+        actorId,
+        idempotencyKey,
+        { walkIn: true },
+      );
+      const order = await tx.saleOrder.create({
+        data: draft,
+        include: { items: true, customer: true },
+      });
+      const confirmed = await this.confirmWithin(
+        tx,
+        order.id,
+        actorId,
+        order.version,
+      );
+      const paid = new Prisma.Decimal(order.total).gt(0)
+        ? await this.payments.recordWithin(
+            tx,
+            {
+              customerId: walkIn.id,
+              amount: Number(order.total),
+              currency: order.currency,
+              receivedOn: new Date(businessToday()),
+              method,
+              reference: order.orderNo,
+              orderId: order.id,
+            },
+            actorId,
+          )
+        : null;
+      const settled = await tx.saleOrder.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { items: true, customer: true },
+      });
+      return { order, confirmed, paid, settled };
+    });
+
+    // After the commit, for the reason given in `confirmOrder`.
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CREATE',
+      entityType: 'SaleOrder',
+      entityId: outcome.order.id,
+      afterJson: { ...outcome.order, walkIn: true },
+    });
+    await this.audit.log(outcome.confirmed.audit);
+    if (outcome.paid) await this.payments.logRecorded(outcome.paid, actorId);
+
+    return {
+      data: {
+        ...outcome.settled,
+        allocations: outcome.confirmed.data.allocations,
+        totalCogs: outcome.confirmed.data.totalCogs,
+        payment: outcome.paid?.payment ?? null,
+      },
+    };
+  }
+
+  /**
    * Every check a new order must pass, and the row it becomes.
    *
    * Takes the client or a transaction: on the create-and-confirm path it runs
@@ -233,6 +400,7 @@ export class SalesService {
     data: CreateSaleOrderInput,
     actorId: string,
     idempotencyKey?: string,
+    { walkIn = false }: { walkIn?: boolean } = {},
   ) {
     // Validate customer exists
     if (!data?.customerId) {
@@ -245,6 +413,15 @@ export class SalesService {
       throw notFound('customer');
     }
     assertVerified(customer);
+    // The walk-in record is sold to only as a walk-in sale, which is paid on
+    // the spot. Named by id on an ordinary sale it would become a draft, or
+    // a confirmed order owing money, on a record that must never owe (§4).
+    if (customer.isWalkIn && !walkIn) {
+      throw badRequest(
+        'WALK_IN_RESERVED',
+        'The walk-in record is kept by the system; sell to it with walkIn: true.',
+      );
+    }
 
     // Validate items array
     if (!data.items || data.items.length === 0) {
@@ -379,7 +556,7 @@ export class SalesService {
 
     return {
       orderNo,
-      customerId: data.customerId,
+      customerId: customer.id,
       channel: data.channel,
       currency: data.currency,
       status: 'DRAFT' as const,

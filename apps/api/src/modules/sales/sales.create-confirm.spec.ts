@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
+import type { PaymentsService } from '../payments/payments.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
@@ -267,6 +268,7 @@ function build(stock: Record<string, number>) {
   const service = new SalesService(
     client as PrismaService,
     audit as unknown as AuditService,
+    {} as PaymentsService,
   );
   return { service, db, audit };
 }
@@ -608,9 +610,11 @@ describe('POST /sales/orders with confirm: true', () => {
     // Two services over one database stand in for that; a key kept in memory
     // would let the second instance sell the goods again.
     const { service, db } = build({ [PISTON]: 60 });
-    const elsewhere = new SalesService((service as any).prisma, {
-      log: jest.fn(async () => undefined),
-    } as unknown as AuditService);
+    const elsewhere = new SalesService(
+      (service as any).prisma,
+      { log: jest.fn(async () => undefined) } as unknown as AuditService,
+      {} as PaymentsService,
+    );
     const body = order([{ productId: PISTON, quantity: 10, unitPrice: 100 }], {
       confirm: true,
     });

@@ -255,6 +255,19 @@ the system keeps: it cannot sign in, cannot be edited or deleted, and never
 shows a balance. Stock, discount and price rules are the same as any sale. A
 walk-in return is refunded in money, not as credit — there is no account to
 hold it.
+
+*Server built 2026-10-11 (W1); the form (W2) and the assistant (W3) to come.*
+Guesses made while building it, open until confirmed:
+- A walk-in sale whose lines are all free (total 0) takes no payment — a zero
+  payment would say money moved when none did.
+- Asking for a credit-note refund on a walk-in return is refused
+  (`WALK_IN_REFUND_IN_MONEY`), not quietly turned into cash; leaving the
+  method out gives cash.
+- The walk-in record cannot be named as the customer of an ordinary sale
+  (`WALK_IN_RESERVED`): that sale could be a draft or owe money.
+- The dashboard's customer count leaves the walk-in record out; its sales
+  count in revenue as any sale does.
+- A payment method on a sale that is not a walk-in is refused, not ignored.
 ---
 
 ## 5. Returns

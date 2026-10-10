@@ -217,6 +217,15 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM cycle_participants cp
            JOIN users u ON u.id = COALESCE(cp.partner_user_id, cp.investor_user_id)
           WHERE u.role = 'SHOP_OWNER_PORTAL'
+  -- A walk-in sale is paid on the spot and is never a draft (§4, 2026-10-11).
+  UNION ALL SELECT 16, 'the walk-in record owes money or holds a draft',
+         count(*) FROM sale_orders o
+           JOIN customers c ON c.id = o.customer_id
+          WHERE c.is_walk_in
+            AND (o.status = 'DRAFT'
+                 OR (o.status IN ('CONFIRMED', 'PARTIALLY_PAID') AND o.outstanding > 0))
+  UNION ALL SELECT 16.1, 'the walk-in record can sign in',
+         count(*) FROM customers WHERE is_walk_in AND shop_owner_user_id IS NOT NULL
 SQL
 )
 
