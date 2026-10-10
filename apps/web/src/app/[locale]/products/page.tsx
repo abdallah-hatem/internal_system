@@ -51,14 +51,16 @@ interface Product {
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────
+// Product.status has no `codes` family, so the words come from `products`.
 function StatusBadge({ active }: { active: boolean }) {
+  const t = useTranslations('products');
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+      className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${
         active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
       }`}
     >
-      {active ? 'Active' : 'Inactive'}
+      {active ? t('active') : t('inactive')}
     </span>
   );
 }
@@ -275,23 +277,23 @@ export default function ProductsPage() {
                 ) : (
                   paginated.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{product.sku}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{product.sku}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">
                         <ProductLink id={product.id} name={product.name} />
                       </td>
-                       <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2.5 py-0.5 text-xs">
+                      <td className="px-4 py-3 text-gray-600">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap bg-gray-100 rounded-full px-2.5 py-0.5 text-xs">
                           <Tag className="h-3 w-3" />
                           {product.categoryName || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
                         {product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
                         {product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
                         {product.minStock}
                       </td>
                       <td className="px-4 py-3">
@@ -339,8 +341,8 @@ export default function ProductsPage() {
                 key={product.id}
                 className="bg-white rounded-xl border border-gray-200 p-4 space-y-3"
               >
-                <div className="flex items-start justify-between">
-                  <div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
                     <p className="font-medium text-gray-900">
                       <ProductLink id={product.id} name={product.name} />
                     </p>
@@ -354,16 +356,17 @@ export default function ProductsPage() {
                     {product.categoryName || '—'}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <span className="text-gray-500">{t('b2bPrice')}:</span>{' '}
-                    <span className="font-medium">{product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}</span>
+                {/* Label above value, one column each, so the two prices never run together (UI #36). */}
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="min-w-0">
+                    <dt className="text-xs text-gray-500">{t('b2bPrice')}</dt>
+                    <dd className="font-medium tabular-nums">{product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}</dd>
                   </div>
-                  <div>
-                    <span className="text-gray-500">{t('b2cPrice')}:</span>{' '}
-                    <span className="font-medium">{product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}</span>
+                  <div className="min-w-0">
+                    <dt className="text-xs text-gray-500">{t('b2cPrice')}</dt>
+                    <dd className="font-medium tabular-nums">{product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}</dd>
                   </div>
-                </div>
+                </dl>
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-100">
                   <button
                     onClick={() => router.push(`/${locale}/products/${product.id}`)}

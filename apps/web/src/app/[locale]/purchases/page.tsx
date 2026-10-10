@@ -380,7 +380,7 @@ export default function PurchasesPage() {
 
               {lineItems.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4 border border-dashed border-gray-200 rounded-lg">
-                  No items added. Click &quot;{t('addItem')}&quot; to begin.
+                  {t('noItemsYet')}
                 </p>
               ) : (
                 <div className="space-y-3">

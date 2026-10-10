@@ -290,7 +290,8 @@
     "createFailed": "Failed to create purchase order",
     "refundFailed": "Failed to record refund",
     "emptyTitle": "No purchase orders yet",
-    "emptyHint": "What a cycle ordered from a supplier, line by line."
+    "emptyHint": "What a cycle ordered from a supplier, line by line.",
+    "noItemsYet": "No items added. Click \"Add Item\" to begin."
   },
   "shipments": {
     "title": "Shipments",
@@ -687,7 +688,8 @@
     "updateFailed": "Failed to update provider",
     "deleteFailed": "Failed to delete provider",
     "emptyTitle": "No shipping providers yet",
-    "emptyHint": "The forwarders and carriers that move a cycle's goods."
+    "emptyHint": "The forwarders and carriers that move a cycle's goods.",
+    "notesPlaceholder": "Payment terms, routes they cover, who to call for claims…"
   },
   "suppliers": {
     "title": "Suppliers",
@@ -736,7 +738,11 @@
     "updateFailed": "Failed to update category",
     "deleteFailed": "Failed to delete category",
     "emptyTitle": "No categories yet",
-    "emptyHint": "Groups for the product list — engine, brakes, electrical…"
+    "emptyHint": "Groups for the product list — engine, brakes, electrical…",
+    "productCount": "{count, plural, one {# product} other {# products}}",
+    "deleteHasProducts": "{count, plural, one {This category has # product assigned.} other {This category has # products assigned.}}",
+    "deleteHasChildren": "{count, plural, one {This category has # subcategory.} other {This category has # subcategories.}}",
+    "deleteReassignFirst": "You must reassign or remove them first."
   },
   "wizard": {
     "step1Title": "Cycle Info",
@@ -1344,6 +1350,21 @@
       "DEPARTURE": "A departure date",
       "ARRIVAL": "An arrival date",
       "DELIVERY": "A delivery date"
+    },
+    "country": {
+      "CN": "China",
+      "AE": "United Arab Emirates",
+      "EG": "Egypt",
+      "HK": "Hong Kong",
+      "TW": "Taiwan",
+      "JP": "Japan",
+      "KR": "South Korea",
+      "TR": "Turkey",
+      "IN": "India",
+      "SA": "Saudi Arabia",
+      "DE": "Germany",
+      "US": "United States",
+      "TH": "Thailand"
     }
   },
   "shipment": {
