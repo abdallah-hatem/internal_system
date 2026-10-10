@@ -117,16 +117,6 @@ suite('reference numbers and dates against Postgres', () => {
 
   type Made = { data: { id: string; orderNo: string } };
 
-  async function refusal(p: Promise<unknown>) {
-    try {
-      await p;
-    } catch (e) {
-      if (!(e instanceof HttpException)) throw e;
-      return (e.getResponse() as { code: string }).code;
-    }
-    throw new Error('expected a refusal, got success');
-  }
-
   const onShelf = async (productId: string) =>
     Number(
       (
@@ -153,7 +143,8 @@ suite('reference numbers and dates against Postgres', () => {
       const numbers = made.map((m) => m.data.orderNo);
       expect(new Set(numbers).size).toBe(8);
       const year = new Date().getFullYear();
-      for (const n of numbers) expect(n).toMatch(new RegExp(`^ORD-${year}-\\d{5}$`));
+      for (const n of numbers)
+        expect(n).toMatch(new RegExp(`^ORD-${year}-\\d{5}$`));
       expect(
         await prisma.saleOrder.count({ where: { customerId: customer.id } }),
       ).toBe(8);
@@ -191,8 +182,10 @@ suite('reference numbers and dates against Postgres', () => {
       const refused = settled.filter((s) => s.status === 'rejected');
       expect(sold).toHaveLength(2);
       expect(refused).toHaveLength(1);
+      const reason: unknown = refused[0].reason;
+      expect(reason).toBeInstanceOf(HttpException);
       expect(
-        await refusal(Promise.reject((refused[0] as PromiseRejectedResult).reason)),
+        ((reason as HttpException).getResponse() as { code: string }).code,
       ).toBe('NOT_ENOUGH_STOCK');
       expect(await onShelf(product.id)).toBe(0);
       expect(
@@ -277,7 +270,8 @@ suite('reference numbers and dates against Postgres', () => {
       const refs = made.map((m) => m.data.reference);
       expect(new Set(refs).size).toBe(6);
       const year = new Date().getFullYear();
-      for (const r of refs) expect(r).toMatch(new RegExp(`^PO-${year}-\\d{4}$`));
+      for (const r of refs)
+        expect(r).toMatch(new RegExp(`^PO-${year}-\\d{4}$`));
       expect(
         await prisma.purchaseOrder.count({ where: { cycleId: cycle.id } }),
       ).toBe(6);
