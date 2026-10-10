@@ -12,6 +12,11 @@ import { RecordRefundDialog } from './RecordRefundDialog';
 import { ShipmentPanel, type PanelCycle } from './ShipmentPanel';
 import type { Shipment, ShipmentLeg, ShipmentLoss } from './shipment-model';
 
+// The panel's buttons follow the reader's role (R1b); these tests are a partner's.
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ user: { id: 'u-partner', email: 'p@x.z', role: 'CORE_PARTNER' }, isLoading: false }),
+}));
+
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
     <a href={href} {...rest}>

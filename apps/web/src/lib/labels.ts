@@ -29,7 +29,9 @@ export type CodeKind =
   | 'movementType' // InventoryMovementType
   | 'referenceType' // InventoryMovement.referenceType
   | 'auditAction' // AuditLog.action
-  | 'entityType'; // AuditLog.entityType
+  | 'entityType' // AuditLog.entityType
+  // R1b — codes a refusal carries in its params (lib/api-error.ts PARAM_KINDS).
+  | 'dateField'; // the date assertNotFuture refused (api common/dates.ts DATE_FIELDS)
 
 /**
  * Translate an API code for display.

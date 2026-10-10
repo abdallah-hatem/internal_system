@@ -1328,6 +1328,15 @@
       "Provider": "شركة شحن",
       "Category": "فئة",
       "CurrencyRate": "سعر صرف"
+    },
+    "dateField": {
+      "CYCLE_START": "تاريخ بدء الدورة",
+      "PAYMENT_RECEIVED": "تاريخ استلام الدفعة",
+      "ORDER_PLACED": "تاريخ طلب الشراء",
+      "REFUND_RECEIVED": "تاريخ استلام التعويض",
+      "DEPARTURE": "تاريخ المغادرة",
+      "ARRIVAL": "تاريخ الوصول",
+      "DELIVERY": "تاريخ دفعة الوصول"
     }
   },
   "shipment": {

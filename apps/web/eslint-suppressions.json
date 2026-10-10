@@ -9,7 +9,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 50
+      "count": 48
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -26,7 +26,7 @@
       "count": 9
     },
     "local/no-raw-colors": {
-      "count": 53
+      "count": 51
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -48,7 +48,7 @@
       "count": 4
     },
     "local/no-raw-colors": {
-      "count": 89
+      "count": 87
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -87,7 +87,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 35
+      "count": 33
     }
   },
   "src/app/[locale]/inventory/page.tsx": {
@@ -98,7 +98,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 92
+      "count": 90
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -117,7 +117,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 83
+      "count": 81
     },
     "no-restricted-syntax": {
       "count": 2
@@ -142,7 +142,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 16
+      "count": 14
     }
   },
   "src/app/[locale]/order-requests/page.tsx": {
@@ -150,7 +150,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 41
+      "count": 39
     },
     "react-hooks/purity": {
       "count": 1
@@ -164,7 +164,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 31
+      "count": 30
     }
   },
   "src/app/[locale]/payment-plans/page.tsx": {
@@ -175,7 +175,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 55
+      "count": 54
     }
   },
   "src/app/[locale]/payments/page.tsx": {
@@ -217,7 +217,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 64
+      "count": 62
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -231,7 +231,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 66
+      "count": 64
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -248,7 +248,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 95
+      "count": 93
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -281,7 +281,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 59
+      "count": 56
     }
   },
   "src/app/[locale]/shipments/page.tsx": {
@@ -292,7 +292,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 66
+      "count": 64
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -306,7 +306,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 60
+      "count": 58
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -381,9 +381,6 @@
     }
   },
   "src/components/shipping/ShippingCostFields.tsx": {
-    "i18next/no-literal-string": {
-      "count": 15
-    },
     "local/no-raw-colors": {
       "count": 17
     },
