@@ -53,3 +53,9 @@
   spec numbers collided (78/79 twice) → B2's is now 81, B3's 82. From wave 4 on, briefs assign spec numbers.
   B3 left Docker running; the main thread quit it.
 - Wave 4: B4 ‖ B5 ‖ F1a from master. Spec numbers: B4 → 83, B5 → 84, F1a → 85 (U5 → 86, R1 → 87 later).
+- B5 merged: loss refunds through one writer (`bookRefund`), `loss_refund` cost recovery; fixed profitability matching
+  `supplier_refund` by name and the dashboard leaving out all refunds; future-dated plain refunds now refused.
+  B5's guess "a refund cannot be undone" contradicts §6 → new task B5b (reverse a refund).
+- B4 merged: `record_delivery`, `verify_stock` by delivery, `add_shipping_leg` previews delivered units, `get_cycle`
+  returns the position. Merge fix: B4's get_cycle fixture predated B5's refunds-per-loss read. api 679 + 7 skipped.
+- Wave 5 (part): R1 ‖ B5b dispatched; U5 waits on F1a. Spec numbers: R1 → 87, B5b → 88.

@@ -20,7 +20,7 @@ thread runs e2e against the shared database.
 | 2 | B2 · U1 · U4 | B1 (B2); U0 (U1, U4) |
 | 3 | B3 · U2 | B2 (B3); U1 (U2 edits the sales page U1 owns) |
 | 4 | B4 · B5 · F1a · F1b | B3 |
-| 5 | U5 · R1 | everything (U5 sweeps every page); R1 waits on B3, B5 |
+| 5 | U5 · R1 · B5b | U5 waits on F1a (it sweeps every page); R1 and B5b on B5 |
 
 File ownership per wave: no two tasks in a wave create or modify the same file. The exception is
 `en.json` / `ar.json`, where each task adds keys only under its own namespace and the main thread
@@ -193,6 +193,26 @@ Edge cases:
 - [ ] Investor or shop token → refused with a code   (rule 12)
 - [ ] The order-level cap (§6) counts loss refunds too: order 1,000, loss refunds 600, plain refund 500 → refused   (§6)
 - [ ] Double submit → one refund (button disabled; the server accepts duplicates only up to the cap)   (the second time)
+
+### B5b — Undo a refund (backend · logic)
+Depends on: B5. Owns: the refund path in `purchases.service.ts` / `common/loss-refunds.ts`, a reversal
+endpoint. Found by B5: §6 says a refunded loss can be taken back once "the refund is undone first —
+money handed back is a ledger correction", but nothing could undo a refund. This makes that true.
+
+- `POST /purchases/refunds/:id/reverse` `{reason}` (CORE_PARTNER): writes a balancing ledger entry
+  that points back at the original (§9: nothing is edited or deleted) and marks the refund reversed.
+  It applies to plain supplier refunds and loss refunds alike. Reversed refunds stop counting toward
+  both caps and toward profit (one definition: wherever refunds are summed, reversed ones are excluded).
+
+Edge cases:
+- [ ] Reverse a loss refund → a balancing OUTFLOW pointing at the original; the loss is unrecovered again; profit falls by it in settlement and analytics alike   (§6, §9)
+- [ ] After every refund on a loss is reversed → the loss can be taken back   (§1, §6)
+- [ ] Reverse twice → refused   (§9: reversing twice double-counts)
+- [ ] Reverse without a reason → refused   (§9: a reason is required)
+- [ ] A reversed refund no longer counts toward the loss cap or the order cap   (§6)
+- [ ] The refund's own ledger row cannot be reversed alone through the ledger endpoint   (§9: flow-raised entries have their own path)
+- [ ] Investor or shop → refused with a code   (rule 12)
+- [ ] Unknown refund → 404   (rule 1)
 
 ### F1a — The cycle's Shipment panel, receiving and losses on screen (frontend · logic)
 Depends on: B3. Owns: `cycles/[cycleId]/**` pages, new `components/shipment/*`,
