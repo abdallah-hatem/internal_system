@@ -1,15 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { businessToday } from '../../../common/dates';
-import {
-  SIMILARITY_THRESHOLD,
-  invoiceKey,
-  nameKey,
-  nameTokens,
-  similarity,
-  skuKey,
-  supplierKey,
-  tokensWithin,
-} from './name-matching';
+import { type Ranked, invoiceKey, matchByName } from './name-matching';
 import type {
   LineAnalysis,
   Numeric,
@@ -23,6 +14,7 @@ import type {
   ReceiptQuestion,
   ReceiptSnapshot,
   SnapshotProduct,
+  SnapshotSupplier,
   SupplierAnalysis,
   SupplierCandidate,
 } from './receipt.types';
@@ -386,7 +378,6 @@ export function analyzeReceipt(
 
 /** Lines may disagree with the stated figure by rounding, and by no more. */
 const TOLERANCE = new Prisma.Decimal('0.01');
-const MAX_CANDIDATES = 5;
 
 type Ask = (q: Omit<ReceiptQuestion, 'id'> & { line?: number }) => void;
 
@@ -507,123 +498,61 @@ type ProductMatch =
   | { status: 'weak'; candidates: ProductCandidate[] };
 
 /**
- * A line is settled by, in order:
- *   1. its SKU equal to exactly one product's (case, spaces, dashes ignored);
- *   2. its description equal to exactly one product's name;
- *   3. exactly one product whose name of two or more words appears whole in
- *      the description ("Brake pad front" in "Brake pad front, ceramic").
- * Several at any of those steps is "which one?". Otherwise products that are
- * similar, or whose name is a broader phrase containing the description, are
- * offered — never assumed.
+ * A line is settled only by its SKU or its exact name, through the shared
+ * matcher (`name-matching.ts`). A name that merely contains a product's —
+ * "Full face helmet, matt black, size L" against "Full Face Helmet" — is a
+ * candidate to ask about, never a match: the helmet on file may be the
+ * glossy M.
  */
 function matchProduct(
   input: ReceiptLineExtraction,
   products: SnapshotProduct[],
 ): ProductMatch {
-  const candidate = (
-    p: SnapshotProduct,
-    via: ProductCandidate['via'],
-    score: number,
-  ): ProductCandidate => ({
-    id: p.id,
-    name: p.name,
-    sku: p.sku,
-    via,
-    score: round2(score),
-  });
-  const decide = (found: ProductCandidate[]): ProductMatch | null =>
-    found.length === 1
-      ? { status: 'matched', match: found[0] }
-      : found.length > 1
-        ? { status: 'several', candidates: found.slice(0, MAX_CANDIDATES) }
-        : null;
-
-  const sku = skuKey(input.sku);
-  if (sku) {
-    const bySku = decide(
-      products
-        .filter((p) => skuKey(p.sku) === sku)
-        .map((p) => candidate(p, 'sku', 1)),
-    );
-    if (bySku) return bySku;
-  }
-
-  const key = nameKey(input.description);
-  const tokens = nameTokens(input.description);
-  if (!key) return { status: 'weak', candidates: [] };
-
-  const exact = decide(
-    products
-      .filter((p) => nameKey(p.name) === key)
-      .map((p) => candidate(p, 'name', 1)),
+  const found = matchByName(
+    { name: input.description, sku: input.sku },
+    products,
+    'product',
   );
-  if (exact) return exact;
-
-  const contained = products.filter((p) => {
-    const pt = nameTokens(p.name);
-    return pt.length >= 2 && tokensWithin(pt, tokens);
+  const candidate = (r: Ranked<SnapshotProduct>): ProductCandidate => ({
+    id: r.item.id,
+    name: r.item.name,
+    sku: r.item.sku,
+    via:
+      r.via === 'sku'
+        ? 'sku'
+        : r.via === 'name-similar'
+          ? 'name-similar'
+          : 'name',
+    score: r.score,
   });
-  const byContainment = decide(
-    contained.map((p) =>
-      candidate(p, 'name-contains', similarity(nameKey(p.name), key)),
-    ),
-  );
-  if (byContainment) return byContainment;
-
-  const weak = products
-    .map((p) => {
-      const pk = nameKey(p.name);
-      const pt = nameTokens(p.name);
-      const score = similarity(pk, key);
-      const related =
-        score >= SIMILARITY_THRESHOLD ||
-        tokensWithin(tokens, pt) ||
-        tokensWithin(pt, tokens);
-      return related ? candidate(p, 'name-similar', score) : null;
-    })
-    .filter((c): c is ProductCandidate => c !== null)
-    .sort(byScore)
-    .slice(0, MAX_CANDIDATES);
-  return weak.length > 1
-    ? { status: 'several', candidates: weak }
-    : { status: 'weak', candidates: weak };
+  if (found.status === 'matched')
+    return { status: 'matched', match: candidate(found.match) };
+  if (found.status === 'several')
+    return { status: 'several', candidates: found.candidates.map(candidate) };
+  return { status: 'weak', candidates: found.candidates.map(candidate) };
 }
 
 /**
  * The supplier is settled only by one name equal to the receipt's, once case,
  * spacing, punctuation and legal-form words ("Co., Ltd.") are ignored. Two such
- * names, or any merely similar ones, are candidates to choose between.
+ * names, or any merely similar ones, are candidates to choose between. The
+ * same matcher as the lines, with the supplier's key.
  */
 function matchSupplier(
   name: string,
   snapshot: ReceiptSnapshot,
 ): SupplierAnalysis {
-  const key = supplierKey(name);
-  if (!key) return { status: 'unknown' };
-  const scored = snapshot.suppliers
-    .map((s) => {
-      const sk = supplierKey(s.name);
-      return { supplier: s, exact: sk === key, score: similarity(sk, key) };
-    })
-    .filter((s) => s.exact || s.score >= SIMILARITY_THRESHOLD);
-  const toCandidate = (s: (typeof scored)[number]): SupplierCandidate => ({
-    id: s.supplier.id,
-    name: s.supplier.name,
-    country: s.supplier.country,
-    score: s.exact ? 1 : Math.min(round2(s.score), 0.99),
+  const found = matchByName({ name }, snapshot.suppliers, 'supplier');
+  const candidate = (r: Ranked<SnapshotSupplier>): SupplierCandidate => ({
+    id: r.item.id,
+    name: r.item.name,
+    country: r.item.country,
+    score: r.score,
   });
-  const exact = scored.filter((s) => s.exact);
-  if (exact.length === 1)
-    return { status: 'matched', match: toCandidate(exact[0]) };
-  if (scored.length)
-    return {
-      status: 'candidates',
-      candidates: scored
-        .map(toCandidate)
-        .sort(byScore)
-        .slice(0, MAX_CANDIDATES),
-    };
-  return { status: 'unknown' };
+  if (found.status === 'matched')
+    return { status: 'matched', match: candidate(found.match) };
+  if (found.status === 'unknown') return { status: 'unknown' };
+  return { status: 'candidates', candidates: found.candidates.map(candidate) };
 }
 
 function resolveFx(
@@ -678,17 +607,6 @@ function toDecimal(value: Numeric | null | undefined): Prisma.Decimal | null {
 
 function money(value: Prisma.Decimal): string {
   return value.toFixed(2, Prisma.Decimal.ROUND_HALF_UP);
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function byScore<T extends { score: number; name: string }>(
-  a: T,
-  b: T,
-): number {
-  return b.score - a.score || a.name.localeCompare(b.name);
 }
 
 /** yyyy-mm-dd naming a day that exists — 2026-02-30 does not. */
