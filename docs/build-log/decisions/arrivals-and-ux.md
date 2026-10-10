@@ -52,3 +52,8 @@
   low. U4 found the dashboard and the inventory page used different rules (rule 11). Inventory follows in
   F1a. Alternative: keep "any batch under 10" (an arbitrary number, and it ignores the minimum the
   partner set).
+- **[Decided] The sale idempotency key is stored, not in memory.** U1 kept it in memory for 10 minutes, which
+  does not hold on Vercel, where requests land on different instances. It becomes a column on the order,
+  unique per user (task U2). Alternative: button-disabling only (fails on a retry after a network drop).
+- **[Decided] A negative discount is refused** (`DISCOUNT_NEGATIVE`), on the server. CLAUDE.md rule 1 lists
+  negative values among the things to refuse, and a negative discount is a hidden price rise. Task U2.

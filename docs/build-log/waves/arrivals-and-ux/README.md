@@ -24,3 +24,6 @@
   **Waiting on the user:** an investor can read analytics (revenue, cash, profit), customers, payment plans,
   returns, costing and more — those list endpoints name no roles. Doc marks it Open.
 - U4 merged `30e7c12`: actionable dashboard; edited sales/payments/customers/inventory pages for the URL params (one hook each).
+- U1 merged `0cd7117`: create & confirm in one transaction (`confirmWithin`), SaleOrderForm component, one total
+  formula (`common/sale-totals.ts`, a web copy pinned by an 891-line equality test). Conflict with U4 on the sales
+  page resolved (re-added `?new=1` against `createFor`). api jest 509/509, web vitest 75/75.
