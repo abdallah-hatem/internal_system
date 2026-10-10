@@ -109,7 +109,14 @@ export class ShippingService {
       where,
       take: limit + 1,
       cursor: cursor ? { id: cursor } : undefined,
-      orderBy: [{ cycleId: 'asc' }, { sequence: 'asc' }],
+      // Newest cycle first, its legs in route order. Ordering by cycleId (a
+      // random uuid) put a new cycle's legs anywhere, so whichever legs fell
+      // past the page were arbitrary; now a full page drops the oldest.
+      orderBy: [
+        { cycle: { createdAt: 'desc' } },
+        { cycleId: 'asc' },
+        { sequence: 'asc' },
+      ],
       include: { cycle: true },
     });
 
