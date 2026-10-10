@@ -12,9 +12,10 @@
  *  and a verified receipt (CLAUDE.md rule 4). The customers screen is reached
  *  by clicking, not by `page.goto` (rule 2).
  */
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect, type Page, type APIRequestContext, type Locator } from '@playwright/test';
 import { API, EMAIL, PASSWORD, apiCtx, refusedCallers, stockedProduct, today } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
+import ar from '../src/i18n/locales/ar.json';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 
@@ -32,7 +33,7 @@ async function setup(request: APIRequestContext, label: string, qty = 20) {
   return { headers, mk, product };
 }
 
-async function post(request: APIRequestContext, headers: any, data: unknown, key?: string) {
+async function post(request: APIRequestContext, headers: Record<string, string>, data: unknown, key?: string) {
   const res = await request.post(`${API}/sales/orders`, {
     headers: key ? { ...headers, 'Idempotency-Key': key } : headers,
     data,
@@ -40,7 +41,7 @@ async function post(request: APIRequestContext, headers: any, data: unknown, key
   return { status: res.status(), body: await res.json() };
 }
 
-async function saleable(request: APIRequestContext, headers: any, productId: string) {
+async function saleable(request: APIRequestContext, headers: Record<string, string>, productId: string) {
   const res = await request.get(`${API}/inventory?productId=${productId}&limit=100`, { headers });
   const rows = ((await res.json()).data ?? []) as { batches?: { saleableQty: string }[] }[];
   return rows
@@ -81,7 +82,7 @@ test.describe('Walk-in sale on the server (§4)', () => {
     expect(body.error.code).toBe('NOT_ENOUGH_STOCK');
 
     const orders = await (await request.get(`${API}/sales/orders?limit=100`, { headers })).json();
-    expect(orders.data.filter((o: any) => o.items.some((i: any) => i.productId === product.id))).toHaveLength(0);
+    expect(orders.data.filter((o: ListedOrder) => o.items.some((i) => i.productId === product.id))).toHaveLength(0);
     expect(await payments()).toBe(paymentsBefore);
   });
 
@@ -138,7 +139,7 @@ test.describe('Walk-in sale on the server (§4)', () => {
     expect(page.data.outstandingBalance).toBe('0.00');
     for (const q of ['', '&search=Walk', '&verification=ALL', '&type=B2C']) {
       const list = await (await request.get(`${API}/customers?limit=100${q}`, { headers })).json();
-      expect(list.data.map((c: any) => c.id)).not.toContain(id);
+      expect(list.data.map((c: { id: string }) => c.id)).not.toContain(id);
     }
 
     const after = await kpis();
@@ -219,4 +220,223 @@ test('TC-WI-11: the Customers screen does not list the walk-in record', async ({
   await link().click();
   await expect(page.getByRole('heading', { name: en.customers.title })).toBeVisible();
   await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+});
+
+// ─── The sale form (W2) ──────────────────────────────────────────────────
+// Reached by logging in and clicking through, never `page.goto` after the
+// login page (CLAUDE.md rule 2). With walk-in on, the pickers are: payment
+// method, channel, currency, then each line's product.
+
+type Messages = typeof en;
+const RETAIL = 450;
+const TRADE = 380;
+
+async function loginIn(page: Page, locale: 'en' | 'ar') {
+  const m: Messages = locale === 'en' ? en : ar;
+  await page.goto(`${BASE}/${locale}/login`);
+  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
+  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByRole('button', { name: m.auth.login, exact: true }).click();
+  await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
+}
+
+async function openSales(page: Page, m: Messages = en) {
+  const bar = page.getByTestId('phone-bar');
+  if (await bar.isVisible()) {
+    await bar.getByRole('link', { name: m.nav.short.sales, exact: true }).click();
+  } else {
+    await page.getByRole('link', { name: m.nav.sales, exact: true }).filter({ visible: true }).first().click();
+  }
+  await expect(page.getByRole('heading', { name: m.sales.title })).toBeVisible();
+}
+
+async function openNewOrder(page: Page, m: Messages = en) {
+  await page.getByRole('button', { name: m.sales.create }).first().click();
+  const form = page.getByTestId('sale-order-form');
+  await expect(form).toBeVisible();
+  return form;
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+async function choose(page: Page, trigger: Locator, label: string) {
+  await trigger.click();
+  const search = page.locator('[cmdk-input]').filter({ visible: true });
+  if (await search.count()) await search.fill(label);
+  await page.getByRole('option', { name: new RegExp(escapeRe(label)) }).first().click();
+}
+const combo = (form: Locator, n: number) => form.getByRole('combobox').nth(n);
+const lineOf = (form: Locator, n: number) => form.getByTestId('sale-line').nth(n);
+const inputOf = (row: Locator, name: string) => row.locator(`[data-field="${name}"]:not([type="hidden"])`);
+
+/** A product with stock and both list prices, and a shop to compare against. */
+async function pricedStock(request: APIRequestContext, label: string, qty = 20) {
+  const { headers, mk, product } = await setup(request, label, qty);
+  for (const [channel, amount] of [['B2B', TRADE], ['B2C', RETAIL]] as const) {
+    const res = await request.post(`${API}/products/${product.id}/prices`, {
+      headers,
+      data: { channel, currency: 'EGP', amount },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  }
+  const shop = await mk('customers', { displayName: `${label} Shop ${Date.now()}`, type: 'B2B' });
+  return { headers, mk, product, shop };
+}
+
+interface ListedOrder {
+  id: string;
+  orderNo: string;
+  status: string;
+  total: string;
+  outstanding: string;
+  items: { productId: string }[];
+}
+
+async function ordersOfProduct(request: APIRequestContext, headers: Record<string, string>, productId: string) {
+  const body = await (await request.get(`${API}/sales/orders?limit=100`, { headers })).json();
+  return (body.data as ListedOrder[]).filter((o) => o.items.some((i) => i.productId === productId));
+}
+
+test.describe('Walk-in on the sale form (§4, W2)', () => {
+  test('TC-WI-12: the switch hides the customer and its +, shows the method on Cash, fixes B2C and fills the retail price', async ({ page, request }) => {
+    const { shop, product } = await pricedStock(request, 'WI12');
+    await loginIn(page, 'en');
+    await openSales(page);
+    const form = await openNewOrder(page);
+    await choose(page, combo(form, 0), shop.displayName);
+    await choose(page, combo(form, 3), product.name);
+    await expect(inputOf(lineOf(form, 0), 'unitPrice')).toHaveValue(String(TRADE));
+
+    await form.getByRole('switch', { name: en.sales.walkIn }).click();
+    await expect(form.locator('[data-quick-create="customer"]')).toHaveCount(0);
+    await expect(form.getByText(shop.displayName)).toHaveCount(0);
+    await expect(combo(form, 0)).toContainText(en.codes.paymentMethod.CASH);
+    await expect(combo(form, 1)).toContainText(en.sales.b2c);
+    await expect(combo(form, 1)).toBeDisabled();
+    await expect(inputOf(lineOf(form, 0), 'unitPrice')).toHaveValue(String(RETAIL));
+    await expect(form.getByRole('button', { name: en.sales.saveDraft })).toHaveCount(0);
+    await expect(form.getByRole('button', { name: en.sales.createAndConfirm })).toHaveCount(0);
+    await expect(form.getByRole('button', { name: en.sales.sellAndTakePayment })).toBeVisible();
+    await expect(form.getByTestId('walk-in-paid')).toContainText(en.codes.paymentMethod.CASH);
+  });
+
+  test('TC-WI-13: a typed price survives the switch going on and off; off brings the shop, B2B and the draft button back', async ({ page, request }) => {
+    const { shop, product } = await pricedStock(request, 'WI13');
+    await loginIn(page, 'en');
+    await openSales(page);
+    const form = await openNewOrder(page);
+    await choose(page, combo(form, 0), shop.displayName);
+    await choose(page, combo(form, 3), product.name);
+    await inputOf(lineOf(form, 0), 'unitPrice').fill('400');
+
+    const sw = form.getByRole('switch', { name: en.sales.walkIn });
+    await sw.click();
+    await expect(inputOf(lineOf(form, 0), 'unitPrice')).toHaveValue('400');
+    await sw.click();
+    await expect(inputOf(lineOf(form, 0), 'unitPrice')).toHaveValue('400');
+    await expect(combo(form, 0)).toContainText(shop.displayName);
+    await expect(combo(form, 1)).toContainText(en.sales.b2b);
+    await expect(form.getByRole('button', { name: en.sales.saveDraft })).toBeVisible();
+  });
+
+  test('TC-WI-14: Sell & take payment → one request, a PAID walk-in order by the chosen method; the list says Walk-in and owes nothing', async ({ page, request }) => {
+    const { headers, product } = await pricedStock(request, 'WI14');
+    await loginIn(page, 'en');
+    await openSales(page);
+    const form = await openNewOrder(page);
+    await form.getByRole('switch', { name: en.sales.walkIn }).click();
+    await choose(page, combo(form, 0), en.codes.paymentMethod.MOBILE_WALLET);
+    await choose(page, combo(form, 3), product.name);
+    await inputOf(lineOf(form, 0), 'quantity').fill('2');
+
+    const posts: string[] = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST' && /\/sales\/orders/.test(r.url())) posts.push(r.postData() ?? '');
+    });
+    // A double click: one request (U1's guard, and the idempotency key behind it).
+    await form.getByRole('button', { name: en.sales.sellAndTakePayment }).dblclick();
+    await expect(form).toBeHidden();
+    await expect(page.getByText(en.sales.walkInSold)).toBeVisible();
+    expect(posts).toHaveLength(1);
+    const body = JSON.parse(posts[0]);
+    expect(body).toMatchObject({ walkIn: true, confirm: true, payment: { method: 'MOBILE_WALLET' } });
+    expect(body.customerId).toBeUndefined();
+
+    const orders = await ordersOfProduct(request, headers, product.id);
+    expect(orders).toHaveLength(1);
+    expect(orders[0].status).toBe('PAID');
+    expect(Number(orders[0].total)).toBe(2 * RETAIL);
+    expect(Number(orders[0].outstanding)).toBe(0);
+    const detail = (await (await request.get(`${API}/sales/orders/${orders[0].id}`, { headers })).json()).data;
+    expect(detail.paymentAllocations[0].payment.method).toBe('MOBILE_WALLET');
+
+    // The list, reached by the click that closed the form: Walk-in, no balance.
+    await page.getByPlaceholder(en.sales.search).fill(orders[0].orderNo);
+    const row = page.getByTestId('sale-row').filter({ hasText: orders[0].orderNo });
+    await expect(row.getByTestId('walk-in-customer')).toHaveText(en.sales.walkInCustomer);
+    await expect(row.getByTestId('outstanding')).toContainText(en.sales.walkInNoBalance);
+    // And the detail says the same.
+    await row.locator('td').nth(6).click();
+    const dialog = page.getByRole('heading', { name: orders[0].orderNo }).locator('xpath=ancestor::div[contains(@class,"rounded-2xl")]');
+    await expect(dialog.getByText(en.sales.walkInCustomer, { exact: true })).toBeVisible();
+    await expect(dialog.getByTestId('outstanding')).toContainText(en.sales.walkInNoBalance);
+    await expect(dialog.getByTestId('order-record-payment')).toHaveCount(0);
+  });
+
+  test('TC-WI-15: more than is in stock → refused in words, nothing written, the form keeps the switch, method and lines', async ({ page, request }) => {
+    const { headers, product } = await pricedStock(request, 'WI15', 3);
+    await loginIn(page, 'en');
+    await openSales(page);
+    const form = await openNewOrder(page);
+    await form.getByRole('switch', { name: en.sales.walkIn }).click();
+    await choose(page, combo(form, 0), en.codes.paymentMethod.CHEQUE);
+    await choose(page, combo(form, 3), product.name);
+    await inputOf(lineOf(form, 0), 'quantity').fill('5');
+    await form.getByRole('button', { name: en.sales.sellAndTakePayment }).click();
+
+    const alert = form.getByRole('alert');
+    await expect(alert).toBeVisible();
+    await expect(alert).not.toContainText('unexpected');
+    await expect(form.getByRole('switch', { name: en.sales.walkIn })).toHaveAttribute('aria-checked', 'true');
+    await expect(combo(form, 0)).toContainText(en.codes.paymentMethod.CHEQUE);
+    await expect(inputOf(lineOf(form, 0), 'quantity')).toHaveValue('5');
+    await expect(inputOf(lineOf(form, 0), 'unitPrice')).toHaveValue(String(RETAIL));
+    expect(await ordersOfProduct(request, headers, product.id)).toHaveLength(0);
+  });
+
+  test('TC-WI-16: a walk-in return offers money only, never credit', async ({ page, request }) => {
+    const { headers, product } = await pricedStock(request, 'WI16');
+    const sold = await post(request, headers, walkIn(product.id, 2));
+    await loginIn(page, 'en');
+    await openSales(page);
+    await page.getByPlaceholder(en.sales.search).fill(sold.body.data.orderNo);
+    await page.getByTestId('sale-row').filter({ hasText: sold.body.data.orderNo }).locator('td').nth(6).click();
+    await page.getByRole('button', { name: en.sales.recordReturn }).click();
+    const refund = page.getByRole('combobox').filter({ hasText: en.sales.cashRefund });
+    await expect(refund).toBeVisible();
+    await refund.click();
+    await expect(page.getByRole('option', { name: en.sales.creditNote })).toHaveCount(0);
+  });
+
+  test('TC-WI-17: at 390px in Arabic the switch row fits, the sale button is the only primary, and nothing scrolls sideways', async ({ page, request }) => {
+    const { product } = await pricedStock(request, 'WI17');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginIn(page, 'ar');
+    await openSales(page, ar);
+    const form = await openNewOrder(page, ar);
+    const sw = form.getByRole('switch', { name: ar.sales.walkIn });
+    await sw.click();
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await choose(page, combo(form, 3), product.name);
+
+    // The switch sits on the label row, at the row's end — the left in Arabic.
+    const swBox = (await sw.boundingBox())!;
+    const methodBox = (await combo(form, 0).boundingBox())!;
+    expect(swBox.y + swBox.height).toBeLessThanOrEqual(methodBox.y + 1);
+    expect(swBox.x).toBeLessThan(methodBox.x + methodBox.width / 2);
+    await expect(form.getByRole('button', { name: ar.sales.sellAndTakePayment })).toBeVisible();
+    await expect(form.getByRole('button', { name: ar.sales.saveDraft })).toHaveCount(0);
+    await expect(form.getByTestId('walk-in-paid')).toContainText(ar.codes.paymentMethod.CASH);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
 });

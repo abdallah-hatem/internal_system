@@ -34,7 +34,7 @@ beforeAll(() => {
 });
 
 const SHOP = { id: 'c-shop', displayName: 'Nile Motors', type: 'B2B' };
-const WALKIN = { id: 'c-walkin', displayName: 'Walk-in', type: 'B2C' };
+const RETAIL = { id: 'c-retail', displayName: 'Mona Retail', type: 'B2C' };
 const PISTON: SaleFormProduct = {
   id: 'p-piston',
   name: 'Piston kit',
@@ -54,7 +54,7 @@ function renderForm(onSaved = vi.fn(), initialCustomerId: string | undefined = S
       <QueryClientProvider client={client}>
         <ToastProvider>
           <SaleOrderForm
-            customers={[SHOP, WALKIN]}
+            customers={[SHOP, RETAIL]}
             products={[PISTON]}
             stock={[{ productId: PISTON.id, availableStock: 60 }]}
             onCancel={() => {}}
@@ -170,15 +170,15 @@ describe('SaleOrderForm', () => {
     pick(3, 'Piston kit');
     expect(field(lines()[0], 'unitPrice').value).toBe('1,500');
 
-    // The walk-in customer switches the channel to B2C; the typed price stays.
-    pick(0, 'Walk-in');
+    // A retail customer switches the channel to B2C; the typed price stays.
+    pick(0, 'Mona Retail');
     expect(field(lines()[0], 'unitPrice').value).toBe('1,500');
   });
 
   it('an untouched list price follows the channel', () => {
     renderForm();
     pick(3, 'Piston kit');
-    pick(0, 'Walk-in');
+    pick(0, 'Mona Retail');
     expect(field(lines()[0], 'unitPrice').value).toBe('2,100');
   });
 
@@ -337,5 +337,251 @@ describe('SaleOrderForm', () => {
     fireEvent.click(remove);
     expect(post).not.toHaveBeenCalled();
     expect(screen.queryAllByTestId('sale-line')).toHaveLength(0);
+  });
+});
+
+// ─── Walk-in (BUSINESS_LOGIC §4, 2026-10-11; W2) ─────────────────────────
+// With the switch on the pickers are: payment method, channel, currency, then
+// the line's product — the method takes the customer's place.
+describe('SaleOrderForm — walk-in', () => {
+  const walkInSwitch = () => screen.getByRole('switch', { name: en.sales.walkIn });
+  const turnOn = () => fireEvent.click(walkInSwitch());
+  const customerPicker = () => document.querySelector('input[type="hidden"][name="customerId"]');
+  const customerPlus = () => document.querySelector('[data-quick-create="customer"]');
+  const sell = () => screen.getByRole('button', { name: en.sales.sellAndTakePayment });
+  const comboText = (nth: number) => screen.getAllByRole('combobox')[nth].textContent;
+  const PAID = { data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'PAID' } } };
+
+  it('the switch is a button that never submits the form, and starts off', () => {
+    renderForm();
+    expect(walkInSwitch().getAttribute('type')).toBe('button');
+    expect(walkInSwitch().getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(walkInSwitch());
+    expect(walkInSwitch().getAttribute('aria-checked')).toBe('true');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('on: the customer picker and its + go, a payment method shows with Cash chosen, and the channel is fixed to B2C', () => {
+    renderForm();
+    expect(customerPicker()).toBeTruthy();
+    expect(customerPlus()).toBeTruthy();
+    turnOn();
+    expect(customerPicker()).toBeNull();
+    expect(customerPlus()).toBeNull();
+    expect(document.querySelector('input[type="hidden"][name="paymentMethod"]')?.getAttribute('value')).toBe('CASH');
+    expect(comboText(0)).toContain(en.codes.paymentMethod.CASH);
+    expect(comboText(1)).toContain(en.sales.b2c);
+    expect((screen.getAllByRole('combobox')[1] as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the method list is the payment dialog’s: every method, translated', () => {
+    renderForm();
+    turnOn();
+    fireEvent.click(screen.getAllByRole('combobox')[0]);
+    const names = screen.getAllByRole('option').map((o) => o.textContent);
+    for (const m of ['CASH', 'BANK_TRANSFER', 'CHEQUE', 'MOBILE_WALLET'] as const) {
+      expect(names.some((n) => n?.includes(en.codes.paymentMethod[m]))).toBe(true);
+    }
+    expect(names).toHaveLength(4);
+  });
+
+  it('retail list prices fill an untouched line, whether the product is chosen before or after the switch', () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    expect(field(lines()[0], 'unitPrice').value).toBe('1,800');
+    turnOn();
+    expect(field(lines()[0], 'unitPrice').value).toBe('2,100');
+
+    fireEvent.click(screen.getByRole('button', { name: /add item/i }));
+    pick(4, 'Piston kit'); // the second line's product
+    expect(field(lines()[1], 'unitPrice').value).toBe('2,100');
+  });
+
+  it('a typed price is never overwritten — not by turning walk-in on, nor off again', () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    typeInto(field(lines()[0], 'unitPrice'), '1950');
+    turnOn();
+    expect(field(lines()[0], 'unitPrice').value).toBe('1,950');
+    fireEvent.click(walkInSwitch());
+    expect(field(lines()[0], 'unitPrice').value).toBe('1,950');
+  });
+
+  it('only one way out: Sell & take payment — no draft, no Create & confirm', () => {
+    renderForm();
+    turnOn();
+    expect(sell().getAttribute('type')).toBe('submit');
+    expect(screen.queryByRole('button', { name: en.sales.saveDraft })).toBeNull();
+    expect(screen.queryByRole('button', { name: en.sales.createAndConfirm })).toBeNull();
+    // Enter in a field submits the first submit button, which is now the sale.
+    expect(screen.getByTestId('sale-order-form').querySelectorAll('button[type="submit"]')).toHaveLength(1);
+  });
+
+  it('the total reads as paid, by the chosen method', () => {
+    renderForm();
+    expect(screen.queryByTestId('walk-in-paid')).toBeNull();
+    turnOn();
+    expect(screen.getByTestId('walk-in-paid-badge').textContent).toBe(en.sales.paid);
+    expect(screen.getByTestId('walk-in-paid').textContent).toBe(
+      en.sales.walkInPaidBy.replace('{method}', en.codes.paymentMethod.CASH),
+    );
+    pick(0, en.codes.paymentMethod.MOBILE_WALLET);
+    expect(screen.getByTestId('walk-in-paid').textContent).toContain(en.codes.paymentMethod.MOBILE_WALLET);
+  });
+
+  it('sends walkIn: true, the method and confirm: true, with no customerId — even with a shop chosen before', async () => {
+    answer = () => Promise.resolve(PAID);
+    const { onSaved } = renderForm(); // opened on Nile Motors
+    turnOn();
+    pick(0, en.codes.paymentMethod.BANK_TRANSFER);
+    pick(3, 'Piston kit');
+    typeInto(field(lines()[0], 'quantity'), '2');
+    fireEvent.click(sell());
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+
+    const [path, body, config] = post.mock.calls[0];
+    expect(path).toBe('/sales/orders');
+    expect(body).toEqual({
+      walkIn: true,
+      channel: 'B2C',
+      currency: 'EGP',
+      confirm: true,
+      payment: { method: 'BANK_TRANSFER' },
+      items: [{ productId: PISTON.id, quantity: 2, unitPrice: 2100, discount: 0 }],
+    });
+    expect('customerId' in body).toBe(false);
+    expect(config.headers['Idempotency-Key']).toBeTruthy();
+    expect(onSaved.mock.calls[0][0]).toMatchObject({ confirmed: true, walkIn: true });
+  });
+
+  it('no customer is required: a walk-in with no shop chosen goes straight through', async () => {
+    answer = () => Promise.resolve(PAID);
+    const { onSaved } = renderForm(vi.fn(), '');
+    turnOn();
+    pick(3, 'Piston kit');
+    fireEvent.click(sell());
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('form-problem')).toBeNull();
+  });
+
+  it('a product is still required: an empty line sends nothing and says so', () => {
+    renderForm(vi.fn(), '');
+    turnOn();
+    fireEvent.click(sell());
+    expect(screen.getByTestId('form-problem').textContent).toBe(
+      en.validation.requiredNamed.replace('{fields}', en.sales.product),
+    );
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('a double-click sends one request', async () => {
+    let resolve!: (v: unknown) => void;
+    const pending = new Promise((r) => (resolve = r));
+    answer = () => pending;
+    renderForm();
+    turnOn();
+    pick(3, 'Piston kit');
+    act(() => {
+      fireEvent.click(sell());
+      fireEvent.click(sell());
+    });
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    fireEvent.click(sell());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect((sell() as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => resolve(PAID));
+  });
+
+  it('a refusal shows translated and keeps everything: the switch, the method, the lines and their prices', async () => {
+    answer = () =>
+      Promise.reject({
+        response: {
+          data: {
+            error: {
+              code: 'NOT_ENOUGH_STOCK',
+              message: 'Only 60.000 of Piston kit is in stock, so 80.000 cannot be sold.',
+              params: { available: '60.000', product: 'Piston kit', wanted: '80.000' },
+            },
+          },
+        },
+      });
+    const { onSaved } = renderForm();
+    turnOn();
+    pick(0, en.codes.paymentMethod.CHEQUE);
+    pick(3, 'Piston kit');
+    typeInto(field(lines()[0], 'quantity'), '80');
+    typeInto(field(lines()[0], 'discount'), '15');
+    fireEvent.click(sell());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe(
+      en.errors.NOT_ENOUGH_STOCK.replace('{available}', '60.000')
+        .replace('{product}', 'Piston kit')
+        .replace('{wanted}', '80.000'),
+    );
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(walkInSwitch().getAttribute('aria-checked')).toBe('true');
+    expect(comboText(0)).toContain(en.codes.paymentMethod.CHEQUE);
+    expect(field(lines()[0], 'quantity').value).toBe('80');
+    expect(field(lines()[0], 'unitPrice').value).toBe('2,100');
+    expect(field(lines()[0], 'discount').value).toBe('15');
+    // And it can be sent again: the first was refused whole.
+    expect((sell() as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a walk-in refusal code reads in the reader’s words, not the server’s English', async () => {
+    answer = () =>
+      Promise.reject({
+        response: { data: { error: { code: 'WALK_IN_NOT_DRAFT', message: 'A walk-in sale cannot be a draft.' } } },
+      });
+    renderForm();
+    turnOn();
+    pick(3, 'Piston kit');
+    fireEvent.click(sell());
+    expect((await screen.findByRole('alert')).textContent).toBe(en.errors.WALK_IN_NOT_DRAFT);
+  });
+
+  it('off again: the customer, its +, the channel, the list prices and the draft button all come back', () => {
+    renderForm(); // Nile Motors, B2B
+    pick(3, 'Piston kit');
+    turnOn();
+    expect(field(lines()[0], 'unitPrice').value).toBe('2,100');
+    fireEvent.click(walkInSwitch());
+
+    expect(customerPicker()?.getAttribute('value')).toBe(SHOP.id);
+    expect(customerPlus()).toBeTruthy();
+    expect(comboText(0)).toContain(SHOP.displayName);
+    expect(comboText(1)).toContain(en.sales.b2b);
+    expect((screen.getAllByRole('combobox')[1] as HTMLButtonElement).disabled).toBe(false);
+    expect(field(lines()[0], 'unitPrice').value).toBe('1,800');
+    expect(screen.getByRole('button', { name: en.sales.saveDraft })).toBeTruthy();
+    expect(screen.getByRole('button', { name: en.sales.createAndConfirm })).toBeTruthy();
+    expect(screen.queryByTestId('walk-in-paid')).toBeNull();
+  });
+
+  it('off again and sold to the shop: the request is an ordinary sale with no walk-in or payment in it', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o2', orderNo: 'ORD-2', status: 'CONFIRMED' } } });
+    const { onSaved } = renderForm();
+    turnOn();
+    fireEvent.click(walkInSwitch());
+    pick(3, 'Piston kit');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    const body = post.mock.calls[0][1];
+    expect(body).toMatchObject({ customerId: SHOP.id, channel: 'B2B', confirm: true });
+    expect('walkIn' in body).toBe(false);
+    expect('payment' in body).toBe(false);
+    expect(onSaved.mock.calls[0][0].walkIn).toBe(false);
+  });
+
+  it('a channel the seller chose by hand is the one restored, not the customer’s default', () => {
+    renderForm(); // Nile Motors is B2B
+    pick(1, en.sales.b2c);
+    turnOn();
+    fireEvent.click(walkInSwitch());
+    expect(comboText(1)).toContain(en.sales.b2c);
   });
 });
