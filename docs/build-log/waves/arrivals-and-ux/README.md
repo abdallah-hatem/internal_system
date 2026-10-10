@@ -111,3 +111,4 @@
   UF6 found what is left for one sweep now that the page owners are merged → UF7: pages still calling
   `toLocaleString(undefined)` (Arabic-Indic digits by browser) → `useNumberFormat`; bare "No data" text on ~25 page
   spots → `EmptyState`; `order-requests` forces ar-EG; `ar.json` photosHint holds "٨".
+- UF7 merged: 23 number-format calls → useNumberFormat/Money, 30 empty states, guard test `unit/latin-digits.test.mjs`.
