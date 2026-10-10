@@ -20,20 +20,8 @@ import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { SettlementWarnings, type SettlementWarning } from '@/components/settlements/settlement-warnings';
+import { SettlementParticipants, type SettlementLine } from '@/components/settlements/settlement-participants';
 // ─── Types ────────────────────────────────────────────────────────────
-interface Line {
-  id: string;
-  component: string;
-  amount: string | number;
-  feeAmount?: string | number | null;
-  participant: {
-    id: string;
-    participantType: string;
-    partner?: { email?: string; partner?: { displayName?: string } } | null;
-    investor?: { email?: string; partner?: { displayName?: string } } | null;
-  };
-}
-
 interface Settlement {
   id: string;
   status: string;
@@ -46,7 +34,7 @@ interface Settlement {
   unitsSold?: string | null;
   unitsRemaining?: string | null;
   calculatedAt?: string | null;
-  lines: Line[];
+  lines: SettlementLine[];
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -56,24 +44,8 @@ const STATUS_STYLE: Record<string, string> = {
   REVERSED: 'bg-red-100 text-red-700',
 };
 
-const COMPONENT_LABEL: Record<string, string> = {
-  CAPITAL_RETURN: 'Capital returned',
-  PROFIT_SHARE: 'Profit share',
-  INVESTOR_FEE: 'Investor fee',
-  INVESTOR_FEE_RECEIVED: 'Fee received',
-};
-
 const isBlank = (v: unknown) =>
   v === null || v === undefined || !Number.isFinite(Number(v));
-
-// Prefer a real name over a login address, whichever role the participant
-// holds; an investor may also have a partner record.
-const nameOf = (l: Line) =>
-  l.participant?.partner?.partner?.displayName ||
-  l.participant?.investor?.partner?.displayName ||
-  l.participant?.partner?.email ||
-  l.participant?.investor?.email ||
-  'Unknown';
 
 type SettlementPermissions = { calculate: boolean; approve: boolean; pay: boolean; reverse: boolean };
 
@@ -195,13 +167,13 @@ export default function SettlementsPage() {
         </h1>
 
         {may.calculate && (
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           <label htmlFor="cycle-select" className="sr-only">
             {t('selectCycle')}
           </label>
           <Select
             id="cycle-select"
-            className="w-64"
+            className="min-w-0 flex-1 sm:w-64 sm:flex-none"
             value={selectedCycle}
             onChange={setSelectedCycle}
             placeholder={t('selectCycle')}
@@ -213,9 +185,10 @@ export default function SettlementsPage() {
             }))}
           />
           <button
+            type="button"
             onClick={() => calcMutation.mutate(selectedCycle)}
             disabled={!selectedCycle || calcMutation.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {calcMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -340,13 +313,14 @@ export default function SettlementsPage() {
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const closeLabel = useTranslations('common')('close');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} aria-label={closeLabel} className="cursor-pointer text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
         </div>
         <div className="p-6 overflow-y-auto min-h-0">{children}</div>
       </div>
@@ -372,18 +346,11 @@ function SettlementCard({
   const profit = Number(s.grossProfitEgp ?? 0);
   const remaining = Number(s.unitsRemaining ?? 0);
 
-  // Group the lines by participant so each person reads as one row.
-  const byParticipant = new Map<string, Line[]>();
-  for (const l of s.lines ?? []) {
-    const k = l.participant?.id ?? l.id;
-    byParticipant.set(k, [...(byParticipant.get(k) ?? []), l]);
-  }
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-sm text-gray-700">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-100">
+        <div className="flex min-w-0 items-center gap-3">
+          <span dir="ltr" className="font-mono text-sm text-gray-700 whitespace-nowrap">
             {s.cycle?.code ?? '—'}
           </span>
           <span
@@ -395,7 +362,7 @@ function SettlementCard({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {may.approve && s.status === 'DRAFT' && (
             <ActionButton onClick={() => onAction('approve')} busy={busy} icon={CheckCircle2}>
               {t('approve')}
@@ -433,88 +400,18 @@ function SettlementCard({
         <Metric
           label={t('unsoldStock')}
           value={s.unsoldValueEgp}
-          hint={remaining > 0 ? `${remaining.toLocaleString()} ${t('units')}` : undefined}
+          hint={remaining > 0 ? t('unitsCount', { units: remaining.toLocaleString('en-US') }) : undefined}
         />
       </div>
 
       {remaining > 0 && (
         <p className="px-5 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
-          {t('unsoldWarning', { units: remaining.toLocaleString() })}
+          {t('unsoldWarning', { units: remaining.toLocaleString('en-US') })}
         </p>
       )}
 
       {/* Participants */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <caption className="sr-only">
-            {t('participant')} — {s.cycle?.code}
-          </caption>
-          <thead className="bg-gray-50 text-xs text-gray-500">
-            <tr>
-              <th scope="col" className="text-start px-5 py-2 font-medium">{t('participant')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium">{t('capital')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium">{t('netProfit')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium">{t('fee')}</th>
-              <th scope="col" className="text-end px-5 py-2 font-medium">{t('payout')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {[...byParticipant.values()].map((lines) => {
-              const pick = (c: string) =>
-                Number(lines.find((l) => l.component === c)?.amount ?? 0);
-              const capital = pick('CAPITAL_RETURN');
-              // PROFIT_SHARE is already net of any investor fee, so the
-              // INVESTOR_FEE line is shown for transparency but must not be
-              // subtracted again when totalling the payout.
-              const share = pick('PROFIT_SHARE');
-              const feeCharged = pick('INVESTOR_FEE');
-              const feeReceived = pick('INVESTOR_FEE_RECEIVED');
-              const feeDisplay = feeCharged + feeReceived;
-              const payout = capital + share + feeReceived;
-              const isInvestor =
-                lines[0].participant?.participantType === 'TEMP_INVESTOR';
-
-              return (
-                <tr key={lines[0].participant?.id ?? lines[0].id}>
-                  <td className="px-5 py-3">
-                    <span className="text-gray-800">{nameOf(lines[0])}</span>
-                    {isInvestor && (
-                      <span className="ms-2 text-[11px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
-                        {t('investor')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-end text-gray-600 tabular-nums">
-                    <Money value={capital} />
-                  </td>
-                  <td className="px-4 py-3 text-end text-gray-800 tabular-nums">
-                    <Money value={share} />
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-end tabular-nums ${
-                      feeDisplay < 0
-                        ? 'text-red-600'
-                        : feeDisplay > 0
-                          ? 'text-green-700'
-                          : 'text-gray-400'
-                    }`}
-                    title={
-                      feeCharged < 0
-                        ? 'Already deducted from the profit share shown'
-                        : undefined
-                    }
-                  >
-                    {feeDisplay === 0 ? '—' : <Money value={feeDisplay} />}
-                  </td>
-                  <td className="px-5 py-3 text-end font-semibold text-gray-900 tabular-nums">
-                    <Money value={payout} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <SettlementParticipants lines={s.lines ?? []} cycleCode={s.cycle?.code} />
 
       <p className="px-5 py-2 text-[11px] text-gray-400 border-t border-gray-100">
         {t('footnote')}
@@ -535,9 +432,9 @@ function Metric({
   const color =
     tone === 'good' ? 'text-green-700' : tone === 'bad' ? 'text-red-600' : 'text-gray-900';
   return (
-    <div className="px-5 py-3">
+    <div className="min-w-0 px-4 py-3 sm:px-5">
       <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-      <p className={`text-sm font-semibold tabular-nums flex items-center gap-1 ${color}`}>
+      <p className={`text-sm font-semibold tabular-nums flex items-center gap-1 whitespace-nowrap ${color}`}>
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {isBlank(value) ? '—' : <Money value={value as number} />}
       </p>
@@ -557,9 +454,10 @@ function ActionButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={busy}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+      className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
         tone === 'danger'
           ? 'text-red-600 hover:bg-red-50'
           : 'text-primary-700 hover:bg-primary-50'

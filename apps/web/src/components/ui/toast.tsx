@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useTranslations } from 'next-intl';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,10 @@ const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const DISMISS_MS = 5_000;
 
+/** Exported for its test: the container must never be wider than the screen. */
+export const TOAST_VIEWPORT_CLASS =
+  'pointer-events-none fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-[100] flex flex-col gap-3 sm:inset-x-auto sm:end-4 sm:w-96 sm:max-w-[calc(100vw-2rem)]';
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const idCounter = useRef(0);
@@ -92,8 +97,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
 
-      {/* Toast container – fixed top-right */}
-      <div className="fixed top-4 end-4 z-[100] flex flex-col gap-3 pointer-events-none max-w-sm w-full">
+      {/* Toast container. On a phone it spans the screen less 16px each side
+          (inset-x-4); `w-full` beside `end-4` made it the full viewport plus
+          16px, clipping its start border (UI audit 2026-10-10, #3). From `sm`
+          up it is a 24rem column pinned to the inline end. */}
+      <div
+        data-testid="toast-viewport"
+        className={TOAST_VIEWPORT_CLASS}
+      >
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onDismiss={removeToast} />
         ))}
@@ -114,6 +125,7 @@ function ToastItem({
   onDismiss: (id: string) => void;
 }) {
   const { container, iconColor, Icon } = toastConfig[toast.type];
+  const tc = useTranslations('common');
 
   return (
     <div
@@ -125,11 +137,12 @@ function ToastItem({
       `}
     >
       <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${iconColor}`} />
-      <p className="flex-1 text-sm font-medium">{toast.message}</p>
+      <p className="min-w-0 flex-1 text-sm font-medium break-words [overflow-wrap:anywhere]">{toast.message}</p>
       <button
+        type="button"
         onClick={() => onDismiss(toast.id)}
-        className="flex-shrink-0 p-0.5 rounded hover:bg-black/5 transition-colors"
-        aria-label="Dismiss"
+        className="flex-shrink-0 cursor-pointer p-0.5 rounded hover:bg-black/5 transition-colors"
+        aria-label={tc('close')}
       >
         <X className="h-4 w-4" />
       </button>

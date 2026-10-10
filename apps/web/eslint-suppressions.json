@@ -278,7 +278,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 53
+      "count": 41
     }
   },
   "src/app/[locale]/shipments/page.tsx": {
@@ -403,11 +403,6 @@
       "count": 2
     },
     "local/no-physical-direction": {
-      "count": 2
-    }
-  },
-  "src/components/ui/pagination.tsx": {
-    "i18next/no-literal-string": {
       "count": 2
     }
   },
