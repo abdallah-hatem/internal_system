@@ -274,6 +274,149 @@ describe('get_cycle', () => {
     expect(byId).toEqual(byCode);
   });
 
+  it("get_cycle returns the shipment position — per leg status, deliveries, on the way, waiting, lost — as the office's shipment panel reads it", async () => {
+    // 40 ordered. Leg 1 (China → UAE) delivered 30 and 4 were marked lost;
+    // leg 2 (UAE → Egypt) delivered 20, of which 15 were received.
+    const d = emptyDb();
+    const c = emptyCycle(CYCLE_ID, 'CYC-2026-0001');
+    const item = {
+      id: 'item-1',
+      orderedQty: 40,
+      productId: PRODUCT_ID,
+      unitPrice: 10,
+      discount: 0,
+      lineTotal: 400,
+      receivedQty: 15,
+      product: { name: 'Brake pad', sku: 'PRD-000001' },
+    };
+    c.purchaseOrders = [
+      {
+        id: 'po-1',
+        reference: 'PO-1',
+        supplier: { name: 'Yiwu' },
+        status: 'CONFIRMED',
+        currency: 'EGP',
+        items: [item],
+      },
+    ];
+    c.shippingLegs = [
+      {
+        id: 'leg-1',
+        sequence: 1,
+        origin: 'Guangzhou, CN',
+        destination: 'Dubai, UAE',
+        departedOn: new Date('2026-09-01T00:00:00Z'),
+        arrivedOn: null,
+        status: 'PARTLY_ARRIVED',
+        deliveries: [
+          {
+            id: 'del-1',
+            legId: 'leg-1',
+            arrivedOn: new Date('2026-09-10T00:00:00Z'),
+            lines: [{ id: 'dl-1', purchaseOrderItemId: 'item-1', qty: 30 }],
+          },
+        ],
+        losses: [{ legId: 'leg-1', purchaseOrderItemId: 'item-1', qty: 4 }],
+      },
+      {
+        id: 'leg-2',
+        sequence: 2,
+        origin: 'Dubai, UAE',
+        destination: 'Cairo, Egypt',
+        departedOn: new Date('2026-09-12T00:00:00Z'),
+        arrivedOn: null,
+        status: 'PARTLY_ARRIVED',
+        deliveries: [
+          {
+            id: 'del-2',
+            legId: 'leg-2',
+            arrivedOn: new Date('2026-09-20T00:00:00Z'),
+            lines: [{ id: 'dl-2', purchaseOrderItemId: 'item-1', qty: 20 }],
+          },
+        ],
+        losses: [],
+      },
+    ];
+    c.inventoryBatches = [
+      {
+        sourcePoItemId: 'item-1',
+        sourceDeliveryLineId: 'dl-2',
+        receivedQty: 15,
+      },
+    ];
+    d.cycles.push(c);
+    const { assistant, services } = harness(d);
+
+    const got = dataOf<{
+      purchaseOrders: { lines: { id: string }[] }[];
+      shippingLegs: { id: string }[];
+      shipment: {
+        totals: unknown;
+        products: Record<string, unknown>[];
+        legs: (Record<string, unknown> & { deliveries: unknown[] })[];
+      };
+    }>(await call(assistant, 'get_cycle', { cycle: 'CYC-2026-0001' }));
+    const office = (
+      await (services.get(CyclesService) as CyclesService).getShipment(CYCLE_ID)
+    ).data;
+
+    // The ids the delivery tools take are there.
+    expect(got.purchaseOrders[0].lines[0].id).toBe('item-1');
+    expect(got.shippingLegs.map((l) => l.id)).toEqual(['leg-1', 'leg-2']);
+    // The figures are the shipment panel's, not worked out again.
+    expect(got.shipment.totals).toEqual(office.totals);
+    expect(got.shipment.products[0]).toMatchObject({
+      product: 'Brake pad',
+      ordered: 40,
+      received: 15,
+      lost: 4,
+      onTheWay: 16, // 6 on leg 1, 10 on leg 2
+      waiting: 5,
+    });
+    const [leg1, leg2] = got.shipment.legs;
+    expect(leg1).toMatchObject({
+      legId: 'leg-1',
+      status: 'PARTLY_ARRIVED',
+      delivered: 30,
+      lost: 4,
+      onTheWay: 6,
+      waiting: null,
+      endsInEgypt: false,
+    });
+    expect(leg2).toMatchObject({
+      legId: 'leg-2',
+      status: 'PARTLY_ARRIVED',
+      entered: 30,
+      onTheWay: 10,
+      received: 15,
+      waiting: 5,
+      endsInEgypt: true,
+    });
+    expect(leg2.deliveries).toEqual([
+      {
+        deliveryId: 'del-2',
+        arrivedOn: '2026-09-20',
+        lines: [
+          {
+            deliveryLineId: 'dl-2',
+            purchaseOrderItemId: 'item-1',
+            product: 'Brake pad',
+            qty: 20,
+            received: 15,
+          },
+        ],
+      },
+    ]);
+    expect(leg2).toMatchObject(
+      Object.fromEntries(
+        ['status', 'onTheWay', 'waiting', 'lost', 'delivered'].map((k) => [
+          k,
+          office.legs[1][k as keyof (typeof office.legs)[number]],
+        ]),
+      ),
+    );
+  });
+
   it('get_cycle unknown → tool error NOT_FOUND', async () => {
     const { assistant } = harness(db());
 
@@ -384,6 +527,28 @@ describe('get_stock', () => {
       arrivedOn: leg2.toISOString(),
       receivedAt: received.toISOString(),
     });
+  });
+
+  it("get_stock: Arrived is the batch's own delivery date, not the cycle's last leg (§14, 2026-10-10)", async () => {
+    // The delivery that brought this batch reached Egypt before the leg's
+    // last date: the batch shows its own day, not the leg's.
+    const d = db();
+    const ownDay = new Date('2026-08-15T00:00:00Z');
+    d.batches[0].arrivedOn = ownDay;
+    const { assistant, services } = harness(d);
+
+    const tool = dataOf<Array<{ batches: Array<{ arrivedOn: string }> }>>(
+      await call(assistant, 'get_stock'),
+    );
+    const office = (
+      await (services.get(InventoryService) as InventoryService).getStock({})
+    ).data as Array<{ batches: Array<{ arrivedOn: Date }> }>;
+
+    expect(tool[0].batches[0].arrivedOn).toBe(ownDay.toISOString());
+    expect(tool[0].batches[0].arrivedOn).toBe(
+      office[0].batches[0].arrivedOn.toISOString(),
+    );
+    expect(tool[0].batches[0].arrivedOn).not.toBe(leg2.toISOString());
   });
 
   it('get_stock with a product id that is not a uuid → NOT_FOUND, nothing queried', async () => {
@@ -766,10 +931,12 @@ const INTAKE_WRITES = new Set([
   'create_cycle',
   'add_shipping_leg',
   'transition_cycle',
+  // §16, 2026-10-10: recording a delivery is intake; marking goods lost is not.
+  'record_delivery',
   'verify_stock',
 ]);
 const OFFICE_ONLY =
-  /sale|payment|instal|settle|return|refund|ledger|transaction|allocat/i;
+  /sale|payment|instal|settle|return|refund|ledger|transaction|allocat|loss|lost/i;
 
 async function toolsOf(server: McpServer): Promise<Tool[]> {
   const client = await connect(server);
@@ -836,10 +1003,38 @@ describe('What the assistant offers', () => {
       { title: 'x', description: 'x', inputSchema: {} },
       handlers,
     );
+    writeTool(
+      server,
+      ctx,
+      'mark_goods_lost',
+      { title: 'x', description: 'x', inputSchema: {} },
+      handlers,
+    );
 
     expect(forbiddenWrites(await toolsOf(server)).sort()).toEqual([
+      'mark_goods_lost',
       'record_payment',
       'reverse_ledger_entry',
     ]);
+  });
+
+  it('tools/list has no tool for marking goods lost or refunding them (§16: office app only)', async () => {
+    const { assistant } = harness(emptyDb());
+
+    const tools = await toolsOf(assistant.create(partner));
+    const names = tools.map((t) => t.name);
+
+    expect(names).toContain('record_delivery');
+    expect(names.filter((n) => /los[st]|refund|write_?off/i.test(n))).toEqual(
+      [],
+    );
+    // No tool takes a loss in through a side door either: nothing writes
+    // with a field named for one.
+    const lossFields = tools.flatMap((t) =>
+      Object.keys(t.inputSchema.properties ?? {})
+        .filter((k) => /los[st]/i.test(k))
+        .map((k) => `${t.name}.${k}`),
+    );
+    expect(lossFields).toEqual([]);
   });
 });

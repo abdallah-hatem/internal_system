@@ -10,7 +10,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import { businessToday } from '../../../common/dates';
-import type { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 import type { AuditService } from '../../audit/audit.service';
 import { CostingService } from '../../costing/costing.service';
 import { CyclesService } from '../../cycles/cycles.service';
@@ -185,6 +185,13 @@ function fakePrisma() {
         };
         db.deliveries.push(row);
         return Promise.resolve(row);
+      },
+      // verify_stock finds the delivery's cycle (B4).
+      findUnique: ({ where }: Row) => {
+        const d = db.deliveries.find((x) => x.id === where.id);
+        if (!d) return Promise.resolve(null);
+        const l = db.legs.find((x) => x.id === d.legId)!;
+        return Promise.resolve({ ...d, leg: { cycleId: l.cycleId } });
       },
     },
     purchaseOrder: {
@@ -478,6 +485,7 @@ beforeEach(async () => {
     [CyclesService, services.cycles],
     [ShippingService, services.shipping],
     [InventoryService, services.inventory],
+    [PrismaService, prisma],
   ]);
   const assistant = new AssistantServer(
     new ConfirmationService(
@@ -917,6 +925,10 @@ describe('add_shipping_leg', () => {
   });
 });
 
+// Changed 2026-10-10 (B4, BUSINESS_LOGIC §3): verify_stock names a delivery and
+// its lines, not a cycle and its order lines — which delivery brought the goods
+// decides their arrival date (§14). Every case below keeps its rule and only
+// names the goods the new way, unless its own comment says otherwise.
 describe('verify_stock', () => {
   /** A UAE-direct cycle in verification, its goods landed, its leg dated. */
   function landedCycle(legAmountEgp = 400) {
@@ -948,11 +960,12 @@ describe('verify_stock', () => {
       purchaseOrderItemId: i.id,
       qty: i.orderedQty,
     }));
-    return { c, pad, chain };
+    const [padLine, chainLine] = delivery.lines as Row[];
+    return { c, pad, chain, delivery, padLine, chainLine };
   }
 
   it('verify_stock preview shows the landed unit cost per line before anything is written (money)', async () => {
-    const { c, pad, chain } = landedCycle();
+    const { c, delivery, padLine, chainLine } = landedCycle();
     const before = snapshot();
 
     // 25 of the 30 chain kits were counted in. Changed 2026-10-10 (§2: cost
@@ -961,10 +974,10 @@ describe('verify_stock', () => {
     // whether 25 or 30 came. The pads' receipt is the line's last, and takes
     // its whole landed total.
     const args = {
-      cycleId: c.id,
+      deliveryId: delivery.id,
       items: [
-        { purchaseOrderItemId: pad.id, receivedQty: 10 },
-        { purchaseOrderItemId: chain.id, receivedQty: 25 },
+        { deliveryLineId: padLine.id, receivedQty: 10 },
+        { deliveryLineId: chainLine.id, receivedQty: 25 },
       ],
     };
     const preview = await call('verify_stock', args);
@@ -972,18 +985,21 @@ describe('verify_stock', () => {
 
     expect(preview.isError).toBeFalsy();
     expect(text).toContain(
-      'Brake pad: 10 of 10 ordered, landed 20.0000 EGP/unit = 200.00 EGP',
+      'Brake pad: 10 counted in (10 ordered), landed 20.0000 EGP/unit = 200.00 EGP',
     );
     expect(text).toContain(
-      'Chain kit: 25 of 30 ordered, landed 15.0000 EGP/unit = 375.00 EGP',
+      'Chain kit: 25 counted in (30 ordered), landed 15.0000 EGP/unit = 375.00 EGP',
     );
     expect(text).toContain('Total booked to the cycle: 575.00 EGP');
+    expect(text).toContain(`moves ${c.code} from VERIFICATION to SELLING`);
     expect(structured(preview).data.lines).toEqual([
       expect.objectContaining({
+        deliveryLineId: padLine.id,
         landedUnitCostEgp: '20.0000',
         lineCostEgp: '200.00',
       }),
       expect.objectContaining({
+        deliveryLineId: chainLine.id,
         landedUnitCostEgp: '15.0000',
         lineCostEgp: '375.00',
       }),
@@ -998,24 +1014,29 @@ describe('verify_stock', () => {
     expect(commit.isError).toBeFalsy();
     // What was shown is what was booked — on the batch and on the ledger.
     expect(
-      db.batches.map((b) => [b.productId, b.landedUnitCostEgp.toFixed(4)]),
+      db.batches.map((b) => [
+        b.productId,
+        b.sourceDeliveryLineId,
+        b.landedUnitCostEgp.toFixed(4),
+      ]),
     ).toEqual([
-      [PAD, '20.0000'],
-      [CHAIN, '15.0000'],
+      [PAD, padLine.id, '20.0000'],
+      [CHAIN, chainLine.id, '15.0000'],
     ]);
     expect(db.ledger.map((t) => t.amount.toFixed(2))).toEqual([
       '200.00',
       '375.00',
     ]);
+    expect(c.status).toBe('SELLING');
   });
 
   it('a leg cost corrected between preview and commit → PREVIEW_CHANGED, nothing booked at an unseen cost', async () => {
-    const { c, pad, chain } = landedCycle();
+    const { delivery, padLine, chainLine } = landedCycle();
     const args = {
-      cycleId: c.id,
+      deliveryId: delivery.id,
       items: [
-        { purchaseOrderItemId: pad.id, receivedQty: 10 },
-        { purchaseOrderItemId: chain.id, receivedQty: 25 },
+        { deliveryLineId: padLine.id, receivedQty: 10 },
+        { deliveryLineId: chainLine.id, receivedQty: 25 },
       ],
     };
     const preview = await call('verify_stock', args);
@@ -1033,11 +1054,11 @@ describe('verify_stock', () => {
     expect(db.ledger).toHaveLength(0);
   });
 
-  it('verify_stock twice for one order line → STOCK_ALREADY_VERIFIED, surfaced', async () => {
-    const { c, pad } = landedCycle();
+  it('verify_stock twice for one delivery line → STOCK_ALREADY_VERIFIED, surfaced', async () => {
+    const { delivery, padLine } = landedCycle();
     const args = {
-      cycleId: c.id,
-      items: [{ purchaseOrderItemId: pad.id, receivedQty: 10 }],
+      deliveryId: delivery.id,
+      items: [{ deliveryLineId: padLine.id, receivedQty: 10 }],
     };
     const { commit } = await confirm('verify_stock', args);
     expect(commit.isError).toBeFalsy();
@@ -1052,10 +1073,10 @@ describe('verify_stock', () => {
   // Changed 2026-10-10 (§3): the cap is what the delivery brought, which can
   // never exceed what was ordered — RECEIVED_EXCEEDS_DELIVERED replaces it.
   it('verifying more than was delivered → RECEIVED_EXCEEDS_DELIVERED, nothing written', async () => {
-    const { c, pad } = landedCycle();
+    const { delivery, padLine } = landedCycle();
     const r = await call('verify_stock', {
-      cycleId: c.id,
-      items: [{ purchaseOrderItemId: pad.id, receivedQty: 11 }],
+      deliveryId: delivery.id,
+      items: [{ deliveryLineId: padLine.id, receivedQty: 11 }],
     });
     expect(codeOf(r)).toBe('RECEIVED_EXCEEDS_DELIVERED');
     expect(structured(r).error?.params).toMatchObject({
@@ -1069,10 +1090,10 @@ describe('verify_stock', () => {
   it.each([0, -3])(
     'verifying a quantity of %i → QTY_NOT_POSITIVE, nothing written',
     async (qty) => {
-      const { c, pad } = landedCycle();
+      const { delivery, padLine } = landedCycle();
       const r = await call('verify_stock', {
-        cycleId: c.id,
-        items: [{ purchaseOrderItemId: pad.id, receivedQty: qty }],
+        deliveryId: delivery.id,
+        items: [{ deliveryLineId: padLine.id, receivedQty: qty }],
       });
       expect(codeOf(r)).toBe('QTY_NOT_POSITIVE');
       expect(db.batches).toHaveLength(0);
@@ -1080,11 +1101,11 @@ describe('verify_stock', () => {
   );
 
   it('a negative landed cost typed by hand → VALIDATION_FAILED', async () => {
-    const { c, pad } = landedCycle();
+    const { delivery, padLine } = landedCycle();
     const r = await call('verify_stock', {
-      cycleId: c.id,
+      deliveryId: delivery.id,
       items: [
-        { purchaseOrderItemId: pad.id, receivedQty: 10, landedUnitCostEgp: -1 },
+        { deliveryLineId: padLine.id, receivedQty: 10, landedUnitCostEgp: -1 },
       ],
     });
     expect(codeOf(r)).toBe('VALIDATION_FAILED');
@@ -1092,51 +1113,75 @@ describe('verify_stock', () => {
   });
 
   it('the same line listed twice in one receipt → VALIDATION_FAILED, not a 500', async () => {
-    const { c, pad } = landedCycle();
+    const { delivery, padLine } = landedCycle();
     const r = await call('verify_stock', {
-      cycleId: c.id,
+      deliveryId: delivery.id,
       items: [
-        { purchaseOrderItemId: pad.id, receivedQty: 4 },
-        { purchaseOrderItemId: pad.id, receivedQty: 4 },
+        { deliveryLineId: padLine.id, receivedQty: 4 },
+        { deliveryLineId: padLine.id, receivedQty: 4 },
       ],
     });
     expect(codeOf(r)).toBe('VALIDATION_FAILED');
     expect(db.batches).toHaveLength(0);
   });
 
-  it("another cycle's order line → PO_ITEM_NOT_IN_CYCLE", async () => {
-    const { c } = landedCycle();
+  // Changed 2026-10-10 (B4): the tool names a delivery, so another cycle's
+  // goods are another delivery's line — "no such line on this delivery" — where
+  // it used to be another cycle's order line (PO_ITEM_NOT_IN_CYCLE).
+  it("another delivery's line → NOT_FOUND shipmentDeliveryLine, nothing written", async () => {
+    const { delivery } = landedCycle();
     const other = landedCycle();
     const r = await call('verify_stock', {
-      cycleId: c.id,
-      items: [{ purchaseOrderItemId: other.pad.id, receivedQty: 1 }],
+      deliveryId: delivery.id,
+      items: [{ deliveryLineId: other.padLine.id, receivedQty: 1 }],
     });
-    expect(codeOf(r)).toBe('PO_ITEM_NOT_IN_CYCLE');
+    expect(codeOf(r)).toBe('NOT_FOUND');
+    expect(structured(r).error?.params).toEqual({
+      entity: 'shipmentDeliveryLine',
+    });
+    expect(db.batches).toHaveLength(0);
+  });
+
+  it('a delivery that does not exist → NOT_FOUND shipmentDelivery, never a 500', async () => {
+    landedCycle();
+    for (const deliveryId of [randomUUID(), 'DEL-1']) {
+      const r = await call('verify_stock', {
+        deliveryId,
+        items: [{ deliveryLineId: randomUUID(), receivedQty: 1 }],
+      });
+      expect(codeOf(r)).toBe('NOT_FOUND');
+      expect(structured(r).error?.params).toEqual({
+        entity: 'shipmentDelivery',
+      });
+    }
   });
 
   // Changed 2026-10-10 (§3, amendment 6): receiving is allowed from Arrived
   // Egypt on, so the refusal is for a cycle not yet in Egypt.
   it('a cycle not yet in Egypt → CYCLE_NOT_ARRIVED', async () => {
-    const { c, pad } = landedCycle();
+    const { c, delivery, padLine } = landedCycle();
     c.status = 'IN_TRANSIT_TO_EGYPT';
     const r = await call('verify_stock', {
-      cycleId: c.id,
-      items: [{ purchaseOrderItemId: pad.id, receivedQty: 10 }],
+      deliveryId: delivery.id,
+      items: [{ deliveryLineId: padLine.id, receivedQty: 10 }],
     });
     expect(codeOf(r)).toBe('CYCLE_NOT_ARRIVED');
   });
 
   it('an empty receipt → VALIDATION_FAILED', async () => {
-    const { c } = landedCycle();
-    const r = await call('verify_stock', { cycleId: c.id, items: [] });
+    const { delivery } = landedCycle();
+    const r = await call('verify_stock', {
+      deliveryId: delivery.id,
+      items: [],
+    });
     expect(codeOf(r)).toBe('VALIDATION_FAILED');
   });
 
   it('a confirmation replayed after the stock was booked books nothing more', async () => {
-    const { c, pad } = landedCycle();
+    const { delivery, padLine } = landedCycle();
     const args = {
-      cycleId: c.id,
-      items: [{ purchaseOrderItemId: pad.id, receivedQty: 10 }],
+      deliveryId: delivery.id,
+      items: [{ deliveryLineId: padLine.id, receivedQty: 10 }],
     };
     const { token } = await confirm('verify_stock', args);
     const replay = await call('verify_stock', {
@@ -1152,7 +1197,6 @@ describe('an id that is not a UUID', () => {
   it.each([
     ['transition_cycle', { fromStatus: 'PLANNING', status: 'FUNDING' }],
     ['add_shipping_leg', { sequence: 1, amount: 10 }],
-    ['verify_stock', { items: [] }],
   ])(
     '%s with cycleId "CYC-2026-0001" → VALIDATION_FAILED, never INTERNAL_SERVER_ERROR',
     async (tool, rest) => {
@@ -1162,12 +1206,19 @@ describe('an id that is not a UUID', () => {
     },
   );
 
-  it('verify_stock with an order line id that is not a UUID → VALIDATION_FAILED', async () => {
+  // Changed 2026-10-10 (B4): verify_stock takes no cycleId and no order line
+  // any more. A delivery line that is not a UUID is no line of that delivery.
+  it('verify_stock with a delivery line id that is not a UUID → NOT_FOUND, never a 500', async () => {
     const c = cycle('VERIFICATION');
-    const r = await call('verify_stock', {
-      cycleId: c.id,
-      items: [{ purchaseOrderItemId: 'line-1', receivedQty: 1 }],
+    leg(c, 1, {
+      departedOn: daysFromToday(-12),
+      arrivedOn: daysFromToday(-4),
     });
-    expect(codeOf(r)).toBe('VALIDATION_FAILED');
+    const delivery = db.deliveries[db.deliveries.length - 1];
+    const r = await call('verify_stock', {
+      deliveryId: delivery.id,
+      items: [{ deliveryLineId: 'line-1', receivedQty: 1 }],
+    });
+    expect(codeOf(r)).toBe('NOT_FOUND');
   });
 });

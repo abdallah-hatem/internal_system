@@ -54,14 +54,14 @@ const EXPECTED_TOOLS = [
   'list_sales', 'get_customer', 'list_payments', 'get_dashboard', 'get_fx_rates',
   // receipt
   'match_receipt', 'create_purchase_order', 'create_supplier', 'create_product',
-  // cycle
-  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'verify_stock',
+  // cycle (record_delivery added 2026-10-10, B4: §16 lets it record deliveries)
+  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
 ];
 
 /** The intake path, receipt to sellable stock — the only things it may change (§16). */
 const WRITE_TOOLS = [
   'create_purchase_order', 'create_supplier', 'create_product',
-  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'verify_stock',
+  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
 ];
 
 /**
