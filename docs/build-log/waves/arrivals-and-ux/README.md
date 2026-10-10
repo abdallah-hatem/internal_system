@@ -70,3 +70,9 @@
   refund sum, recovery read signed everywhere (fixed: cycle profitability counted inflows only, so an undone refund
   stayed in profit); take-back unlinks undone refunds past the RESTRICT key; "Undo refund" on the panel; check-data 12.9.
   api 691 + 9 skipped, web 158. Guesses accepted (written into §6 by B5b). B5b left Docker running; quit by main thread.
+- R1 merged: `cyclesVisibleTo` (null for partner/support, the investor's participant cycles, [] otherwise) on every read
+  path; business-wide reads refused, cycle reads filtered (404 outside), settlements opened to investors with their own
+  line only. Security fixes found: `/cycles/:id/participants` sent password hashes; product photo upload/delete was
+  open to any account. Investor menu: 12 entries. api 777 + 9 skipped, web 162 + 43.
+  Follow-up R1b (after U5): hide write actions from investors on the cycle/settlement/shipment screens, and stop the
+  cycle details page calling `GET /users` for them.
