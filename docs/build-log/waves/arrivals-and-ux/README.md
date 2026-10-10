@@ -107,3 +107,7 @@
   `cursorPage()` adds `skip: 1` (each page repeated the last row) and every order ends on `id` (ties could skip a row).
   api 837 + 9 skipped, web 263 + 84. Spec 91 written, not run yet.
 - UI audit: 19 major + 19 minor ([findings](../../notes/ui-audit-2026-10-10.md)); nits logged. Fixes UF1–UF6 dispatched in parallel by file ownership; then a re-audit of the fixed screens, then the final full e2e.
+- UI fixes UF1–UF6 merged (+ an RTL toast slide-in fix). web vitest 324, node 84, typecheck clean, lint 0 errors.
+  UF6 found what is left for one sweep now that the page owners are merged → UF7: pages still calling
+  `toLocaleString(undefined)` (Arabic-Indic digits by browser) → `useNumberFormat`; bare "No data" text on ~25 page
+  spots → `EmptyState`; `order-requests` forces ar-EG; `ar.json` photosHint holds "٨".

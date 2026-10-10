@@ -23,7 +23,7 @@
       "count": 3
     },
     "i18next/no-literal-string": {
-      "count": 9
+      "count": 3
     },
     "local/no-raw-colors": {
       "count": 51
@@ -241,9 +241,6 @@
     "@typescript-eslint/no-floating-promises": {
       "count": 2
     },
-    "i18next/no-literal-string": {
-      "count": 2
-    },
     "local/no-raw-colors": {
       "count": 93
     },
@@ -289,7 +286,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 64
+      "count": 62
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -317,7 +314,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 105
+      "count": 103
     },
     "react-hooks/set-state-in-effect": {
       "count": 4
