@@ -26,11 +26,30 @@ import { useToast } from '../../../../../components/ui/toast';
 import { selectOnFocus } from '../../../../../lib/select-on-focus';
 import { MoneyInput } from '../../../../../components/ui/money-input';
 import {
-  Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Trash2, Scale, Route,
+  Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Scale, TrendingUp,
 } from 'lucide-react';
 
 import { useApiError } from '../../../../../lib/api-error';
 import { BackLink } from '../../../../../components/ui/back-link';
+import { useCodeLabel } from '../../../../../lib/labels';
+import { useDateFormat } from '../../../../../lib/dates';
+import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
+import { num as qtyNum } from '../../../../../components/shipment/shipment-model';
+
+/**
+ * One cycle's line from the analytics profitability figure — the same one the
+ * cycle list and the Analytics page read, so profit is defined once (rule 11).
+ * A cycle with nothing received yet has no line.
+ */
+interface CycleProfit {
+  cycleCode: string;
+  profit: number;
+  totalRevenue: number;
+  totalCost: number;
+  lossesEgp?: number;
+  supplierRefundsEgp?: number;
+  roiPct: number | null;
+}
 const num = (v: unknown) => Number(v ?? 0);
 
 export default function CycleDetailsPage() {
@@ -51,6 +70,14 @@ export default function CycleDetailsPage() {
   const { data: users = [] } = useQuery<any[]>({
     queryKey: ['users'],
     queryFn: () => api.get('/users').then((r) => r.data.data ?? r.data),
+  });
+
+  const codeLabel = useCodeLabel();
+  const { formatDate: formatLocalDate } = useDateFormat();
+  const { data: shipment } = useShipment(id);
+  const { data: profitability = [] } = useQuery<CycleProfit[]>({
+    queryKey: ['analytics', 'cycle-profitability'],
+    queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
   });
 
   const { data: costing } = useQuery<any>({
@@ -152,10 +179,11 @@ export default function CycleDetailsPage() {
           <h1 className="font-mono text-2xl font-bold text-gray-900">{cycle.code}</h1>
           <p className="mt-1 text-sm text-gray-500">
             {cycle.originType === 'CHINA' ? t('china') : t('uaeDirect')} · {cycle.currency} ·{' '}
-            {cycle.status}
+            <span data-testid="cycle-status">{codeLabel('cycleStatus', cycle.status)}</span>
           </p>
         </div>
         <button
+          type="button"
           onClick={() => router.push(`/${locale}/settlements`)}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
@@ -172,6 +200,10 @@ export default function CycleDetailsPage() {
           value={<Money value={num(costing?.totals?.landedEgp)} />}
         />
       </div>
+
+      <ProfitCard figure={(Array.isArray(profitability) ? profitability : []).find((p) => p.cycleCode === cycle.code)} />
+
+      <ShipmentPanel cycle={cycle} />
 
       {/* ── Participants ─────────────────────────────────────────────── */}
       <Card title={t('participants')} icon={<Users className="h-4 w-4 text-gray-400" />}>
@@ -260,20 +292,42 @@ export default function CycleDetailsPage() {
         )}
       </Card>
 
-      <Card title={t('shipping')} icon={<Truck className="h-4 w-4 text-gray-400" />}>
+      {/* Each leg's status and deliveries, as the shipment reads them; the
+          old card showed a departure and never an arrival. */}
+      <Card title={t('shipping')} icon={<Truck className="h-4 w-4 text-muted-foreground" />}>
         {legs.length === 0 ? <Empty>{tc('noData')}</Empty> : (
           <Rows>
-            {legs.map((l) => (
-              <Row key={l.id}>
-                <span className="text-sm">{l.origin} → {l.destination}</span>
-                <span className="text-xs text-gray-500">{l.provider ?? '—'}</span>
-                <span className="text-xs text-gray-400">
-                  {l.departedOn ? formatDate(l.departedOn) : '—'}
-                </span>
-                <span className="text-xs text-gray-500">{l.costBasis}</span>
-                <span className="text-sm"><Money value={num(l.amountEgp)} /></span>
-              </Row>
-            ))}
+            {legs.map((l) => {
+              const position = shipment?.legs?.find((p) => p.legId === l.id);
+              const deliveries = position?.deliveries ?? [];
+              return (
+                <div key={l.id} data-testid="shipping-card-leg" className="space-y-1 py-2">
+                  <Row>
+                    <span className="text-sm">{l.origin} → {l.destination}</span>
+                    <span className="text-xs text-muted-foreground">{l.provider ?? '—'}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {l.departedOn ? t('legDeparted', { date: formatLocalDate(l.departedOn) }) : t('legNotDeparted')}
+                    </span>
+                    <span data-testid="shipping-card-status" className="text-xs font-medium text-foreground">
+                      {codeLabel('legStatus', position?.status ?? l.status)}
+                    </span>
+                    <span className="text-sm"><Money value={num(l.amountEgp)} /></span>
+                  </Row>
+                  <p className="text-xs text-muted-foreground">
+                    {deliveries.length === 0
+                      ? t('legNoDeliveries')
+                      : deliveries
+                          .map((d) =>
+                            t('legDelivery', {
+                              date: formatLocalDate(d.arrivedOn),
+                              units: d.lines.reduce((sum, line) => sum + qtyNum(line.qty), 0),
+                            }),
+                          )
+                          .join(' · ')}
+                  </p>
+                </div>
+              );
+            })}
           </Rows>
         )}
       </Card>
@@ -422,6 +476,49 @@ function AddParticipantForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/** Profit as the analytics figure states it — revenue less cost of goods sold, plus refunds, less losses. */
+function ProfitCard({ figure }: { figure?: CycleProfit }) {
+  const t = useTranslations('cycles');
+  return (
+    <div data-testid="cycle-profit-card" className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+        <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        {t('profit')}
+      </h2>
+      {!figure ? (
+        <p className="text-sm text-muted-foreground">{t('profitNotYet')}</p>
+      ) : (
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('profit')}</dt>
+            <dd data-testid="cycle-profit-value" className={`text-lg font-bold ${figure.profit < 0 ? 'text-destructive' : 'text-foreground'}`}>
+              <Money value={figure.profit} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('roi')}</dt>
+            <dd className="text-lg font-bold text-foreground">
+              {figure.roiPct === null ? '—' : <span dir="ltr">{figure.roiPct}%</span>}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('profitRevenue')}</dt>
+            <dd className="text-sm text-foreground"><Money value={figure.totalRevenue} /></dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('profitCost')}</dt>
+            <dd className="text-sm text-foreground"><Money value={figure.totalCost} /></dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('profitLosses')}</dt>
+            <dd data-testid="cycle-profit-losses" className="text-sm text-foreground"><Money value={figure.lossesEgp ?? 0} /></dd>
+          </div>
+        </dl>
+      )}
+    </div>
   );
 }
 
