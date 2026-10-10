@@ -102,3 +102,7 @@
   Group re-runs: 00–19 199/0/1, 35–54 141/0, 55–79 225/0, 80–99 124/0; the shipments-list specs were re-run after the fix
   (64 passed). Open: purchases, products and providers lists load the same way as shipments did → task L1.
 - L2 merged: one API low-stock definition (`common/low-stock.ts`, on hand = sum of remainingQty) used by the dashboard count and the receiving alert (inactive products no longer alert; one alert per product per receipt); one pinned web copy.
+- L1 merged: ~17 screens fetched a page of a list and filtered it client-side (records silently hidden). One helper
+  `lib/list-all.ts` (`useAllRecords`, cursor walk 200 at a time to 2,000, `ListCapNotice` past that). API paging fixed:
+  `cursorPage()` adds `skip: 1` (each page repeated the last row) and every order ends on `id` (ties could skip a row).
+  api 837 + 9 skipped, web 263 + 84. Spec 91 written, not run yet.
