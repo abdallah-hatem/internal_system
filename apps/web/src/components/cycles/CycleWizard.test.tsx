@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -465,5 +466,47 @@ describe('the shipping step', () => {
     fireEvent.click(screen.getByTestId('wizard-leg-1'));
     await act(() => new Promise((r) => setTimeout(r, 10)));
     expect(useCycleWizardDraft.getState().legFields['cyc-1']).toBeUndefined();
+  });
+});
+
+describe('A reload restores the draft (spec 39, 47)', () => {
+  it('under StrictMode, a draft with a saved cycle comes back on its step', async () => {
+    // Development mounts every effect twice. The restore marked itself done
+    // before the cycle check answered, so the second run returned early and
+    // the check's answer was thrown away with the first run: a reload of
+    // /cycles/new landed on an empty step 1.
+    cycle = chinaCycle({ purchaseOrders: [], shippingLegs: [] });
+    useCycleWizardDraft.setState({
+      hydrated: true,
+      savedAt: Date.now(),
+      draft: {
+        currentStep: 1,
+        maxStepReached: 1,
+        cycleId: 'cyc-1',
+        cycleCode: 'CYC-2026-0001',
+        poId: null,
+        poReference: null,
+        legIds: {},
+        originType: 'CHINA',
+        poSupplierId: 'sup-1',
+        poCurrency: 'USD',
+        poFxRate: '50',
+        poOrderedOn: '',
+        lineItems: [],
+      },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <StrictMode>
+        <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
+          <QueryClientProvider client={client}>
+            <ToastProvider>
+              <CycleWizard />
+            </ToastProvider>
+          </QueryClientProvider>
+        </NextIntlClientProvider>
+      </StrictMode>,
+    );
+    expect(await screen.findByTestId('wizard-draft-restored')).toBeTruthy();
   });
 });
