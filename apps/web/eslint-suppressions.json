@@ -67,19 +67,13 @@
   },
   "src/app/[locale]/cycles/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 12
+      "count": 9
     },
     "@typescript-eslint/no-floating-promises": {
       "count": 2
     },
-    "i18next/no-literal-string": {
-      "count": 4
-    },
-    "local/no-physical-direction": {
-      "count": 1
-    },
     "local/no-raw-colors": {
-      "count": 84
+      "count": 82
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -326,22 +320,16 @@
   },
   "src/components/cycles/CycleWizard.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 48
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
+      "count": 42
     },
     "@typescript-eslint/no-misused-promises": {
-      "count": 4
-    },
-    "i18next/no-literal-string": {
-      "count": 9
+      "count": 1
     },
     "local/no-raw-colors": {
-      "count": 146
+      "count": 105
     },
     "react-hooks/set-state-in-effect": {
-      "count": 5
+      "count": 4
     }
   },
   "src/components/entities/entity-forms.tsx": {

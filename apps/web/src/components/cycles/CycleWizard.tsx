@@ -12,16 +12,22 @@ import { api } from '../../lib/api';
 import { useToast } from '../ui/toast';
 import { selectOnFocus } from '../../lib/select-on-focus';
 import { MoneyInput } from '../ui/money-input';
+import { Money } from '../ui/money';
+import { businessToday, useDateFormat } from '../../lib/dates';
+import { useCodeLabel } from '../../lib/labels';
+import { statusesToWalk, WIZARD_STATUSES } from './wizard-walk';
 import {
   useCycleWizardDraft,
   draftIsWorthKeeping,
+  emptyLineItem,
   type CycleWizardDraft,
+  type WizardLineItem,
 } from '../../stores/cycle-wizard-draft';
 import {
   Route,
   ShoppingCart,
   Truck,
-  Package,
+  Wallet,
   CheckCircle2,
   Plus,
   X,
@@ -35,32 +41,50 @@ import { FieldWithQuickCreate } from '../ui/quick-create';
 // Constants
 // ---------------------------------------------------------------------------
 
+/**
+ * Four steps, and the last is the money. Receiving used to be step 4 and it
+ * could only be reached once every leg had arrived — so a cycle set up on the
+ * day it was ordered dead-ended there. Receiving now happens on the cycle page,
+ * one delivery at a time (spec 2026-10-10, UX #5).
+ */
 const STEPS = [
   { titleKey: 'step1Title', icon: Route },
   { titleKey: 'step2Title', icon: ShoppingCart },
   { titleKey: 'step3Title', icon: Truck },
-  { titleKey: 'step4Title', icon: Package },
+  { titleKey: 'step4Title', icon: Wallet },
 ] as const;
 
-const COMPLETED_STATUSES = ['VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED'];
+/** The step the wizard ends on. */
+const LAST_STEP = STEPS.length - 1;
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+/** The fields one shipping leg's cost block posts, without the leg prefix. */
+const COST_FIELDS = [
+  'costBasis',
+  'ratePerUnit',
+  'chargeablePieces',
+  'chargeableWeightKg',
+  'amount',
+  'currency',
+  'fxRateToEgp',
+] as const;
 
-interface LineItem {
-  productId: string;
-  orderedQty: number;
-  unitPrice: number;
-  discount: number;
+/** An FX rate as the order form shows it: four places, or blank. */
+const formatRate = (v: unknown) => {
+  if (v === '' || v == null) return '';
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(4) : '';
+};
+
+/** Every named value in a form, as strings. */
+function readForm(form: HTMLFormElement): Record<string, string> {
+  const out: Record<string, string> = {};
+  new FormData(form).forEach((value, key) => {
+    if (typeof value === 'string') out[key] = value;
+  });
+  return out;
 }
 
-interface ReceiveItem {
-  purchaseOrderItemId: string;
-  productId: string;
-  receivedQty: number;
-  landedUnitCostEgp: number;
-}
+type LineItem = WizardLineItem;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -70,6 +94,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const apiError = useApiError();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
 
   /**
    * Drop the cached cycle lists.
@@ -79,8 +105,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
    * invisible until a manual refresh.
    */
   const refreshCycleCaches = () => {
-    queryClient.invalidateQueries({ queryKey: ['cycles'] });
-    queryClient.invalidateQueries({ queryKey: ['cycle'] });
+    void queryClient.invalidateQueries({ queryKey: ['cycles'] });
+    void queryClient.invalidateQueries({ queryKey: ['cycle'] });
   };
   const locale = useLocale();
   const t = useTranslations('wizard');
@@ -95,13 +121,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const [poId, setPoId] = useState<string | null>(null);
   const [poReference, setPoReference] = useState<string | null>(null);
 
-  // Step 2 line items
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  // Step 2 — the order starts with one row to fill in.
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => [emptyLineItem()]);
 
-  // Step 4 receive items
-  const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
-
-  // Step 2 form state for back-navigation pre-population
+  // Step 2 form state. Held here, not in the inputs, so stepping back and
+  // forward keeps what was typed.
   const [poSupplierId, setPoSupplierId] = useState('');
   const [poCurrency, setPoCurrency] = useState('');
   const [poFxRate, setPoFxRate] = useState('');
@@ -110,25 +134,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // updates the legs instead of trying to create them again.
   const [legIds, setLegIds] = useState<Record<number, string>>({});
 
+  // Blank means "today in Cairo" — the default the picker shows. Kept blank
+  // rather than filled so an untouched wizard still counts as untouched.
   const [poOrderedOn, setPoOrderedOn] = useState('');
 
-  // Step 3 form state for back-navigation pre-population
-  const [shippingProvider, setShippingProvider] = useState('');
-  const [shippingOrigin, setShippingOrigin] = useState('');
-  const [shippingDestination, setShippingDestination] = useState('');
-  const [shippingTrackingRef, setShippingTrackingRef] = useState('');
-  const [shippingDepartedOn, setShippingDepartedOn] = useState('');
-  const [shippingArrivedOn, setShippingArrivedOn] = useState('');
-  const [shippingAmount, setShippingAmount] = useState('');
-
-  // Step 4 local loading state
-  const [isStep4Processing, setIsStep4Processing] = useState(false);
-
-  // Shipping leg ID for back-navigation duplicate prevention
-  const [shippingLegId, setShippingLegId] = useState<string | null>(null);
   const [isCreatingLegs, setIsCreatingLegs] = useState(false);
-  const [costingWarnings, setCostingWarnings] = useState<string[]>([]);
-  const receiveInitRef = useRef<string | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   // Track the furthest step reached so step buttons allow both forward and backward navigation
   const [maxStepReached, setMaxStepReached] = useState(0);
@@ -155,6 +166,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const storedDraft = useCycleWizardDraft((s) => s.draft);
   const saveDraft = useCycleWizardDraft((s) => s.save);
   const clearDraft = useCycleWizardDraft((s) => s.clear);
+  const saveLegFields = useCycleWizardDraft((s) => s.saveLegFields);
+  const clearLegFields = useCycleWizardDraft((s) => s.clearLegFields);
+  const unsavedLegs = useCycleWizardDraft((s) =>
+    cycleId ? s.legFields[cycleId]?.fields : undefined,
+  );
   const draftRestoredRef = useRef(false);
   // Whether this session opened onto restored work, so the wizard can say so.
   const [showRestoredNotice, setShowRestoredNotice] = useState(false);
@@ -167,21 +183,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     poId,
     poReference,
     legIds,
-    shippingLegId,
     originType,
     poSupplierId,
     poCurrency,
     poFxRate,
     poOrderedOn,
     lineItems,
-    receiveItems,
-    shippingProvider,
-    shippingOrigin,
-    shippingDestination,
-    shippingTrackingRef,
-    shippingDepartedOn,
-    shippingArrivedOn,
-    shippingAmount,
   };
 
   const forgetDraft = () => {
@@ -213,36 +220,22 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
      * If it has gone, the draft is worthless — there is nothing to resume.
      */
     const apply = () => {
-    setShowRestoredNotice(true);
-    setCurrentStep(draft.currentStep);
-    setMaxStepReached(draft.maxStepReached);
-    setCycleId(draft.cycleId);
-    setCycleCode(draft.cycleCode);
-    setPoId(draft.poId);
-    setPoReference(draft.poReference);
-    setLegIds(draft.legIds);
-    setShippingLegId(draft.shippingLegId);
-    setOriginType(draft.originType);
-    setPoSupplierId(draft.poSupplierId);
-    setPoCurrency(draft.poCurrency);
-    setPoFxRate(draft.poFxRate);
-    setPoOrderedOn(draft.poOrderedOn);
-    setLineItems(draft.lineItems);
-    setReceiveItems(draft.receiveItems);
-    setShippingProvider(draft.shippingProvider);
-    setShippingOrigin(draft.shippingOrigin);
-    setShippingDestination(draft.shippingDestination);
-    setShippingTrackingRef(draft.shippingTrackingRef);
-    setShippingDepartedOn(draft.shippingDepartedOn);
-    setShippingArrivedOn(draft.shippingArrivedOn);
-    setShippingAmount(draft.shippingAmount);
-
-    // Step 4 seeds its rows from the purchase order the first time it is
-    // shown. The restored rows already carry edited landed costs, so mark the
-    // seeding done for this order or it would overwrite them.
-    if (draft.poId && draft.receiveItems.length > 0) {
-      receiveInitRef.current = draft.poId;
-    }
+      setShowRestoredNotice(true);
+      // A draft written by the old four-step wizard may stand on the success
+      // screen (step 4), which no longer exists; the money step is the last.
+      setCurrentStep(Math.min(draft.currentStep, LAST_STEP));
+      setMaxStepReached(Math.min(draft.maxStepReached ?? 0, LAST_STEP));
+      setCycleId(draft.cycleId);
+      setCycleCode(draft.cycleCode);
+      setPoId(draft.poId);
+      setPoReference(draft.poReference);
+      setLegIds(draft.legIds ?? {});
+      setOriginType(draft.originType);
+      setPoSupplierId(draft.poSupplierId);
+      setPoCurrency(draft.poCurrency);
+      setPoFxRate(draft.poFxRate);
+      setPoOrderedOn(draft.poOrderedOn);
+      setLineItems(draft.lineItems.length > 0 ? draft.lineItems : [emptyLineItem()]);
     };
 
     // Nothing saved server-side yet: there is nothing to go stale.
@@ -265,7 +258,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per hydrated draft; forgetDraft is stable in effect
   }, [isNewWizard, draftHydrated, storedDraft]);
 
   // Keep the saved draft in step with the form.
@@ -276,7 +269,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     if (!isNewWizard || !draftHydrated || !draftRestoredRef.current) return;
     if (!draftIsWorthKeeping(currentDraft)) return;
     saveDraft(currentDraft);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentDraft is rebuilt every render; its fields are listed
   }, [
     isNewWizard,
     draftHydrated,
@@ -287,48 +280,35 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     poId,
     poReference,
     legIds,
-    shippingLegId,
     originType,
     poSupplierId,
     poCurrency,
     poFxRate,
     poOrderedOn,
     lineItems,
-    receiveItems,
-    shippingProvider,
-    shippingOrigin,
-    shippingDestination,
-    shippingTrackingRef,
-    shippingDepartedOn,
-    shippingArrivedOn,
-    shippingAmount,
   ]);
 
+  // ---------------------------------------------------------------------------
+  // The cycle as the server holds it
+  // ---------------------------------------------------------------------------
+
   /**
-   * The success screen means the cycle exists in full. Nothing is a draft any
-   * more, so drop it — otherwise the next new cycle would open on the finished
-   * one. Declared after the save effect so it wins on the render that arrives
-   * at the last step.
+   * Read for a new cycle too, once step 1 has created it: the orders and legs
+   * it already has are what steps 2 and 3 show, whichever way the wizard was
+   * opened.
    */
-  useEffect(() => {
-    if (!isNewWizard || currentStep !== 4) return;
-    forgetDraft();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNewWizard, currentStep]);
-
-  // ---------------------------------------------------------------------------
-  // Fetch existing cycle data for resume
-  // ---------------------------------------------------------------------------
-
   const {
-    data: existingCycle,
+    data: cycle,
     isLoading: isLoadingCycle,
     refetch: refetchCycle,
   } = useQuery({
-    queryKey: ['cycle', existingCycleId],
-    queryFn: () => api.get(`/cycles/${existingCycleId}`).then((r) => r.data.data ?? r.data),
-    enabled: !!existingCycleId,
+    queryKey: ['cycle', cycleId],
+    queryFn: () => api.get(`/cycles/${cycleId}`).then((r) => r.data.data ?? r.data),
+    enabled: !!cycleId,
   });
+
+  /** Every order on the cycle — a resumed cycle can hold more than one. */
+  const savedOrders: any[] = Array.isArray(cycle?.purchaseOrders) ? cycle.purchaseOrders : [];
 
   /**
    * Who is funding this cycle, and for how much.
@@ -342,13 +322,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
    * Asked here, on the last step, because this is where the cycle's real cost
    * is finally known: goods from step 2 plus shipping from step 3.
    */
-  const { data: fundingCycle, refetch: refetchFunding } = useQuery({
-    queryKey: ['cycle', 'funding', cycleId],
-    queryFn: () => api.get(`/cycles/${cycleId}`).then((r) => r.data.data ?? r.data),
-    enabled: !!cycleId && currentStep === 3,
-  });
-
-  const participants: any[] = fundingCycle?.participants ?? [];
+  const participants: any[] = Array.isArray(cycle?.participants) ? cycle.participants : [];
 
   /**
    * What to call a participant.
@@ -377,6 +351,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         }),
       );
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seeded once, when the participants first arrive
   }, [participants.length]);
 
   // What the cycle has actually cost: goods from step 2 plus shipping from
@@ -385,7 +360,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     queryKey: ['costing', cycleId],
     queryFn: () =>
       api.get(`/costing/cycles/${cycleId}/landed-cost`).then((r) => r.data.data ?? r.data),
-    enabled: !!cycleId && currentStep === 3,
+    enabled: !!cycleId && currentStep === LAST_STEP,
   });
 
   /**
@@ -399,7 +374,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.get('/users').then((r) => r.data.data ?? r.data),
-    enabled: !!cycleId && currentStep === 3,
+    enabled: !!cycleId && currentStep === LAST_STEP,
   });
 
   const onCycle = new Set(
@@ -427,7 +402,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       setInvestorUserId('');
       setInvestorAmount('');
       setInvestorFee('');
-      await refetchFunding();
+      await refetchCycle();
       refreshCycleCaches();
       toast.success(t('investorAdded'));
     } catch (err: any) {
@@ -470,15 +445,20 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     setContributions(next);
   };
 
+  /** Write every contribution that differs from what is recorded. */
+  const writeContributions = async () => {
+    for (const p of participants) {
+      const next = Number(contributions[p.id] || 0);
+      if (next === Number(p.contributionAmount)) continue;
+      await api.put(`/cycles/participants/${p.id}`, { contributionAmount: next });
+    }
+  };
+
   const saveFunding = async () => {
     setIsFunding(true);
     try {
-      for (const p of participants) {
-        const next = Number(contributions[p.id] || 0);
-        if (next === Number(p.contributionAmount)) continue;
-        await api.put(`/cycles/participants/${p.id}`, { contributionAmount: next });
-      }
-      await refetchFunding();
+      await writeContributions();
+      await refetchCycle();
       refreshCycleCaches();
       toast.success(t('fundingSaved'));
     } catch (err: any) {
@@ -488,17 +468,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     }
   };
 
-  // Stock already received for this cycle, keyed by the purchase order item it
-  // came from. A batch keeps the landed cost it was received at for good — the
-  // same rule that stops a supplier refund re-pricing sold goods — so these
-  // rows are history, not something the wizard offers to redo.
-  const receivedByPoItem = new Map<string, any>(
-    (existingCycle?.inventoryBatches ?? []).map((b: any) => [b.sourcePoItemId, b]),
-  );
-
   // The currency the purchase order step is showing: the one already chosen on
   // this order, or failing that the cycle's own.
-  const effectivePoCurrency = poCurrency || existingCycle?.currency || '';
+  const effectivePoCurrency = poCurrency || cycle?.currency || '';
 
   // Fill in the rate for a currency that is already selected. Resuming a cycle
   // set to AED preselected the currency but left the rate blank, because the
@@ -509,100 +481,41 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     if (!effectivePoCurrency || effectivePoCurrency === 'EGP') return;
     const known = rates[effectivePoCurrency];
     if (known == null) return;
-    setPoFxRate((prev) => (prev ? prev : String(known)));
+    setPoFxRate((prev) => (prev ? prev : formatRate(known)));
   }, [effectivePoCurrency, rates]);
 
-  // Determine resume step when existing cycle loads
+  /**
+   * Where a resumed cycle opens.
+   *
+   * Decided from everything the cycle holds — every order and every leg, not
+   * the first of each. A cycle past the wizard's reach (being received, sold
+   * or settled) opens on its own page instead: there is nothing left here for
+   * it, and the old success screen only said so after a click.
+   */
   useEffect(() => {
-    if (!existingCycle || !isResuming) return;
+    if (!cycle || !isResuming) return;
 
-    setCycleId(existingCycle.id);
-    setCycleCode(existingCycle.code);
-    setOriginType(existingCycle.originType ?? '');
-
-    const hasPO = existingCycle.purchaseOrders && existingCycle.purchaseOrders.length > 0;
-    const hasShipping = existingCycle.shippingLegs && existingCycle.shippingLegs.length > 0;
-    const isCompleted = COMPLETED_STATUSES.includes(existingCycle.status);
-
-    if (isCompleted) {
-      // Already verified or beyond — show completion
-      if (hasPO) {
-        const po = existingCycle.purchaseOrders[0];
-        setPoId(po.id);
-        setPoReference(po.reference);
-        setPoSupplierId(po.supplierId ?? '');
-        setPoCurrency(po.currency ?? '');
-        setPoFxRate(String(po.fxRateToEgp ?? ''));
-        setPoOrderedOn(po.orderedOn ? new Date(po.orderedOn).toISOString().split('T')[0] : '');
-      }
-      if (hasShipping) {
-        const sl = existingCycle.shippingLegs[0];
-        setShippingProvider(sl.provider ?? '');
-        setShippingOrigin(sl.origin ?? '');
-        setShippingDestination(sl.destination ?? '');
-        setShippingTrackingRef(sl.trackingRef ?? '');
-        setShippingDepartedOn(sl.departedOn ? new Date(sl.departedOn).toISOString().split('T')[0] : '');
-        setShippingArrivedOn(sl.arrivedOn ? new Date(sl.arrivedOn).toISOString().split('T')[0] : '');
-        setShippingAmount(String(sl.amount ?? ''));
-        setShippingLegId(sl.id ?? null);
-      }
-      setCurrentStep(4);
-    } else if (hasPO && hasShipping) {
-      // Has PO + shipping but not verified → step 4
-      const po = existingCycle.purchaseOrders[0];
-      setPoId(po.id);
-      setPoReference(po.reference);
-      setPoSupplierId(po.supplierId ?? '');
-      setPoCurrency(po.currency ?? '');
-      setPoFxRate(String(po.fxRateToEgp ?? ''));
-      setPoOrderedOn(po.orderedOn ? new Date(po.orderedOn).toISOString().split('T')[0] : '');
-      // Pre-populate line items from existing PO
-      if (po.items && po.items.length > 0) {
-        setLineItems(po.items.map((item: any) => ({
-          productId: item.productId,
-          productName: item.product?.name ?? '',
-          orderedQty: Number(item.orderedQty),
-          unitPrice: Number(item.unitPrice),
-          discount: Number(item.discount ?? 0),
-        })));
-      }
-      const sl = existingCycle.shippingLegs[0];
-      setShippingProvider(sl.provider ?? '');
-      setShippingOrigin(sl.origin ?? '');
-      setShippingDestination(sl.destination ?? '');
-      setShippingTrackingRef(sl.trackingRef ?? '');
-      setShippingDepartedOn(sl.departedOn ? new Date(sl.departedOn).toISOString().split('T')[0] : '');
-      setShippingArrivedOn(sl.arrivedOn ? new Date(sl.arrivedOn).toISOString().split('T')[0] : '');
-      setShippingAmount(String(sl.amount ?? ''));
-      setShippingLegId(sl.id ?? null);
-      setCurrentStep(3);
-    } else if (hasPO) {
-      // Has PO but no shipping → step 3
-      const po = existingCycle.purchaseOrders[0];
-      setPoId(po.id);
-      setPoReference(po.reference);
-      setPoSupplierId(po.supplierId ?? '');
-      setPoCurrency(po.currency ?? '');
-      setPoFxRate(String(po.fxRateToEgp ?? ''));
-      setPoOrderedOn(po.orderedOn ? new Date(po.orderedOn).toISOString().split('T')[0] : '');
-      // Pre-populate line items from existing PO
-      if (po.items && po.items.length > 0) {
-        setLineItems(po.items.map((item: any) => ({
-          productId: item.productId,
-          productName: item.product?.name ?? '',
-          orderedQty: Number(item.orderedQty),
-          unitPrice: Number(item.unitPrice),
-          discount: Number(item.discount ?? 0),
-        })));
-      }
-      setCurrentStep(2);
-    } else {
-      // Cycle exists but no PO → step 2
-      setCurrentStep(1);
+    if (!WIZARD_STATUSES.includes(cycle.status)) {
+      router.replace(`/${locale}/cycles/${cycle.id}/details`);
+      return;
     }
 
+    setCycleCode(cycle.code);
+    setOriginType(cycle.originType ?? '');
+
+    const orders: any[] = cycle.purchaseOrders ?? [];
+    const legs: any[] = cycle.shippingLegs ?? [];
+    if (orders.length > 0) {
+      setPoId(orders[0].id);
+      setPoReference(orders[0].reference);
+    }
+    setLegIds(Object.fromEntries(legs.map((l: any) => [l.sequence, l.id])));
+
+    const step = orders.length === 0 ? 1 : legs.length === 0 ? 2 : LAST_STEP;
+    setCurrentStep(step);
+    setMaxStepReached(step);
     setIsResuming(false);
-  }, [existingCycle, isResuming]);
+  }, [cycle, isResuming, locale, router]);
 
   // ---------------------------------------------------------------------------
   // Queries
@@ -626,12 +539,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     enabled: currentStep === 2,
   });
 
-  const { data: poDetail } = useQuery({
-    queryKey: ['purchase', poId],
-    queryFn: () => api.get(`/purchases/${poId}`).then((r) => r.data.data ?? r.data),
-    enabled: currentStep >= 2 && !!poId,
-  });
-
   // ---------------------------------------------------------------------------
   // Mutations
   // ---------------------------------------------------------------------------
@@ -653,45 +560,19 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   const createPoMutation = useMutation({
     mutationFn: (data: any) => api.post(`/cycles/${cycleId}/purchases`, data),
-    onSuccess: (res, _variables) => {
+    onSuccess: (res) => {
       const result = res.data.data ?? res.data;
       setPoId(result.id);
       setPoReference(result.reference);
-      // Save form values for back-navigation
-      setPoSupplierId(_variables.supplierId);
-      setPoCurrency(_variables.currency);
-      setPoFxRate(String(_variables.fxRateToEgp));
-      setPoOrderedOn(_variables.orderedOn ?? '');
       setCurrentStep(2);
+      refreshCycleCaches();
+      // Step 2 shows the saved order from here on, and step 3 seeds its piece
+      // counts from it.
+      void refetchCycle();
       toast.success(t('purchaseCreated'));
     },
     onError: (err: any) => {
       toast.error(apiError(err, t('createPurchaseFailed')));
-    },
-  });
-
-  const createShippingMutation = useMutation({
-    mutationFn: (data: any) => api.post(`/cycles/${cycleId}/shipping-legs`, data),
-    onSuccess: (res) => {
-      const result = res.data.data ?? res.data;
-      setShippingLegId(result.id ?? null);
-      setCurrentStep(3);
-      toast.success(t('shippingCreated'));
-    },
-    onError: (err: any) => {
-      toast.error(apiError(err, t('createShippingFailed')));
-    },
-  });
-
-  const verifyInventoryMutation = useMutation({
-    mutationFn: (data: any) => api.post('/receipts/verify', data),
-    onSuccess: () => {
-      setCurrentStep(4);
-      refreshCycleCaches();
-      toast.success(t('inventoryVerified'));
-    },
-    onError: (err: any) => {
-      toast.error(apiError(err, t('verifyInventoryFailed')));
     },
   });
 
@@ -723,13 +604,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
-    // Save form values for back-navigation
-    setPoSupplierId(String(fd.get('supplierId') || ''));
-    setPoCurrency(String(fd.get('currency') || ''));
-    setPoFxRate(String(fd.get('fxRateToEgp') || ''));
-    setPoOrderedOn(String(fd.get('orderedOn') || ''));
-
-    // If PO already exists (going back), just advance to next step
+    // The order was saved a moment ago and the list of orders has not caught
+    // up yet: there is nothing new to create.
     if (poId) {
       setCurrentStep(2);
       return;
@@ -760,13 +636,92 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           { sequence: 2, label: t('legUaeToEgypt'), origin: 'Dubai, UAE', destination: 'Cairo, Egypt' },
         ];
 
-  // What the cycle actually bought, used to prefill each leg's piece count.
-  const orderedPieces = lineItems.reduce((sum, item) => sum + Number(item.orderedQty || 0), 0);
+  // What the cycle actually bought, used to prefill each leg's piece count:
+  // every saved order's lines, or the lines being typed before there is one.
+  const savedPieces = savedOrders.reduce(
+    (sum: number, po: any) =>
+      sum +
+      (po.items ?? []).reduce((s: number, item: any) => s + Number(item.orderedQty || 0), 0),
+    0,
+  );
+  const orderedPieces =
+    savedPieces > 0
+      ? savedPieces
+      : lineItems.reduce((sum, item) => sum + Number(item.orderedQty || 0), 0);
+
+  // ---------------------------------------------------------------------------
+  // Step 3 — what was typed and not saved survives leaving the step
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The leg form is uncontrolled: its fields, and the cost block's own state,
+   * read their starting values once. So going back to the order, or out to the
+   * list and in again, used to drop everything typed here.
+   *
+   * After each interaction the form is read and whatever differs from what it
+   * opened with is kept in the draft store for this cycle; the next visit
+   * starts from that. Saving the legs clears it.
+   */
+  const legFormRef = useRef<HTMLFormElement | null>(null);
+  const legBaselineRef = useRef<Record<string, string> | null>(null);
+
+  useEffect(() => {
+    if (currentStep !== 2) {
+      legBaselineRef.current = null;
+      return;
+    }
+    // After the children have rendered their hidden inputs.
+    const id = window.setTimeout(() => {
+      if (legFormRef.current) legBaselineRef.current = readForm(legFormRef.current);
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [currentStep]);
+
+  const rememberLegFields = () => {
+    if (!cycleId) return;
+    // A tick later: a date or option picked by click lands in its hidden input
+    // on the render after the event.
+    window.setTimeout(() => {
+      const form = legFormRef.current;
+      const baseline = legBaselineRef.current;
+      if (!form || !baseline) return;
+      const now = readForm(form);
+      const before = useCycleWizardDraft.getState().legFields[cycleId]?.fields ?? {};
+      const kept: Record<string, string> = {};
+      for (const [name, value] of Object.entries(now)) {
+        if (value !== baseline[name] || name in before) kept[name] = value;
+      }
+      saveLegFields(cycleId, kept);
+    }, 0);
+  };
+
+  const typedLeg = (name: string): string | undefined => unsavedLegs?.[name];
+
+  const legCostDefaults = (prefix: string, existing: any) => {
+    const saved = existing
+      ? {
+          costBasis: existing.costBasis ?? 'PER_PIECE',
+          ratePerUnit: existing.ratePerUnit ?? '',
+          chargeablePieces: existing.chargeablePieces ?? '',
+          chargeableWeightKg: existing.chargeableWeightKg ?? '',
+          amount: existing.amount ?? '',
+          currency: existing.currency ?? 'EGP',
+          fxRateToEgp: existing.fxRateToEgp ?? 1,
+        }
+      : undefined;
+    const typed = Object.fromEntries(
+      COST_FIELDS.filter((k) => typedLeg(`${prefix}${k}`) !== undefined).map((k) => [
+        k,
+        typedLeg(`${prefix}${k}`),
+      ]),
+    );
+    if (!saved && Object.keys(typed).length === 0) return undefined;
+    return { ...(saved ?? {}), ...typed };
+  };
 
   const handleStep3Submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-
 
     const payloads = legPlan.map((leg) => {
       const prefix = `leg${leg.sequence}_`;
@@ -789,19 +744,15 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           : providerList.find((pr: any) => pr.id === str('providerId'))?.name,
         trackingRef: str('trackingRef') || undefined,
         departedOn: str('departedOn') || undefined,
+        // An arrival date is turned into a delivery of everything still on the
+        // way by the server (B2); it is not a status this form sets.
         arrivedOn: str('arrivedOn') || undefined,
         ...readShippingCostFields(fd, prefix),
       };
     });
 
-    // Keep the first leg's values for back-navigation display.
-    setShippingOrigin(payloads[0].origin);
-    setShippingDestination(payloads[payloads.length - 1].destination);
-    setShippingProvider(payloads[0].provider);
-
     setIsCreatingLegs(true);
     try {
-      let firstId: string | null = null;
       const savedIds: Record<number, string> = {};
       let updated = false;
 
@@ -812,11 +763,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         // it, with a success step and no warning.
         const existingId =
           legIds[body.sequence] ??
-          existingCycle?.shippingLegs?.find((l: any) => l.sequence === body.sequence)?.id;
+          cycle?.shippingLegs?.find((l: any) => l.sequence === body.sequence)?.id;
 
         // `sequence` identifies the leg and is uniquely constrained, so an
         // update must not carry it — the endpoint rejects it outright.
-        const { sequence: _seq, ...updatable } = body;
+        const { sequence: _sequence, ...updatable } = body;
+        void _sequence;
 
         // An id can outlive the leg — a restored draft, or someone deleting it
         // in another tab. Falling back to creating is better than refusing to
@@ -838,11 +790,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         if (wasUpdate) updated = true;
         const saved = res.data.data ?? res.data;
         savedIds[body.sequence] = saved.id ?? existingId;
-        if (!firstId) firstId = saved.id ?? existingId;
       }
 
       setLegIds((prev) => ({ ...prev, ...savedIds }));
-      setShippingLegId(firstId);
+      // Saved: nothing typed here is unsaved any more.
+      if (cycleId) clearLegFields(cycleId);
       refreshCycleCaches();
       // The cycle query holds the legs the form reads back; without this the
       // next visit would show what was on screen before this save.
@@ -852,104 +804,48 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           ? t('legsUpdated', { count: payloads.length })
           : t('legsCreated', { count: payloads.length }),
       );
-      setCurrentStep(3);
+      setCurrentStep(LAST_STEP);
     } catch (err: any) {
-      toast.error(
-        apiError(err, t('saveShippingLegsFailed')),
-      );
+      toast.error(apiError(err, t('saveShippingLegsFailed')));
     } finally {
       setIsCreatingLegs(false);
     }
   };
 
-  const handleStep4Submit = async () => {
-    setIsStep4Processing(true);
+  /**
+   * Finish: save the money, move the cycle as far as its dates allow, and open
+   * the cycle's page.
+   *
+   * No dates → it stays PURCHASING with its order a draft (§15). A departure →
+   * In transit, which confirms the order. Arrival dates already became
+   * deliveries when the legs were saved, so the walk reaches Arrived UAE /
+   * Arrived Egypt only when the server's gates say the goods got there — and
+   * never past Arrived Egypt: receiving is the cycle page's job.
+   */
+  const handleFinish = async () => {
+    if (!cycleId || isFinishing) return;
+    setIsFinishing(true);
     try {
-      const cycleRes = await api.get(`/cycles/${cycleId}`);
-      const currentStatus = (cycleRes.data.data ?? cycleRes.data).status;
-      const cycleOriginType = (cycleRes.data.data ?? cycleRes.data).originType;
+      // Typed and not saved is still meant: finishing does not discard it.
+      await writeContributions();
 
-      // CHINA: PLANNING → FUNDING → PURCHASING → IN_TRANSIT → ARRIVED_UAE → IN_TRANSIT_TO_EGYPT → ARRIVED_EGYPT → VERIFICATION
-      // UAE_DIRECT: PLANNING → FUNDING → PURCHASING → ARRIVED_UAE → IN_TRANSIT_TO_EGYPT → ARRIVED_EGYPT → VERIFICATION
-      const chinaTransitions = ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION'];
-      const uaeTransitions = ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION'];
-      const allTransitions = cycleOriginType === 'UAE_DIRECT' ? uaeTransitions : chinaTransitions;
-      const allStatuses = ['PLANNING', ...allTransitions];
-      const startIdx = allStatuses.indexOf(currentStatus);
-
-      // The shipment has to have actually arrived before any of this. Walking
-      // the cycle to VERIFICATION in one click is what made a cycle approved a
-      // moment ago have sellable stock — the goods departed, arrived and were
-      // received in the same instant, with no dates recorded anywhere.
-      //
-      // The server refuses each step it has not reached, but checking here
-      // means saying which leg and what is missing, rather than stopping
-      // half-way with the cycle in some middle state.
-      const legsRes = await api.get(`/cycles/${cycleId}/shipping-legs`);
-      const legs = legsRes.data.data ?? legsRes.data ?? [];
-      const notArrived = legs.filter((l: any) => l.status !== 'ARRIVED');
-
-      if (notArrived.length > 0) {
-        const which = notArrived
-          .map((l: any) => `${l.origin} → ${l.destination}`)
-          .join(', ');
-        toast.error(
-          t('legNotArrived', { leg: which }),
-        );
-        setCurrentStep(2);
-        return;
+      const fresh = await api.get(`/cycles/${cycleId}`).then((r) => r.data.data ?? r.data);
+      let status: string = fresh.status;
+      for (const next of statusesToWalk(fresh.originType, fresh.status, fresh.shippingLegs ?? [])) {
+        await api.post(`/cycles/${cycleId}/transition`, { status: next });
+        status = next;
       }
 
-      if (startIdx >= 0) {
-        const transitionsNeeded = allTransitions.slice(startIdx);
-        for (const status of transitionsNeeded) {
-          await api.post(`/cycles/${cycleId}/transition`, { status });
-        }
-      }
-
-      // The loop above has already walked the cycle to VERIFICATION, which is
-      // what takes it off the "resume" list — so a cycle whose stock is all in
-      // still finishes here rather than dead-ending.
-      //
-      // Only what has not been received yet is sent. An already-received item
-      // is refused outright by the server (one batch per purchase order item),
-      // and that refusal used to fail the whole step at the last click.
-      //
-      // A line left at 0 did not arrive. It is not booked as an empty batch
-      // (the server refuses one): it stays unreceived and can be received
-      // when it turns up.
-      const outstanding = receiveItems.filter(
-        (item) =>
-          !receivedByPoItem.has(item.purchaseOrderItemId) &&
-          Number(item.receivedQty) > 0,
-      );
-
-      if (outstanding.length === 0) {
-        await refetchCycle();
-        refreshCycleCaches();
-        toast.success(
-          currentStatus === 'VERIFICATION'
-            ? t('stockAlreadyReceived')
-            : t('stockReceivedMovedOn'),
-        );
-        forgetDraft();
-        router.push(`/${locale}/cycles`);
-        return;
-      }
-
-      await verifyInventoryMutation.mutateAsync({
-        cycleId,
-        items: outstanding.map((item) => ({
-          purchaseOrderItemId: item.purchaseOrderItemId,
-          productId: item.productId,
-          receivedQty: item.receivedQty,
-          landedUnitCostEgp: item.landedUnitCostEgp,
-        })),
-      });
+      refreshCycleCaches();
+      clearLegFields(cycleId);
+      if (isNewWizard) forgetDraft();
+      toast.success(t('finished', { status: codeLabel('cycleStatus', status) }));
+      router.push(`/${locale}/cycles/${cycleId}/details`);
     } catch (err: any) {
-      toast.error(apiError(err, t('verifyInventoryFailed')));
-    } finally {
-      setIsStep4Processing(false);
+      refreshCycleCaches();
+      void refetchCycle();
+      toast.error(apiError(err, t('finishFailed')));
+      setIsFinishing(false);
     }
   };
 
@@ -958,10 +854,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   // ---------------------------------------------------------------------------
 
   const addLineItem = () => {
-    setLineItems((prev) => [
-      ...prev,
-      { productId: '', orderedQty: 0, unitPrice: 0, discount: 0 },
-    ]);
+    setLineItems((prev) => [...prev, emptyLineItem()]);
   };
 
   const updateLineItem = (idx: number, field: keyof LineItem, value: any) => {
@@ -972,58 +865,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   const removeLineItem = (idx: number) => {
     setLineItems((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // ---------------------------------------------------------------------------
-  // Receive items initializer (Step 4)
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    if (currentStep !== 3 || !poDetail?.items) return;
-    // Guard with a ref, not receiveItems.length: seeding the rows would
-    // re-run this effect and its cleanup would cancel the in-flight fetch.
-    if (receiveInitRef.current === poId) return;
-    receiveInitRef.current = poId;
-
-    // Seed with the goods price, then replace with the landed cost once the
-    // API has spread this cycle's shipping across the purchased items.
-    const seed = poDetail.items.map((item: any) => ({
-      purchaseOrderItemId: item.id,
-      productId: item.productId,
-      receivedQty: item.orderedQty,
-      landedUnitCostEgp: item.unitPrice,
-    }));
-    setReceiveItems(seed);
-
-    api
-      .get(`/costing/cycles/${cycleId}/landed-cost`)
-      .then((res) => {
-        const payload = res.data.data ?? res.data;
-        const byItem = new Map<string, string>(
-          (payload.items ?? []).map((i: any) => [
-            i.purchaseOrderItemId,
-            i.landedUnitCostEgp,
-          ]),
-        );
-        setReceiveItems((prev) =>
-          prev.map((it) => {
-            const landed = byItem.get(it.purchaseOrderItemId);
-            if (landed === undefined) return it;
-            const n = Number(landed);
-            return Number.isFinite(n) ? { ...it, landedUnitCostEgp: n } : it;
-          }),
-        );
-        setCostingWarnings(payload.warnings ?? []);
-      })
-      .catch(() => {
-        /* keep the goods-price seed if costing is unavailable */
-      });
-  }, [currentStep, poDetail, poId, cycleId]);
-
-  const updateReceiveItem = (idx: number, field: keyof ReceiveItem, value: any) => {
-    setReceiveItems((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)),
-    );
   };
 
   // ---------------------------------------------------------------------------
@@ -1044,20 +885,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     setCycleCode(null);
     setPoId(null);
     setPoReference(null);
-    setLineItems([]);
-    setReceiveItems([]);
+    setLegIds({});
+    setLineItems([emptyLineItem()]);
     setPoSupplierId('');
     setPoCurrency('');
     setPoFxRate('');
     setPoOrderedOn('');
-    setShippingProvider('');
-    setShippingOrigin('');
-    setShippingDestination('');
-    setShippingTrackingRef('');
-    setShippingDepartedOn('');
-    setShippingArrivedOn('');
-    setShippingAmount('');
-    setShippingLegId(null);
   };
 
   // ---------------------------------------------------------------------------
@@ -1098,73 +931,22 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     return options;
   };
   const productList: any[] = Array.isArray(products) ? products : [];
-  const poItems: any[] = poDetail?.items ?? [];
 
-  // Step 1 query-level loading
   const isStep1Loading = createCycleMutation.isPending;
   const isStep2Loading = createPoMutation.isPending;
-  const isStep3Loading = createShippingMutation.isPending || isCreatingLegs;
+  const isStep3Loading = isCreatingLegs;
 
   // ---------------------------------------------------------------------------
   // Loading state for resume
   // ---------------------------------------------------------------------------
 
-  if (isLoadingCycle) {
+  const leavingForCyclePage =
+    isResuming && !!cycle && !WIZARD_STATUSES.includes(cycle.status);
+  if ((isResuming && isLoadingCycle) || leavingForCyclePage) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary-600 me-3" />
         <span className="text-gray-500 text-sm">{t('loadingCycle')}</span>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render: Completion screen
-  // ---------------------------------------------------------------------------
-
-  if (currentStep === 4) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-10">
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('allDone')}</h2>
-          <p className="text-gray-500 mb-8 max-w-md mx-auto">
-            {t('allDoneDesc')}
-          </p>
-
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('cycleCode')}</p>
-              <p className="font-mono font-bold text-gray-900">{cycleCode}</p>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('poReference')}</p>
-              <p className="font-mono font-bold text-gray-900">{poReference}</p>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('shipping')}</p>
-              <p className="font-bold text-gray-900 text-sm">
-                {shippingOrigin} &rarr; {shippingDestination}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={() => router.push(`/${locale}/cycles`)}
-              className="px-6 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
-            >
-              {t('viewCycles')}
-            </button>
-            <button
-              onClick={handleStartAnother}
-              className="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-            >
-              {t('startOver')}
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
@@ -1263,7 +1045,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               <Select
                 name="originType"
                 required
-                value={originType || existingCycle?.originType || ''}
+                value={originType || cycle?.originType || ''}
                 onChange={setOriginType}
                 placeholder={t('selectOriginType')}
                 options={[
@@ -1284,7 +1066,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 onChange={setPoCurrency}
                 placeholder={t('selectCurrency')}
                 options={[
-                  { value: 'CNY', label: 'CNY (\u00A5)' },
+                  { value: 'CNY', label: 'CNY (¥)' },
                   { value: 'AED', label: 'AED' },
                   { value: 'USD', label: 'USD ($)' },
                 ].map((o) => ({
@@ -1307,13 +1089,82 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           </form>
         )}
 
+        {/* Step 2 — the orders already on the cycle.
+
+            Every one of them, not the first. They are saved records, so they
+            are shown as they are rather than offered as a form whose edits the
+            wizard would then quietly not send. */}
+        {currentStep === 1 && savedOrders.length > 0 && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{t('purchaseOrder')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t('savedOrdersHint')}</p>
+            </div>
+
+            <div className="space-y-3">
+              {savedOrders.map((po: any) => (
+                <div
+                  key={po.id}
+                  data-testid="wizard-saved-order"
+                  className="space-y-2 rounded-xl border border-border p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-sm font-semibold text-foreground">
+                      {po.reference}
+                    </span>
+                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                      {codeLabel('orderStatus', po.status)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {po.supplier?.name ?? '—'} · {formatDate(po.orderedOn)}
+                  </p>
+                  <ul className="divide-y divide-border">
+                    {(po.items ?? []).map((item: any) => (
+                      <li
+                        key={item.id}
+                        className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm"
+                      >
+                        <span className="min-w-0 break-words text-foreground">
+                          {item.product?.name ?? '—'}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {t('orderLine', { qty: Number(item.orderedQty) })}{' '}
+                          <Money value={item.unitPrice} currency={po.currency} />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(0)}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
+              >
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t('back')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(2)}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+              >
+                {t('continue')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Step 2 — Purchase Order.
 
             No remount key on the form. It existed to make the pickers pick up
             a value loaded from an existing order, which controlled inputs do
             on their own — and remounting cleared whatever else had been typed:
             choosing a currency wiped the supplier chosen a moment earlier. */}
-        {currentStep === 1 && (
+        {currentStep === 1 && savedOrders.length === 0 && (
           <form onSubmit={handleStep2Submit} className="space-y-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('purchaseOrder')}</h2>
 
@@ -1355,7 +1206,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     setPoCurrency(v);
                     // Fill the rate in from the currency. It stays editable —
                     // the order is costed at the rate it was actually agreed at.
-                    setPoFxRate(v === 'EGP' ? '1' : rates[v] != null ? String(rates[v]) : '');
+                    setPoFxRate(v === 'EGP' ? formatRate(1) : rates[v] != null ? formatRate(rates[v]) : '');
                   }}
                   options={['CNY', 'AED', 'USD', 'EGP'].map((c) => ({
                     value: c,
@@ -1372,20 +1223,23 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   {t('fxRateToEgp')} <span className="text-red-500">*</span>
                 </label>
                 <input
-                  key={poFxRate}
                   type="number"
                   name="fxRateToEgp"
                   required
                   step="0.0001"
                   placeholder="0"
-                  defaultValue={poFxRate ? Number(poFxRate).toFixed(4) : ''}
+                  value={poFxRate}
+                  onChange={(e) => setPoFxRate(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
                 <p className="mt-1 text-xs text-gray-400">
                   {effectivePoCurrency && rates[effectivePoCurrency] != null
-                    ? `Current rate: 1 ${effectivePoCurrency} = ${rates[effectivePoCurrency]} EGP`
+                    ? t('currentRate', {
+                        currency: effectivePoCurrency,
+                        rate: String(rates[effectivePoCurrency]),
+                      })
                     : effectivePoCurrency
-                      ? `No rate recorded for ${effectivePoCurrency} — enter the rate used`
+                      ? t('noRateRecorded', { currency: effectivePoCurrency })
                       : t('pickCurrencyFirst')}
                 </p>
               </div>
@@ -1394,7 +1248,15 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('orderedDate')} <span className="text-red-500">*</span>
                 </label>
-                <DatePicker name="orderedOn" required defaultValue={poOrderedOn} />
+                {/* Today in Cairo unless changed (§7a); an order cannot be
+                    dated forward, so neither can the picker. */}
+                <DatePicker
+                  name="orderedOn"
+                  required
+                  disableFuture
+                  value={poOrderedOn || businessToday()}
+                  onChange={setPoOrderedOn}
+                />
               </div>
             </div>
 
@@ -1420,6 +1282,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   {lineItems.map((item, idx) => (
                     <div
                       key={idx}
+                      data-testid="wizard-line-item"
                       className="flex items-end gap-2 bg-gray-50 rounded-lg p-3"
                     >
                       <div className="flex-1">
@@ -1451,6 +1314,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         <input
                           type="number"
                           placeholder="0"
+                          data-field="orderedQty"
                           value={item.orderedQty || ''}
                           onChange={(e) =>
                             updateLineItem(idx, 'orderedQty', Number(e.target.value))
@@ -1492,6 +1356,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       <button
                         type="button"
                         onClick={() => removeLineItem(idx)}
+                        aria-label={t('removeItem')}
                         className="p-1.5 text-red-400 hover:text-red-600"
                       >
                         <X className="h-4 w-4" />
@@ -1522,9 +1387,18 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           </form>
         )}
 
-        {/* Step 3 — Shipping Legs */}
+        {/* Step 3 — Shipping Legs. Every date here is optional: a cycle set up
+            the day it is ordered has none yet, and finishing then leaves it in
+            Purchasing. */}
         {currentStep === 2 && (
-          <form onSubmit={handleStep3Submit} className="space-y-6">
+          <form
+            ref={legFormRef}
+            onSubmit={handleStep3Submit}
+            onChange={rememberLegFields}
+            onClick={rememberLegFields}
+            onKeyUp={rememberLegFields}
+            className="space-y-6"
+          >
             <div>
               <h2 className="text-lg font-semibold text-gray-900">{t('shipping')}</h2>
               <p className="text-sm text-gray-500 mt-1">
@@ -1536,7 +1410,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
             {legPlan.map((leg) => {
               const prefix = `leg${leg.sequence}_`;
-              const existing = existingCycle?.shippingLegs?.find(
+              const existing = cycle?.shippingLegs?.find(
                 (l: any) => l.sequence === leg.sequence,
               );
               return (
@@ -1564,10 +1438,13 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       <Select
                         name={`${prefix}providerId`}
                         required
-                        // A provider chosen or created here wins; otherwise the
-                        // leg's own, which for an older leg may be only a name.
+                        // A provider chosen or created here wins; then one
+                        // picked on an earlier visit and not saved; otherwise
+                        // the leg's own, which for an older leg may be only a
+                        // name.
                         value={
                           legProviderIds[prefix] ??
+                          typedLeg(`${prefix}providerId`) ??
                           existing?.providerId ??
                           providerList.find((pr: any) => pr.name === existing?.provider)?.id ??
                           (existing?.provider ? `name:${existing.provider}` : '')
@@ -1581,12 +1458,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t('trackingReference')}{' '}
-                        <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                        <span className="text-gray-400 text-xs font-normal">{t('optional')}</span>
                       </label>
                       <input
                         type="text"
                         name={`${prefix}trackingRef`}
-                        defaultValue={existing?.trackingRef ?? ''}
+                        defaultValue={typedLeg(`${prefix}trackingRef`) ?? existing?.trackingRef ?? ''}
                         placeholder={t('trackingNumber')}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
@@ -1602,7 +1479,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         type="text"
                         name={`${prefix}origin`}
                         required
-                        defaultValue={existing?.origin ?? leg.origin}
+                        defaultValue={typedLeg(`${prefix}origin`) ?? existing?.origin ?? leg.origin}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
@@ -1614,7 +1491,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         type="text"
                         name={`${prefix}destination`}
                         required
-                        defaultValue={existing?.destination ?? leg.destination}
+                        defaultValue={
+                          typedLeg(`${prefix}destination`) ?? existing?.destination ?? leg.destination
+                        }
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
@@ -1623,43 +1502,37 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Departed On{' '}
-                        <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                        {t('departedOn')}{' '}
+                        <span className="text-gray-400 text-xs font-normal">{t('optional')}</span>
                       </label>
                       <DatePicker
                         name={`${prefix}departedOn`}
-                        defaultValue={existing?.departedOn?.slice(0, 10)}
+                        disableFuture
+                        defaultValue={
+                          typedLeg(`${prefix}departedOn`) ?? existing?.departedOn?.slice(0, 10)
+                        }
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Arrived On{' '}
-                        <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                        {t('arrivedOn')}{' '}
+                        <span className="text-gray-400 text-xs font-normal">{t('optional')}</span>
                       </label>
                       <DatePicker
                         name={`${prefix}arrivedOn`}
-                        defaultValue={existing?.arrivedOn?.slice(0, 10)}
+                        disableFuture
+                        defaultValue={
+                          typedLeg(`${prefix}arrivedOn`) ?? existing?.arrivedOn?.slice(0, 10)
+                        }
                       />
                     </div>
                   </div>
 
                   <ShippingCostFields
                     namePrefix={prefix}
-                    title={`${leg.label} cost`}
+                    title={t('legCost', { leg: leg.label })}
                     orderedPieces={orderedPieces}
-                    defaults={
-                      existing
-                        ? {
-                            costBasis: existing.costBasis ?? 'PER_PIECE',
-                            ratePerUnit: existing.ratePerUnit ?? '',
-                            chargeablePieces: existing.chargeablePieces ?? '',
-                            chargeableWeightKg: existing.chargeableWeightKg ?? '',
-                            amount: existing.amount ?? '',
-                            currency: existing.currency ?? 'EGP',
-                            fxRateToEgp: existing.fxRateToEgp ?? 1,
-                          }
-                        : undefined
-                    }
+                    defaults={legCostDefaults(prefix, existing)}
                   />
                 </div>
               );
@@ -1685,14 +1558,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           </form>
         )}
 
-        {/* Step 4 — Receive Inventory */}
-        {currentStep === 3 && (
+        {/* Step 4 — Funding, and finish */}
+        {currentStep === LAST_STEP && (
           <div className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">{t('receiveInventory')}</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Landed unit cost includes this cycle&apos;s shipping, spread across the
-              items it moved. Edit a value to override it.
-            </p>
+            <h2 className="text-lg font-semibold text-foreground">{t('step4Title')}</h2>
 
             {/* Funding.
 
@@ -1803,7 +1672,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       </div>
                       <button
                         type="button"
-                        onClick={addInvestor}
+                        onClick={() => void addInvestor()}
                         disabled={!investorUserId || isAddingInvestor}
                         className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                       >
@@ -1818,26 +1687,18 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   <span className="text-gray-500">
                     {t('cycleCost')}:{' '}
                     <span className="font-medium text-gray-900">
-                      {landedTotal.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{' '}
-                      EGP
+                      <Money value={landedTotal} />
                     </span>
                     {' · '}
                     {t('funded')}:{' '}
                     <span className="font-medium text-gray-900">
-                      {fundedTotal.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{' '}
-                      EGP
+                      <Money value={fundedTotal} />
                     </span>
                   </span>
                   <button
                     type="button"
-                    onClick={saveFunding}
-                    disabled={isFunding}
+                    onClick={() => void saveFunding()}
+                    disabled={isFunding || isFinishing}
                     className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                   >
                     {isFunding && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -1864,116 +1725,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               </div>
             )}
 
-            {costingWarnings.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
-                {costingWarnings.map((w, i) => (
-                  <p key={i} className="text-xs text-amber-800">
-                    {w}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            {receiveItems.some((i) => receivedByPoItem.has(i.purchaseOrderItemId)) && (
-              <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3">
-                <p className="text-xs font-medium text-green-800">
-                  Already received into stock — recorded at the cost it was received at,
-                  and not re-costed by later changes.
-                </p>
-                {receiveItems
-                  .filter((i) => receivedByPoItem.has(i.purchaseOrderItemId))
-                  .map((i) => {
-                    const batch = receivedByPoItem.get(i.purchaseOrderItemId);
-                    return (
-                      <div
-                        key={i.purchaseOrderItemId}
-                        className="flex flex-wrap items-center justify-between gap-2 text-sm text-green-900"
-                      >
-                        <span className="font-medium">{batch?.product?.name ?? 'Product'}</span>
-                        <span className="text-xs">
-                          {Number(batch?.receivedQty ?? 0)} received @{' '}
-                          {Number(batch?.landedUnitCostEgp ?? 0).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{' '}
-                          EGP
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-
-            {receiveItems.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8 border border-dashed border-gray-200 rounded-lg">
-                {t('noPurchaseOrderItems')}
-              </p>
-            ) : receiveItems.every((i) => receivedByPoItem.has(i.purchaseOrderItemId)) ? (
-              <p className="text-sm text-gray-500 text-center py-6 border border-dashed border-gray-200 rounded-lg">
-                Everything on this cycle has been received. There is nothing left to
-                enter here.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-3 text-xs font-medium text-gray-500">
-                  <div className="col-span-4">{t('product')}</div>
-                  <div className="col-span-2 text-center">{t('ordered')}</div>
-                  <div className="col-span-2 text-center">{t('received')}</div>
-                  <div className="col-span-4 text-center">{t('landedUnitCost')}</div>
-                </div>
-
-                {receiveItems.map((item, idx) => {
-                  if (receivedByPoItem.has(item.purchaseOrderItemId)) return null;
-                  const poItem = poItems.find((pi: any) => pi.id === item.purchaseOrderItemId);
-                  return (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-gray-50 rounded-lg p-3"
-                    >
-                      <div className="sm:col-span-4">
-                        <span className="text-xs text-gray-400 sm:hidden">{t('product')}: </span>
-                        <p className="text-sm font-medium text-gray-900">
-                          {poItem?.product?.name ?? 'Product'}
-                        </p>
-                      </div>
-
-                      <div className="sm:col-span-2 text-center">
-                        <span className="text-xs text-gray-400 sm:hidden">{t('ordered')}: </span>
-                        <span className="text-sm text-gray-600">{poItem?.orderedQty ?? 0}</span>
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <span className="text-xs text-gray-400 sm:hidden">{t('received')}: </span>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          value={item.receivedQty}
-                          onChange={(e) =>
-                            updateReceiveItem(idx, 'receivedQty', Number(e.target.value))
-                          }
-                          {...selectOnFocus}
-                          min="0"
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-4">
-                        <span className="text-xs text-gray-400 sm:hidden">{t('landedUnitCost')}: </span>
-                        <MoneyInput
-                          data-field="landedUnitCostEgp"
-                          placeholder="0.00"
-                          value={item.landedUnitCostEgp}
-                          onChange={(raw) =>
-                            updateReceiveItem(idx, 'landedUnitCostEgp', Number(raw))
-                          }
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* What finishing does, said before the click: the cycle moves as
+                far as its dates allow, and receiving is on the cycle page. */}
+            <p className="text-sm text-muted-foreground">{t('finishHint')}</p>
 
             <div className="flex items-center justify-between pt-2">
               <button
@@ -1985,15 +1739,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               </button>
               <button
                 type="button"
-                onClick={handleStep4Submit}
-                disabled={isStep4Processing || receiveItems.length === 0}
+                onClick={() => void handleFinish()}
+                disabled={isFinishing || isFunding}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isStep4Processing && <Loader2 className="h-4 w-4 animate-spin" />}
-                {receiveItems.length > 0 &&
-                receiveItems.every((i) => receivedByPoItem.has(i.purchaseOrderItemId))
-                  ? t('done')
-                  : t('complete')}
+                {isFinishing && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('finish')}
               </button>
             </div>
           </div>

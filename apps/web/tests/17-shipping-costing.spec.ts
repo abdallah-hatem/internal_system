@@ -169,7 +169,8 @@ test.describe('Shipment costing', () => {
     await pickValueByName(page, 'currency', 'USD');
     await page.locator('input[name="fxRateToEgp"]').fill('48.5');
     await pickDate(page, 'orderedOn', '2026-08-20');
-    await page.getByRole('button', { name: /add item/i }).click();
+    // No "Add item" click: the order starts with one row now (F1b). Adding a
+    // second would leave an empty required row that blocks the submit.
 
     // The product picker is the line item's own searchable Select.
     // The line-item picker is controlled by value/onChange, so it has no name
