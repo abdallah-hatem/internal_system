@@ -59,3 +59,10 @@
 - B4 merged: `record_delivery`, `verify_stock` by delivery, `add_shipping_leg` previews delivered units, `get_cycle`
   returns the position. Merge fix: B4's get_cycle fixture predated B5's refunds-per-loss read. api 679 + 7 skipped.
 - Wave 5 (part): R1 ‖ B5b dispatched; U5 waits on F1a. Spec numbers: R1 → 87, B5b → 88.
+- F1a merged: ShipmentPanel and dialogs (record delivery, receive, mark lost, take back, record refund), inventory
+  "Receive stock", one low-stock rule (`isBelowMinStock`), profit card, shipments form no longer edits arrival.
+  The loss figure before booking is labelled an estimate (qty × the server's per-ordered-unit cost); after booking
+  the server's costEgp is shown (rule 11). web 152 + 43, en/ar key parity exact.
+  Accepted guesses (F1a.md): a "Move to Arrived Egypt" button on the panel; the Receive list fetches each open
+  cycle's shipment (no cross-cycle endpoint); Mark lost starts empty.
+- Wave 5 dispatched from master: R1 ‖ B5b ‖ U5. Spec numbers: R1 → 87, B5b → 88, U5 → 86.
