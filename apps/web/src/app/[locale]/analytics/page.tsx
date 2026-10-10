@@ -8,6 +8,7 @@ import { api } from '../../../lib/api';
 import {
   BarChart3, Loader2, TrendingUp, TrendingDown, Package, Route,
 } from 'lucide-react';
+import { useCodeLabel } from '@/lib/labels';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface MonthlyRevenue {
@@ -42,6 +43,7 @@ interface CycleProfit {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
+  const codeLabel = useCodeLabel();
   const t = useTranslations('analytics');
   const tc = useTranslations('common');
 
@@ -206,7 +208,7 @@ export default function AnalyticsPage() {
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900">{c.cycleCode}</p>
                           <p className="text-xs text-gray-500">
-                            {c.originType} · {c.status}
+                            {codeLabel('originType', c.originType)} · {codeLabel('cycleStatus', c.status)}
                           </p>
                         </div>
                         <div className="text-end shrink-0">

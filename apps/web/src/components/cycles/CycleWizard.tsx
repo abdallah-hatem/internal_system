@@ -37,6 +37,7 @@ import {
 
 import { useApiError } from '../../lib/api-error';
 import { FieldWithQuickCreate } from '../ui/quick-create';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -1035,7 +1036,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         {/* Step 1 — Cycle Info */}
         {currentStep === 0 && (
-          <form onSubmit={handleStep1Submit} className="space-y-5">
+          <ValidatedForm onSubmit={handleStep1Submit} className="space-y-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('cycleInformation')}</h2>
 
             <div>
@@ -1086,7 +1087,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 {t('saveAndContinueBtn')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         )}
 
         {/* Step 2 — the orders already on the cycle.
@@ -1165,7 +1166,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
             on their own — and remounting cleared whatever else had been typed:
             choosing a currency wiped the supplier chosen a moment earlier. */}
         {currentStep === 1 && savedOrders.length === 0 && (
-          <form onSubmit={handleStep2Submit} className="space-y-5">
+          <ValidatedForm onSubmit={handleStep2Submit} className="space-y-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('purchaseOrder')}</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1384,14 +1385,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 {t('saveAndContinueBtn')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         )}
 
         {/* Step 3 — Shipping Legs. Every date here is optional: a cycle set up
             the day it is ordered has none yet, and finishing then leaves it in
             Purchasing. */}
         {currentStep === 2 && (
-          <form
+          <ValidatedForm
             ref={legFormRef}
             onSubmit={handleStep3Submit}
             onChange={rememberLegFields}
@@ -1555,7 +1556,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                 {t('saveAndContinueBtn')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         )}
 
         {/* Step 4 — Funding, and finish */}

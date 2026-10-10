@@ -2,12 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 
+import type { Prisma } from '@prisma/client';
 import { notFound } from '../../common/api-error';
+import {
+  renderNotification,
+  type NotificationCode,
+  type NotificationParams,
+} from '../../common/notification-messages';
+
 @Injectable()
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(userId: string, pagination: PaginationDto & { unreadOnly?: boolean }) {
+  async findAll(
+    userId: string,
+    pagination: PaginationDto & { unreadOnly?: boolean },
+  ) {
     const { cursor, limit: rawLimit = 20, unreadOnly } = pagination;
     const limit = pageSize(rawLimit);
     const where: any = { userId };
@@ -28,7 +38,9 @@ export class NotificationsService {
       meta: {
         nextCursor: hasMore ? data[data.length - 1].id : null,
         limit,
-        unreadCount: await this.prisma.notification.count({ where: { userId, readAt: null } }),
+        unreadCount: await this.prisma.notification.count({
+          where: { userId, readAt: null },
+        }),
       },
     };
   }
@@ -53,24 +65,55 @@ export class NotificationsService {
     return { data: { success: true } };
   }
 
-  async create(data: { userId: string; eventType: string; title: string; payload?: any }) {
+  /**
+   * Write one notification. The caller names it with a `code` and `params`;
+   * the English `title` is derived here, so no service writes the sentence
+   * itself (CLAUDE.md rule 9) and the two cannot disagree.
+   */
+  async create(data: {
+    userId: string;
+    eventType: string;
+    code: NotificationCode;
+    params: NotificationParams;
+    payload?: NotificationPayload;
+  }) {
     return this.prisma.notification.create({
-      data: {
-        userId: data.userId,
-        eventType: data.eventType,
-        title: data.title,
-        payloadJson: data.payload ?? undefined,
-      },
+      data: { userId: data.userId, ...rowFor(data) },
     });
   }
 
-  async createForMultipleUsers(userIds: string[], data: { eventType: string; title: string; payload?: any }) {
-    const notifications = userIds.map(userId => ({
-      userId,
-      eventType: data.eventType,
-      title: data.title,
-      payloadJson: data.payload ?? undefined,
-    }));
-    return this.prisma.notification.createMany({ data: notifications });
+  async createForMultipleUsers(
+    userIds: string[],
+    data: {
+      eventType: string;
+      code: NotificationCode;
+      params: NotificationParams;
+      payload?: NotificationPayload;
+    },
+  ) {
+    const row = rowFor(data);
+    return this.prisma.notification.createMany({
+      data: userIds.map((userId) => ({ userId, ...row })),
+    });
   }
+}
+
+/** Ids the event carries, for the link the reader's app builds. */
+type NotificationPayload = Record<string, unknown>;
+
+/** The stored shape of a notification: code, params, and the English text. */
+export function rowFor(data: {
+  eventType: string;
+  code: NotificationCode;
+  params: NotificationParams;
+  payload?: NotificationPayload;
+}) {
+  return {
+    eventType: data.eventType,
+    code: data.code,
+    params: data.params,
+    title: renderNotification(data.code, data.params, 'en').title,
+    // The payload is whatever ids the event carries; Prisma stores it as JSON.
+    payloadJson: data.payload as Prisma.InputJsonValue | undefined,
+  };
 }

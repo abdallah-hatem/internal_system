@@ -38,7 +38,9 @@
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "unapplied": "unapplied",
-    "optional": "Optional"
+    "optional": "Optional",
+    "operationFailed": "Operation failed",
+    "noMatch": "Nothing matches this search or filter"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -177,7 +179,15 @@
     "photos": "Photos",
     "addPhoto": "Add photos",
     "noPhotos": "No photos yet. The store shows a placeholder without one.",
-    "photosHint": "JPEG, PNG or WebP, up to 8 MB. Resized automatically for the store."
+    "photosHint": "JPEG, PNG or WebP, up to 8 MB. Resized automatically for the store.",
+    "createSuccess": "Product created successfully",
+    "updateSuccess": "Product updated successfully",
+    "createFailed": "Failed to create product",
+    "updateFailed": "Failed to update product",
+    "priceUpdated": "{label} updated",
+    "priceSaveFailed": "Could not save the price",
+    "emptyTitle": "No products yet",
+    "emptyHint": "The parts you import and sell, each with its SKU and prices."
   },
   "cycles": {
     "title": "Import Cycles",
@@ -248,7 +258,8 @@
     "legDeparted": "Departed {date}",
     "legNotDeparted": "Not departed",
     "legNoDeliveries": "No deliveries yet",
-    "legDelivery": "{date}: {units} units"
+    "legDelivery": "{date}: {units} units",
+    "splitDone": "Split equally — {total} EGP"
   },
   "purchases": {
     "title": "Purchases",
@@ -271,7 +282,13 @@
     "recordRefund": "Record Refund",
     "reason": "Reason",
     "amount": "Amount",
-    "search": "Search purchases..."
+    "search": "Search purchases...",
+    "createSuccess": "Purchase order created successfully",
+    "refundRecorded": "Refund recorded successfully",
+    "createFailed": "Failed to create purchase order",
+    "refundFailed": "Failed to record refund",
+    "emptyTitle": "No purchase orders yet",
+    "emptyHint": "What a cycle ordered from a supplier, line by line."
   },
   "shipments": {
     "title": "Shipments",
@@ -289,7 +306,10 @@
     "search": "Search shipments...",
     "arrivalsAreDeliveries": "Arrivals are recorded as deliveries, one per batch that turns up.",
     "openShipmentPanel": "Open the cycle’s Shipment panel",
-    "legUpdated": "Shipping leg updated"
+    "legUpdated": "Shipping leg updated",
+    "createSuccess": "Shipment created successfully",
+    "emptyTitle": "No shipping legs yet",
+    "emptyHint": "Each leg of a cycle's journey, with its carrier, dates and cost."
   },
   "inventory": {
     "title": "Inventory",
@@ -313,7 +333,10 @@
     "arrivedHint": "When the shipment landed",
     "receivedHint": "When it was booked into stock",
     "receiveStock": "Receive stock",
-    "low": "Low"
+    "low": "Low",
+    "emptyTitle": "Nothing in stock yet",
+    "emptyHint": "Stock arrives when a cycle's shipment is received.",
+    "emptyAction": "Go to cycles"
   },
   "sales": {
     "title": "Sales Orders",
@@ -377,7 +400,8 @@
     "removeItem": "Remove item",
     "noChannelPrice": "No {channel} price set",
     "discountTooLarge": "More than the line is worth",
-    "openOrder": "Open order {orderNo}"
+    "openOrder": "Open order {orderNo}",
+    "returnFailed": "Failed to record the return"
   },
   "customers": {
     "title": "Customers",
@@ -403,7 +427,14 @@
     "noOrders": "No orders for this customer yet",
     "noOrdersHint": "A sale to this customer appears here once it is created.",
     "noPayments": "No payments from this customer yet",
-    "noPaymentsHint": "Record a payment when they pay, and it is applied to their oldest unpaid orders first."
+    "noPaymentsHint": "Record a payment when they pay, and it is applied to their oldest unpaid orders first.",
+    "createSuccess": "Customer created successfully",
+    "updateSuccess": "Customer updated successfully",
+    "createFailed": "Failed to create customer",
+    "updateFailed": "Failed to update customer",
+    "verifyFailed": "Failed to verify customer",
+    "emptyTitle": "No customers yet",
+    "emptyHint": "Shops and walk-in buyers you sell to — add one to start a sale."
   },
   "payments": {
     "title": "Payments",
@@ -488,7 +519,11 @@
     "supplierRefund": "Supplier Refund",
     "saleReturn": "Sale Return",
     "refundPaid": "Refund Paid",
-    "expense": "Expense"
+    "expense": "Expense",
+    "entryCreated": "Entry created successfully",
+    "entryReversed": "Entry reversed successfully",
+    "emptyTitle": "No ledger entries yet",
+    "emptyHint": "Money in and out — payments, expenses and contributions land here."
   },
   "settlements": {
     "title": "Settlements",
@@ -537,7 +572,11 @@
     "totalsTitle": "Across all partners",
     "cycleCount": "{count, plural, =0 {no cycles} one {# cycle} other {# cycles}}",
     "accrued": "Earned so far",
-    "accruedHint": "Profit on what has sold in open cycles — not yet paid out, and still able to move"
+    "accruedHint": "Profit on what has sold in open cycles — not yet paid out, and still able to move",
+    "noPartners": "No core partners yet",
+    "noPartnersHint": "Partners appear here once they hold a share in a cycle.",
+    "noInvestors": "No temporary investors yet",
+    "noInvestorsHint": "An investor appears here once added to a cycle."
   },
   "analytics": {
     "title": "Analytics & Reports",
@@ -567,7 +606,25 @@
     "time": "Time",
     "unread": "unread",
     "viewAll": "View all",
-    "noData": "Nothing yet"
+    "noData": "Nothing yet",
+    "emptyHint": "Requests from shops, payments and shipment news will show up here.",
+    "ADDED_TO_CYCLE": "You have been added to cycle {cycleCode}",
+    "CYCLE_CREATED": "New import cycle {cycleCode} created",
+    "CYCLE_STATUS_CHANGED": "Cycle {cycleCode} moved to {toStatus}",
+    "PURCHASE_ORDER_CREATED": "New purchase order {reference} created for cycle {cycleCode}",
+    "SHIPPING_LEG_ARRIVED": "Shipping leg {sequence} ({origin} → {destination}) has arrived",
+    "LOW_STOCK_DETECTED": "Low stock detected: {products}",
+    "PAYMENT_OVERDUE": "{customer} is {amount} EGP behind on {reference}",
+    "ORDER_REQUEST_SUBMITTED": "{shopName} asked to buy — {requestNo}",
+    "IMPORT_REQUEST_SUBMITTED": "{shopName} asked for {productName}",
+    "SHOP_SIGNED_UP": "{shopName} signed up",
+    "HOLD_EXPIRING": "{requestNo} is still waiting",
+    "ORDER_REQUEST_APPROVED": "{requestNo} approved",
+    "ORDER_REQUEST_APPROVED_PARTIAL": "{requestNo} approved",
+    "ORDER_REQUEST_DECLINED": "{requestNo} could not be filled",
+    "IMPORT_REQUEST_SOURCING": "About {productName}",
+    "IMPORT_REQUEST_ANSWERED": "About {productName}",
+    "IMPORT_REQUEST_DECLINED": "About {productName}"
   },
   "auditLogs": {
     "title": "Audit Logs",
@@ -586,7 +643,9 @@
     "after": "After",
     "created": "Created",
     "updated": "Updated",
-    "deleted": "Deleted"
+    "deleted": "Deleted",
+    "emptyTitle": "No activity recorded yet",
+    "emptyHint": "Every change to a record is logged here, with who made it."
   },
   "settings": {
     "title": "Settings",
@@ -603,7 +662,8 @@
     "newPassword": "New Password",
     "confirmPassword": "Confirm Password",
     "save": "Save Changes",
-    "saved": "Settings saved successfully"
+    "saved": "Settings saved successfully",
+    "passwordChanged": "Password changed successfully"
   },
   "providers": {
     "title": "Shipping Providers",
@@ -620,7 +680,12 @@
     "confirmDelete": "Are you sure you want to delete this shipping provider?",
     "deleteSuccess": "Shipping provider deleted successfully",
     "createSuccess": "Shipping provider created successfully",
-    "updateSuccess": "Shipping provider updated successfully"
+    "updateSuccess": "Shipping provider updated successfully",
+    "createFailed": "Failed to create provider",
+    "updateFailed": "Failed to update provider",
+    "deleteFailed": "Failed to delete provider",
+    "emptyTitle": "No shipping providers yet",
+    "emptyHint": "The forwarders and carriers that move a cycle's goods."
   },
   "suppliers": {
     "title": "Suppliers",
@@ -642,7 +707,12 @@
     "deleteBlocked": "This supplier has purchase orders, so it cannot be deleted — the cost history of that stock traces back through it.",
     "deleteSuccess": "Supplier deleted successfully",
     "createSuccess": "Supplier created successfully",
-    "updateSuccess": "Supplier updated successfully"
+    "updateSuccess": "Supplier updated successfully",
+    "createFailed": "Failed to create supplier",
+    "updateFailed": "Failed to update supplier",
+    "deleteFailed": "Failed to delete supplier",
+    "emptyTitle": "No suppliers yet",
+    "emptyHint": "The factories and traders a cycle buys from."
   },
   "categories": {
     "title": "Product Categories",
@@ -659,7 +729,12 @@
     "confirmDelete": "Are you sure you want to delete this category?",
     "deleteSuccess": "Category deleted successfully",
     "createSuccess": "Category created successfully",
-    "updateSuccess": "Category updated successfully"
+    "updateSuccess": "Category updated successfully",
+    "createFailed": "Failed to create category",
+    "updateFailed": "Failed to update category",
+    "deleteFailed": "Failed to delete category",
+    "emptyTitle": "No categories yet",
+    "emptyHint": "Groups for the product list — engine, brakes, electrical…"
   },
   "wizard": {
     "step1Title": "Cycle Info",
@@ -746,7 +821,8 @@
     "finish": "Finish",
     "finishHint": "Finishing moves the cycle only as far as the shipping dates allow. Deliveries are recorded and received into stock on the cycle page as they arrive.",
     "finished": "Cycle saved — {status}",
-    "finishFailed": "The cycle could not be moved on"
+    "finishFailed": "The cycle could not be moved on",
+    "baseCurrency": "base currency"
   },
   "settlementsPage": {
     "title": "Settlements",
@@ -774,7 +850,10 @@
     "reverseReason": "Why is this being reversed?",
     "reverseReasonHint": "e.g. costing correction — a supplier invoice arrived late",
     "acceptRemainingStockHint": "Closing now writes off the cost of the unsold stock against this cycle. That cannot be undone without reversing the settlement.",
-    "closeAnyway": "Close anyway"
+    "closeAnyway": "Close anyway",
+    "calculated": "Settlement calculated",
+    "updated": "Settlement updated",
+    "paid": "Settlement paid"
   },
   "paymentPlans": {
     "title": "Payment Plans",
@@ -809,7 +888,8 @@
     "cumulativeNote": "Payments clear the earliest instalment first, so paying early covers what comes next.",
     "paid_": "Paid",
     "due": "Due",
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "emptyHint": "Instalments agreed with a customer, with what is due and when."
   },
   "errors": {
     "NOT_FOUND": "{entity} not found",
@@ -1020,7 +1100,8 @@
     "changedWarning": "This differs from what was asked for. The shop will see both figures — a note explaining why saves them asking.",
     "holdHours": "Held for {hours}h more",
     "holdMinutes": "Held for {minutes}m more",
-    "holdExpired": "Hold expired"
+    "holdExpired": "Hold expired",
+    "emptyHint": "When a shop orders from the storefront, its request waits here for an answer."
   },
   "importRequests": {
     "title": "Import requests",
@@ -1043,7 +1124,8 @@
     "lookingForIt": "Looking for it",
     "cannotSource": "Cannot source it",
     "answer": "Answer",
-    "sent": "The shop has been told."
+    "sent": "The shop has been told.",
+    "emptyHint": "When a shop asks for a part we do not stock, the request lands here."
   },
   "push": {
     "title": "Alerts on this device",
@@ -1151,6 +1233,101 @@
     "channel": {
       "B2B": "B2B",
       "B2C": "B2C"
+    },
+    "poStatus": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "CONFIRMED": "Confirmed",
+      "SHIPPED": "Shipped",
+      "PARTIAL": "Partly received",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "settlementStatus": {
+      "DRAFT": "Draft",
+      "APPROVED": "Approved",
+      "PAID": "Paid",
+      "REVERSED": "Reversed"
+    },
+    "originType": {
+      "CHINA": "China",
+      "UAE_DIRECT": "UAE direct"
+    },
+    "verificationStatus": {
+      "PENDING": "Pending",
+      "VERIFIED": "Verified",
+      "REJECTED": "Rejected",
+      "UNVERIFIED": "Not verified"
+    },
+    "movementType": {
+      "RECEIVE": "Received",
+      "RESERVE": "Reserved",
+      "RELEASE": "Released",
+      "SALE": "Sold",
+      "RETURN": "Returned",
+      "ADJUSTMENT": "Adjustment",
+      "WRITE_OFF": "Written off",
+      "PURCHASE_RECEIPT": "Received",
+      "SALE_ALLOCATION": "Sold"
+    },
+    "referenceType": {
+      "PURCHASE_ORDER_ITEM": "Purchase order",
+      "SALE_ORDER": "Sale order",
+      "SALE_ORDER_CANCEL": "Cancelled sale",
+      "SALE_RETURN": "Sale return",
+      "PAYMENT": "Payment",
+      "SETTLEMENT": "Settlement",
+      "SUPPLIER_REFUND": "Supplier refund",
+      "CYCLE_PARTICIPANT": "Cycle participant"
+    },
+    "auditAction": {
+      "CREATE": "Created",
+      "UPDATE": "Updated",
+      "DELETE": "Deleted",
+      "READ": "Viewed",
+      "REVERSE": "Reversed",
+      "LOGIN": "Signed in",
+      "CANCEL": "Cancelled",
+      "ALLOCATE": "Allocated",
+      "VERIFY_STOCK": "Stock received",
+      "VERIFY": "Verified",
+      "UPDATE_PARTICIPANT": "Participant updated",
+      "TRANSITION": "Status changed",
+      "RECORD_REFUND": "Refund recorded",
+      "PRICE_CHANGE": "Price changed",
+      "PAY": "Paid",
+      "CONFIRM": "Confirmed",
+      "CALCULATE": "Calculated",
+      "APPROVE": "Approved",
+      "ADD_PARTICIPANT": "Participant added",
+      "ADD_ITEM": "Item added"
+    },
+    "entityType": {
+      "Product": "Product",
+      "Customer": "Customer",
+      "SaleOrder": "Sale order",
+      "SaleReturn": "Sale return",
+      "Payment": "Payment",
+      "PaymentPlan": "Payment plan",
+      "PurchaseOrder": "Purchase order",
+      "PurchaseOrderItem": "Purchase order item",
+      "Shipment": "Shipment",
+      "ShippingLeg": "Shipping leg",
+      "ShipmentDelivery": "Delivery",
+      "ShipmentLoss": "Loss in transit",
+      "InventoryBatch": "Stock batch",
+      "Cycle": "Cycle",
+      "ImportCycle": "Cycle",
+      "CycleParticipant": "Cycle participant",
+      "Settlement": "Settlement",
+      "User": "User",
+      "LedgerEntry": "Ledger entry",
+      "FinancialTransaction": "Ledger entry",
+      "Supplier": "Supplier",
+      "SupplierRefund": "Supplier refund",
+      "Provider": "Shipping provider",
+      "Category": "Category",
+      "CurrencyRate": "Exchange rate"
     }
   },
   "shipment": {
@@ -1272,5 +1449,28 @@
     "undoRefundFailed": "The refund could not be undone.",
     "refundUndone": "Refund undone",
     "refundUndoneBadge": "Undone"
+  },
+  "shippingCost": {
+    "title": "Shipment cost",
+    "howCharged": "How this leg is charged",
+    "chargedBy": "Charged by",
+    "perWeightKg": "Per weight (kg)",
+    "costPerPiece": "Cost per piece",
+    "numberOfPieces": "Number of pieces",
+    "piecesPrefilled": "Pieces the forwarder billed for — prefilled from the {ordered} ordered. Change it if they charged by carton.",
+    "orderHasPieces": "The order has {ordered} pieces.",
+    "useThat": "Use that",
+    "costPerKg": "Cost per kg",
+    "totalWeightKg": "Total weight (kg)",
+    "totalCost": "Total shipment cost",
+    "currency": "Currency",
+    "fxRate": "FX rate to EGP",
+    "legTotal": "Leg total"
+  },
+  "validation": {
+    "required": "Fill in the required fields.",
+    "requiredNamed": "Fill in the required fields: {fields}",
+    "invalid": "Check the highlighted fields.",
+    "invalidNamed": "Check these fields: {fields}"
   }
 }

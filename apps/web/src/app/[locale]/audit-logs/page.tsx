@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Select } from '../../../components/ui/select';
@@ -11,6 +11,8 @@ import {
   ShieldCheck, Search, Eye, X, Loader2,
   ChevronDown, ChevronRight,
 } from 'lucide-react';
+import { useCodeLabel } from '@/lib/labels';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog {
@@ -43,6 +45,8 @@ const ENTITY_TYPES = [
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function AuditLogsPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const t = useTranslations('auditLogs');
   const tc = useTranslations('common');
 
@@ -88,6 +92,18 @@ export default function AuditLogsPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    logList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   const detail = (logDetail as AuditLog) ?? viewingLog;
 
   // ── Render ────────────────────────────────────────────────────────
@@ -116,7 +132,7 @@ export default function AuditLogsPage() {
           onChange={setEntityFilter}
           clearable
           placeholder={t('filter')}
-          options={ENTITY_TYPES.map((type) => ({ value: type, label: type }))}
+          options={ENTITY_TYPES.map((type) => ({ value: type, label: codeLabel('entityType', type) }))}
         />
       </div>
 
@@ -144,7 +160,7 @@ export default function AuditLogsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">{t('noLogs')}</td></tr>
+                  <tr><td colSpan={6}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
@@ -152,10 +168,10 @@ export default function AuditLogsPage() {
                       <td className="px-4 py-3 text-gray-700">{log.actor?.email ?? log.actorUserId ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {log.action}
+                          {codeLabel('auditAction', log.action)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{log.entityType}</td>
+                      <td className="px-4 py-3 text-gray-600">{codeLabel('entityType', log.entityType)}</td>
                       <td className="px-4 py-3 text-gray-500 font-mono text-xs truncate max-w-[120px]">{log.entityId?.slice(0, 8)}...</td>
                       <td className="px-4 py-3">
                         <button
@@ -179,7 +195,7 @@ export default function AuditLogsPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{t('noLogs')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((log) => (
               <div
@@ -189,11 +205,11 @@ export default function AuditLogsPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {log.action}
+                    {codeLabel('auditAction', log.action)}
                   </span>
                   <span className="text-xs text-gray-400">{formatDate(log.occurredAt)}</span>
                 </div>
-                <p className="text-sm font-medium text-gray-900 mb-1">{log.entityType}</p>
+                <p className="text-sm font-medium text-gray-900 mb-1">{codeLabel('entityType', log.entityType)}</p>
                 <p className="text-xs text-gray-500">{log.actor?.email ?? '—'}</p>
               </div>
             ))
@@ -208,13 +224,13 @@ export default function AuditLogsPage() {
 
       {/* ─── View Log Detail ─────────────────────────────────────── */}
       {viewingLog && detail && (
-        <Modal title={`${t('action')}: ${detail.action}`} onClose={() => setViewingLog(null)}>
+        <Modal title={`${t('action')}: ${codeLabel('auditAction', detail.action)}`} onClose={() => setViewingLog(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('timestamp')} value={formatDate(detail.occurredAt, { includeTime: true })} />
               <Detail label={t('actor')} value={detail.actor?.email ?? detail.actorUserId ?? '—'} />
-              <Detail label={t('action')} value={detail.action} />
-              <Detail label={t('entity')} value={detail.entityType} />
+              <Detail label={t('action')} value={codeLabel('auditAction', detail.action)} />
+              <Detail label={t('entity')} value={codeLabel('entityType', detail.entityType)} />
               <Detail label={t('entityId')} value={detail.entityId ?? '—'} />
               <Detail label={t('ipAddress')} value={detail.ipAddress ?? '—'} />
             </div>

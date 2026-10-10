@@ -253,3 +253,10 @@ input[type="number"] {
     font-size: 16px;
   }
 }
+
+/* A field ValidatedForm flagged on submit. Unlayered for the same reason as
+ * the rule above: the field's own `border-gray-200` utility must not win. */
+form [aria-invalid="true"][data-validated] {
+  border-color: var(--color-destructive);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-destructive) 20%, transparent);
+}

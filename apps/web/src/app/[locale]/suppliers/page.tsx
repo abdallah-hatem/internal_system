@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -76,7 +78,7 @@ export default function SuppliersPage() {
       setShowCreateModal(false);
       addToast(t('createSuccess'), 'success');
     },
-    onError: (e: any) => onError(e, 'Failed to create supplier'),
+    onError: (e: any) => onError(e, t('createFailed')),
   });
 
   const updateMutation = useMutation({
@@ -86,7 +88,7 @@ export default function SuppliersPage() {
       setEditingSupplier(null);
       addToast(t('updateSuccess'), 'success');
     },
-    onError: (e: any) => onError(e, 'Failed to update supplier'),
+    onError: (e: any) => onError(e, t('updateFailed')),
   });
 
   const deleteMutation = useMutation({
@@ -96,7 +98,7 @@ export default function SuppliersPage() {
       setDeletingSupplier(null);
       addToast(t('deleteSuccess'), 'success');
     },
-    onError: (e: any) => onError(e, 'Failed to delete supplier'),
+    onError: (e: any) => onError(e, t('deleteFailed')),
   });
 
   // ── Derived ───────────────────────────────────────────────────────
@@ -116,6 +118,19 @@ export default function SuppliersPage() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    supplierList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   // ── Handlers ──────────────────────────────────────────────────────
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -182,7 +197,7 @@ export default function SuppliersPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">{t('noData')}</td></tr>
+                  <tr><td colSpan={5}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((supplier) => (
                     <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
@@ -228,7 +243,7 @@ export default function SuppliersPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{t('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((supplier) => (
               <div key={supplier.id} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -268,7 +283,7 @@ export default function SuppliersPage() {
       {/* ─── Create ────────────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.supplier.Fields />
             <FormActions
               onCancel={() => setShowCreateModal(false)}
@@ -276,14 +291,14 @@ export default function SuppliersPage() {
               submitLabel={tc('create')}
               busy={createMutation.isPending}
             />
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit ──────────────────────────────────────────────────── */}
       {editingSupplier && (
         <Modal title={t('edit')} onClose={() => setEditingSupplier(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <ENTITY_FORMS.supplier.Fields record={editingSupplier} />
             <FormActions
               onCancel={() => setEditingSupplier(null)}
@@ -291,7 +306,7 @@ export default function SuppliersPage() {
               submitLabel={tc('save')}
               busy={updateMutation.isPending}
             />
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

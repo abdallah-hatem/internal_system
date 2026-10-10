@@ -12,7 +12,7 @@ import {
   ShoppingCart, Plus, Search, Eye, X, MinusCircle, Loader2, ChevronRight,
   Package, DollarSign,
 } from 'lucide-react';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
@@ -22,6 +22,9 @@ import { MoneyInput } from '../../../components/ui/money-input';
 import { useApiError } from '../../../lib/api-error';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
+import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -59,6 +62,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PurchasesPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('purchases');
   const tc = useTranslations('common');
@@ -114,10 +119,10 @@ export default function PurchasesPage() {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       setShowCreateModal(false);
       setLineItems([]);
-      toast('Purchase order created successfully', 'success');
+      toast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to create purchase order'), 'error');
+      toast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -126,10 +131,10 @@ export default function PurchasesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase'] });
       setShowRefundModal(false);
-      toast('Refund recorded successfully', 'success');
+      toast(t('refundRecorded'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to record refund'), 'error');
+      toast(apiError(error, t('refundFailed')), 'error');
     },
   });
 
@@ -153,6 +158,19 @@ export default function PurchasesPage() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    purchaseList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   // ── Handlers ──────────────────────────────────────────────────────
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -235,7 +253,7 @@ export default function PurchasesPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={8}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((po) => (
                     <tr key={po.id} className="hover:bg-gray-50 transition-colors">
@@ -247,7 +265,7 @@ export default function PurchasesPage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(po.orderedOn)}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {po.status}
+                          {codeLabel('poStatus', po.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -271,7 +289,7 @@ export default function PurchasesPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((po) => (
               <div
@@ -282,7 +300,7 @@ export default function PurchasesPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-sm font-bold text-primary-600">{po.reference}</span>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {po.status}
+                    {codeLabel('poStatus', po.status)}
                   </span>
                 </div>
                 <p className="text-sm text-gray-700">{po.supplier?.name ?? '—'}</p>
@@ -305,7 +323,7 @@ export default function PurchasesPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => { setShowCreateModal(false); setLineItems([]); }}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
@@ -317,7 +335,7 @@ export default function PurchasesPage() {
                   options={cycleList.map((c: any) => ({
                     value: c.id,
                     label: c.code,
-                    hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                    hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
                   }))}
                 />
               </div>
@@ -434,7 +452,7 @@ export default function PurchasesPage() {
                 {createMutation.isPending ? tc('loading') : tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -449,7 +467,7 @@ export default function PurchasesPage() {
               <Detail label={t('currency')} value={viewingPO.currency} />
                <Detail label={t('fxRate')} value={String(viewingPO.fxRateToEgp)} />
               <Detail label={t('orderedDate')} value={formatDate(viewingPO.orderedOn)} />
-              <Detail label={tc('status')} value={viewingPO.status} />
+              <Detail label={tc('status')} value={codeLabel('poStatus', viewingPO.status)} />
             </div>
 
             {/* Items table */}
@@ -536,7 +554,7 @@ export default function PurchasesPage() {
       {/* ─── Refund Modal ──────────────────────────────────────────── */}
       {showRefundModal && viewingPO && (
         <Modal title={t('recordRefund')} onClose={() => setShowRefundModal(false)}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -562,7 +580,7 @@ export default function PurchasesPage() {
               <button type="button" onClick={() => setShowRefundModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
     </div>

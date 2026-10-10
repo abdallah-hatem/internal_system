@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Loader2, PackageSearch, Search, X } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 import { api } from '../../../lib/api';
 import { useApiError } from '../../../lib/api-error';
@@ -11,7 +12,7 @@ import { useToast } from '../../../components/ui/toast';
 import { AuthedImage } from '../../../components/ui/authed-image';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Select } from '../../../components/ui/select';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 
 /**
  * What shops have asked us to bring in.
@@ -77,9 +78,8 @@ export default function ImportRequestsPage() {
       )}
 
       {!isLoading && requests.length === 0 && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
-          <PackageSearch className="mx-auto h-8 w-8 text-gray-300" />
-          <p className="mt-3 text-sm text-gray-500">{t('empty')}</p>
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white">
+          <EmptyState icon={PackageSearch} title={t('empty')} description={t('emptyHint')} />
         </div>
       )}
 
@@ -109,6 +109,7 @@ function RequestCard({
   onError: (e: unknown) => void;
   onSuccess: (message: string) => void;
 }) {
+  const { formatDate } = useDateFormat();
   const t = useTranslations('importRequests');
   const tc = useTranslations('common');
   const locale = useLocale();

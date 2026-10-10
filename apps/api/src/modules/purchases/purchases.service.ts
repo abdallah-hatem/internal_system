@@ -351,7 +351,8 @@ export class PurchasesService {
     if (userIds.length > 0) {
       await this.notifications.createForMultipleUsers(userIds, {
         eventType: 'PURCHASE_ORDER_CREATED',
-        title: `New purchase order ${order.reference} created for cycle ${cycle.code}`,
+        code: 'PURCHASE_ORDER_CREATED',
+        params: { reference: order.reference, cycleCode: cycle.code },
         payload: {
           purchaseOrderId: order.id,
           cycleId: cycle.id,

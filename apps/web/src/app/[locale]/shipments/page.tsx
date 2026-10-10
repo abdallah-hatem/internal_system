@@ -14,12 +14,14 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
 import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
 import { Link } from '../../../i18n/navigation';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -55,6 +57,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('shipments');
   const tc = useTranslations('common');
@@ -111,10 +114,10 @@ export default function ShipmentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       setShowCreateModal(false);
-      addToast('Shipment created successfully', 'success');
+      addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
+      addToast(apiError(error, tc('operationFailed')), 'error');
     },
   });
 
@@ -127,7 +130,7 @@ export default function ShipmentsPage() {
       addToast(t('legUpdated'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Operation failed'), 'error');
+      addToast(apiError(error, tc('operationFailed')), 'error');
     },
   });
 
@@ -191,6 +194,19 @@ export default function ShipmentsPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    shipmentList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -246,7 +262,7 @@ export default function ShipmentsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={10}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((ship) => (
                     <tr key={ship.id} className="hover:bg-gray-50 transition-colors">
@@ -292,7 +308,7 @@ export default function ShipmentsPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
             ) : (
             paginated.map((ship) => (
               <div
@@ -337,7 +353,7 @@ export default function ShipmentsPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -364,7 +380,7 @@ export default function ShipmentsPage() {
                   options={cycleList.map((c: any) => ({
                     value: c.id,
                     label: c.code,
-                    hint: [c.originType, c.status].filter(Boolean).join(' · '),
+                    hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
                   }))}
                 />
               </div>
@@ -412,14 +428,14 @@ export default function ShipmentsPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingShipment && (
         <Modal title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`} onClose={() => closeEdit()}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -502,7 +518,7 @@ export default function ShipmentsPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
     </div>

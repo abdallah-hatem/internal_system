@@ -4,14 +4,15 @@ import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { timeAgo } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import {
   Bell, Loader2, CheckCheck, Check,
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Link } from '../../../i18n/navigation';
-import { notificationHref, useNotifications } from '../../../lib/notifications';
+import { notificationHref, useNotificationText, useNotifications } from '../../../lib/notifications';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface Notification {
@@ -36,6 +37,8 @@ const EVENT_ICONS: Record<string, typeof Bell> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function NotificationsPage() {
+  const notificationText = useNotificationText();
+  const { timeAgo } = useDateFormat();
   const t = useTranslations('notifications');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -105,10 +108,7 @@ export default function NotificationsPage() {
       {!isLoading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {notificationList.length === 0 ? (
-            <div className="p-12 text-center text-gray-400">
-              <Bell className="h-8 w-8 mx-auto mb-3 text-gray-300" />
-              <p>{t('noNotifications')}</p>
-            </div>
+            <EmptyState icon={Bell} title={t('noNotifications')} description={t('emptyHint')} />
           ) : (
             <div className="divide-y divide-gray-100">
               {paginated.map((notification) => {
@@ -128,7 +128,7 @@ export default function NotificationsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className={`text-sm font-medium ${!notification.readAt ? 'text-gray-900' : 'text-gray-700'}`}>
-                          {notification.title}
+                          {notificationText(notification)}
                         </p>
                         {!notification.readAt && (
                           <span className="h-2 w-2 bg-primary-500 rounded-full flex-shrink-0" />

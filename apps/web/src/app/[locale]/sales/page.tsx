@@ -34,6 +34,7 @@ import {
 
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -211,7 +212,7 @@ function SalesPageContent() {
     },
     onError: (error: any) => {
       addToast(
-        apiError(error, 'Failed to record the return'),
+        apiError(error, t('returnFailed')),
         'error',
       );
     },
@@ -776,7 +777,7 @@ function SalesPageContent() {
           title={`${t('recordReturn')} — ${returningOrder.orderNo}`}
           onClose={() => setReturningOrder(null)}
         >
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -884,7 +885,7 @@ function SalesPageContent() {
                 {t('recordReturn')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
     </div>

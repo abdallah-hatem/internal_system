@@ -44,7 +44,9 @@ const PISTON: SaleFormProduct = {
   ],
 };
 
-function renderForm(onSaved = vi.fn()) {
+// A shop is chosen up front: the form refuses to send an order with no
+// customer (it is noValidate, so it checks its own required pickers).
+function renderForm(onSaved = vi.fn(), initialCustomerId: string | undefined = SHOP.id) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   render(
     <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
@@ -56,6 +58,7 @@ function renderForm(onSaved = vi.fn()) {
             stock={[{ productId: PISTON.id, availableStock: 60 }]}
             onCancel={() => {}}
             onSaved={onSaved}
+            initialCustomerId={initialCustomerId}
           />
         </ToastProvider>
       </QueryClientProvider>
@@ -227,6 +230,7 @@ describe('SaleOrderForm', () => {
     cleanup();
     post.mockClear();
     const second = renderForm();
+    pick(3, 'Piston kit');
     fireEvent.click(screen.getByRole('button', { name: en.sales.saveDraft }));
     await waitFor(() => expect(second.onSaved).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0][1]).toMatchObject({ confirm: false });
@@ -237,6 +241,7 @@ describe('SaleOrderForm', () => {
     const pending = new Promise((r) => (resolve = r));
     answer = () => pending;
     renderForm();
+    pick(3, 'Piston kit');
     const button = screen.getByRole('button', { name: en.sales.createAndConfirm });
     // Both clicks land before React re-renders the button as disabled.
     act(() => {
@@ -251,6 +256,18 @@ describe('SaleOrderForm', () => {
     });
     expect(post).toHaveBeenCalledTimes(1);
     await act(async () => resolve({ data: { data: { id: 'o1' } } }));
+  });
+
+  it('noValidate: an order with no customer or no product names them in the reader\'s words and sends nothing', () => {
+    renderForm(vi.fn(), '');
+    const form = screen.getByTestId('sale-order-form');
+    expect(form.hasAttribute('novalidate')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe(
+      en.validation.requiredNamed.replace('{fields}', `${en.sales.customer}, ${en.sales.product}`),
+    );
+    expect(post).not.toHaveBeenCalled();
   });
 
   it('the remove button on a line is a button that does not submit', () => {

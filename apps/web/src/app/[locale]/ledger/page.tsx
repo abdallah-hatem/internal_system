@@ -11,13 +11,16 @@ import {
   BookOpen, Plus, Search, Eye, X, Loader2,
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
 import { MoneyInput } from '../../../components/ui/money-input';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { Download } from 'lucide-react';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useCodeLabel } from '@/lib/labels';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -77,6 +80,8 @@ const DIRECTION_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function LedgerPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const t = useTranslations('ledger');
   const tc = useTranslations('common');
 
@@ -115,7 +120,7 @@ export default function LedgerPage() {
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post('/ledger', data),
     onSuccess: () => {
-      toast('Entry created successfully', 'success');
+      toast(t('entryCreated'), 'success');
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
       setShowCreateModal(false);
     },
@@ -124,7 +129,7 @@ export default function LedgerPage() {
   const reverseMutation = useMutation({
     mutationFn: (data: any) => api.post(`/ledger/${selectedEntry!.id}/reverse`, data),
     onSuccess: () => {
-      toast('Entry reversed successfully', 'success');
+      toast(t('entryReversed'), 'success');
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
       setShowReverseModal(false);
       setSelectedEntry(null);
@@ -149,6 +154,19 @@ export default function LedgerPage() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    entryList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   const detail = (entryDetail as LedgerEntry) ?? viewingEntry;
 
@@ -278,7 +296,7 @@ export default function LedgerPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={8}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
@@ -329,7 +347,7 @@ export default function LedgerPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((entry) => (
               <div
@@ -377,7 +395,7 @@ export default function LedgerPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('type')}</label>
@@ -422,14 +440,14 @@ export default function LedgerPage() {
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedEntry && (
         <Modal title={t('reverse')} onClose={() => { setShowReverseModal(false); setSelectedEntry(null); }}>
-          <form onSubmit={handleReverse} className="space-y-4">
+          <ValidatedForm onSubmit={handleReverse} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedEntry.amount} currency={selectedEntry.currency} /></span>
             </p>
@@ -438,7 +456,7 @@ export default function LedgerPage() {
               <button type="button" onClick={() => { setShowReverseModal(false); setSelectedEntry(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{t('reverse')}</button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -463,7 +481,7 @@ export default function LedgerPage() {
               <Detail label={t('fxRate')} value={detail.fxRateToEgp?.toString() ?? '—'} />
               <Detail label={t('account')} value={detail.account?.name ?? '—'} />
               <Detail label={t('cycle')} value={detail.cycle?.code ?? '—'} />
-              <Detail label={t('relatedTo')} value={detail.relatedType && detail.relatedId ? `${detail.relatedType} (${detail.relatedId})` : '—'} />
+              <Detail label={t('relatedTo')} value={detail.relatedType && detail.relatedId ? `${codeLabel('referenceType', detail.relatedType)} (${detail.relatedId})` : '—'} />
               <Detail label={t('reason')} value={detail.reason ?? '—'} />
             </div>
           </div>

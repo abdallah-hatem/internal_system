@@ -20,7 +20,16 @@ export type CodeKind =
   | 'paymentMethod'
   | 'costBasis'
   | 'customerType'
-  | 'channel';
+  | 'channel'
+  // Added by U5's sweep — codes that were still printed raw somewhere.
+  | 'poStatus' // PurchaseOrder.status (a string column)
+  | 'settlementStatus' // SettlementStatus
+  | 'originType' // CycleOriginType
+  | 'verificationStatus' // VerificationStatus, and a customer's UNVERIFIED
+  | 'movementType' // InventoryMovementType
+  | 'referenceType' // InventoryMovement.referenceType
+  | 'auditAction' // AuditLog.action
+  | 'entityType'; // AuditLog.entityType
 
 /**
  * Translate an API code for display.

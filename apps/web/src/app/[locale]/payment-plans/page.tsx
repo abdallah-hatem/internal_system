@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
@@ -14,8 +14,11 @@ import { MoneyInput } from '../../../components/ui/money-input';
 import {
   CalendarClock, Plus, X, Loader2, AlertTriangle, Check, Trash2, Ban,
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 import { useApiError } from '../../../lib/api-error';
+import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -78,6 +81,8 @@ function nextSundayAfter(day: string) {
 const today = () => asDay(new Date());
 
 export default function PaymentPlansPage() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('paymentPlans');
   const tc = useTranslations('common');
@@ -142,6 +147,15 @@ export default function PaymentPlansPage() {
 
   const draftTotal = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
 
+  const openCreate = () => {
+    setShowCreate(true);
+    if (lines.length === 0) {
+      // Seed with an upfront line dated today, which is how these are
+      // usually agreed at the shop.
+      setLines([{ dueOn: today(), amount: '', note: '' }]);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -150,14 +164,7 @@ export default function PaymentPlansPage() {
           <p className="text-sm text-gray-500 mt-1">{t('subtitle')}</p>
         </div>
         <button
-          onClick={() => {
-            setShowCreate(true);
-            if (lines.length === 0) {
-              // Seed with an upfront line dated today, which is how these are
-              // usually agreed at the shop.
-              setLines([{ dueOn: today(), amount: '', note: '' }]);
-            }
-          }}
+          onClick={openCreate}
           className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
         >
           <Plus className="h-4 w-4" /> {t('create')}
@@ -178,8 +185,13 @@ export default function PaymentPlansPage() {
           <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
         </div>
       ) : ordered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white p-12 text-center text-gray-400">
-          {t('noData')}
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white">
+          <EmptyState
+            icon={CalendarClock}
+            title={t('noData')}
+            description={t('emptyHint')}
+            action={{ label: t('create'), onClick: openCreate }}
+          />
         </div>
       ) : (
         <div className="space-y-3">
@@ -300,7 +312,7 @@ export default function PaymentPlansPage() {
               </button>
             </div>
 
-            <form
+            <ValidatedForm
               onSubmit={(e) => {
                 e.preventDefault();
                 const instalments = lines
@@ -330,7 +342,7 @@ export default function PaymentPlansPage() {
                   options={(Array.isArray(customers) ? customers : []).map((c: any) => ({
                     value: c.id,
                     label: c.displayName,
-                    hint: c.phone ?? c.type,
+                    hint: c.phone ?? codeLabel('customerType', c.type),
                   }))}
                 />
               </div>
@@ -421,7 +433,7 @@ export default function PaymentPlansPage() {
                   {t('agree')}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}

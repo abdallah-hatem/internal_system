@@ -354,8 +354,12 @@ export class PaymentPlansService {
 
         await this.notifications.createForMultipleUsers(notifyUserIds, {
           eventType: 'PAYMENT_OVERDUE',
-          title:
-            `${p.plan.customer.displayName} is ${formatMoney(p.overdueEgp)} EGP behind on ${p.plan.reference}`,
+          code: 'PAYMENT_OVERDUE',
+          params: {
+            customer: p.plan.customer.displayName,
+            amount: formatMoney(p.overdueEgp),
+            reference: p.plan.reference,
+          },
           payload: {
             planId: p.plan.id,
             customerId: p.plan.customerId,

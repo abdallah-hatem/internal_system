@@ -14,6 +14,8 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -56,7 +58,7 @@ export default function ProvidersPage() {
       addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to create provider'), 'error');
+      addToast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -68,7 +70,7 @@ export default function ProvidersPage() {
       addToast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to update provider'), 'error');
+      addToast(apiError(error, t('updateFailed')), 'error');
     },
   });
 
@@ -80,7 +82,7 @@ export default function ProvidersPage() {
       addToast(t('deleteSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to delete provider'), 'error');
+      addToast(apiError(error, t('deleteFailed')), 'error');
     },
   });
 
@@ -100,6 +102,19 @@ export default function ProvidersPage() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    providerList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   // ── Handlers ──────────────────────────────────────────────────────
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -172,7 +187,7 @@ export default function ProvidersPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">{t('noData')}</td></tr>
+                  <tr><td colSpan={5}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((provider) => (
                     <tr key={provider.id} className="hover:bg-gray-50 transition-colors">
@@ -226,7 +241,7 @@ export default function ProvidersPage() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{t('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((provider) => (
               <div
@@ -277,7 +292,7 @@ export default function ProvidersPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.provider.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -286,14 +301,14 @@ export default function ProvidersPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingProvider && (
         <Modal title={t('edit')} onClose={() => setEditingProvider(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="name" defaultValue={editingProvider.name} required />
             <InputField label={t('contactPerson')} name="contactPerson" defaultValue={editingProvider.contactPerson} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -308,7 +323,7 @@ export default function ProvidersPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

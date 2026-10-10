@@ -25,6 +25,7 @@ import {
 
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -366,7 +367,7 @@ function PaymentsPageContent() {
       {/* ─── Allocate Modal ────────────────────────────────────────── */}
       {showAllocateModal && selectedPayment && (
         <Modal title={t('allocate')} onClose={() => { setShowAllocateModal(false); setSelectedPayment(null); }}>
-          <form onSubmit={handleAllocate} className="space-y-4">
+          <ValidatedForm onSubmit={handleAllocate} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('customer')}: <span className="font-medium text-gray-900">{selectedPayment.customer?.displayName ?? '—'}</span>
             </p>
@@ -413,14 +414,14 @@ function PaymentsPageContent() {
                 {tc('confirm')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedPayment && (
         <Modal title={t('reverse')} onClose={() => { setShowReverseModal(false); setSelectedPayment(null); }}>
-          <form onSubmit={handleReverse} className="space-y-4">
+          <ValidatedForm onSubmit={handleReverse} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('customer')}: <span className="font-medium text-gray-900">{selectedPayment.customer?.displayName ?? '—'}</span>
             </p>
@@ -435,7 +436,7 @@ function PaymentsPageContent() {
                 {t('reverse')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

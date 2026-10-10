@@ -1014,6 +1014,14 @@ model Notification {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @map("user_id") @db.Uuid
   eventType   String    @map("event_type")
+  /// What happened, as a key the reader's app translates (`notifications.<code>`
+  /// in the web's locale files). NULL on rows written before U5 (2026-10-10):
+  /// those carry only their English `title`, which is still shown as written.
+  code        String?
+  /// The values the translated text needs (`{ cycleCode: "CYC-…" }`).
+  params      Json?
+  /// The English text — what the logs record, and what a client that has
+  /// never heard of `code` falls back to.
   title       String
   payloadJson Json?     @map("payload_json")
   readAt      DateTime? @map("read_at") @db.Timestamptz()

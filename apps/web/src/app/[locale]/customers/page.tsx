@@ -10,7 +10,7 @@ import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
 import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import {
   Users, Plus, Search, Eye, Edit, X, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
@@ -21,6 +21,9 @@ import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
 import { sortByBalance } from '../../../components/dashboard/list-params';
+import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -66,6 +69,8 @@ export default function CustomersPage() {
 }
 
 function CustomersPageContent() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const router = useRouter();
   const locale = useLocale();
@@ -115,10 +120,10 @@ function CustomersPageContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setShowCreateModal(false);
-      toast('Customer created successfully', 'success');
+      toast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to create customer'), 'error');
+      toast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -128,10 +133,10 @@ function CustomersPageContent() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customer'] });
       setEditingCustomer(null);
-      toast('Customer updated successfully', 'success');
+      toast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to update customer'), 'error');
+      toast(apiError(error, t('updateFailed')), 'error');
     },
   });
 
@@ -142,7 +147,7 @@ function CustomersPageContent() {
       toast(t('verifySuccess'), 'success');
     },
     onError: (error: any) => {
-      toast(apiError(error, 'Failed to verify customer'), 'error');
+      toast(apiError(error, t('verifyFailed')), 'error');
     },
   });
 
@@ -162,6 +167,19 @@ function CustomersPageContent() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    customerList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   const detail = (customerDetail as Customer) ?? viewingCustomer;
 
@@ -270,7 +288,7 @@ function CustomersPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={6}>{emptyList}</td></tr>
                   ) : (
                   paginated.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
@@ -353,7 +371,7 @@ function CustomersPageContent() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((customer) => (
               <div
@@ -402,7 +420,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.customer.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -411,7 +429,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -453,7 +471,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingCustomer && (
         <Modal title={t('edit')} onClose={() => setEditingCustomer(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="displayName" defaultValue={editingCustomer.displayName} required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -475,7 +493,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -517,7 +535,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                       <div className="text-end">
                         <p className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></p>
                         <span className={`text-xs font-medium ${order.status === 'PAID' ? 'text-green-600' : 'text-orange-600'}`}>
-                          {order.status}
+                          {codeLabel('orderStatus', order.status)}
                         </span>
                       </div>
                     </div>

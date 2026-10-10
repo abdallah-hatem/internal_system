@@ -11,8 +11,11 @@ import {
   Scale, Loader2, AlertTriangle, TrendingUp, TrendingDown,
   CheckCircle2, Wallet, RotateCcw, Calculator, X,
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 import { useApiError } from '../../../lib/api-error';
+import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Line {
   id: string;
@@ -70,6 +73,7 @@ const nameOf = (l: Line) =>
 
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function SettlementsPage() {
+  const codeLabel = useCodeLabel();
   const apiError = useApiError();
   const t = useTranslations('settlementsPage');
   const tc = useTranslations('common');
@@ -96,7 +100,7 @@ export default function SettlementsPage() {
 
   const onError = (e: any) =>
     addToast(
-      apiError(e, 'Operation failed'),
+      apiError(e, tc('operationFailed')),
       'error',
     );
 
@@ -106,7 +110,7 @@ export default function SettlementsPage() {
     onSuccess: (data: any) => {
       setWarnings(data?.warnings ?? []);
       refresh();
-      addToast('Settlement calculated', 'success');
+      addToast(t('calculated'), 'success');
     },
     onError,
   });
@@ -129,7 +133,7 @@ export default function SettlementsPage() {
       setReversing(null);
       setReverseReason('');
       setStockPrompt(null);
-      addToast('Settlement updated', 'success');
+      addToast(t('updated'), 'success');
     },
     onError,
   });
@@ -140,7 +144,7 @@ export default function SettlementsPage() {
     onSuccess: () => {
       refresh();
       setStockPrompt(null);
-      addToast('Settlement paid', 'success');
+      addToast(t('paid'), 'success');
     },
     onError: (e: any, variables) => {
       // Closing a cycle that still holds stock writes that cost off, so the API
@@ -195,7 +199,7 @@ export default function SettlementsPage() {
             options={cycleList.map((c: any) => ({
               value: c.id,
               label: c.code,
-              hint: [c.originType, c.status].filter(Boolean).join(' · '),
+              hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
             }))}
           />
           <button
@@ -232,12 +236,8 @@ export default function SettlementsPage() {
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       ) : list.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <Scale className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">{t('empty')}</p>
-          <p className="text-sm text-gray-400 mt-1">
-            {t('emptyHint')}
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState icon={Scale} title={t('empty')} description={t('emptyHint')} />
         </div>
       ) : (
         <div className="space-y-5">
@@ -257,7 +257,7 @@ export default function SettlementsPage() {
           and into the audit log, so it has to come from the person reversing. */}
       {reversing && (
         <Modal title={t('reverse')} onClose={() => setReversing(null)}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               actionMutation.mutate({
@@ -300,7 +300,7 @@ export default function SettlementsPage() {
                 {t('reverse')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -364,6 +364,7 @@ function SettlementCard({
   busy: boolean;
   t: (key: string, values?: Record<string, string | number | Date>) => string;
 }) {
+  const codeLabel = useCodeLabel();
   const profit = Number(s.grossProfitEgp ?? 0);
   const remaining = Number(s.unitsRemaining ?? 0);
 
@@ -386,7 +387,7 @@ function SettlementCard({
               STATUS_STYLE[s.status] ?? 'bg-gray-100 text-gray-600'
             }`}
           >
-            {s.status}
+            {codeLabel('settlementStatus', s.status)}
           </span>
         </div>
 

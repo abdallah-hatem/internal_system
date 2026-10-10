@@ -1,0 +1,114 @@
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { NextIntlClientProvider } from 'next-intl';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import en from '@/i18n/locales/en.json';
+import ar from '@/i18n/locales/ar.json';
+// The server's own catalogue, to hold the locale files to.
+import { NOTIFICATION_MESSAGES } from '../../../api/src/common/notification-messages';
+
+vi.mock('@/i18n/navigation', () => ({
+  Link: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+const stored = vi.hoisted(() => ({ items: [] as unknown[] }));
+vi.mock('@/lib/api', () => ({
+  api: {
+    get: () =>
+      Promise.resolve({ data: { data: stored.items, meta: { unreadCount: stored.items.length } } }),
+    post: () => Promise.resolve({ data: {} }),
+  },
+}));
+
+import { NotificationBell } from '@/components/layout/notification-bell';
+
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+});
+afterEach(cleanup);
+
+const NEW = {
+  id: 'n-new',
+  eventType: 'CYCLE_STATUS_CHANGED',
+  code: 'CYCLE_STATUS_CHANGED',
+  params: { cycleCode: 'CYC-2026-0007', toStatus: 'SELLING' },
+  title: 'Cycle CYC-2026-0007 moved to SELLING',
+  payloadJson: { cycleId: 'c-7' },
+  readAt: null,
+  createdAt: '2026-10-09T10:00:00.000Z',
+};
+
+// Written before codes existed: English text, no code, no params.
+const OLD = {
+  id: 'n-old',
+  eventType: 'LOW_STOCK_DETECTED',
+  title: 'Low stock detected: Brake pad',
+  payloadJson: null,
+  readAt: null,
+  createdAt: '2026-09-01T10:00:00.000Z',
+};
+
+async function openBellInArabic(items: unknown[]) {
+  stored.items = items;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="ar" messages={ar} timeZone="Africa/Cairo">
+        <NotificationBell />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(ar.notifications.unread) }));
+}
+
+describe('notifications in the reader’s language', () => {
+  it('a new notification (code + params) reads in Arabic, its status code translated too', async () => {
+    await openBellInArabic([NEW]);
+    expect(await screen.findByText('انتقلت الدورة CYC-2026-0007 إلى البيع')).toBeTruthy();
+    expect(screen.queryByText(NEW.title)).toBeNull();
+  });
+
+  it('an old notification with no code still shows the text it was stored with', async () => {
+    await openBellInArabic([OLD, NEW]);
+    expect(await screen.findByText(OLD.title)).toBeTruthy();
+    expect(screen.getByText('انتقلت الدورة CYC-2026-0007 إلى البيع')).toBeTruthy();
+  });
+
+  it('a code this build has never heard of falls back to the stored text, not to a key', async () => {
+    await openBellInArabic([{ ...NEW, id: 'n-x', code: 'SOMETHING_NEW', title: 'Something new happened' }]);
+    expect(await screen.findByText('Something new happened')).toBeTruthy();
+  });
+});
+
+describe('the locale files and the server catalogue agree', () => {
+  const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  const codes = Object.keys(NOTIFICATION_MESSAGES);
+  const isCode = (key: string) => /^[A-Z][A-Z0-9_]+$/.test(key);
+
+  it('every code the server writes has words in en and ar, with the params it sends', () => {
+    for (const code of codes) {
+      for (const messages of [en, ar] as const) {
+        const text = (messages.notifications as Record<string, string>)[code];
+        expect([code, typeof text]).toEqual([code, 'string']);
+        const server = NOTIFICATION_MESSAGES[code as keyof typeof NOTIFICATION_MESSAGES].en.title;
+        expect([code, placeholders(text)]).toEqual([code, placeholders(server)]);
+      }
+    }
+  });
+
+  it('no translation is left for a code nothing writes any more', () => {
+    for (const messages of [en, ar]) {
+      const orphans = Object.keys(messages.notifications).filter((k) => isCode(k) && !codes.includes(k));
+      expect(orphans).toEqual([]);
+    }
+  });
+});

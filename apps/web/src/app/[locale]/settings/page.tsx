@@ -11,9 +11,12 @@ import {
 } from 'lucide-react';
 import { PushAlerts } from '../../../components/settings/push-alerts';
 import { AssistantConnections } from '../../../components/settings/assistant-connections';
+import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
+  const codeLabel = useCodeLabel();
   const t = useTranslations('settings');
   const tc = useTranslations('common');
   const { user } = useAuth();
@@ -33,7 +36,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       setPasswordSuccess(true);
       setTimeout(() => setPasswordSuccess(false), 3000);
-      toast('Password changed successfully', 'success');
+      toast(t('passwordChanged'), 'success');
     },
   });
 
@@ -108,7 +111,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('role')}</label>
                 <input
                   type="text"
-                  value={profileData?.role ?? ''}
+                  value={profileData?.role ? codeLabel('role', profileData.role) : ''}
                   readOnly
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
                 />
@@ -150,7 +153,7 @@ export default function SettingsPage() {
               <ShieldCheck className="h-5 w-5 text-gray-400" />
               {t('security')}
             </h2>
-            <form onSubmit={handlePasswordChange} className="space-y-4">
+            <ValidatedForm onSubmit={handlePasswordChange} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('currentPassword')}</label>
                 <input
@@ -204,7 +207,7 @@ export default function SettingsPage() {
                   {t('save')}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </section>
         </>
       )}

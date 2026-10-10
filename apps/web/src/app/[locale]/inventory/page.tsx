@@ -15,6 +15,8 @@ import {
   Search, ChevronDown, Loader2, AlertTriangle,
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
 } from 'lucide-react';
+import { useCodeLabel } from '@/lib/labels';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface InventorySummary {
@@ -50,6 +52,8 @@ export default function InventoryPage() {
 }
 
 function InventoryPageContent() {
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
@@ -96,6 +100,19 @@ function InventoryPageContent() {
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    inventoryList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('emptyAction'), href: '/cycles' }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -169,7 +186,7 @@ function InventoryPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">{tc('noData')}</td></tr>
+                  <tr><td colSpan={6}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((item) => {
                     const isExpanded = expandedProduct === item.productId;
@@ -277,13 +294,13 @@ function InventoryPageContent() {
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                                   mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                                 }`}>
-                                                  {mov.movementType}
+                                                  {codeLabel('movementType', mov.movementType)}
                                                 </span>
                                                 <span className="text-gray-700">{mov.qtyDelta}</span>
                                               </div>
                                               <div className="text-right">
                                                 <span className="text-gray-500 text-xs">{formatDate(mov.occurredAt)}</span>
-                                                {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{mov.referenceType}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
+                                                {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{codeLabel('referenceType', mov.referenceType)}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
                                               </div>
                                             </div>
                                           ))}
@@ -310,7 +327,7 @@ function InventoryPageContent() {
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">{tc('noData')}</div>
+            <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
             paginated.map((item) => {
               const isExpanded = expandedProduct === item.productId;
@@ -402,7 +419,7 @@ function InventoryPageContent() {
                                    <span className={`px-1.5 py-0.5 rounded-full font-medium ${
                                     mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                   }`}>
-                                    {mov.movementType}
+                                    {codeLabel('movementType', mov.movementType)}
                                   </span>
                                   <span>{mov.qtyDelta}</span>
                                   <span className="text-gray-500">{formatDate(mov.occurredAt)}</span>
@@ -433,7 +450,7 @@ function InventoryPageContent() {
 // ─── Helpers ──────────────────────────────────────────────────────────
 import { Fragment } from 'react';
 
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 function VerificationBadge({ status }: { status: string }) {
   const t = useTranslations('inventory');
   if (status === 'VERIFIED') {

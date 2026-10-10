@@ -626,7 +626,12 @@ export class DeliveriesService {
       if (!leg) continue;
       await this.notifications.createForMultipleUsers(userIds, {
         eventType: 'SHIPPING_LEG_ARRIVED',
-        title: `Shipping leg ${leg.sequence} (${leg.origin} → ${leg.destination}) has arrived`,
+        code: 'SHIPPING_LEG_ARRIVED',
+        params: {
+          sequence: leg.sequence,
+          origin: leg.origin,
+          destination: leg.destination,
+        },
         payload: {
           legId: c.legId,
           cycleId,

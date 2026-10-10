@@ -38,7 +38,9 @@
     "previousMonth": "الشهر السابق",
     "nextMonth": "الشهر التالي",
     "unapplied": "غير مخصص",
-    "optional": "اختياري"
+    "optional": "اختياري",
+    "operationFailed": "تعذّر تنفيذ العملية",
+    "noMatch": "لا توجد نتائج تطابق البحث أو التصفية"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -177,7 +179,15 @@
     "photos": "الصور",
     "addPhoto": "أضف صورًا",
     "noPhotos": "لا توجد صور بعد. يعرض المتجر صورة بديلة بدونها.",
-    "photosHint": "JPEG أو PNG أو WebP، حتى ٨ ميجابايت. يتم تغيير المقاس تلقائيًا للمتجر."
+    "photosHint": "JPEG أو PNG أو WebP، حتى ٨ ميجابايت. يتم تغيير المقاس تلقائيًا للمتجر.",
+    "createSuccess": "تمت إضافة المنتج",
+    "updateSuccess": "تم تحديث المنتج",
+    "createFailed": "تعذّرت إضافة المنتج",
+    "updateFailed": "تعذّر تحديث المنتج",
+    "priceUpdated": "تم تحديث {label}",
+    "priceSaveFailed": "تعذّر حفظ السعر",
+    "emptyTitle": "لا توجد منتجات بعد",
+    "emptyHint": "قطع الغيار التي تستوردها وتبيعها، لكل منها رمزها وأسعارها."
   },
   "cycles": {
     "title": "دورات الاستيراد",
@@ -248,7 +258,8 @@
     "legDeparted": "غادرت في {date}",
     "legNotDeparted": "لم تغادر",
     "legNoDeliveries": "لا دفعات واصلة بعد",
-    "legDelivery": "{date}: {units} وحدة"
+    "legDelivery": "{date}: {units} وحدة",
+    "splitDone": "تم التقسيم بالتساوي — {total} جنيه"
   },
   "purchases": {
     "title": "المشتريات",
@@ -271,7 +282,13 @@
     "recordRefund": "تسجيل مرتجع",
     "reason": "السبب",
     "amount": "المبلغ",
-    "search": "بحث في المشتريات..."
+    "search": "بحث في المشتريات...",
+    "createSuccess": "تم إنشاء طلب الشراء",
+    "refundRecorded": "تم تسجيل المرتجع",
+    "createFailed": "تعذّر إنشاء طلب الشراء",
+    "refundFailed": "تعذّر تسجيل المرتجع",
+    "emptyTitle": "لا توجد طلبات شراء بعد",
+    "emptyHint": "ما طلبته الدورة من المورّد، صنفاً صنفاً."
   },
   "shipments": {
     "title": "الشحن",
@@ -289,7 +306,10 @@
     "search": "بحث في الشحنات...",
     "arrivalsAreDeliveries": "يُسجَّل الوصول دفعاتٍ، دفعة لكل شحنة تصل.",
     "openShipmentPanel": "افتح لوحة الشحنة في صفحة الدورة",
-    "legUpdated": "حُدّثت مرحلة الشحن"
+    "legUpdated": "حُدّثت مرحلة الشحن",
+    "createSuccess": "تم إنشاء الشحنة",
+    "emptyTitle": "لا توجد مراحل شحن بعد",
+    "emptyHint": "كل مرحلة من رحلة بضاعة الدورة، بشركة الشحن والتواريخ والتكلفة."
   },
   "inventory": {
     "title": "المخزون",
@@ -313,7 +333,10 @@
     "arrivedHint": "تاريخ وصول الشحنة",
     "receivedHint": "تاريخ إدخالها إلى المخزون",
     "receiveStock": "استلام بضاعة",
-    "low": "منخفض"
+    "low": "منخفض",
+    "emptyTitle": "لا يوجد مخزون بعد",
+    "emptyHint": "يدخل المخزون عند استلام شحنة الدورة.",
+    "emptyAction": "الذهاب إلى الدورات"
   },
   "sales": {
     "title": "طلبات البيع",
@@ -377,7 +400,8 @@
     "removeItem": "إزالة الصنف",
     "noChannelPrice": "لا يوجد سعر {channel}",
     "discountTooLarge": "أكبر من قيمة البند",
-    "openOrder": "فتح الطلب {orderNo}"
+    "openOrder": "فتح الطلب {orderNo}",
+    "returnFailed": "تعذّر تسجيل المرتجع"
   },
   "customers": {
     "title": "العملاء",
@@ -403,7 +427,14 @@
     "noOrders": "لا توجد طلبات لهذا العميل بعد",
     "noOrdersHint": "يظهر هنا أي بيع لهذا العميل بمجرد إنشائه.",
     "noPayments": "لا توجد مدفوعات من هذا العميل بعد",
-    "noPaymentsHint": "سجّل الدفعة عند الدفع، وتُطبَّق على أقدم طلباته غير المدفوعة أولاً."
+    "noPaymentsHint": "سجّل الدفعة عند الدفع، وتُطبَّق على أقدم طلباته غير المدفوعة أولاً.",
+    "createSuccess": "تمت إضافة العميل",
+    "updateSuccess": "تم تحديث بيانات العميل",
+    "createFailed": "تعذّرت إضافة العميل",
+    "updateFailed": "تعذّر تحديث بيانات العميل",
+    "verifyFailed": "تعذّر توثيق العميل",
+    "emptyTitle": "لا يوجد عملاء بعد",
+    "emptyHint": "المحلات وعملاء التجزئة الذين تبيع لهم — أضف عميلاً لتبدأ أول عملية بيع."
   },
   "payments": {
     "title": "المدفوعات",
@@ -488,7 +519,11 @@
     "supplierRefund": "استرداد من المورد",
     "saleReturn": "مرتجع مبيعات",
     "refundPaid": "استرداد مدفوع",
-    "expense": "مصروف"
+    "expense": "مصروف",
+    "entryCreated": "تم تسجيل القيد",
+    "entryReversed": "تم عكس القيد",
+    "emptyTitle": "لا توجد قيود بعد",
+    "emptyHint": "حركة الأموال داخلاً وخارجاً — المدفوعات والمصروفات والمساهمات تُسجَّل هنا."
   },
   "settlements": {
     "title": "التسويات",
@@ -537,7 +572,11 @@
     "totalsTitle": "إجمالي الشركاء",
     "cycleCount": "{count, plural, =0 {لا دورات} one {دورة واحدة} two {دورتان} few {# دورات} other {# دورة}}",
     "accrued": "أرباح حتى الآن",
-    "accruedHint": "أرباح ما تم بيعه في الدورات المفتوحة — لم تُصرف بعد وقابلة للتغيّر"
+    "accruedHint": "أرباح ما تم بيعه في الدورات المفتوحة — لم تُصرف بعد وقابلة للتغيّر",
+    "noPartners": "لا يوجد شركاء أساسيون بعد",
+    "noPartnersHint": "يظهر الشريك هنا بمجرد أن تكون له حصة في دورة.",
+    "noInvestors": "لا يوجد مستثمرون مؤقتون بعد",
+    "noInvestorsHint": "يظهر المستثمر هنا بمجرد إضافته إلى دورة."
   },
   "analytics": {
     "title": "التحليلات والتقارير",
@@ -567,7 +606,25 @@
     "time": "الوقت",
     "unread": "غير مقروء",
     "viewAll": "عرض الكل",
-    "noData": "لا يوجد شيء بعد"
+    "noData": "لا يوجد شيء بعد",
+    "emptyHint": "طلبات المحلات والمدفوعات وأخبار الشحنات ستظهر هنا.",
+    "ADDED_TO_CYCLE": "تمت إضافتك إلى الدورة {cycleCode}",
+    "CYCLE_CREATED": "تم إنشاء دورة استيراد جديدة {cycleCode}",
+    "CYCLE_STATUS_CHANGED": "انتقلت الدورة {cycleCode} إلى {toStatus}",
+    "PURCHASE_ORDER_CREATED": "طلب شراء جديد {reference} للدورة {cycleCode}",
+    "SHIPPING_LEG_ARRIVED": "وصلت مرحلة الشحن {sequence} ({origin} ← {destination})",
+    "LOW_STOCK_DETECTED": "مخزون منخفض: {products}",
+    "PAYMENT_OVERDUE": "{customer} متأخر بمبلغ {amount} جنيه في {reference}",
+    "ORDER_REQUEST_SUBMITTED": "{shopName} طلب شراء — {requestNo}",
+    "IMPORT_REQUEST_SUBMITTED": "{shopName} طلب {productName}",
+    "SHOP_SIGNED_UP": "سجّل {shopName} في المتجر",
+    "HOLD_EXPIRING": "الطلب {requestNo} ما زال بانتظار الرد",
+    "ORDER_REQUEST_APPROVED": "تمت الموافقة على {requestNo}",
+    "ORDER_REQUEST_APPROVED_PARTIAL": "تمت الموافقة على {requestNo}",
+    "ORDER_REQUEST_DECLINED": "تعذّر تنفيذ الطلب {requestNo}",
+    "IMPORT_REQUEST_SOURCING": "بخصوص {productName}",
+    "IMPORT_REQUEST_ANSWERED": "بخصوص {productName}",
+    "IMPORT_REQUEST_DECLINED": "بخصوص {productName}"
   },
   "auditLogs": {
     "title": "سجلات التدقيق",
@@ -586,7 +643,9 @@
     "after": "بعد",
     "created": "إنشاء",
     "updated": "تعديل",
-    "deleted": "حذف"
+    "deleted": "حذف",
+    "emptyTitle": "لا يوجد نشاط مسجّل بعد",
+    "emptyHint": "كل تعديل على أي سجل يُحفظ هنا، مع اسم من قام به."
   },
   "settings": {
     "title": "الإعدادات",
@@ -603,7 +662,8 @@
     "newPassword": "كلمة المرور الجديدة",
     "confirmPassword": "تأكيد كلمة المرور",
     "save": "حفظ التغييرات",
-    "saved": "تم حفظ الإعدادات بنجاح"
+    "saved": "تم حفظ الإعدادات بنجاح",
+    "passwordChanged": "تم تغيير كلمة المرور"
   },
   "settlementsPage": {
     "title": "التسويات",
@@ -631,7 +691,10 @@
     "reverseReason": "ما سبب عكس التسوية؟",
     "reverseReasonHint": "مثلاً: تصحيح تكلفة — وصلت فاتورة المورّد متأخرة",
     "acceptRemainingStockHint": "الإغلاق الآن يحمّل تكلفة المخزون غير المُباع على هذه الدورة، ولا يمكن التراجع عن ذلك إلا بعكس التسوية.",
-    "closeAnyway": "إغلاق على أي حال"
+    "closeAnyway": "إغلاق على أي حال",
+    "calculated": "تم احتساب التسوية",
+    "updated": "تم تحديث التسوية",
+    "paid": "تم تسجيل سداد التسوية"
   },
   "providers": {
     "title": "شركات الشحن",
@@ -648,7 +711,12 @@
     "confirmDelete": "هل أنت متأكد من حذف شركة الشحن هذه؟",
     "deleteSuccess": "تم حذف شركة الشحن",
     "createSuccess": "تم إنشاء شركة الشحن",
-    "updateSuccess": "تم تحديث شركة الشحن"
+    "updateSuccess": "تم تحديث شركة الشحن",
+    "createFailed": "تعذّرت إضافة شركة الشحن",
+    "updateFailed": "تعذّر تحديث شركة الشحن",
+    "deleteFailed": "تعذّر حذف شركة الشحن",
+    "emptyTitle": "لا توجد شركات شحن بعد",
+    "emptyHint": "شركات الشحن والوكلاء الذين ينقلون بضاعة الدورة."
   },
   "suppliers": {
     "title": "المورّدون",
@@ -670,7 +738,12 @@
     "deleteBlocked": "لهذا المورّد أوامر شراء، لذا لا يمكن حذفه — فتاريخ تكلفة تلك البضاعة يعود إليه.",
     "deleteSuccess": "تم حذف المورّد بنجاح",
     "createSuccess": "تم إنشاء المورّد بنجاح",
-    "updateSuccess": "تم تحديث المورّد بنجاح"
+    "updateSuccess": "تم تحديث المورّد بنجاح",
+    "createFailed": "تعذّرت إضافة المورّد",
+    "updateFailed": "تعذّر تحديث المورّد",
+    "deleteFailed": "تعذّر حذف المورّد",
+    "emptyTitle": "لا يوجد موردون بعد",
+    "emptyHint": "المصانع والتجار الذين تشتري منهم الدورات."
   },
   "categories": {
     "title": "فئات المنتجات",
@@ -687,7 +760,12 @@
     "confirmDelete": "هل أنت متأكد من حذف هذه الفئة؟",
     "deleteSuccess": "تم حذف الفئة",
     "createSuccess": "تم إنشاء الفئة",
-    "updateSuccess": "تم تحديث الفئة"
+    "updateSuccess": "تم تحديث الفئة",
+    "createFailed": "تعذّرت إضافة الفئة",
+    "updateFailed": "تعذّر تحديث الفئة",
+    "deleteFailed": "تعذّر حذف الفئة",
+    "emptyTitle": "لا توجد فئات بعد",
+    "emptyHint": "مجموعات لتنظيم المنتجات — محرك، فرامل، كهرباء…"
   },
   "wizard": {
     "step1Title": "بيانات الدورة",
@@ -774,7 +852,8 @@
     "finish": "إنهاء",
     "finishHint": "الإنهاء ينقل الدورة فقط بقدر ما تسمح به تواريخ الشحن. تُسجَّل الدفعات الواصلة وتُستلم في المخزون من صفحة الدورة عند وصولها.",
     "finished": "تم حفظ الدورة — {status}",
-    "finishFailed": "تعذّر نقل الدورة إلى المرحلة التالية"
+    "finishFailed": "تعذّر نقل الدورة إلى المرحلة التالية",
+    "baseCurrency": "العملة الأساسية"
   },
   "paymentPlans": {
     "title": "خطط السداد",
@@ -809,7 +888,8 @@
     "cumulativeNote": "تُسدَّد الأقساط الأقدم أولاً، لذا الدفع المبكر يغطي ما يليه.",
     "paid_": "مدفوع",
     "due": "مستحق",
-    "upcoming": "قادم"
+    "upcoming": "قادم",
+    "emptyHint": "الأقساط المتفق عليها مع العميل، بمبلغ كل قسط وموعده."
   },
   "errors": {
     "NOT_FOUND": "تعذّر العثور على {entity}",
@@ -1020,7 +1100,8 @@
     "changedWarning": "هذا يختلف عمّا طُلب. سيرى المحل الرقمين — وملاحظة توضّح السبب توفّر عليه السؤال.",
     "holdHours": "محجوزة لمدة {hours} ساعة أخرى",
     "holdMinutes": "محجوزة لمدة {minutes} دقيقة أخرى",
-    "holdExpired": "انتهى الحجز"
+    "holdExpired": "انتهى الحجز",
+    "emptyHint": "عندما يطلب محل من المتجر الإلكتروني، ينتظر طلبه الرد هنا."
   },
   "importRequests": {
     "title": "طلبات الاستيراد",
@@ -1043,7 +1124,8 @@
     "lookingForIt": "نبحث عنها",
     "cannotSource": "يتعذّر توفيرها",
     "answer": "إرسال الرد",
-    "sent": "تم إبلاغ المحل."
+    "sent": "تم إبلاغ المحل.",
+    "emptyHint": "عندما يسأل محل عن قطعة غير متوفرة لدينا، يصل طلبه هنا."
   },
   "push": {
     "title": "التنبيهات على هذا الجهاز",
@@ -1151,6 +1233,101 @@
     "channel": {
       "B2B": "جملة",
       "B2C": "تجزئة"
+    },
+    "poStatus": {
+      "DRAFT": "مسودة",
+      "SUBMITTED": "مُرسل",
+      "CONFIRMED": "مؤكد",
+      "SHIPPED": "تم الشحن",
+      "PARTIAL": "مستلم جزئياً",
+      "RECEIVED": "مستلم",
+      "CANCELLED": "ملغى"
+    },
+    "settlementStatus": {
+      "DRAFT": "مسودة",
+      "APPROVED": "معتمدة",
+      "PAID": "مسددة",
+      "REVERSED": "معكوسة"
+    },
+    "originType": {
+      "CHINA": "الصين",
+      "UAE_DIRECT": "إمارات مباشرة"
+    },
+    "verificationStatus": {
+      "PENDING": "قيد الانتظار",
+      "VERIFIED": "تم التحقق",
+      "REJECTED": "مرفوض",
+      "UNVERIFIED": "لم يتم التحقق"
+    },
+    "movementType": {
+      "RECEIVE": "استلام",
+      "RESERVE": "حجز",
+      "RELEASE": "فك حجز",
+      "SALE": "بيع",
+      "RETURN": "مرتجع",
+      "ADJUSTMENT": "تسوية جرد",
+      "WRITE_OFF": "شطب",
+      "PURCHASE_RECEIPT": "استلام",
+      "SALE_ALLOCATION": "بيع"
+    },
+    "referenceType": {
+      "PURCHASE_ORDER_ITEM": "طلب شراء",
+      "SALE_ORDER": "طلب بيع",
+      "SALE_ORDER_CANCEL": "إلغاء بيع",
+      "SALE_RETURN": "مرتجع بيع",
+      "PAYMENT": "دفعة",
+      "SETTLEMENT": "تسوية",
+      "SUPPLIER_REFUND": "مرتجع من المورد",
+      "CYCLE_PARTICIPANT": "مشارك في دورة"
+    },
+    "auditAction": {
+      "CREATE": "إنشاء",
+      "UPDATE": "تعديل",
+      "DELETE": "حذف",
+      "READ": "عرض",
+      "REVERSE": "عكس",
+      "LOGIN": "تسجيل دخول",
+      "CANCEL": "إلغاء",
+      "ALLOCATE": "توزيع",
+      "VERIFY_STOCK": "استلام بضاعة",
+      "VERIFY": "تحقق",
+      "UPDATE_PARTICIPANT": "تعديل مشارك",
+      "TRANSITION": "تغيير الحالة",
+      "RECORD_REFUND": "تسجيل مرتجع",
+      "PRICE_CHANGE": "تغيير السعر",
+      "PAY": "سداد",
+      "CONFIRM": "تأكيد",
+      "CALCULATE": "احتساب",
+      "APPROVE": "اعتماد",
+      "ADD_PARTICIPANT": "إضافة مشارك",
+      "ADD_ITEM": "إضافة صنف"
+    },
+    "entityType": {
+      "Product": "منتج",
+      "Customer": "عميل",
+      "SaleOrder": "طلب بيع",
+      "SaleReturn": "مرتجع بيع",
+      "Payment": "دفعة",
+      "PaymentPlan": "خطة سداد",
+      "PurchaseOrder": "طلب شراء",
+      "PurchaseOrderItem": "صنف طلب شراء",
+      "Shipment": "شحنة",
+      "ShippingLeg": "مرحلة شحن",
+      "ShipmentDelivery": "دفعة واصلة",
+      "ShipmentLoss": "فاقد في الطريق",
+      "InventoryBatch": "دفعة مخزون",
+      "Cycle": "دورة",
+      "ImportCycle": "دورة",
+      "CycleParticipant": "مشارك في دورة",
+      "Settlement": "تسوية",
+      "User": "مستخدم",
+      "LedgerEntry": "قيد",
+      "FinancialTransaction": "قيد",
+      "Supplier": "مورد",
+      "SupplierRefund": "مرتجع من المورد",
+      "Provider": "شركة شحن",
+      "Category": "فئة",
+      "CurrencyRate": "سعر صرف"
     }
   },
   "shipment": {
@@ -1272,5 +1449,28 @@
     "undoRefundFailed": "تعذّر إلغاء التعويض.",
     "refundUndone": "أُلغي التعويض",
     "refundUndoneBadge": "مُلغى"
+  },
+  "shippingCost": {
+    "title": "تكلفة الشحن",
+    "howCharged": "طريقة احتساب تكلفة هذه المرحلة",
+    "chargedBy": "الاحتساب",
+    "perWeightKg": "بالوزن (كجم)",
+    "costPerPiece": "التكلفة للقطعة",
+    "numberOfPieces": "عدد القطع",
+    "piecesPrefilled": "عدد القطع التي حاسب عليها الشاحن — مُعبّأ من الكمية المطلوبة ({ordered}). غيّره إن كانت المحاسبة بالكرتونة.",
+    "orderHasPieces": "الطلب فيه {ordered} قطعة.",
+    "useThat": "استخدم هذا العدد",
+    "costPerKg": "التكلفة للكيلو",
+    "totalWeightKg": "الوزن الإجمالي (كجم)",
+    "totalCost": "إجمالي تكلفة الشحن",
+    "currency": "العملة",
+    "fxRate": "سعر الصرف إلى الجنيه",
+    "legTotal": "إجمالي المرحلة"
+  },
+  "validation": {
+    "required": "يرجى ملء الحقول المطلوبة.",
+    "requiredNamed": "يرجى ملء الحقول المطلوبة: {fields}",
+    "invalid": "يرجى مراجعة الحقول المحددة.",
+    "invalidNamed": "يرجى مراجعة هذه الحقول: {fields}"
   }
 }

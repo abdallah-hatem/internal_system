@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Select } from '../ui/select';
 import { MoneyInput } from '../ui/money-input';
 import { useCurrencyRates } from '../../lib/currency-rates';
+import { useCodeLabel } from '../../lib/labels';
 
 export type CostBasis = 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
 
@@ -33,7 +35,7 @@ const num = (v: unknown) => {
 export function ShippingCostFields({
   defaults,
   namePrefix = '',
-  title = 'Shipment Cost',
+  title,
   orderedPieces,
 }: {
   defaults?: ShippingCostDefaults;
@@ -51,6 +53,9 @@ export function ShippingCostFields({
    */
   orderedPieces?: number;
 }) {
+  const t = useTranslations('shippingCost');
+  const tw = useTranslations('wizard');
+  const codeLabel = useCodeLabel();
   const n = (field: string) => `${namePrefix}${field}`;
   const [basis, setBasis] = useState<CostBasis>(defaults?.costBasis ?? 'PER_PIECE');
   const [rate, setRate] = useState(String(defaults?.ratePerUnit ?? ''));
@@ -92,20 +97,20 @@ export function ShippingCostFields({
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 p-4 bg-gray-50/60">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        <span className="text-xs text-gray-500">How this leg is charged</span>
+        <h3 className="text-sm font-semibold text-gray-900">{title ?? t('title')}</h3>
+        <span className="text-xs text-gray-500">{t('howCharged')}</span>
       </div>
 
       <div>
-        <label className={label}>Charged by</label>
+        <label className={label}>{t('chargedBy')}</label>
         <Select
           name={n('costBasis')}
           value={basis}
           onChange={(v) => setBasis(v as CostBasis)}
           options={[
-            { value: 'PER_PIECE', label: 'Per piece' },
-            { value: 'PER_WEIGHT', label: 'Per weight (kg)' },
-            { value: 'FLAT', label: 'Flat total' },
+            { value: 'PER_PIECE', label: codeLabel('costBasis', 'PER_PIECE') },
+            { value: 'PER_WEIGHT', label: t('perWeightKg') },
+            { value: 'FLAT', label: codeLabel('costBasis', 'FLAT') },
           ]}
         />
       </div>
@@ -114,7 +119,7 @@ export function ShippingCostFields({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={label}>
-              Cost per piece<span className="text-red-500 ms-1">*</span>
+              {t('costPerPiece')}<span className="text-red-500 ms-1">*</span>
             </label>
             <MoneyInput
               required
@@ -124,7 +129,7 @@ export function ShippingCostFields({
           </div>
           <div>
             <label className={label}>
-              Number of pieces<span className="text-red-500 ms-1">*</span>
+              {t('numberOfPieces')}<span className="text-red-500 ms-1">*</span>
             </label>
             <input
               type="number" step="0.001" min="0" required
@@ -134,16 +139,16 @@ export function ShippingCostFields({
             {orderedPieces ? (
               <p className="mt-1 text-xs text-gray-500">
                 {num(pieces) === orderedPieces ? (
-                  <>Pieces the forwarder billed for — prefilled from the {orderedPieces} ordered. Change it if they charged by carton.</>
+                  <>{t('piecesPrefilled', { ordered: orderedPieces })}</>
                 ) : (
                   <>
-                    The order has {orderedPieces} pieces.{' '}
+                    {t('orderHasPieces', { ordered: orderedPieces })}{' '}
                     <button
                       type="button"
                       onClick={() => setPieces(String(orderedPieces))}
                       className="font-medium text-primary-600 underline underline-offset-2 hover:text-primary-700"
                     >
-                      Use that
+                      {t('useThat')}
                     </button>
                   </>
                 )}
@@ -157,7 +162,7 @@ export function ShippingCostFields({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={label}>
-              Cost per kg<span className="text-red-500 ms-1">*</span>
+              {t('costPerKg')}<span className="text-red-500 ms-1">*</span>
             </label>
             <MoneyInput
               required
@@ -167,7 +172,7 @@ export function ShippingCostFields({
           </div>
           <div>
             <label className={label}>
-              Total weight (kg)<span className="text-red-500 ms-1">*</span>
+              {t('totalWeightKg')}<span className="text-red-500 ms-1">*</span>
             </label>
             <input
               type="number" step="0.001" min="0" required
@@ -181,7 +186,7 @@ export function ShippingCostFields({
       {basis === 'FLAT' && (
         <div>
           <label className={label}>
-            Total shipment cost<span className="text-red-500 ms-1">*</span>
+            {t('totalCost')}<span className="text-red-500 ms-1">*</span>
           </label>
           <MoneyInput
             required
@@ -193,7 +198,7 @@ export function ShippingCostFields({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className={label}>Currency</label>
+          <label className={label}>{t('currency')}</label>
           <Select
             name={n('currency')}
             value={currency}
@@ -206,14 +211,14 @@ export function ShippingCostFields({
             options={['EGP', 'USD', 'AED', 'CNY'].map((c) => ({
               value: c,
               label: c,
-              hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : 'no rate set',
+              hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : tw('noRateSet'),
             }))}
           />
         </div>
         {currency !== 'EGP' && (
           <div>
             <label className={label}>
-              FX rate to EGP<span className="text-red-500 ms-1">*</span>
+              {t('fxRate')}<span className="text-red-500 ms-1">*</span>
             </label>
             <input
               type="number" step="0.0001" min="0" required
@@ -222,8 +227,8 @@ export function ShippingCostFields({
             />
             <p className="mt-1 text-xs text-gray-400">
               {rates[currency] != null
-                ? `Current rate: 1 ${currency} = ${rates[currency]} EGP`
-                : `No rate recorded for ${currency} — enter the rate used`}
+                ? tw('currentRate', { currency, rate: rates[currency] })
+                : tw('noRateRecorded', { currency })}
             </p>
           </div>
         )}
@@ -234,7 +239,7 @@ export function ShippingCostFields({
         data-testid={`leg-cost-preview${namePrefix ? "-" + namePrefix.replace(/\W/g, "") : ""}`}
         className="flex items-center justify-between rounded-lg bg-white border border-gray-200 px-3 py-2"
       >
-        <span className="text-sm text-gray-600">Leg total</span>
+        <span className="text-sm text-gray-600">{t('legTotal')}</span>
         <span className="text-sm font-semibold text-gray-900">
           {egp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP
           {currency !== 'EGP' && (

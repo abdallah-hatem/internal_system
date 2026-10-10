@@ -3,6 +3,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
 import { PushService } from './push.service';
+import {
+  isNotificationCode,
+  pushLocaleFor,
+  renderNotification,
+  type NotificationCode,
+  type NotificationParams,
+} from '../../common/notification-messages';
 
 /**
  * Telling somebody that something happened to their request.
@@ -24,10 +31,12 @@ import { PushService } from './push.service';
  * approval; rolling it back because a phone was unreachable would be a far
  * worse bug than a missed alert.
  *
- * **The text is a key, not a sentence.** `eventType` plus a payload, so the
- * reader's app says it in the reader's language. The English `title` stays as
- * what the logs record and what a client that has never heard the event falls
- * back to — the same bargain `api-error.ts` makes for refusals.
+ * **The text is a key, not a sentence.** A `code` plus its `params`
+ * (`common/notification-messages.ts`), so the reader's app says it in the
+ * reader's language. The English `title` stays as what the logs record and what
+ * a client that has never heard the code falls back to — the same bargain
+ * `api-error.ts` makes for refusals. Only the push is worded here, because it
+ * is sent while no app is open to word it.
  */
 @Injectable()
 export class PortalNotifier {
@@ -42,7 +51,10 @@ export class PortalNotifier {
   /** Everyone in the office who should hear about a shop's request. */
   private async officeUserIds(): Promise<string[]> {
     const users = await this.prisma.user.findMany({
-      where: { role: { in: ['CORE_PARTNER', 'ADMIN_SUPPORT'] }, status: 'ACTIVE' },
+      where: {
+        role: { in: ['CORE_PARTNER', 'ADMIN_SUPPORT'] },
+        status: 'ACTIVE',
+      },
       select: { id: true },
     });
     return users.map((u) => u.id);
@@ -60,6 +72,10 @@ export class PortalNotifier {
   /**
    * Write the rows, then try the phones.
    *
+   * The row stores the code and its params; the push is put into words here,
+   * in the language `pushLocaleFor` picks for each reader, because nobody's
+   * app is open to translate it.
+   *
    * Swallows everything. The only trace of a failure is a log line, which is
    * the right place for it: nobody's order should depend on it.
    */
@@ -67,8 +83,8 @@ export class PortalNotifier {
     userIds: string[],
     event: {
       eventType: string;
-      title: string;
-      body: string;
+      code: NotificationCode;
+      params: NotificationParams;
       payload?: Record<string, unknown>;
       url?: string;
       tag?: string;
@@ -79,50 +95,81 @@ export class PortalNotifier {
     try {
       await this.notifications.createForMultipleUsers(userIds, {
         eventType: event.eventType,
-        title: event.title,
+        code: event.code,
+        params: event.params,
         payload: event.payload,
       });
     } catch (err) {
       // If even the row failed there is nothing to push about, and the caller
       // still must not hear about it.
-      this.log.error(`could not record ${event.eventType}: ${(err as Error).message}`);
+      this.log.error(
+        `could not record ${event.eventType}: ${(err as Error).message}`,
+      );
       return;
     }
 
+    let readers: { id: string; role: string | null }[] = [];
+    try {
+      readers = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, role: true },
+      });
+    } catch (err) {
+      this.log.warn(
+        `could not read who to push ${event.eventType} to: ${(err as Error).message}`,
+      );
+    }
+    const roleOf = new Map(readers.map((r) => [r.id, r.role]));
+
     for (const userId of userIds) {
       try {
+        const words = renderNotification(
+          event.code,
+          event.params,
+          pushLocaleFor({ role: roleOf.get(userId) }),
+        );
         await this.push.sendToUser(userId, {
-          title: event.title,
-          body: event.body,
+          title: words.title,
+          body: words.body ?? '',
           url: event.url,
           // Same tag replaces rather than stacks, so three updates about one
           // request leave one notification on the phone and not three.
           tag: event.tag,
         });
       } catch (err) {
-        this.log.warn(`push for ${event.eventType} failed: ${(err as Error).message}`);
+        this.log.warn(
+          `push for ${event.eventType} failed: ${(err as Error).message}`,
+        );
       }
     }
   }
 
   // ── What the office hears ───────────────────────────────────────────
 
-  async orderRequestSubmitted(args: { requestId: string; requestNo: string; shopName: string }) {
+  async orderRequestSubmitted(args: {
+    requestId: string;
+    requestNo: string;
+    shopName: string;
+  }) {
     await this.deliver(await this.officeUserIds(), {
       eventType: 'ORDER_REQUEST_SUBMITTED',
-      title: `${args.shopName} asked to buy — ${args.requestNo}`,
-      body: 'Stock is held for 48 hours while you answer.',
+      code: 'ORDER_REQUEST_SUBMITTED',
+      params: { shopName: args.shopName, requestNo: args.requestNo },
       payload: { ...args },
       url: '/order-requests',
       tag: `order-request-${args.requestId}`,
     });
   }
 
-  async importRequestSubmitted(args: { requestId: string; productName: string; shopName: string }) {
+  async importRequestSubmitted(args: {
+    requestId: string;
+    productName: string;
+    shopName: string;
+  }) {
     await this.deliver(await this.officeUserIds(), {
       eventType: 'IMPORT_REQUEST_SUBMITTED',
-      title: `${args.shopName} asked for ${args.productName}`,
-      body: 'A shop wants something we do not stock.',
+      code: 'IMPORT_REQUEST_SUBMITTED',
+      params: { shopName: args.shopName, productName: args.productName },
       payload: { ...args },
       url: '/import-requests',
       tag: `import-request-${args.requestId}`,
@@ -132,8 +179,8 @@ export class PortalNotifier {
   async shopSignedUp(args: { customerId: string; shopName: string }) {
     await this.deliver(await this.officeUserIds(), {
       eventType: 'SHOP_SIGNED_UP',
-      title: `${args.shopName} signed up`,
-      body: 'They can browse, but cannot order until you verify them.',
+      code: 'SHOP_SIGNED_UP',
+      params: { shopName: args.shopName },
       payload: { ...args },
       url: '/customers?verification=UNVERIFIED',
       tag: `signup-${args.customerId}`,
@@ -147,11 +194,15 @@ export class PortalNotifier {
    * the point is to prompt an answer while there is still stock behind it, not
    * to report afterwards that there no longer is.
    */
-  async holdExpiringSoon(args: { requestId: string; requestNo: string; shopName: string }) {
+  async holdExpiringSoon(args: {
+    requestId: string;
+    requestNo: string;
+    shopName: string;
+  }) {
     await this.deliver(await this.officeUserIds(), {
       eventType: 'HOLD_EXPIRING',
-      title: `${args.requestNo} is still waiting`,
-      body: `The stock held for ${args.shopName} goes back on the shelf in six hours.`,
+      code: 'HOLD_EXPIRING',
+      params: { requestNo: args.requestNo, shopName: args.shopName },
       payload: { ...args },
       url: '/order-requests',
       tag: `order-request-${args.requestId}`,
@@ -172,15 +223,15 @@ export class PortalNotifier {
     if (!userId) return;
 
     await this.deliver([userId], {
-      eventType: args.approved ? 'ORDER_REQUEST_APPROVED' : 'ORDER_REQUEST_DECLINED',
-      title: args.approved
-        ? `${args.requestNo} approved`
-        : `${args.requestNo} could not be filled`,
-      body: args.approved
-        ? args.partial
-          ? 'Some of what you asked for is on its way — open it to see what changed.'
-          : 'Your order is confirmed.'
-        : 'Open it to see why.',
+      eventType: args.approved
+        ? 'ORDER_REQUEST_APPROVED'
+        : 'ORDER_REQUEST_DECLINED',
+      code: !args.approved
+        ? 'ORDER_REQUEST_DECLINED'
+        : args.partial
+          ? 'ORDER_REQUEST_APPROVED_PARTIAL'
+          : 'ORDER_REQUEST_APPROVED',
+      params: { requestNo: args.requestNo },
       payload: { ...args },
       url: `/requests/${args.requestId}`,
       tag: `order-request-${args.requestId}`,
@@ -196,15 +247,16 @@ export class PortalNotifier {
     const userId = await this.shopUserId(args.customerId);
     if (!userId) return;
 
+    const code = `IMPORT_REQUEST_${args.status}`;
+    if (!isNotificationCode(code)) {
+      this.log.warn(`no notification for import request status ${args.status}`);
+      return;
+    }
+
     await this.deliver([userId], {
-      eventType: `IMPORT_REQUEST_${args.status}`,
-      title: `About ${args.productName}`,
-      body:
-        args.status === 'SOURCING'
-          ? 'We are looking for it.'
-          : args.status === 'ANSWERED'
-            ? 'We have an answer for you.'
-            : 'We could not source it.',
+      eventType: code,
+      code,
+      params: { productName: args.productName },
       payload: { ...args },
       url: `/imports/${args.requestId}`,
       tag: `import-request-${args.requestId}`,

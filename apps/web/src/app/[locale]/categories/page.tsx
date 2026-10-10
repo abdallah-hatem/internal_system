@@ -8,12 +8,14 @@ import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Tag, Plus, Search, Edit, X, Loader2, Trash2, ChevronRight, ChevronDown, FolderTree,
+  Tag, Plus, Search, Edit, X, Loader2, Trash2, ChevronRight, ChevronDown,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { EmptyState } from '@/components/ui/empty-state';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -88,7 +90,7 @@ export default function CategoriesPage() {
       addToast(t('createSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to create category'), 'error');
+      addToast(apiError(error, t('createFailed')), 'error');
     },
   });
 
@@ -100,7 +102,7 @@ export default function CategoriesPage() {
       addToast(t('updateSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to update category'), 'error');
+      addToast(apiError(error, t('updateFailed')), 'error');
     },
   });
 
@@ -112,7 +114,7 @@ export default function CategoriesPage() {
       addToast(t('deleteSuccess'), 'success');
     },
     onError: (error: any) => {
-      addToast(apiError(error, 'Failed to delete category'), 'error');
+      addToast(apiError(error, t('deleteFailed')), 'error');
     },
   });
 
@@ -145,6 +147,19 @@ export default function CategoriesPage() {
   const flatFiltered = useMemo(() => flattenTree(filteredTree), [filteredTree]);
   const totalPages = Math.ceil(flatFiltered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(flatFiltered, page), [flatFiltered, page]);
+
+  // Nothing at all says what goes here and offers the first one; nothing for
+  // this search or filter says only that (UX #12).
+  const emptyList =
+    categoryList.length === 0 ? (
+      <EmptyState
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+      />
+    ) : (
+      <EmptyState icon={null} title={tc('noMatch')} />
+    );
 
   // ── Handlers ──────────────────────────────────────────────────────
   const toggleExpand = (id: string) => {
@@ -229,10 +244,7 @@ export default function CategoriesPage() {
       {!isLoading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {flatFiltered.length === 0 ? (
-            <div className="px-4 py-12 text-center text-gray-400">
-              <FolderTree className="h-10 w-10 mx-auto mb-3 text-gray-300" />
-              {t('noData')}
-            </div>
+            emptyList
           ) : (
             <div className="divide-y divide-gray-100">
               {paginated.map((cat) => (
@@ -307,7 +319,7 @@ export default function CategoriesPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.category.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -316,14 +328,14 @@ export default function CategoriesPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingCategory && (
         <Modal title={t('edit')} onClose={() => setEditingCategory(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="name" defaultValue={editingCategory.name} required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -358,7 +370,7 @@ export default function CategoriesPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

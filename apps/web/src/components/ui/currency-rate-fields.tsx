@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Select } from './select';
 import { useCurrencyRates } from '../../lib/currency-rates';
 
@@ -36,6 +37,7 @@ export function CurrencyRateFields({
   rateLabel: string;
   required?: boolean;
 }) {
+  const tw = useTranslations('wizard');
   const rates = useCurrencyRates();
   const [currency, setCurrency] = useState(defaultCurrency);
   const [rate, setRate] = useState(defaultRate != null ? String(defaultRate) : '');
@@ -73,7 +75,7 @@ export function CurrencyRateFields({
           options={currencies.map((c) => ({
             value: c,
             label: c,
-            hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : 'no rate set',
+            hint: c === 'EGP' ? undefined : rates[c] != null ? `${rates[c]} EGP` : tw('noRateSet'),
           }))}
         />
       </div>
@@ -86,7 +88,7 @@ export function CurrencyRateFields({
         {isBase ? (
           <>
             <input type="hidden" name={rateName} value="1" />
-            <p className="px-3 py-2 text-sm text-gray-400">1.0000 — base currency</p>
+            <p className="px-3 py-2 text-sm text-gray-400">1.0000 — {tw('baseCurrency')}</p>
           </>
         ) : (
           <>
@@ -103,8 +105,8 @@ export function CurrencyRateFields({
             />
             <p className="mt-1 text-xs text-gray-400">
               {known != null
-                ? `Current rate: 1 ${currency} = ${known} EGP`
-                : `No rate recorded for ${currency} — enter the rate used`}
+                ? tw('currentRate', { currency, rate: known })
+                : tw('noRateRecorded', { currency })}
             </p>
           </>
         )}

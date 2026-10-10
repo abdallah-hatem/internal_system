@@ -19,7 +19,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '../../../../../lib/api';
-import { formatDate } from '../../../../../lib/dates';
 import { Money } from '../../../../../components/ui/money';
 import { Select } from '../../../../../components/ui/select';
 import { useToast } from '../../../../../components/ui/toast';
@@ -35,6 +34,7 @@ import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
 import { num as qtyNum } from '../../../../../components/shipment/shipment-model';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -143,7 +143,7 @@ export default function CycleDetailsPage() {
     onSuccess: (total) => {
       queryClient.invalidateQueries({ queryKey: ['cycle', id] });
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
-      addToast(`${t('splitEqually')} — ${total.toLocaleString()} EGP`, 'success');
+      addToast(t('splitDone', { total: total.toLocaleString() }), 'success');
     },
     onError: (e: any) =>
       addToast(
@@ -226,7 +226,7 @@ export default function CycleDetailsPage() {
                     p.investor?.email ??
                     '—'}
                 </span>
-                <span className="text-xs text-gray-500">{p.participantType}</span>
+                <span className="text-xs text-gray-500">{codeLabel('role', p.participantType)}</span>
                 <span className="text-sm"><Money value={num(p.contributionAmount)} /></span>
                 <span className="text-xs text-gray-500">
                   {p.customProfitPct != null ? `${p.customProfitPct}%` : t('byContribution')}
@@ -283,7 +283,7 @@ export default function CycleDetailsPage() {
               <Row key={o.id}>
                 <span className="font-mono text-xs text-gray-500">{o.reference}</span>
                 <span className="text-sm">{o.supplier?.name ?? '—'}</span>
-                <span className="text-xs text-gray-400">{formatDate(o.orderedOn)}</span>
+                <span className="text-xs text-gray-400">{formatLocalDate(o.orderedOn)}</span>
                 <span className="text-sm">{o.currency} @ {num(o.fxRateToEgp)}</span>
                 <span className="text-xs text-gray-500">{(o.items ?? []).length} {t('items')}</span>
               </Row>
@@ -341,7 +341,7 @@ export default function CycleDetailsPage() {
                 <span className="text-xs text-gray-500">{t('received')} {num(b.receivedQty)}</span>
                 <span className="text-xs text-gray-500">{t('remaining')} {num(b.remainingQty)}</span>
                 <span className="text-sm"><Money value={num(b.landedUnitCostEgp)} /></span>
-                <span className="text-xs text-gray-400">{b.verificationStatus}</span>
+                <span className="text-xs text-gray-400">{codeLabel('verificationStatus', b.verificationStatus)}</span>
               </Row>
             ))}
           </Rows>
@@ -367,7 +367,7 @@ function AddParticipantForm({
   const [type, setType] = useState('CORE_PARTNER');
 
   return (
-    <form
+    <ValidatedForm
       className="mt-4 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4"
       onSubmit={(e) => {
         e.preventDefault();
@@ -475,7 +475,7 @@ function AddParticipantForm({
           {tc('save')}
         </button>
       </div>
-    </form>
+    </ValidatedForm>
   );
 }
 
