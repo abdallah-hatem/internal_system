@@ -7,7 +7,8 @@ import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useToast } from '@/components/ui/toast';
 import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, useRefreshShipment } from './ShipmentDialog';
-import { num, type ShipmentLossRefund } from './shipment-model';
+import { type ShipmentLossRefund } from './shipment-model';
+import { Money } from '@/components/ui/money';
 
 /** The longest reason the server takes. */
 const REASON_MAX = 500;
@@ -76,9 +77,10 @@ export function UndoRefundDialog({ refund, onClose }: { refund: ShipmentLossRefu
       }
     >
       <p className="text-sm text-foreground">
-        {t('undoRefundConfirm', {
-          amount: num(refund.amountEgp).toFixed(2),
+        {t.rich('undoRefundConfirm', {
+          amount: () => <Money value={refund.amountEgp} />,
           payer: refund.payerName ?? '—',
+          name: (chunks) => <bdi>{chunks}</bdi>,
         })}
       </p>
       <div>

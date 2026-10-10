@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
  */
 export function ShipmentDialog({
   title,
+  subtitle,
   onClose,
   busy = false,
   size = 'md',
@@ -30,6 +31,12 @@ export function ShipmentDialog({
   testId,
 }: {
   title: string;
+  /**
+   * A second, quieter header line — a product name, say. It is clamped to one
+   * line, so a long name cannot push the title to four lines on a phone
+   * (UI audit #34); the full text stays in the `title` attribute.
+   */
+  subtitle?: string;
   onClose: () => void;
   busy?: boolean;
   size?: 'sm' | 'md' | 'lg';
@@ -73,7 +80,7 @@ export function ShipmentDialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={subtitle ? `${title}: ${subtitle}` : title}
         className={cn(
           'relative flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-2rem)] flex-col rounded-2xl bg-background shadow-xl',
           size === 'sm' && 'sm:max-w-md',
@@ -82,7 +89,14 @@ export function ShipmentDialog({
         )}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+            {subtitle && (
+              <p data-testid="dialog-subtitle" title={subtitle} className="truncate text-sm text-muted-foreground">
+                <bdi>{subtitle}</bdi>
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
