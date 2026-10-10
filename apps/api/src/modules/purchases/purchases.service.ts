@@ -212,9 +212,6 @@ export class PurchasesService {
 
     const order = await this.prisma
       .$transaction(async (tx) => {
-        // One order numbered at a time: the reference has no unique index,
-        // so two orders at once were both handed the same PO number, silently.
-        await lockReferenceSeries(tx, PO_SERIES);
         return this.writeOrder(tx, checked, data, actorId);
       })
       .catch((err: unknown) =>
@@ -273,6 +270,11 @@ export class PurchasesService {
     data: CreatePurchaseOrderDto,
     actorId: string,
   ) {
+    // One order numbered at a time, whoever is writing it — the office form or
+    // the assistant's receipt path both come through here. The reference has
+    // no unique index, so two orders at once were both handed the same PO
+    // number, silently. The lock is held until the caller's transaction ends.
+    await lockReferenceSeries(tx, PO_SERIES);
     // Generate reference: PO-YYYY-XXXX
     const year = new Date().getFullYear();
     const last = await tx.purchaseOrder.findFirst({

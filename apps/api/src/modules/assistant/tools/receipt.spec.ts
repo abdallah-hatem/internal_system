@@ -96,6 +96,11 @@ class FakeDb {
     return full;
   }
 
+  /** The PO advisory lock (writeOrder) is a no-op here: this fake runs one call at a time. */
+  async $executeRaw(): Promise<number> {
+    return 0;
+  }
+
   async $transaction<T>(
     work: (tx: FakeDb) => Promise<T>,
     _options?: unknown,
