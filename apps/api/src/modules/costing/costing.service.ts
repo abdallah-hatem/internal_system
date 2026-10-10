@@ -9,8 +9,10 @@ const D = (v: Prisma.Decimal.Value | null | undefined) =>
 const ZERO = new Prisma.Decimal(0);
 
 /** Money rounds to 2dp, unit costs to 4dp, quantities to 3dp. */
-const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-const unitCost = (v: Prisma.Decimal) => v.toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+const money = (v: Prisma.Decimal) =>
+  v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+const unitCost = (v: Prisma.Decimal) =>
+  v.toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
 
 export interface LegCost {
   legId: string;
@@ -97,9 +99,17 @@ export class CostingService {
    */
   async computeCycleLandedCosts(
     cycleId: string,
-    opts: { qtyOverrides?: Record<string, Prisma.Decimal.Value> } = {},
+    opts: {
+      qtyOverrides?: Record<string, Prisma.Decimal.Value>;
+      /**
+       * The transaction to read in, when the caller holds one. On a serverless
+       * host the pool is one connection, so a read on `this.prisma` from
+       * inside a transaction waits for a connection that transaction holds.
+       */
+      db?: Pick<Prisma.TransactionClient, 'importCycle'>;
+    } = {},
   ): Promise<CycleLandedCostResult> {
-    const cycle = await this.prisma.importCycle.findUnique({
+    const cycle = await (opts.db ?? this.prisma).importCycle.findUnique({
       where: { id: cycleId },
       include: {
         shippingLegs: { orderBy: { sequence: 'asc' } },
@@ -189,12 +199,15 @@ export class CostingService {
     for (const leg of legs) {
       if (leg.amountEgp.isZero()) continue;
 
-      let basis: 'weight' | 'piece' = leg.costBasis === 'PER_WEIGHT' ? 'weight' : 'piece';
+      let basis: 'weight' | 'piece' =
+        leg.costBasis === 'PER_WEIGHT' ? 'weight' : 'piece';
 
       if (basis === 'weight') {
         const missing = lines.filter((l) => l.weightKg === null);
         if (missing.length > 0 || totalWeightKg.isZero()) {
-          const names = [...new Set(missing.map((l) => l.productName))].join(', ');
+          const names = [...new Set(missing.map((l) => l.productName))].join(
+            ', ',
+          );
           warnings.push(
             `Leg ${leg.sequence} (${leg.origin}->${leg.destination}) is weight-based but ` +
               (totalWeightKg.isZero()
@@ -218,7 +231,8 @@ export class CostingService {
       // the last line the residual so the parts always re-sum to the total.
       let allocated = ZERO;
       lines.forEach((line, idx) => {
-        const numerator = basis === 'weight' ? (line.weightKg ?? ZERO) : line.qty;
+        const numerator =
+          basis === 'weight' ? (line.weightKg ?? ZERO) : line.qty;
         let share: Prisma.Decimal;
 
         if (idx === lines.length - 1) {
@@ -234,7 +248,9 @@ export class CostingService {
 
     // --- Totals -------------------------------------------------------------
     for (const line of lines) {
-      line.totalLandedCostEgp = money(line.goodsCostEgp.add(line.shippingCostEgp));
+      line.totalLandedCostEgp = money(
+        line.goodsCostEgp.add(line.shippingCostEgp),
+      );
       line.landedUnitCostEgp = line.qty.isZero()
         ? ZERO
         : unitCost(line.totalLandedCostEgp.div(line.qty));
@@ -262,7 +278,9 @@ export class CostingService {
     opts: { qtyOverrides?: Record<string, Prisma.Decimal.Value> } = {},
   ): Promise<Prisma.Decimal> {
     const result = await this.computeCycleLandedCosts(cycleId, opts);
-    const line = result.items.find((i) => i.purchaseOrderItemId === purchaseOrderItemId);
+    const line = result.items.find(
+      (i) => i.purchaseOrderItemId === purchaseOrderItemId,
+    );
     if (!line) {
       throw badRequest(
         'PO_ITEM_NOT_IN_CYCLE',

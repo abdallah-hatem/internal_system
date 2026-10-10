@@ -17,6 +17,7 @@ import { CyclesService } from '../../cycles/cycles.service';
 import { InventoryService } from '../../inventory/inventory.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import { ShippingService } from '../../shipping/shipping.service';
+import { DeliveriesService } from '../../shipping/deliveries.service';
 import { AssistantServer } from '../assistant-server';
 import { ConfirmationService } from '../confirmation.service';
 import type { AssistantUser } from '../tool-kit';
@@ -38,6 +39,7 @@ interface Store {
   cycles: Row[];
   participants: Row[];
   legs: Row[];
+  deliveries: Row[];
   suppliers: Row[];
   products: Row[];
   orders: Row[];
@@ -76,13 +78,20 @@ function legsOf(cycleId: string) {
 function fakePrisma() {
   const prisma: Row = {
     importCycle: {
-      findUnique: ({ where, include }: Row) => {
+      findUnique: ({ where, include, select }: Row) => {
         const c = db.cycles.find((x) => x.id === where.id);
         if (!c) return Promise.resolve(null);
-        if (!include) return Promise.resolve({ ...c });
+        if (!include && !select) return Promise.resolve({ ...c });
         return Promise.resolve({
           ...c,
-          shippingLegs: legsOf(c.id),
+          // The shipment loader (common/shipment-load.ts) reads deliveries,
+          // losses and batches with the legs.
+          shippingLegs: legsOf(c.id).map((l) => ({
+            ...l,
+            deliveries: db.deliveries.filter((d) => d.legId === l.id),
+            losses: [],
+          })),
+          inventoryBatches: db.batches.filter((b) => b.cycleId === c.id),
           purchaseOrders: db.orders
             .filter((o) => o.cycleId === c.id)
             .map((o) => ({
@@ -128,19 +137,54 @@ function fakePrisma() {
         Promise.resolve(db.participants.filter((p) => matches(p, where))),
     },
     shippingLeg: {
-      findMany: ({ where }: Row) => Promise.resolve(legsOf(where.cycleId)),
+      findMany: ({ where }: Row) =>
+        Promise.resolve(
+          legsOf(where.cycleId).map((l) => ({
+            ...l,
+            _count: {
+              deliveries: db.deliveries.filter((d) => d.legId === l.id).length,
+            },
+          })),
+        ),
       findUnique: ({ where }: Row) =>
         Promise.resolve(
-          db.legs.find(
-            (l) =>
-              l.cycleId === where.cycleId_sequence.cycleId &&
-              l.sequence === where.cycleId_sequence.sequence,
+          db.legs.find((l) =>
+            where.id
+              ? l.id === where.id
+              : l.cycleId === where.cycleId_sequence.cycleId &&
+                l.sequence === where.cycleId_sequence.sequence,
           ) ?? null,
         ),
+      findUniqueOrThrow: ({ where }: Row) =>
+        Promise.resolve({ ...db.legs.find((l) => l.id === where.id)! }),
       create: ({ data }: Row) => {
         const row = { id: randomUUID(), ...data };
         db.legs.push(row);
         return Promise.resolve({ ...row });
+      },
+      update: ({ where, data }: Row) => {
+        const l = db.legs.find((x) => x.id === where.id)!;
+        for (const [k, v] of Object.entries(data))
+          if (v !== undefined) l[k] = v;
+        return Promise.resolve({ ...l });
+      },
+    },
+    shipmentDelivery: {
+      create: ({ data }: Row) => {
+        const id = randomUUID();
+        const row = {
+          id,
+          legId: data.legId,
+          arrivedOn: data.arrivedOn,
+          note: data.note,
+          lines: (data.lines?.create ?? []).map((l: Row) => ({
+            id: randomUUID(),
+            deliveryId: id,
+            ...l,
+          })),
+        };
+        db.deliveries.push(row);
+        return Promise.resolve(row);
       },
     },
     purchaseOrder: {
@@ -228,6 +272,8 @@ function fakePrisma() {
     },
   };
   prisma.$transaction = (fn: (tx: Row) => Promise<unknown>) => fn(prisma);
+  // The cycle's row lock (lockCycle): one test, one caller, nothing to wait on.
+  prisma.$queryRaw = () => Promise.resolve([]);
   return prisma as unknown as PrismaService;
 }
 
@@ -273,6 +319,7 @@ function freshStore(): Store {
     cycles: [],
     participants: [],
     legs: [],
+    deliveries: [],
     suppliers: [{ id: SUPPLIER, name: 'Yiwu Parts' }],
     products: [
       { id: PAD, name: 'Brake pad', unitWeightKg: null, minStock: null },
@@ -309,8 +356,20 @@ function leg(
   dates: { departedOn?: string; arrivedOn?: string },
   amountEgp = 0,
 ) {
+  const id = randomUUID();
+  // A dated arrival is a delivery since 2026-10-10 (BUSINESS_LOGIC §1): the
+  // cycle gates count deliveries, not dates. Its lines do not matter here.
+  if (dates.arrivedOn) {
+    db.deliveries.push({
+      id: randomUUID(),
+      legId: id,
+      arrivedOn: new Date(dates.arrivedOn),
+      note: null,
+      lines: [],
+    });
+  }
   db.legs.push({
-    id: randomUUID(),
+    id,
     cycleId: c.id,
     sequence,
     origin:
@@ -393,7 +452,12 @@ beforeEach(async () => {
   const costing = new CostingService(prisma);
   services = {
     cycles: new CyclesService(prisma, audit, notifications),
-    shipping: new ShippingService(prisma, audit, notifications, costing),
+    shipping: new ShippingService(
+      prisma,
+      audit,
+      costing,
+      new DeliveriesService(prisma, audit, notifications, costing),
+    ),
     inventory: new InventoryService(prisma, audit, notifications, costing),
   };
   const byType = new Map<unknown, unknown>([

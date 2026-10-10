@@ -24,6 +24,20 @@ export function businessToday(now = new Date()): string {
 }
 
 /**
+ * The calendar day a value names, where the business is, as YYYY-MM-DD.
+ *
+ * A date-only string is already a calendar day; anything else is an instant
+ * and has to be read in the business's timezone to become one. A shipment
+ * that left at 23:30 UTC on the 9th left on the 10th in Cairo.
+ */
+export function businessDay(value: string | Date): string {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  return businessToday(new Date(value));
+}
+
+/**
  * Refuse a date that has not happened yet.
  *
  * Records of things that happened cannot be dated forward: money is not
@@ -45,12 +59,7 @@ export function assertNotFuture(
   const given = new Date(value);
   if (Number.isNaN(given.getTime())) return; // shape is the DTO's job, not ours
 
-  // A date-only string is already a calendar day; anything else is an instant
-  // and has to be read in the business's timezone to become one.
-  const givenDay =
-    typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-      ? value
-      : businessToday(given);
+  const givenDay = businessDay(value);
 
   if (givenDay > businessToday()) {
     throw badRequest(

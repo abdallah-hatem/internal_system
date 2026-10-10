@@ -770,7 +770,9 @@
       "user": "المستخدم",
       "productRequest": "طلب استيراد",
       "orderRequest": "طلب شراء",
-      "assistantConnection": "اتصال Claude"
+      "assistantConnection": "اتصال Claude",
+      "shipmentDelivery": "دفعة الوصول",
+      "shipmentLoss": "الفقد"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -808,7 +810,7 @@
     "INVALID_CREDENTIALS": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
     "INVESTOR_ID_REQUIRED": "اختر المستثمر في حالة المستثمر المؤقت.",
     "ITEM_NEEDS_PRODUCT": "كل بند يحتاج إلى منتج.",
-    "LEG_NOT_ARRIVED": "{leg} لم تصل بعد. سجّل تاريخ الوصول لهذه المرحلة أولًا.",
+    "LEG_NOT_ARRIVED": "{leg} لم تصل بعد. سجّل دفعة وصول على هذه المرحلة أولًا.",
     "LEG_NOT_DEPARTED": "{leg} لم تغادر بعد. سجّل تاريخ المغادرة لهذه المرحلة أولًا.",
     "LEG_SEQUENCE_TAKEN": "توجد بالفعل مرحلة شحن برقم {sequence} في هذه الدورة.",
     "NOT_ENOUGH_STOCK": "المتاح من {product} هو {available} فقط، لذا لا يمكن بيع {wanted}.",
@@ -909,7 +911,14 @@
     "CYCLE_STATUS_CHANGED": "الدورة {cycle} أصبحت الآن {status} وليست {expected}. لم يتغير شيء — اعرض المعاينة مرة أخرى.",
     "CYCLE_FINAL_NO_LEGS": "الدورة {cycle} في حالة {status}، لذا لا يمكن إضافة مرحلة شحن إليها.",
     "RECEIVED_EXCEEDS_ORDERED": "لا يمكن استلام {received} من {product}: الكمية المطلوبة {ordered} فقط.",
-    "PREVIEW_CHANGED": "تغيّر ما سيُحفظ منذ المعاينة. لم يُحفظ شيء — اعرض المعاينة الجديدة وأكّدها."
+    "PREVIEW_CHANGED": "تغيّر ما سيُحفظ منذ المعاينة. لم يُحفظ شيء — اعرض المعاينة الجديدة وأكّدها.",
+    "CYCLE_CLOSED": "تم إلغاء الدورة {cycle}، لذلك لا يمكن تسجيل أي شيء على شحنتها.",
+    "CYCLE_SETTLING": "الدورة {cycle} قيد التسوية أو مغلقة، لذلك لا يمكن تسجيل أي شيء على شحنتها. ألغِ التسوية أولًا.",
+    "DELIVERY_BEFORE_DEPARTURE": "لا يمكن أن تكون دفعة الوصول بتاريخ {day} قبل مغادرة {leg} في {departedOn}.",
+    "DELIVERY_EXCEEDS_IN_TRANSIT": "في الطريق {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل وصول {asked}.",
+    "DELIVERY_IN_USE": "لا يمكن حذف دفعة الوصول هذه: تم استلام مخزون منها، أو نقلت مرحلة لاحقة بضاعتها، أو تقدّمت الدورة بسببها.",
+    "LEG_COST_LOCKED": "تم استلام بضاعة من الدورة {cycle} أو تسجيلها مفقودة، لذلك أصبحت تكلفة هذه المرحلة ثابتة. سجّل أي رسوم متأخرة أو مصحّحة كمصروف على الدورة.",
+    "LOSS_EXCEEDS_IN_TRANSIT": "المتبقي {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل {asked} كمفقودة."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
