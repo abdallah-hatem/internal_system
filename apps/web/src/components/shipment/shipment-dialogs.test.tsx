@@ -295,6 +295,13 @@ describe('Mark lost (rule 11: whose figure is shown)', () => {
     return within(dialog('mark-lost')).findByTestId('loss-estimate');
   }
 
+  /** The confirm button arrives disabled and arms itself; click it then. */
+  async function confirmWhenArmed() {
+    const confirm = within(dialog('mark-lost')).getByRole('button', { name: en.shipment.confirmLoss });
+    await waitFor(() => expect((confirm as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(confirm);
+  }
+
   it('the confirm step shows an estimate from the server’s landed unit cost, labelled as one', async () => {
     wrap(<MarkLostDialog cycleId="c-1" leg={leg()} productNames={NAMES} onClose={vi.fn()} />);
     const estimate = await toConfirmStep({ 'poi-1': '5' });
@@ -307,11 +314,8 @@ describe('Mark lost (rule 11: whose figure is shown)', () => {
     state.answer = () => Promise.resolve({ data: { data: [{ id: 'l-1', costEgp: '549.97' }] } });
     wrap(<MarkLostDialog cycleId="c-1" leg={leg()} productNames={NAMES} onClose={vi.fn()} />);
     await toConfirmStep({ 'poi-1': '5' });
-    // A deliberate second click, well after the confirm step appeared.
-    const form = dialog('mark-lost').querySelector('form')!;
-    const late = new Event('submit', { bubbles: true, cancelable: true });
-    Object.defineProperty(late, 'timeStamp', { value: 1e15 });
-    form.dispatchEvent(late);
+    // A deliberate second click, once the confirm button has armed itself.
+    await confirmWhenArmed();
 
     const booked = await within(dialog('mark-lost')).findByTestId('loss-booked');
     expect(booked.textContent).toMatch(/549\.97 EGP/);
@@ -326,8 +330,11 @@ describe('Mark lost (rule 11: whose figure is shown)', () => {
     type(qty('lost-qty', 'poi-1'), '5');
     const continueButton = within(dialog('mark-lost')).getByRole('button', { name: en.shipment.continue });
     fireEvent.click(continueButton);
-    // The second click of the pair lands on the button now in its place.
-    fireEvent.click(within(dialog('mark-lost')).getByRole('button', { name: en.shipment.confirmLoss }));
+    // The second click of the pair lands on the button now in its place, which
+    // is disabled until it arms — visibly, not by silently dropping the click.
+    const confirm = within(dialog('mark-lost')).getByRole('button', { name: en.shipment.confirmLoss });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(confirm);
     expect(call).not.toHaveBeenCalled();
   });
 
@@ -335,10 +342,7 @@ describe('Mark lost (rule 11: whose figure is shown)', () => {
     state.answer = () => refusal('LOSS_EXCEEDS_IN_TRANSIT', { line: 'Brake pad', onTheWay: 40, asked: 41 });
     wrap(<MarkLostDialog cycleId="c-1" leg={leg()} productNames={NAMES} onClose={vi.fn()} />);
     await toConfirmStep({ 'poi-1': '41' });
-    const form = dialog('mark-lost').querySelector('form')!;
-    const late = new Event('submit', { bubbles: true, cancelable: true });
-    Object.defineProperty(late, 'timeStamp', { value: 1e15 });
-    form.dispatchEvent(late);
+    await confirmWhenArmed();
     expect((await screen.findByTestId('shipment-refusal')).textContent).toBe(
       'Only 40 of Brake pad are still to come, so 41 cannot be marked lost.',
     );
