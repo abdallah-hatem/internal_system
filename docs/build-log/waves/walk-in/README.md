@@ -2,3 +2,4 @@
 - W2 merged: Walk-in switch on the sale form (B2C locked, method picker, Sell & take payment), walk-in shown as paid on the spot in lists/detail, cash-only refund on walk-in returns.
 - W3 merged: matcher (exact/SKU only matched; plurals, descriptors, close names → candidates), record_sale (preview = rolled-back real SalesService.create; binding lines, stock, total), the real-image fixture pinned. api 904 + 20 skipped.
 - F9 merged (+ the PO lock moved into writeOrder so the assistant path takes it): race-safe ORD retry, PO advisory lock, Cairo-dated undated payments, demo over reference. api 909 + 27 skipped.
+- Verify: full e2e — g1 199/1s, g2 108/2s, g3 141, g4 215 + 2 failed (tool-list specs asserting no sale tool; outdated by the owner's §16 decision; updated, 67+72 re-run 20/20), g5 158 incl. new 92/93. Unit api 909, web 354+87.
