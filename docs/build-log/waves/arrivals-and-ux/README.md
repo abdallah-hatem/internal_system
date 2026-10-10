@@ -18,3 +18,8 @@
   backfill also dates an undated earlier leg to the first batch's day; legless cycles' batches stay unlinked.
   Carried to B3: receipts must also cap at the line's waiting quantity, and must guard concurrency now that the
   unique index is gone.
+- U4c merged `14a1695`: `/audit-logs` → core partner + admin support. The menu is filtered by the existing `@Roles`,
+  pinned by a test that reads the controllers (an investor sees 14 of 22). Shop owners never reach the office
+  app (USE_PORTAL_LOGIN + SurfaceGuard).
+  **Waiting on the user:** an investor can read analytics (revenue, cash, profit), customers, payment plans,
+  returns, costing and more — those list endpoints name no roles. Doc marks it Open.
