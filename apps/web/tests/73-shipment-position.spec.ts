@@ -68,15 +68,26 @@ test.describe('GET /cycles/:id/shipment', () => {
     expect((await res.json()).error.code).toBe('NOT_FOUND');
   });
 
-  for (const role of ['TEMP_INVESTOR', 'ADMIN_SUPPORT']) {
-    test(`TC-SHIP-03: as ${role} → refused with ROLE_NOT_ALLOWED`, async ({ request }) => {
-      const { cycle } = await orderedCycle(request);
-      const headers = await accountWithRole(request, role);
-      const res = await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers });
-      expect(res.status()).toBe(403);
-      expect((await res.json()).error.code).toBe('ROLE_NOT_ALLOWED');
-    });
-  }
+  test('TC-SHIP-03: as ADMIN_SUPPORT → refused with ROLE_NOT_ALLOWED', async ({ request }) => {
+    const { cycle } = await orderedCycle(request);
+    const headers = await accountWithRole(request, 'ADMIN_SUPPORT');
+    const res = await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers });
+    expect(res.status()).toBe(403);
+    expect((await res.json()).error.code).toBe('ROLE_NOT_ALLOWED');
+  });
+
+  test('TC-SHIP-03b: as a TEMP_INVESTOR not on the cycle → 404, as if it did not exist', async ({ request }) => {
+    // R1 (owner's decision 2026-10-10): an investor reads their own cycles'
+    // shipments, and another cycle is NOT_FOUND rather than 403, so its
+    // existence is not disclosed. The investor-on-the-cycle 200 is spec 87.
+    const { cycle } = await orderedCycle(request);
+    const headers = await accountWithRole(request, 'TEMP_INVESTOR');
+    const res = await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers });
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.params.entity).toBe('cycle');
+  });
 
   test('TC-SHIP-04: with no token → 401', async ({ request }) => {
     const res = await request.get(
