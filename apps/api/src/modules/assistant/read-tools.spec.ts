@@ -963,15 +963,22 @@ async function toolsOf(server: McpServer): Promise<Tool[]> {
   }
 }
 
+/**
+ * §16, 2026-10-11: the assistant can record a sale — that one tool, and no
+ * payment, return or settlement besides.
+ */
+const SALE_WRITES = new Set(['record_sale']);
+
 function forbiddenWrites(tools: Tool[]): string[] {
   return tools
     .filter((t) => t.annotations?.readOnlyHint !== true)
+    .filter((t) => !SALE_WRITES.has(t.name))
     .filter((t) => !INTAKE_WRITES.has(t.name) || OFFICE_ONLY.test(t.name))
     .map((t) => t.name);
 }
 
 describe('What the assistant offers', () => {
-  it('tools/list offers no tool that writes sales, payments, instalments, settlements, returns or the ledger', async () => {
+  it('tools/list offers no tool that writes payments, instalments, settlements, returns or the ledger, and no sale tool but record_sale', async () => {
     const { assistant } = harness(emptyDb());
 
     const tools = await toolsOf(assistant.create(partner));
