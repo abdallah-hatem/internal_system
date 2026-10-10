@@ -49,7 +49,10 @@ export class PaymentsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Record a payment (idempotent via Idempotency-Key header)' })
+  @ApiOperation({
+    summary:
+      'Record a payment; with orderId, on that order in the same transaction (idempotent via Idempotency-Key header)',
+  })
   create(
     @Body() body: CreatePaymentDto,
     @CurrentUser() user: any,

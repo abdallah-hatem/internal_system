@@ -571,9 +571,6 @@
   "src/modules/payments/dto/payment.dto.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 4
     }
   },
   "src/modules/payments/payments.controller.ts": {
@@ -585,9 +582,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 3
-    },
-    "prettier/prettier": {
-      "count": 1
     }
   },
   "src/modules/payments/payments.service.ts": {
@@ -596,12 +590,6 @@
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 1
-    },
-    "prettier/prettier": {
-      "count": 2
     }
   },
   "src/modules/portal/dto/import-request.dto.ts": {
