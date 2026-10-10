@@ -24,6 +24,9 @@ _(none)_
 - MCP assistant — shipped 2026-09-25 · [log](build-log/decisions/mcp-assistant.md)
 - Partial arrivals + UX batch — in progress · [decisions](build-log/decisions/arrivals-and-ux.md) · [waves](build-log/waves/arrivals-and-ux/)
 
+## Notes
+- [Backfill rehearsal](build-log/notes/backfill-rehearsal.md) — old-shape data → migrate → backfill twice → check-data zero.
+
 ## How to run things here
 - Postgres runs in Docker: `open -a Docker`, then `docker compose up -d postgres`. Quit both afterwards.
 - Port 3000 may belong to another project. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003
