@@ -76,3 +76,9 @@
   open to any account. Investor menu: 12 entries. api 777 + 9 skipped, web 162 + 43.
   Follow-up R1b (after U5): hide write actions from investors on the cycle/settlement/shipment screens, and stop the
   cycle details page calling `GET /users` for them.
+- U5 merged: ~40 raw codes → `useCodeLabel` (8 new kinds), 14 files on `useDateFormat`, 34 toasts/fallbacks translated,
+  29 forms on `ValidatedForm` (translated required messages), 16 empty states, notifications stored as code + params
+  (push: shops Arabic, office English until a user language is stored). Guard test `no-raw-codes`. Migration renamed
+  to `20261010190000_notification_code_params` (it collided with B5b's timestamp). api 789 + 9 skipped, web 172 + 45.
+- R1b dispatched: hide write actions from investors; stop `GET /users` for them; ledger refusal param `owner: 'sale return'`
+  is English inside an Arabic message (rule 9); prune stale lint suppressions. Spec number 89.
