@@ -191,9 +191,16 @@ export function FieldWithQuickCreate({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-end gap-2">
+    // The + lines up with the field's box, not with the bottom of the whole
+    // block: when the field shows its error under itself ("Required"), the
+    // block grows by that line and an items-end + would drop beside the error.
+    // The error line is mt-1 + one text-xs line = 20px, so the + gets that
+    // much room below it whenever an error is showing.
+    <div className="group flex items-end gap-2">
       <div className="min-w-0 flex-1">{children}</div>
-      <QuickCreate entity={entity} onCreated={onCreated} />
+      <div className="shrink-0 group-has-[[role=alert]]:mb-5">
+        <QuickCreate entity={entity} onCreated={onCreated} />
+      </div>
     </div>
   );
 }
