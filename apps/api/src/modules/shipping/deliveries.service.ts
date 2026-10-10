@@ -7,6 +7,7 @@ import { CostingService, lineEventCost } from '../costing/costing.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertNotFuture, businessDay } from '../../common/dates';
 import { isUuid } from '../../common/uuid';
+import { COUNTING_REFUND } from '../../common/loss-refunds';
 import {
   legsThatMustHaveDelivered,
   loadShipment,
@@ -122,15 +123,18 @@ function assertOpen(cycle: { code: string; status: string }) {
 /**
  * A refunded loss cannot be taken back (§1, §6): the goods turning up after
  * being paid for would be counted twice. Read under the cycle's lock, which a
- * loss refund also takes, so a refund and a take-back sent at once cannot
- * both succeed. The foreign key (RESTRICT) refuses it too.
+ * loss refund and a refund's undo also take, so a refund and a take-back sent
+ * at once cannot both succeed. The foreign key (RESTRICT) refuses it too.
+ *
+ * Only refunds that still count: once every refund on the loss has been
+ * undone (B5b) the money is back with whoever paid it, and the loss can go.
  */
 async function assertLossNotRefunded(
   tx: Pick<Tx, 'supplierRefund'>,
   lossId: string,
 ) {
   const refunds = await tx.supplierRefund.count({
-    where: { shipmentLossId: lossId },
+    where: { shipmentLossId: lossId, ...COUNTING_REFUND },
   });
   if (refunds > 0) {
     throw badRequest(
@@ -557,6 +561,21 @@ export class DeliveriesService {
       if (!loss) throw notFound('shipmentLoss');
       await assertLossNotRefunded(tx, loss.id);
 
+      // Refunds that were undone still name the loss, and the foreign key
+      // would refuse the delete. They count toward nothing now; they keep
+      // their row, their reversal and both ledger rows, and let go of the
+      // loss. Which loss they were for is kept in this take-back's audit.
+      const undone = await tx.supplierRefund.findMany({
+        where: { shipmentLossId: id, reversedAt: { not: null } },
+        select: { id: true },
+      });
+      if (undone.length > 0) {
+        await tx.supplierRefund.updateMany({
+          where: { id: { in: undone.map((r) => r.id) } },
+          data: { shipmentLossId: null },
+        });
+      }
+
       await tx.shipmentLoss.delete({ where: { id } });
       const changed = await syncLegStatuses(tx, cycleId);
       await this.audit.log(
@@ -565,7 +584,10 @@ export class DeliveriesService {
           action: 'DELETE',
           entityType: 'ShipmentLoss',
           entityId: id,
-          beforeJson: loss,
+          beforeJson: {
+            ...loss,
+            undoneRefunds: undone.map((r) => r.id),
+          },
         },
         tx,
       );

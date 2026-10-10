@@ -1,3 +1,6 @@
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
+import { Prisma } from '@prisma/client';
+
 /**
  * Ledger categories that are not operating expenses.
  *
@@ -49,13 +52,45 @@ export const COST_RECOVERY_CATEGORIES = [
   'loss_refund',
 ] as const;
 
-/** Is this ledger row money recovered against a cycle's cost? */
-export function isCostRecovery(t: {
+/** Is this a recovery category — money recovered, or handed back again? */
+export function isCostRecoveryCategory(category: string): boolean {
+  return (COST_RECOVERY_CATEGORIES as readonly string[]).includes(category);
+}
+
+/**
+ * What a ledger row adds to money recovered, signed: a refund's INFLOW adds,
+ * its reversal's OUTFLOW (B5b: the refund undone, the money handed back)
+ * takes the same away; any other row is zero.
+ *
+ * Recovery is always read through this, never as "the inflows": counting
+ * only the inflows kept an undone refund in the cycle profitability, while
+ * settlement — which happened to see the reversal as an expense — dropped
+ * it. Same rule, two answers (rule 11). A recovery category is never an
+ * operating expense either: the settlement and the dashboard exclude it from
+ * expenses and net it here instead.
+ */
+export function recoveredEgp(t: {
   direction: string;
   category: string;
-}): boolean {
-  return (
-    t.direction === 'INFLOW' &&
-    (COST_RECOVERY_CATEGORIES as readonly string[]).includes(t.category)
-  );
+  amount: Prisma.Decimal.Value;
+}): Prisma.Decimal {
+  if (!isCostRecoveryCategory(t.category)) return new Prisma.Decimal(0);
+  const amount = new Prisma.Decimal(t.amount);
+  return t.direction === 'INFLOW' ? amount : amount.neg();
 }
+
+/** Every recovery on these rows, net of reversals. */
+export function netRecoveredEgp(
+  rows: { direction: string; category: string; amount: Prisma.Decimal.Value }[],
+): Prisma.Decimal {
+  return rows.reduce((s, t) => s.add(recoveredEgp(t)), new Prisma.Decimal(0));
+}
+
+/**
+ * Categories that are not operating expenses: capitalised, and recoveries
+ * (whose reversals are netted against them through `recoveredEgp`).
+ */
+export const NOT_OPERATING_EXPENSE = [
+  ...CAPITALISED_CATEGORIES,
+  ...COST_RECOVERY_CATEGORIES,
+] as const;

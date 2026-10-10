@@ -836,7 +836,8 @@
       "assistantConnection": "Claude connection",
       "shipmentDelivery": "Delivery",
       "shipmentLoss": "Loss",
-      "shipmentDeliveryLine": "Delivery line"
+      "shipmentDeliveryLine": "Delivery line",
+      "supplierRefund": "Refund"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -982,7 +983,7 @@
     "DELIVERY_IN_USE": "This delivery cannot be deleted: stock was received from it, a later leg carried its goods on, or the cycle has moved on because of it.",
     "LEG_COST_LOCKED": "Goods of cycle {cycle} have already been received or marked lost, so this leg’s cost is fixed. Record a late or corrected charge as a cycle expense.",
     "LOSS_EXCEEDS_IN_TRANSIT": "Only {onTheWay} of {line} are still to come, so {asked} cannot be marked lost.",
-    "LOSS_REFUNDED": "This loss has been refunded, so it cannot be taken back: the goods would be counted twice.",
+    "LOSS_REFUNDED": "This loss has a refund standing against it, so it cannot be taken back: the goods would be counted twice. Undo the refund first.",
     "AMOUNT_NOT_POSITIVE": "A payment must be more than zero.",
     "PAYMENT_EXCEEDS_ORDER": "Order {order} owes {owed}, so {asked} cannot be paid on it.",
     "ORDER_NOT_CONFIRMED": "Order {order} is a draft, so it owes nothing yet.",
@@ -1253,6 +1254,17 @@
     "nothingWaitingHint": "Deliveries recorded on a cycle’s Shipment panel appear here until they are counted in.",
     "waitingLine": "{product}: {qty} waiting",
     "cycleNotArrived": "The cycle is {status}; move it to Arrived Egypt from its page first.",
-    "openCycle": "Open cycle"
+    "openCycle": "Open cycle",
+    "refundsOnLoss": "Refunds",
+    "refundLine": "{amount} EGP from {payer}, received {date}",
+    "undoRefund": "Undo refund",
+    "undoRefundTitle": "Undo this refund?",
+    "undoRefundConfirm": "{amount} EGP from {payer} goes back to them. A balancing entry is written to the ledger, the loss is unrecovered again, and the cycle's profit goes down by it. The refund stays on record, marked undone.",
+    "undoRefundReason": "Why is it being undone?",
+    "undoRefundReasonPlaceholder": "e.g. the goods turned up, so the carrier's payment went back",
+    "undoRefundReasonRequired": "Give a reason for undoing this refund.",
+    "undoRefundFailed": "The refund could not be undone.",
+    "refundUndone": "Refund undone",
+    "refundUndoneBadge": "Undone"
   }
 }

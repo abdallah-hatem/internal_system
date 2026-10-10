@@ -8,7 +8,7 @@ import {
   businessToday,
 } from '../../common/dates';
 import { lockCycle } from '../../common/shipment-load';
-import { refundEgp } from '../../common/loss-refunds';
+import { COUNTING_REFUND, refundEgp } from '../../common/loss-refunds';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
@@ -597,7 +597,11 @@ export class PurchasesService {
                 product: { select: { name: true } },
               },
             },
-            refunds: { select: { amount: true, fxRateToEgp: true } },
+            // A reversed refund was handed back: it frees its share of the cap.
+            refunds: {
+              where: COUNTING_REFUND,
+              select: { amount: true, fxRateToEgp: true },
+            },
           },
         });
         // Taken back between the read above and the lock.
@@ -650,6 +654,139 @@ export class PurchasesService {
     return { data: refund };
   }
 
+  /**
+   * POST /purchases/refunds/:id/reverse — undo a refund: the money was handed
+   * back (§6, §9, B5b). Plain supplier refunds and loss refunds alike.
+   *
+   * Nothing is edited away. The refund row stays, marked reversed with who,
+   * when and why, and a balancing ledger OUTFLOW points back at the refund's
+   * original inflow (`reversalOfId`), the same shape the ledger's own
+   * reversal writes. From then on the refund counts toward no cap and no
+   * profit: `COUNTING_REFUND` everywhere refunds are summed, and the pair of
+   * ledger rows nets to nothing in every recovery figure.
+   *
+   * Under the cycle's lock, as recording a refund is, so an undo and a new
+   * refund — or two undos — cannot interleave. Allowed in any cycle status,
+   * like recording one: money moves when it moves.
+   */
+  async reverseRefund(
+    id: string,
+    body: { reason?: unknown } | undefined,
+    actorId: string,
+  ) {
+    if (!isUuid(id)) throw notFound('supplierRefund');
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
+    // §9: a reason is required. The service checks it; the DTO is one caller.
+    if (!reason) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'Give a reason for undoing this refund.',
+        { fields: 'reason' },
+      );
+    }
+    if (reason.length > REVERSAL_REASON_MAX) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        `A reason is at most ${REVERSAL_REASON_MAX} characters.`,
+        { fields: 'reason' },
+      );
+    }
+
+    const found = await this.prisma.supplierRefund.findUnique({
+      where: { id },
+      select: { purchaseOrder: { select: { cycleId: true } } },
+    });
+    if (!found) throw notFound('supplierRefund');
+
+    const { refund, reversal, cycleCode } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockCycle(tx, found.purchaseOrder.cycleId);
+        const refund = await tx.supplierRefund.findUnique({ where: { id } });
+        if (!refund) throw notFound('supplierRefund');
+        if (refund.reversedAt) throw alreadyReversed(refund.reversedAt);
+
+        // The refund's own inflow. A refund recorded before refunds reached
+        // the ledger has none: there is then nothing to balance, and the
+        // refund is only marked (it never touched cash or profit there).
+        const original = await tx.financialTransaction.findFirst({
+          where: {
+            relatedType: 'SUPPLIER_REFUND',
+            relatedId: id,
+            reversalOfId: null,
+          },
+        });
+        let reversal: { id: string } | null = null;
+        if (original) {
+          const earlier = await tx.financialTransaction.findFirst({
+            where: { reversalOfId: original.id },
+            select: { createdAt: true },
+          });
+          if (earlier) throw alreadyReversed(earlier.createdAt);
+          reversal = await tx.financialTransaction.create({
+            data: {
+              type: original.type,
+              category: original.category,
+              // Mirror the original so the pair nets to zero.
+              direction: original.direction === 'INFLOW' ? 'OUTFLOW' : 'INFLOW',
+              amount: original.amount,
+              currency: original.currency,
+              fxRateToEgp: original.fxRateToEgp,
+              accountId: original.accountId,
+              cycleId: original.cycleId,
+              relatedType: original.relatedType,
+              relatedId: original.relatedId,
+              reversalOfId: original.id,
+              reason: `Refund undone: ${reason}`,
+              createdBy: actorId,
+            },
+          });
+        }
+
+        // Conditional on still being un-reversed: the lock makes a second
+        // undo wait, and this is the backstop if it ever did not.
+        const marked = await tx.supplierRefund.updateMany({
+          where: { id, reversedAt: null },
+          data: {
+            reversedAt: new Date(),
+            reversedBy: actorId,
+            reversalReason: reason,
+            reversalTransactionId: reversal?.id ?? null,
+          },
+        });
+        if (marked.count !== 1) throw alreadyReversed(new Date());
+
+        const cycle = await tx.importCycle.findUnique({
+          where: { id: found.purchaseOrder.cycleId },
+          select: { code: true },
+        });
+        return { refund, reversal, cycleCode: cycle?.code };
+      },
+    );
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'REVERSE',
+      entityType: 'SupplierRefund',
+      entityId: id,
+      beforeJson: {
+        amount: D(refund.amount).toFixed(2),
+        currency: refund.currency,
+        amountEgp: refundEgp(refund).toFixed(2),
+        shipmentLossId: refund.shipmentLossId,
+        cycle: cycleCode,
+      },
+      afterJson: { reversalId: reversal?.id ?? null, reason },
+    });
+
+    return {
+      data: {
+        id,
+        reversed: true,
+        reversalTransactionId: reversal?.id ?? null,
+      },
+    };
+  }
+
   private async auditRefund(
     refund: { id: string },
     amountEgp: Prisma.Decimal,
@@ -689,6 +826,21 @@ export interface LossRefundInput extends RefundInput {
 
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
+
+export const REVERSAL_REASON_MAX = 500;
+
+/**
+ * Reversing twice double-counts the correction (§9). The ledger's own code,
+ * so the reader sees one refusal for one rule.
+ */
+function alreadyReversed(on: Date) {
+  const date = on.toISOString().slice(0, 10);
+  return badRequest(
+    'ENTRY_ALREADY_REVERSED',
+    `This refund was already undone on ${date}. Undoing it again would double-count the correction.`,
+    { date },
+  );
+}
 
 /**
  * The checks every refund passes before anything is read. In the service as
@@ -731,7 +883,11 @@ async function loadRefundOrder(tx: Db, purchaseOrderId: string) {
     where: { id: purchaseOrderId },
     include: {
       items: { select: { lineTotal: true } },
-      supplierRefunds: { select: { amount: true, fxRateToEgp: true } },
+      // Reversed refunds were handed back and no longer count (B5b).
+      supplierRefunds: {
+        where: COUNTING_REFUND,
+        select: { amount: true, fxRateToEgp: true },
+      },
       cycle: { select: { id: true, code: true } },
     },
   });

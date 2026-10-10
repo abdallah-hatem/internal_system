@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import {
-  CAPITALISED_CATEGORIES,
   COST_RECOVERY_CATEGORIES,
-  isCostRecovery,
+  NOT_OPERATING_EXPENSE,
+  isCostRecoveryCategory,
+  netRecoveredEgp,
 } from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
@@ -96,7 +97,9 @@ export class AnalyticsService {
         direction: 'OUTFLOW',
         // Settlement payouts distribute profit already earned; counting them
         // as expenses would subtract the same money twice.
-        category: { notIn: [...CAPITALISED_CATEGORIES] },
+        // Recoveries, and an undone refund's OUTFLOW, are netted in
+        // `recovered` below rather than charged as an expense (B5b).
+        category: { notIn: [...NOT_OPERATING_EXPENSE] },
       },
       _sum: { amount: true },
     });
@@ -107,14 +110,27 @@ export class AnalyticsService {
     // loss refunds the dashboard left it out, so a refund raised a cycle's
     // profit and not the business's. Shown on its own rather than netted
     // into totalExpenses, which would read negative on a refund-heavy month.
-    const recoveryAgg = await this.prisma.financialTransaction.aggregate({
-      where: {
-        direction: 'INFLOW',
-        category: { in: [...COST_RECOVERY_CATEGORIES] },
-      },
-      _sum: { amount: true },
+    // Net of undone refunds (B5b): their OUTFLOW takes the inflow back,
+    // through the signed reading settlement uses too.
+    const recoveryOf = async (direction: 'INFLOW' | 'OUTFLOW') => ({
+      direction,
+      category: COST_RECOVERY_CATEGORIES[0],
+      amount: D(
+        (
+          await this.prisma.financialTransaction.aggregate({
+            where: {
+              direction,
+              category: { in: [...COST_RECOVERY_CATEGORIES] },
+            },
+            _sum: { amount: true },
+          })
+        )._sum.amount,
+      ),
     });
-    const recovered = D(recoveryAgg._sum.amount);
+    const recovered = netRecoveredEgp([
+      await recoveryOf('INFLOW'),
+      await recoveryOf('OUTFLOW'),
+    ]);
     const operatingExpenses = D(operatingAgg._sum.amount).add(
       await cycleLossesEgp(this.prisma, null),
     );
@@ -489,21 +505,18 @@ export class AnalyticsService {
 
       // What the cycle consumed in cash: goods, shipping and fees, less
       // anything a supplier gave back.
-      const investment = cycle.financialTransactions
-        .filter((t) => t.direction === 'OUTFLOW')
-        .reduce((sum, t) => sum.add(D(t.amount)), D(0))
-        .sub(
-          cycle.financialTransactions
-            .filter(isCostRecovery)
-            .reduce((sum, t) => sum.add(D(t.amount)), D(0)),
-        );
-
       // A refund recovers cost, so it improves the cycle's result even though
       // it changes no batch cost. Supplier refunds and loss refunds alike,
-      // through the one list settlement reads (rule 11).
-      const supplierRefunds = cycle.financialTransactions
-        .filter(isCostRecovery)
-        .reduce((sum, t) => sum.add(D(t.amount)), D(0));
+      // net of any undone (B5b), through the one signed reading settlement
+      // uses (rule 11). Counting only the inflows kept an undone refund here.
+      const supplierRefunds = netRecoveredEgp(cycle.financialTransactions);
+      const investment = cycle.financialTransactions
+        .filter(
+          (t) =>
+            t.direction === 'OUTFLOW' && !isCostRecoveryCategory(t.category),
+        )
+        .reduce((sum, t) => sum.add(D(t.amount)), D(0))
+        .sub(supplierRefunds);
 
       const losses = lossesByCycle.get(cycle.id) ?? D(0);
       const profit = revenue.sub(cogs).add(supplierRefunds).sub(losses);

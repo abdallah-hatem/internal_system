@@ -156,7 +156,19 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM shipment_losses x
    WHERE (SELECT coalesce(sum(round(r.amount * r.fx_rate_to_egp, 2)), 0)
             FROM supplier_refunds r
-           WHERE r.shipment_loss_id = x.id) > x.cost_egp
+           WHERE r.shipment_loss_id = x.id
+             AND r.reversed_at IS NULL) > x.cost_egp
+  -- An undone refund (B5b, 9) is balanced in the ledger: its inflow has a
+  -- reversal pointing back at it. Otherwise the money handed back never left
+  -- the books and the cycle still shows the recovery.
+  UNION ALL SELECT 12.9, 'an undone refund whose ledger inflow was not balanced',
+         count(*) FROM supplier_refunds r
+    JOIN financial_transactions f
+      ON f.related_type = 'SUPPLIER_REFUND' AND f.related_id = r.id
+     AND f.reversal_of_id IS NULL
+   WHERE r.reversed_at IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM financial_transactions v
+                      WHERE v.reversal_of_id = f.id)
   UNION ALL SELECT 13,'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'

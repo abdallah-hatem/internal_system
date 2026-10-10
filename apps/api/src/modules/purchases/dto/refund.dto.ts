@@ -1,4 +1,4 @@
-import { IsDateString, IsNumber, IsOptional, IsString, Min, IsPositive } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min, IsPositive } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RecordSupplierRefundDto {
@@ -21,4 +21,16 @@ export class RecordSupplierRefundDto {
 
   @IsOptional() @IsDateString()
   recordedOn?: string;
+}
+
+/**
+ * POST /purchases/refunds/:id/reverse (B5b). Shape only: the service refuses
+ * a blank or whitespace reason too (rule 3), and the length matches its cap.
+ */
+export class ReverseSupplierRefundDto {
+  /** Why the money was handed back. Required (§9), kept on the refund and the ledger row. */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason: string;
 }

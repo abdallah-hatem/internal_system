@@ -376,27 +376,38 @@ model PurchaseOrderItem {
 }
 
 model SupplierRefund {
-  id                      String   @id @default(uuid()) @db.Uuid
-  purchaseOrderId         String   @map("purchase_order_id") @db.Uuid
-  amount                  Decimal  @db.Decimal(18, 2)
+  id                      String    @id @default(uuid()) @db.Uuid
+  purchaseOrderId         String    @map("purchase_order_id") @db.Uuid
+  amount                  Decimal   @db.Decimal(18, 2)
   currency                String
-  fxRateToEgp             Decimal  @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  fxRateToEgp             Decimal   @map("fx_rate_to_egp") @db.Decimal(18, 4)
   reason                  String?
-  recordedOn              DateTime @map("recorded_on") @db.Date
-  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  createdBy               String?  @map("created_by") @db.Uuid
+  recordedOn              DateTime  @map("recorded_on") @db.Date
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy               String?   @map("created_by") @db.Uuid
   /// Set when the refund compensates goods lost on the way (§6, 2026-10-10).
   /// Refunds on one loss never total more than its cost.
-  shipmentLossId          String?  @map("shipment_loss_id") @db.Uuid
+  shipmentLossId          String?   @map("shipment_loss_id") @db.Uuid
   /// Who paid a loss refund when it was the leg's shipping company; null means
   /// the order's supplier, as every refund before losses were refundable.
-  payerShippingProviderId String?  @map("payer_shipping_provider_id") @db.Uuid
+  payerShippingProviderId String?   @map("payer_shipping_provider_id") @db.Uuid
+  /// Set when the refund was undone (§6, §9, 2026-10-10): the money was
+  /// handed back. The refund row stays; a balancing ledger OUTFLOW
+  /// (`reversalTransactionId`) points back at its original inflow. A reversed
+  /// refund counts toward no cap and no profit.
+  reversedAt              DateTime? @map("reversed_at") @db.Timestamptz()
+  reversedBy              String?   @map("reversed_by") @db.Uuid
+  reversalReason          String?   @map("reversal_reason")
+  /// The balancing ledger row. Null on a reversed refund that never had a
+  /// ledger inflow to balance (refunds recorded before the ledger write).
+  reversalTransactionId   String?   @unique @map("reversal_transaction_id") @db.Uuid
 
-  purchaseOrder         PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder         PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
+  reversalTransaction   FinancialTransaction? @relation("SupplierRefundReversal", fields: [reversalTransactionId], references: [id], onDelete: Restrict)
   /// Restrict: a refunded loss cannot be taken back (LOSS_REFUNDED); the
   /// database refuses it too.
-  shipmentLoss          ShipmentLoss? @relation(fields: [shipmentLossId], references: [id], onDelete: Restrict)
-  payerShippingProvider Provider?     @relation(fields: [payerShippingProviderId], references: [id], onDelete: Restrict)
+  shipmentLoss          ShipmentLoss?         @relation(fields: [shipmentLossId], references: [id], onDelete: Restrict)
+  payerShippingProvider Provider?             @relation(fields: [payerShippingProviderId], references: [id], onDelete: Restrict)
 
   @@index([shipmentLossId])
   @@index([payerShippingProviderId])
@@ -910,9 +921,11 @@ model FinancialTransaction {
   createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz()
   createdBy    String?              @map("created_by") @db.Uuid
 
-  cycle   ImportCycle?  @relation(fields: [cycleId], references: [id])
-  actor   User?         @relation(fields: [createdBy], references: [id])
-  account MoneyAccount? @relation(fields: [accountId], references: [id])
+  cycle          ImportCycle?    @relation(fields: [cycleId], references: [id])
+  actor          User?           @relation(fields: [createdBy], references: [id])
+  account        MoneyAccount?   @relation(fields: [accountId], references: [id])
+  /// The supplier refund this row undid, when it is a refund's reversal.
+  reversedRefund SupplierRefund? @relation("SupplierRefundReversal")
 
   @@map("financial_transactions")
 }

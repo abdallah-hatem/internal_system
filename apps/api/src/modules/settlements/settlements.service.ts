@@ -12,8 +12,9 @@ import { formatMoney, formatQty } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
 import {
-  CAPITALISED_CATEGORIES,
   COST_RECOVERY_CATEGORIES,
+  NOT_OPERATING_EXPENSE,
+  netRecoveredEgp,
 } from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { lockCycle } from '../../common/shipment-load';
@@ -243,20 +244,22 @@ export class SettlementsService {
       where: {
         cycleId,
         direction: 'OUTFLOW',
-        category: { notIn: [...CAPITALISED_CATEGORIES] },
+        // Recoveries are netted below, reversals included, not charged here.
+        category: { notIn: [...NOT_OPERATING_EXPENSE] },
       },
       select: { amount: true },
     });
     // Money recovered from suppliers reduces what the cycle cost. It is netted
     // here rather than by re-pricing batches: units already sold keep the cost
     // they were sold at, and a settlement may already have been agreed on it.
+    // Both directions: an undone refund's OUTFLOW takes its inflow back
+    // (B5b), through the one signed reading analytics uses too (rule 11).
     const recoveryTxns = await this.prisma.financialTransaction.findMany({
       where: {
         cycleId,
-        direction: 'INFLOW',
         category: { in: [...COST_RECOVERY_CATEGORIES] },
       },
-      select: { amount: true },
+      select: { amount: true, direction: true, category: true },
     });
 
     // Goods lost on the way are a loss against the cycle (§2, §8). No money
@@ -267,9 +270,7 @@ export class SettlementsService {
 
     const expenses = expenseTxns
       .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
-      .sub(
-        recoveryTxns.reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0)),
-      )
+      .sub(netRecoveredEgp(recoveryTxns))
       .add(losses);
 
     const pnl = summarizeCyclePnl({

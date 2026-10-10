@@ -287,6 +287,24 @@ what it brings in.
   first — money handed back is a ledger correction — and then the loss.
 - Neither kind of refund can be dated in the future.
 
+**2026-10-10 — undoing a refund.** *Built (B5b).* A supplier refund or a loss
+refund can be undone when the money is handed back, by a core partner, with a
+reason. Nothing is edited away: the refund stays on record, marked undone, and
+a balancing ledger outflow points back at its original inflow (§9). An undone
+refund counts toward no cap and no profit, so the loss is unrecovered again
+and the cycle's profit falls by it on every screen. Undoing twice is refused.
+Once every refund on a loss is undone, the loss can be taken back.
+Guesses, open until confirmed:
+- An undo is allowed in any cycle status, settled or closed included, as
+  recording a refund is — money moves when it moves.
+- When a loss is taken back, its undone refunds stop naming it (the database
+  would otherwise refuse the take-back); which loss they were for is kept in
+  the take-back's audit entry.
+- A refund recorded before refunds reached the ledger has no inflow to
+  balance; undoing it only marks it.
+- The undo is dated when it is done; there is no separate "handed back on"
+  date.
+
 ---
 
 ## 7. Customer payments and instalments

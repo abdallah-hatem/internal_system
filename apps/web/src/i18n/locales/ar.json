@@ -836,7 +836,8 @@
       "assistantConnection": "اتصال Claude",
       "shipmentDelivery": "دفعة الوصول",
       "shipmentLoss": "الفقد",
-      "shipmentDeliveryLine": "بند دفعة الوصول"
+      "shipmentDeliveryLine": "بند دفعة الوصول",
+      "supplierRefund": "التعويض"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -982,7 +983,7 @@
     "DELIVERY_IN_USE": "لا يمكن حذف دفعة الوصول هذه: تم استلام مخزون منها، أو نقلت مرحلة لاحقة بضاعتها، أو تقدّمت الدورة بسببها.",
     "LEG_COST_LOCKED": "تم استلام بضاعة من الدورة {cycle} أو تسجيلها مفقودة، لذلك أصبحت تكلفة هذه المرحلة ثابتة. سجّل أي رسوم متأخرة أو مصحّحة كمصروف على الدورة.",
     "LOSS_EXCEEDS_IN_TRANSIT": "المتبقي {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل {asked} كمفقودة.",
-    "LOSS_REFUNDED": "تم استرداد قيمة هذا الفقد، لذلك لا يمكن التراجع عنه: ستُحسب البضاعة مرتين.",
+    "LOSS_REFUNDED": "على هذا الفقد تعويض قائم، لذلك لا يمكن التراجع عنه: ستُحسب البضاعة مرتين. ألغِ التعويض أولًا.",
     "AMOUNT_NOT_POSITIVE": "يجب أن يكون مبلغ الدفعة أكبر من صفر.",
     "PAYMENT_EXCEEDS_ORDER": "المستحق على الطلب {order} هو {owed}، لذا لا يمكن دفع {asked} عليه.",
     "ORDER_NOT_CONFIRMED": "الطلب {order} مسودة، لذا لا يستحق عليه شيء بعد.",
@@ -1253,6 +1254,17 @@
     "nothingWaitingHint": "الدفعات المسجّلة في لوحة الشحنة بصفحة الدورة تظهر هنا حتى تُستلم.",
     "waitingLine": "{product}: {qty} بانتظار الاستلام",
     "cycleNotArrived": "حالة الدورة {status}؛ انقلها إلى «وصلت مصر» من صفحتها أولاً.",
-    "openCycle": "فتح الدورة"
+    "openCycle": "فتح الدورة",
+    "refundsOnLoss": "التعويضات",
+    "refundLine": "{amount} ج.م من {payer}، استُلم في {date}",
+    "undoRefund": "إلغاء التعويض",
+    "undoRefundTitle": "إلغاء هذا التعويض؟",
+    "undoRefundConfirm": "يعود مبلغ {amount} ج.م إلى {payer}. يُسجَّل قيد معاكس في دفتر الحسابات، ويعود الفقد غير مُسترد، وينخفض ربح الدورة بقيمته. يبقى التعويض مسجلًا مع علامة أنه أُلغي.",
+    "undoRefundReason": "لماذا يُلغى؟",
+    "undoRefundReasonPlaceholder": "مثلًا: وصلت البضاعة، فأُعيد مبلغ شركة الشحن",
+    "undoRefundReasonRequired": "اذكر سبب إلغاء هذا التعويض.",
+    "undoRefundFailed": "تعذّر إلغاء التعويض.",
+    "refundUndone": "أُلغي التعويض",
+    "refundUndoneBadge": "مُلغى"
   }
 }

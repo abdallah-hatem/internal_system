@@ -23,6 +23,19 @@ export function refundEgp(r: {
     .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
+/**
+ * The refunds that count (B5b, §6 §9): a reversed refund — money handed back —
+ * counts toward no cap and no profit. Every query that adds refunds up filters
+ * with this, and every in-memory sum with `counts`, so "which refunds count"
+ * is answered once (rule 11).
+ */
+export const COUNTING_REFUND = { reversedAt: null } as const;
+
+/** Does this refund still count? (The in-memory form of `COUNTING_REFUND`.) */
+export function counts(r: { reversedAt?: Date | null }): boolean {
+  return r.reversedAt == null;
+}
+
 type Qty = Prisma.Decimal.Value;
 
 /** A loss as the shipment loader reads it. */
@@ -57,11 +70,15 @@ export interface LossWithRefunds {
     recordedOn: string;
     payerType: 'SHIPPING_PROVIDER' | 'SUPPLIER';
     payerName: string;
+    /** Set when the refund was undone; it then counts toward nothing. */
+    reversedAt: Date | null;
+    reversalReason: string | null;
   }[];
 }
 
 /**
  * Each loss with its refunds, refunded so far and what is still unrecovered.
+ * Reversed refunds are in the list, marked, and out of both figures.
  * One query for all of them; the payer is the shipping company when the
  * refund names one, otherwise the order's supplier.
  */
@@ -87,6 +104,8 @@ export async function lossesWithRefunds(
             currency: true,
             fxRateToEgp: true,
             recordedOn: true,
+            reversedAt: true,
+            reversalReason: true,
             payerShippingProvider: { select: { name: true } },
             purchaseOrder: { select: { supplier: { select: { name: true } } } },
           },
@@ -106,8 +125,14 @@ export async function lossesWithRefunds(
           : ('SUPPLIER' as const),
         payerName:
           r.payerShippingProvider?.name ?? r.purchaseOrder.supplier.name,
+        reversedAt: r.reversedAt ?? null,
+        reversalReason: r.reversalReason ?? null,
       }));
-    const refunded = refunds.reduce((s, r) => s.add(r.amountEgp), D(0));
+    // Reversed refunds are listed — the history stays visible — but the money
+    // went back, so they are not part of what was refunded.
+    const refunded = refunds
+      .filter(counts)
+      .reduce((s, r) => s.add(r.amountEgp), D(0));
     const cost = D(loss.costEgp);
     return {
       id: loss.id,
