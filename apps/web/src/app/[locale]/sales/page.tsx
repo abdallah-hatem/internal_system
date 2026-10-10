@@ -7,7 +7,7 @@ import { Money } from '../../../components/ui/money';
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { formatDate } from '../../../lib/dates';
+import { useDateFormat } from '../../../lib/dates';
 import { Suspense, useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
@@ -107,6 +107,8 @@ function SalesPageContent() {
   const [createFor, setCreateFor] = useState<{ customerId?: string } | null>(null);
   const [viewingOrder, setViewingOrder] = useState<SaleOrder | null>(null);
   const codeLabel = useCodeLabel();
+  // Dates in the reader's language (UX #10).
+  const { formatDate } = useDateFormat();
   // Cancelling is not undoable and the button sits beside Confirm, so it asks
   // first rather than acting on the click.
   const [cancellingOrder, setCancellingOrder] = useState<SaleOrder | null>(null);
