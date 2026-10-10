@@ -453,7 +453,14 @@
     "noAllocationsDraftHint": "يُسحب المخزون من التشغيلات عند تأكيد الطلب.",
     "noPaymentsTitle": "لا توجد مدفوعات على هذا الطلب بعد",
     "noPaymentsHint": "تظهر هنا الأموال التي يدفعها العميل عن هذا الطلب.",
-    "noPaymentsDraftHint": "لا يُقبل دفع على المسودة حتى يتم تأكيدها."
+    "noPaymentsDraftHint": "لا يُقبل دفع على المسودة حتى يتم تأكيدها.",
+    "walkIn": "زبون عابر",
+    "walkInCustomer": "زبون عابر",
+    "paymentMethod": "طريقة الدفع",
+    "sellAndTakePayment": "بيع وتحصيل المبلغ",
+    "walkInPaidBy": "مدفوع بالكامل الآن · {method}",
+    "walkInSold": "تم البيع والتحصيل",
+    "walkInNoBalance": "مدفوع في الحال"
   },
   "customers": {
     "title": "العملاء",

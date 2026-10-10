@@ -256,7 +256,11 @@ shows a balance. Stock, discount and price rules are the same as any sale. A
 walk-in return is refunded in money, not as credit — there is no account to
 hold it.
 
-*Server built 2026-10-11 (W1); the form (W2) and the assistant (W3) to come.*
+*Server built 2026-10-11 (W1); the sale form built 2026-10-11 (W2); the assistant (W3) to come.*
+On the form, a **Walk-in** switch beside Customer replaces the customer with a
+payment method (cash first) and offers one button, *Sell & take payment*. Lists
+and the order show such a sale as "Walk-in" with no balance, and its return
+offers a money refund only.
 Guesses made while building it, open until confirmed:
 - A walk-in sale whose lines are all free (total 0) takes no payment — a zero
   payment would say money moved when none did.

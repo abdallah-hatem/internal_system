@@ -45,7 +45,8 @@ interface SaleOrder {
   id: string;
   orderNo: string;
   customerId: string;
-  customer?: { displayName: string };
+  /** `isWalkIn`: the shared walk-in record (§4) — shown as "Walk-in", never as a name. */
+  customer?: { displayName: string; isWalkIn?: boolean };
   channel: string;
   status: string;
   total: number;
@@ -162,15 +163,20 @@ function SalesPageContent() {
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const onOrderSaved = ({ confirmed }: SavedOrder) => {
+  const onOrderSaved = ({ confirmed, walkIn }: SavedOrder) => {
     void queryClient.invalidateQueries({ queryKey: ['sales'] });
     if (confirmed) {
       // Confirming took stock off the shelf and added to what the shop owes.
       void queryClient.invalidateQueries({ queryKey: ['inventory'] });
       void queryClient.invalidateQueries({ queryKey: ['customers'] });
     }
+    if (walkIn) {
+      // A walk-in sale also recorded the money that came in with it.
+      void queryClient.invalidateQueries({ queryKey: ['payments'] });
+      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    }
     setCreateFor(null);
-    addToast(confirmed ? t('orderCreatedConfirmed') : t('draftSaved'), 'success');
+    addToast(walkIn ? t('walkInSold') : confirmed ? t('orderCreatedConfirmed') : t('draftSaved'), 'success');
   };
 
   const confirmMutation = useMutation({
@@ -258,11 +264,13 @@ function SalesPageContent() {
     paid: 'PAID',
     cancelled: 'CANCELLED',
   };
+  /** Who bought, as the reader sees it: a walk-in reads "Walk-in" in their language. */
+  const buyerName = (o: SaleOrder) => (o.customer?.isWalkIn ? t('walkInCustomer') : o.customer?.displayName);
   const filtered = orderList.filter((o) => {
     const matchSearch =
       !search ||
       o.orderNo?.toLowerCase().includes(search.toLowerCase()) ||
-      o.customer?.displayName?.toLowerCase().includes(search.toLowerCase());
+      buyerName(o)?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || o.status === STATUS_FILTER[statusFilter];
     return matchSearch && matchStatus;
   });
@@ -288,6 +296,15 @@ function SalesPageContent() {
    * it shows a dash and says why, rather than a red number nobody owes.
    */
   const outstandingCell = (order: SaleOrder, withLabel = false) => {
+    // A walk-in was paid as it was sold and has no account to owe on (§4).
+    if (order.customer?.isWalkIn) {
+      return (
+        <span className="text-muted-foreground" data-testid="outstanding">
+          {withLabel && `${t('outstanding')}: `}—{' '}
+          <span className="text-xs">({t('walkInNoBalance')})</span>
+        </span>
+      );
+    }
     if (order.status === 'DRAFT') {
       return (
         <span className="text-gray-400" data-testid="outstanding">
@@ -308,6 +325,14 @@ function SalesPageContent() {
   };
 
   const detail = (orderDetail as SaleOrder) ?? viewingOrder;
+
+  /** The buyer cell: a link to the customer, or "Walk-in", which has no page of its own. */
+  const customerCell = (order: SaleOrder) =>
+    order.customer?.isWalkIn ? (
+      <span data-testid="walk-in-customer">{t('walkInCustomer')}</span>
+    ) : (
+      <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+    );
 
 
   // ── Render ────────────────────────────────────────────────────────
@@ -443,7 +468,7 @@ function SalesPageContent() {
                         </button>
                       </td>
                       <td className="px-4 py-3 text-gray-900" onClick={(e) => e.stopPropagation()}>
-                        <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+                        {customerCell(order)}
                       </td>
                       <td className="px-4 py-3">{channelBadge(order.channel)}</td>
                       <td className="px-4 py-3">{statusBadge(order.status)}</td>
@@ -493,7 +518,7 @@ function SalesPageContent() {
                   {statusBadge(order.status)}
                 </div>
                 <p className="text-sm text-gray-700" onClick={(e) => e.stopPropagation()}>
-                  <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+                  {customerCell(order)}
                 </p>
                 <div className="flex items-center gap-3 mt-2 text-sm">
                   {channelBadge(order.channel)}
@@ -534,7 +559,7 @@ function SalesPageContent() {
           <div className="space-y-6">
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <Detail label={t('customer')} value={detail.customer?.displayName ?? '—'} />
+              <Detail label={t('customer')} value={detail.customer?.isWalkIn ? t('walkInCustomer') : <LatinText>{detail.customer?.displayName ?? '—'}</LatinText>} />
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
               <Detail label={t('total')} value={<Money value={detail.total} currency={detail.currency} />} />
               <Detail label={t('outstanding')} value={outstandingCell(detail)} />
@@ -768,7 +793,7 @@ function SalesPageContent() {
               <div className="flex justify-between">
                 <span className="text-gray-500">{t('customer')}</span>
                 <span className="font-medium text-gray-900">
-                  {cancellingOrder.customer?.displayName ?? '—'}
+                  {buyerName(cancellingOrder) ?? '—'}
                 </span>
               </div>
               <div className="mt-1 flex justify-between">
@@ -882,11 +907,15 @@ function SalesPageContent() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('refundMethod')}
               </label>
+              {/* A walk-in has no account to hold a credit, so its refund is
+                  money (§4); the server refuses a credit note on one. */}
               <Select
                 name="refundMethod"
-                defaultValue="CREDIT_NOTE"
+                defaultValue={returningOrder.customer?.isWalkIn ? 'CASH' : 'CREDIT_NOTE'}
                 options={[
-                  { value: 'CREDIT_NOTE', label: t('creditNote') },
+                  ...(returningOrder.customer?.isWalkIn
+                    ? []
+                    : [{ value: 'CREDIT_NOTE', label: t('creditNote') }]),
                   { value: 'CASH', label: t('cashRefund') },
                 ]}
               />

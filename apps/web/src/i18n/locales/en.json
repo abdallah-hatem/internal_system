@@ -453,7 +453,14 @@
     "noAllocationsDraftHint": "Stock is taken from batches when the order is confirmed.",
     "noPaymentsTitle": "No payments against this order yet",
     "noPaymentsHint": "Money the customer pays toward this order is listed here.",
-    "noPaymentsDraftHint": "A draft takes no payment until it is confirmed."
+    "noPaymentsDraftHint": "A draft takes no payment until it is confirmed.",
+    "walkIn": "Walk-in",
+    "walkInCustomer": "Walk-in",
+    "paymentMethod": "Payment method",
+    "sellAndTakePayment": "Sell & take payment",
+    "walkInPaidBy": "Paid in full now · {method}",
+    "walkInSold": "Sold and paid",
+    "walkInNoBalance": "paid on the spot"
   },
   "customers": {
     "title": "Customers",

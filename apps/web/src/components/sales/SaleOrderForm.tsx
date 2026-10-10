@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
-import { CheckCircle, Loader2, MinusCircle, Plus } from 'lucide-react';
+import { CheckCircle, Loader2, MinusCircle, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { selectOnFocus } from '@/lib/select-on-focus';
@@ -16,6 +16,7 @@ import { FieldWithQuickCreate } from '@/components/ui/quick-create';
 import { FieldMark } from '@/components/ui/fields';
 import { invalidFields } from '@/components/ui/validated-form';
 import { useCodeLabel } from '@/lib/labels';
+import { PAYMENT_METHODS } from '@/components/payments/RecordPaymentDialog';
 
 export interface SaleFormCustomer {
   id: string;
@@ -50,10 +51,14 @@ interface Line {
   priceTyped: boolean;
 }
 
-/** What `onSaved` hands back: the order and whether it went out confirmed. */
+/**
+ * What `onSaved` hands back: the order, whether it went out confirmed, and
+ * whether it was a walk-in sale — confirmed and paid in the same step.
+ */
 export interface SavedOrder {
   order: { id: string; orderNo: string; status: string };
   confirmed: boolean;
+  walkIn: boolean;
 }
 
 let lineSeq = 0;
@@ -89,7 +94,14 @@ function newIdempotencyKey(): string {
  *
  * Two ways out: **Save as draft** (first, so Enter in a field never confirms a
  * sale) and **Create & confirm** (primary), which the server does in one
- * transaction. A refusal leaves the form open with every line as typed and
+ * transaction.
+ *
+ * **Walk-in** (BUSINESS_LOGIC §4, 2026-10-11): a buyer who is not a shop. The
+ * switch beside Customer hides the customer, fixes the channel to B2C (so
+ * untouched lines take the retail price; a typed price stays), and asks how
+ * the money came in instead. There is no draft — the one button sells and
+ * takes the payment, which the server does in one transaction. Turning it off
+ * puts back the channel that was there before; the customer was never cleared. A refusal leaves the form open with every line as typed and
  * the reason shown, translated, above the buttons.
  *
  * Required pickers are checked the way `ValidatedForm` checks them — the
@@ -136,6 +148,10 @@ export function SaleOrderForm({
   /** A submit was stopped for empty required fields, and they are still empty. */
   const [checked, setChecked] = useState(false);
   const [idempotencyKey] = useState(newIdempotencyKey);
+  const [walkIn, setWalkIn] = useState(false);
+  const [method, setMethod] = useState<string>('CASH');
+  /** The channel before walk-in fixed it to B2C, put back when it is turned off. */
+  const channelBeforeWalkIn = useRef<string | null>(null);
 
   // Set synchronously on submit. `isPending` only disables the buttons after
   // React re-renders, and two clicks inside one frame both get through that.
@@ -180,6 +196,20 @@ export function SaleOrderForm({
     if (type) applyChannel(type);
   };
 
+  /** Walk-in on: B2C, no customer. Off: the channel it found, and the customer it hid. */
+  const toggleWalkIn = () => {
+    if (!walkIn) {
+      channelBeforeWalkIn.current = channel;
+      applyChannel('B2C');
+    } else {
+      applyChannel(channelBeforeWalkIn.current ?? channelOf(customerId) ?? 'B2B');
+      channelBeforeWalkIn.current = null;
+    }
+    setWalkIn(!walkIn);
+    // A refusal was about the other kind of sale.
+    setRefusal(null);
+  };
+
   const update = (key: string, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
@@ -187,7 +217,7 @@ export function SaleOrderForm({
 
   // What is still empty, from state — never a snapshot taken at submit.
   const missing = [
-    !customerId && t('customer'),
+    !walkIn && !customerId && t('customer'),
     lines.some((l) => !l.productId) && t('product'),
   ].filter((f): f is string => !!f);
   // Once everything is filled the check is spent: a line added afterwards is
@@ -199,7 +229,7 @@ export function SaleOrderForm({
       api.post('/sales/orders', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
     onSuccess: (res, body) => {
       const order = res.data?.data ?? res.data;
-      onSaved({ order, confirmed: body.confirm === true });
+      onSaved({ order, confirmed: body.confirm === true, walkIn: body.walkIn === true });
     },
     onError: (err) => setRefusal(apiError(err, t('saveFailed'))),
     onSettled: () => {
@@ -210,6 +240,7 @@ export function SaleOrderForm({
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (submitting.current) return;
+    if (walkIn) mode.current = 'confirm';
     // The form is noValidate (the browser would answer in English); the
     // pickers' `required` is checked here instead, in the reader's language.
     if (missing.length > 0) {
@@ -223,18 +254,19 @@ export function SaleOrderForm({
     submitting.current = true;
     setChecked(false);
     setRefusal(null);
-    mutation.mutate({
-      customerId,
-      channel,
-      currency,
-      confirm: mode.current === 'confirm',
-      items: lines.map(({ productId, quantity, unitPrice, discount }) => ({
-        productId,
-        quantity,
-        unitPrice,
-        discount,
-      })),
-    });
+    const items = lines.map(({ productId, quantity, unitPrice, discount }) => ({
+      productId,
+      quantity,
+      unitPrice,
+      discount,
+    }));
+    mutation.mutate(
+      walkIn
+        ? // No customer and never a draft: the server confirms and records the
+          // payment of the full total with the order, or does none of it.
+          { walkIn: true, channel: 'B2C', currency, confirm: true, payment: { method }, items }
+        : { customerId, channel, currency, confirm: mode.current === 'confirm', items },
+    );
   };
 
   const pending = mutation.isPending;
@@ -246,21 +278,35 @@ export function SaleOrderForm({
     <form onSubmit={submit} noValidate className="space-y-4" data-testid="sale-order-form">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-foreground">
-            {t('customer')}
-            <FieldMark required />
-          </label>
-          <FieldWithQuickCreate entity="customer" onCreated={(c) => onCustomerChange(c.id, c)}>
+          {/* The label row holds the switch and keeps the height of the other
+              labels; the switch's touch area reaches past it. */}
+          <div className="mb-1 flex h-5 items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-foreground">
+              {walkIn ? t('paymentMethod') : t('customer')}
+              {!walkIn && <FieldMark required />}
+            </label>
+            <WalkInSwitch on={walkIn} onToggle={toggleWalkIn} label={t('walkIn')} />
+          </div>
+          {walkIn ? (
             <Select
-              name="customerId"
-              required
-              value={customerId}
-              onChange={(id) => onCustomerChange(id)}
-              placeholder={t('customer')}
-              searchPlaceholder={tc('search')}
-              options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: codeLabel('customerType', c.type) }))}
+              name="paymentMethod"
+              value={method}
+              onChange={setMethod}
+              options={PAYMENT_METHODS.map((m) => ({ value: m, label: codeLabel('paymentMethod', m) }))}
             />
-          </FieldWithQuickCreate>
+          ) : (
+            <FieldWithQuickCreate entity="customer" onCreated={(c) => onCustomerChange(c.id, c)}>
+              <Select
+                name="customerId"
+                required
+                value={customerId}
+                onChange={(id) => onCustomerChange(id)}
+                placeholder={t('customer')}
+                searchPlaceholder={tc('search')}
+                options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: codeLabel('customerType', c.type) }))}
+              />
+            </FieldWithQuickCreate>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-foreground">{t('channel')}</label>
@@ -268,6 +314,8 @@ export function SaleOrderForm({
             name="channel"
             value={channel}
             onChange={applyChannel}
+            // A walk-in buys at retail; the server refuses anything else.
+            disabled={walkIn}
             options={[
               { value: 'B2B', label: t('b2b') },
               { value: 'B2C', label: t('b2c') },
@@ -440,12 +488,31 @@ export function SaleOrderForm({
           })}
         </ul>
 
-        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
           <span className="text-sm font-semibold text-foreground">{t('orderTotal')}</span>
-          <span className="text-base font-bold text-foreground" data-testid="order-total">
-            <Money value={totals.subtotalCents / 100} currency={currency} />
+          <span className="flex items-center gap-2">
+            {walkIn && (
+              <span
+                data-testid="walk-in-paid-badge"
+                className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+              >
+                {t('paid')}
+              </span>
+            )}
+            <span className="text-base font-bold text-foreground" data-testid="order-total">
+              <Money value={totals.subtotalCents / 100} currency={currency} />
+            </span>
           </span>
         </div>
+        {walkIn && (
+          <p
+            data-testid="walk-in-paid"
+            className="mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground"
+          >
+            <Wallet className="h-3.5 w-3.5 shrink-0" />
+            {t('walkInPaidBy', { method: codeLabel('paymentMethod', method) })}
+          </p>
+        )}
       </div>
 
       {checked && missing.length > 0 ? (
@@ -476,30 +543,67 @@ export function SaleOrderForm({
           {tc('cancel')}
         </button>
         {/* First in the DOM, so Enter in a field saves a draft rather than
-            confirming a sale — implicit submission clicks the first submit. */}
-        <button
-          type="submit"
-          onClick={() => (mode.current = 'draft')}
-          disabled={pending}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
-        >
-          {pending && !confirming && <Loader2 className="h-4 w-4 animate-spin" />}
-          {t('saveDraft')}
-        </button>
+            confirming a sale — implicit submission clicks the first submit.
+            A walk-in has no draft (§4), so there it is not offered at all. */}
+        {!walkIn && (
+          <button
+            type="submit"
+            onClick={() => (mode.current = 'draft')}
+            disabled={pending}
+            className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+          >
+            {pending && !confirming && <Loader2 className="h-4 w-4 animate-spin" />}
+            {t('saveDraft')}
+          </button>
+        )}
         <button
           type="submit"
           onClick={() => (mode.current = 'confirm')}
           disabled={pending}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+          className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
         >
           {pending && confirming ? (
             <Loader2 className="h-4 w-4 animate-spin" />
+          ) : walkIn ? (
+            <Wallet className="h-4 w-4" />
           ) : (
             <CheckCircle className="h-4 w-4" />
           )}
-          {t('createAndConfirm')}
+          {walkIn ? t('sellAndTakePayment') : t('createAndConfirm')}
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The walk-in switch: a `button` with `role="switch"`, typed so it never
+ * submits the form it sits in. The visible track is small enough to share the
+ * label row; the `before:` layer stretches the touch area to 44px tall.
+ */
+function WalkInSwitch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      data-testid="walk-in-switch"
+      onClick={onToggle}
+      className="relative inline-flex cursor-pointer touch-manipulation select-none items-center gap-2 rounded-full text-xs font-medium text-foreground before:absolute before:-inset-x-1 before:-inset-y-3 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {label}
+      <span
+        aria-hidden
+        className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+          on ? 'bg-primary' : 'bg-muted-foreground/30'
+        }`}
+      >
+        <span
+          className={`inline-block size-3 rounded-full bg-background shadow transition-transform duration-150 ${
+            on ? 'translate-x-3.5 rtl:-translate-x-3.5' : 'translate-x-0.5 rtl:-translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
   );
 }
