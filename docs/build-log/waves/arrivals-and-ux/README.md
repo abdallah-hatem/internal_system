@@ -96,3 +96,8 @@
   group 5 105 / 19 failed. 44 failures in roughly 8 causes: fixtures in the new specs (participant already present; shop
   account creation), tests outdated by decisions (R1 404, F1b wizard, default dates), click timeouts on new screens,
   and a phone "More" reopen bug. One agent owns the fix-and-rerun loop (only one e2e run can hold the DB at a time).
+- e2e fixes merged (see e2e-fixes.md). Product bugs fixed: the wizard draft restore broke under StrictMode (a reload of
+  /cycles/new lost its draft); Mark lost ignored a confirm within 400ms; the shipments page loaded only the API's default
+  20 legs in random order (records hidden). The rest were tests outdated by logged decisions, updated with reasons.
+  Group re-runs: 00–19 199/0/1, 35–54 141/0, 55–79 225/0, 80–99 124/0; the shipments-list specs were re-run after the fix
+  (64 passed). Open: purchases, products and providers lists load the same way as shipments did → task L1.
