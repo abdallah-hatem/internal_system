@@ -26,10 +26,11 @@ import { useToast } from '../../../../../components/ui/toast';
 import { selectOnFocus } from '../../../../../lib/select-on-focus';
 import { MoneyInput } from '../../../../../components/ui/money-input';
 import {
-  ArrowLeft, Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Trash2, Scale, Route,
+  Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Trash2, Scale, Route,
 } from 'lucide-react';
 
 import { useApiError } from '../../../../../lib/api-error';
+import { BackLink } from '../../../../../components/ui/back-link';
 const num = (v: unknown) => Number(v ?? 0);
 
 export default function CycleDetailsPage() {
@@ -144,12 +145,7 @@ export default function CycleDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <button
-        onClick={() => router.push(`/${locale}/cycles`)}
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" /> {tc('back')}
-      </button>
+      <BackLink onClick={() => router.push(`/${locale}/cycles`)} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

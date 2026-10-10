@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
@@ -49,6 +49,17 @@ export const metadata: Metadata = {
     // iOS ignores the manifest icons entirely and takes this one.
     apple: '/icons/apple-touch-icon.png',
   },
+};
+
+/**
+ * `viewportFit: 'cover'` so `env(safe-area-inset-*)` reports the real insets:
+ * without it they are all 0 and the phone bar's labels sit under the iPhone's
+ * home indicator. Zoom stays allowed — inputs are 16px on phones instead.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export function generateStaticParams() {

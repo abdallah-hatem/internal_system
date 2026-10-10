@@ -36,90 +36,45 @@ import {
   X,
 } from 'lucide-react';
 
-/**
- * The sidebar follows the shape of the business rather than the order the
- * screens were built in: goods are bought and brought in, they become stock,
- * the stock is sold, the money is collected, and what is left is split between
- * the partners. A flat list of nineteen links made related screens — a cycle
- * and the shipment on it, a payment and the plan it belongs to — sit
- * arbitrarily far apart.
- */
-const navGroups = [
-  {
-    key: 'overview',
-    items: [
-      { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard' },
-      { key: 'analytics', icon: BarChart3, href: '/analytics' },
-    ],
-  },
-  {
-    key: 'importing',
-    items: [
-      { key: 'cycles', icon: Route, href: '/cycles' },
-      { key: 'purchases', icon: ShoppingCart, href: '/purchases' },
-      // Suppliers sit with purchases — they are who the goods are bought from,
-      // as distinct from providers below, who move them.
-      { key: 'suppliers', icon: Factory, href: '/suppliers' },
-      { key: 'shipments', icon: Truck, href: '/shipments' },
-      // Providers are the shipping companies, so they belong beside the
-      // shipments rather than with suppliers. A distinct icon from Shipments:
-      // the two shared Truck and were hard to tell apart at a glance.
-      { key: 'providers', icon: Building2, href: '/providers' },
-    ],
-  },
-  {
-    key: 'catalogue',
-    items: [
-      { key: 'products', icon: Package, href: '/products' },
-      { key: 'categories', icon: Tag, href: '/categories' },
-      { key: 'inventory', icon: Boxes, href: '/inventory' },
-    ],
-  },
-  {
-    key: 'selling',
-    items: [
-      // First in this group on purpose: every pending request is holding stock
-      // on a clock, so it is the one thing here that goes stale if it waits.
-      { key: 'orderRequests', icon: Store, href: '/order-requests' },
-      // Beside order requests, because they are the same conversation from the
-      // shop's side: one asks for what is on the shelf, the other for what is
-      // not.
-      { key: 'importRequests', icon: PackageSearch, href: '/import-requests' },
-      { key: 'sales', icon: BadgePercent, href: '/sales' },
-      { key: 'customers', icon: Users, href: '/customers' },
-    ],
-  },
-  {
-    key: 'money',
-    items: [
-      { key: 'payments', icon: CreditCard, href: '/payments' },
-      { key: 'paymentPlans', icon: CalendarClock, href: '/payment-plans' },
-      { key: 'ledger', icon: BookOpen, href: '/ledger' },
-    ],
-  },
-  {
-    key: 'partners',
-    items: [
-      { key: 'partners', icon: Handshake, href: '/partners' },
-      { key: 'settlements', icon: Scale, href: '/settlements' },
-    ],
-  },
-];
+import { PhoneBar } from './phone-bar';
+import {
+  isActiveHref,
+  navForRole,
+  phoneBarItems,
+  systemForRole,
+  type NavItem,
+} from './nav-model';
 
-/** Pinned to the foot of the sidebar — reached occasionally, not part of the
- *  daily flow, and better out of the way than padding the list above. */
-const systemItems = [
-  { key: 'notifications', icon: Bell, href: '/notifications' },
-  { key: 'auditLogs', icon: ShieldCheck, href: '/audit-logs' },
-  { key: 'settings', icon: Settings, href: '/settings' },
-];
-/**
- * Match on a whole path segment. A plain `includes` would light up two entries
- * as soon as one route's path appeared inside another's.
- */
-function isActiveHref(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+type Icon = React.ComponentType<{ className?: string }>;
+
+/** The icon for each nav key. What the menu holds, and who sees it, lives in
+ *  `nav-model.ts`; only the drawing is decided here. */
+const NAV_ICONS: Record<string, Icon> = {
+  dashboard: LayoutDashboard,
+  analytics: BarChart3,
+  cycles: Route,
+  purchases: ShoppingCart,
+  suppliers: Factory,
+  shipments: Truck,
+  // A distinct icon from Shipments: the two shared Truck and were hard to
+  // tell apart at a glance.
+  providers: Building2,
+  products: Package,
+  categories: Tag,
+  inventory: Boxes,
+  orderRequests: Store,
+  importRequests: PackageSearch,
+  sales: BadgePercent,
+  customers: Users,
+  payments: CreditCard,
+  paymentPlans: CalendarClock,
+  ledger: BookOpen,
+  partners: Handshake,
+  settlements: Scale,
+  notifications: Bell,
+  auditLogs: ShieldCheck,
+  settings: Settings,
+};
 
 function NavLink({
   item,
@@ -127,12 +82,12 @@ function NavLink({
   active,
   onNavigate,
 }: {
-  item: { key: string; icon: React.ComponentType<{ className?: string }>; href: string };
+  item: NavItem;
   label: string;
   active: boolean;
   onNavigate: () => void;
 }) {
-  const Icon = item.icon;
+  const Icon = NAV_ICONS[item.key] ?? Package;
   return (
     // Link, not <a>. A plain anchor made every tab click a full document
     // navigation: the bundle re-parsed, React remounted, and the query cache
@@ -175,6 +130,11 @@ export function AppShell({
     : '';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  // One reading of the role for every surface, so the sidebar, "More" and the
+  // phone bar cannot disagree about what this person may open.
+  const groups = navForRole(user?.role);
+  const systemItems = systemForRole(user?.role);
+  const barItems = phoneBarItems(user?.role);
 
   const isLoginPage = pathname.includes('/login');
 
@@ -212,7 +172,7 @@ export function AppShell({
   return (
     <ToastProvider>
       <ToastBridge />
-      <div className="flex h-screen overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+      <div className="flex h-dvh overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -232,13 +192,21 @@ export function AppShell({
             </div>
             <span className="font-bold text-gray-900 text-sm">MotoParts</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-gray-400 hover:text-gray-600">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label={t('closeMenu')}
+            className="lg:hidden -me-2 flex h-11 w-11 cursor-pointer items-center justify-center text-gray-400 hover:text-gray-600"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="flex h-[calc(100vh-4rem)] flex-col overflow-y-auto p-3">
-          {navGroups.map((group) => (
+        {/* `dvh`, because `vh` on a phone is the height with the address bar
+            hidden, and the last links fell under it. The open drawer sits
+            above the phone bar (z-50 over z-30), so it needs no room for it. */}
+        <nav className="flex h-[calc(100dvh-4rem)] flex-col overflow-y-auto overscroll-contain p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+          {groups.map((group) => (
             <div key={group.key} className="mb-3">
               <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                 {t(`groups.${group.key}` as any)}
@@ -279,21 +247,19 @@ export function AppShell({
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500 hover:text-gray-700">
+          {/* Below md the phone bar's "More" opens the menu, so this button
+              is for tablet widths only. The search box that sat beside it was
+              never wired to anything and is gone (spec A #6). */}
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label={t('openMenu')}
+            className="hidden md:flex lg:hidden -ms-2 h-11 w-11 cursor-pointer items-center justify-center text-gray-500 hover:text-gray-700"
+          >
             <Menu className="h-6 w-6" />
           </button>
 
-          <div className="flex-1 mx-4">
-            <div className="relative max-w-md">
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
+          <div className="ms-auto flex items-center gap-3">
             {/* Language Switcher */}
             <div className="relative">
               <button
@@ -340,10 +306,21 @@ export function AppShell({
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {/* Below md the page is padded by the phone bar's height and the
+            home-indicator inset, so the last row and a page's own buttons
+            can always be scrolled clear of the bar. */}
+        <main className="flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-6 md:pb-6">
           {children}
         </main>
       </div>
+
+      <PhoneBar
+        items={barItems}
+        icons={NAV_ICONS}
+        pathname={pathname}
+        menuOpen={sidebarOpen}
+        onMore={() => setSidebarOpen((open) => !open)}
+      />
     </div>
     </ToastProvider>
   );

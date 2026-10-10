@@ -43,7 +43,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 51
+      "count": 49
     }
   },
   "src/app/[locale]/customers/page.tsx": {
@@ -68,7 +68,7 @@
       "count": 4
     },
     "local/no-raw-colors": {
-      "count": 56
+      "count": 54
     }
   },
   "src/app/[locale]/cycles/page.tsx": {
@@ -229,7 +229,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 106
+      "count": 102
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -383,7 +383,7 @@
       "count": 2
     },
     "local/no-raw-colors": {
-      "count": 32
+      "count": 31
     }
   },
   "src/components/layout/notification-bell.tsx": {
