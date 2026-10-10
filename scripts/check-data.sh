@@ -147,7 +147,17 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM shipment_delivery_lines dl
    WHERE (SELECT coalesce(sum(b.received_qty), 0) FROM inventory_batches b
            WHERE b.source_delivery_line_id = dl.id) > dl.qty
-  UNION ALL SELECT 13, 'payment attached to no order at all',
+  -- Compensation recovers a loss, it does not make a profit on one (§6,
+  -- 2026-10-10): refunds on a loss, each in EGP to the cent as its ledger row
+  -- holds it, never total more than the loss cost. A loss refund locks the
+  -- cycle row, so two sent at once cannot both fit under the cap. (No
+  -- apostrophes in these comments: bash 3.2 reads them as quotes here.)
+  UNION ALL SELECT 12.8, 'refunds on a loss exceed its cost',
+         count(*) FROM shipment_losses x
+   WHERE (SELECT coalesce(sum(round(r.amount * r.fx_rate_to_egp, 2)), 0)
+            FROM supplier_refunds r
+           WHERE r.shipment_loss_id = x.id) > x.cost_egp
+  UNION ALL SELECT 13,'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'
      AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.payment_id=p.id)

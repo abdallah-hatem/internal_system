@@ -2,6 +2,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -53,6 +54,50 @@ export class CreateLossDto {
   @ValidateNested({ each: true })
   @Type(() => ShipmentLineDto)
   lines: ShipmentLineDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+/** Who paid a loss back: the leg's shipping company or the order's supplier. */
+export class LossRefundPayerDto {
+  @IsIn(['SHIPPING_PROVIDER', 'SUPPLIER'])
+  type: 'SHIPPING_PROVIDER' | 'SUPPLIER';
+
+  @IsUUID('all')
+  id: string;
+}
+
+/**
+ * POST /shipping/losses/:id/refunds (§6, 2026-10-10).
+ *
+ * Shape only. Zero or negative amounts, a future date, and a payer who is not
+ * the leg's company or the order's supplier are the service's refusals, with
+ * their codes — the service is what every caller reaches (rule 3).
+ */
+export class CreateLossRefundDto {
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @IsString()
+  @MaxLength(3)
+  currency: string;
+
+  @IsNumber()
+  @Type(() => Number)
+  fxRateToEgp: number;
+
+  /** The day the money arrived, YYYY-MM-DD in Cairo; today when left out. */
+  @IsOptional()
+  @IsDateString()
+  recordedOn?: string;
+
+  @ValidateNested()
+  @Type(() => LossRefundPayerDto)
+  payer: LossRefundPayerDto;
 
   @IsOptional()
   @IsString()

@@ -2,7 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isUniqueViolation } from '../../prisma/unique-violation';
 import { nextReferenceNumber, pad } from '../../common/references';
-import { assertNotFuture } from '../../common/dates';
+import {
+  assertNotFuture,
+  businessDay,
+  businessToday,
+} from '../../common/dates';
+import { lockCycle } from '../../common/shipment-load';
+import { refundEgp } from '../../common/loss-refunds';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
@@ -505,91 +511,151 @@ export class PurchasesService {
    */
   async recordRefund(
     purchaseOrderId: string,
-    data: {
-      amount: number;
-      currency: string;
-      fxRateToEgp: number;
-      reason?: string;
-      recordedOn?: string;
-    },
+    data: RefundInput,
     actorId: string,
   ) {
-    const po = await this.prisma.purchaseOrder.findUnique({
+    if (!isUuid(purchaseOrderId)) throw notFound('purchaseOrder');
+    checkRefund(data);
+
+    const found = await this.prisma.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
-      include: {
-        items: true,
-        supplierRefunds: true,
-        cycle: { select: { id: true, code: true } },
-      },
+      select: { cycleId: true },
     });
-    if (!po) throw notFound('purchaseOrder');
+    if (!found) throw notFound('purchaseOrder');
 
-    const D = (v: unknown) =>
-      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
-
-    const amountEgp = D(data.amount)
-      .mul(D(data.fxRateToEgp))
-      .toDecimalPlaces(2);
-    const orderValueEgp = po.items
-      .reduce((s, i) => s.add(D(i.lineTotal)), D(0))
-      .mul(D(po.fxRateToEgp));
-    const alreadyRefundedEgp = po.supplierRefunds.reduce(
-      (s, r) => s.add(D(r.amount).mul(D(r.fxRateToEgp))),
-      D(0),
-    );
-
-    // A supplier cannot give back more than was paid; a figure above that is a
-    // data-entry slip that would show the cycle a profit it never made.
-    if (alreadyRefundedEgp.add(amountEgp).gt(orderValueEgp)) {
-      throw badRequest(
-        'REFUND_EXCEEDS_ORDER',
-        `Refund of ${formatMoney(amountEgp)} EGP exceeds what is left on ${po.reference}: ` +
-          `order ${formatMoney(orderValueEgp)} EGP, already refunded ${formatMoney(alreadyRefundedEgp)} EGP.`,
-        {
-          refund: formatMoney(amountEgp),
-          reference: po.reference,
-          order: formatMoney(orderValueEgp),
-          refunded: formatMoney(alreadyRefundedEgp),
-        },
-      );
-    }
-
-    const refund = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.supplierRefund.create({
-        data: {
-          purchaseOrderId,
-          amount: data.amount,
-          currency: data.currency,
-          fxRateToEgp: data.fxRateToEgp,
-          reason: data.reason,
-          recordedOn: data.recordedOn ? new Date(data.recordedOn) : new Date(),
-          createdBy: actorId,
-        },
-      });
-
-      // Without this the refund was recorded but had no financial effect: the
-      // ledger never showed the money coming back and the cycle's cost never
-      // dropped, so its profit stayed understated.
-      await tx.financialTransaction.create({
-        data: {
-          type: 'SUPPLIER_REFUND',
+    const { refund, amountEgp, cycleCode } = await this.prisma.$transaction(
+      async (tx) => {
+        // Under the cycle's lock, so two refunds sent at once cannot both fit
+        // under a cap that only one of them fits under.
+        await lockCycle(tx, found.cycleId);
+        const po = await loadRefundOrder(tx, purchaseOrderId);
+        return bookRefund(tx, po, data, actorId, {
           category: 'supplier_refund',
-          direction: 'INFLOW',
-          amount: amountEgp,
-          currency: 'EGP',
-          cycleId: po.cycleId,
-          relatedType: 'SUPPLIER_REFUND',
-          relatedId: created.id,
           reason:
             `Supplier refund against ${po.reference}` +
             (data.reason ? `: ${data.reason}` : ''),
-          createdBy: actorId,
-        },
-      });
+        });
+      },
+    );
 
-      return created;
+    await this.auditRefund(refund, amountEgp, cycleCode, actorId);
+    return { data: refund };
+  }
+
+  /**
+   * POST /shipping/losses/:id/refunds — money paid back for goods lost on the
+   * way (§6, 2026-10-10), by the leg's shipping company or the order's
+   * supplier.
+   *
+   * It is a supplier refund on the loss's order, written by the same
+   * `bookRefund`, so the order-level cap counts it and the ledger row is the
+   * same shape — only its category, `loss_refund`, differs. On top, refunds
+   * on one loss never total more than the loss cost: compensation recovers a
+   * loss, it does not make a profit on one.
+   *
+   * Allowed in any cycle status, settled or closed included: the money
+   * arrives when it arrives, and §9 records money as it moves.
+   */
+  async recordLossRefund(
+    lossId: string,
+    data: LossRefundInput,
+    actorId: string,
+  ) {
+    if (!isUuid(lossId)) throw notFound('shipmentLoss');
+    checkRefund(data);
+    const payer = data.payer as Partial<LossRefundInput['payer']> | undefined;
+    if (!payer || !PAYER_TYPES.includes(payer.type as PayerType)) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'Say who paid: the shipping company or the supplier.',
+        { fields: 'payer.type' },
+      );
+    }
+    const payerEntity =
+      payer.type === 'SHIPPING_PROVIDER' ? 'provider' : 'supplier';
+    const payerId = payer.id;
+    if (!isUuid(payerId)) throw notFound(payerEntity);
+
+    const found = await this.prisma.shipmentLoss.findUnique({
+      where: { id: lossId },
+      select: { leg: { select: { cycleId: true } } },
     });
+    if (!found) throw notFound('shipmentLoss');
 
+    const { refund, amountEgp, cycleCode } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockCycle(tx, found.leg.cycleId);
+        const loss = await tx.shipmentLoss.findUnique({
+          where: { id: lossId },
+          select: {
+            id: true,
+            costEgp: true,
+            leg: { select: { providerId: true } },
+            purchaseOrderItem: {
+              select: {
+                purchaseOrderId: true,
+                product: { select: { name: true } },
+              },
+            },
+            refunds: { select: { amount: true, fxRateToEgp: true } },
+          },
+        });
+        // Taken back between the read above and the lock.
+        if (!loss) throw notFound('shipmentLoss');
+        const po = await loadRefundOrder(
+          tx,
+          loss.purchaseOrderItem.purchaseOrderId,
+        );
+
+        // The wrong owner: only whoever had the goods can pay for losing them.
+        const owner =
+          payer.type === 'SUPPLIER' ? po.supplierId : loss.leg.providerId;
+        if (payerId !== owner) throw notFound(payerEntity);
+
+        const cost = D(loss.costEgp);
+        const refunded = loss.refunds.reduce(
+          (s, r) => s.add(refundEgp(r)),
+          D(0),
+        );
+        const asked = refundEgp(data);
+        if (refunded.add(asked).gt(cost)) {
+          const product = loss.purchaseOrderItem.product.name;
+          throw badRequest(
+            'REFUND_EXCEEDS_LOSS',
+            `A refund of ${formatMoney(asked)} EGP is more than is left on the loss of ` +
+              `${product}: it cost ${formatMoney(cost)} EGP and ` +
+              `${formatMoney(refunded)} EGP has already been refunded.`,
+            {
+              cost: formatMoney(cost),
+              refunded: formatMoney(refunded),
+              asked: formatMoney(asked),
+              product,
+            },
+          );
+        }
+
+        return bookRefund(tx, po, data, actorId, {
+          category: 'loss_refund',
+          shipmentLossId: loss.id,
+          payerShippingProviderId:
+            payer.type === 'SHIPPING_PROVIDER' ? payerId : null,
+          reason:
+            `Refund for ${loss.purchaseOrderItem.product.name} lost on the way (${po.reference})` +
+            (data.reason ? `: ${data.reason}` : ''),
+        });
+      },
+    );
+
+    await this.auditRefund(refund, amountEgp, cycleCode, actorId);
+    return { data: refund };
+  }
+
+  private async auditRefund(
+    refund: { id: string },
+    amountEgp: Prisma.Decimal,
+    cycleCode: string | undefined,
+    actorId: string,
+  ) {
     await this.audit.log({
       actorUserId: actorId,
       action: 'RECORD_REFUND',
@@ -598,10 +664,158 @@ export class PurchasesService {
       afterJson: {
         ...refund,
         amountEgp: amountEgp.toFixed(2),
-        cycle: po.cycle?.code,
+        cycle: cycleCode,
       },
     });
-
-    return { data: refund };
   }
+}
+
+// ─── Refunds (§6) ─────────────────────────────────────────────────────────
+
+export interface RefundInput {
+  amount: number;
+  currency: string;
+  fxRateToEgp: number;
+  reason?: string;
+  recordedOn?: string;
+}
+
+const PAYER_TYPES = ['SHIPPING_PROVIDER', 'SUPPLIER'] as const;
+type PayerType = (typeof PAYER_TYPES)[number];
+
+export interface LossRefundInput extends RefundInput {
+  payer: { type: PayerType; id: string };
+}
+
+const D = (v: Prisma.Decimal.Value | null | undefined) =>
+  new Prisma.Decimal(v ?? 0);
+
+/**
+ * The checks every refund passes before anything is read. In the service as
+ * well as the DTO: the DTO is one caller (rule 3).
+ */
+function checkRefund(data: RefundInput) {
+  const amount = Number(data.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw badRequest('VALIDATION_FAILED', 'A refund must be more than zero.', {
+      fields: 'amount',
+    });
+  }
+  if (Math.round(amount * 100) / 100 !== amount) {
+    throw badRequest(
+      'VALIDATION_FAILED',
+      'A refund is in whole cents: at most two decimal places.',
+      { fields: 'amount' },
+    );
+  }
+  const fx = Number(data.fxRateToEgp);
+  if (!Number.isFinite(fx) || fx <= 0) {
+    throw badRequest(
+      'VALIDATION_FAILED',
+      'The exchange rate must be more than zero.',
+      { fields: 'fxRateToEgp' },
+    );
+  }
+  if (typeof data.currency !== 'string' || data.currency.trim() === '') {
+    throw badRequest('VALIDATION_FAILED', 'Name the refund currency.', {
+      fields: 'currency',
+    });
+  }
+  // Money is received when it is received, never next week (rule 1, §6).
+  assertNotFuture(data.recordedOn, 'The date a refund was received');
+}
+
+/** The order a refund is against, with what its cap reads. */
+async function loadRefundOrder(tx: Db, purchaseOrderId: string) {
+  const po = await tx.purchaseOrder.findUnique({
+    where: { id: purchaseOrderId },
+    include: {
+      items: { select: { lineTotal: true } },
+      supplierRefunds: { select: { amount: true, fxRateToEgp: true } },
+      cycle: { select: { id: true, code: true } },
+    },
+  });
+  if (!po) throw notFound('purchaseOrder');
+  return po;
+}
+
+/**
+ * The one writer of a refund: the order-level cap, the refund row and its
+ * ledger inflow. A plain supplier refund and a loss refund both come through
+ * here, inside a transaction holding the cycle's lock — so the order cap
+ * counts loss refunds too, and there is one ledger write, not two (rule 11).
+ */
+async function bookRefund(
+  tx: Db,
+  po: Awaited<ReturnType<typeof loadRefundOrder>>,
+  data: RefundInput,
+  actorId: string,
+  opts: {
+    category: 'supplier_refund' | 'loss_refund';
+    reason: string;
+    shipmentLossId?: string;
+    payerShippingProviderId?: string | null;
+  },
+) {
+  const amountEgp = refundEgp(data);
+  const orderValueEgp = po.items
+    .reduce((s, i) => s.add(D(i.lineTotal)), D(0))
+    .mul(D(po.fxRateToEgp));
+  const alreadyRefundedEgp = po.supplierRefunds.reduce(
+    (s, r) => s.add(refundEgp(r)),
+    D(0),
+  );
+
+  // A supplier cannot give back more than was paid; a figure above that is a
+  // data-entry slip that would show the cycle a profit it never made.
+  if (alreadyRefundedEgp.add(amountEgp).gt(orderValueEgp)) {
+    throw badRequest(
+      'REFUND_EXCEEDS_ORDER',
+      `Refund of ${formatMoney(amountEgp)} EGP exceeds what is left on ${po.reference}: ` +
+        `order ${formatMoney(orderValueEgp)} EGP, already refunded ${formatMoney(alreadyRefundedEgp)} EGP.`,
+      {
+        refund: formatMoney(amountEgp),
+        reference: po.reference,
+        order: formatMoney(orderValueEgp),
+        refunded: formatMoney(alreadyRefundedEgp),
+      },
+    );
+  }
+
+  const refund = await tx.supplierRefund.create({
+    data: {
+      purchaseOrderId: po.id,
+      amount: data.amount,
+      currency: data.currency,
+      fxRateToEgp: data.fxRateToEgp,
+      reason: data.reason,
+      // The Cairo day it was received; today in Cairo when not given (§7a).
+      recordedOn: new Date(
+        `${data.recordedOn ? businessDay(data.recordedOn) : businessToday()}T00:00:00Z`,
+      ),
+      createdBy: actorId,
+      shipmentLossId: opts.shipmentLossId ?? null,
+      payerShippingProviderId: opts.payerShippingProviderId ?? null,
+    },
+  });
+
+  // Without this the refund was recorded but had no financial effect: the
+  // ledger never showed the money coming back and the cycle's cost never
+  // dropped, so its profit stayed understated.
+  await tx.financialTransaction.create({
+    data: {
+      type: 'SUPPLIER_REFUND',
+      category: opts.category,
+      direction: 'INFLOW',
+      amount: amountEgp,
+      currency: 'EGP',
+      cycleId: po.cycleId,
+      relatedType: 'SUPPLIER_REFUND',
+      relatedId: refund.id,
+      reason: opts.reason,
+      createdBy: actorId,
+    },
+  });
+
+  return { refund, amountEgp, cycleCode: po.cycle?.code };
 }

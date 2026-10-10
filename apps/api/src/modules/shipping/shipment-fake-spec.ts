@@ -43,6 +43,10 @@ export interface Store {
   saleItems: Row[];
   allocations: Row[];
   settlements: Row[];
+  /** B5: refunds, and who can pay them. */
+  refunds: Row[];
+  suppliers: Row[];
+  providers: Row[];
   /** How many times the lock was taken, so a test can see it was. */
   locksTaken: number;
 }
@@ -65,6 +69,9 @@ export function emptyStore(): Store {
     saleItems: [],
     allocations: [],
     settlements: [],
+    refunds: [],
+    suppliers: [],
+    providers: [],
     locksTaken: 0,
   };
 }
@@ -520,11 +527,22 @@ export function fakePrisma(db: Store) {
         db.losses.push(row);
         return after(row);
       },
+      // Every shape asked for at once: the leg, the order line with its
+      // product, and the refunds on the loss (B5).
       findUnique: ({ where }: Row) => {
         const x = db.losses.find((l) => l.id === where.id);
         if (!x) return after(null);
         const leg = db.legs.find((l) => l.id === x.legId)!;
-        return after({ ...x, leg: { cycleId: leg.cycleId } });
+        const item = db.items.find((i) => i.id === x.purchaseOrderItemId)!;
+        return after({
+          ...x,
+          leg: { ...leg, cycleId: leg.cycleId },
+          purchaseOrderItem: {
+            ...item,
+            product: db.products.find((p) => p.id === item.productId),
+          },
+          refunds: db.refunds.filter((r) => r.shipmentLossId === x.id),
+        });
       },
       delete: ({ where }: Row) => {
         const i = db.losses.findIndex((x) => x.id === where.id);
@@ -552,7 +570,57 @@ export function fakePrisma(db: Store) {
       findMany: ({ where }: Row) =>
         after(db.participants.filter((p) => p.cycleId === where.cycleId)),
     },
-    purchaseOrder: { findMany: () => after([]) },
+    purchaseOrder: {
+      findMany: () => after([]),
+      findUnique: ({ where }: Row) => {
+        const o = db.orders.find((x) => x.id === where.id);
+        if (!o) return after(null);
+        return after({
+          ...o,
+          items: db.items.filter((i) => i.purchaseOrderId === o.id),
+          supplierRefunds: db.refunds.filter((r) => r.purchaseOrderId === o.id),
+          cycle: db.cycles.find((c) => c.id === o.cycleId),
+        });
+      },
+    },
+    supplierRefund: {
+      create: ({ data }: Row) => {
+        const row = {
+          id: randomUUID(),
+          createdAt: new Date(),
+          ...data,
+          amount: D(data.amount),
+          fxRateToEgp: D(data.fxRateToEgp),
+        };
+        db.refunds.push(row);
+        return after(row);
+      },
+      count: ({ where }: Row) =>
+        after(
+          db.refunds.filter((r) => r.shipmentLossId === where.shipmentLossId)
+            .length,
+        ),
+      findMany: ({ where }: Row) =>
+        after(
+          db.refunds
+            .filter((r) => where.shipmentLossId.in.includes(r.shipmentLossId))
+            .map((r) => {
+              const order = db.orders.find((o) => o.id === r.purchaseOrderId)!;
+              const provider = db.providers.find(
+                (p) => p.id === r.payerShippingProviderId,
+              );
+              return {
+                ...r,
+                payerShippingProvider: provider
+                  ? { name: provider.name }
+                  : null,
+                purchaseOrder: {
+                  supplier: db.suppliers.find((x) => x.id === order.supplierId),
+                },
+              };
+            }),
+        ),
+    },
   };
 
   const locks = new Map<string, Promise<void>>();
@@ -609,7 +677,15 @@ export function cycleWithOrder(
     originType: opts.originType ?? 'UAE_DIRECT',
   };
   db.cycles.push(cycle);
-  const po = { id: randomUUID(), cycleId: cycle.id, fxRateToEgp: D(1) };
+  const supplier = { id: randomUUID(), name: 'Yiwu Parts' };
+  db.suppliers.push(supplier);
+  const po = {
+    id: randomUUID(),
+    cycleId: cycle.id,
+    supplierId: supplier.id,
+    reference: `PO-2026-${String(codes).padStart(4, '0')}`,
+    fxRateToEgp: D(1),
+  };
   db.orders.push(po);
   const items = (opts.lines ?? [['Brake pad', 40, 100]]).map(
     ([name, qty, price]) => {
@@ -628,7 +704,7 @@ export function cycleWithOrder(
       return item;
     },
   );
-  return { cycle, items };
+  return { cycle, items, po, supplier };
 }
 
 /** A FLAT leg costing `amountEgp`, departed on `departedOn` (or not at all). */
@@ -638,7 +714,10 @@ export function addLeg(
   sequence: number,
   opts: { departedOn?: string | null; amountEgp?: number } = {},
 ) {
+  const provider = { id: randomUUID(), name: `Gulf Freight ${sequence}` };
+  db.providers.push(provider);
   const leg = {
+    providerId: provider.id,
     id: randomUUID(),
     cycleId: cycle.id,
     sequence,

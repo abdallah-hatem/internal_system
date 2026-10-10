@@ -119,6 +119,28 @@ function assertOpen(cycle: { code: string; status: string }) {
   }
 }
 
+/**
+ * A refunded loss cannot be taken back (§1, §6): the goods turning up after
+ * being paid for would be counted twice. Read under the cycle's lock, which a
+ * loss refund also takes, so a refund and a take-back sent at once cannot
+ * both succeed. The foreign key (RESTRICT) refuses it too.
+ */
+async function assertLossNotRefunded(
+  tx: Pick<Tx, 'supplierRefund'>,
+  lossId: string,
+) {
+  const refunds = await tx.supplierRefund.count({
+    where: { shipmentLossId: lossId },
+  });
+  if (refunds > 0) {
+    throw badRequest(
+      'LOSS_REFUNDED',
+      `This loss has been refunded (${refunds} refund${refunds === 1 ? '' : 's'}), so it cannot be taken back: the goods would be counted twice.`,
+      { refunds },
+    );
+  }
+}
+
 /** The cycle's order lines by id, with a name to put in a refusal. */
 function orderLines(cycle: LoadedShipment) {
   return new Map(
@@ -533,7 +555,7 @@ export class DeliveriesService {
       assertOpen(loaded.cycle);
       const loss = await tx.shipmentLoss.findUnique({ where: { id } });
       if (!loss) throw notFound('shipmentLoss');
-      this.assertLossNotRefunded(loss);
+      await assertLossNotRefunded(tx, loss.id);
 
       await tx.shipmentLoss.delete({ where: { id } });
       const changed = await syncLegStatuses(tx, cycleId);
@@ -553,13 +575,6 @@ export class DeliveriesService {
     await this.notifyArrivals(cycleId, changed);
     return { data: { id, deleted: true } };
   }
-
-  /**
-   * A refunded loss cannot be taken back (§6): the goods turning up after
-   * being paid for would be counted twice. Refunds against a loss arrive with
-   * B5 (`LOSS_REFUNDED`); until then no loss can have one, so this passes.
-   */
-  private assertLossNotRefunded(_loss: { id: string }) {}
 
   // ─── Notifications ─────────────────────────────────────────────────────
 
