@@ -112,3 +112,4 @@
   `toLocaleString(undefined)` (Arabic-Indic digits by browser) → `useNumberFormat`; bare "No data" text on ~25 page
   spots → `EmptyState`; `order-requests` forces ar-EG; `ar.json` photosHint holds "٨".
 - UF7 merged: 23 number-format calls → useNumberFormat/Money, 30 empty states, guard test `unit/latin-digits.test.mjs`.
+- UF8 merged: N1–N8 fixed and self-checked on screen (40 checks, no sideways scroll): one-line routes in the shipments table, shared LatinText (bidi isolation, end truncation) and NoMatch (clear search), consistent Arabic vocabulary (تسليمة/تشغيلة/دفعة). web 338 + 87.
