@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- API responses are parsed JSON; each assertion names the field it checks */
 /**
  * ═══════════════════════════════════════════════════════════════════════
  *  TEST SUITE: Refunds for goods lost on the way (plan B5)
