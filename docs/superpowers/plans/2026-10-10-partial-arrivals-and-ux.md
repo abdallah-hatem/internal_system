@@ -20,7 +20,7 @@ thread runs e2e against the shared database.
 | 2 | B2 · U1 · U4 | B1 (B2); U0 (U1, U4) |
 | 3 | B3 · U2 | B2 (B3); U1 (U2 edits the sales page U1 owns) |
 | 4 | B4 · B5 · F1a · F1b | B3 |
-| 5 | U5 | everything (it sweeps every page) |
+| 5 | U5 · R1 | everything (U5 sweeps every page); R1 waits on B3, B5 |
 
 File ownership per wave: no two tasks in a wave create or modify the same file. The exception is
 `en.json` / `ar.json`, where each task adds keys only under its own namespace and the main thread
@@ -215,6 +215,7 @@ Interaction cases:
 - [ ] Take a loss back from the panel → the units return to on the way   (§1)
 - [ ] Record refund on a loss: shows loss, refunded so far and unrecovered; a too-large amount shows `REFUND_EXCEEDS_LOSS` translated, and the dialog keeps its values   (§6, rule 9)
 - [ ] An empty "Receive stock" list says there is nothing waiting   (empty state)
+- [ ] Inventory's low-stock highlight and filter use the one rule (active, minimum set, on hand below it), the same as the dashboard count   (§3 low stock, rule 11)
 
 ### F1b — Wizard ends at "in transit"; the cycle list shows profit (frontend · logic)
 Depends on: B3. Owns: `components/cycles/CycleWizard.tsx`, `stores/cycle-wizard-draft.ts`,
@@ -311,6 +312,22 @@ Edge cases:
 - [ ] Investor or shop token on `GET /audit-logs` → refused with a code; core partner → allowed   (rule 12, both directions)
 - [ ] For each role, every menu entry it sees opens a page whose data loads (no 403); every entry hidden is one whose endpoint refuses it   (rule 11, rule 12)
 - [ ] The phone bar and More follow the same filter   (U3)
+
+### R1 — An investor sees only their own cycles (backend · logic)
+Depends on: B3, B5 (settlement and analytics read paths), U4c. Owns: the read paths of analytics,
+customers, payment plans, returns, costing, cycles, purchases, shipping, inventory and settlements, plus
+one shared scope helper `common/investor-scope.ts` (`cyclesVisibleTo(user)`), used by every one of them
+(rule 11). The decision is the owner's (2026-10-10), BUSINESS_LOGIC roles.
+
+Edge cases:
+- [ ] An investor on `GET /cycles` sees only cycles they participate in; `GET /cycles/:otherId` → 404   (roles; the wrong owner)
+- [ ] An investor on `/customers`, `/payment-plans`, `/payment-plans/overdue`, `/returns` → refused with a code   (roles)
+- [ ] An investor on `/analytics/*` business-wide figures → refused; their own cycles' profitability → allowed and scoped   (roles)
+- [ ] An investor on `/purchases`, `/shipping/legs`, `/costing`, `/inventory` → only rows of their cycles   (roles)
+- [ ] An investor reads their settlement and payout; another participant's payout details on a shared cycle → only what their own line shows   (roles)
+- [ ] A core partner still sees everything (the other direction)   (rule 12, both ways)
+- [ ] The menu (U4c's controller-reading test) updates with the guards and still passes   (rule 11)
+- [ ] An investor with no cycles → empty lists, not errors   (checklist: empty)
 
 ### S1 — The demo seed's paid orders with no payments (backend · logic)
 Depends on: —. Owns: the demo seed files only (B3 later adds deliveries to them).

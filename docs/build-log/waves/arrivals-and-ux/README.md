@@ -23,3 +23,4 @@
   app (USE_PORTAL_LOGIN + SurfaceGuard).
   **Waiting on the user:** an investor can read analytics (revenue, cash, profit), customers, payment plans,
   returns, costing and more — those list endpoints name no roles. Doc marks it Open.
+- U4 merged `30e7c12`: actionable dashboard; edited sales/payments/customers/inventory pages for the URL params (one hook each).

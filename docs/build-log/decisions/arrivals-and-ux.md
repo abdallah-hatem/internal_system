@@ -45,3 +45,10 @@
   (rule 1 gap) — fixed in the same task.
   Alternatives: no cap (pays a profit for losing goods); refuse on settled cycles (the money still
   arrives, and §9 records money as it moves).
+- **[User, 2026-10-10] A temporary investor sees only their own cycles.** The owner chose this (I asked
+  mid-run, which I shouldn't have in autonomous mode — recorded in global learnings). Server-enforced on
+  every read path through one scope helper → task R1 (wave 5).
+- **[Decided] One meaning of "low stock"** — active + minimum set + on hand below it; no minimum → never
+  low. U4 found the dashboard and the inventory page used different rules (rule 11). Inventory follows in
+  F1a. Alternative: keep "any batch under 10" (an arbitrary number, and it ignores the minimum the
+  partner set).

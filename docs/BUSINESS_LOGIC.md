@@ -181,6 +181,12 @@ wizard used to. Selling then continues while later deliveries come in.
 FIFO still means the oldest **received** batch first: the day it was checked
 in, not the day it landed.
 
+**DECIDED 2026-10-10 — one meaning of "low stock".** A product is low when it is
+active, has a minimum set, and the stock on hand is below that minimum. A product
+with no minimum is never low. The dashboard count, the inventory filter and the
+inventory highlight all use this one rule; the inventory page used to colour any
+batch under 10 instead, so the two screens could disagree.
+
 ---
 
 ## 4. Sales
@@ -583,8 +589,17 @@ the menu copies the controllers' `@Roles` rather than deciding anything itself.
 So a temporary investor sees the dashboard, analytics, the importing and
 catalogue pages, customers, payment plans, notifications and settings, and not
 order or import requests, sales, payments, the ledger, partners, settlements or
-the audit log. *Open:* whether an investor should see customers and payment
-plans at all — their endpoints name no roles today, so the menu shows them.
+the audit log.
+
+**DECIDED 2026-10-10 by the owner — a temporary investor sees only their own
+cycles.** *Building.* The cycles they put money into, and for each: their
+contribution, the cycle's costs, deliveries, losses, profit and settlement, and
+their own payout. Nothing else: no customers or balances, no payment plans, no
+returns, no business-wide revenue, cash or profit, and no other cycle. This is
+enforced by the server on every read — a menu that hides a page is not a guard
+(rule 12) — so every list and figure an investor can reach is scoped to the
+cycles they participate in, and anything outside them is refused with a code or
+simply absent from the list.
 
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
