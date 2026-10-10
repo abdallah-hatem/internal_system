@@ -101,3 +101,4 @@
   20 legs in random order (records hidden). The rest were tests outdated by logged decisions, updated with reasons.
   Group re-runs: 00–19 199/0/1, 35–54 141/0, 55–79 225/0, 80–99 124/0; the shipments-list specs were re-run after the fix
   (64 passed). Open: purchases, products and providers lists load the same way as shipments did → task L1.
+- L2 merged: one API low-stock definition (`common/low-stock.ts`, on hand = sum of remainingQty) used by the dashboard count and the receiving alert (inactive products no longer alert; one alert per product per receipt); one pinned web copy.
