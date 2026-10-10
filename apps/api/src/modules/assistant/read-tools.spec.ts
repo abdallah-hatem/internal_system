@@ -132,6 +132,8 @@ function fakePrisma(db: Db) {
     },
     product: { findMany: findMany(() => db.products) },
     inventoryBatch: { findMany: findMany(() => db.batches) },
+    // B5: the shipment read asks for refunds per loss; this fixture has none.
+    supplierRefund: { findMany: findMany(() => []) },
     supplier: { findMany: findMany(() => db.suppliers) },
     customer: {
       findUnique: findUnique(() => db.customers),
@@ -316,7 +318,19 @@ describe('get_cycle', () => {
             lines: [{ id: 'dl-1', purchaseOrderItemId: 'item-1', qty: 30 }],
           },
         ],
-        losses: [{ legId: 'leg-1', purchaseOrderItemId: 'item-1', qty: 4 }],
+        // The full loss row the shipment loader reads since B5 (refunds per loss).
+        losses: [
+          {
+            id: 'loss-1',
+            legId: 'leg-1',
+            purchaseOrderItemId: 'item-1',
+            qty: 4,
+            unitCostEgp: 110,
+            costEgp: 440,
+            reason: null,
+            createdAt: new Date('2026-09-11T00:00:00Z'),
+          },
+        ],
       },
       {
         id: 'leg-2',

@@ -29,7 +29,7 @@ const TEXT = {
     canHeading: 'Claude will be able to',
     can: [
       'Read cycles, purchase orders, stock, sales, payments, balances and exchange rates.',
-      'Record supplier receipts as purchase orders, and run a cycle’s intake: suppliers, products, cycles, shipping legs and verifying stock in.',
+      'Record supplier receipts as purchase orders, and run a cycle’s intake: suppliers, products, cycles, shipping legs, deliveries as they arrive, and receiving them into stock.',
     ],
     cannotHeading: 'Claude will not be able to',
     cannot: [
