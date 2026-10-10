@@ -22,6 +22,7 @@ import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog
 import { Link } from '../../../i18n/navigation';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -64,6 +65,8 @@ export default function ShipmentsPage() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const codeLabel = useCodeLabel();
+  // An investor reads their cycles' legs; adding and editing one are a partner's (R1c).
+  const may = { create: useCan('shippingLeg.create'), edit: useCan('shippingLeg.edit') };
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -201,7 +204,7 @@ export default function ShipmentsPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+        action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
       <EmptyState icon={null} title={tc('noMatch')} />
@@ -213,13 +216,17 @@ export default function ShipmentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {may.create && (
         <button
+          type="button"
+          data-testid="create-action"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        )}
       </div>
 
       {/* Search */}
@@ -257,12 +264,12 @@ export default function ShipmentsPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('departedOn')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('arrivedOn')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
+                  {may.edit && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={10}>{emptyList}</td></tr>
+                  <tr><td colSpan={may.edit ? 10 : 9}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((ship) => (
                     <tr key={ship.id} className="hover:bg-gray-50 transition-colors">
@@ -286,15 +293,19 @@ export default function ShipmentsPage() {
                       <td className="px-4 py-3 text-gray-700">
                         <LegCost ship={ship} />
                       </td>
+                      {may.edit && (
                       <td className="px-4 py-3">
                         <button
+                          type="button"
+                          data-testid="edit-action"
                           onClick={() => openEdit(ship)}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                           title={tc('edit')}
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                       </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -313,8 +324,9 @@ export default function ShipmentsPage() {
             paginated.map((ship) => (
               <div
                 key={ship.id}
-                onClick={() => openEdit(ship)}
-                className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
+                data-testid={may.edit ? 'edit-action' : undefined}
+                onClick={may.edit ? () => openEdit(ship) : undefined}
+                className={`bg-white rounded-xl border border-gray-200 p-4 ${may.edit ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-xs text-gray-500">{ship.cycle?.code ?? '—'} #{ship.sequence}</span>

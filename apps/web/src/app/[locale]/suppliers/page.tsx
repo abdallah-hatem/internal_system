@@ -15,6 +15,7 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -43,6 +44,13 @@ export default function SuppliersPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  // Reading suppliers is everyone's; changing them is a partner's (R1c).
+  const may = {
+    create: useCan('supplier.create'),
+    edit: useCan('supplier.edit'),
+    delete: useCan('supplier.delete'),
+  };
+  const mayRow = may.edit || may.delete;
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -126,7 +134,7 @@ export default function SuppliersPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+        action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
       <EmptyState icon={null} title={tc('noMatch')} />
@@ -154,13 +162,17 @@ export default function SuppliersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {may.create && (
         <button
+          type="button"
+          data-testid="create-action"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        )}
       </div>
 
       {/* Search */}
@@ -192,12 +204,12 @@ export default function SuppliersPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('country')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('contact')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('orders')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
+                  {mayRow && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={5}>{emptyList}</td></tr>
+                  <tr><td colSpan={mayRow ? 5 : 4}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((supplier) => (
                     <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
@@ -212,24 +224,34 @@ export default function SuppliersPage() {
                           {orderCount(supplier)}
                         </span>
                       </td>
+                      {mayRow && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          {may.edit && (
                           <button
+                            type="button"
+                            data-testid="edit-action"
                             onClick={() => setEditingSupplier(supplier)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                             title={tc('edit')}
                           >
                             <Edit className="h-4 w-4" />
                           </button>
+                          )}
+                          {may.delete && (
                           <button
+                            type="button"
+                            data-testid="delete-action"
                             onClick={() => setDeletingSupplier(supplier)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title={tc('delete')}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
+                          )}
                         </div>
                       </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -252,20 +274,32 @@ export default function SuppliersPage() {
                     <p className="font-medium text-gray-900">{supplier.name}</p>
                     <p className="text-xs text-gray-500">{supplier.country}</p>
                   </div>
+                  {mayRow && (
                   <div className="flex items-center gap-1">
+                    {may.edit && (
                     <button
+                      type="button"
+                      data-testid="edit-action"
                       onClick={() => setEditingSupplier(supplier)}
-                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                      title={tc('edit')}
                     >
                       <Edit className="h-4 w-4" />
                     </button>
+                    )}
+                    {may.delete && (
                     <button
+                      type="button"
+                      data-testid="delete-action"
                       onClick={() => setDeletingSupplier(supplier)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      title={tc('delete')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    )}
                   </div>
+                  )}
                 </div>
                 <div className="text-sm text-gray-600">
                   <ContactLine contact={contactOf(supplier)} />

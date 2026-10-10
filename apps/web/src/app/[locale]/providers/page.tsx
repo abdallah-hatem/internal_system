@@ -16,6 +16,7 @@ import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -33,6 +34,13 @@ export default function ProvidersPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  // Reading shipping providers is everyone's; changing them is a partner's (R1c).
+  const may = {
+    create: useCan('provider.create'),
+    edit: useCan('provider.edit'),
+    delete: useCan('provider.delete'),
+  };
+  const mayRow = may.edit || may.delete;
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -110,7 +118,7 @@ export default function ProvidersPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+        action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
       <EmptyState icon={null} title={tc('noMatch')} />
@@ -143,13 +151,17 @@ export default function ProvidersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {may.create && (
         <button
+          type="button"
+          data-testid="create-action"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        )}
       </div>
 
       {/* Search */}
@@ -182,12 +194,12 @@ export default function ProvidersPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('contactPerson')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('phone')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('email')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
+                  {mayRow && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={5}>{emptyList}</td></tr>
+                  <tr><td colSpan={mayRow ? 5 : 4}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((provider) => (
                     <tr key={provider.id} className="hover:bg-gray-50 transition-colors">
@@ -211,22 +223,32 @@ export default function ProvidersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        {mayRow && (
                         <div className="flex items-center gap-1">
+                          {may.edit && (
                           <button
+                            type="button"
+                            data-testid="edit-action"
                             onClick={() => setEditingProvider(provider)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                             title={tc('edit')}
                           >
                             <Edit className="h-4 w-4" />
                           </button>
+                          )}
+                          {may.delete && (
                           <button
+                            type="button"
+                            data-testid="delete-action"
                             onClick={() => setDeletingProvider(provider)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title={tc('delete')}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
+                          )}
                         </div>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -250,20 +272,32 @@ export default function ProvidersPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-medium text-gray-900">{provider.name}</p>
+                  {mayRow && (
                   <div className="flex items-center gap-1">
+                    {may.edit && (
                     <button
+                      type="button"
+                      data-testid="edit-action"
                       onClick={() => setEditingProvider(provider)}
-                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                      title={tc('edit')}
                     >
                       <Edit className="h-4 w-4" />
                     </button>
+                    )}
+                    {may.delete && (
                     <button
+                      type="button"
+                      data-testid="delete-action"
                       onClick={() => setDeletingProvider(provider)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      title={tc('delete')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    )}
                   </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-1">
                   {provider.contactPerson && (

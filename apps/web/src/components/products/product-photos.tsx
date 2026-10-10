@@ -9,6 +9,7 @@ import { api } from '../../lib/api';
 import { useApiError } from '../../lib/api-error';
 import { useToast } from '../ui/toast';
 import { AuthedImage } from '../ui/authed-image';
+import { useCan } from '../../lib/can';
 
 /**
  * The photographs on a product.
@@ -38,6 +39,9 @@ export function ProductPhotos({ productId }: { productId: string }) {
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // Everyone sees the photographs; adding and removing them is a partner's (R1c).
+  const mayAdd = useCan('product.addPhoto');
+  const mayDelete = useCan('product.deletePhoto');
 
   const { data: photos = [] } = useQuery<Asset[]>({
     queryKey: ['product-photos', productId],
@@ -84,11 +88,14 @@ export function ProductPhotos({ productId }: { productId: string }) {
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-900">{t('photos')}</h2>
+        {mayAdd && (
+        <>
         <button
           type="button"
+          data-testid="add-photo-action"
           onClick={() => fileInput.current?.click()}
           disabled={uploading}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -105,6 +112,8 @@ export function ProductPhotos({ productId }: { productId: string }) {
           className="hidden"
           onChange={(e) => onFiles(e.target.files)}
         />
+        </>
+        )}
       </div>
 
       {photos.length === 0 ? (
@@ -122,21 +131,24 @@ export function ProductPhotos({ productId }: { productId: string }) {
                   objectKey={card}
                   className="aspect-square w-full rounded-lg border border-gray-200 object-cover"
                 />
+                {mayDelete && (
                 <button
                   type="button"
+                  data-testid="delete-photo-action"
                   onClick={() => remove.mutate(photo.id)}
                   aria-label={tc('delete')}
                   className="absolute end-1.5 top-1.5 rounded-lg bg-white/90 p-1.5 text-gray-500 opacity-0 shadow-sm transition-opacity hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
+                )}
               </li>
             );
           })}
         </ul>
       )}
 
-      <p className="mt-3 text-xs text-gray-400">{t('photosHint')}</p>
+      {mayAdd && <p className="mt-3 text-xs text-gray-400">{t('photosHint')}</p>}
     </div>
   );
 }

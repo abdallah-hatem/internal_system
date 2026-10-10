@@ -19,6 +19,7 @@ import { useApiError } from '../../../../lib/api-error';
 import { ProductPhotos } from '../../../../components/products/product-photos';
 import { BackLink } from '../../../../components/ui/back-link';
 import { useCodeLabel } from '@/lib/labels';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -671,6 +672,8 @@ function PriceRow({
   const { addToast } = useToast();
   const queryClient = useQueryClient();
   const [value, setValue] = useState(current ? String(current.amount) : '');
+  // Setting a price is a partner's (R1c); anyone else reads it.
+  const maySet = useCan('product.setPrice');
 
   // A price saved elsewhere, or the first load finishing, should show here.
   useEffect(() => {
@@ -707,8 +710,13 @@ function PriceRow({
       <div className="mb-2 flex items-center gap-2">
         {icon}
         <span className="text-sm font-medium text-gray-700">{label}</span>
-        {!current && <span className="text-xs text-gray-400">not set</span>}
+        {!current && <span className="text-xs text-gray-400">{tp('priceNotSet')}</span>}
       </div>
+      {!maySet ? (
+        <p data-testid="price-readonly" className="text-sm font-medium text-foreground">
+          {current ? <Money value={current.amount} currency={current.currency} /> : '—'}
+        </p>
+      ) : (
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-400">{current?.currency ?? 'EGP'}</span>
         <MoneyInput
@@ -719,6 +727,7 @@ function PriceRow({
         />
         <button
           type="button"
+          data-testid="set-price-action"
           onClick={() => save.mutate()}
           disabled={!changed || !valid || save.isPending}
           className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-40"
@@ -727,6 +736,7 @@ function PriceRow({
           {tc('save')}
         </button>
       </div>
+      )}
     </div>
   );
 }

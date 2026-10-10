@@ -25,6 +25,7 @@ import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -69,6 +70,9 @@ export default function PurchasesPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // An investor reads their cycles' orders; placing one and recording a
+  // supplier refund are a partner's (R1c).
+  const may = { create: useCan('purchase.create'), recordRefund: useCan('purchase.recordRefund') };
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -166,7 +170,7 @@ export default function PurchasesPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+        action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
       <EmptyState icon={null} title={tc('noMatch')} />
@@ -206,13 +210,17 @@ export default function PurchasesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        {may.create && (
         <button
+          type="button"
+          data-testid="create-action"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        )}
       </div>
 
       {/* Search */}
@@ -523,13 +531,17 @@ export default function PurchasesPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-900">{t('refunds')}</h3>
+                {may.recordRefund && (
                 <button
+                  type="button"
+                  data-testid="record-refund-action"
                   onClick={() => setShowRefundModal(true)}
-                  className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-100"
+                  className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-100 cursor-pointer"
                 >
                   <DollarSign className="h-3.5 w-3.5" />
                   {t('recordRefund')}
                 </button>
+                )}
               </div>
               {(poDetail?.refunds ?? []).length === 0 ? (
                 <p className="text-sm text-gray-400">{tc('noData')}</p>

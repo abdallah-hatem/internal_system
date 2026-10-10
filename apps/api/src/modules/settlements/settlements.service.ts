@@ -27,6 +27,7 @@ import {
   type ScopeViewer,
 } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
+import { settlementWarnings } from './settlement-warnings';
 /** Sale states whose stock has genuinely left the business. */
 const REALISED_ORDER_STATUSES = [
   'CONFIRMED',
@@ -438,15 +439,12 @@ export class SettlementsService {
     const { pnl, distribution } = projected;
     const unitsRemaining = pnl.unitsRemaining;
 
-    const warnings: string[] = [];
-    if (!pnl.fullySold) {
-      warnings.push(
-        `${formatQty(unitsRemaining)} units are still in stock (${formatMoney(pnl.unsoldValue)} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.`,
-      );
-    }
-    if (!projected.hasAllocations) {
-      warnings.push('This cycle has no realised sales yet.');
-    }
+    const warnings = settlementWarnings({
+      fullySold: pnl.fullySold,
+      unitsRemaining,
+      unsoldValue: pnl.unsoldValue,
+      hasAllocations: projected.hasAllocations,
+    });
 
     // --- Persist -----------------------------------------------------------
     const settlement = await this.prisma.$transaction(async (tx) => {
