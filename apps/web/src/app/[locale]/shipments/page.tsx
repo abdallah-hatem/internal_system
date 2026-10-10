@@ -17,6 +17,9 @@ import { useApiError } from '../../../lib/api-error';
 import { formatDate } from '../../../lib/dates';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
+import { useCodeLabel } from '../../../lib/labels';
+import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
+import { Link } from '../../../i18n/navigation';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -45,14 +48,10 @@ interface Shipment {
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-600',
   IN_TRANSIT: 'bg-yellow-100 text-yellow-700',
+  PARTLY_ARRIVED: 'bg-amber-100 text-amber-700',
   ARRIVED: 'bg-green-100 text-green-700',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'pending',
-  IN_TRANSIT: 'inTransit',
-  ARRIVED: 'arrived',
-};
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
@@ -61,6 +60,7 @@ export default function ShipmentsPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  const codeLabel = useCodeLabel();
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -121,9 +121,10 @@ export default function ShipmentsPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, ...data }: any) => api.put(`/shipping/legs/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      // A departure moves the cycle's shipment and its leg statuses too.
+      for (const key of SHIPMENT_QUERY_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
       closeEdit();
-      addToast('Shipment updated successfully', 'success');
+      addToast(t('legUpdated'), 'success');
     },
     onError: (error: any) => {
       addToast(apiError(error, 'Operation failed'), 'error');
@@ -422,11 +423,13 @@ export default function ShipmentsPage() {
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
+              // No `status` and no `arrivedOn`: a leg's status is read from
+              // what was recorded, and arrivals are deliveries now, recorded on
+              // the cycle's Shipment panel (BUSINESS_LOGIC §1, 2026-10-10).
+              // Sending an empty arrival used to ask the server to clear it.
               updateMutation.mutate({
                 id: editingShipment.id,
-                status: fd.get('status'),
                 departedOn: fd.get('departedOn') || null,
-                arrivedOn: fd.get('arrivedOn') || null,
                 ...providerFields(fd.get('providerId')),
                 trackingRef: fd.get('trackingRef'),
                 ...readShippingCostFields(fd),
@@ -434,23 +437,26 @@ export default function ShipmentsPage() {
             }}
             className="space-y-4"
           >
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('status')}</label>
-              <Select
-                name="status"
-                defaultValue={editingShipment.status}
-                options={[
-                  { value: 'PENDING', label: t('pending') },
-                  { value: 'IN_TRANSIT', label: t('inTransit') },
-                  { value: 'ARRIVED', label: t('arrived') },
-                ]}
-              />
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField label={t('departedOn')} name="departedOn" type="date" defaultValue={editingShipment.departedOn} />
-              <InputField label={t('arrivedOn')} name="arrivedOn" type="date" defaultValue={editingShipment.arrivedOn} />
+              <div>
+                <p className="mb-1 block text-sm font-medium text-foreground">{t('arrivedOn')}</p>
+                <p data-testid="leg-arrival" className="px-3 py-2 text-sm text-muted-foreground">
+                  {codeLabel('legStatus', editingShipment.status)}
+                  {editingShipment.arrivedOn ? ` · ${formatDate(editingShipment.arrivedOn)}` : ''}
+                </p>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              {t('arrivalsAreDeliveries')}{' '}
+              <Link
+                href={`/cycles/${editingShipment.cycleId}/details`}
+                data-testid="leg-open-cycle"
+                className="cursor-pointer font-medium text-primary hover:underline"
+              >
+                {t('openShipmentPanel')}
+              </Link>
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -532,7 +538,8 @@ function LegCost({ ship }: { ship: Shipment }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
-  const labelKey = STATUS_LABELS[status] ?? status;
+  const codeLabel = useCodeLabel();
+  const labelKey = codeLabel('legStatus', status);
   const color = STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600';
 
   return (
