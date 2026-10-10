@@ -1,0 +1,1 @@
+- W1 merged: walk-in sale in one transaction (record → prepareDraft → confirmWithin → recordWithin/allocateWithin), migration `20261011120000_customer_walk_in` (+ hand-written unique partial index), WALK_IN_NOT_DRAFT / WALK_IN_RESERVED / WALK_IN_REFUND_IN_MONEY, check-data 16/16.1. api 850 + 20 skipped. Wave 2: W2 ‖ W3 ‖ F9.

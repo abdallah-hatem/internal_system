@@ -4,7 +4,7 @@ Spec `docs/specs/2026-10-11-walk-in-and-assistant-sales.md` · BUSINESS_LOGIC §
 | Wave | Tasks |
 |---|---|
 | 1 | W1 (backend · logic) |
-| 2 | W2 (web · logic) ‖ W3 (assistant · logic) |
+| 2 | W2 (web · logic) ‖ W3 (assistant · logic) ‖ F9 (backend · logic) |
 
 ### W1 — Walk-in sale on the server (backend · logic)
 Edge cases:
@@ -49,3 +49,8 @@ Edge cases:
 - [ ] Replay → `CONFIRMATION_USED`   (§16)
 - [ ] A named customer → a CONFIRMED order that is owed, no payment   (§16)
 - [ ] `tools/list` has `record_sale` and still no payment, return or settlement tool   (§16)
+
+### F9 — Three older bugs W1 found (backend · logic)
+- [ ] Two sales at once never get the same order number (a unique constraint plus a retry, or a sequence)   (rule 1: race)
+- [ ] An undated payment is dated by the Cairo day, not UTC — 22:30 UTC on the 10th is the 11th   (§7a)
+- [ ] The demo seed runs on top of the reference seed (`db:reset:demo` after `db:reset`), idempotent   (rule 4)
