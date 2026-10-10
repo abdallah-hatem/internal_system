@@ -224,6 +224,22 @@ input[type="number"] {
   animation: toast-slide-in 0.3s ease-out;
 }
 
+/* The toast sits at the inline end, so in Arabic it enters from the left. */
+@keyframes toast-slide-in-rtl {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+[dir='rtl'] .toast-slide-in {
+  animation-name: toast-slide-in-rtl;
+}
+
 /* Never let Safari zoom the page when a field takes focus.
  *
  * iOS Safari zooms in on focus whenever the focused control's font-size is
