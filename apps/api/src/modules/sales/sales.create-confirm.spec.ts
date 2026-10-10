@@ -82,7 +82,10 @@ let seq = 0;
 const id = (prefix: string) => `${prefix}-${++seq}`;
 
 function fakePrisma(initial: Store) {
-  const db = { store: initial };
+  const db: { store: Store; queue: Promise<unknown> } = {
+    store: initial,
+    queue: Promise.resolve(),
+  };
 
   const decrement = (current: Prisma.Decimal, change: any) =>
     change?.decrement !== undefined ? current.sub(change.decrement) : D(change);
@@ -175,13 +178,35 @@ function fakePrisma(initial: Store) {
           .sort((a, b) => (a.orderNo < b.orderNo ? 1 : -1));
         return rows[0] ? { orderNo: rows[0].orderNo } : null;
       },
-      findUnique: async ({ where, include }: any) =>
-        orderWithItems(
-          db.store.orders.find((o) => o.id === where.id),
+      findUnique: async ({ where, include }: any) => {
+        const byKey = where.createdBy_idempotencyKey;
+        return orderWithItems(
+          db.store.orders.find((o) =>
+            byKey
+              ? o.createdBy === byKey.createdBy &&
+                o.idempotencyKey === byKey.idempotencyKey
+              : o.id === where.id,
+          ),
           include,
-        ),
+        );
+      },
       create: async ({ data, include }: any) => {
         const { items, ...rest } = data;
+        // The unique index on (created_by, idempotency_key). NULL keys never
+        // collide, as in Postgres.
+        if (
+          rest.idempotencyKey != null &&
+          db.store.orders.some(
+            (o) =>
+              o.createdBy === rest.createdBy &&
+              o.idempotencyKey === rest.idempotencyKey,
+          )
+        ) {
+          throw new Prisma.PrismaClientKnownRequestError(
+            'Unique constraint failed on the fields: (`created_by`,`idempotency_key`)',
+            { code: 'P2002', clientVersion: 'test' },
+          );
+        }
         const order = {
           id: id('order'),
           version: 1,
@@ -216,14 +241,20 @@ function fakePrisma(initial: Store) {
         return orderWithItems(order, include);
       },
     },
+    // One transaction at a time, as Postgres makes a second insert of the same
+    // unique key wait for the first to commit before it fails.
     $transaction: async (fn: (tx: any) => Promise<unknown>) => {
-      const before = clone(db.store);
-      try {
-        return await fn(client);
-      } catch (e) {
-        db.store = before;
-        throw e;
-      }
+      const run = db.queue.then(async () => {
+        const before = clone(db.store);
+        try {
+          return await fn(client);
+        } catch (e) {
+          db.store = before;
+          throw e;
+        }
+      });
+      db.queue = run.catch(() => undefined);
+      return run;
     },
   };
 
@@ -362,6 +393,47 @@ describe('POST /sales/orders with confirm: true', () => {
     expect(r).toEqual({ status: 400, code: 'DISCOUNT_EXCEEDS_LINE' });
     expect(db.store.orders).toHaveLength(0);
     expect(saleable(db, PISTON)).toBe(60);
+  });
+
+  it('a negative discount → DISCOUNT_NEGATIVE, on a draft and on Create & confirm, nothing saved', async () => {
+    const { service, db } = build({ [PISTON]: 60 });
+    for (const confirm of [false, true]) {
+      const r = await refused(
+        service.create(
+          order(
+            [{ productId: PISTON, quantity: 1, unitPrice: 100, discount: -50 }],
+            { confirm },
+          ),
+          'actor-1',
+        ),
+      );
+      expect(r).toEqual({ status: 400, code: 'DISCOUNT_NEGATIVE' });
+    }
+    // One cent below zero is still a hidden price rise.
+    const cent = await refused(
+      service.create(
+        order([
+          { productId: PISTON, quantity: 1, unitPrice: 100, discount: -0.01 },
+        ]),
+        'actor-1',
+      ),
+    );
+    expect(cent.code).toBe('DISCOUNT_NEGATIVE');
+    expect(db.store.orders).toHaveLength(0);
+    expect(saleable(db, PISTON)).toBe(60);
+  });
+
+  it('a zero or missing discount is fine', async () => {
+    const { service, db } = build({ [PISTON]: 60 });
+    await service.create(
+      order([{ productId: PISTON, quantity: 1, unitPrice: 100, discount: 0 }]),
+      'actor-1',
+    );
+    await service.create(
+      order([{ productId: PISTON, quantity: 1, unitPrice: 100 }]),
+      'actor-1',
+    );
+    expect(db.store.orders).toHaveLength(2);
   });
 
   it('a discount exactly equal to the line is allowed and totals zero', async () => {
@@ -529,6 +601,47 @@ describe('POST /sales/orders with confirm: true', () => {
     const b: any = await service.create(body, 'actor-2', 'same-key');
     expect(a.data.id).not.toBe(b.data.id);
     expect(db.store.orders).toHaveLength(2);
+  });
+
+  it('a repeated key returns the same order and creates no second — even on another server instance', async () => {
+    // Vercel: the retry lands on an instance that never saw the first request.
+    // Two services over one database stand in for that; a key kept in memory
+    // would let the second instance sell the goods again.
+    const { service, db } = build({ [PISTON]: 60 });
+    const elsewhere = new SalesService((service as any).prisma, {
+      log: jest.fn(async () => undefined),
+    } as unknown as AuditService);
+    const body = order([{ productId: PISTON, quantity: 10, unitPrice: 100 }], {
+      confirm: true,
+    });
+
+    const a: any = await service.create(body, 'actor-1', 'key-9');
+    const b: any = await elsewhere.create(body, 'actor-1', 'key-9');
+
+    expect(b.data.id).toBe(a.data.id);
+    expect(db.store.orders).toHaveLength(1);
+    expect(db.store.orders[0].idempotencyKey).toBe('key-9');
+    expect(saleable(db, PISTON)).toBe(50);
+  });
+
+  it('a repeated key on a draft returns the same draft', async () => {
+    const { service, db } = build({ [PISTON]: 60 });
+    const body = order([{ productId: PISTON, quantity: 1, unitPrice: 100 }]);
+    const a: any = await service.create(body, 'actor-1', 'draft-key');
+    const b: any = await service.create(body, 'actor-1', 'draft-key');
+    expect(b.data.id).toBe(a.data.id);
+    expect(db.store.orders).toHaveLength(1);
+  });
+
+  it('without a key, two identical creates are two orders (nothing is guessed)', async () => {
+    const { service, db } = build({ [PISTON]: 60 });
+    const body = order([{ productId: PISTON, quantity: 1, unitPrice: 100 }]);
+    await service.create(body, 'actor-1');
+    await service.create(body, 'actor-1');
+    expect(db.store.orders).toHaveLength(2);
+    expect(db.store.orders.every((o: any) => o.idempotencyKey === null)).toBe(
+      true,
+    );
   });
 
   it('The running total equals the server order total for the same lines, discounts included', async () => {

@@ -374,7 +374,11 @@
     "verifiedOnly": "الموثّقون فقط",
     "awaitingReview": "بانتظار المراجعة",
     "awaitingReviewHint": "سجّل من المتجر ولم تتم مراجعته",
-    "allCustomers": "كل العملاء"
+    "allCustomers": "كل العملاء",
+    "noOrders": "لا توجد طلبات لهذا العميل بعد",
+    "noOrdersHint": "يظهر هنا أي بيع لهذا العميل بمجرد إنشائه.",
+    "noPayments": "لا توجد مدفوعات من هذا العميل بعد",
+    "noPaymentsHint": "سجّل الدفعة عند الدفع، وتُطبَّق على أقدم طلباته غير المدفوعة أولاً."
   },
   "payments": {
     "title": "المدفوعات",
@@ -399,7 +403,24 @@
     "search": "بحث في المدفوعات...",
     "outstanding": "المستحق",
     "saleOrder": "أمر بيع",
-    "noOpenOrders": "لا توجد طلبات مفتوحة لهذا العميل"
+    "noOpenOrders": "لا توجد طلبات مفتوحة لهذا العميل",
+    "recordFor": "تسجيل دفعة للطلب {order}",
+    "recordPayment": "تسجيل دفعة",
+    "orderOwes": "المستحق على {order}",
+    "owedNow": "المستحق الآن",
+    "appliedToOrder": "تُطبَّق على هذا الطلب فقط.",
+    "appliedOldestFirst": "تُطبَّق على أقدم الطلبات غير المدفوعة أولاً.",
+    "selectCustomer": "اختر العميل الذي دفع",
+    "referencePlaceholder": "مثلاً رقم الإيصال أو التحويل",
+    "recordedToast": "تم تسجيل الدفعة",
+    "recordedNotApplied": "تم تسجيل الدفعة، لكن لم يُطبَّق كامل مبلغها على الطلبات. خصّص الباقي من صفحة المدفوعات.",
+    "recordFailed": "تعذّر تسجيل الدفعة",
+    "allocated": "تم تخصيص الدفعة",
+    "allocateFailed": "تعذّر تخصيص الدفعة",
+    "reversedToast": "تم عكس الدفعة",
+    "reverseFailed": "تعذّر عكس الدفعة",
+    "empty": "لا توجد مدفوعات بعد",
+    "emptyHint": "تُسجَّل هنا الأموال التي يدفعها العميل مقابل طلب مؤكد."
   },
   "ledger": {
     "title": "دفتر الأستاذ المالي",
@@ -957,7 +978,12 @@
     "DELIVERY_EXCEEDS_IN_TRANSIT": "في الطريق {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل وصول {asked}.",
     "DELIVERY_IN_USE": "لا يمكن حذف دفعة الوصول هذه: تم استلام مخزون منها، أو نقلت مرحلة لاحقة بضاعتها، أو تقدّمت الدورة بسببها.",
     "LEG_COST_LOCKED": "تم استلام بضاعة من الدورة {cycle} أو تسجيلها مفقودة، لذلك أصبحت تكلفة هذه المرحلة ثابتة. سجّل أي رسوم متأخرة أو مصحّحة كمصروف على الدورة.",
-    "LOSS_EXCEEDS_IN_TRANSIT": "المتبقي {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل {asked} كمفقودة."
+    "LOSS_EXCEEDS_IN_TRANSIT": "المتبقي {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل {asked} كمفقودة.",
+    "AMOUNT_NOT_POSITIVE": "يجب أن يكون مبلغ الدفعة أكبر من صفر.",
+    "PAYMENT_EXCEEDS_ORDER": "المستحق على الطلب {order} هو {owed}، لذا لا يمكن دفع {asked} عليه.",
+    "ORDER_NOT_CONFIRMED": "الطلب {order} مسودة، لذا لا يستحق عليه شيء بعد.",
+    "ORDER_OWES_NOTHING": "لا يستحق على الطلب {order} شيء، لذا لا يمكن الدفع عليه.",
+    "DISCOUNT_NEGATIVE": "لا يمكن أن يكون الخصم سالباً ({discount})."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1093,6 +1119,7 @@
     "paymentMethod": {
       "CASH": "نقدي",
       "BANK_TRANSFER": "تحويل بنكي",
+      "CHEQUE": "شيك",
       "BANK": "تحويل بنكي",
       "MOBILE_WALLET": "محفظة إلكترونية"
     },

@@ -790,6 +790,9 @@ model SaleOrder {
   customer           Customer               @relation(fields: [customerId], references: [id])
   creator            User?                  @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
   createdBy          String?                @map("created_by") @db.Uuid
+  /// The create form's key, so a retried POST returns this order instead of a
+  /// second one. Unique per person: two people's keys never answer for each other.
+  idempotencyKey     String?                @map("idempotency_key")
   items              SaleItem[]
   reservations       InventoryReservation[]
   paymentAllocations PaymentAllocation[]
@@ -798,6 +801,7 @@ model SaleOrder {
 
   orderRequest OrderRequest?
 
+  @@unique([createdBy, idempotencyKey])
   @@map("sale_orders")
 }
 

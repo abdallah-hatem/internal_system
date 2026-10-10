@@ -1,5 +1,11 @@
 import {
-  IsUUID, IsNumber, IsString, IsOptional, IsDateString, Min, IsPositive,
+  IsUUID,
+  IsNumber,
+  IsString,
+  IsOptional,
+  IsDateString,
+  Min,
+  IsPositive,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -16,14 +22,26 @@ export class CreatePaymentDto {
   currency: string;
 
   /** Defaults to today when the caller does not say otherwise. */
-  @IsOptional() @IsDateString()
+  @IsOptional()
+  @IsDateString()
   receivedOn?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   method?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   reference?: string;
+
+  /**
+   * Put the money on this order (BUSINESS_LOGIC §7, 2026-10-10): the payer's
+   * own, confirmed, still owing, and no more than it owes. Without it the
+   * payment is recorded unallocated, as before.
+   */
+  @IsOptional()
+  @IsUUID('all')
+  orderId?: string;
 }
 
 export class AllocatePaymentDto {

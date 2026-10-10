@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { Prisma } from '@prisma/client';
+import { isUniqueViolation } from '../../prisma/unique-violation';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
@@ -16,9 +17,6 @@ import {
 
 /** The client or a transaction — whichever the caller holds. */
 type Db = Prisma.TransactionClient;
-
-/** How long a create's idempotency key is remembered. */
-const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 
 export interface CreateSaleOrderInput {
   customerId: string;
@@ -119,48 +117,65 @@ export class SalesService {
    * leaves nothing behind — no draft for someone to find later and wonder
    * about.
    *
-   * `idempotencyKey` is the form's one key per opened dialog. A second request
-   * carrying it while the first is in flight, or after it succeeded, gets the
-   * first one's answer instead of a second order: a double-click on "Create &
-   * confirm" must not sell the goods twice. The map lives in this process only
-   * (SaleOrder has no column for a key), so it covers a double-click, which is
-   * what it is for, and the form disabling its button covers the rest.
+   * `idempotencyKey` is the form's one key per opened dialog. A request
+   * carrying a key this person already created an order with gets that order
+   * back instead of a second one: a double-click on "Create & confirm", or a
+   * retry after the network dropped, must not sell the goods twice.
+   *
+   * The key is stored on the order, unique per creator, the way a payment
+   * stores its key (`PaymentsService.create`). It lived in a map in this
+   * process, which does not hold on Vercel: the retry lands on another
+   * instance that never saw the first. Two requests that both read "not there
+   * yet" are settled by the index — the loser's insert fails, its transaction
+   * rolls back, and it answers with the winner's order.
+   *
+   * A refusal stores nothing, so fixing the lines and retrying from the same
+   * dialog actually runs.
    */
   async create(
     data: CreateSaleOrderInput,
     actorId: string,
     idempotencyKey?: string,
   ) {
-    if (!idempotencyKey) return this.createOnce(data, actorId);
-
-    const now = Date.now();
-    for (const [key, entry] of this.recentCreates) {
-      if (entry.expires <= now) this.recentCreates.delete(key);
+    const key = idempotencyKey?.trim() || undefined;
+    if (key) {
+      const existing = await this.findByKey(actorId, key);
+      if (existing) return existing;
     }
-
-    const key = `${actorId}:${idempotencyKey}`;
-    const seen = this.recentCreates.get(key);
-    if (seen) return seen.result;
-
-    const result = this.createOnce(data, actorId);
-    this.recentCreates.set(key, { expires: now + IDEMPOTENCY_TTL_MS, result });
-    // A refusal is not remembered: the person fixes the lines and tries again
-    // from the same dialog, and that attempt must actually run.
-    result.catch(() => this.recentCreates.delete(key));
-    return result;
+    try {
+      return await this.createOnce(data, actorId, key);
+    } catch (e) {
+      if (key && isUniqueViolation(e)) {
+        const existing = await this.findByKey(actorId, key);
+        if (existing) return existing;
+      }
+      throw e;
+    }
   }
 
-  private readonly recentCreates = new Map<
-    string,
-    { expires: number; result: Promise<{ data: unknown }> }
-  >();
+  /** The order this person already created with this key, if any. */
+  private async findByKey(actorId: string, idempotencyKey: string) {
+    const order = await this.prisma.saleOrder.findUnique({
+      where: {
+        createdBy_idempotencyKey: { createdBy: actorId, idempotencyKey },
+      },
+      include: { items: true, customer: true },
+    });
+    return order ? { data: order } : null;
+  }
 
   private async createOnce(
     data: CreateSaleOrderInput,
     actorId: string,
+    idempotencyKey?: string,
   ): Promise<{ data: unknown }> {
     if (data?.confirm !== true) {
-      const draft = await this.prepareDraft(this.prisma, data, actorId);
+      const draft = await this.prepareDraft(
+        this.prisma,
+        data,
+        actorId,
+        idempotencyKey,
+      );
       const order = await this.prisma.saleOrder.create({
         data: draft,
         include: { items: true, customer: true },
@@ -178,7 +193,7 @@ export class SalesService {
     }
 
     const outcome = await this.prisma.$transaction(async (tx) => {
-      const draft = await this.prepareDraft(tx, data, actorId);
+      const draft = await this.prepareDraft(tx, data, actorId, idempotencyKey);
       const order = await tx.saleOrder.create({
         data: draft,
         include: { items: true, customer: true },
@@ -218,6 +233,7 @@ export class SalesService {
     db: Db,
     data: CreateSaleOrderInput,
     actorId: string,
+    idempotencyKey?: string,
   ) {
     // Validate customer exists
     if (!data?.customerId) {
@@ -284,6 +300,18 @@ export class SalesService {
         throw badRequest(
           'PRICE_NEGATIVE',
           `Invalid unitPrice for product ${item.productId}: must be 0 or greater`,
+        );
+      }
+      // A negative discount is a price rise the line does not show: the
+      // customer is charged more than quantity × price, under a column named
+      // "discount". Refused here, the one place every create path passes
+      // through — draft, create & confirm, and the storefront's approval.
+      // (Orders have no edit path; a confirmed order is changed by a return.)
+      if (item.discount != null && Number(item.discount) < 0) {
+        throw badRequest(
+          'DISCOUNT_NEGATIVE',
+          `A discount cannot be negative (${item.discount}).`,
+          { discount: String(item.discount) },
         );
       }
     }
@@ -361,6 +389,7 @@ export class SalesService {
       total: subtotal,
       outstanding: subtotal,
       createdBy: actorId,
+      idempotencyKey: idempotencyKey ?? null,
       items: { create: itemsData },
     };
   }

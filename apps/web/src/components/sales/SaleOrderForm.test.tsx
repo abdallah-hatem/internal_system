@@ -143,6 +143,18 @@ describe('SaleOrderForm', () => {
     expect(screen.getByText(en.sales.discountTooLarge)).toBeTruthy();
   });
 
+  it('a negative discount cannot be entered, so no request carries one (DISCOUNT_NEGATIVE is the server’s backstop)', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'DRAFT' } } });
+    const { onSaved } = renderForm();
+    pick(3, 'Piston kit');
+    typeInto(field(lines()[0], 'discount'), '-50');
+    // The money field takes digits and a point only; the sign never lands.
+    expect(field(lines()[0], 'discount').value).not.toContain('-');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.saveDraft }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1].items[0].discount).toBeGreaterThanOrEqual(0);
+  });
+
   it('a list price fills an untouched line', () => {
     renderForm();
     pick(3, 'Piston kit'); // customer, channel, currency, then the line's product
