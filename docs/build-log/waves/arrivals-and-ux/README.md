@@ -66,3 +66,7 @@
   Accepted guesses (F1a.md): a "Move to Arrived Egypt" button on the panel; the Receive list fetches each open
   cycle's shipment (no cross-cycle endpoint); Mark lost starts empty.
 - Wave 5 dispatched from master: R1 ‖ B5b ‖ U5. Spec numbers: R1 → 87, B5b → 88, U5 → 86.
+- B5b merged: `POST /purchases/refunds/:id/reverse` (balancing OUTFLOW with `reversalOfId`), one `counts()` for every
+  refund sum, recovery read signed everywhere (fixed: cycle profitability counted inflows only, so an undone refund
+  stayed in profit); take-back unlinks undone refunds past the RESTRICT key; "Undo refund" on the panel; check-data 12.9.
+  api 691 + 9 skipped, web 158. Guesses accepted (written into §6 by B5b). B5b left Docker running; quit by main thread.

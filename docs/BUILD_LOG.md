@@ -6,7 +6,7 @@ Goal (current): (A) "make the UI/UX easier" — the 12 recommendations and the q
 2026-10-10 UX review, with the dead search box removed. (B) "a shipment can arrive in batches — ship 40,
 and it arrives 15, then 10, then 5, then 10 across 40 days or so; I have no control". The user said
 "do all" to the three rule decisions.
-Current stage: 4 — Build · 15 tasks merged · running: R1 B5b U5 (wave 5, last) · then Verify
+Current stage: 4 — Build · 16 tasks merged · running: R1 U5 · then Verify
 
 ## Waiting on the user
 _(none)_
