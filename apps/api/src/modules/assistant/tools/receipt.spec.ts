@@ -97,8 +97,8 @@ class FakeDb {
   }
 
   /** The PO advisory lock (writeOrder) is a no-op here: this fake runs one call at a time. */
-  async $executeRaw(): Promise<number> {
-    return 0;
+  $executeRaw(): Promise<number> {
+    return Promise.resolve(0);
   }
 
   async $transaction<T>(
