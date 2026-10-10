@@ -247,7 +247,7 @@ connection) creates it once: the second request is answered with the first
 order. This holds per person, across the server's instances.
 
 **DECIDED 2026-10-11 by the owner — a walk-in sale is paid on the spot.**
-*Building.* A buyer who is not a shop does not need a customer record. A
+*Built 2026-10-11 (W1, W2).* A buyer who is not a shop does not need a customer record. A
 walk-in sale is created, confirmed and paid in full in one step, at retail
 (B2C) prices, by the method chosen (cash by default), dated now. It cannot be a
 draft and never leaves anything owed. Behind it is one shared "Walk-in" record
@@ -958,7 +958,7 @@ confirms it; a close name is never taken as the same thing without that.
 Shipping, fees and tax printed on a receipt are not purchase order lines; the partner decides whether they belong on a shipping leg.
 
 **DECIDED 2026-10-11 by the owner — the assistant can record a sale.**
-*Building.* "I sold 25 of X at Y to Z" is a sale the assistant records, the
+*Built 2026-10-11 (W3).* "I sold 25 of X at Y to Z" is a sale the assistant records, the
 same two-call way as every write: it matches the product and the customer
 (close names are asked, never assumed), shows the preview — lines, total,
 whether the stock is there — and saves only on a clear yes. "To anyone" or a
