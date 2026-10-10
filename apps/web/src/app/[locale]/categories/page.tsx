@@ -14,6 +14,7 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -307,7 +308,7 @@ export default function CategoriesPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.category.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -316,14 +317,14 @@ export default function CategoriesPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingCategory && (
         <Modal title={t('edit')} onClose={() => setEditingCategory(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="name" defaultValue={editingCategory.name} required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -358,7 +359,7 @@ export default function CategoriesPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

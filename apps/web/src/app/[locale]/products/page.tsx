@@ -17,6 +17,7 @@ import {
 
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -371,7 +372,7 @@ export default function ProductsPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => closeCreate()}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.product.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => closeCreate()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -382,14 +383,14 @@ export default function ProductsPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingProduct && (
         <Modal title={t('edit')} onClose={() => closeEditProduct()}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <ENTITY_FORMS.product.Fields record={editingProduct} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => closeEditProduct()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -400,7 +401,7 @@ export default function ProductsPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

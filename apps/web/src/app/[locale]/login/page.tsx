@@ -6,6 +6,7 @@ import { useRouter } from '../../../i18n/navigation';
 import { useApiError } from '../../../lib/api-error';
 import { Package, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 export default function LoginPage() {
   const t = useTranslations('auth');
@@ -55,7 +56,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
               <input
@@ -95,7 +96,7 @@ export default function LoginPage() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t('login')}
             </button>
-          </form>
+          </ValidatedForm>
         </div>
       </div>
     </div>

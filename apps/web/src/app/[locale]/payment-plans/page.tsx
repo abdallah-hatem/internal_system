@@ -17,6 +17,7 @@ import {
 
 import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -303,7 +304,7 @@ export default function PaymentPlansPage() {
               </button>
             </div>
 
-            <form
+            <ValidatedForm
               onSubmit={(e) => {
                 e.preventDefault();
                 const instalments = lines
@@ -424,7 +425,7 @@ export default function PaymentPlansPage() {
                   {t('agree')}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import {
 
 import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Line {
   id: string;
@@ -259,7 +260,7 @@ export default function SettlementsPage() {
           and into the audit log, so it has to come from the person reversing. */}
       {reversing && (
         <Modal title={t('reverse')} onClose={() => setReversing(null)}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               actionMutation.mutate({
@@ -302,7 +303,7 @@ export default function SettlementsPage() {
                 {t('reverse')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

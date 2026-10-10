@@ -18,6 +18,7 @@ import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields'
 import { MoneyInput } from '../../../components/ui/money-input';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { Download } from 'lucide-react';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -378,7 +379,7 @@ export default function LedgerPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('type')}</label>
@@ -423,14 +424,14 @@ export default function LedgerPage() {
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedEntry && (
         <Modal title={t('reverse')} onClose={() => { setShowReverseModal(false); setSelectedEntry(null); }}>
-          <form onSubmit={handleReverse} className="space-y-4">
+          <ValidatedForm onSubmit={handleReverse} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedEntry.amount} currency={selectedEntry.currency} /></span>
             </p>
@@ -439,7 +440,7 @@ export default function LedgerPage() {
               <button type="button" onClick={() => { setShowReverseModal(false); setSelectedEntry(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{t('reverse')}</button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

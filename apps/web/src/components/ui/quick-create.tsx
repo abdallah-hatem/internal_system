@@ -10,6 +10,7 @@ import { useToast } from './toast';
 import { useApiError } from '../../lib/api-error';
 import { FormActions } from './fields';
 import { ENTITY_FORMS, type EntityName } from '../entities/entity-forms';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 /**
  * Create the thing a picker is missing, without leaving the form.
@@ -149,7 +150,7 @@ function QuickCreateModal({
           </button>
         </div>
 
-        <form
+        <ValidatedForm
           onSubmit={(e) => {
             e.preventDefault();
             // The outer form is a portal away, not an ancestor, so nothing
@@ -167,7 +168,7 @@ function QuickCreateModal({
             submitLabel={tc('create')}
             busy={create.isPending}
           />
-        </form>
+        </ValidatedForm>
       </div>
     </div>,
     document.body,

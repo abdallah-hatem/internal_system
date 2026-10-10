@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -268,7 +269,7 @@ export default function SuppliersPage() {
       {/* ─── Create ────────────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.supplier.Fields />
             <FormActions
               onCancel={() => setShowCreateModal(false)}
@@ -276,14 +277,14 @@ export default function SuppliersPage() {
               submitLabel={tc('create')}
               busy={createMutation.isPending}
             />
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit ──────────────────────────────────────────────────── */}
       {editingSupplier && (
         <Modal title={t('edit')} onClose={() => setEditingSupplier(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <ENTITY_FORMS.supplier.Fields record={editingSupplier} />
             <FormActions
               onCancel={() => setEditingSupplier(null)}
@@ -291,7 +292,7 @@ export default function SuppliersPage() {
               submitLabel={tc('save')}
               busy={updateMutation.isPending}
             />
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

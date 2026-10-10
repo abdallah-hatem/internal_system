@@ -23,6 +23,7 @@ import { useApiError } from '../../../lib/api-error';
 import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -308,7 +309,7 @@ export default function PurchasesPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => { setShowCreateModal(false); setLineItems([]); }}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
@@ -437,7 +438,7 @@ export default function PurchasesPage() {
                 {createMutation.isPending ? tc('loading') : tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -539,7 +540,7 @@ export default function PurchasesPage() {
       {/* ─── Refund Modal ──────────────────────────────────────────── */}
       {showRefundModal && viewingPO && (
         <Modal title={t('recordRefund')} onClose={() => setShowRefundModal(false)}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -565,7 +566,7 @@ export default function PurchasesPage() {
               <button type="button" onClick={() => setShowRefundModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
     </div>

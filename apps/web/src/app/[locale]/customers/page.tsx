@@ -22,6 +22,7 @@ import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
 import { sortByBalance } from '../../../components/dashboard/list-params';
 import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -405,7 +406,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.customer.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -414,7 +415,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
@@ -456,7 +457,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingCustomer && (
         <Modal title={t('edit')} onClose={() => setEditingCustomer(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="displayName" defaultValue={editingCustomer.displayName} required />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -478,7 +479,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

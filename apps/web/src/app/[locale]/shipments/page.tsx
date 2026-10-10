@@ -20,6 +20,7 @@ import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
 import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
 import { Link } from '../../../i18n/navigation';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Shipment {
   id: string;
@@ -338,7 +339,7 @@ export default function ShipmentsPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -413,14 +414,14 @@ export default function ShipmentsPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingShipment && (
         <Modal title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`} onClose={() => closeEdit()}>
-          <form
+          <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -503,7 +504,7 @@ export default function ShipmentsPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
     </div>

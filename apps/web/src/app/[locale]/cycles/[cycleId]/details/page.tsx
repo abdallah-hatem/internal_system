@@ -34,6 +34,7 @@ import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
 import { num as qtyNum } from '../../../../../components/shipment/shipment-model';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -366,7 +367,7 @@ function AddParticipantForm({
   const [type, setType] = useState('CORE_PARTNER');
 
   return (
-    <form
+    <ValidatedForm
       className="mt-4 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4"
       onSubmit={(e) => {
         e.preventDefault();
@@ -474,7 +475,7 @@ function AddParticipantForm({
           {tc('save')}
         </button>
       </div>
-    </form>
+    </ValidatedForm>
   );
 }
 

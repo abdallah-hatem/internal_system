@@ -14,6 +14,7 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
+import { ValidatedForm } from '@/components/ui/validated-form';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -277,7 +278,7 @@ export default function ProvidersPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
         <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.provider.Fields />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -286,14 +287,14 @@ export default function ProvidersPage() {
                 {tc('create')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingProvider && (
         <Modal title={t('edit')} onClose={() => setEditingProvider(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="name" defaultValue={editingProvider.name} required />
             <InputField label={t('contactPerson')} name="contactPerson" defaultValue={editingProvider.contactPerson} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -308,7 +309,7 @@ export default function ProvidersPage() {
                 {tc('save')}
               </button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

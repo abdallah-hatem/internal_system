@@ -12,6 +12,7 @@ import {
 import { PushAlerts } from '../../../components/settings/push-alerts';
 import { AssistantConnections } from '../../../components/settings/assistant-connections';
 import { useCodeLabel } from '@/lib/labels';
+import { ValidatedForm } from '@/components/ui/validated-form';
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -152,7 +153,7 @@ export default function SettingsPage() {
               <ShieldCheck className="h-5 w-5 text-gray-400" />
               {t('security')}
             </h2>
-            <form onSubmit={handlePasswordChange} className="space-y-4">
+            <ValidatedForm onSubmit={handlePasswordChange} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('currentPassword')}</label>
                 <input
@@ -206,7 +207,7 @@ export default function SettingsPage() {
                   {t('save')}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </section>
         </>
       )}

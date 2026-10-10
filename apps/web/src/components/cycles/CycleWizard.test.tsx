@@ -26,6 +26,7 @@ vi.mock('../../lib/api', () => ({
       if (url === `/cycles/${String(cycle?.id)}`) return ok(cycle);
       if (url.startsWith('/costing/')) return ok({ totals: { landedEgp: 0 }, items: [] });
       if (url === '/currency-rates/map') return ok({});
+      if (url === '/providers') return ok([{ id: 'prov-1', name: 'Aramex' }]);
       return ok([]);
     },
     post: (url: string, body: Body) => {
@@ -433,6 +434,21 @@ describe('the shipping step', () => {
     expect(useCycleWizardDraft.getState().legFields['cyc-1']?.fields.leg1_trackingRef).toBe(
       'TRK-SAVED',
     );
+
+    // The form checks its own required fields (it is noValidate), so it is
+    // filled the way a person must before saving: a provider and a rate per leg.
+    const unpicked = () =>
+      screen
+        .queryAllByRole('combobox')
+        .filter((b) => b.textContent?.includes(en.wizard.selectShippingProvider));
+    await waitFor(() => expect(unpicked().length).toBeGreaterThan(0));
+    for (let guard = 0; unpicked().length > 0 && guard < 5; guard++) {
+      fireEvent.click(unpicked()[0]);
+      fireEvent.click(await screen.findByRole('option', { name: /Aramex/ }));
+    }
+    document
+      .querySelectorAll<HTMLInputElement>('input[data-field$="ratePerUnit"]')
+      .forEach((input) => fireEvent.change(input, { target: { value: '2' } }));
 
     fireEvent.submit(tracking()!.form!);
     await finishButton();

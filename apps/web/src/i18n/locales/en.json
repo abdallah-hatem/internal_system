@@ -1397,5 +1397,11 @@
     "currency": "Currency",
     "fxRate": "FX rate to EGP",
     "legTotal": "Leg total"
+  },
+  "validation": {
+    "required": "Fill in the required fields.",
+    "requiredNamed": "Fill in the required fields: {fields}",
+    "invalid": "Check the highlighted fields.",
+    "invalidNamed": "Check these fields: {fields}"
   }
 }
