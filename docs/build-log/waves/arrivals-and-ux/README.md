@@ -106,3 +106,4 @@
   `lib/list-all.ts` (`useAllRecords`, cursor walk 200 at a time to 2,000, `ListCapNotice` past that). API paging fixed:
   `cursorPage()` adds `skip: 1` (each page repeated the last row) and every order ends on `id` (ties could skip a row).
   api 837 + 9 skipped, web 263 + 84. Spec 91 written, not run yet.
+- UI audit: 19 major + 19 minor ([findings](../../notes/ui-audit-2026-10-10.md)); nits logged. Fixes UF1–UF6 dispatched in parallel by file ownership; then a re-audit of the fixed screens, then the final full e2e.
