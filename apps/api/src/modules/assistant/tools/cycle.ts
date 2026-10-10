@@ -402,10 +402,12 @@ export function registerCycleTools(
         );
         return {
           summary: `Verified ${data.length} line${data.length === 1 ? '' : 's'} into stock.`,
-          data: data.map((b: { id: string; sourcePoItemId: string }) => ({
-            batchId: b.id,
-            purchaseOrderItemId: b.sourcePoItemId,
-          })),
+          data: data.map(
+            (b: { id: string; sourcePoItemId: string | null }) => ({
+              batchId: b.id,
+              purchaseOrderItemId: b.sourcePoItemId,
+            }),
+          ),
         };
       },
     },

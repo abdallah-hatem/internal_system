@@ -793,6 +793,10 @@ added for it holds in both places. These were not written down before:
   once.** A line with nothing received is not booked as an empty batch: it stays
   unreceived and can be received when it turns up. *(Guess: the BRD does not say
   what a zero line means; this keeps the record honest and loses nothing.)*
+  *Changed 2026-10-10 (§3): "each line once" and "no more than was ordered" are
+  now "a delivery line, in as many goes as it takes, never past what it brought
+  or what of the line is still waiting". A receipt whose every quantity is zero
+  is refused as receiving nothing (B3 guess).*
 - **Suppliers and SKUs, when the assistant creates them.** *(Guess.)* A supplier
   whose name matches an existing one — ignoring case, spacing, punctuation and
   "Co., Ltd." — is refused, naming the existing one. A code printed on the receipt

@@ -238,11 +238,18 @@ function fakePrisma() {
       },
       aggregate: ({ where }: Row) =>
         Promise.resolve({
-          _sum: {
-            saleableQty: db.batches
-              .filter((b) => b.productId === where.productId)
-              .reduce((s, b) => s.add(b.saleableQty), D(0)),
-          },
+          _sum: where.sourcePoItemId
+            ? {
+                // An order line's received quantity is the sum of its batches.
+                receivedQty: db.batches
+                  .filter((b) => b.sourcePoItemId === where.sourcePoItemId)
+                  .reduce((s, b) => s.add(b.receivedQty), D(0)),
+              }
+            : {
+                saleableQty: db.batches
+                  .filter((b) => b.productId === where.productId)
+                  .reduce((s, b) => s.add(b.saleableQty), D(0)),
+              },
         }),
     },
     inventoryMovement: {
@@ -450,15 +457,22 @@ beforeEach(async () => {
     createForMultipleUsers: jest.fn(),
   } as unknown as NotificationsService;
   const costing = new CostingService(prisma);
+  const cyclesService = new CyclesService(prisma, audit, notifications);
   services = {
-    cycles: new CyclesService(prisma, audit, notifications),
+    cycles: cyclesService,
     shipping: new ShippingService(
       prisma,
       audit,
       costing,
       new DeliveriesService(prisma, audit, notifications, costing),
     ),
-    inventory: new InventoryService(prisma, audit, notifications, costing),
+    inventory: new InventoryService(
+      prisma,
+      audit,
+      notifications,
+      costing,
+      cyclesService,
+    ),
   };
   const byType = new Map<unknown, unknown>([
     [CyclesService, services.cycles],
@@ -923,6 +937,17 @@ describe('verify_stock', () => {
       ],
       2.5,
     );
+    // The leg's delivery brought everything ordered: a receipt is counted in
+    // against a delivery since 2026-10-10 (BUSINESS_LOGIC §3).
+    const delivery = db.deliveries.find(
+      (d) => d.legId === db.legs.find((l) => l.cycleId === c.id)!.id,
+    )!;
+    delivery.lines = [pad, chain].map((i) => ({
+      id: randomUUID(),
+      deliveryId: delivery.id,
+      purchaseOrderItemId: i.id,
+      qty: i.orderedQty,
+    }));
     return { c, pad, chain };
   }
 
@@ -930,8 +955,11 @@ describe('verify_stock', () => {
     const { c, pad, chain } = landedCycle();
     const before = snapshot();
 
-    // 25 of the 30 chain kits arrived. The 400 EGP leg spreads over the 35
-    // pieces that came: 114.29 to the pads, 285.71 to the chains.
+    // 25 of the 30 chain kits were counted in. Changed 2026-10-10 (§2: cost
+    // per unit ORDERED): the 400 EGP leg spreads over the 40 pieces ordered,
+    // 100 to the pads and 300 to the chains, so a chain kit costs the same
+    // whether 25 or 30 came. The pads' receipt is the line's last, and takes
+    // its whole landed total.
     const args = {
       cycleId: c.id,
       items: [
@@ -944,20 +972,20 @@ describe('verify_stock', () => {
 
     expect(preview.isError).toBeFalsy();
     expect(text).toContain(
-      'Brake pad: 10 of 10 ordered, landed 21.4290 EGP/unit = 214.29 EGP',
+      'Brake pad: 10 of 10 ordered, landed 20.0000 EGP/unit = 200.00 EGP',
     );
     expect(text).toContain(
-      'Chain kit: 25 of 30 ordered, landed 17.4284 EGP/unit = 435.71 EGP',
+      'Chain kit: 25 of 30 ordered, landed 15.0000 EGP/unit = 375.00 EGP',
     );
-    expect(text).toContain('Total booked to the cycle: 650.00 EGP');
+    expect(text).toContain('Total booked to the cycle: 575.00 EGP');
     expect(structured(preview).data.lines).toEqual([
       expect.objectContaining({
-        landedUnitCostEgp: '21.4290',
-        lineCostEgp: '214.29',
+        landedUnitCostEgp: '20.0000',
+        lineCostEgp: '200.00',
       }),
       expect.objectContaining({
-        landedUnitCostEgp: '17.4284',
-        lineCostEgp: '435.71',
+        landedUnitCostEgp: '15.0000',
+        lineCostEgp: '375.00',
       }),
     ]);
     // Before anything is written.
@@ -972,12 +1000,12 @@ describe('verify_stock', () => {
     expect(
       db.batches.map((b) => [b.productId, b.landedUnitCostEgp.toFixed(4)]),
     ).toEqual([
-      [PAD, '21.4290'],
-      [CHAIN, '17.4284'],
+      [PAD, '20.0000'],
+      [CHAIN, '15.0000'],
     ]);
     expect(db.ledger.map((t) => t.amount.toFixed(2))).toEqual([
-      '214.29',
-      '435.71',
+      '200.00',
+      '375.00',
     ]);
   });
 
@@ -1021,17 +1049,19 @@ describe('verify_stock', () => {
     expect(db.ledger).toHaveLength(1);
   });
 
-  it('verifying more than was ordered → RECEIVED_EXCEEDS_ORDERED, nothing written', async () => {
+  // Changed 2026-10-10 (§3): the cap is what the delivery brought, which can
+  // never exceed what was ordered — RECEIVED_EXCEEDS_DELIVERED replaces it.
+  it('verifying more than was delivered → RECEIVED_EXCEEDS_DELIVERED, nothing written', async () => {
     const { c, pad } = landedCycle();
     const r = await call('verify_stock', {
       cycleId: c.id,
       items: [{ purchaseOrderItemId: pad.id, receivedQty: 11 }],
     });
-    expect(codeOf(r)).toBe('RECEIVED_EXCEEDS_ORDERED');
+    expect(codeOf(r)).toBe('RECEIVED_EXCEEDS_DELIVERED');
     expect(structured(r).error?.params).toMatchObject({
       product: 'Brake pad',
-      received: '11',
-      ordered: '10',
+      received: 11,
+      available: 10,
     });
     expect(db.batches).toHaveLength(0);
   });
@@ -1084,14 +1114,16 @@ describe('verify_stock', () => {
     expect(codeOf(r)).toBe('PO_ITEM_NOT_IN_CYCLE');
   });
 
-  it('a cycle not in verification → CYCLE_NOT_IN_VERIFICATION', async () => {
+  // Changed 2026-10-10 (§3, amendment 6): receiving is allowed from Arrived
+  // Egypt on, so the refusal is for a cycle not yet in Egypt.
+  it('a cycle not yet in Egypt → CYCLE_NOT_ARRIVED', async () => {
     const { c, pad } = landedCycle();
-    c.status = 'ARRIVED_EGYPT';
+    c.status = 'IN_TRANSIT_TO_EGYPT';
     const r = await call('verify_stock', {
       cycleId: c.id,
       items: [{ purchaseOrderItemId: pad.id, receivedQty: 10 }],
     });
-    expect(codeOf(r)).toBe('CYCLE_NOT_IN_VERIFICATION');
+    expect(codeOf(r)).toBe('CYCLE_NOT_ARRIVED');
   });
 
   it('an empty receipt → VALIDATION_FAILED', async () => {

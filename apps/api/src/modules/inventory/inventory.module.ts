@@ -4,9 +4,10 @@ import { InventoryService } from './inventory.service';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CostingModule } from '../costing/costing.module';
+import { CyclesModule } from '../cycles/cycles.module';
 
 @Module({
-  imports: [AuditModule, NotificationsModule, CostingModule],
+  imports: [AuditModule, NotificationsModule, CostingModule, CyclesModule],
   controllers: [InventoryController],
   providers: [InventoryService],
   exports: [InventoryService],

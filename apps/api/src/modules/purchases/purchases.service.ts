@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PaginationDto, pageSize } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
+import { isUuid } from '../../common/uuid';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -463,33 +464,34 @@ export class PurchasesService {
     return { data: item };
   }
 
+  /**
+   * PUT /purchases/items/:id.
+   *
+   * It used to set `receivedQty` outright, which is how an order line came to
+   * say 40 received while its batches held 25. Since 2026-10-10 the received
+   * quantity is the sum of the line's batches, maintained by receiving stock
+   * (§3), and is never typed: sending it is refused here, in the service, so
+   * no caller can set it (rule 3). Nothing else on a line is editable here, so
+   * a call without it changes nothing.
+   */
   async updateItem(
     id: string,
     data: { receivedQty?: number },
-    actorId: string,
+    _actorId: string,
   ) {
+    if (data && data.receivedQty !== undefined) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'receivedQty cannot be set: it is the sum of what was received into stock. Receive the delivery instead.',
+        { fields: 'receivedQty' },
+      );
+    }
+    if (!isUuid(id)) throw notFound('purchaseOrderItem');
     const existing = await this.prisma.purchaseOrderItem.findUnique({
       where: { id },
     });
     if (!existing) throw notFound('purchaseOrderItem');
-
-    const updated = await this.prisma.purchaseOrderItem.update({
-      where: { id },
-      data: {
-        receivedQty: data.receivedQty,
-      },
-    });
-
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'UPDATE_ITEM',
-      entityType: 'PurchaseOrderItem',
-      entityId: id,
-      beforeJson: existing,
-      afterJson: updated,
-    });
-
-    return { data: updated };
+    return { data: existing };
   }
 
   /**

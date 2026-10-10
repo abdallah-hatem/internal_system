@@ -421,3 +421,89 @@ test.describe('Goods cannot be counted twice on the way (§1, §3 — 2026-10-10
     expect(lost.status, lost.message).toBe(400);
   });
 });
+
+test.describe('A line costs what it cost, once; a cycle settles only when accounted (§2, §8 — 2026-10-10)', () => {
+  /**
+   * 3 spark plugs that cost nothing, shipped for 100: 33.3333 a unit, so three
+   * events at 33.33 would leave the line a piastre short. One leg departed.
+   */
+  async function threeForAHundred(request: APIRequestContext) {
+    const { headers, mk, product, supplier } = await ctx(request);
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1,
+      orderedOn: dayFromNow(-25),
+      items: [{ productId: product.id, orderedQty: 3, unitPrice: 0 }],
+    });
+    const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+      costBasis: 'FLAT', amount: 100, currency: 'EGP', fxRateToEgp: 1,
+      departedOn: dayFromNow(-20),
+    });
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const item = (full.data ?? full).purchaseOrders[0].items[0];
+    return { headers, mk, cycle, leg, item };
+  }
+
+  /** A delivery of `qty`, and the cycle walked to Arrived Egypt behind it. */
+  async function arrived(mk: any, cycle: any, leg: any, item: any, qty: number) {
+    const delivery = await mk(`shipping/legs/${leg.id}/deliveries`, {
+      arrivedOn: dayFromNow(-5), lines: [{ purchaseOrderItemId: item.id, qty }],
+    });
+    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
+      await mk(`cycles/${cycle.id}/transition`, { status });
+    }
+    return delivery;
+  }
+
+  test('TC-INV-18: batches + losses re-sum to the line’s landed total', async ({ request }) => {
+    const { headers, mk, cycle, leg, item } = await threeForAHundred(request);
+    const delivery = await arrived(mk, cycle, leg, item, 2);
+    for (let i = 0; i < 2; i++) {
+      await mk('receipts/verify', {
+        cycleId: cycle.id, deliveryId: delivery.id,
+        items: [{ deliveryLineId: delivery.lines[0].id, receivedQty: 1 }],
+      });
+    }
+    await mk(`shipping/legs/${leg.id}/losses`, {
+      lines: [{ purchaseOrderItemId: item.id, qty: 1 }],
+    });
+
+    // What each receipt cost is its ledger row; what the loss cost is its own.
+    const ledger = await (await request.get(`${API}/ledger?cycleId=${cycle.id}&limit=20`, { headers })).json();
+    const rows: any[] = ledger.data?.items ?? ledger.data ?? [];
+    const received = rows
+      .filter((t) => t.category === 'purchase' && t.relatedId === item.id)
+      .reduce((s, t) => s + Math.round(Number(t.amount) * 100), 0);
+    const shipment = (await (await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers })).json()).data;
+    const lost = shipment.legs
+      .flatMap((l: any) => l.losses)
+      .reduce((s: number, x: any) => s + Math.round(Number(x.costEgp) * 100), 0);
+    const landed = await (await request.get(`${API}/costing/cycles/${cycle.id}/landed-cost`, { headers })).json();
+    const total = Math.round(Number((landed.data ?? landed).items[0].totalLandedCostEgp) * 100);
+
+    expect(total).toBe(10000);
+    expect(received + lost, 'batches + losses must re-sum to the line total').toBe(total);
+  });
+
+  test('TC-INV-19: no settlement with goods on the way', async ({ request }) => {
+    const { headers, mk, cycle, leg, item } = await threeForAHundred(request);
+    const delivery = await arrived(mk, cycle, leg, item, 2);
+    await mk('receipts/verify', {
+      cycleId: cycle.id, deliveryId: delivery.id,
+      items: [{ deliveryLineId: delivery.lines[0].id, receivedQty: 2 }],
+    });
+
+    // One unit still on the way: neither route into settlement is open.
+    const moved = await attempt(request, headers, `cycles/${cycle.id}/transition`, { status: 'SETTLEMENT' });
+    expect(moved.status, moved.message).toBe(400);
+    const calc = await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers });
+    if (calc.ok()) {
+      const settlement = (await calc.json()).data;
+      const approved = await attempt(request, headers, `settlements/${settlement.id}/approve`, {});
+      expect(approved.status, approved.message).toBe(400);
+    }
+    const now = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    expect((now.data ?? now).status).toBe('SELLING');
+  });
+});

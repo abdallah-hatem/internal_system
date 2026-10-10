@@ -2,30 +2,92 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
-import { CostingService } from '../costing/costing.service';
+import { CostingService, lineEventCost } from '../costing/costing.service';
+import { CyclesService } from '../cycles/cycles.service';
 import { formatMoney, formatQty } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
-import { assertUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
+import { loadShipment, lockCycle } from '../../common/shipment-load';
 
-/** What a receipt of stock names: the order lines, and how many of each came. */
+type Db = Prisma.TransactionClient;
+
+/**
+ * What a receipt of stock names (BUSINESS_LOGIC §3 — DECIDED 2026-10-10).
+ *
+ * The shape: one last-leg delivery (`deliveryId`) and, per line of it, how many
+ * were counted in (`deliveryLineId`, `receivedQty`).
+ *
+ * The older shape names order lines (`purchaseOrderItemId`) and no delivery.
+ * It still works when exactly one last-leg delivery of that line is waiting to
+ * be received — which is what the fixtures, the old wizard and the assistant
+ * produce — and is otherwise refused with DELIVERY_REQUIRED, because which
+ * delivery the goods came in decides their arrival date (§14).
+ */
 export interface VerifyStockInput {
+  deliveryId?: string | null;
   items: Array<{
-    purchaseOrderItemId: string;
+    deliveryLineId?: string;
+    purchaseOrderItemId?: string;
     /** Ignored: the product is the order line's. Accepted for older callers. */
     productId?: string;
     receivedQty: number;
-    /** Optional manual override; computed from cycle costing when omitted. */
-    landedUnitCostEgp?: number;
+    /** Optional manual override, for this batch only; computed when omitted. */
+    landedUnitCostEgp?: number | null;
   }>;
 }
 
-function alreadyVerified(purchaseOrderItemId: string) {
+/** Statuses stock can be received in (§3, amendment 6). */
+const RECEIVABLE = ['ARRIVED_EGYPT', 'VERIFICATION', 'SELLING'];
+/** The walk the first receipt makes, one transition at a time. */
+const WALK = ['ARRIVED_EGYPT', 'VERIFICATION', 'SELLING'];
+
+/** Quantities compared in whole thousandths, as `shipmentPosition` sums them. */
+const milli = (q: Prisma.Decimal.Value) =>
+  Math.round(Number(new Prisma.Decimal(q).toString()) * 1000);
+
+function alreadyVerified(product: string) {
   return badRequest(
     'STOCK_ALREADY_VERIFIED',
-    `Stock already verified for purchase order item ${purchaseOrderItemId}`,
+    `Everything this delivery brought of ${product} has already been received into stock.`,
+    { product },
+  );
+}
+
+function exceedsDelivered(
+  product: string,
+  received: number,
+  available: number,
+) {
+  return badRequest(
+    'RECEIVED_EXCEEDS_DELIVERED',
+    `${received} of ${product} cannot be received: only ${available} are waiting to be received from this delivery.`,
+    { product, received, available },
+  );
+}
+
+/** Refuse a receipt on a cycle that is not in Egypt yet, or is being settled. */
+function assertReceivable(cycle: { code: string; status: string }) {
+  if (RECEIVABLE.includes(cycle.status)) return;
+  if (cycle.status === 'CANCELLED') {
+    throw badRequest(
+      'CYCLE_CLOSED',
+      `Cycle ${cycle.code} was cancelled, so nothing can be recorded on its shipment.`,
+      { cycle: cycle.code, status: cycle.status },
+    );
+  }
+  if (cycle.status === 'SETTLEMENT' || cycle.status === 'CLOSED') {
+    throw badRequest(
+      'CYCLE_SETTLING',
+      `Cycle ${cycle.code} is ${cycle.status}. Nothing is recorded on a cycle being settled; reverse the settlement first.`,
+      { cycle: cycle.code, status: cycle.status },
+    );
+  }
+  throw badRequest(
+    'CYCLE_NOT_ARRIVED',
+    `Cycle ${cycle.code} is ${cycle.status}. Stock can be received once the cycle has arrived in Egypt.`,
+    { cycle: cycle.code, status: cycle.status },
   );
 }
 
@@ -36,35 +98,29 @@ export class InventoryService {
     private audit: AuditService,
     private notifications: NotificationsService,
     private costing: CostingService,
+    private cycles: CyclesService,
   ) {}
 
   /**
-   * Every check `verifyStock` makes, and the landed cost each line will be
-   * booked at, with nothing written.
+   * Every check a receipt makes, and the landed cost each line will be booked
+   * at, with nothing written.
    *
-   * The assistant previews a receipt from this and `verifyStock` books exactly
-   * the lines it returns, so the unit cost the partner confirms is the unit cost
-   * on the batch and the amount on the ledger.
+   * The assistant previews a receipt from this, and `verifyStock` calls it
+   * again inside its transaction, under the cycle's lock, and books exactly
+   * the lines it returns — so the unit cost the partner confirms is the unit
+   * cost on the batch and the amount on the ledger.
    *
-   * The product comes from the order line, never from the caller: a batch holds
-   * what was ordered on that line, and trusting a separate product id let a
-   * receipt put one product's cost on another product's stock.
+   * What it checks against is `shipmentPosition` (rule 11): a delivery line can
+   * be received in several goes, never past what it brought, and never past
+   * what of its order line is still waiting to be received (a loss may have
+   * taken some of it).
    */
-  async planVerification(cycleId: string, data: VerifyStockInput) {
+  async planVerification(
+    cycleId: string,
+    data: VerifyStockInput,
+    db: Db = this.prisma,
+  ) {
     assertUuid(cycleId, 'cycleId');
-    const cycle = await this.prisma.importCycle.findUnique({
-      where: { id: cycleId },
-    });
-    if (!cycle) throw notFound('cycle');
-
-    if (cycle.status !== 'VERIFICATION') {
-      throw badRequest(
-        'CYCLE_NOT_IN_VERIFICATION',
-        `Cycle must be in VERIFICATION status to verify stock. Current: ${cycle.status}`,
-        { status: cycle.status },
-      );
-    }
-
     const items = Array.isArray(data?.items) ? data.items : [];
     if (items.length === 0) {
       throw badRequest(
@@ -74,83 +130,125 @@ export class InventoryService {
       );
     }
 
-    const checked: Array<{
-      poItem: {
-        id: string;
-        productId: string;
-        orderedQty: Prisma.Decimal;
-        product: { name: string };
-      };
+    const loaded = await loadShipment(db, cycleId);
+    if (!loaded) throw notFound('cycle');
+    const { cycle, position } = loaded;
+    assertReceivable(cycle);
+
+    const orderLines = new Map(
+      cycle.purchaseOrders.flatMap((po) =>
+        po.items.map((i) => [i.id, i] as const),
+      ),
+    );
+    const lastLeg = position.legs.find((l) => l.isLast);
+    const lastLegDeliveries = lastLeg?.deliveries ?? [];
+    type Delivery = (typeof lastLegDeliveries)[number];
+    type DeliveryLine = Delivery['lines'][number];
+
+    // The delivery named, when one is: it must be this cycle's, and on the
+    // leg that ends in Egypt — stock exists only there (§3).
+    let named: Delivery | undefined;
+    if (data.deliveryId !== undefined && data.deliveryId !== null) {
+      if (!isUuid(data.deliveryId)) throw notFound('shipmentDelivery');
+      named = lastLegDeliveries.find((d) => d.id === data.deliveryId);
+      if (!named) {
+        const elsewhere = position.legs.some((l) =>
+          l.deliveries.some((d) => d.id === data.deliveryId),
+        );
+        // Another cycle's delivery is "no such delivery" here.
+        if (!elsewhere) throw notFound('shipmentDelivery');
+        throw badRequest(
+          'NOT_LAST_LEG_DELIVERY',
+          'This delivery reached the UAE, not Egypt. Stock is received from deliveries on the leg that ends in Egypt.',
+        );
+      }
+    }
+
+    const resolved: {
+      delivery: Delivery;
+      line: DeliveryLine;
       qty: Prisma.Decimal;
       override: Prisma.Decimal | null;
-    }> = [];
+    }[] = [];
     const seen = new Set<string>();
 
     for (const item of items) {
-      assertUuid(item.purchaseOrderItemId, 'purchaseOrderItemId');
-      // The second copy would fail on the batch's unique source line as a 500.
-      if (seen.has(item.purchaseOrderItemId)) {
+      let delivery: Delivery;
+      let line: DeliveryLine;
+
+      if (named) {
+        if (!isUuid(item.deliveryLineId)) {
+          throw notFound('shipmentDeliveryLine');
+        }
+        const found = named.lines.find((x) => x.id === item.deliveryLineId);
+        if (!found) throw notFound('shipmentDeliveryLine');
+        delivery = named;
+        line = found;
+      } else {
+        // The older shape: an order line, and the one delivery of it waiting.
+        assertUuid(item.purchaseOrderItemId, 'purchaseOrderItemId');
+        const poId = item.purchaseOrderItemId;
+        if (!orderLines.has(poId)) {
+          const exists = await db.purchaseOrderItem.findUnique({
+            where: { id: poId },
+            select: { id: true },
+          });
+          if (!exists) throw notFound('purchaseOrderItem');
+          throw badRequest(
+            'PO_ITEM_NOT_IN_CYCLE',
+            `Purchase order item does not belong to cycle ${cycle.code}`,
+          );
+        }
+        const product = orderLines.get(poId)!.product.name;
+        const candidates = lastLegDeliveries.flatMap((d) =>
+          d.lines
+            .filter((l) => l.purchaseOrderItemId === poId)
+            .map((l) => ({ d, l })),
+        );
+        const waiting = candidates.filter(
+          ({ l }) => milli(l.qty) > milli(l.received),
+        );
+        // Nothing of it has reached Egypt: there is nothing to receive.
+        if (candidates.length === 0) {
+          throw exceedsDelivered(product, Number(item.receivedQty), 0);
+        }
+        if (waiting.length === 0) throw alreadyVerified(product);
+        if (waiting.length > 1) {
+          throw badRequest(
+            'DELIVERY_REQUIRED',
+            `${waiting.length} deliveries of ${product} are waiting to be received. Name the delivery the goods came in.`,
+            { product, deliveries: waiting.length },
+          );
+        }
+        delivery = waiting[0].d;
+        line = waiting[0].l;
+      }
+
+      // The same line twice would be one delivery counted in twice.
+      if (seen.has(line.id)) {
         throw badRequest(
           'VALIDATION_FAILED',
-          `items lists purchase order item ${item.purchaseOrderItemId} twice`,
+          'The same delivery line appears twice. Put its whole quantity on one line.',
           { fields: 'items' },
         );
       }
-      seen.add(item.purchaseOrderItemId);
+      seen.add(line.id);
 
-      // Nothing received is not a receipt: a zero batch carries a zero unit
-      // cost, and a negative one is stock that was never there.
+      // A negative count is stock that was never there. Zero is nothing
+      // received: no batch, and the line stays waiting (§15).
       const received = Number(item.receivedQty);
-      if (!Number.isFinite(received) || received <= 0) {
+      if (!Number.isFinite(received) || received < 0) {
         throw badRequest(
           'QTY_NOT_POSITIVE',
-          `receivedQty must be greater than zero (received ${String(item.receivedQty)})`,
+          `receivedQty must not be negative (received ${String(item.receivedQty)})`,
         );
-      }
-      const qty = new Prisma.Decimal(received);
-
-      // Validate PO item exists and belongs to this cycle
-      const poItem = await this.prisma.purchaseOrderItem.findUnique({
-        where: { id: item.purchaseOrderItemId },
-        include: {
-          purchaseOrder: { select: { cycleId: true } },
-          product: { select: { name: true } },
-        },
-      });
-      if (!poItem) {
-        throw notFound('purchaseOrderItem');
-      }
-      if (poItem.purchaseOrder.cycleId !== cycleId) {
-        throw badRequest(
-          'PO_ITEM_NOT_IN_CYCLE',
-          `Purchase order item does not belong to cycle ${cycleId}`,
-        );
-      }
-
-      // More than was ordered cannot have come off this order line, and would
-      // spread the line's goods cost over units nobody paid for.
-      if (qty.gt(poItem.orderedQty)) {
-        throw badRequest(
-          'RECEIVED_EXCEEDS_ORDERED',
-          `${formatQty(qty)} of ${poItem.product.name} cannot be received: only ${formatQty(poItem.orderedQty)} were ordered.`,
-          {
-            product: poItem.product.name,
-            received: formatQty(qty),
-            ordered: formatQty(poItem.orderedQty),
-          },
-        );
-      }
-
-      // Check for duplicate batch
-      const existingBatch = await this.prisma.inventoryBatch.findFirst({
-        where: { sourcePoItemId: item.purchaseOrderItemId },
-      });
-      if (existingBatch) {
-        throw alreadyVerified(item.purchaseOrderItemId);
       }
 
       let override: Prisma.Decimal | null = null;
-      if (item.landedUnitCostEgp !== undefined && item.landedUnitCostEgp !== null) {
+      if (
+        item.landedUnitCostEgp !== undefined &&
+        item.landedUnitCostEgp !== null
+      ) {
         const cost = Number(item.landedUnitCostEgp);
         if (!Number.isFinite(cost) || cost < 0) {
           throw badRequest(
@@ -162,40 +260,86 @@ export class InventoryService {
         override = new Prisma.Decimal(cost);
       }
 
-      checked.push({ poItem, qty, override });
+      resolved.push({
+        delivery,
+        line,
+        qty: new Prisma.Decimal(received),
+        override,
+      });
     }
 
-    // Derive landed unit costs for this cycle using the quantities being
-    // verified now, so shipping recorded on the cycle's legs (China->UAE and
-    // UAE->Egypt, or UAE->Egypt alone) is spread across the goods it moved.
-    const qtyOverrides: Record<string, Prisma.Decimal> = {};
-    for (const c of checked) qtyOverrides[c.poItem.id] = c.qty;
-    const costing = await this.costing.computeCycleLandedCosts(cycleId, {
-      qtyOverrides,
-    });
-    const costByPoItem = new Map(
-      costing.items.map((i) => [i.purchaseOrderItemId, i.landedUnitCostEgp]),
-    );
+    const counted = resolved.filter((r) => r.qty.gt(0));
+    if (counted.length === 0) {
+      throw badRequest(
+        'QTY_NOT_POSITIVE',
+        'Nothing was received: every quantity is zero.',
+      );
+    }
 
-    const lines = checked.map(({ poItem, qty, override }) => {
-      // Manual override wins; otherwise use the computed landed cost.
-      const unit = override ?? costByPoItem.get(poItem.id);
-      if (unit === undefined) {
+    // Never past what the delivery line brought less what was already counted
+    // in from it, and never past what of the order line is still waiting — a
+    // loss can have taken some of what a delivery brought (§1, §3).
+    for (const r of counted) {
+      const product = orderLines.get(r.line.purchaseOrderItemId)!.product.name;
+      const leftOnLine = milli(r.line.qty) - milli(r.line.received);
+      if (leftOnLine <= 0) throw alreadyVerified(product);
+      const waiting = milli(
+        position.lines.find(
+          (l) => l.purchaseOrderItemId === r.line.purchaseOrderItemId,
+        )!.waiting,
+      );
+      const available = Math.max(0, Math.min(leftOnLine, waiting));
+      if (milli(r.qty) > available) {
+        throw exceedsDelivered(product, r.qty.toNumber(), available / 1000);
+      }
+    }
+
+    // Per unit ORDERED (§2): the same for every delivery; the receipt that
+    // accounts for a line's last units takes the rounding residual.
+    const costing = await this.costing.computeCycleLandedCosts(cycleId, {
+      db,
+    });
+    const losses = cycle.shippingLegs.flatMap((l) => l.losses);
+
+    const lines = counted.map(({ delivery, line, qty, override }) => {
+      const poItem = orderLines.get(line.purchaseOrderItemId)!;
+      const costed = costing.items.find(
+        (i) => i.purchaseOrderItemId === poItem.id,
+      );
+      if (!costed) {
         throw badRequest(
           'NO_LANDED_COST',
           `Could not determine landed unit cost for purchase order item ${poItem.id}`,
         );
       }
+      const computed = lineEventCost({
+        orderedQty: poItem.orderedQty,
+        landedTotalEgp: costed.totalLandedCostEgp,
+        unitCostEgp: costed.landedUnitCostEgp,
+        priorReceivedQtys: cycle.inventoryBatches
+          .filter((b) => b.sourcePoItemId === poItem.id)
+          .map((b) => b.receivedQty),
+        priorLosses: losses.filter((x) => x.purchaseOrderItemId === poItem.id),
+        qty,
+      });
+      // A manual figure applies to this batch only (§2).
+      const unit = override ?? computed.unitCostEgp;
       return {
+        deliveryId: delivery.id,
+        deliveryLineId: line.id,
+        /** The day the delivery reached Egypt, YYYY-MM-DD (§14). */
+        arrivedOn: delivery.arrivedOn,
         purchaseOrderItemId: poItem.id,
         productId: poItem.productId,
         productName: poItem.product.name,
-        orderedQty: poItem.orderedQty,
+        orderedQty: new Prisma.Decimal(poItem.orderedQty),
         receivedQty: qty,
         landedUnitCostEgp: unit,
         costSource: override ? ('manual' as const) : ('computed' as const),
         /** What the ledger records as this line's purchase cost. */
-        lineCostEgp: unit.mul(qty).toDecimalPlaces(2),
+        lineCostEgp: override
+          ? unit.mul(qty).toDecimalPlaces(2)
+          : computed.costEgp,
       };
     });
 
@@ -210,124 +354,141 @@ export class InventoryService {
     };
   }
 
-  async verifyStock(
-    cycleId: string,
-    data: VerifyStockInput,
-    actorId: string,
-  ) {
-    const plan = await this.planVerification(cycleId, data);
+  /**
+   * POST /receipts/verify — count one last-leg delivery into stock, a batch per
+   * line, each carrying the delivery's arrival date (§3, §14).
+   *
+   * Everything happens in one transaction holding the cycle's lock: two
+   * receipts of the same delivery line sent at once would otherwise both read
+   * "15 waiting" and both be booked. With the lock the second waits, reads
+   * what the first left, and is refused.
+   *
+   * The first receipt walks the cycle on to SELLING through each transition
+   * (Arrived Egypt → Verification → Selling), so each step's own checks run;
+   * a refused step refuses the receipt, and nothing is received.
+   *
+   * Only what must stand or fall together is inside the transaction. Anything
+   * reaching for `this.prisma` from in here asks the pool for a second
+   * connection while this one is held — and `connection_limit: 1` on the
+   * deployed runtime means there is none (P2028, every time, at exactly the
+   * ceiling). Audit rows and notifications are written after the commit.
+   */
+  async verifyStock(cycleId: string, data: VerifyStockInput, actorId: string) {
+    // Before the lock: a non-uuid would otherwise fail inside the SQL cast.
+    assertUuid(cycleId, 'cycleId');
 
-    // One transaction for the writes that must stand or fall together — and
-    // ONLY those. Anything reaching for `this.prisma` from in here asks the
-    // pool for a second connection while this transaction holds the first, and
-    // `connection_limit: 1` on the deployed runtime means there is no second
-    // one to give. It waits for a connection that cannot arrive until the
-    // transaction ends, and the transaction cannot end until it returns.
-    //
-    // That deadlock is what made receiving stock impossible in production:
-    // P2028 at exactly the ceiling, every time, first at 5000 ms and then at
-    // 15008 ms when the ceiling was raised. Always exactly the limit, never
-    // near it — the shape of a hang rather than of slow work. Locally the pool
-    // is large enough to hand out a second connection, so it never happened.
-    const { batches, lowStockProducts } = await this.prisma.$transaction(async (tx) => {
-      const batches: any[] = [];
-      const lowStockProducts: any[] = [];
+    const { batches, lowStockProducts, walked } =
+      await this.prisma.$transaction(async (tx) => {
+        await lockCycle(tx, cycleId);
+        const plan = await this.planVerification(cycleId, data, tx);
 
-      for (const line of plan.lines) {
-        const item = {
-          purchaseOrderItemId: line.purchaseOrderItemId,
-          productId: line.productId,
-          receivedQty: line.receivedQty,
-        };
-        const resolvedUnitCost = line.landedUnitCostEgp;
-
-        // Checked by the plan already; checked again here because another
-        // receipt of the same line may have landed since.
-        const existingBatch = await tx.inventoryBatch.findFirst({
-          where: { sourcePoItemId: item.purchaseOrderItemId },
-        });
-        if (existingBatch) throw alreadyVerified(item.purchaseOrderItemId);
-
-        const batch = await tx.inventoryBatch.create({
-          data: {
+        const walked: Awaited<
+          ReturnType<CyclesService['transitionIn']>
+        >['plan'][] = [];
+        const from = WALK.indexOf(plan.cycle.status);
+        for (const step of WALK.slice(from + 1)) {
+          const { plan: stepPlan } = await this.cycles.transitionIn(
+            tx,
             cycleId,
-            productId: item.productId,
-            sourcePoItemId: item.purchaseOrderItemId,
-            receivedQty: item.receivedQty,
-            remainingQty: item.receivedQty,
-            saleableQty: item.receivedQty,
-            landedUnitCostEgp: resolvedUnitCost,
-            verificationStatus: 'VERIFIED',
-          },
-        });
+            step,
+          );
+          walked.push(stepPlan);
+        }
 
-        await tx.inventoryMovement.create({
-          data: {
-            batchId: batch.id,
-            movementType: 'RECEIVE',
-            qtyDelta: item.receivedQty,
-            referenceType: 'PURCHASE_ORDER_ITEM',
-            referenceId: item.purchaseOrderItemId,
-            createdBy: actorId,
-          },
-        });
+        const batches: Awaited<ReturnType<Db['inventoryBatch']['create']>>[] =
+          [];
+        const lowStockProducts: {
+          productId: string;
+          productName: string;
+          currentStock: number;
+          minStock: number;
+        }[] = [];
 
-        // Update PO item receivedQty
-        await tx.purchaseOrderItem.update({
-          where: { id: item.purchaseOrderItemId },
-          data: { receivedQty: item.receivedQty },
-        });
-
-        batches.push(batch);
-
-        // Auto-create financial transaction for purchase cost
-        const purchaseCost = line.lineCostEgp;
-        await tx.financialTransaction.create({
-          data: {
-            type: 'PURCHASE_COST',
-            category: 'purchase',
-            direction: 'OUTFLOW',
-            amount: purchaseCost,
-            currency: 'EGP',
-            cycleId,
-            relatedType: 'PURCHASE_ORDER_ITEM',
-            relatedId: item.purchaseOrderItemId,
-            reason: `Auto: ${formatQty(item.receivedQty)} units received at ${formatMoney(resolvedUnitCost)} EGP/unit landed`,
-            createdBy: actorId,
-          },
-        });
-
-        // Check for low stock
-        const product = await tx.product.findUnique({
-          where: { id: item.productId },
-        });
-        if (product?.minStock) {
-          // Calculate total stock for this product across all batches
-          const totalStockAgg = await tx.inventoryBatch.aggregate({
-            where: { productId: item.productId },
-            _sum: { saleableQty: true },
+        for (const line of plan.lines) {
+          const batch = await tx.inventoryBatch.create({
+            data: {
+              cycleId,
+              productId: line.productId,
+              sourcePoItemId: line.purchaseOrderItemId,
+              sourceDeliveryLineId: line.deliveryLineId,
+              arrivedOn: new Date(`${line.arrivedOn}T00:00:00Z`),
+              receivedQty: line.receivedQty,
+              remainingQty: line.receivedQty,
+              saleableQty: line.receivedQty,
+              landedUnitCostEgp: line.landedUnitCostEgp,
+              verificationStatus: 'VERIFIED',
+            },
           });
-          const totalStock = Number(totalStockAgg._sum.saleableQty || 0);
+          batches.push(batch);
 
-          if (totalStock < Number(product.minStock)) {
-            lowStockProducts.push({
-              productId: item.productId,
-              productName: product.name,
-              currentStock: totalStock,
-              minStock: Number(product.minStock),
+          await tx.inventoryMovement.create({
+            data: {
+              batchId: batch.id,
+              movementType: 'RECEIVE',
+              qtyDelta: line.receivedQty,
+              referenceType: 'PURCHASE_ORDER_ITEM',
+              referenceId: line.purchaseOrderItemId,
+              createdBy: actorId,
+            },
+          });
+
+          // The order line's received quantity is the sum of its batches —
+          // never set directly, never overwritten by the latest receipt.
+          const sum = await tx.inventoryBatch.aggregate({
+            where: { sourcePoItemId: line.purchaseOrderItemId },
+            _sum: { receivedQty: true },
+          });
+          await tx.purchaseOrderItem.update({
+            where: { id: line.purchaseOrderItemId },
+            data: {
+              receivedQty: sum._sum.receivedQty ?? new Prisma.Decimal(0),
+            },
+          });
+
+          await tx.financialTransaction.create({
+            data: {
+              type: 'PURCHASE_COST',
+              category: 'purchase',
+              direction: 'OUTFLOW',
+              amount: line.lineCostEgp,
+              currency: 'EGP',
+              cycleId,
+              relatedType: 'PURCHASE_ORDER_ITEM',
+              relatedId: line.purchaseOrderItemId,
+              reason: `Auto: ${formatQty(line.receivedQty)} units received at ${formatMoney(line.landedUnitCostEgp)} EGP/unit landed`,
+              createdBy: actorId,
+            },
+          });
+
+          const product = await tx.product.findUnique({
+            where: { id: line.productId },
+          });
+          if (product?.minStock) {
+            const totalStockAgg = await tx.inventoryBatch.aggregate({
+              where: { productId: line.productId },
+              _sum: { saleableQty: true },
             });
+            const totalStock = Number(totalStockAgg._sum.saleableQty || 0);
+            if (totalStock < Number(product.minStock)) {
+              lowStockProducts.push({
+                productId: line.productId,
+                productName: product.name,
+                currentStock: totalStock,
+                minStock: Number(product.minStock),
+              });
+            }
           }
         }
-      }
 
-      return { batches, lowStockProducts };
-    });
+        return { batches, lowStockProducts, walked };
+      });
 
-    // After the commit, on the connection the transaction has now released.
-    // Both of these are records of something that already happened, so they
-    // belong here on their own merit: an audit row for a receipt that rolled
-    // back would be a lie, and a low-stock alert for stock that was never
-    // landed would send somebody to look at a shelf that did not change.
+    // After the commit: records of something that already happened. An audit
+    // row for a receipt that rolled back would be a lie, and a low-stock alert
+    // for stock never landed sends somebody to look at an unchanged shelf.
+    for (const step of walked) {
+      await this.cycles.announceTransition(step, actorId);
+    }
     await this.audit.log({
       actorUserId: actorId,
       action: 'VERIFY_STOCK',
@@ -366,10 +527,10 @@ export class InventoryService {
       include: {
         product: true,
         cycle: {
-          // The legs carry the only record of when the goods physically
-          // landed. Ordered so the last one is the arrival into Egypt: a
-          // CHINA cycle has two, and the first leg arriving in the UAE is not
-          // the date anyone means by "when did this arrive".
+          // Only for batches from before deliveries (2026-10-10), which carry
+          // no arrival of their own. Ordered so the last leg is the arrival
+          // into Egypt: a CHINA cycle has two, and the first leg arriving in
+          // the UAE is not the date anyone means by "when did this arrive".
           include: {
             shippingLegs: {
               orderBy: { sequence: 'asc' },
@@ -394,34 +555,35 @@ export class InventoryService {
           batches: [],
         };
       }
-      productTotals[batch.productId].totalStock += Number(
-        batch.remainingQty,
-      );
-      productTotals[batch.productId].reservedStock += Number(
-        batch.reservedQty,
-      );
+      productTotals[batch.productId].totalStock += Number(batch.remainingQty);
+      productTotals[batch.productId].reservedStock += Number(batch.reservedQty);
       productTotals[batch.productId].availableStock += Number(
         batch.saleableQty,
       );
       // Two dates, because they answer different questions and a shop asking
       // "how old is this stock" means different things by them.
       //
-      //   arrivedOn  — when the shipment physically landed. Null until the leg
-      //                is dated, and null for stock that never had a leg.
+      //   arrivedOn  — when the delivery that brought this batch reached
+      //                Egypt (§14, 2026-10-10): the batch's own, so two
+      //                batches of one cycle can show two dates.
       //   receivedAt — when it was verified into stock and became sellable.
       //                Always present, and the one the FIFO order uses.
       //
       // They are usually days apart and occasionally weeks, which is itself
       // worth seeing: a wide gap is stock that sat before anyone booked it in.
       // Collapsing them into one "arrived" would hide exactly that.
+      //
+      // Only a batch from before deliveries, with no date of its own, falls
+      // back to the cycle's last dated leg — never the first.
       const legs = (batch.cycle as any)?.shippingLegs ?? [];
-      const lastArrival = [...legs]
-        .reverse()
-        .find((l: any) => l.arrivedOn)?.arrivedOn ?? null;
+      const arrivedOn =
+        batch.arrivedOn ??
+        [...legs].reverse().find((l: any) => l.arrivedOn)?.arrivedOn ??
+        null;
 
       productTotals[batch.productId].batches.push({
         ...batch,
-        arrivedOn: lastArrival,
+        arrivedOn,
         receivedAt: batch.createdAt,
       });
     }

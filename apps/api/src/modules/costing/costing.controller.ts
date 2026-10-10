@@ -13,7 +13,7 @@ export class CostingController {
   @Get('cycles/:cycleId/landed-cost')
   @ApiOperation({
     summary:
-      'Landed cost per purchased item for a cycle, with shipping allocated across legs by piece or weight',
+      'Landed cost per purchased item for a cycle, per unit ordered, with shipping allocated across legs by piece or weight',
   })
   async cycleLandedCost(@Param('cycleId') cycleId: string) {
     const r = await this.costing.computeCycleLandedCosts(cycleId);
@@ -37,13 +37,17 @@ export class CostingController {
         purchaseOrderItemId: i.purchaseOrderItemId,
         productId: i.productId,
         productName: i.productName,
+        // Per unit ORDERED (§2, 2026-10-10): every batch and loss on the line
+        // is costed at landedUnitCostEgp, whichever delivery brought it.
         qty: i.qty.toFixed(3),
+        orderedQty: i.qty.toFixed(3),
         weightKg: i.weightKg ? i.weightKg.toFixed(3) : null,
         goodsCostEgp: i.goodsCostEgp.toFixed(2),
         shippingCostEgp: i.shippingCostEgp.toFixed(2),
         totalLandedCostEgp: i.totalLandedCostEgp.toFixed(2),
         landedUnitCostEgp: i.landedUnitCostEgp.toFixed(4),
       })),
+      basis: 'ordered' as const,
       warnings: r.warnings,
     };
   }

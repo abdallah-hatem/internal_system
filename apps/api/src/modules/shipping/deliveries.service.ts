@@ -3,7 +3,7 @@ import type { Prisma, ShipmentLoss } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { CostingService } from '../costing/costing.service';
+import { CostingService, lineEventCost } from '../costing/costing.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertNotFuture, businessDay } from '../../common/dates';
 import { isUuid } from '../../common/uuid';
@@ -457,25 +457,38 @@ export class DeliveriesService {
         }
       }
 
-      // The costing service's per-unit figure (B3 makes it per ordered unit),
-      // read in this transaction so a one-connection pool does not wait on
-      // itself.
+      // The costing service's per-ORDERED-unit figure (§2), read in this
+      // transaction so a one-connection pool does not wait on itself.
       const costs = await this.costing.computeCycleLandedCosts(leg.cycleId, {
         db: tx,
       });
+      const allLosses = cycle.shippingLegs.flatMap((l) => l.losses);
       const losses: ShipmentLoss[] = [];
       for (const line of lines) {
-        const unit = costs.items.find(
+        const item = costs.items.find(
           (i) => i.purchaseOrderItemId === line.purchaseOrderItemId,
-        )!.landedUnitCostEgp;
+        )!;
+        // The full unit cost on any leg; the loss that accounts for the
+        // line's last units takes the rounding residual (amendment 9).
+        const { unitCostEgp, costEgp } = lineEventCost({
+          orderedQty: item.qty,
+          landedTotalEgp: item.totalLandedCostEgp,
+          unitCostEgp: item.landedUnitCostEgp,
+          priorReceivedQtys: cycle.inventoryBatches
+            .filter((b) => b.sourcePoItemId === line.purchaseOrderItemId)
+            .map((b) => b.receivedQty),
+          priorLosses: allLosses.filter(
+            (x) => x.purchaseOrderItemId === line.purchaseOrderItemId,
+          ),
+          qty: line.qty,
+        });
         const loss = await tx.shipmentLoss.create({
           data: {
             legId,
             purchaseOrderItemId: line.purchaseOrderItemId,
             qty: line.qty,
-            unitCostEgp: unit,
-            // Decimal throughout; its default rounding is half up.
-            costEgp: unit.mul(line.qty).toDecimalPlaces(2),
+            unitCostEgp,
+            costEgp,
             reason: body.reason ?? null,
             createdBy: actorId,
           },

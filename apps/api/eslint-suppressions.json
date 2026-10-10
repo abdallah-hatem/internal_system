@@ -20,9 +20,6 @@
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
-    },
-    "prettier/prettier": {
-      "count": 84
     }
   },
   "src/common/api-error.spec.ts": {
@@ -427,35 +424,23 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 1
     }
   },
   "src/modules/inventory/inventory.service.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 6
+      "count": 4
     },
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 6
+      "count": 5
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
-    "prettier/prettier": {
-      "count": 85
+      "count": 9
     }
   },
   "src/modules/ledger/dto/ledger.dto.ts": {
@@ -906,9 +891,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
-    },
-    "prettier/prettier": {
-      "count": 35
     }
   },
   "src/modules/shipping/dto/shipping-leg.dto.ts": {

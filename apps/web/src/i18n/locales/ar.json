@@ -811,6 +811,7 @@
       "orderRequest": "طلب شراء",
       "assistantConnection": "اتصال Claude",
       "shipmentDelivery": "دفعة الوصول",
+      "shipmentDeliveryLine": "بند دفعة الوصول",
       "shipmentLoss": "الفقد"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
@@ -834,7 +835,6 @@
     "CUSTOMER_REQUIRED": "اختر العميل أولًا.",
     "CYCLE_CLOSED_NO_PARTICIPANTS": "لا يمكن إضافة مشاركين إلى دورة مُغلقة.",
     "CYCLE_HAS_UNSOLD_STOCK": "لا تزال الدورة {cycle} تحتفظ بـ {units} وحدة بقيمة {value} ج.م بالتكلفة النهائية. الإغلاق الآن يُحمّل هذه التكلفة على هذه الدورة — بِع المخزون المتبقي أولًا، أو أكّد لقبول ذلك.",
-    "CYCLE_NOT_IN_VERIFICATION": "لا يمكن التحقق من المخزون إلا أثناء مرحلة التحقق. الحالة الآن {status}.",
     "CYCLE_NO_PARTICIPANTS": "لا يوجد مشاركون في هذه الدورة لتسويتها.",
     "CYCLE_STATUS_BLOCKS_PO": "لا يمكن إنشاء أمر شراء إلا أثناء التخطيط أو التمويل أو الشراء. الحالة الآن {status}.",
     "DATE_IN_FUTURE": "لا يمكن أن يكون {label} في المستقبل ({day}).",
@@ -889,7 +889,7 @@
     "SETTLEMENT_LOCKED": "هذه الدورة لديها تسوية بحالة {status}. اعكسها قبل إعادة الاحتساب.",
     "SETTLEMENT_REASON_REQUIRED": "اذكر سبب عكس هذه التسوية.",
     "SPLIT_NOT_100": "يجب أن يكون مجموع نسب الأرباح 100، ومجموعها الآن {total}.",
-    "STOCK_ALREADY_VERIFIED": "تم التحقق من مخزون هذا البند بالفعل.",
+    "STOCK_ALREADY_VERIFIED": "تم استلام كل ما وصل من {product} في دفعة الوصول هذه إلى المخزون بالفعل.",
     "SUPPLIER_HAS_ORDERS": "هذا المورّد لديه {count} أمر شراء ولا يمكن حذفه.",
     "SUPPLIER_HAS_PRODUCTS": "هذا المورّد مرتبط بـ {count} منتج ولا يمكن حذفه.",
     "UAE_DIRECT_LEG_ROUTE": "الدورة الإماراتية المباشرة تُشحن من الإمارات إلى مصر.",
@@ -949,7 +949,6 @@
     "PO_HAS_OTHER_INVOICE": "أمر الشراء {reference} مسجل عليه الفاتورة {invoice} بالفعل؛ سجّل {ref} كأمر منفصل.",
     "CYCLE_STATUS_CHANGED": "الدورة {cycle} أصبحت الآن {status} وليست {expected}. لم يتغير شيء — اعرض المعاينة مرة أخرى.",
     "CYCLE_FINAL_NO_LEGS": "الدورة {cycle} في حالة {status}، لذا لا يمكن إضافة مرحلة شحن إليها.",
-    "RECEIVED_EXCEEDS_ORDERED": "لا يمكن استلام {received} من {product}: الكمية المطلوبة {ordered} فقط.",
     "PREVIEW_CHANGED": "تغيّر ما سيُحفظ منذ المعاينة. لم يُحفظ شيء — اعرض المعاينة الجديدة وأكّدها.",
     "CYCLE_CLOSED": "تم إلغاء الدورة {cycle}، لذلك لا يمكن تسجيل أي شيء على شحنتها.",
     "CYCLE_SETTLING": "الدورة {cycle} قيد التسوية أو مغلقة، لذلك لا يمكن تسجيل أي شيء على شحنتها. ألغِ التسوية أولًا.",
@@ -957,7 +956,12 @@
     "DELIVERY_EXCEEDS_IN_TRANSIT": "في الطريق {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل وصول {asked}.",
     "DELIVERY_IN_USE": "لا يمكن حذف دفعة الوصول هذه: تم استلام مخزون منها، أو نقلت مرحلة لاحقة بضاعتها، أو تقدّمت الدورة بسببها.",
     "LEG_COST_LOCKED": "تم استلام بضاعة من الدورة {cycle} أو تسجيلها مفقودة، لذلك أصبحت تكلفة هذه المرحلة ثابتة. سجّل أي رسوم متأخرة أو مصحّحة كمصروف على الدورة.",
-    "LOSS_EXCEEDS_IN_TRANSIT": "المتبقي {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل {asked} كمفقودة."
+    "LOSS_EXCEEDS_IN_TRANSIT": "المتبقي {onTheWay} فقط من {line}، لذلك لا يمكن تسجيل {asked} كمفقودة.",
+    "CYCLE_NOT_ARRIVED": "الدورة {cycle} في حالة {status}. يمكن استلام المخزون بعد وصول الدورة إلى مصر.",
+    "NOT_LAST_LEG_DELIVERY": "دفعة الوصول هذه وصلت إلى الإمارات وليس إلى مصر. يُستلم المخزون من دفعات الوصول على المرحلة التي تنتهي في مصر.",
+    "DELIVERY_REQUIRED": "هناك {deliveries} دفعات وصول من {product} بانتظار الاستلام. اختر دفعة الوصول التي جاءت فيها البضاعة.",
+    "RECEIVED_EXCEEDS_DELIVERED": "لا يمكن استلام {received} من {product}: المتبقي بانتظار الاستلام من دفعة الوصول هذه {available} فقط.",
+    "SHIPMENT_NOT_ACCOUNTED": "لا يمكن تسوية الدورة {cycle} بعد: لا تزال {onTheWay} وحدة في الطريق و{waiting} وصلت ولم تُستلم، في {lines} بند. استلمها أو سجّلها كمفقودة أولًا."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

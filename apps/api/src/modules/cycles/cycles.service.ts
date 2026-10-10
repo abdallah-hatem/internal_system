@@ -13,7 +13,12 @@ import { assertUuid, isUuid } from '../../common/uuid';
 import {
   legsThatMustHaveDelivered,
   loadShipment,
+  lockCycle,
 } from '../../common/shipment-load';
+import { assertShipmentAccounted } from '../../common/shipment-accounted';
+
+/** A client to read and write in: the service's own, or a caller's transaction. */
+type Db = Prisma.TransactionClient;
 import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
 // Valid state transitions per the spec
@@ -432,11 +437,12 @@ export class CyclesService {
    * the same answer deleting a delivery reads.
    */
   private async assertShippingReached(
+    db: Pick<Db, 'shippingLeg'>,
     cycleId: string,
     originType: string,
     targetStatus: string,
   ) {
-    const legs = await this.prisma.shippingLeg.findMany({
+    const legs = await db.shippingLeg.findMany({
       where: { cycleId },
       orderBy: { sequence: 'asc' },
       select: {
@@ -502,10 +508,19 @@ export class CyclesService {
   async planTransition(
     id: string,
     targetStatus: string,
-    opts: { expectedFrom?: string } = {},
+    opts: {
+      expectedFrom?: string;
+      /**
+       * The transaction to read in, when the caller holds one (and the
+       * cycle's lock). On a one-connection pool a read on `this.prisma` from
+       * inside a transaction waits for the connection that transaction holds.
+       */
+      db?: Db;
+    } = {},
   ) {
     assertUuid(id, 'cycleId');
-    const cycle = await this.prisma.importCycle.findUnique({ where: { id } });
+    const db = opts.db ?? this.prisma;
+    const cycle = await db.importCycle.findUnique({ where: { id } });
     if (!cycle) throw notFound('cycle');
 
     if (opts.expectedFrom && cycle.status !== opts.expectedFrom) {
@@ -541,7 +556,13 @@ export class CyclesService {
       );
     }
 
-    await this.assertShippingReached(id, cycle.originType, targetStatus);
+    await this.assertShippingReached(db, id, cycle.originType, targetStatus);
+
+    // Every unit ordered received or marked lost before the cycle settles
+    // (§8, amendment 5) — the same helper settlement `approve` calls.
+    if (targetStatus === 'SETTLEMENT') {
+      await assertShipmentAccounted(db, id);
+    }
 
     /**
      * Leaving PURCHASING is the moment the orders were actually placed.
@@ -567,7 +588,7 @@ export class CyclesService {
       cycle.status === 'PURCHASING' && targetStatus !== 'CANCELLED';
 
     const drafts = leavingPurchasing
-      ? await this.prisma.purchaseOrder.findMany({
+      ? await db.purchaseOrder.findMany({
           where: { cycleId: id, status: 'DRAFT' },
           include: {
             _count: { select: { items: true } },
@@ -612,33 +633,68 @@ export class CyclesService {
     actorId: string,
     opts: { expectedFrom?: string } = {},
   ) {
-    const { cycle, leavingPurchasing } = await this.planTransition(
-      id,
-      targetStatus,
-      opts,
-    );
+    // Before the lock: a non-uuid would otherwise fail inside the SQL cast.
+    assertUuid(id, 'cycleId');
 
     // One transaction, so a cycle cannot advance while its orders stay drafts.
-    // Nothing else is called from inside it — the audit log and the
-    // notifications below are separate connections and deadlock against this
-    // one if they are pulled in.
-    const updated = await this.prisma.$transaction(async (tx) => {
-      if (leavingPurchasing) {
-        await tx.purchaseOrder.updateMany({
-          where: { cycleId: id, status: 'DRAFT' },
-          data: { status: 'CONFIRMED' },
-        });
-      }
-
-      return tx.importCycle.update({
-        where: { id },
-        data: {
-          status: targetStatus as any,
-          closedOn: targetStatus === 'CLOSED' ? new Date() : undefined,
-        },
-      });
+    // It holds the cycle's lock while it checks and writes, so a delivery
+    // deleted or a loss taken back at the same moment cannot slip past the
+    // shipment gates — the settlement gate above all (§8). Nothing else is
+    // called from inside it — the audit log and the notifications below are
+    // separate connections and deadlock against this one if they are pulled in.
+    const { plan, updated } = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, id);
+      return this.transitionIn(tx, id, targetStatus, opts);
     });
 
+    await this.announceTransition(plan, actorId);
+    return { data: updated };
+  }
+
+  /**
+   * One status change inside a caller's transaction, which already holds the
+   * cycle's lock: every check `planTransition` makes, then its writes. The
+   * caller runs `announceTransition` once the transaction has committed.
+   *
+   * `transition` is one caller. Receiving stock is the other: the first
+   * receipt walks a cycle from Arrived Egypt through Verification to Selling
+   * one step at a time through this, so each step's own checks and side
+   * effects run (§3, amendment 6).
+   */
+  async transitionIn(
+    tx: Db,
+    id: string,
+    targetStatus: string,
+    opts: { expectedFrom?: string } = {},
+  ) {
+    const plan = await this.planTransition(id, targetStatus, {
+      ...opts,
+      db: tx,
+    });
+    if (plan.leavingPurchasing) {
+      await tx.purchaseOrder.updateMany({
+        where: { cycleId: id, status: 'DRAFT' },
+        data: { status: 'CONFIRMED' },
+      });
+    }
+
+    const updated = await tx.importCycle.update({
+      where: { id },
+      data: {
+        status: targetStatus as any,
+        closedOn: targetStatus === 'CLOSED' ? new Date() : undefined,
+      },
+    });
+    return { plan, updated };
+  }
+
+  /** The audit row and the participants' notification for a committed change. */
+  async announceTransition(
+    plan: { cycle: { id: string; code: string; status: string }; to: string },
+    actorId: string,
+  ) {
+    const { cycle, to: targetStatus } = plan;
+    const id = cycle.id;
     await this.audit.log({
       actorUserId: actorId,
       action: 'TRANSITION',
@@ -669,8 +725,6 @@ export class CyclesService {
         },
       });
     }
-
-    return { data: updated };
   }
 
   // ─── Participants ─────────────────────────────────────────────

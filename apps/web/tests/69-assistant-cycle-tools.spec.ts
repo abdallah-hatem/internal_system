@@ -345,7 +345,8 @@ test.describe('verify_stock', () => {
     const { cycle, poItem } = await cycleAwaitingVerification(request, headers, mk);
 
     for (const [qty, code] of [
-      [41, 'RECEIVED_EXCEEDS_ORDERED'],
+      // Changed 2026-10-10 (B3, §3): the cap is what the delivery brought.
+      [41, 'RECEIVED_EXCEEDS_DELIVERED'],
       [0, 'QTY_NOT_POSITIVE'],
       [-5, 'QTY_NOT_POSITIVE'],
     ] as const) {
