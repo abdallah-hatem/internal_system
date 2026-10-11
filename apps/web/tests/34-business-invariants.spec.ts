@@ -19,6 +19,7 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
 import { psqlStdin } from './support/database';
+import { leftoverWorld } from './support/leftovers';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -1487,5 +1488,86 @@ test.describe('A cycle a friend paid for entirely splits its profit equally amon
     }
     const preview = (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;
     expect(partners.map((p: any) => preview.lines.find((l: any) => l.participantId === p.id).payoutEgp)).toEqual(['45000.00', '27000.00', '18000.00']);
+  });
+});
+
+// ─── L5: leftover stock moved to another cycle at its cost (§8) ──────────
+
+test.describe('Leftovers moved between cycles (L5, §8)', () => {
+  const dashboard = async (request: APIRequestContext, headers: any) =>
+    (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
+  const preview = async (request: APIRequestContext, headers: any, id: string) =>
+    (await (await request.get(`${API}/settlements/preview/${id}`, { headers })).json()).data;
+  const profitability = async (request: APIRequestContext, headers: any, id: string) =>
+    ((await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data as any[]).find((c) => c.cycleId === id);
+
+  test('TC-INV-51: value is conserved — what leaves A at cost is exactly what B funds and what each side of the ledger pair says; A’s profit does not move; five moves at once never take more than the shelf', async ({ request }) => {
+    const { headers, a, b, pad } = await leftoverWorld(request, 'Inv L5 Conserve');
+    const before = await preview(request, headers, a.id);
+    expect(before.grossProfitEgp).toBe('1000.00'); // 10 × (200 − 100): not zero (§10)
+    const fundB = async () => Number((await (await request.get(`${API}/costing/cycles/${b.id}/landed-cost`, { headers })).json()).totals.toFundEgp);
+    const fundBefore = await fundB();
+
+    // Five moves of 20 from a shelf of 30, sent at once: one stands.
+    const send = () => request.post(`${API}/cycles/${a.id}/transfers`, { headers, data: { toCycleId: b.id, reason: 'race', lines: [{ productId: pad.id, qty: 20 }] } });
+    const results = await Promise.all([send(), send(), send(), send(), send()]);
+    const ok = results.filter((r) => r.ok());
+    expect(ok, (await Promise.all(results.map((r) => r.text()))).join(' | ')).toHaveLength(1);
+    for (const refused of results.filter((r) => !r.ok())) {
+      expect((await refused.json()).error.code).toBe('TRANSFER_MORE_THAN_ON_SHELF');
+    }
+    const moved = (await ok[0].json()).data;
+
+    const after = await preview(request, headers, a.id);
+    expect(after.grossProfitEgp).toBe(before.grossProfitEgp);
+    expect(Number(before.unsoldValueEgp) - Number(after.unsoldValueEgp)).toBe(2000);
+    expect(moved.totalCostEgp).toBe('2000.00');
+    expect((await fundB()) - fundBefore).toBe(2000);
+    const ledger = async (cycleId: string) =>
+      ((await (await request.get(`${API}/ledger?cycleId=${cycleId}&limit=200`, { headers })).json()).data as any[])
+        .filter((r) => r.category === 'cycle_transfer')
+        .map((r) => [r.direction, Number(r.amount), r.accountId ?? null]);
+    expect(await ledger(a.id)).toEqual([['INFLOW', 2000, null]]);
+    expect(await ledger(b.id)).toEqual([['OUTFLOW', 2000, null]]);
+    expect((await profitability(request, headers, a.id)).profit).toBe(1000);
+  });
+
+  test('TC-INV-52: the business’s cash in, cash out, cash on hand and net profit are the same before a move, after it, and after undoing it', async ({ request }) => {
+    const { headers, mk, a, b, pad } = await leftoverWorld(request, 'Inv L5 Cash');
+    const pick = (d: any) => [d.totalCashIn, d.totalCashOut, d.cashOnHand, d.netProfit, d.inventoryValue];
+    const before = pick(await dashboard(request, headers));
+    const t = await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'cash', lines: [{ productId: pad.id, qty: 30 }] });
+    expect(pick(await dashboard(request, headers))).toEqual(before);
+    await mk(`stock-transfers/${t.id}/undo`, { reason: 'back' });
+    expect(pick(await dashboard(request, headers))).toEqual(before);
+  });
+
+  test('TC-INV-53: after B sells moved units, preview, approve, the partners page and analytics agree — for A and for B', async ({ request }) => {
+    const { headers, mk, a, b, pad, customer } = await leftoverWorld(request, 'Inv L5 Agree', { bFunding: 3000 });
+    await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'agree', lines: [{ productId: pad.id, qty: 30 }] });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: pad.id, quantity: 5, unitPrice: 300, discount: 0 }],
+    });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+
+    const participation: any[] = (await (await request.get(`${API}/users/participation`, { headers })).json()).data;
+    for (const [cycle, profit] of [[a, 1000], [b, 1000]] as const) {
+      const pr = await preview(request, headers, cycle.id);
+      expect(pr.grossProfitEgp, cycle.code).toBe(`${profit}.00`); // B: 5 × (300 − 100)
+      expect((await profitability(request, headers, cycle.id)).profit, cycle.code).toBe(profit);
+      const accrued = participation
+        .flatMap((u) => u.cycles.filter((c: any) => c.id === cycle.id))
+        .reduce((s: number, c: any) => s + c.accruedProfitEgp, 0);
+      expect(accrued, cycle.code).toBe(profit);
+    }
+    // B's units still on the shelf are its own unsold stock, at A's cost.
+    expect((await preview(request, headers, b.id)).unsoldValueEgp).toBe('2500.00');
+
+    // Approve A: the same figures are settled, and it has nothing to write off.
+    const draft = await mk(`settlements/calculate/${a.id}`, {});
+    const approved = (await (await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} })).json()).data;
+    expect(Number(approved.grossProfitEgp)).toBe(1000);
+    expect(Number(approved.unitsRemaining)).toBe(0);
   });
 });
