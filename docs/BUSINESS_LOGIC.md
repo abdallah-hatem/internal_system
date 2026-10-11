@@ -223,7 +223,7 @@ FX rate; everything lands in EGP.
 **DECIDED 2026-10-11 (owner) — opening a cycle opens its page, and its status
 is changed there.** Clicking a cycle on the list, as a table row or a phone card,
 always opens the cycle's details page, whatever its status. A cycle still being
-set up (planning through arrived Egypt) is resumed in the wizard by a separate
+set up (planning through purchasing, since 2026-10-12 — see below) is resumed in the wizard by a separate
 **Continue setup**, shown on the row, the card and the details header, and only
 to a role that may write a cycle (a core partner); the wizard links back to the
 cycle. Moving a cycle to another status is a **Change status** button on the
@@ -233,6 +233,16 @@ somewhere to go; it offers exactly the moves the server allows (the table in
 the shipment's dates do not support (table above). The list has no status
 control: the slide-over that held it could no longer be reached once a row
 opened the details page, and was removed.
+
+**DECIDED 2026-10-12 (owner) — the wizard is for setting a cycle up; it stops
+when the goods leave.** *Built 2026-10-12.* The wizard's statuses are Planning,
+Funding and Purchasing (`WIZARD_STATUSES`, `components/cycles/wizard-walk.ts`).
+Continue setup is shown only in those, and a wizard opened on a cycle past
+them — from a bookmark, a typed address, an old link — sends the reader to
+the cycle's page and writes nothing. From In transit on, departures,
+deliveries, another leg and a leg's cost are the cycle page's work (below).
+Guess, open until confirmed (autonomous run, 2026-10-12): a cycle moved back
+into Purchasing by Change status is set up again, so Continue setup returns.
 
 **DECIDED 2026-10-11 (owner, I3) — a leg's departure and its deliveries are
 recorded from the cycle's page.** Each leg's header in the details page's

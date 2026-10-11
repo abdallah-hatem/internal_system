@@ -191,14 +191,27 @@ describe('finishing the wizard', () => {
     expect(writes.some((w) => w.url.includes('/receipts'))).toBe(false);
   });
 
-  it('a departed leg with no delivery does not reach an arrival status', async () => {
-    cycle = chinaCycle({
-      status: 'IN_TRANSIT',
-      shippingLegs: [leg(1, { departedOn: '2026-09-01', status: 'IN_TRANSIT' }), leg(2)],
-    });
+  it('a cycle whose goods have left is not set up any more: the wizard sends it to its page and writes nothing (owner, 2026-10-12)', async () => {
+    for (const status of ['IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
+      replace.mockReset();
+      writes.length = 0;
+      cycle = chinaCycle({
+        status,
+        shippingLegs: [leg(1, { departedOn: '2026-09-01', status: 'IN_TRANSIT' }), leg(2)],
+      });
+      renderWizard('cyc-1');
+      await waitFor(() => expect(replace, status).toHaveBeenCalledWith('/en/cycles/cyc-1/details'));
+      expect(screen.queryByRole('button', { name: /^finish$/i }), status).toBeNull();
+      expect(writes, status).toEqual([]);
+      cleanup();
+    }
+  });
+
+  it('a cycle still purchasing opens in the wizard as before', async () => {
+    cycle = chinaCycle({ status: 'PURCHASING' });
     renderWizard('cyc-1');
-    await finish();
-    expect(transitions()).toEqual([]);
+    expect(await finishButton()).toBeTruthy();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it('the second time: a cycle already as far as its dates go is not moved again', async () => {

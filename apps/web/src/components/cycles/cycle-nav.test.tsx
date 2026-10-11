@@ -140,9 +140,25 @@ function wrap(ui: ReactNode) {
   );
 }
 
-const NOT_WIZARD = ['VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED', 'CANCELLED'];
+// The wizard is for setting a cycle up and stops when the goods leave (owner,
+// 2026-10-12): from In transit on, the cycle page is where it is worked on.
+const NOT_WIZARD = [
+  'IN_TRANSIT',
+  'ARRIVED_UAE',
+  'IN_TRANSIT_TO_EGYPT',
+  'ARRIVED_EGYPT',
+  'VERIFICATION',
+  'SELLING',
+  'SETTLEMENT',
+  'CLOSED',
+  'CANCELLED',
+];
 
 describe('Continue setup', () => {
+  it('the wizard statuses are exactly planning, funding and purchasing', () => {
+    expect([...WIZARD_STATUSES]).toEqual(['PLANNING', 'FUNDING', 'PURCHASING']);
+  });
+
   it('is offered for every wizard status to a role that may write the cycle, and goes to the wizard', () => {
     for (const status of WIZARD_STATUSES) {
       wrap(<ContinueSetupLink cycleId="c-1" status={status} />);
