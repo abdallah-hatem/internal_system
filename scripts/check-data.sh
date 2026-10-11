@@ -318,6 +318,17 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM financial_transactions f
    WHERE f.related_type = 'STOCK_TRANSFER'
      AND NOT EXISTS (SELECT 1 FROM stock_transfers t WHERE t.id = f.related_id)
+  -- A manual entry (§9, L6 2026-10-11): the kind fixes the direction, the
+  -- amount is above zero and the day has arrived. Rows from before L6 have no
+  -- occurred_on and were free text, so they are left alone.
+  UNION ALL SELECT 21, 'manual ledger entry with the wrong direction, no amount or a future date',
+         count(*) FROM financial_transactions t
+   WHERE t.occurred_on IS NOT NULL AND t.reversal_of_id IS NULL
+     AND t.type IN ('EXPENSE', 'OTHER_INCOME')
+     AND ((t.type = 'EXPENSE' AND t.direction <> 'OUTFLOW')
+       OR (t.type = 'OTHER_INCOME' AND t.direction <> 'INFLOW')
+       OR t.amount <= 0
+       OR t.occurred_on > (now() AT TIME ZONE 'Africa/Cairo')::date)
 SQL
 )
 

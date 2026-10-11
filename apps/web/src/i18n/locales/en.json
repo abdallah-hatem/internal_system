@@ -303,6 +303,8 @@
     "goToShipments": "Go to shipments",
     "noBatchesTitle": "Nothing received into stock yet",
     "noBatchesHint": "Stock appears here once a delivery from this cycle is received.",
+    "profitExpenses": "Expenses charged to it",
+    "profitOtherIncome": "Other income",
     "movedInAtCost": "+ moved in at cost"
   },
   "purchases": {
@@ -660,7 +662,31 @@
     "entryCreated": "Entry created successfully",
     "entryReversed": "Entry reversed successfully",
     "emptyTitle": "No ledger entries yet",
-    "emptyHint": "Money in and out — payments, expenses and contributions land here."
+    "emptyHint": "Money in and out — payments, expenses and contributions land here.",
+    "recordTitle": "Record money in or out",
+    "whatIsIt": "What is it?",
+    "kindExpense": "An expense",
+    "kindExpenseHint": "Money we spent",
+    "kindIncome": "Other income",
+    "kindIncomeHint": "Money in that isn't a sale, a customer payment, a contribution or a refund",
+    "chooseCategory": "Choose a category",
+    "chargeToCycle": "Charge to a cycle",
+    "optional": "(optional)",
+    "noCycle": "No cycle — the business as a whole",
+    "cycleRequiredHint": "Extra freight is a cost of one cycle’s goods, so it needs its cycle.",
+    "occurredOn": "Date",
+    "note": "Note",
+    "notePlaceholder": "What it was for",
+    "allCategories": "All categories",
+    "otherIncome": "Other income",
+    "originalAmount": "Paid as",
+    "recordFailed": "The entry was not saved.",
+    "capitalContribution": "Capital",
+    "lenderFinancing": "A friend's payment",
+    "lenderRepayment": "Repayment to a friend",
+    "stockTransfer": "Leftovers moved",
+    "stockTransferReversal": "Leftovers move undone",
+    "chooseCycle": "Choose the cycle"
   },
   "settlements": {
     "title": "Settlements",
@@ -1272,6 +1298,15 @@
     "LENDER_PLAN_EXISTS": "This already has an active plan. Cancel it before agreeing another.",
     "LENDER_PLAN_EXCEEDS_OWED": "The instalments total {total} {currency} but only {owed} is owed.",
     "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for.",
+    "LEDGER_CATEGORY_NOT_MANUAL": "“{category}” is not a category a manual entry can use. Choose one from the list.",
+    "LEDGER_CATEGORY_WRONG_KIND": "{category} is not {kind}.",
+    "LEDGER_DIRECTION_MISMATCH": "This is {kind}, so it cannot be recorded as {direction}.",
+    "LEDGER_TYPE_NOT_MANUAL": "A {type} entry is written by its own flow, not by hand.",
+    "LEDGER_AMOUNT_NOT_POSITIVE": "An amount must be more than zero.",
+    "LEDGER_RATE_NOT_POSITIVE": "The rate from {currency} to EGP must be more than zero.",
+    "LEDGER_EGP_RATE": "An amount in pounds converts to pounds at 1.",
+    "LEDGER_CYCLE_REQUIRED": "{category} is a cost of one cycle’s goods — choose the cycle it belongs to.",
+    "LEDGER_CYCLE_NOT_OPEN": "Cycle {cycle} is {status}, so nothing more can be charged to it.",
     "TRANSFER_SOURCE_NOT_SELLING": "Cycle {cycle} is {status}. Leftovers can be moved only from a cycle that is selling or being settled.",
     "TRANSFER_SOURCE_PAID": "Cycle {cycle} has been paid out; its stock can no longer move.",
     "TRANSFER_SOURCE_NOT_ACCOUNTED": "Cycle {cycle} still has {onTheWay} unit(s) on the way and {waiting} delivered but not received; account for every unit before moving leftovers.",
@@ -1554,6 +1589,7 @@
       "DELIVERY": "A delivery date",
       "LENDER_PAID": "The date a friend paid a supplier",
       "LENDER_REPAID": "The date a friend was repaid",
+      "LEDGER_ENTRY": "The date of a ledger entry",
       "STOCK_MOVED": "The date leftover stock was moved"
     },
     "country": {
@@ -1570,6 +1606,40 @@
       "DE": "Germany",
       "US": "United States",
       "TH": "Thailand"
+    },
+    "ledgerCategory": {
+      "rent": "Rent",
+      "salaries": "Salaries",
+      "utilities": "Utilities",
+      "transport_delivery": "Transport and delivery",
+      "packaging": "Packaging",
+      "marketing": "Marketing",
+      "bank_fees": "Bank fees",
+      "customs_clearance": "Customs and clearance",
+      "extra_freight": "Extra freight (for a cycle)",
+      "other_expense": "Other",
+      "other_income": "Other income",
+      "interest": "Interest",
+      "income_other": "Other",
+      "purchase": "Purchase",
+      "shipping": "Shipping",
+      "settlement": "Settlement payout",
+      "contribution": "Capital",
+      "lender_financing": "A friend's payment",
+      "lender_repayment": "Repayment to a friend",
+      "supplier_refund": "Supplier refund",
+      "loss_refund": "Refund for lost goods",
+      "revenue": "Sales",
+      "refund": "Refund to a customer",
+      "cycle_transfer": "Leftovers moved between cycles"
+    },
+    "ledgerKind": {
+      "EXPENSE": "an expense",
+      "OTHER_INCOME": "other income"
+    },
+    "ledgerDirection": {
+      "INFLOW": "money in",
+      "OUTFLOW": "money out"
     }
   },
   "goodsLocation": {

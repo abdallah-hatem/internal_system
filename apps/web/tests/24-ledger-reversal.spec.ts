@@ -26,10 +26,12 @@ async function manualEntry(request: any, h: any, amount = 500) {
   const res = await request.post(`${API}/ledger`, {
     headers: h,
     data: {
-      type: 'EXPENSE', category: 'other', direction: 'OUTFLOW',
-      amount, currency: 'EGP', reason: 'Warehouse electricity bill',
+      // The shape L6 takes: the kind sets the direction (§9).
+      kind: 'EXPENSE', category: 'utilities',
+      amount, currency: 'EGP', note: 'Warehouse electricity bill',
     },
   });
+  expect(res.status(), await res.text()).toBe(201);
   return (await res.json()).data;
 }
 

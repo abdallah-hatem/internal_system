@@ -1571,3 +1571,147 @@ test.describe('Leftovers moved between cycles (L5, §8)', () => {
     expect(Number(approved.unitsRemaining)).toBe(0);
   });
 });
+
+test.describe('A manual ledger entry can’t lie (L6, §9)', () => {
+  const dashboard = async (request: APIRequestContext, headers: any) =>
+    (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
+  const preview = async (request: APIRequestContext, headers: any, id: string) =>
+    (await (await request.get(`${API}/settlements/preview/${id}`, { headers })).json()).data;
+  const profitability = async (request: APIRequestContext, headers: any, id: string) =>
+    ((await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data as any[]).find((c) => c.cycleId === id);
+  const post = (request: APIRequestContext, headers: any, data: any) =>
+    request.post(`${API}/ledger`, { headers, data });
+  const refusal = async (res: any) => ({ status: res.status(), code: (await res.json()).error?.code });
+  /** Rows carrying this note — none may exist after a refusal. */
+  const rowsNoted = async (request: APIRequestContext, headers: any, note: string) =>
+    ((await (await request.get(`${API}/ledger?limit=200`, { headers })).json()).data as any[]).filter((r) => r.reason === note);
+  const rent = (over: any = {}) => ({ kind: 'EXPENSE', category: 'rent', amount: 300, currency: 'EGP', occurredOn: dayFromNow(-1), ...over });
+
+  test('TC-INV-54: no category a flow writes can be typed by hand, as an expense or as income, in either direction', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const note = `inv54 ${Date.now()}`;
+    const system = ['purchase', 'shipping', 'settlement', 'contribution', 'lender_financing', 'lender_repayment', 'supplier_refund', 'loss_refund', 'revenue', 'refund', 'Rent', 'misc'];
+    for (const category of system) {
+      for (const [kind, direction] of [['EXPENSE', 'OUTFLOW'], ['OTHER_INCOME', 'INFLOW']]) {
+        const r = await refusal(await post(request, headers, { kind, direction, category, amount: 100, currency: 'EGP', note }));
+        expect(r, `${category} as ${kind}`).toEqual({ status: 400, code: 'LEDGER_CATEGORY_NOT_MANUAL' });
+      }
+    }
+    expect((await refusal(await post(request, headers, rent({ category: 'cycle_transfer', note })))).code).toBe('LEDGER_CATEGORY_RESERVED');
+    // The old body shape: a free type, a direction, no kind.
+    const old = await post(request, headers, { type: 'PURCHASE_COST', category: 'purchase', direction: 'INFLOW', amount: 100, currency: 'EGP' });
+    expect(old.status()).toBe(400);
+    expect(await rowsNoted(request, headers, note)).toHaveLength(0);
+  });
+
+  test('TC-INV-55: too little, backwards, the wrong way round, a lie about where it came from, a cycle that is not there or is shut — each refused, nothing written', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const note = `inv55 ${Date.now()}`;
+    const shut = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${shut.id}/transition`, { status: 'CANCELLED' });
+    const cases: [string, any, number, string][] = [
+      ['zero', rent({ amount: 0 }), 400, 'LEDGER_AMOUNT_NOT_POSITIVE'],
+      ['negative', rent({ amount: -300 }), 400, 'LEDGER_AMOUNT_NOT_POSITIVE'],
+      ['tomorrow', rent({ occurredOn: dayFromNow(1) }), 400, 'DATE_IN_FUTURE'],
+      ['not a day', rent({ occurredOn: '2026-02-30' }), 400, 'BAD_DATE'],
+      ['expense as money in', rent({ direction: 'INFLOW' }), 400, 'LEDGER_DIRECTION_MISMATCH'],
+      ['income as money out', { ...rent(), kind: 'OTHER_INCOME', category: 'interest', direction: 'OUTFLOW' }, 400, 'LEDGER_DIRECTION_MISMATCH'],
+      ['interest as an expense', rent({ category: 'interest' }), 400, 'LEDGER_CATEGORY_WRONG_KIND'],
+      ['a system type', rent({ type: 'SETTLEMENT_PAYOUT' }), 400, 'LEDGER_TYPE_NOT_MANUAL'],
+      ['dollars with no rate', rent({ currency: 'USD' }), 400, 'LEDGER_RATE_NOT_POSITIVE'],
+      ['pounds at 2', rent({ fxRateToEgp: 2 }), 400, 'LEDGER_EGP_RATE'],
+      ['posing as a flow', rent({ relatedType: 'SALE_RETURN', relatedId: shut.id }), 400, 'VALIDATION_FAILED'],
+      ['extra freight, no cycle', rent({ category: 'extra_freight' }), 400, 'LEDGER_CYCLE_REQUIRED'],
+      ['a cycle id that is no cycle', rent({ cycleId: '00000000-0000-4000-8000-000000000999' }), 404, 'NOT_FOUND'],
+      ['a cycle code for an id', rent({ cycleId: shut.code }), 404, 'NOT_FOUND'],
+      ['a cancelled cycle', rent({ cycleId: shut.id }), 400, 'LEDGER_CYCLE_NOT_OPEN'],
+    ];
+    for (const [what, body, status, code] of cases) {
+      expect(await refusal(await post(request, headers, { ...body, note })), what).toEqual({ status, code });
+    }
+    expect(await rowsNoted(request, headers, note)).toHaveLength(0);
+  });
+
+  test('TC-INV-56: only a core partner writes an entry — the office, an investor and a shop are refused with a code; the partner is not', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const email = `inv56-office-${stamp}@motoparts.com`;
+    const made = await request.post(`${API}/auth/register`, { headers, data: { email, password: PASSWORD, displayName: `Office ${stamp}`, role: 'ADMIN_SUPPORT' } });
+    expect(made.ok(), await made.text()).toBeTruthy();
+    const office = { Authorization: `Bearer ${(await (await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } })).json()).data.accessToken}` };
+    const note = `inv56 ${stamp}`;
+    for (const caller of [{ who: 'ADMIN_SUPPORT', headers: office, code: 'ROLE_NOT_ALLOWED' }, ...(await refusedCallers(request, 'inv56'))]) {
+      const r = await refusal(await post(request, caller.headers, rent({ note })));
+      expect(r, caller.who).toEqual({ status: 403, code: caller.code });
+    }
+    expect(await rowsNoted(request, headers, note)).toHaveLength(0);
+    // The office still reads the ledger.
+    expect((await request.get(`${API}/ledger?limit=1`, { headers: office })).ok()).toBeTruthy();
+    const ok = await post(request, headers, rent({ note }));
+    expect(ok.status(), await ok.text()).toBe(201);
+    const row = (await ok.json()).data;
+    expect(row).toMatchObject({ type: 'EXPENSE', category: 'rent', direction: 'OUTFLOW', currency: 'EGP' });
+    expect(Number(row.amount)).toBe(300);
+    expect(row.occurredOn.slice(0, 10)).toBe(dayFromNow(-1));
+  });
+
+  test('TC-INV-57: an expense and other income charged to a cycle move its settlement and its page by the same amount, and the dashboard by the same; undone, they all come back', async ({ request }) => {
+    const { headers, a } = await leftoverWorld(request, 'Inv L6 Cycle');
+    // 10 sold at 200 that cost 100: 1,000 profit before anything is charged.
+    expect((await preview(request, headers, a.id)).grossProfitEgp).toBe('1000.00');
+    expect((await profitability(request, headers, a.id)).profit).toBe(1000);
+    const before = await dashboard(request, headers);
+
+    const ok = async (body: any) => {
+      const res = await post(request, headers, body);
+      expect(res.status(), await res.text()).toBe(201);
+      return (await res.json()).data;
+    };
+    const rentRow = await ok(rent({ cycleId: a.id }));
+    await ok(rent({ category: 'extra_freight', amount: 200, cycleId: a.id }));
+    await ok({ kind: 'OTHER_INCOME', category: 'interest', amount: 50, currency: 'EGP', cycleId: a.id });
+    // In dollars: 10 at 50 is 500 pounds, and pounds are what is counted.
+    const usd = await ok(rent({ category: 'bank_fees', amount: 10, currency: 'USD', fxRateToEgp: 50, cycleId: a.id }));
+    expect(Number(usd.amount)).toBe(500);
+    expect(usd.originalCurrency).toBe('USD');
+
+    // 1,000 − 300 − 200 − 500 + 50 = 50, on both.
+    expect((await preview(request, headers, a.id)).grossProfitEgp).toBe('50.00');
+    const page = await profitability(request, headers, a.id);
+    expect(page).toMatchObject({ profit: 50, expensesEgp: 1000, otherIncomeEgp: 50 });
+    const after = await dashboard(request, headers);
+    expect(Math.round((after.totalExpenses - before.totalExpenses) * 100) / 100).toBe(1000);
+    expect(Math.round((after.totalOtherIncomeEgp - before.totalOtherIncomeEgp) * 100) / 100).toBe(50);
+    expect(Math.round((after.netProfit - before.netProfit) * 100) / 100).toBe(-950);
+    expect(after.totalRevenue).toBe(before.totalRevenue);
+
+    // The second time: undo the rent. It stops counting everywhere.
+    const rev = await request.post(`${API}/ledger/${rentRow.id}/reverse`, { headers, data: { reason: 'entered twice' } });
+    expect(rev.ok(), await rev.text()).toBeTruthy();
+    expect((await preview(request, headers, a.id)).grossProfitEgp).toBe('350.00');
+    expect((await profitability(request, headers, a.id)).profit).toBe(350);
+    const undone = await dashboard(request, headers);
+    expect(Math.round((undone.totalExpenses - before.totalExpenses) * 100) / 100).toBe(700);
+    expect(Math.round((undone.netProfit - before.netProfit) * 100) / 100).toBe(-650);
+    // And it cannot be undone twice.
+    const again = await request.post(`${API}/ledger/${rentRow.id}/reverse`, { headers, data: { reason: 'again' } });
+    expect((await refusal(again)).code).toBe('ENTRY_ALREADY_REVERSED');
+  });
+
+  test('TC-INV-58: a sale returned for cash comes off Revenue once and is not an expense', async ({ request }) => {
+    const { headers, mk, customer } = await leftoverWorld(request, 'Inv L6 Return');
+    const orders: any[] = (await (await request.get(`${API}/sales/orders?customerId=${customer.id}&limit=10`, { headers })).json()).data;
+    const order = orders[0];
+    await mk('payments', { customerId: customer.id, amount: 2000, currency: 'EGP', orderId: order.id });
+    const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
+    const before = await dashboard(request, headers);
+    // Two of the ten come back for cash: 400 of revenue, 200 of cost back on the shelf.
+    await mk('returns', { saleOrderId: order.id, reason: 'two came back', refundMethod: 'CASH', items: [{ saleItemId: item.id, qty: 2 }] });
+    const after = await dashboard(request, headers);
+    const d = (k: string) => Math.round((after[k] - before[k]) * 100) / 100;
+    expect(d('totalRevenue')).toBe(-400);
+    expect(d('totalCogs')).toBe(-200);
+    expect(d('totalExpenses')).toBe(0);
+    expect(d('netProfit')).toBe(-200);
+  });
+});

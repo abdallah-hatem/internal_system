@@ -11,14 +11,14 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  BookOpen, Plus, Search, Eye, X, Loader2,
+  Plus, Search, Eye, X, Loader2,
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
-import { CurrencyRateFields } from '../../../components/ui/currency-rate-fields';
-import { MoneyInput } from '../../../components/ui/money-input';
+import { LedgerEntryDialog } from '@/components/ledger/LedgerEntryDialog';
+import { MANUAL_CATEGORIES, manualKindOf } from '@/lib/ledger-categories';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { Download } from 'lucide-react';
 import { ValidatedForm } from '@/components/ui/validated-form';
@@ -39,8 +39,22 @@ interface LedgerEntry {
   relatedType?: string;
   relatedId?: string;
   reason?: string;
+  reversalOfId?: string | null;
+  /** The Cairo day the money moved (manual entries, L6); else createdAt. */
+  occurredOn?: string | null;
+  originalAmount?: number | string | null;
+  originalCurrency?: string | null;
   createdAt: string;
 }
+
+/** When it happened: the day a manual entry names, else when it was written. */
+const entryDate = (e: LedgerEntry) => e.occurredOn ?? e.createdAt;
+
+/**
+ * Only a hand-written entry is reversed from here; a flow's row is undone
+ * where it was made, and a reversal is never reversed (§9).
+ */
+const reversible = (e: LedgerEntry) => !e.relatedType && !e.reversalOfId;
 
 const TYPE_KEYS: Record<string, string> = {
   PURCHASE: 'purchase',
@@ -65,16 +79,13 @@ const TYPE_KEYS: Record<string, string> = {
   SALE_RETURN: 'saleReturn',
   REFUND_PAID: 'refundPaid',
   EXPENSE: 'expense',
+  OTHER_INCOME: 'otherIncome',
+  CAPITAL_CONTRIBUTION: 'capitalContribution',
+  LENDER_FINANCING: 'lenderFinancing',
+  LENDER_REPAYMENT: 'lenderRepayment',
+  STOCK_TRANSFER: 'stockTransfer',
+  STOCK_TRANSFER_REVERSAL: 'stockTransferReversal',
 };
-
-/** One option per distinct label — several entry types share a translation. */
-const ENTRY_TYPE_OPTIONS = Object.entries(TYPE_KEYS).reduce<{ key: string; label: string }[]>(
-  (acc, [key, label]) => {
-    if (!acc.some((a) => a.label === label)) acc.push({ key, label });
-    return acc;
-  },
-  [],
-);
 
 const DIRECTION_COLORS: Record<string, string> = {
   INFLOW: 'bg-green-100 text-green-700',
@@ -91,6 +102,10 @@ export default function LedgerPage() {
   // `type` is a free-form column: fall back to the raw value rather than
   // asking next-intl for a message key that does not exist.
   const typeLabel = (type: string) => (TYPE_KEYS[type] ? t(TYPE_KEYS[type]) : type);
+  // A category in the reader's language — the manual list and the ones the
+  // flows write; free text written before L6 comes back exactly as written.
+  const categoryLabel = (category?: string | null) =>
+    !category ? '—' : codeLabel('ledgerCategory', category);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -98,13 +113,14 @@ export default function LedgerPage() {
   const [page, setPage] = useState(1);
   const [directionFilter, setDirectionFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [viewingEntry, setViewingEntry] = useState<LedgerEntry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, directionFilter, typeFilter]);
+  useEffect(() => { setPage(1); }, [search, directionFilter, typeFilter, categoryFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { items: entries, capped, isLoading } = useAllRecords(['ledger'], '/ledger');
@@ -117,15 +133,6 @@ export default function LedgerPage() {
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const createMutation = useMutation({
-    mutationFn: (data: any) => api.post('/ledger', data),
-    onSuccess: () => {
-      toast(t('entryCreated'), 'success');
-      queryClient.invalidateQueries({ queryKey: ['ledger'] });
-      setShowCreateModal(false);
-    },
-  });
-
   const reverseMutation = useMutation({
     mutationFn: (data: any) => api.post(`/ledger/${selectedEntry!.id}/reverse`, data),
     onSuccess: () => {
@@ -142,11 +149,13 @@ export default function LedgerPage() {
   const filtered = entryList.filter((e) => {
     if (directionFilter && e.direction !== directionFilter) return false;
     if (typeFilter && TYPE_KEYS[e.type] !== typeFilter) return false;
+    if (categoryFilter && e.category !== categoryFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
       e.type?.toLowerCase().includes(q) ||
       e.category?.toLowerCase().includes(q) ||
+      categoryLabel(e.category).toLowerCase().includes(q) ||
       e.reason?.toLowerCase().includes(q) ||
       e.amount?.toString().includes(q)
     );
@@ -165,27 +174,12 @@ export default function LedgerPage() {
         action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
       />
     ) : (
-      <NoMatch filtered={!!(directionFilter || typeFilter)} onClear={() => { setSearch(''); setDirectionFilter(''); setTypeFilter(''); }} />
+      <NoMatch filtered={!!(directionFilter || typeFilter || categoryFilter)} onClear={() => { setSearch(''); setDirectionFilter(''); setTypeFilter(''); setCategoryFilter(''); }} />
     );
 
   const detail = (entryDetail as LedgerEntry) ?? viewingEntry;
 
   // ── Handlers ──────────────────────────────────────────────────────
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    createMutation.mutate({
-      type: fd.get('type'),
-      category: fd.get('category'),
-      direction: fd.get('direction'),
-      amount: Number(fd.get('amount')),
-      currency: fd.get('currency'),
-      fxRateToEgp: fd.get('fxRateToEgp') ? Number(fd.get('fxRateToEgp')) : undefined,
-      cycleId: fd.get('cycleId') || undefined,
-      reason: fd.get('reason') || undefined,
-    });
-  };
-
   const handleReverse = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -208,9 +202,9 @@ export default function LedgerPage() {
           type="button"
           onClick={() =>
             downloadCsv(datedFilename('ledger'), filtered, [
-              { header: tc('date'), value: (e) => e.createdAt?.slice(0, 10) ?? '' },
+              { header: tc('date'), value: (e) => entryDate(e)?.slice(0, 10) ?? '' },
               { header: t('direction'), value: (e) => e.direction },
-              { header: t('category'), value: (e) => e.category },
+              { header: t('category'), value: (e) => categoryLabel(e.category) },
               { header: tc('amount'), value: (e) => e.amount },
               { header: t('currency'), value: (e) => e.currency },
               { header: t('cycle'), value: (e) => e.cycle?.code ?? '' },
@@ -268,6 +262,27 @@ export default function LedgerPage() {
             label: t(label),
           }))}
         />
+        {/* The one manual list (L6), in words, then any other category the
+            loaded rows carry — a flow's, or free text from before — as written. */}
+        <Select
+          className="w-full sm:w-56"
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          clearable
+          placeholder={t('allCategories')}
+          searchPlaceholder={t('allCategories')}
+          options={[
+            ...MANUAL_CATEGORIES.map((c) => ({
+              value: c,
+              label: codeLabel('ledgerCategory', c),
+              hint: manualKindOf(c) === 'EXPENSE' ? t('kindExpense') : t('kindIncome'),
+            })),
+            ...[...new Set(entryList.map((e) => e.category).filter(Boolean))]
+              .filter((c) => !manualKindOf(c))
+              .sort()
+              .map((c) => ({ value: c, label: categoryLabel(c) })),
+          ]}
+        />
       </div>
 
       <ListCapNotice capped={capped} count={entries.length} />
@@ -302,9 +317,9 @@ export default function LedgerPage() {
                 ) : (
                   paginated.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(entry.createdAt)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(entryDate(entry))}</td>
                       <td className="px-4 py-3 text-gray-600">{typeLabel(entry.type)}</td>
-                      <td className="px-4 py-3 text-gray-600">{entry.category ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-600"><bdi>{categoryLabel(entry.category)}</bdi></td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${DIRECTION_COLORS[entry.direction] ?? 'bg-gray-100 text-gray-600'}`}>
                           {entry.direction === 'INFLOW' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
@@ -325,8 +340,9 @@ export default function LedgerPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          {entry.direction === 'INFLOW' && (
+                          {reversible(entry) && (
                             <button
+                              type="button"
                               onClick={() => { setSelectedEntry(entry); setShowReverseModal(true); }}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title={t('reverse')}
@@ -367,13 +383,13 @@ export default function LedgerPage() {
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                   <span>{typeLabel(entry.type)}</span>
                   <span className="text-gray-400">•</span>
-                  <span>{entry.category ?? '—'}</span>
+                  <bdi>{categoryLabel(entry.category)}</bdi>
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
-                  <span>{formatDate(entry.createdAt)}</span>
+                  <span>{formatDate(entryDate(entry))}</span>
                    <span>{entry.account?.name ?? '—'}</span>
                 </div>
-                {entry.direction === 'INFLOW' && (
+                {reversible(entry) && (
                   <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
                     <button
                       onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); setShowReverseModal(true); }}
@@ -394,57 +410,8 @@ export default function LedgerPage() {
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
       )}
 
-      {/* ─── Create Modal ──────────────────────────────────────────── */}
-      {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
-            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('type')}</label>
-                <Select
-                  name="type"
-                  required
-                  defaultValue={ENTRY_TYPE_OPTIONS[0]?.key}
-                  options={ENTRY_TYPE_OPTIONS.map(({ key, label }) => ({ value: key, label: t(label) }))}
-                />
-              </div>
-              <InputField label={t('category')} name="category" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('direction')}</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="direction" value="INFLOW" defaultChecked className="text-green-600 focus:ring-green-500" />
-                  <span className="text-sm text-gray-700">{t('inflow')}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="direction" value="OUTFLOW" className="text-red-600 focus:ring-red-500" />
-                  <span className="text-sm text-gray-700">{t('outflow')}</span>
-                </label>
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                {t('amount')}<span className="ms-1 text-red-500">*</span>
-              </label>
-              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            </div>
-            <CurrencyRateFields
-              rateName="fxRateToEgp"
-              currencies={['EGP', 'USD', 'AED']}
-              defaultCurrency="EGP"
-              currencyLabel={t('currency')}
-              rateLabel={t('fxRate')}
-            />
-            <InputField label={t('cycle') + ' ID'} name="cycleId" />
-            <TextareaField label={t('reason')} name="reason" />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
-            </div>
-          </ValidatedForm>
-        </Modal>
-      )}
+      {/* ─── Record money in or out (L6) ───────────────────────────── */}
+      <LedgerEntryDialog open={showCreateModal} onClose={() => setShowCreateModal(false)} />
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedEntry && (
@@ -467,9 +434,9 @@ export default function LedgerPage() {
         <Modal title={`${t('type')}: ${typeLabel(detail.type)}`} onClose={() => setViewingEntry(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <Detail label={t('date')} value={formatDate(detail.createdAt)} />
+              <Detail label={t('date')} value={formatDate(entryDate(detail))} />
               <Detail label={t('type')} value={typeLabel(detail.type)} />
-              <Detail label={t('category')} value={detail.category ?? '—'} />
+              <Detail label={t('category')} value={<bdi>{categoryLabel(detail.category)}</bdi>} />
               <Detail
                 label={t('direction')}
                 value={
@@ -480,6 +447,9 @@ export default function LedgerPage() {
                 }
               />
               <Detail label={t('amount')} value={<Money value={detail.amount} currency={detail.currency} />} />
+              {detail.originalAmount != null && detail.originalCurrency && (
+                <Detail label={t('originalAmount')} value={<Money value={detail.originalAmount} currency={detail.originalCurrency} />} />
+              )}
               <Detail label={t('fxRate')} value={detail.fxRateToEgp?.toString() ?? '—'} />
               <Detail label={t('account')} value={detail.account?.name ?? '—'} />
               <Detail label={t('cycle')} value={detail.cycle?.code ?? '—'} />
@@ -505,16 +475,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         </div>
         <div className="p-6 overflow-y-auto min-h-0">{children}</div>
       </div>
-    </div>
-  );
-}
-
-function InputField({ label, name, type = 'text', defaultValue, required, placeholder }: { label: string; name: string; type?: string; defaultValue?: string; required?: boolean; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input type={type} name={name} defaultValue={defaultValue} required={required} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
     </div>
   );
 }

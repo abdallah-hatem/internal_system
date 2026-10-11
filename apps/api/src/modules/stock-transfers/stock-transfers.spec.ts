@@ -594,7 +594,9 @@ describe('the money (§8)', () => {
           direction: 'OUTFLOW',
           amount: 100,
           currency: 'EGP',
-        },
+          // The old free-form body: L6 refuses it whole, and still names the
+          // category as reserved first.
+        } as never,
         ACTOR,
       ),
     );

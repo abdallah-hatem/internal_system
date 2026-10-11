@@ -19,6 +19,9 @@ import { badRequest, notFound } from '../../common/api-error';
 import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
+  OTHER_INCOME_CATEGORIES,
+  netOperatingExpenseEgp,
+  netOtherIncomeEgp,
   netRecoveredEgp,
 } from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
@@ -271,14 +274,30 @@ export class SettlementsService {
     );
 
     // --- Expenses not already inside landed cost ---------------------------
+    // Both directions: a reversed expense (money back in, pointing at it) is
+    // taken off again, through the one signed reading the cycle page and the
+    // dashboard use (L6, rule 11). Recoveries and other income are netted
+    // below, not charged here.
     const expenseTxns = await this.prisma.financialTransaction.findMany({
       where: {
         cycleId,
-        direction: 'OUTFLOW',
-        // Recoveries are netted below, reversals included, not charged here.
         category: { notIn: [...NOT_OPERATING_EXPENSE] },
       },
-      select: { amount: true },
+      select: {
+        amount: true,
+        direction: true,
+        category: true,
+        reversalOfId: true,
+      },
+    });
+    // Other income charged to the cycle raises its profit (§9, L6), net of
+    // any undone.
+    const otherIncomeTxns = await this.prisma.financialTransaction.findMany({
+      where: {
+        cycleId,
+        category: { in: [...OTHER_INCOME_CATEGORIES] },
+      },
+      select: { amount: true, direction: true, category: true },
     });
     // Money recovered from suppliers reduces what the cycle cost. It is netted
     // here rather than by re-pricing batches: units already sold keep the cost
@@ -304,9 +323,9 @@ export class SettlementsService {
     // the repayments through the one definition analytics reads too.
     const exchangeDiff = await exchangeDifferenceEgp(this.prisma, cycleId);
 
-    const expenses = expenseTxns
-      .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
+    const expenses = netOperatingExpenseEgp(expenseTxns)
       .sub(netRecoveredEgp(recoveryTxns))
+      .sub(netOtherIncomeEgp(otherIncomeTxns))
       .add(losses)
       .add(exchangeDiff);
 

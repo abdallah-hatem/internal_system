@@ -12,7 +12,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LedgerService } from './ledger.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { ReverseTransactionDto } from './dto/ledger.dto';
+import { CreateLedgerEntryDto, ReverseTransactionDto } from './dto/ledger.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Ledger')
@@ -61,10 +61,15 @@ export class LedgerController {
     return this.ledgerService.findOne(id);
   }
 
+  /**
+   * Record money in or out by hand: an expense or other income from the one
+   * list (BUSINESS_LOGIC §9, L6). Core partners only — the office reads the
+   * ledger and does not write it.
+   */
   @Post()
   @Roles('CORE_PARTNER')
-  @ApiOperation({ summary: 'Create a financial transaction' })
-  create(@Body() body: any, @CurrentUser() user: any) {
+  @ApiOperation({ summary: 'Record an expense or other income by hand' })
+  create(@Body() body: CreateLedgerEntryDto, @CurrentUser() user: any) {
     return this.ledgerService.create(body, user.id);
   }
 

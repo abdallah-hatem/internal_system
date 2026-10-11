@@ -218,9 +218,9 @@ test.describe('Date picker', () => {
 
 test.describe('Select — short lists', () => {
   /**
-   * The ledger's New Entry modal carries a three-currency Select. The payment
-   * form's currency picker is gone (U2: a payment is in its order's currency),
-   * and its method list is four long, which earns a search box.
+   * The ledger's direction filter is a two-option Select. The New Entry form's
+   * currency list follows the FX rates page (L6), which holds four with CNY, so
+   * it earns a search box; the payment form's method list is four long too.
    */
   async function openLedgerEntryForm(page: Page) {
     await login(page);
@@ -229,20 +229,24 @@ test.describe('Select — short lists', () => {
     await expect(page.locator('input[type="hidden"][name="currency"]')).toBeAttached({ timeout: 10000 });
   }
 
-  function trigger(page: Page, name: string) {
-    return page.locator(`input[type="hidden"][name="${name}"]`).locator('..').getByRole('combobox');
-  }
-
   test('TC-UI-14: no native <select> is left on a form', async ({ page }) => {
     await openLedgerEntryForm(page);
     expect(await page.locator('select').count()).toBe(0);
   });
 
-  test('TC-UI-15: a three-option list opens without a search box', async ({ page }) => {
-    await openLedgerEntryForm(page);
-    await trigger(page, 'currency').click();
+  /** The ledger list's Inflow/Outflow filter: two options. */
+  async function directionFilter(page: Page) {
+    await login(page);
+    await page.goto(`${BASE}/en/ledger`);
+    const filter = page.getByRole('combobox').filter({ hasText: 'All Directions' });
+    await expect(filter).toBeVisible({ timeout: 10000 });
+    return filter;
+  }
 
-    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(3);
+  test('TC-UI-15: a short list opens without a search box', async ({ page }) => {
+    await (await directionFilter(page)).click();
+
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(2);
     // Searching three currencies is slower than reading them.
     expect(await page.locator('[data-slot="command-input"]').count()).toBe(0);
   });
@@ -257,15 +261,15 @@ test.describe('Select — short lists', () => {
   });
 
   test('TC-UI-17: without a search box the arrow keys still work', async ({ page }) => {
-    await openLedgerEntryForm(page);
+    const filter = await directionFilter(page);
     // Nothing inside the panel is tabbable when there is no search input, so
     // this is really a test that focus lands somewhere cmdk can hear.
-    await trigger(page, 'currency').click();
+    await filter.click();
+    await expect(page.locator('[data-slot="command-input"]')).toHaveCount(0);
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
 
-    await expect(page.locator('input[type="hidden"][name="currency"]')).toHaveValue('USD');
-    await expect(trigger(page, 'currency')).toContainText('USD');
+    await expect(page.getByRole('combobox').filter({ hasText: 'Outflow' })).toBeVisible();
   });
 
   test('TC-UI-19: an empty required picker blocks submit and says why', async ({ page }) => {
@@ -290,6 +294,7 @@ test.describe('Select — short lists', () => {
     // The native <select> submitted its first option when untouched; the
     // replacement has to start on that same value, not empty.
     await expect(page.locator('input[type="hidden"][name="currency"]')).toHaveValue('EGP');
-    await expect(page.locator('input[type="hidden"][name="type"]')).toHaveValue('PURCHASE');
+    // L6: no type picker any more — the kind cards decide it.
+    await expect(page.locator('input[type="hidden"][name="type"]')).toHaveCount(0);
   });
 });

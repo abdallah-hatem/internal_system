@@ -1,5 +1,13 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
 import { Prisma } from '@prisma/client';
+import {
+  OTHER_INCOME_CATEGORIES,
+  isOtherIncomeCategory,
+} from './manual-ledger-categories';
+
+// The manual-entry list lives in its own Prisma-free file so the web's copy
+// can be tested against it; it is part of this one set of rules (L6).
+export * from './manual-ledger-categories';
 
 /**
  * Ledger categories that are not operating expenses.
@@ -144,10 +152,80 @@ export function netRecoveredEgp(
 }
 
 /**
- * Categories that are not operating expenses: capitalised, and recoveries
- * (whose reversals are netted against them through `recoveredEgp`).
+ * Ledger rows that belong to sales, which profit reads from the orders and
+ * returns themselves, never from the ledger (§4, §5, §9).
+ *
+ * - `revenue` is a customer's payment coming in, and a return's sale undone
+ *   going out (SALE_RETURN).
+ * - `refund` is the cash handed back for a return (REFUND_PAID).
+ *
+ * A return already comes off Revenue — the dashboard subtracts its
+ * `refundEgp` from the realised orders — so its two money-out rows counted as
+ * expenses as well took a 300 cash refund off net profit three times over
+ * (found and fixed 2026-10-12, L6 phase 2).
+ */
+export const SALE_CATEGORIES = ['revenue', 'refund'] as const;
+
+/**
+ * Categories that are not operating expenses: capitalised, recoveries (whose
+ * reversals are netted against them through `recoveredEgp`), other income
+ * (netted through `otherIncomeEgp` — undoing income is not an expense), and
+ * sales (read from the orders and returns, `SALE_CATEGORIES`).
  */
 export const NOT_OPERATING_EXPENSE = [
   ...CAPITALISED_CATEGORIES,
   ...COST_RECOVERY_CATEGORIES,
+  ...OTHER_INCOME_CATEGORIES,
+  ...SALE_CATEGORIES,
 ] as const;
+
+type LedgerRow = {
+  direction: string;
+  category: string;
+  amount: Prisma.Decimal.Value;
+  reversalOfId?: string | null;
+};
+
+/**
+ * What a ledger row adds to operating expenses, signed (§9, L6).
+ *
+ * Money out in any category that is not capitalised, recovered or income adds
+ * — a manual expense from the list, or an old free-text one as it always did.
+ * A reversal of one (money back in, pointing at it) takes the same away: until
+ * L6 a reversed expense stayed counted, because every reader summed only the
+ * outflows. Money in that is not a reversal is never a negative expense.
+ *
+ * Settlement, the cycle profitability and the dashboard all read expenses
+ * through this — the cycle profitability did not count them at all, so a
+ * cycle's page and its settlement showed two profits (rule 11).
+ */
+export function operatingExpenseEgp(t: LedgerRow): Prisma.Decimal {
+  if ((NOT_OPERATING_EXPENSE as readonly string[]).includes(t.category)) {
+    return new Prisma.Decimal(0);
+  }
+  const amount = new Prisma.Decimal(t.amount);
+  if (t.direction === 'OUTFLOW') return amount;
+  return t.reversalOfId ? amount.neg() : new Prisma.Decimal(0);
+}
+
+export function netOperatingExpenseEgp(rows: LedgerRow[]): Prisma.Decimal {
+  return rows.reduce(
+    (s, t) => s.add(operatingExpenseEgp(t)),
+    new Prisma.Decimal(0),
+  );
+}
+
+/**
+ * What a ledger row adds to other income, signed (§9, L6): money in under an
+ * other-income category adds, its reversal (money out) takes it away. It
+ * raises net profit and is not Revenue — shown on its own, like recoveries.
+ */
+export function otherIncomeEgp(t: LedgerRow): Prisma.Decimal {
+  if (!isOtherIncomeCategory(t.category)) return new Prisma.Decimal(0);
+  const amount = new Prisma.Decimal(t.amount);
+  return t.direction === 'INFLOW' ? amount : amount.neg();
+}
+
+export function netOtherIncomeEgp(rows: LedgerRow[]): Prisma.Decimal {
+  return rows.reduce((s, t) => s.add(otherIncomeEgp(t)), new Prisma.Decimal(0));
+}
