@@ -66,6 +66,8 @@ export const DATE_FIELDS = {
   DELIVERY: 'A delivery date',
   LENDER_PAID: 'The date a friend paid a supplier',
   LENDER_REPAID: 'The date a friend was repaid',
+  LEDGER_ENTRY: 'The date of a ledger entry',
+  STOCK_MOVED: 'The date leftover stock was moved',
 } as const;
 export type DateField = keyof typeof DATE_FIELDS;
 
@@ -92,7 +94,7 @@ export function assertNotFuture(
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A real calendar day written YYYY-MM-DD — "2026-02-30" is not one. */
-function assertDay(value: string) {
+export function assertDay(value: string) {
   const parsed = new Date(`${value}T00:00:00Z`);
   if (
     !DAY.test(value) ||

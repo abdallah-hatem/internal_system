@@ -612,6 +612,22 @@ export class CyclesService {
 
     // A cycle whose order a friend paid for did order something (§15, §18):
     // his payment is removed first, which needs nothing repaid on it.
+    // Nor one holding leftovers moved in from another cycle (§8, L5): its
+    // partners fund them, and cancelling "never ordered anything" (§15).
+    // Undo the move first.
+    if (targetStatus === 'CANCELLED') {
+      const movedIn = await db.stockTransfer.count({
+        where: { toCycleId: id, status: 'ACTIVE' },
+      });
+      if (movedIn > 0) {
+        throw badRequest(
+          'CYCLE_HAS_TRANSFERS_IN',
+          `Cycle ${cycle.code} holds leftover stock moved in from another cycle; undo that move before cancelling it.`,
+          { cycle: cycle.code },
+        );
+      }
+    }
+
     if (targetStatus === 'CANCELLED') {
       const financed = await db.lenderFinancing.count({
         where: { cycleId: id, ...STANDING_FINANCING },

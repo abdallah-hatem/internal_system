@@ -4,10 +4,16 @@ import { Prisma } from '@prisma/client';
 import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
+  OTHER_INCOME_CATEGORIES,
   isCostRecoveryCategory,
   isLenderCategory,
+  netOperatingExpenseEgp,
+  netOtherIncomeEgp,
   netRecoveredEgp,
+  TRANSFER_CATEGORY,
+  transferNetEgp,
 } from '../../common/ledger-categories';
+import { cashPosition } from '../../common/cash-position';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { owedToLenders } from '../../common/lenders-owed';
@@ -98,17 +104,59 @@ export class AnalyticsService {
     // Buying stock is not an expense -- it converts cash into inventory, and
     // becomes a cost only when the goods sell. Goods and shipping are already
     // capitalised into batch landed cost, so only other outflows are expenses.
-    const operatingAgg = await this.prisma.financialTransaction.aggregate({
-      where: {
-        direction: 'OUTFLOW',
-        // Settlement payouts distribute profit already earned; counting them
-        // as expenses would subtract the same money twice.
-        // Recoveries, and an undone refund's OUTFLOW, are netted in
-        // `recovered` below rather than charged as an expense (B5b).
-        category: { notIn: [...NOT_OPERATING_EXPENSE] },
-      },
-      _sum: { amount: true },
+    // Settlement payouts distribute profit already earned; counting them as
+    // expenses would subtract the same money twice. Recoveries, and an undone
+    // refund's OUTFLOW, are netted in `recovered` below rather than charged as
+    // an expense (B5b); other income in `otherIncome` (L6).
+    //
+    // Read as the outflows and the reversals' inflows, through the one signed
+    // reading settlement uses (L6, rule 11): until then a reversed expense
+    // stayed in Expenses here for good.
+    const expenseOf = async (direction: 'INFLOW' | 'OUTFLOW') => ({
+      direction,
+      category: '',
+      reversalOfId: direction === 'INFLOW' ? 'reversal' : null,
+      amount: D(
+        (
+          await this.prisma.financialTransaction.aggregate({
+            where: {
+              direction,
+              category: { notIn: [...NOT_OPERATING_EXPENSE] },
+              ...(direction === 'INFLOW'
+                ? { reversalOfId: { not: null } }
+                : {}),
+            },
+            _sum: { amount: true },
+          })
+        )._sum.amount,
+      ),
     });
+    const operatingNet = netOperatingExpenseEgp([
+      await expenseOf('OUTFLOW'),
+      await expenseOf('INFLOW'),
+    ]);
+
+    // Other income (L6): raises net profit, is not Revenue, and is shown on
+    // its own like recoveries — net of any undone.
+    const otherIncomeOf = async (direction: 'INFLOW' | 'OUTFLOW') => ({
+      direction,
+      category: OTHER_INCOME_CATEGORIES[0],
+      amount: D(
+        (
+          await this.prisma.financialTransaction.aggregate({
+            where: {
+              direction,
+              category: { in: [...OTHER_INCOME_CATEGORIES] },
+            },
+            _sum: { amount: true },
+          })
+        )._sum.amount,
+      ),
+    });
+    const otherIncome = netOtherIncomeEgp([
+      await otherIncomeOf('INFLOW'),
+      await otherIncomeOf('OUTFLOW'),
+    ]);
     // Goods lost on the way are an expense with no ledger row (§2, §9): the
     // same figure settlement subtracts, through the one definition.
     // Money recovered (supplier and loss refunds) raises net profit, as it
@@ -137,7 +185,7 @@ export class AnalyticsService {
       await recoveryOf('INFLOW'),
       await recoveryOf('OUTFLOW'),
     ]);
-    const operatingExpenses = D(operatingAgg._sum.amount).add(
+    const operatingExpenses = operatingNet.add(
       await cycleLossesEgp(this.prisma, null),
     );
 
@@ -150,15 +198,15 @@ export class AnalyticsService {
       .sub(cogs)
       .sub(operatingExpenses)
       .add(recovered)
+      .add(otherIncome)
       .sub(exchangeDiff);
 
     // Cash actually paid out, reported separately from accounting profit
-    // (BRD 11).
-    const cashOutAgg = await this.prisma.financialTransaction.aggregate({
-      where: { direction: 'OUTFLOW' },
-      _sum: { amount: true },
-    });
-    const cashOut = D(cashOutAgg._sum.amount);
+    // (BRD 11). Read with cash in and cash on hand below, through the one
+    // definition of which ledger rows are cash: leftover stock moved between
+    // cycles (§8, L5) moves none (common/cash-position.ts, rule 11).
+    const cash = await cashPosition(this.prisma);
+    const cashOut = cash.cashOut;
 
     const totalRevenue = money(revenue);
     const totalCogs = money(cogs);
@@ -237,14 +285,7 @@ export class AnalyticsService {
      * on one side and forgotten on the other is exactly how the number drifted
      * last time.
      */
-    const flows = await this.prisma.financialTransaction.groupBy({
-      by: ['direction'],
-      _sum: { amount: true },
-    });
-    const flowOf = (d: string) =>
-      D(flows.find((f) => f.direction === d)?._sum.amount ?? 0);
-    const cashIn = flowOf('INFLOW');
-    const cashOnHand = cashIn.sub(flowOf('OUTFLOW'));
+    const { cashIn, cashOnHand } = cash;
 
     return {
       data: {
@@ -253,6 +294,8 @@ export class AnalyticsService {
         totalExpenses,
         /** Supplier and loss refunds, added back in netProfit (§6). */
         totalRecoveredEgp: money(recovered),
+        /** Other income recorded by hand, added in netProfit; not Revenue (§9, L6). */
+        totalOtherIncomeEgp: money(otherIncome),
         /** Repaying friends at a moved rate, taken off netProfit (§18). */
         exchangeDifferenceEgp: money(exchangeDiff),
         /** What friends are still owed, per currency and in pounds today (§18). */
@@ -432,7 +475,12 @@ export class AnalyticsService {
         status: true,
         originType: true,
         financialTransactions: {
-          select: { amount: true, direction: true, category: true },
+          select: {
+            amount: true,
+            direction: true,
+            category: true,
+            reversalOfId: true,
+          },
         },
         inventoryBatches: {
           select: {
@@ -536,19 +584,32 @@ export class AnalyticsService {
             // A friend's loan moving is not what the goods cost: the goods are
             // in `purchase` already, and repaying him would count them twice.
             // What the loan really cost is the exchange difference (§18).
-            !isLenderCategory(t.category),
+            !isLenderCategory(t.category) &&
+            // Leftovers moved between cycles (§8, L5): netted, signed, below.
+            t.category !== TRANSFER_CATEGORY,
         )
         .reduce((sum, t) => sum.add(D(t.amount)), D(0))
+        // Stock taken on from another cycle is part of what this cycle cost;
+        // stock handed on is cost recovered. Signed, so both cycles agree.
+        .add(transferNetEgp(cycle.financialTransactions))
         .sub(supplierRefunds)
         .add(exchangeByCycle.get(cycle.id) ?? D(0));
 
       const losses = lossesByCycle.get(cycle.id) ?? D(0);
       const exchangeDiff = exchangeByCycle.get(cycle.id) ?? D(0);
+      // Expenses charged to the cycle and other income credited to it, read
+      // as settlement reads them (L6, rule 11). This figure used to leave
+      // them out, so a cycle's page and its settlement disagreed by exactly
+      // the cycle's expenses.
+      const expenses = netOperatingExpenseEgp(cycle.financialTransactions);
+      const otherIncome = netOtherIncomeEgp(cycle.financialTransactions);
       const profit = revenue
         .sub(cogs)
         .add(supplierRefunds)
         .sub(losses)
-        .sub(exchangeDiff);
+        .sub(exchangeDiff)
+        .sub(expenses)
+        .add(otherIncome);
 
       return {
         // So a row can link to its cycle (an investor's dashboard, R1).
@@ -560,6 +621,10 @@ export class AnalyticsService {
         supplierRefundsEgp: money(supplierRefunds),
         /** Goods lost on the way, already taken off profit (§2). */
         lossesEgp: money(losses),
+        /** Expenses charged to the cycle, already taken off profit (§9, L6). */
+        expensesEgp: money(expenses),
+        /** Other income credited to the cycle, already in profit (§9, L6). */
+        otherIncomeEgp: money(otherIncome),
         /** Repaying friends at a moved rate, already taken off profit (§18). */
         exchangeDifferenceEgp: money(exchangeDiff),
         totalCost: money(cogs),
@@ -631,7 +696,9 @@ export class AnalyticsService {
         },
       }),
       this.prisma.inventoryBatch.findMany({
-        where: { verificationStatus: 'VERIFIED' },
+        // Leftovers moved in from another cycle (§8, L5) were received once,
+        // by the cycle that bought them — not a receipt again.
+        where: { verificationStatus: 'VERIFIED', transferredFromBatchId: null },
         orderBy: { createdAt: 'desc' },
         take,
         select: {

@@ -302,7 +302,10 @@
     "noLegsHint": "كل مرحلة جزء من رحلة الشحنة، بناقلها وتكلفتها.",
     "goToShipments": "الذهاب إلى الشحنات",
     "noBatchesTitle": "لم يدخل المخزون شيء بعد",
-    "noBatchesHint": "يظهر المخزون هنا بعد استلام شحنة من هذه الدورة."
+    "noBatchesHint": "يظهر المخزون هنا بعد استلام شحنة من هذه الدورة.",
+    "profitExpenses": "مصروفات محمّلة عليها",
+    "profitOtherIncome": "دخل آخر",
+    "movedInAtCost": "+ منقول إليها بالتكلفة"
   },
   "purchases": {
     "title": "المشتريات",
@@ -666,7 +669,31 @@
     "entryCreated": "تم تسجيل القيد",
     "entryReversed": "تم عكس القيد",
     "emptyTitle": "لا توجد قيود بعد",
-    "emptyHint": "حركة الأموال داخلاً وخارجاً — المدفوعات والمصروفات والمساهمات تُسجَّل هنا."
+    "emptyHint": "حركة الأموال داخلاً وخارجاً — المدفوعات والمصروفات والمساهمات تُسجَّل هنا.",
+    "recordTitle": "تسجيل مال داخل أو خارج",
+    "whatIsIt": "ما هذا؟",
+    "kindExpense": "مصروف",
+    "kindExpenseHint": "مال أنفقناه",
+    "kindIncome": "دخل آخر",
+    "kindIncomeHint": "مال دخل وليس بيعًا ولا دفعة عميل ولا مساهمة ولا استردادًا",
+    "chooseCategory": "اختر الفئة",
+    "chargeToCycle": "تحميله على دورة",
+    "optional": "(اختياري)",
+    "noCycle": "بدون دورة — على النشاط كله",
+    "cycleRequiredHint": "الشحن الإضافي من تكلفة بضاعة دورة واحدة، لذلك يحتاج إلى دورته.",
+    "occurredOn": "التاريخ",
+    "note": "ملاحظة",
+    "notePlaceholder": "لأي شيء كان",
+    "allCategories": "جميع الفئات",
+    "otherIncome": "دخل آخر",
+    "originalAmount": "دُفع بمبلغ",
+    "recordFailed": "لم يُحفظ القيد.",
+    "capitalContribution": "رأس مال",
+    "lenderFinancing": "دفعة من صديق",
+    "lenderRepayment": "سداد لصديق",
+    "stockTransfer": "نقل بضاعة متبقية",
+    "stockTransferReversal": "إلغاء نقل بضاعة متبقية",
+    "chooseCycle": "اختر الدورة"
   },
   "settlements": {
     "title": "التسويات",
@@ -1285,7 +1312,30 @@
     "DEPARTURE_NOTHING_WAITING": "لا شيء ينتظر المغادرة على {leg}.",
     "DEPARTURE_IN_USE": "لا يمكن التراجع عن هذه المغادرة: سُلّمت بضاعة منها أو سُجّلت مفقودة، أو تقدّمت الدورة بسببها.",
     "DELIVERY_BEFORE_GOODS_LEFT": "لم يغادر على {leg} حتى {day} إلا {available} من {line}، لذلك لا يمكن تسجيل وصول {asked} في ذلك اليوم.",
-    "LEG_HAS_SEVERAL_DEPARTURES": "غادرت {leg} على {departures} دفعات، لذلك لا يمكن تغيير تاريخها هنا. تراجع عن المغادرة الخاطئة في صفحة الدورة وسجّلها من جديد."
+    "LEG_HAS_SEVERAL_DEPARTURES": "غادرت {leg} على {departures} دفعات، لذلك لا يمكن تغيير تاريخها هنا. تراجع عن المغادرة الخاطئة في صفحة الدورة وسجّلها من جديد.",
+    "LEDGER_CATEGORY_NOT_MANUAL": "«{category}» ليست فئة يمكن استخدامها في قيد يدوي. اختر واحدة من القائمة.",
+    "LEDGER_CATEGORY_WRONG_KIND": "{category} ليست {kind}.",
+    "LEDGER_DIRECTION_MISMATCH": "هذا {kind}، لذلك لا يمكن تسجيله {direction}.",
+    "LEDGER_TYPE_NOT_MANUAL": "قيد من نوع {type} يُسجَّل من خلال عمليته الخاصة، لا يدويًا.",
+    "LEDGER_AMOUNT_NOT_POSITIVE": "يجب أن يكون المبلغ أكبر من صفر.",
+    "LEDGER_RATE_NOT_POSITIVE": "يجب أن يكون سعر التحويل من {currency} إلى الجنيه أكبر من صفر.",
+    "LEDGER_EGP_RATE": "المبلغ بالجنيه يُحوَّل إلى الجنيه بسعر 1.",
+    "LEDGER_CYCLE_REQUIRED": "{category} من تكلفة بضاعة دورة واحدة — اختر الدورة التي يخصها.",
+    "LEDGER_CYCLE_NOT_OPEN": "الدورة {cycle} حالتها {status}، لذلك لا يمكن تحميل أي شيء آخر عليها.",
+    "TRANSFER_SOURCE_NOT_SELLING": "الدورة {cycle} في حالة {status}. لا تُنقل البضاعة المتبقية إلا من دورة في البيع أو التسوية.",
+    "TRANSFER_SOURCE_PAID": "سُوّيت الدورة {cycle} وصُرفت؛ لم يعد بالإمكان نقل بضاعتها.",
+    "TRANSFER_SOURCE_NOT_ACCOUNTED": "ما زال للدورة {cycle} عدد {onTheWay} وحدة في الطريق و{waiting} وصلت ولم تُستلم؛ احسب كل وحدة قبل نقل البضاعة المتبقية.",
+    "TRANSFER_TARGET_CLOSED": "الدورة {cycle} في حالة {status} ولا يمكنها استلام بضاعة.",
+    "TRANSFER_SAME_CYCLE": "لا يمكن نقل البضاعة المتبقية من {cycle} إلى نفسها.",
+    "TRANSFER_QTY_NOT_POSITIVE": "يجب أن تكون كمية {product} المنقولة أكبر من صفر.",
+    "TRANSFER_MORE_THAN_ON_SHELF": "يمكن نقل {available} فقط من {product}؛ وطُلب {requested}.",
+    "TRANSFER_DUPLICATE_PRODUCT": "{product} مذكور مرتين؛ أدخل كمية واحدة لكل صنف.",
+    "TRANSFER_NO_LINES": "حدّد كم من أي صنف تريد نقله.",
+    "TRANSFER_REASON_REQUIRED": "اذكر السبب.",
+    "TRANSFER_ALREADY_UNDONE": "أُلغي هذا النقل من قبل.",
+    "TRANSFER_UNITS_SOLD": "بيع جزء من {product} المنقول إلى {cycle} أو استُخدم هناك؛ أصبح النقل نهائيًا.",
+    "CYCLE_HAS_TRANSFERS_IN": "الدورة {cycle} تحتوي بضاعة متبقية منقولة من دورة أخرى؛ ألغِ ذلك النقل قبل إلغاء الدورة.",
+    "LEDGER_CATEGORY_RESERVED": "يُسجَّل نقل البضاعة المتبقية بين الدورات من صفحة الدورة، لا كقيد في الدفتر."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1475,7 +1525,9 @@
       "ADJUSTMENT": "تسوية جرد",
       "WRITE_OFF": "شطب",
       "PURCHASE_RECEIPT": "استلام",
-      "SALE_ALLOCATION": "بيع"
+      "SALE_ALLOCATION": "بيع",
+      "TRANSFER_OUT": "نُقل إلى دورة أخرى",
+      "TRANSFER_IN": "نُقل من دورة أخرى"
     },
     "referenceType": {
       "PURCHASE_ORDER_ITEM": "طلب شراء",
@@ -1487,7 +1539,8 @@
       "SUPPLIER_REFUND": "مرتجع من المورد",
       "CYCLE_PARTICIPANT": "مشارك في دورة",
       "LENDER_FINANCING": "ما دفعه صديق",
-      "LENDER_REPAYMENT": "سداد لصديق"
+      "LENDER_REPAYMENT": "سداد لصديق",
+      "STOCK_TRANSFER": "نقل بضاعة متبقية بين الدورات"
     },
     "auditAction": {
       "CREATE": "إنشاء",
@@ -1551,7 +1604,9 @@
       "ARRIVAL": "تاريخ الوصول",
       "DELIVERY": "تاريخ التسليمة",
       "LENDER_PAID": "تاريخ دفع الصديق للمورد",
-      "LENDER_REPAID": "تاريخ السداد للصديق"
+      "LENDER_REPAID": "تاريخ السداد للصديق",
+      "LEDGER_ENTRY": "تاريخ قيد في الدفتر",
+      "STOCK_MOVED": "تاريخ نقل البضاعة المتبقية"
     },
     "country": {
       "CN": "الصين",
@@ -1567,6 +1622,40 @@
       "DE": "ألمانيا",
       "US": "الولايات المتحدة",
       "TH": "تايلاند"
+    },
+    "ledgerCategory": {
+      "rent": "إيجار",
+      "salaries": "رواتب",
+      "utilities": "مرافق",
+      "transport_delivery": "نقل وتوصيل",
+      "packaging": "تغليف",
+      "marketing": "تسويق",
+      "bank_fees": "رسوم بنكية",
+      "customs_clearance": "جمارك وتخليص",
+      "extra_freight": "شحن إضافي (لدورة)",
+      "other_expense": "أخرى",
+      "other_income": "دخل آخر",
+      "interest": "فوائد",
+      "income_other": "أخرى",
+      "purchase": "شراء",
+      "shipping": "شحن",
+      "settlement": "صرف التسوية",
+      "contribution": "رأس مال",
+      "lender_financing": "دفعة من صديق",
+      "lender_repayment": "سداد لصديق",
+      "supplier_refund": "استرداد من المورد",
+      "loss_refund": "استرداد عن بضاعة مفقودة",
+      "revenue": "مبيعات",
+      "refund": "رد مبلغ لعميل",
+      "cycle_transfer": "بضاعة متبقية نُقلت بين الدورات"
+    },
+    "ledgerKind": {
+      "EXPENSE": "مصروفًا",
+      "OTHER_INCOME": "دخلًا آخر"
+    },
+    "ledgerDirection": {
+      "INFLOW": "مالًا داخلًا",
+      "OUTFLOW": "مالًا خارجًا"
     }
   },
   "goodsLocation": {
@@ -1580,7 +1669,11 @@
     "sold": "مُباع",
     "lost": "مفقود",
     "ordered": "المطلوب",
-    "product": "المنتج"
+    "product": "المنتج",
+    "moved": "إلى دورة أخرى",
+    "fromCycle": "من <code>الدورة</code>",
+    "fromCycleUnits": "{units} وحدة — {onShelf} على الرف، {sold} مُباعة",
+    "fromCycleMovedOn": "{count} نُقلت إلى دورة أخرى"
   },
   "shipment": {
     "title": "الشحنة",
@@ -1847,5 +1940,55 @@
     "cancelPlanHint": "يتوقف احتساب الجدول؛ لا تتغير السدادات ولا المتبقي.",
     "rateFor": "السعر ({currency} إلى الجنيه)",
     "poundsEgp": "المدفوع (جنيه)"
+  },
+  "transfers": {
+    "title": "التحويلات",
+    "movedOut": "نُقل منها",
+    "movedIn": "نُقل إليها",
+    "toCycle": "إلى <code>الدورة</code>",
+    "fromCycle": "من <code>الدورة</code>",
+    "undone": "أُلغي",
+    "undo": "إلغاء النقل",
+    "undoNotAllowed": "لم يعد ممكنًا إلغاء هذا النقل.",
+    "byWhy": "بواسطة {name} — {reason}",
+    "undoneBy": "ألغاه {name} — {reason}",
+    "undoTitle": "إلغاء هذا النقل",
+    "undoHint": "تعود الوحدات إلى الدورة التي جاءت منها بنفس التكلفة، وتُوازَن قيود الدفتر. يبقى النقل مسجلًا مع علامة الإلغاء.",
+    "undoFailed": "تعذّر إلغاء النقل",
+    "undoDone": "أُلغي النقل",
+    "reason": "السبب",
+    "reasonRequired": "اذكر السبب.",
+    "reasonHint": "مثلًا: نهاية الموسم — تُباع مع الشحنة القادمة",
+    "moveLeftovers": "نقل البضاعة المتبقية",
+    "moveTitle": "نقل البضاعة المتبقية إلى دورة أخرى",
+    "moveHint": "تخرج الوحدات من هذه الدورة بتكلفتها الواصلة تمامًا: لا ربح ولا خسارة عليها هنا. الدورة التي تستلمها تموّلها وتبيعها كبضاعتها.",
+    "target": "الدورة المستلِمة",
+    "pickTarget": "اختر دورة",
+    "noTargets": "لا توجد دورة مفتوحة يمكنها استلامها",
+    "newCycle": "بدء دورة جديدة لها",
+    "movedOn": "تاريخ النقل",
+    "qtyPerProduct": "الكمية من كل صنف",
+    "onShelf": "{count} على الرف",
+    "totalCost": "تكلفة المنقول:",
+    "move": "نقل",
+    "moved": "نُقلت البضاعة المتبقية",
+    "moveFailed": "تعذّر نقل البضاعة المتبقية",
+    "cannotMove": "لا يمكن لهذه الدورة نقل بضاعتها المتبقية الآن.",
+    "nothingOnShelf": "لا شيء على الرف لنقله.",
+    "nothingChosen": "أدخل كمية صنف واحد على الأقل.",
+    "qtyNotNumber": "كمية {product} ليست رقمًا.",
+    "instead": "أو انقل البضاعة المتبقية إلى دورة أخرى بتكلفتها — دون شطب أي شيء.",
+    "movedTryAgain": "نُقلت البضاعة المتبقية. أعد التسوية: يُقرأ ما تبقى في الدورة من جديد.",
+    "newCycleReady": "بُدئت هذه الدورة لبضاعة متبقية من دورة أخرى.",
+    "backToMove": "انقلها إلى هذه الدورة"
+  },
+  "priceCheck": {
+    "BELOW_COST": "أقل من التكلفة: تكلفة القطعة {cost}، وتبيعها بـ {price}، أي خسارة {loss} في هذا البند.",
+    "BELOW_COST_TOTAL": "البيع أقل من التكلفة: خسارة {loss} في هذا الطلب.",
+    "BELOW_COST_PRICE": "أقل من التكلفة: أقدم مخزون على الرف تكلفة القطعة منه {cost}، فكل قطعة تُباع بهذا السعر تخسر {loss}.",
+    "summaryTitle": "جزء من هذا البيع أقل من التكلفة",
+    "lineNamed": "{product}: تكلفة القطعة {cost}، وتبيعها بـ {price}، أي خسارة {loss}.",
+    "confirmHint": "يمكنك تأكيده رغم ذلك. هذا تنبيه وليس رفضًا.",
+    "unknown": "قد يكون جزء من هذا البيع أقل من التكلفة."
   }
 }

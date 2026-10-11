@@ -369,9 +369,10 @@ test.describe('The old leg form and the cycle gates', () => {
     const preview = async () =>
       (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;
     const before = await preview();
+    // Extra freight, on its cycle (§2, §9 L6).
     await mk('ledger', {
-      type: 'EXPENSE', category: 'other', direction: 'OUTFLOW', amount: 250,
-      currency: 'EGP', cycleId: cycle.id, reason: 'Late freight surcharge on leg 1',
+      kind: 'EXPENSE', category: 'extra_freight', amount: 250,
+      currency: 'EGP', cycleId: cycle.id, note: 'Late freight surcharge on leg 1',
     });
     const after = await preview();
     if (before && after) {

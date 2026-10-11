@@ -121,6 +121,8 @@ const ENDPOINTS = {
   'lender.reverseRepayment': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-repayments/:id/reverse'],
   'lender.cancelPlan': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-plans/:id/cancel'],
   'users.list': ['users/users.controller.ts', 'UsersController', 'Get', ''],
+  'stockTransfer.create': ['stock-transfers/stock-transfers.controller.ts', 'CycleTransfersController', 'Post', ':id/transfers'],
+  'stockTransfer.undo': ['stock-transfers/stock-transfers.controller.ts', 'StockTransfersController', 'Post', ':id/undo'],
 };
 
 test('every action names the endpoint it calls', () => {

@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L3 + green profit + Items in stock live in production 2026-10-11 (`6850b98`, migration applied first, three deploys READY, smoke ok, dashboard returns unitsInStock) · L4 phase 2 (e2e) running · then L5, L6 phase 2, then L7
+Current stage: L6 merged 2026-10-12 (alignment: code matches §9; doc gained the reversal-date line) — shipping · L8 phase 2 next · L7 phase 1 next
 
 ## Waiting on the user
 _(none)_
@@ -13,12 +13,19 @@ _(none)_
 _(none)_
 
 ## Next up
-- L6 phase 1 built on `feature/l6-ledger-entry` (migration 20261011220000_ledger_entry_date); phase 2 after L4.
-  Fixed on the way: cycle profitability ignored cycle-charged expenses while settlement subtracted them; reversed
-  expenses stayed in Expenses. §9 guesses: foreign amounts stored in pounds (+ original_*), other income into net
-  profit, a cycle in SETTLEMENT still takes a late cost.
-- Investigate (money): the dashboard's Expenses may count a sale return's money-out `revenue` row and the cash
-  `refund` row while Revenue already nets returns — possible double count. Reproduce + test before any fix.
+- Owner asleep 2026-10-12: finish L6, L8, L7 unattended (ship each when green; `Bash(scripts/ship-prod.sh:*)` is allowed now), then stop all dev, quit Docker, end the Amphetamine session.
+- L8 phase 1 building: departures in parts (owner 2026-10-12) + wizard only through Purchasing + Add next leg / edit leg cost on the cycle page. Phase 2 after L5.
+- L6 built 2026-10-12 on `feature/l6-ledger-entry` (master 6d03bc5 merged in; not merged back, not pushed): a manual
+  ledger entry can't lie (§9) — "Record money in or out" with kind cards, the one category list, cycle picker, date;
+  every refusal server-side with a code. Migration renamed `20261012130000_ledger_entry_date` so it applies after
+  20261011230000 and 20261012100000 — run `scripts/ship-prod.sh migrate` before the deploy. Fixed on the way:
+  cycle profitability ignored cycle-charged expenses while settlement subtracted them; reversed expenses stayed in
+  Expenses; **a sale return was counted as an expense on the dashboard** (a 300 cash refund took 900 off net profit;
+  own commit, `SALE_CATEGORIES`); Escape in a picker closed the whole form. Full e2e green (5 groups: 199, 147, 144,
+  230, 253 passed), api jest 1322, web unit 510+99, lint, typecheck, check-data zero (new check 21). Screens in
+  `.ui-audit/l6/`. Owner to confirm the §9 guesses (foreign amounts stored in pounds + original_*, income "Other"
+  as its own key, other income into net profit without a tile, a cycle in SETTLEMENT still takes a late cost, the
+  date filter still reads entry time). Open (§Still open): cash on hand counts a return's two rows as cash out.
 - L7 queued (owner said build, 2026-10-11): running costs come out of the core partners' payouts + a payout that explains itself line by line (§8). Starts once L5 (leftovers) and L6 (ledger form) are merged — all three touch settlement.
 - L3 building: status follows departures/deliveries (owner 2026-10-11); no money account on a friend's repayment
   (owner); amount inputs start-aligned app-wide (owner screenshot).

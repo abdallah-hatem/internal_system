@@ -1,5 +1,13 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
 import { Prisma } from '@prisma/client';
+import {
+  OTHER_INCOME_CATEGORIES,
+  isOtherIncomeCategory,
+} from './manual-ledger-categories';
+
+// The manual-entry list lives in its own Prisma-free file so the web's copy
+// can be tested against it; it is part of this one set of rules (L6).
+export * from './manual-ledger-categories';
 
 /**
  * Ledger categories that are not operating expenses.
@@ -31,6 +39,11 @@ import { Prisma } from '@prisma/client';
  *   the exchange difference, which is not a ledger row and is read from the
  *   repayments (`common/lender-debt.ts`) by settlement, cycle profit and the
  *   dashboard alike.
+ * - `cycle_transfer` (§8, L5) is leftover stock moving from one cycle to
+ *   another at its landed cost: the giving cycle recovers the cost (INFLOW),
+ *   the receiving cycle takes it on (OUTFLOW). The goods were already paid for
+ *   once, so neither side is income or an expense — and no money moved at all,
+ *   which is why it is in NOT_CASH_CATEGORIES too.
  */
 export const CAPITALISED_CATEGORIES = [
   'purchase',
@@ -39,7 +52,39 @@ export const CAPITALISED_CATEGORIES = [
   'contribution',
   'lender_financing',
   'lender_repayment',
+  'cycle_transfer',
 ] as const;
+
+/** Leftover stock moved between cycles at its cost (§8, L5). */
+export const TRANSFER_CATEGORY = 'cycle_transfer';
+
+/**
+ * Ledger rows that record no money moving: the business's cash is the same
+ * before and after. Only a transfer between cycles today — one cycle's
+ * inventory became another's, and the pair nets to zero across the business.
+ *
+ * The dashboard's cash in, cash out and cash on hand leave these out, through
+ * `common/cash-position.ts` (rule 11). Counting them would inflate both totals
+ * by every transfer while "cash on hand" stayed put — a till that saw
+ * thousands come and go and nothing happen.
+ */
+export const NOT_CASH_CATEGORIES = [TRANSFER_CATEGORY] as const;
+
+/**
+ * What transfers added to a cycle's cost, signed: an OUTFLOW (stock taken on)
+ * adds, an INFLOW (stock handed on, cost recovered) subtracts; any other row is
+ * zero. Analytics' cycle `investment` reads it so a cycle that handed its
+ * leftovers on shows the cost it kept, and the one that took them shows it too.
+ */
+export function transferNetEgp(
+  rows: { direction: string; category: string; amount: Prisma.Decimal.Value }[],
+): Prisma.Decimal {
+  return rows.reduce((s, t) => {
+    if (t.category !== TRANSFER_CATEGORY) return s;
+    const amount = new Prisma.Decimal(t.amount);
+    return t.direction === 'OUTFLOW' ? s.add(amount) : s.sub(amount);
+  }, new Prisma.Decimal(0));
+}
 
 /** A friend's loan, in and out (§18). Also inside CAPITALISED_CATEGORIES. */
 export const LENDER_CATEGORIES = [
@@ -107,10 +152,80 @@ export function netRecoveredEgp(
 }
 
 /**
- * Categories that are not operating expenses: capitalised, and recoveries
- * (whose reversals are netted against them through `recoveredEgp`).
+ * Ledger rows that belong to sales, which profit reads from the orders and
+ * returns themselves, never from the ledger (§4, §5, §9).
+ *
+ * - `revenue` is a customer's payment coming in, and a return's sale undone
+ *   going out (SALE_RETURN).
+ * - `refund` is the cash handed back for a return (REFUND_PAID).
+ *
+ * A return already comes off Revenue — the dashboard subtracts its
+ * `refundEgp` from the realised orders — so its two money-out rows counted as
+ * expenses as well took a 300 cash refund off net profit three times over
+ * (found and fixed 2026-10-12, L6 phase 2).
+ */
+export const SALE_CATEGORIES = ['revenue', 'refund'] as const;
+
+/**
+ * Categories that are not operating expenses: capitalised, recoveries (whose
+ * reversals are netted against them through `recoveredEgp`), other income
+ * (netted through `otherIncomeEgp` — undoing income is not an expense), and
+ * sales (read from the orders and returns, `SALE_CATEGORIES`).
  */
 export const NOT_OPERATING_EXPENSE = [
   ...CAPITALISED_CATEGORIES,
   ...COST_RECOVERY_CATEGORIES,
+  ...OTHER_INCOME_CATEGORIES,
+  ...SALE_CATEGORIES,
 ] as const;
+
+type LedgerRow = {
+  direction: string;
+  category: string;
+  amount: Prisma.Decimal.Value;
+  reversalOfId?: string | null;
+};
+
+/**
+ * What a ledger row adds to operating expenses, signed (§9, L6).
+ *
+ * Money out in any category that is not capitalised, recovered or income adds
+ * — a manual expense from the list, or an old free-text one as it always did.
+ * A reversal of one (money back in, pointing at it) takes the same away: until
+ * L6 a reversed expense stayed counted, because every reader summed only the
+ * outflows. Money in that is not a reversal is never a negative expense.
+ *
+ * Settlement, the cycle profitability and the dashboard all read expenses
+ * through this — the cycle profitability did not count them at all, so a
+ * cycle's page and its settlement showed two profits (rule 11).
+ */
+export function operatingExpenseEgp(t: LedgerRow): Prisma.Decimal {
+  if ((NOT_OPERATING_EXPENSE as readonly string[]).includes(t.category)) {
+    return new Prisma.Decimal(0);
+  }
+  const amount = new Prisma.Decimal(t.amount);
+  if (t.direction === 'OUTFLOW') return amount;
+  return t.reversalOfId ? amount.neg() : new Prisma.Decimal(0);
+}
+
+export function netOperatingExpenseEgp(rows: LedgerRow[]): Prisma.Decimal {
+  return rows.reduce(
+    (s, t) => s.add(operatingExpenseEgp(t)),
+    new Prisma.Decimal(0),
+  );
+}
+
+/**
+ * What a ledger row adds to other income, signed (§9, L6): money in under an
+ * other-income category adds, its reversal (money out) takes it away. It
+ * raises net profit and is not Revenue — shown on its own, like recoveries.
+ */
+export function otherIncomeEgp(t: LedgerRow): Prisma.Decimal {
+  if (!isOtherIncomeCategory(t.category)) return new Prisma.Decimal(0);
+  const amount = new Prisma.Decimal(t.amount);
+  return t.direction === 'INFLOW' ? amount : amount.neg();
+}
+
+export function netOtherIncomeEgp(rows: LedgerRow[]): Prisma.Decimal {
+  return rows.reduce((s, t) => s.add(otherIncomeEgp(t)), new Prisma.Decimal(0));
+}

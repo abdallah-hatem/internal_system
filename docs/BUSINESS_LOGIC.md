@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-12 (L8: goods can leave in parts — built, phase 1, guesses OPEN). Before that 2026-10-11 (L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -525,6 +525,58 @@ to sign. A draft and a cancelled order have no invoice (`INVOICE_DRAFT`,
   printed — none is on file. A walk-in sale prints "Walk-in customer", "paid in
   full on the spot", and no account box.
 - The invoice number is the order number; there is no separate invoice sequence.
+
+**DECIDED 2026-10-11 by the owner — selling below cost warns, and never refuses.**
+*Built 2026-10-11 (L4).* He sold 90 helmets at 1,000 EGP each when each had landed
+at 2,616.67, and nothing told him. Now every place a selling price is set says so
+before the sale is made — and the sale still goes through if he chooses it: a
+clearance or a favour to a shop is his decision, not the system's.
+
+- **What "cost" means.** The landed cost (§2) of the units this sale would actually
+  draw under FIFO (§3): the oldest received batch first, each at its own cost.
+  A line that spans two batches costs exactly those units, so 3 units drawn as
+  2 at 900 and 1 at 1,100 cost 2,900 together (966.67 each) — selling them at
+  1,000 is *not* below cost though it is under the newer batch. Two lines of one
+  product draw in order, the second after the first, as confirming does.
+- **What it is compared with.** The line's total *after its line discount* — the
+  figure the order stores — against the cost of its units, each batch's share
+  rounded to the cent exactly as confirming records the COGS. It is compared per
+  line, in cents, never per unit: a price that is at cost to the cent across the
+  line is not flagged because a four-place unit cost rounds differently. Exactly
+  at cost is not below it. The warning is that line's cost, the price per unit
+  after the discount, and the loss on the line; the order shows the losses added.
+- **No stock, no warning.** A line the shelf cannot cover in full is not costed —
+  confirming refuses it (`INSUFFICIENT_STOCK` / `NOT_ENOUGH_STOCK`) and that is
+  the message. A line still being filled in (no product, no quantity) is not
+  costed either.
+- **One rule, one definition** (CLAUDE.md §11). `apps/api/src/common/below-cost.ts`
+  computes it; `POST /sales/price-check` answers every surface; the batch
+  list it reads is the same function confirming allocates from (`fifoBatches`).
+  Nothing is written and nothing is refused by it.
+- **Where it shows.** The office sale form, shop and walk-in, under each line and
+  under the order total, as price, quantity or discount change; a draft's order
+  view above Confirm (the cost is read again — stock may have moved since it was
+  written); approving a storefront request (§12); setting a product's B2B or B2C
+  price; and the assistant's `record_sale` preview (§16).
+- **A product's price** is checked against the oldest batch on the shelf — what
+  the next unit sold at that price would draw, which is the same check as a sale
+  of one unit. No stock, no warning.
+- **Who sees it.** The roles that sell — core partners and admin support, who
+  already read landed costs on the inventory page and a sale's allocations. A
+  temporary investor or a shop never reaches the check (the endpoint carries the
+  sales roles and refuses anyone else), and a product's price warning is shown
+  only to whoever may set the price (core partners).
+- Coded (`BELOW_COST`) and said in the reader's language; the amber warning
+  style, not the red of a refusal.
+
+Guesses made while building it, open until confirmed (2026-10-11):
+- A sale in a currency other than EGP is not compared: the cost is in pounds and
+  the order records no rate to convert at. (The assistant and storefront requests
+  are always EGP.)
+- A free line (price 0) on stock that cost something is a loss and warns.
+- The warning sits beside the buttons rather than asking "are you sure?" first:
+  it is on screen before Confirm is pressed, and a second click to get past it
+  would make a decided price slower to enter every time.
 ---
 
 ## 5. Returns
@@ -834,7 +886,7 @@ Paying writes one ledger entry per participant and closes the cycle.
 explicitly accepted.** That stock's cost stays with the cycle, so closing writes
 it off. The refusal makes it a decision rather than an accident.
 
-**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Planned, L5.*
+**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Built 2026-10-12 (L5): API, screens, unit and e2e tests (99-leftover-transfer, TC-INV-51..53).*
 Instead of writing leftovers off when a cycle closes, the partners can move them to another cycle that is still
 open (or to a new cycle started for them). Exactly how:
 
@@ -854,6 +906,27 @@ open (or to a new cycle started for them). Exactly how:
   dashboard's cash and profit do not change.
 - **Undo:** only while none of the moved units has sold in B and A has not been paid out. After that it is permanent.
 - **Who:** core partners.
+
+Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OPEN until the owner confirms**:
+
+| Question | Guess built | Why |
+|---|---|---|
+| "On the shelf" | Verified batches' sellable units, less units held for a shop's request (`availableQty`'s reading). A held unit stays where the shop was promised it. | Never more than is on the shelf; a hold is a promise. |
+| Which batch the units come from | Oldest check-in first, as a sale would draw; one transfer line per source batch, each at that batch's own landed cost. | The units that would have sold first move first; nothing is re-priced (§3). |
+| The moved batch's check-in | The source batch's own (`createdAt`) and its arrival day. So in B the moved units sell before B's own later stock (§3 FIFO). | "They keep their original check-in date." |
+| Allowed targets | Any cycle that is not being settled, closed or cancelled — including one still in planning or on the way. Never the giving cycle. | Its partners fund them; a cycle settling has already counted its stock. |
+| "Not yet paid out" | The giving cycle is SELLING or SETTLEMENT and has no PAID settlement. | §8. |
+| The record's "why" | Required (500 characters at most), as for every undo. The date defaults to Cairo's today and cannot be later. | Records of things that happened (rule 1). |
+| Ledger | Two `cycle_transfer` rows, no money account: an INFLOW on the giving cycle (cost recovered), an OUTFLOW on the taking cycle (cost taken on), both pointing at the transfer (`relatedType` `STOCK_TRANSFER`), so neither can be reversed on its own (§9). `cycle_transfer` is in `CAPITALISED_CATEGORIES` and in a new `NOT_CASH_CATEGORIES` (`common/ledger-categories.ts`): not income, not an expense, and not cash — the dashboard's cash in, cash out and cash on hand leave it out through `common/cash-position.ts`. It cannot be typed by hand in the ledger (`LEDGER_CATEGORY_RESERVED`). | No money moved; the goods were paid for once. |
+| The taking cycle's cost to fund | `CostingService.fundingFor`: landed cost + stock moved in (transfers that stand) − what friends paid. "Split equally" uses it. The giving cycle's cost to fund is unchanged: its partners did fund those goods and get that capital back at settlement. | §8: "its cost to fund rises by the same amount". |
+| Analytics' cycle "investment" | Nets transfers, signed: lower on the giving cycle, higher on the taking one. Profit is not touched on either side. | So the two cycles' figures agree with each other. |
+| Paying out after a move | Paying a settlement reads what the cycle holds **now**, not the figures from when it was calculated, so leftovers moved after approval leave nothing to write off. A move and its undo also refresh the unsold figures on either cycle's open (draft or approved) settlement; profit and payouts do not change. | Otherwise the "still holds N units" refusal would describe stock that has left. |
+| "None of the moved units has sold in B" | Strict: undo is refused once any sale ever drew from the moved batch — even one since cancelled — or any hold, return, or onward move touched it. The taking cycle must also not be settling, closed or cancelled. | The batch then has history of its own; undoing would erase it. |
+| What undo does | Units back on the giving cycle's batches (movement `TRANSFER_IN`), the moved batch and its movements removed (nothing depends on them — the gate above), two balancing ledger rows pointing at the originals, the transfer kept and marked undone with who, when and why. | §9: history is never rewritten; the record stays. |
+| Cancelling the taking cycle | Refused while it holds stock moved in (`CYCLE_HAS_TRANSFERS_IN`); undo the move first. | A cancelled cycle "never ordered anything" (§15). |
+| Where the goods are | The giving cycle gains a **Moved to another cycle** place, so its units still add up to what it ordered; the taking cycle lists **From CYC-A** apart, with how many are still on its shelf, sold, or moved on — not inside its own ordered total. Recent activity does not list a moved batch as a receipt. | §8. |
+| "Start a new cycle for them" | Opens the cycle wizard (`?leftoversFrom=`); once the new cycle exists, a link goes back to the giving cycle's page with Move leftovers open and the new cycle chosen. There is one Move form. | A cycle has no honest minimal form (CLAUDE.md §13). |
+| The dialog's default | Every product starts at all of it on the shelf; a number typed is never overwritten. | The usual case is moving everything. |
 
 **DECIDED 2026-10-11 (owner) — general running costs are the three core partners', equally, and come out of
 their payouts.** *Planned, L7.* An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by
@@ -909,6 +982,14 @@ it.
 
 **Cash flow is reported separately from profit** (BRD §11).
 
+**Guess 2026-10-11 (L5, open until confirmed) — a transfer of leftovers between
+cycles is a ledger pair, not money.** Moving leftover stock to another cycle at
+its cost (§8) writes a `cycle_transfer` INFLOW on the giving cycle and the same
+OUTFLOW on the taking one, with no money account. They net to zero across the
+business and are left out of cash in, cash out and cash on hand
+(`NOT_CASH_CATEGORIES`, `common/cash-position.ts`), and out of every expense and
+profit figure (`CAPITALISED_CATEGORIES`). Undoing the move writes the mirror pair.
+
 **DECIDED 2026-08-22 — the ledger records money as it is received, not as it
 is earned.** Confirming a sale raises no ledger entry; a payment does. Revenue
 was previously booked at both points, so 31,200 of orders produced 72,710 of
@@ -929,6 +1010,94 @@ Note the two are separated by a step: a payment adds to Collected when it is
 recorded, and reduces Receivables when it is **allocated** to an order. Both
 the customer's page and a payment recorded against a chosen order (§7) do both
 in one action.
+
+**DECIDED 2026-10-11 (owner, mockup accepted) — a manual entry can't lie.**
+*Built 2026-10-12 (L6): API, form, unit tests and the browser e2e (spec 99-ledger-entry, 34 TC-INV-54..58).*
+The ledger's "New Entry" form offered system types like Purchase, a free-text
+category, an Inflow/Outflow radio, a free-text cycle id and no date, and
+`POST /ledger` saved whatever it was sent — a partner could write `purchase`,
+`contribution` or `settlement` in either direction and silently move cash,
+profit or a settlement. Now "Record money in or out":
+
+- **Two kinds, and the kind sets the direction.** *An expense* (money we spent:
+  out) or *other income* (money in that isn't a sale, a customer payment, a
+  contribution or a refund: in). There is no direction to choose.
+- **Categories come from one fixed list**, `common/manual-ledger-categories.ts`,
+  which the API validates against and the web form and the ledger's category
+  filter offer (the web holds a copy only because Next cannot import across apps;
+  a test fails if they differ).
+  - Expense: rent, salaries, utilities, transport and delivery, packaging,
+    marketing, bank fees, customs and clearance, extra freight (for a cycle), other.
+  - Other income: other income, interest, other.
+- **Refused by the server**, each with a code in both languages: any other
+  category (`LEDGER_CATEGORY_NOT_MANUAL` — every system category, free text,
+  wrong case), a category of the other kind (`LEDGER_CATEGORY_WRONG_KIND`), a
+  direction or type that disagrees with the kind (`LEDGER_DIRECTION_MISMATCH`,
+  `LEDGER_TYPE_NOT_MANUAL`), an amount of zero or less, a foreign currency
+  without a rate above zero, pounds at a rate other than 1, a day that is not a
+  real calendar day or has not arrived in Cairo, and any field a flow sets
+  (`relatedType`, `accountId`, `reversalOfId` — refused as unknown fields).
+- **Charge to a cycle** is optional; **extra freight requires one** — a late
+  freight charge is a cost of that cycle's goods (§2). The cycle must exist (a
+  404, never a 500, for an unknown id or a cycle code typed in its place) and
+  must not be cancelled or closed (`LEDGER_CYCLE_NOT_OPEN`). A cycle in
+  settlement still takes a late cost.
+- **Core partners only**, as before; the office reads the ledger and does not
+  write it. Reversing stays core partners only.
+- **The date** is its own column, `occurred_on`, the Cairo day the money moved;
+  today by default. Rows written before this have none and show when they were
+  entered, as they always did.
+- **A reversal is dated the day it is undone** (Cairo), not the original's day, and carries the original's
+  foreign amount and currency so both rows read the same money.
+- **Old rows keep working.** A free-text category written before this shows as
+  written, still counts as it did, and can still be reversed.
+
+What each counts as — one definition each in `common/ledger-categories.ts`,
+read by settlement, the cycle's profit and the dashboard alike (rule 11):
+
+- **A manual expense is an operating expense** — the dashboard's Expenses —
+  because `NOT_OPERATING_EXPENSE` does not list it (`operatingExpenseEgp`).
+- **Charged to a cycle, it comes off that cycle's profit** on the settlement
+  *and* on the cycle's page and Analytics. Found while building this: settlement
+  already charged a cycle-linked expense, the cycle profitability did not, so the
+  two showed different profits for the same cycle. They now agree; the cycle
+  page shows "Expenses charged to it".
+- **Other income raises net profit but is not Revenue** — shown on its own, like
+  recoveries (`totalOtherIncomeEgp` on the dashboard figures). Credited to a
+  cycle, it raises that cycle's profit on the settlement and the cycle page.
+- **A reversed entry stops counting.** Found while building this: every reader
+  summed only the outflows, so a reversed expense stayed in Expenses for good, and
+  undone income (money out under an income category) would have counted as an
+  expense. Both now net through the signed readings.
+- **Reversing an entry charged to a closed or cancelled cycle is refused** — its
+  profit was settled and paid on the figure as it stood.
+
+**FIXED 2026-10-12 — a sale return is not an expense.** A return already comes
+off Revenue (the dashboard subtracts its refund from the realised orders), but
+its two ledger rows — the sale undone (`revenue` going out) and, for a cash
+refund, the cash handed back (`refund` going out) — were also counted in the
+dashboard's Expenses, so a 300 cash refund took 900 off net profit. Sales
+categories (`SALE_CATEGORIES`) are now outside operating expenses through the
+one definition. Settlement and the cycle profitability were not affected: a
+return's rows carry no cycle. Cash on hand still counts both rows as money out
+— see Still open.
+
+Guesses made while building it (2026-10-11, open until confirmed):
+
+- **Foreign money is stored in pounds.** `amount` is the pounds figure (amount ×
+  the rate entered, to the piastre) with currency EGP, because the settlement and
+  the dashboard sum `amount` as pounds; what was actually paid is kept beside it
+  (`original_amount`, `original_currency`) and shown on the entry. Recording the
+  foreign figure as `amount` would have been summed as if it were pounds.
+- **Income "Other" has its own key** (`income_other`), distinct from the expense
+  "Other" (`other_expense`), so the category alone says which kind a row is.
+- **Other income on the dashboard** is added to net profit and returned as its
+  own figure; no separate tile was added (recoveries have none either).
+- **A cycle in settlement still takes a late cost**, per the rule as given (only
+  cancelled and closed are shut). Approving or paying a settlement after such an
+  entry uses the figure as it then stands.
+- **The ledger's date filter still reads when an entry was entered**, not its
+  `occurred_on`.
 
 ---
 
@@ -996,6 +1165,11 @@ a decline must carry a reason.
 The price the shop was shown when they asked is recorded on the request. A price
 that moves in between does not change what they believed they were asking for;
 the approval screen shows both.
+
+**Approving below cost warns (2026-10-11, L4).** The approval screen checks the
+lines as they would be approved — the quantities and prices on screen — against
+what their goods cost now (§4), per line and in total, and Approve still goes
+through. Only the office sees it; the shop is never shown a cost.
 
 **An order request is not a sale order.** Separate records. Outstanding
 balances, analytics, payment allocation and settlement projection all read sale
@@ -1101,6 +1275,7 @@ mistakes it for an agreement.
 | Payment account and reconciliation workflow | One cash account, no reconciliation. `MoneyAccount` exists for more later. |
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
+| How a sale return shows in cash on hand | A return writes the sale undone (`revenue` out) and, for a cash refund, the cash handed back (`refund` out). Cash on hand counts both, so a 300 cash refund lowers it by 600 and a credit return lowers it by 300 though no cash moved. Profit is right since 2026-10-12; the cash reading is not changed yet. Raised 2026-10-12 (L6). |
 | Where the cash for lost goods shows in the ledger | Nowhere. Goods are booked into the ledger when they are received, so units lost on the way never appear in it, though they were paid for. Raised 2026-10-10. |
 | Whether stock is held for an order request | §3 says reservations are not in use and reserved quantity is zero; §12 says an order request holds its stock for 48 hours. The two predate 2026-10-10 and disagree. Raised by the 2026-10-10 release review. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |
@@ -1451,6 +1626,15 @@ Guesses made while building it, open until confirmed (2026-10-11):
 - The amount must be more than zero now in `LendersService.finance` itself, not only in the
   office form's DTO, because the assistant calls the method directly.
 
+**Selling below cost (2026-10-11, L4).** `record_sale`'s preview carries a `belowCost`
+block on every line sold below what its goods cost — `unitCostEgp`, `unitPriceEgp` (after
+the line discount) and `lossEgp`, or null — and `belowCostLossEgp`, the lines' losses
+added. It is the sales service's own price check (§4), so the assistant and the office
+form cannot disagree. The summary says it in words, and the tool description and the
+server instructions tell Claude to tell the partner the loss before the partner
+confirms. It is still the partner's call: a below-cost sale confirms like any other,
+and the assistant never changes the price itself.
+
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it
 books a loss, and a partner should decide that on a screen.
@@ -1464,6 +1648,10 @@ it). The confirmation binds the lines, what still waits after them, and the stat
 departure or a delivery into the origin in between is `PREVIEW_CHANGED`. `get_cycle` shows, per
 leg and product, what waits at the origin and each departure. Undoing a departure stays in the
 office app.
+**Planned — moving leftovers between cycles (§8, L5).** Out of scope for the first build
+(2026-10-11): the office app only. When it comes, the tool calls `StockTransfersService.create`
+and `undo` with the same roles (`stock-transfers/stock-transfer-roles.ts`), previews the cost and
+the target's new cost to fund before the partner's yes, and is refused exactly as the office is.
 
 **The status a record moves the cycle to (2026-10-11, L3, §1).** `record_delivery`
 and `add_shipping_leg` with a departure or an arrival move the cycle on by

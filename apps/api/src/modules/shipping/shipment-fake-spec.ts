@@ -49,6 +49,11 @@ export interface Store {
   refunds: Row[];
   suppliers: Row[];
   providers: Row[];
+  /** L5: leftovers moved between cycles, and holds on batches. */
+  transfers: Row[];
+  transferLines: Row[];
+  holds: Row[];
+  users: Row[];
   /** How many times the lock was taken, so a test can see it was. */
   locksTaken: number;
 }
@@ -75,6 +80,10 @@ export function emptyStore(): Store {
     refunds: [],
     suppliers: [],
     providers: [],
+    transfers: [],
+    transferLines: [],
+    holds: [],
+    users: [],
     locksTaken: 0,
   };
 }
@@ -163,6 +172,13 @@ export function fakePrisma(db: Store) {
   };
   const ledgerMatches = (t: Row, where: Row = {}) =>
     (where.cycleId === undefined || t.cycleId === where.cycleId) &&
+    (where.relatedType === undefined || t.relatedType === where.relatedType) &&
+    (where.relatedId === undefined || t.relatedId === where.relatedId) &&
+    (where.type === undefined || t.type === where.type) &&
+    (where.reversalOfId === undefined ||
+      (where.reversalOfId === null
+        ? t.reversalOfId == null
+        : t.reversalOfId === where.reversalOfId)) &&
     (where.direction === undefined || t.direction === where.direction) &&
     (where.category?.in === undefined ||
       where.category.in.includes(t.category)) &&
@@ -186,9 +202,77 @@ export function fakePrisma(db: Store) {
   const decrement = (current: Prisma.Decimal, change: any) =>
     change?.decrement !== undefined
       ? current.sub(change.decrement)
-      : change === undefined
-        ? current
-        : D(change);
+      : change?.increment !== undefined
+        ? current.add(change.increment)
+        : change === undefined
+          ? current
+          : D(change);
+  // L5: a batch as the transfer's include reads it, with its history counted.
+  const countsOf = (batchId: string) => ({
+    saleItemAllocations: db.allocations.filter(
+      (a) => a.inventoryBatchId === batchId,
+    ).length,
+    reservations: db.holds.filter((h) => h.batchId === batchId).length,
+    returnItems: 0,
+    transferLinesOut: db.transferLines.filter(
+      (l) =>
+        l.sourceBatchId === batchId &&
+        db.transfers.find((t) => t.id === l.transferId)?.status === 'ACTIVE',
+    ).length,
+  });
+  const person = (id: string | null) => {
+    if (!id) return null;
+    return { id, email: `${id.slice(0, 8)}@example.com`, partner: null };
+  };
+  const shapedTransfer = (t: Row | undefined) => {
+    if (!t) return null;
+    const cycle = (id: string) => {
+      const c = db.cycles.find((x) => x.id === id)!;
+      return { id: c.id, code: c.code, status: c.status };
+    };
+    return {
+      ...t,
+      fromCycle: cycle(t.fromCycleId),
+      toCycle: cycle(t.toCycleId),
+      actor: person(t.createdBy),
+      reverser: person(t.reversedBy ?? null),
+      lines: db.transferLines
+        .filter((l) => l.transferId === t.id)
+        .map((l) => {
+          const dest = db.batches.find((b) => b.id === l.destBatchId);
+          return {
+            ...l,
+            product: db.products.find((p) => p.id === l.productId),
+            destBatch: dest ? { ...dest, _count: countsOf(dest.id) } : null,
+          };
+        }),
+    };
+  };
+  const qtyMatches = (v: Prisma.Decimal, cond: any) => {
+    if (cond === undefined) return true;
+    if (Prisma.Decimal.isDecimal(cond) || typeof cond !== 'object') {
+      return v.eq(cond);
+    }
+    return (
+      (cond.gt === undefined || v.gt(cond.gt)) &&
+      (cond.gte === undefined || v.gte(cond.gte))
+    );
+  };
+  const batchMatches = (b: Row, where: Row = {}) =>
+    (where.id === undefined ||
+      (typeof where.id === 'string'
+        ? b.id === where.id
+        : where.id.in.includes(b.id))) &&
+    (where.cycleId === undefined || b.cycleId === where.cycleId) &&
+    (where.productId === undefined || b.productId === where.productId) &&
+    (where.verificationStatus === undefined ||
+      b.verificationStatus === where.verificationStatus) &&
+    qtyMatches(b.saleableQty, where.saleableQty) &&
+    qtyMatches(b.remainingQty, where.remainingQty) &&
+    (where.saleItemAllocations?.none === undefined ||
+      countsOf(b.id).saleItemAllocations === 0) &&
+    (where.reservations?.none === undefined ||
+      countsOf(b.id).reservations === 0);
   const orderWithItems = (order: Row | undefined, include: Row | undefined) => {
     if (!order) return null;
     const out: Row = { ...order };
@@ -198,6 +282,14 @@ export function fakePrisma(db: Store) {
         .map((i) => ({
           ...i,
           product: db.products.find((p) => p.id === i.productId),
+          // Cancelling a sale reads what each line drew from (L5's test).
+          ...(include.items?.include?.allocations
+            ? {
+                allocations: db.allocations.filter(
+                  (a) => a.saleItemId === i.id,
+                ),
+              }
+            : {}),
         }));
     }
     if (include?.customer) {
@@ -308,7 +400,13 @@ export function fakePrisma(db: Store) {
             ? db.batches
                 .filter(
                   (b) =>
-                    b.productId === where.productId &&
+                    // Sales always name the product; the transfer's shelf
+                    // names the cycle instead (L5).
+                    (where.productId === undefined
+                      ? where.cycleId !== undefined
+                      : b.productId === where.productId) &&
+                    (where.cycleId === undefined ||
+                      b.cycleId === where.cycleId) &&
                     b.verificationStatus === 'VERIFIED' &&
                     b.saleableQty.gt(0),
                 )
@@ -316,6 +414,14 @@ export function fakePrisma(db: Store) {
                   (a, b) =>
                     a.createdAt.getTime() - b.createdAt.getTime() ||
                     (a.id < b.id ? -1 : 1),
+                )
+                .map((b) =>
+                  include?.product
+                    ? {
+                        ...b,
+                        product: db.products.find((p) => p.id === b.productId),
+                      }
+                    : b,
                 )
             : db.batches
                 .filter(
@@ -343,12 +449,127 @@ export function fakePrisma(db: Store) {
         b.remainingQty = decrement(b.remainingQty, data.remainingQty);
         return after(b);
       },
+      // L5: the guarded take off the shelf, and removing a moved batch.
+      updateMany: ({ where, data }: Row) => {
+        const rows = db.batches.filter((b) => batchMatches(b, where));
+        for (const b of rows) {
+          b.saleableQty = decrement(b.saleableQty, data.saleableQty);
+          b.remainingQty = decrement(b.remainingQty, data.remainingQty);
+        }
+        return after({ count: rows.length });
+      },
+      deleteMany: ({ where }: Row) => {
+        const rows = db.batches.filter((b) => batchMatches(b, where));
+        if (rows.some((b) => db.movements.some((m) => m.batchId === b.id))) {
+          throw new Error('foreign key: movements still point at the batch');
+        }
+        for (const b of rows) db.batches.splice(db.batches.indexOf(b), 1);
+        return after({ count: rows.length });
+      },
     },
-    inventoryReservation: { findMany: () => after([]) },
+    // Holds on batches (L5) — none unless a test puts one in `db.holds`.
+    inventoryReservation: {
+      findMany: ({ where = {} }: Row = {}) =>
+        after(
+          db.holds.filter(
+            (h) =>
+              (where.status === undefined || h.status === where.status) &&
+              (where.batchId?.in === undefined ||
+                where.batchId.in.includes(h.batchId)),
+          ),
+        ),
+    },
     inventoryMovement: {
       create: ({ data }: Row) => {
         db.movements.push({ id: randomUUID(), ...data });
         return after(data);
+      },
+      deleteMany: ({ where }: Row) => {
+        const keep = db.movements.filter((m) => m.batchId !== where.batchId);
+        const count = db.movements.length - keep.length;
+        db.movements.length = 0;
+        db.movements.push(...keep);
+        return after({ count });
+      },
+    },
+    // Leftovers moved between cycles (L5).
+    stockTransfer: {
+      create: ({ data }: Row) => {
+        const row = {
+          id: randomUUID(),
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          reversedAt: null,
+          reversedBy: null,
+          reversalReason: null,
+          ...data,
+        };
+        db.transfers.push(row);
+        return after(row);
+      },
+      findUnique: ({ where }: Row) =>
+        after(shapedTransfer(db.transfers.find((t) => t.id === where.id))),
+      findMany: ({ where }: Row) =>
+        after(
+          db.transfers
+            .filter((t) =>
+              where.OR.some(
+                (o: Row) =>
+                  (o.fromCycleId !== undefined &&
+                    t.fromCycleId === o.fromCycleId) ||
+                  (o.toCycleId !== undefined && t.toCycleId === o.toCycleId),
+              ),
+            )
+            .map(shapedTransfer),
+        ),
+      update: ({ where, data }: Row) => {
+        const t = db.transfers.find((x) => x.id === where.id)!;
+        Object.assign(t, data);
+        return after(t);
+      },
+      count: ({ where }: Row) =>
+        after(
+          db.transfers.filter(
+            (t) =>
+              (where.toCycleId === undefined ||
+                t.toCycleId === where.toCycleId) &&
+              (where.status === undefined || t.status === where.status),
+          ).length,
+        ),
+    },
+    stockTransferLine: {
+      create: ({ data }: Row) => {
+        const row = {
+          id: randomUUID(),
+          ...data,
+          qty: D(data.qty),
+          unitCostEgp: D(data.unitCostEgp),
+          costEgp: D(data.costEgp),
+        };
+        db.transferLines.push(row);
+        return after(row);
+      },
+      update: ({ where, data }: Row) => {
+        const l = db.transferLines.find((x) => x.id === where.id)!;
+        Object.assign(l, data);
+        return after(l);
+      },
+      // `cycleTransfersInEgp`: what stands moved into a cycle.
+      aggregate: ({ where }: Row) => {
+        const rows = db.transferLines.filter((l) => {
+          const t = db.transfers.find((x) => x.id === l.transferId)!;
+          return (
+            t.toCycleId === where.transfer.toCycleId &&
+            t.status === where.transfer.status
+          );
+        });
+        return after({
+          _sum: {
+            costEgp: rows.length
+              ? rows.reduce((s, l) => s.add(l.costEgp), D(0))
+              : null,
+          },
+        });
       },
     },
     financialTransaction: {
@@ -384,6 +605,25 @@ export function fakePrisma(db: Store) {
               .reduce((s, t) => s.add(t.amount), D(0)),
           },
         }),
+      // The dashboard's cash (common/cash-position.ts), by direction.
+      groupBy: ({ where }: Row) =>
+        after(
+          ['INFLOW', 'OUTFLOW']
+            .map((direction) => {
+              const rows = db.ledger.filter(
+                (t) => t.direction === direction && ledgerMatches(t, where),
+              );
+              return rows.length
+                ? {
+                    direction,
+                    _sum: {
+                      amount: rows.reduce((s, t) => s.add(t.amount), D(0)),
+                    },
+                  }
+                : null;
+            })
+            .filter(Boolean),
+        ),
     },
     product: {
       findUnique: ({ where }: Row) =>
@@ -487,6 +727,10 @@ export function fakePrisma(db: Store) {
         ),
     },
     saleReturnItem: { findMany: () => after([]) },
+    // Nothing is ever paid against an order in these worlds.
+    paymentAllocation: {
+      aggregate: () => after({ _sum: { amount: null } }),
+    },
     settlement: {
       findFirst: ({ where }: Row) =>
         after(
@@ -495,12 +739,28 @@ export function fakePrisma(db: Store) {
               x.cycleId === where.cycleId && where.status.in.includes(x.status),
           ) ?? null,
         ),
-      findUnique: ({ where }: Row) =>
-        after(db.settlements.find((x) => x.id === where.id) ?? null),
+      // Paying out reads the settlement with its cycle and lines (L5's test).
+      findUnique: ({ where, include }: Row) => {
+        const x = db.settlements.find((r) => r.id === where.id);
+        if (!x) return after(null);
+        return after(
+          include?.cycle
+            ? {
+                ...x,
+                lines: [],
+                cycle: db.cycles.find((c) => c.id === x.cycleId),
+              }
+            : x,
+        );
+      },
       findMany: ({ where }: Row) =>
         after(
           db.settlements.filter(
-            (x) => x.cycleId === where.cycleId && x.status === where.status,
+            (x) =>
+              x.cycleId === where.cycleId &&
+              (where.status?.in
+                ? where.status.in.includes(x.status)
+                : x.status === where.status),
           ),
         ),
       create: ({ data }: Row) => {

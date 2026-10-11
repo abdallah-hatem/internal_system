@@ -19,6 +19,7 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
 import { psqlStdin } from './support/database';
+import { leftoverWorld } from './support/leftovers';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -935,6 +936,33 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     now = await batches(request, headers, product.id);
     expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([2, 5, 5]);
   });
+
+  test('TC-INV-48: the below-cost check costs a sale at exactly the COGS confirming records — across batches, over two lines, with a discount (§4, L4)', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const product = await mk('products', { name: `Cost Check ${Date.now()}`, minStock: 0 });
+    await cycleReceived(request, headers, mk, product.id, 900, 2, 12);
+    await cycleReceived(request, headers, mk, product.id, 1100, 5, 4);
+    const customer = await mk('customers', { displayName: `Cost Check Shop ${Date.now()}`, type: 'B2B' });
+    const items = [
+      { productId: product.id, quantity: 3, unitPrice: 950, discount: 0 },
+      { productId: product.id, quantity: 2, unitPrice: 1200, discount: 250 },
+    ];
+
+    const check = await request.post(`${API}/sales/price-check`, { headers, data: { currency: 'EGP', items } });
+    expect(check.ok(), await check.text()).toBeTruthy();
+    const said = (await check.json()).data;
+    // 2 × 900 + 1 × 1,100 = 2,900 against 2,850; then 2 × 1,100 = 2,200 against 2,150.
+    expect(said.lines.map((l: any) => [l.costEgp, l.lossEgp])).toEqual([['2900.00', '50.00'], ['2200.00', '50.00']]);
+    expect(said.totalLossEgp).toBe('100.00');
+
+    // A warning, not a refusal: the same lines confirm.
+    const sale = await mk('sales/orders', { customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true, items });
+    const detail = (await (await request.get(`${API}/sales/orders/${sale.id}`, { headers })).json()).data;
+    const cogs = detail.items.map((i: any) =>
+      (i.allocations ?? []).reduce((t: number, a: any) => t + Math.round(Number(a.cogsEgp) * 100), 0) / 100,
+    );
+    expect(cogs).toEqual(said.lines.map((l: any) => Number(l.costEgp)));
+  });
 });
 
 test.describe('A payment is reversed once (§7 — found 2026-10-11)', () => {
@@ -1460,5 +1488,230 @@ test.describe('A cycle a friend paid for entirely splits its profit equally amon
     }
     const preview = (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;
     expect(partners.map((p: any) => preview.lines.find((l: any) => l.participantId === p.id).payoutEgp)).toEqual(['45000.00', '27000.00', '18000.00']);
+  });
+});
+
+// ─── L5: leftover stock moved to another cycle at its cost (§8) ──────────
+
+test.describe('Leftovers moved between cycles (L5, §8)', () => {
+  const dashboard = async (request: APIRequestContext, headers: any) =>
+    (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
+  const preview = async (request: APIRequestContext, headers: any, id: string) =>
+    (await (await request.get(`${API}/settlements/preview/${id}`, { headers })).json()).data;
+  const profitability = async (request: APIRequestContext, headers: any, id: string) =>
+    ((await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data as any[]).find((c) => c.cycleId === id);
+
+  test('TC-INV-51: value is conserved — what leaves A at cost is exactly what B funds and what each side of the ledger pair says; A’s profit does not move; five moves at once never take more than the shelf', async ({ request }) => {
+    const { headers, a, b, pad } = await leftoverWorld(request, 'Inv L5 Conserve');
+    const before = await preview(request, headers, a.id);
+    expect(before.grossProfitEgp).toBe('1000.00'); // 10 × (200 − 100): not zero (§10)
+    const fundB = async () => Number((await (await request.get(`${API}/costing/cycles/${b.id}/landed-cost`, { headers })).json()).totals.toFundEgp);
+    const fundBefore = await fundB();
+
+    // Five moves of 20 from a shelf of 30, sent at once: one stands.
+    const send = () => request.post(`${API}/cycles/${a.id}/transfers`, { headers, data: { toCycleId: b.id, reason: 'race', lines: [{ productId: pad.id, qty: 20 }] } });
+    const results = await Promise.all([send(), send(), send(), send(), send()]);
+    const ok = results.filter((r) => r.ok());
+    expect(ok, (await Promise.all(results.map((r) => r.text()))).join(' | ')).toHaveLength(1);
+    for (const refused of results.filter((r) => !r.ok())) {
+      expect((await refused.json()).error.code).toBe('TRANSFER_MORE_THAN_ON_SHELF');
+    }
+    const moved = (await ok[0].json()).data;
+
+    const after = await preview(request, headers, a.id);
+    expect(after.grossProfitEgp).toBe(before.grossProfitEgp);
+    expect(Number(before.unsoldValueEgp) - Number(after.unsoldValueEgp)).toBe(2000);
+    expect(moved.totalCostEgp).toBe('2000.00');
+    expect((await fundB()) - fundBefore).toBe(2000);
+    const ledger = async (cycleId: string) =>
+      ((await (await request.get(`${API}/ledger?cycleId=${cycleId}&limit=200`, { headers })).json()).data as any[])
+        .filter((r) => r.category === 'cycle_transfer')
+        .map((r) => [r.direction, Number(r.amount), r.accountId ?? null]);
+    expect(await ledger(a.id)).toEqual([['INFLOW', 2000, null]]);
+    expect(await ledger(b.id)).toEqual([['OUTFLOW', 2000, null]]);
+    expect((await profitability(request, headers, a.id)).profit).toBe(1000);
+  });
+
+  test('TC-INV-52: the business’s cash in, cash out, cash on hand and net profit are the same before a move, after it, and after undoing it', async ({ request }) => {
+    const { headers, mk, a, b, pad } = await leftoverWorld(request, 'Inv L5 Cash');
+    const pick = (d: any) => [d.totalCashIn, d.totalCashOut, d.cashOnHand, d.netProfit, d.inventoryValue];
+    const before = pick(await dashboard(request, headers));
+    const t = await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'cash', lines: [{ productId: pad.id, qty: 30 }] });
+    expect(pick(await dashboard(request, headers))).toEqual(before);
+    await mk(`stock-transfers/${t.id}/undo`, { reason: 'back' });
+    expect(pick(await dashboard(request, headers))).toEqual(before);
+  });
+
+  test('TC-INV-53: after B sells moved units, preview, approve, the partners page and analytics agree — for A and for B', async ({ request }) => {
+    const { headers, mk, a, b, pad, customer } = await leftoverWorld(request, 'Inv L5 Agree', { bFunding: 3000 });
+    await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'agree', lines: [{ productId: pad.id, qty: 30 }] });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: pad.id, quantity: 5, unitPrice: 300, discount: 0 }],
+    });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+
+    const participation: any[] = (await (await request.get(`${API}/users/participation`, { headers })).json()).data;
+    for (const [cycle, profit] of [[a, 1000], [b, 1000]] as const) {
+      const pr = await preview(request, headers, cycle.id);
+      expect(pr.grossProfitEgp, cycle.code).toBe(`${profit}.00`); // B: 5 × (300 − 100)
+      expect((await profitability(request, headers, cycle.id)).profit, cycle.code).toBe(profit);
+      const accrued = participation
+        .flatMap((u) => u.cycles.filter((c: any) => c.id === cycle.id))
+        .reduce((s: number, c: any) => s + c.accruedProfitEgp, 0);
+      expect(accrued, cycle.code).toBe(profit);
+    }
+    // B's units still on the shelf are its own unsold stock, at A's cost.
+    expect((await preview(request, headers, b.id)).unsoldValueEgp).toBe('2500.00');
+
+    // Approve A: the same figures are settled, and it has nothing to write off.
+    const draft = await mk(`settlements/calculate/${a.id}`, {});
+    const approved = (await (await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} })).json()).data;
+    expect(Number(approved.grossProfitEgp)).toBe(1000);
+    expect(Number(approved.unitsRemaining)).toBe(0);
+  });
+});
+
+test.describe('A manual ledger entry can’t lie (L6, §9)', () => {
+  const dashboard = async (request: APIRequestContext, headers: any) =>
+    (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
+  const preview = async (request: APIRequestContext, headers: any, id: string) =>
+    (await (await request.get(`${API}/settlements/preview/${id}`, { headers })).json()).data;
+  const profitability = async (request: APIRequestContext, headers: any, id: string) =>
+    ((await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data as any[]).find((c) => c.cycleId === id);
+  const post = (request: APIRequestContext, headers: any, data: any) =>
+    request.post(`${API}/ledger`, { headers, data });
+  const refusal = async (res: any) => ({ status: res.status(), code: (await res.json()).error?.code });
+  /** Rows carrying this note — none may exist after a refusal. */
+  const rowsNoted = async (request: APIRequestContext, headers: any, note: string) =>
+    ((await (await request.get(`${API}/ledger?limit=200`, { headers })).json()).data as any[]).filter((r) => r.reason === note);
+  const rent = (over: any = {}) => ({ kind: 'EXPENSE', category: 'rent', amount: 300, currency: 'EGP', occurredOn: dayFromNow(-1), ...over });
+
+  test('TC-INV-54: no category a flow writes can be typed by hand, as an expense or as income, in either direction', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const note = `inv54 ${Date.now()}`;
+    const system = ['purchase', 'shipping', 'settlement', 'contribution', 'lender_financing', 'lender_repayment', 'supplier_refund', 'loss_refund', 'revenue', 'refund', 'Rent', 'misc'];
+    for (const category of system) {
+      for (const [kind, direction] of [['EXPENSE', 'OUTFLOW'], ['OTHER_INCOME', 'INFLOW']]) {
+        const r = await refusal(await post(request, headers, { kind, direction, category, amount: 100, currency: 'EGP', note }));
+        expect(r, `${category} as ${kind}`).toEqual({ status: 400, code: 'LEDGER_CATEGORY_NOT_MANUAL' });
+      }
+    }
+    expect((await refusal(await post(request, headers, rent({ category: 'cycle_transfer', note })))).code).toBe('LEDGER_CATEGORY_RESERVED');
+    // The old body shape: a free type, a direction, no kind.
+    const old = await post(request, headers, { type: 'PURCHASE_COST', category: 'purchase', direction: 'INFLOW', amount: 100, currency: 'EGP' });
+    expect(old.status()).toBe(400);
+    expect(await rowsNoted(request, headers, note)).toHaveLength(0);
+  });
+
+  test('TC-INV-55: too little, backwards, the wrong way round, a lie about where it came from, a cycle that is not there or is shut — each refused, nothing written', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const note = `inv55 ${Date.now()}`;
+    const shut = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${shut.id}/transition`, { status: 'CANCELLED' });
+    const cases: [string, any, number, string][] = [
+      ['zero', rent({ amount: 0 }), 400, 'LEDGER_AMOUNT_NOT_POSITIVE'],
+      ['negative', rent({ amount: -300 }), 400, 'LEDGER_AMOUNT_NOT_POSITIVE'],
+      ['tomorrow', rent({ occurredOn: dayFromNow(1) }), 400, 'DATE_IN_FUTURE'],
+      ['not a day', rent({ occurredOn: '2026-02-30' }), 400, 'BAD_DATE'],
+      ['expense as money in', rent({ direction: 'INFLOW' }), 400, 'LEDGER_DIRECTION_MISMATCH'],
+      ['income as money out', { ...rent(), kind: 'OTHER_INCOME', category: 'interest', direction: 'OUTFLOW' }, 400, 'LEDGER_DIRECTION_MISMATCH'],
+      ['interest as an expense', rent({ category: 'interest' }), 400, 'LEDGER_CATEGORY_WRONG_KIND'],
+      ['a system type', rent({ type: 'SETTLEMENT_PAYOUT' }), 400, 'LEDGER_TYPE_NOT_MANUAL'],
+      ['dollars with no rate', rent({ currency: 'USD' }), 400, 'LEDGER_RATE_NOT_POSITIVE'],
+      ['pounds at 2', rent({ fxRateToEgp: 2 }), 400, 'LEDGER_EGP_RATE'],
+      ['posing as a flow', rent({ relatedType: 'SALE_RETURN', relatedId: shut.id }), 400, 'VALIDATION_FAILED'],
+      ['extra freight, no cycle', rent({ category: 'extra_freight' }), 400, 'LEDGER_CYCLE_REQUIRED'],
+      ['a cycle id that is no cycle', rent({ cycleId: '00000000-0000-4000-8000-000000000999' }), 404, 'NOT_FOUND'],
+      ['a cycle code for an id', rent({ cycleId: shut.code }), 404, 'NOT_FOUND'],
+      ['a cancelled cycle', rent({ cycleId: shut.id }), 400, 'LEDGER_CYCLE_NOT_OPEN'],
+    ];
+    for (const [what, body, status, code] of cases) {
+      expect(await refusal(await post(request, headers, { ...body, note })), what).toEqual({ status, code });
+    }
+    expect(await rowsNoted(request, headers, note)).toHaveLength(0);
+  });
+
+  test('TC-INV-56: only a core partner writes an entry — the office, an investor and a shop are refused with a code; the partner is not', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const email = `inv56-office-${stamp}@motoparts.com`;
+    const made = await request.post(`${API}/auth/register`, { headers, data: { email, password: PASSWORD, displayName: `Office ${stamp}`, role: 'ADMIN_SUPPORT' } });
+    expect(made.ok(), await made.text()).toBeTruthy();
+    const office = { Authorization: `Bearer ${(await (await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } })).json()).data.accessToken}` };
+    const note = `inv56 ${stamp}`;
+    for (const caller of [{ who: 'ADMIN_SUPPORT', headers: office, code: 'ROLE_NOT_ALLOWED' }, ...(await refusedCallers(request, 'inv56'))]) {
+      const r = await refusal(await post(request, caller.headers, rent({ note })));
+      expect(r, caller.who).toEqual({ status: 403, code: caller.code });
+    }
+    expect(await rowsNoted(request, headers, note)).toHaveLength(0);
+    // The office still reads the ledger.
+    expect((await request.get(`${API}/ledger?limit=1`, { headers: office })).ok()).toBeTruthy();
+    const ok = await post(request, headers, rent({ note }));
+    expect(ok.status(), await ok.text()).toBe(201);
+    const row = (await ok.json()).data;
+    expect(row).toMatchObject({ type: 'EXPENSE', category: 'rent', direction: 'OUTFLOW', currency: 'EGP' });
+    expect(Number(row.amount)).toBe(300);
+    expect(row.occurredOn.slice(0, 10)).toBe(dayFromNow(-1));
+  });
+
+  test('TC-INV-57: an expense and other income charged to a cycle move its settlement and its page by the same amount, and the dashboard by the same; undone, they all come back', async ({ request }) => {
+    const { headers, a } = await leftoverWorld(request, 'Inv L6 Cycle');
+    // 10 sold at 200 that cost 100: 1,000 profit before anything is charged.
+    expect((await preview(request, headers, a.id)).grossProfitEgp).toBe('1000.00');
+    expect((await profitability(request, headers, a.id)).profit).toBe(1000);
+    const before = await dashboard(request, headers);
+
+    const ok = async (body: any) => {
+      const res = await post(request, headers, body);
+      expect(res.status(), await res.text()).toBe(201);
+      return (await res.json()).data;
+    };
+    const rentRow = await ok(rent({ cycleId: a.id }));
+    await ok(rent({ category: 'extra_freight', amount: 200, cycleId: a.id }));
+    await ok({ kind: 'OTHER_INCOME', category: 'interest', amount: 50, currency: 'EGP', cycleId: a.id });
+    // In dollars: 10 at 50 is 500 pounds, and pounds are what is counted.
+    const usd = await ok(rent({ category: 'bank_fees', amount: 10, currency: 'USD', fxRateToEgp: 50, cycleId: a.id }));
+    expect(Number(usd.amount)).toBe(500);
+    expect(usd.originalCurrency).toBe('USD');
+
+    // 1,000 − 300 − 200 − 500 + 50 = 50, on both.
+    expect((await preview(request, headers, a.id)).grossProfitEgp).toBe('50.00');
+    const page = await profitability(request, headers, a.id);
+    expect(page).toMatchObject({ profit: 50, expensesEgp: 1000, otherIncomeEgp: 50 });
+    const after = await dashboard(request, headers);
+    expect(Math.round((after.totalExpenses - before.totalExpenses) * 100) / 100).toBe(1000);
+    expect(Math.round((after.totalOtherIncomeEgp - before.totalOtherIncomeEgp) * 100) / 100).toBe(50);
+    expect(Math.round((after.netProfit - before.netProfit) * 100) / 100).toBe(-950);
+    expect(after.totalRevenue).toBe(before.totalRevenue);
+
+    // The second time: undo the rent. It stops counting everywhere.
+    const rev = await request.post(`${API}/ledger/${rentRow.id}/reverse`, { headers, data: { reason: 'entered twice' } });
+    expect(rev.ok(), await rev.text()).toBeTruthy();
+    expect((await preview(request, headers, a.id)).grossProfitEgp).toBe('350.00');
+    expect((await profitability(request, headers, a.id)).profit).toBe(350);
+    const undone = await dashboard(request, headers);
+    expect(Math.round((undone.totalExpenses - before.totalExpenses) * 100) / 100).toBe(700);
+    expect(Math.round((undone.netProfit - before.netProfit) * 100) / 100).toBe(-650);
+    // And it cannot be undone twice.
+    const again = await request.post(`${API}/ledger/${rentRow.id}/reverse`, { headers, data: { reason: 'again' } });
+    expect((await refusal(again)).code).toBe('ENTRY_ALREADY_REVERSED');
+  });
+
+  test('TC-INV-58: a sale returned for cash comes off Revenue once and is not an expense', async ({ request }) => {
+    const { headers, mk, customer } = await leftoverWorld(request, 'Inv L6 Return');
+    const orders: any[] = (await (await request.get(`${API}/sales/orders?customerId=${customer.id}&limit=10`, { headers })).json()).data;
+    const order = orders[0];
+    await mk('payments', { customerId: customer.id, amount: 2000, currency: 'EGP', orderId: order.id });
+    const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
+    const before = await dashboard(request, headers);
+    // Two of the ten come back for cash: 400 of revenue, 200 of cost back on the shelf.
+    await mk('returns', { saleOrderId: order.id, reason: 'two came back', refundMethod: 'CASH', items: [{ saleItemId: item.id, qty: 2 }] });
+    const after = await dashboard(request, headers);
+    const d = (k: string) => Math.round((after[k] - before[k]) * 100) / 100;
+    expect(d('totalRevenue')).toBe(-400);
+    expect(d('totalCogs')).toBe(-200);
+    expect(d('totalExpenses')).toBe(0);
+    expect(d('netProfit')).toBe(-200);
   });
 });
