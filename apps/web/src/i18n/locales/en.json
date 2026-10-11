@@ -118,6 +118,7 @@
     "netProfit": "Net Profit",
     "expenses": "Expenses",
     "inventoryValue": "Inventory Value",
+    "unitsInStock": "Items in stock",
     "receivables": "Receivables",
     "activeCycles": "Active Cycles",
     "lowStockAlerts": "Low Stock Alerts",
