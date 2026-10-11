@@ -15,6 +15,7 @@ _(none)_
 ## Next up
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
 - I3 (owner 2026-10-11): record a leg's departure and its deliveries from the cycle details page (reuse RecordDeliveryDialog / the shipments page's departure form, no second definition); a LEG_NOT_DEPARTED / LEG_NOT_ARRIVED refusal in Change status offers that action in place. After this the wizard is only for setting a cycle up.
+  Also (owner 2026-10-11): location cards at the top of cycle details — per cycle and per product, how many are in China (not shipped), on the way to UAE, in UAE, on the way to Egypt, in Egypt (received + not checked in), sold; Lost only when > 0. Built from the shipment model's per-leg entered/delivered/onTheWay/received/waiting/lost. Layout: option A (cards + product table; cards per product on a phone) unless the owner picks B (bar per product) — mockup shown 2026-10-11.
 - From I1: the dashboard's recent activity names a shop as plain text — not a link to it (a person clicking it gets
   nothing). A list's spinner replaces the table each time its date range changes (keep the previous rows instead?).
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
