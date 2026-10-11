@@ -680,7 +680,13 @@
     "allCategories": "All categories",
     "otherIncome": "Other income",
     "originalAmount": "Paid as",
-    "recordFailed": "The entry was not saved."
+    "recordFailed": "The entry was not saved.",
+    "capitalContribution": "Capital",
+    "lenderFinancing": "A friend's payment",
+    "lenderRepayment": "Repayment to a friend",
+    "stockTransfer": "Leftovers moved",
+    "stockTransferReversal": "Leftovers move undone",
+    "chooseCycle": "Choose the cycle"
   },
   "settlements": {
     "title": "Settlements",
@@ -1614,7 +1620,18 @@
       "other_expense": "Other",
       "other_income": "Other income",
       "interest": "Interest",
-      "income_other": "Other"
+      "income_other": "Other",
+      "purchase": "Purchase",
+      "shipping": "Shipping",
+      "settlement": "Settlement payout",
+      "contribution": "Capital",
+      "lender_financing": "A friend's payment",
+      "lender_repayment": "Repayment to a friend",
+      "supplier_refund": "Supplier refund",
+      "loss_refund": "Refund for lost goods",
+      "revenue": "Sales",
+      "refund": "Refund to a customer",
+      "cycle_transfer": "Leftovers moved between cycles"
     },
     "ledgerKind": {
       "EXPENSE": "an expense",

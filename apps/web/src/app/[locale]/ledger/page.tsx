@@ -11,7 +11,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  BookOpen, Plus, Search, Eye, X, Loader2,
+  Plus, Search, Eye, X, Loader2,
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';
@@ -80,6 +80,11 @@ const TYPE_KEYS: Record<string, string> = {
   REFUND_PAID: 'refundPaid',
   EXPENSE: 'expense',
   OTHER_INCOME: 'otherIncome',
+  CAPITAL_CONTRIBUTION: 'capitalContribution',
+  LENDER_FINANCING: 'lenderFinancing',
+  LENDER_REPAYMENT: 'lenderRepayment',
+  STOCK_TRANSFER: 'stockTransfer',
+  STOCK_TRANSFER_REVERSAL: 'stockTransferReversal',
 };
 
 const DIRECTION_COLORS: Record<string, string> = {
@@ -97,10 +102,10 @@ export default function LedgerPage() {
   // `type` is a free-form column: fall back to the raw value rather than
   // asking next-intl for a message key that does not exist.
   const typeLabel = (type: string) => (TYPE_KEYS[type] ? t(TYPE_KEYS[type]) : type);
-  // A manual category in the reader's language; anything else — a flow's
-  // category, or free text written before L6 — exactly as it was written.
+  // A category in the reader's language — the manual list and the ones the
+  // flows write; free text written before L6 comes back exactly as written.
   const categoryLabel = (category?: string | null) =>
-    !category ? '—' : manualKindOf(category) ? codeLabel('ledgerCategory', category) : category;
+    !category ? '—' : codeLabel('ledgerCategory', category);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -275,7 +280,7 @@ export default function LedgerPage() {
             ...[...new Set(entryList.map((e) => e.category).filter(Boolean))]
               .filter((c) => !manualKindOf(c))
               .sort()
-              .map((c) => ({ value: c, label: c })),
+              .map((c) => ({ value: c, label: categoryLabel(c) })),
           ]}
         />
       </div>

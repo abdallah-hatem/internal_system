@@ -84,13 +84,26 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
+  const refusalRef = useRef<HTMLParagraphElement>(null);
+
+  // The refusal sits under the last field; on a phone that is below the fold,
+  // so a Save that "did nothing" would be all anyone saw.
+  useEffect(() => {
+    if (refusal) refusalRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [refusal]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !submitting.current) onClose();
+      if (e.key !== 'Escape' || submitting.current) return;
+      // Escape inside an open picker or calendar closes that, not the form —
+      // closing the form would throw away everything typed in it.
+      if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
+      onClose();
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    // On the window, capturing: ahead of Radix's own Escape handler on the
+    // document, which closes the picker and takes it out of the page first.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
   const { items: cycles } = useAllRecords<CycleRow>(['cycles'], '/cycles');
@@ -321,7 +334,7 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
                   }}
                   clearable
                   required={cycleRequired}
-                  placeholder={t('noCycle')}
+                  placeholder={cycleRequired ? t('chooseCycle') : t('noCycle')}
                   searchPlaceholder={tc('search')}
                   options={cycleOptions}
                 />
@@ -349,7 +362,7 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
             </div>
 
             {refusal && (
-              <p role="alert" data-testid="ledger-refusal" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p ref={refusalRef} role="alert" data-testid="ledger-refusal" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {refusal}
               </p>
             )}

@@ -292,6 +292,22 @@ describe('a refusal keeps the form', () => {
   });
 });
 
+describe('Escape', () => {
+  it('inside an open picker closes the picker, not the form', async () => {
+    const { onClose } = renderDialog();
+    fireEvent.click(combo('ledger-category'));
+    await screen.findAllByRole('option');
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('with nothing open closes the form', () => {
+    const { onClose } = renderDialog();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
 describe('no native controls (LEARNINGS: interface)', () => {
   it('no <select>, no date input, no radio input', () => {
     renderDialog();

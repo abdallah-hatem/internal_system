@@ -680,7 +680,13 @@
     "allCategories": "جميع الفئات",
     "otherIncome": "دخل آخر",
     "originalAmount": "دُفع بمبلغ",
-    "recordFailed": "لم يُحفظ القيد."
+    "recordFailed": "لم يُحفظ القيد.",
+    "capitalContribution": "رأس مال",
+    "lenderFinancing": "دفعة من صديق",
+    "lenderRepayment": "سداد لصديق",
+    "stockTransfer": "نقل بضاعة متبقية",
+    "stockTransferReversal": "إلغاء نقل بضاعة متبقية",
+    "chooseCycle": "اختر الدورة"
   },
   "settlements": {
     "title": "التسويات",
@@ -1614,7 +1620,18 @@
       "other_expense": "أخرى",
       "other_income": "دخل آخر",
       "interest": "فوائد",
-      "income_other": "أخرى"
+      "income_other": "أخرى",
+      "purchase": "شراء",
+      "shipping": "شحن",
+      "settlement": "صرف التسوية",
+      "contribution": "رأس مال",
+      "lender_financing": "دفعة من صديق",
+      "lender_repayment": "سداد لصديق",
+      "supplier_refund": "استرداد من المورد",
+      "loss_refund": "استرداد عن بضاعة مفقودة",
+      "revenue": "مبيعات",
+      "refund": "رد مبلغ لعميل",
+      "cycle_transfer": "بضاعة متبقية نُقلت بين الدورات"
     },
     "ledgerKind": {
       "EXPENSE": "مصروفًا",
