@@ -454,6 +454,58 @@ to sign. A draft and a cancelled order have no invoice (`INVOICE_DRAFT`,
   printed — none is on file. A walk-in sale prints "Walk-in customer", "paid in
   full on the spot", and no account box.
 - The invoice number is the order number; there is no separate invoice sequence.
+
+**DECIDED 2026-10-11 by the owner — selling below cost warns, and never refuses.**
+*Built 2026-10-11 (L4).* He sold 90 helmets at 1,000 EGP each when each had landed
+at 2,616.67, and nothing told him. Now every place a selling price is set says so
+before the sale is made — and the sale still goes through if he chooses it: a
+clearance or a favour to a shop is his decision, not the system's.
+
+- **What "cost" means.** The landed cost (§2) of the units this sale would actually
+  draw under FIFO (§3): the oldest received batch first, each at its own cost.
+  A line that spans two batches costs exactly those units, so 3 units drawn as
+  2 at 900 and 1 at 1,100 cost 2,900 together (966.67 each) — selling them at
+  1,000 is *not* below cost though it is under the newer batch. Two lines of one
+  product draw in order, the second after the first, as confirming does.
+- **What it is compared with.** The line's total *after its line discount* — the
+  figure the order stores — against the cost of its units, each batch's share
+  rounded to the cent exactly as confirming records the COGS. It is compared per
+  line, in cents, never per unit: a price that is at cost to the cent across the
+  line is not flagged because a four-place unit cost rounds differently. Exactly
+  at cost is not below it. The warning is that line's cost, the price per unit
+  after the discount, and the loss on the line; the order shows the losses added.
+- **No stock, no warning.** A line the shelf cannot cover in full is not costed —
+  confirming refuses it (`INSUFFICIENT_STOCK` / `NOT_ENOUGH_STOCK`) and that is
+  the message. A line still being filled in (no product, no quantity) is not
+  costed either.
+- **One rule, one definition** (CLAUDE.md §11). `apps/api/src/common/below-cost.ts`
+  computes it; `POST /sales/price-check` answers every surface; the batch
+  list it reads is the same function confirming allocates from (`fifoBatches`).
+  Nothing is written and nothing is refused by it.
+- **Where it shows.** The office sale form, shop and walk-in, under each line and
+  under the order total, as price, quantity or discount change; a draft's order
+  view above Confirm (the cost is read again — stock may have moved since it was
+  written); approving a storefront request (§12); setting a product's B2B or B2C
+  price; and the assistant's `record_sale` preview (§16).
+- **A product's price** is checked against the oldest batch on the shelf — what
+  the next unit sold at that price would draw, which is the same check as a sale
+  of one unit. No stock, no warning.
+- **Who sees it.** The roles that sell — core partners and admin support, who
+  already read landed costs on the inventory page and a sale's allocations. A
+  temporary investor or a shop never reaches the check (the endpoint carries the
+  sales roles and refuses anyone else), and a product's price warning is shown
+  only to whoever may set the price (core partners).
+- Coded (`BELOW_COST`) and said in the reader's language; the amber warning
+  style, not the red of a refusal.
+
+Guesses made while building it, open until confirmed (2026-10-11):
+- A sale in a currency other than EGP is not compared: the cost is in pounds and
+  the order records no rate to convert at. (The assistant and storefront requests
+  are always EGP.)
+- A free line (price 0) on stock that cost something is a loss and warns.
+- The warning sits beside the buttons rather than asking "are you sure?" first:
+  it is on screen before Confirm is pressed, and a second click to get past it
+  would make a decided price slower to enter every time.
 ---
 
 ## 5. Returns
@@ -926,6 +978,11 @@ The price the shop was shown when they asked is recorded on the request. A price
 that moves in between does not change what they believed they were asking for;
 the approval screen shows both.
 
+**Approving below cost warns (2026-10-11, L4).** The approval screen checks the
+lines as they would be approved — the quantities and prices on screen — against
+what their goods cost now (§4), per line and in total, and Approve still goes
+through. Only the office sees it; the shop is never shown a cost.
+
 **An order request is not a sale order.** Separate records. Outstanding
 balances, analytics, payment allocation and settlement projection all read sale
 orders, and a request living among them as a status would mean every one of
@@ -1379,6 +1436,15 @@ Guesses made while building it, open until confirmed (2026-10-11):
   re-checked), the friend stays on file with nothing owed.
 - The amount must be more than zero now in `LendersService.finance` itself, not only in the
   office form's DTO, because the assistant calls the method directly.
+
+**Selling below cost (2026-10-11, L4).** `record_sale`'s preview carries a `belowCost`
+block on every line sold below what its goods cost — `unitCostEgp`, `unitPriceEgp` (after
+the line discount) and `lossEgp`, or null — and `belowCostLossEgp`, the lines' losses
+added. It is the sales service's own price check (§4), so the assistant and the office
+form cannot disagree. The summary says it in words, and the tool description and the
+server instructions tell Claude to tell the partner the loss before the partner
+confirms. It is still the partner's call: a below-cost sale confirms like any other,
+and the assistant never changes the price itself.
 
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it

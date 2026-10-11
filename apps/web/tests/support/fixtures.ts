@@ -174,12 +174,14 @@ export async function giveStock(
   productId: string,
   label: string,
   qty = 100,
+  /** What each unit cost the supplier; freight is free, so it is also the landed cost. */
+  unitPrice = 10,
 ) {
   const supplier = await mk('suppliers', { name: `${label} Supplier`, country: 'AE' });
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${cycle.id}/purchases`, {
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
-    items: [{ productId, orderedQty: qty, unitPrice: 10 }],
+    items: [{ productId, orderedQty: qty, unitPrice }],
   });
   // The departure and arrival dates are the point: a cycle cannot pass a stage
   // its shipment has not reached, so stock cannot exist without them.

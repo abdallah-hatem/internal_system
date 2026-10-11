@@ -17,6 +17,8 @@ import { FieldMark, RowAction } from '@/components/ui/fields';
 import { invalidFields } from '@/components/ui/validated-form';
 import { useCodeLabel } from '@/lib/labels';
 import { PAYMENT_METHODS } from '@/components/payments/RecordPaymentDialog';
+import { usePriceCheck } from '@/lib/price-check';
+import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
 
 export interface SaleFormCustomer {
   id: string;
@@ -214,6 +216,11 @@ export function SaleOrderForm({
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   const totals = useMemo(() => saleOrderTotals(lines), [lines]);
+
+  // Below cost (§4, 2026-10-11): asked of the server as the lines change, and
+  // shown under each line and the total. A warning only — neither button
+  // looks at it.
+  const priceCheck = usePriceCheck(lines, currency);
 
   // What is still empty, from state — never a snapshot taken at submit.
   const missing = [
@@ -485,6 +492,7 @@ export function SaleOrderForm({
                     <Money value={lineTotals.lineTotalCents / 100} currency={currency} />
                   </span>
                 </div>
+                <BelowCostLine check={priceCheck?.lines[idx]} />
               </li>
             );
           })}
@@ -515,6 +523,7 @@ export function SaleOrderForm({
             {t('walkInPaidBy', { method: codeLabel('paymentMethod', method) })}
           </p>
         )}
+        <BelowCostTotal result={priceCheck} className="mt-2" />
       </div>
 
       {checked && missing.length > 0 ? (

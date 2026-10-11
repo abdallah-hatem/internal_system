@@ -888,3 +888,111 @@ describe('record_sale — low stock after the sale (§3, 2026-10-11)', () => {
     expect(lowStockAlerts).not.toHaveBeenCalled();
   });
 });
+
+describe('record_sale — selling below cost (§4, §16, 2026-10-11)', () => {
+  // The pads landed at 120 each (40 in one batch); the helmets at 120 too.
+  interface BelowCost {
+    unitCostEgp: string;
+    unitPriceEgp: string;
+    lossEgp: string;
+  }
+  const linesOf = (r: { s: Structured }) =>
+    (r.s.data?.lines ?? []) as unknown as (Line & {
+      belowCost: BelowCost | null;
+    })[];
+
+  it('25 pads at 100 against 120 landed → the line carries belowCost (120.00, 100.00, loss 500.00), the total loss, and the preview says it', async () => {
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'HCB-BP', qty: 25, unitPrice: 100 }],
+    });
+    expect(r.s.status).toBe('preview');
+    expect(linesOf(r)[0].belowCost).toEqual({
+      unitCostEgp: '120.00',
+      unitPriceEgp: '100.00',
+      lossEgp: '500.00',
+    });
+    expect(r.s.data?.belowCostLossEgp).toBe('500.00');
+    expect(r.text).toContain(
+      'Below cost: each costs 120.00, selling at 100.00, a loss of 500.00 on this line',
+    );
+    expect(r.text).toContain(
+      'Selling below cost loses 500.00 EGP on this sale',
+    );
+  });
+
+  it('the line discount counts: 10 at 125 is above cost; less 100 it is 1,150 against 1,200 → a loss of 50.00', async () => {
+    const above = await call({
+      walkIn: true,
+      lines: [{ product: 'HCB-BP', qty: 10, unitPrice: 125 }],
+    });
+    expect(linesOf(above)[0].belowCost).toBeNull();
+
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'HCB-BP', qty: 10, unitPrice: 125, discount: 100 }],
+    });
+    expect(linesOf(r)[0].belowCost).toEqual({
+      unitCostEgp: '120.00',
+      unitPriceEgp: '115.00',
+      lossEgp: '50.00',
+    });
+  });
+
+  it('at or above cost → belowCost null on every line, a total of 0.00, and no warning in the preview', async () => {
+    const r = await call({
+      customer: 'Nasr City Motors',
+      lines: [
+        { product: 'HCB-BP', qty: 10, unitPrice: 120 },
+        { product: 'FFH-01', qty: 2, unitPrice: 500 },
+      ],
+    });
+    expect(linesOf(r).map((l) => l.belowCost)).toEqual([null, null]);
+    expect(r.s.data?.belowCostLossEgp).toBe('0.00');
+    expect(r.text).not.toMatch(/below cost/i);
+  });
+
+  it('only the line below cost is flagged, and the total is that line', async () => {
+    const r = await call({
+      customer: 'Nasr City Motors',
+      lines: [
+        { product: 'HCB-BP', qty: 10, unitPrice: 150 },
+        { product: 'FFH-01', qty: 3, unitPrice: 20 },
+      ],
+    });
+    expect(linesOf(r).map((l) => l.belowCost?.lossEgp ?? null)).toEqual([
+      null,
+      '300.00',
+    ]);
+    expect(r.s.data?.belowCostLossEgp).toBe('300.00');
+  });
+
+  it('a warning, never a refusal: confirming the below-cost preview records the sale', async () => {
+    const args = {
+      walkIn: true,
+      lines: [{ product: 'HCB-BP', qty: 25, unitPrice: 100 }],
+    };
+    const preview = await call(args);
+    const done = await confirm(args, preview.s.confirmationToken);
+    expect(done.s.status).toBe('committed');
+    expect(db.tables.saleOrder).toHaveLength(1);
+    expect(batchQty()).toBe('15');
+  });
+
+  it('the preview of a below-cost sale writes nothing', async () => {
+    const before = db.counts();
+    await call({
+      walkIn: true,
+      lines: [{ product: 'HCB-BP', qty: 25, unitPrice: 1 }],
+    });
+    expect(db.counts()).toEqual(before);
+    expect(batchQty()).toBe('40');
+  });
+
+  it('the tool description tells Claude to say the loss before the partner confirms', async () => {
+    const { tools } = await client.listTools();
+    const sale = tools.find((t) => t.name === 'record_sale')!;
+    expect(sale.description).toMatch(/below cost/i);
+    expect(sale.description).toMatch(/before the partner confirms/i);
+  });
+});

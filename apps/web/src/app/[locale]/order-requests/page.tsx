@@ -13,6 +13,8 @@ import { useToast } from '../../../components/ui/toast';
 import { MoneyInput } from '../../../components/ui/money-input';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { useDateFormat } from '../../../lib/dates';
+import { usePriceCheck } from '@/lib/price-check';
+import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
 
 /**
  * Answering what the shops have asked for.
@@ -180,13 +182,25 @@ function RequestCard({
     [lines, request.items],
   );
 
+  // Below cost (§4, §12, 2026-10-11): the lines as they would be approved —
+  // the quantities and prices on screen, not as asked — against what their
+  // goods cost now. Approve still goes through.
+  const priceCheck = usePriceCheck(
+    request.items.map((i) => ({
+      productId: i.productId,
+      quantity: lines[i.productId].qty,
+      unitPrice: lines[i.productId].price,
+    })),
+    'EGP',
+  );
+
   const total = request.items.reduce(
     (sum, i) => sum + Number(lines[i.productId].qty || 0) * Number(lines[i.productId].price || 0),
     0,
   );
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white">
+    <div data-testid="order-request-card" className="rounded-xl border border-gray-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -210,12 +224,13 @@ function RequestCard({
       )}
 
       <div className="divide-y divide-gray-100">
-        {request.items.map((item) => {
+        {request.items.map((item, index) => {
           const line = lines[item.productId];
           const short = Number(line.qty) > Number(item.couldGive);
           return (
             <div key={item.productId} className="field-row flex flex-wrap gap-3 px-5 py-4">
-              <div className="min-w-0 flex-1">
+              {/* Its own row on a phone: beside two inputs it was squeezed to "...or 1877" (L4 audit, 390px). */}
+              <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
                 <p className="text-xs text-gray-500">
                   {item.sku} · {t('asked', { qty: item.qtyRequested })} ·{' '}
@@ -255,6 +270,9 @@ function RequestCard({
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </label>
+              <div className="basis-full empty:hidden">
+                <BelowCostLine check={priceCheck?.lines[index]} />
+              </div>
             </div>
           );
         })}
@@ -266,6 +284,8 @@ function RequestCard({
             {t('changedWarning')}
           </p>
         )}
+
+        <BelowCostTotal result={priceCheck} />
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
