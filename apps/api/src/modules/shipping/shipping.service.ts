@@ -259,39 +259,47 @@ export class ShippingService {
     // `syncLegStatuses`, never taken from the plan's dates.
     const { arrivedOn: _arrivedOn, ...row } = plan.leg;
 
-    const { leg, changed } = await this.prisma.$transaction(async (tx) => {
-      await lockCycle(tx, cycleId);
-      const created = await tx.shippingLeg.create({
-        data: { ...row, status: legStatusFromDates(data.departedOn, null) },
-      });
-      if (data.arrivedOn) {
-        await this.deliveries.deliverRemainderIn(
+    const { leg, changed, followed } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockCycle(tx, cycleId);
+        const created = await tx.shippingLeg.create({
+          data: { ...row, status: legStatusFromDates(data.departedOn, null) },
+        });
+        if (data.arrivedOn) {
+          await this.deliveries.deliverRemainderIn(
+            tx,
+            cycleId,
+            created.id,
+            businessDay(data.arrivedOn),
+            actorId,
+          );
+        }
+        const changed = await syncLegStatuses(tx, cycleId);
+        // A leg born departed, or delivered, moves the cycle on (§1, L3).
+        const followed =
+          data.departedOn || data.arrivedOn
+            ? await this.deliveries.followShipment(tx, cycleId)
+            : null;
+        const leg = await tx.shippingLeg.findUniqueOrThrow({
+          where: { id: created.id },
+        });
+        await this.audit.log(
+          {
+            actorUserId: actorId,
+            action: 'CREATE',
+            entityType: 'ShippingLeg',
+            entityId: leg.id,
+            afterJson: leg,
+          },
           tx,
-          cycleId,
-          created.id,
-          businessDay(data.arrivedOn),
-          actorId,
         );
-      }
-      const changed = await syncLegStatuses(tx, cycleId);
-      const leg = await tx.shippingLeg.findUniqueOrThrow({
-        where: { id: created.id },
-      });
-      await this.audit.log(
-        {
-          actorUserId: actorId,
-          action: 'CREATE',
-          entityType: 'ShippingLeg',
-          entityId: leg.id,
-          afterJson: leg,
-        },
-        tx,
-      );
-      return { leg, changed };
-    });
+        return { leg, changed, followed };
+      },
+    );
 
+    if (followed) await this.deliveries.announceFollow(followed, actorId);
     await this.deliveries.notifyArrivals(cycleId, changed);
-    return { data: leg };
+    return { data: leg, cycleStatus: followed?.cycleStatus ?? null };
   }
 
   /**
@@ -356,92 +364,105 @@ export class ShippingService {
     assertNotFuture(data.departedOn, 'DEPARTURE');
     assertNotFuture(data.arrivedOn, 'ARRIVAL');
 
-    const { updated, changed } = await this.prisma.$transaction(async (tx) => {
-      await lockCycle(tx, existing.cycleId);
-      const loaded = await loadShipment(tx, existing.cycleId);
-      if (!loaded) throw notFound('cycle');
+    const { updated, changed, followed } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockCycle(tx, existing.cycleId);
+        // A departure set or moved, or an arrival delivered (§1, L3). The edit
+        // form re-sends an unchanged departure on every save; that is no news.
+        let shipmentNews = false;
+        const loaded = await loadShipment(tx, existing.cycleId);
+        if (!loaded) throw notFound('cycle');
 
-      const costMoved =
-        costFields.costBasis !== existing.costBasis ||
-        !costFields.amountEgp.equals(existing.amountEgp ?? 0);
-      const { received, lost } = loaded.position.totals;
-      if (costMoved && (received > 0 || lost > 0)) {
-        throw badRequest(
-          'LEG_COST_LOCKED',
-          `Goods of cycle ${loaded.cycle.code} have already been received or marked lost, so the cost of ${existing.origin} → ${existing.destination} is fixed. Record a late or corrected charge as a cycle expense.`,
-          { cycle: loaded.cycle.code },
-        );
-      }
-
-      if (data.departedOn) {
-        const departed = businessDay(data.departedOn);
-        // No departure is recorded on a cycle cancelled, being settled or
-        // closed (§1). Only a change counts: the Shipments page's edit form
-        // sends the leg's departure back with every save, unchanged.
-        const before = existing.departedOn
-          ? businessDay(existing.departedOn)
-          : null;
-        if (departed !== before) assertOpen(loaded.cycle);
-        const legRow = loaded.cycle.shippingLegs.find((l) => l.id === id);
-        const earliest = (legRow?.deliveries ?? [])
-          .map((d) => businessDay(d.arrivedOn))
-          .sort()[0];
-        if (earliest && earliest < departed) {
+        const costMoved =
+          costFields.costBasis !== existing.costBasis ||
+          !costFields.amountEgp.equals(existing.amountEgp ?? 0);
+        const { received, lost } = loaded.position.totals;
+        if (costMoved && (received > 0 || lost > 0)) {
           throw badRequest(
-            'DELIVERY_BEFORE_DEPARTURE',
-            `A delivery on ${earliest} is before ${existing.origin} → ${existing.destination} departed on ${departed}.`,
-            {
-              day: earliest,
-              departedOn: departed,
-              leg: `${existing.origin} → ${existing.destination}`,
-            },
+            'LEG_COST_LOCKED',
+            `Goods of cycle ${loaded.cycle.code} have already been received or marked lost, so the cost of ${existing.origin} → ${existing.destination} is fixed. Record a late or corrected charge as a cycle expense.`,
+            { cycle: loaded.cycle.code },
           );
         }
-      }
 
-      await tx.shippingLeg.update({
-        where: { id },
-        data: {
-          origin: data.origin,
-          destination: data.destination,
-          departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
-          provider: data.provider,
-          providerId: data.providerId,
-          trackingRef: data.trackingRef,
-          ...costFields,
-        },
-      });
+        if (data.departedOn) {
+          const departed = businessDay(data.departedOn);
+          // No departure is recorded on a cycle cancelled, being settled or
+          // closed (§1). Only a change counts: the Shipments page's edit form
+          // sends the leg's departure back with every save, unchanged.
+          const before = existing.departedOn
+            ? businessDay(existing.departedOn)
+            : null;
+          if (departed !== before) {
+            assertOpen(loaded.cycle);
+            shipmentNews = true;
+          }
+          const legRow = loaded.cycle.shippingLegs.find((l) => l.id === id);
+          const earliest = (legRow?.deliveries ?? [])
+            .map((d) => businessDay(d.arrivedOn))
+            .sort()[0];
+          if (earliest && earliest < departed) {
+            throw badRequest(
+              'DELIVERY_BEFORE_DEPARTURE',
+              `A delivery on ${earliest} is before ${existing.origin} → ${existing.destination} departed on ${departed}.`,
+              {
+                day: earliest,
+                departedOn: departed,
+                leg: `${existing.origin} → ${existing.destination}`,
+              },
+            );
+          }
+        }
 
-      if (data.arrivedOn) {
-        await this.deliveries.deliverRemainderIn(
+        await tx.shippingLeg.update({
+          where: { id },
+          data: {
+            origin: data.origin,
+            destination: data.destination,
+            departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
+            provider: data.provider,
+            providerId: data.providerId,
+            trackingRef: data.trackingRef,
+            ...costFields,
+          },
+        });
+
+        if (data.arrivedOn) {
+          const delivered = await this.deliveries.deliverRemainderIn(
+            tx,
+            existing.cycleId,
+            id,
+            businessDay(data.arrivedOn),
+            actorId,
+          );
+          if (delivered) shipmentNews = true;
+        }
+
+        const changed = await syncLegStatuses(tx, existing.cycleId);
+        const followed = shipmentNews
+          ? await this.deliveries.followShipment(tx, existing.cycleId)
+          : null;
+        const updated = await tx.shippingLeg.findUniqueOrThrow({
+          where: { id },
+        });
+        await this.audit.log(
+          {
+            actorUserId: actorId,
+            action: 'UPDATE',
+            entityType: 'ShippingLeg',
+            entityId: id,
+            beforeJson: existing,
+            afterJson: updated,
+          },
           tx,
-          existing.cycleId,
-          id,
-          businessDay(data.arrivedOn),
-          actorId,
         );
-      }
+        return { updated, changed, followed };
+      },
+    );
 
-      const changed = await syncLegStatuses(tx, existing.cycleId);
-      const updated = await tx.shippingLeg.findUniqueOrThrow({
-        where: { id },
-      });
-      await this.audit.log(
-        {
-          actorUserId: actorId,
-          action: 'UPDATE',
-          entityType: 'ShippingLeg',
-          entityId: id,
-          beforeJson: existing,
-          afterJson: updated,
-        },
-        tx,
-      );
-      return { updated, changed };
-    });
-
+    if (followed) await this.deliveries.announceFollow(followed, actorId);
     await this.deliveries.notifyArrivals(existing.cycleId, changed);
-    return { data: updated };
+    return { data: updated, cycleStatus: followed?.cycleStatus ?? null };
   }
 
   /**

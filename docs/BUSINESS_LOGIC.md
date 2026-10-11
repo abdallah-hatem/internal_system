@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (§18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-11 (L3: a cycle's status follows its shipment; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -104,6 +104,59 @@ nothing of it — the goods are sitting at its origin and it has not started.
 A departure or a delivery cannot be dated in the future; a delivery cannot be
 dated before its leg departed, and none can be recorded on a cancelled or closed
 cycle.
+
+**DECIDED 2026-10-11 (owner, L3) — the cycle's status follows its shipment.**
+*Built 2026-10-11.* The owner expects recording that goods left or arrived to
+move the cycle by itself, without a second visit to Change status. So
+**recording a departure or a delivery moves the cycle forward to the furthest
+status the shipment then proves**, one step at a time through the same
+transition Change status makes — each step's own check runs, and leaving
+Purchasing confirms the cycle's draft orders exactly once (§15), with the same
+audit row and notification per step. What proves what is the table above, read
+the other way round:
+
+| Recorded | China cycle moves to | UAE-direct cycle moves to |
+|---|---|---|
+| leg 1 departed | In transit | In transit to Egypt, through Arrived UAE (which asks nothing of its one leg) |
+| leg 1 has a delivery | Arrived UAE | Arrived Egypt |
+| the last leg departed | In transit to Egypt | — |
+| the last leg has a delivery | Arrived Egypt | — |
+
+- **Never backward, never past Arrived Egypt.** A cycle already at or beyond
+  what the record proves stays where it is; verifying and selling belong to
+  receiving (§3). A cycle in settlement, closed or cancelled is never moved
+  (and nothing can be recorded on one but a leg added in settlement, which
+  moves nothing).
+- **A step whose own check refuses stops the walk there, and the record still
+  saves.** The response names the step and the refusal; the office app shows it
+  as a warning beside the success.
+- **A cycle still in Planning or Funding** when a departure or delivery is
+  recorded is walked through Funding and Purchasing too, each through its own
+  checks (recommended option, chosen in the autonomous run 2026-10-11): the
+  goods have left, so the money and the order already happened in the world.
+- **A China cycle whose second leg is not recorded** is proved no further than
+  Arrived UAE, although the transition check lets a missing leg through.
+- **Every entry point:** Record departure and Record delivery on the cycle's
+  page, the fix offered by a refused Change status, the Shipments page's
+  create and edit forms, the wizard's legs step, and the assistant's
+  `add_shipping_leg` (a departure or an arrival) and `record_delivery`. Each
+  response carries `cycleStatus` (from, to, the steps taken, the step that
+  refused if one did, the orders it confirmed); the office app says it in the
+  success toast — "Delivery recorded — cycle is now Arrived Egypt" — and
+  refetches the cycle. The assistant's previews say where the record will
+  move the cycle and which orders it will confirm, and that is bound to the
+  confirmation: a cycle moved in between needs a fresh preview.
+- **Deleting a delivery** keeps its guard: refused while the cycle's status
+  depends on it. The cycle is not moved back by itself.
+- Guesses, open until confirmed (autonomous run, 2026-10-11):
+  - Only a change is news. The Shipments page's edit form sends a leg's
+    departure back with every save; an unchanged departure moves nothing, so a
+    cycle a partner kept behind its recorded shipment before this rule is not
+    moved by an unrelated edit — only by the next real departure or delivery.
+  - When a fix offered by a refused Change status moves the cycle by itself,
+    the status dialog closes instead of offering the move again.
+  - Receiving into stock reports its own walk to Selling the same way
+    ("Received into stock — cycle is now Selling").
 
 Rate-based legs derive their total rather than asking for it, so the per-piece
 rate itself stays on the record. A leg can be priced in another currency with an
@@ -256,7 +309,10 @@ line can never total more than were ordered.
 
 Stock can only be received once the cycle has reached Arrived Egypt. The first
 receipt moves the cycle on to Selling, through each step's own checks, as the
-wizard used to. Selling then continues while later deliveries come in.
+wizard used to. Since L3 (§1, 2026-10-11) the delivery that reaches Egypt
+has already moved the cycle to Arrived Egypt by itself, so a cycle in transit
+holding a last-leg delivery exists only in data from before that rule; the
+refusal (`CYCLE_NOT_ARRIVED`) stays for it. Selling then continues while later deliveries come in.
 
 FIFO still means the oldest **received** batch first: the day it was checked
 in, not the day it landed.
@@ -1273,6 +1329,14 @@ Guesses made while building it, open until confirmed (2026-10-11):
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it
 books a loss, and a partner should decide that on a screen.
+
+**The status a record moves the cycle to (2026-10-11, L3, §1).** `record_delivery`
+and `add_shipping_leg` with a departure or an arrival move the cycle on by
+themselves, as the office app's do. Each preview says where the cycle will land
+("This moves CYC-… from PURCHASING to IN_TRANSIT_TO_EGYPT") and which draft
+orders leaving Purchasing will confirm, read from the same write rolled back;
+both are part of what the confirmation binds. The commit says where it actually
+landed, and the step that refused if the walk stopped short.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
 the supplier's invoice number, and the photograph stays in the conversation.

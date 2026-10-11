@@ -17,7 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
+import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
 import { psqlStdin } from './support/database';
 
 /**
@@ -43,6 +43,9 @@ async function ctx(request: APIRequestContext) {
   const stamp = Date.now() + Math.floor(Math.random() * 1000);
 
   const mk = async (path: string, data: any) => {
+    // A step the shipment already walked the cycle through (L3) is skipped.
+    const walked = await alreadyWalked(request, headers, path, data);
+    if (walked) return walked;
     const res = await request.post(`${API}/${path}`, { headers, data });
     expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
     const body = await res.json();

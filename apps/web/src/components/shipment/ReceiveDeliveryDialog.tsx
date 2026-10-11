@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useDateFormat } from '@/lib/dates';
 import { Money } from '@/components/ui/money';
-import { useToast } from '@/components/ui/toast';
+import { useAnnounceStatusMove } from './status-move';
 import {
   DialogAlert,
   DialogCancel,
@@ -68,7 +68,7 @@ export function ReceiveDeliveryDialog({
   const t = useTranslations('shipment');
   const tc = useTranslations('common');
   const apiError = useApiError();
-  const toast = useToast();
+  const announce = useAnnounceStatusMove();
   const refresh = useRefreshShipment();
   const { formatDate } = useDateFormat();
   const costs = useLandedUnitCosts(cycleId);
@@ -122,8 +122,9 @@ export function ReceiveDeliveryDialog({
     submitting.current = true;
     setPending(true);
     setRefusal(null);
+    let res: unknown;
     try {
-      await api.post('/receipts/verify', { cycleId, deliveryId: delivery.id, items });
+      res = await api.post('/receipts/verify', { cycleId, deliveryId: delivery.id, items });
     } catch (err) {
       setRefusal(apiError(err, t('receiveFailed')));
       submitting.current = false;
@@ -131,7 +132,8 @@ export function ReceiveDeliveryDialog({
       return;
     }
     refresh();
-    toast.success(t('received'));
+    // The first receipt moves the cycle on to Selling (§3): say so.
+    announce(t('received'), res);
     onClose();
   };
 

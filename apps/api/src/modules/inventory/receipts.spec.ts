@@ -69,7 +69,13 @@ beforeEach(() => {
   } as unknown as NotificationsService;
   const costing = new CostingService(prisma);
   cycles = new CyclesService(prisma, audit, notifications);
-  deliveries = new DeliveriesService(prisma, audit, notifications, costing);
+  deliveries = new DeliveriesService(
+    prisma,
+    audit,
+    notifications,
+    costing,
+    cycles,
+  );
   shipping = new ShippingService(prisma, audit, costing, deliveries);
   inventory = new InventoryService(
     prisma,
@@ -359,6 +365,10 @@ describe('POST /receipts/verify', () => {
   it('Receipt on a cycle still IN_TRANSIT → CYCLE_NOT_ARRIVED', async () => {
     const { cycle, item, leg } = oneLeg({ status: 'IN_TRANSIT_TO_EGYPT' });
     const d = await deliver(leg, item, 15);
+    // Since L3 the delivery moves the cycle to ARRIVED_EGYPT by itself. A
+    // cycle left behind its deliveries is what a delivery recorded before
+    // that rule, or a walk a step check stopped, leaves: still refused.
+    db.cycles.find((c) => c.id === cycle.id)!.status = 'IN_TRANSIT_TO_EGYPT';
     const r = await refusal(receive(cycle, d, 15));
     expect(r.code).toBe('CYCLE_NOT_ARRIVED');
     expect(db.batches).toHaveLength(0);

@@ -1609,6 +1609,8 @@
     "costNotNumber": "The cost for {product} is not a number.",
     "deliveryFailed": "The delivery could not be recorded.",
     "deliveryRecorded": "Delivery recorded",
+    "cycleMovedTo": "{done} — cycle is now {status}",
+    "cycleStayed": "The cycle stayed {status}: {reason}",
     "deleteDelivery": "Delete delivery",
     "deleteDeliveryTitle": "Delete this delivery?",
     "deleteDeliveryConfirm": "Only for a delivery recorded by mistake. Its goods go back to being on the way.",

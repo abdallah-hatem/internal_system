@@ -17,6 +17,7 @@ import { Money } from '../ui/money';
 import { businessToday, useDateFormat } from '../../lib/dates';
 import { useCodeLabel } from '../../lib/labels';
 import { statusesToWalk, WIZARD_STATUSES } from './wizard-walk';
+import { statusMoveOf, useAnnounceStatusMove, type CycleStatusMove } from '../shipment/status-move';
 import {
   useCycleWizardDraft,
   draftIsWorthKeeping,
@@ -116,6 +117,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const t = useTranslations('wizard');
   const tc = useTranslations('common');
   const toast = useToast();
+  const announce = useAnnounceStatusMove();
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -762,6 +764,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     try {
       const savedIds: Record<number, string> = {};
       let updated = false;
+      // A leg saved departed or arrived moves the cycle on by itself (L3); the
+      // toast says where it ended up after the last one.
+      let moved: CycleStatusMove | null = null;
 
       for (const body of payloads) {
         // A leg already saved for this sequence is edited, not recreated.
@@ -795,6 +800,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         }
 
         if (wasUpdate) updated = true;
+        const move = statusMoveOf(res);
+        if (move?.moved || move?.stoppedAt) {
+          const earlier = moved as CycleStatusMove | null;
+          moved = { ...move, from: earlier?.from ?? move.from, moved: Boolean(earlier?.moved || move.moved) };
+        }
         const saved = res.data.data ?? res.data;
         savedIds[body.sequence] = saved.id ?? existingId;
       }
@@ -806,10 +816,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       // The cycle query holds the legs the form reads back; without this the
       // next visit would show what was on screen before this save.
       await refetchCycle();
-      toast.success(
+      announce(
         updated
           ? t('legsUpdated', { count: payloads.length })
           : t('legsCreated', { count: payloads.length }),
+        { data: { cycleStatus: moved } },
       );
       setCurrentStep(LAST_STEP);
     } catch (err: any) {

@@ -49,7 +49,13 @@ suite('receipts against Postgres', () => {
     } as unknown as NotificationsService;
     const costing = new CostingService(db);
     cycles = new CyclesService(db, audit, notifications);
-    deliveries = new DeliveriesService(db, audit, notifications, costing);
+    deliveries = new DeliveriesService(
+      db,
+      audit,
+      notifications,
+      costing,
+      cycles,
+    );
     inventory = new InventoryService(db, audit, notifications, costing, cycles);
   });
   afterAll(() => prisma.$disconnect());

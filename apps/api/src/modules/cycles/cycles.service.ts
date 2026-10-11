@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -37,6 +37,10 @@ type Db = Prisma.TransactionClient;
 import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
 import { VALID_TRANSITIONS } from '../../common/cycle-transitions';
+import {
+  statusProvenByShipment,
+  stepsToward,
+} from '../../common/status-follows-shipping';
 
 /** Accept only the two participant kinds the business recognises. */
 function assertParticipantType(value: string): ParticipantType {
@@ -717,6 +721,16 @@ export class CyclesService {
       ...opts,
       db: tx,
     });
+    return this.applyTransition(tx, plan);
+  }
+
+  /** The writes of one planned status change, in the caller's transaction. */
+  private async applyTransition(
+    tx: Db,
+    plan: Awaited<ReturnType<CyclesService['planTransition']>>,
+  ) {
+    const id = plan.cycle.id;
+    const targetStatus = plan.to;
     if (plan.leavingPurchasing) {
       await tx.purchaseOrder.updateMany({
         where: { cycleId: id, status: 'DRAFT' },
@@ -732,6 +746,98 @@ export class CyclesService {
       },
     });
     return { plan, updated };
+  }
+
+  /**
+   * L3 — the cycle follows its shipment (§1, owner 2026-10-11).
+   *
+   * Called by every write that records a departure or a delivery, inside its
+   * transaction and under the cycle's lock, after the record is written. Moves
+   * the cycle forward, one step at a time, to the furthest status the shipment
+   * now proves (`statusProvenByShipment`) — through `planTransition` and the
+   * same writes `transition` makes, so leaving PURCHASING confirms the drafts
+   * exactly once and every step's own check runs.
+   *
+   * It never moves a cycle back, and never one that is verifying, selling,
+   * settling, closed or cancelled (`stepsToward` gives no steps for those). A
+   * step whose own check refuses stops the walk there; the record that set it
+   * off still saves — the refusal is returned for the caller to show, not
+   * thrown. Only coded refusals stop it: the checks read and throw before any
+   * write, so the transaction is still good. Anything else is a real failure
+   * and is thrown.
+   *
+   * The caller runs `announceTransition` for each `walked` plan after commit.
+   */
+  async followShipment(tx: Db, cycleId: string) {
+    const cycle = await tx.importCycle.findUnique({ where: { id: cycleId } });
+    if (!cycle) throw notFound('cycle');
+    const legs = await tx.shippingLeg.findMany({
+      where: { cycleId },
+      orderBy: { sequence: 'asc' },
+      select: {
+        sequence: true,
+        departedOn: true,
+        status: true,
+        _count: { select: { deliveries: true } },
+      },
+    });
+    const target = statusProvenByShipment(
+      cycle.originType,
+      legs.map((l) => ({
+        sequence: l.sequence,
+        departedOn: l.departedOn,
+        status: l.status,
+        deliveries: l._count.deliveries,
+      })),
+    );
+
+    const walked: Awaited<ReturnType<CyclesService['planTransition']>>[] = [];
+    let stopped: {
+      status: string;
+      code: string;
+      message: string;
+      params?: Record<string, unknown>;
+    } | null = null;
+    for (const step of stepsToward(cycle.originType, cycle.status, target)) {
+      let plan: Awaited<ReturnType<CyclesService['planTransition']>>;
+      try {
+        plan = await this.planTransition(cycleId, step, { db: tx });
+      } catch (err) {
+        if (!(err instanceof HttpException)) throw err;
+        const body = err.getResponse() as {
+          code?: string;
+          message?: string;
+          params?: Record<string, unknown>;
+        };
+        stopped = {
+          status: step,
+          code: body.code ?? 'UNKNOWN',
+          message: body.message ?? err.message,
+          params: body.params,
+        };
+        break;
+      }
+      await this.applyTransition(tx, plan);
+      walked.push(plan);
+    }
+
+    const to = walked.length ? walked[walked.length - 1].to : cycle.status;
+    return {
+      walked,
+      /** What the response tells the caller (§1): where the cycle now stands. */
+      cycleStatus: {
+        cycleId,
+        from: cycle.status,
+        to,
+        moved: walked.length > 0,
+        steps: walked.map((p) => p.to),
+        /** The step that refused, when one did; the record still saved. */
+        stoppedAt: stopped,
+        ordersConfirmed: walked.flatMap((p) =>
+          p.ordersToConfirm.map((o) => o.reference),
+        ),
+      },
+    };
   }
 
   /** The audit row and the participants' notification for a committed change. */

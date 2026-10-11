@@ -1609,6 +1609,8 @@
     "costNotNumber": "تكلفة {product} ليست رقماً.",
     "deliveryFailed": "تعذّر تسجيل التسليمة.",
     "deliveryRecorded": "سُجّلت التسليمة",
+    "cycleMovedTo": "{done} — الدورة الآن {status}",
+    "cycleStayed": "بقيت الدورة {status}: {reason}",
     "deleteDelivery": "حذف التسليمة",
     "deleteDeliveryTitle": "حذف هذه التسليمة؟",
     "deleteDeliveryConfirm": "فقط لتسليمة سُجّلت بالخطأ. تعود بضاعتها إلى «في الطريق».",

@@ -11,6 +11,7 @@
  *  expect and the rule the instalment logic already follows.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { alreadyWalked } from './support/fixtures';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const API = 'http://localhost:3001/api/v1';
@@ -45,6 +46,9 @@ async function shopOwingTwoOrders(request: APIRequestContext) {
   const stamp = Date.now();
 
   const mk = async (path: string, data: any) => {
+    // A step the shipment already walked the cycle through (L3) is skipped.
+    const walked = await alreadyWalked(request, headers, path, data);
+    if (walked) return walked;
     const res = await request.post(`${API}/${path}`, { headers, data });
     expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
     const body = await res.json();

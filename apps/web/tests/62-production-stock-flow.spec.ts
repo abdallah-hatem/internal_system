@@ -26,7 +26,7 @@
  *        npx playwright test tests/62-production-stock-flow.spec.ts --project=chromium
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { API, EMAIL, PASSWORD, daysAgo, today } from './support/fixtures';
+import { API, EMAIL, PASSWORD, alreadyWalked, daysAgo, today } from './support/fixtures';
 
 const OFFICE = process.env.OFFICE_BASE ?? 'https://internal-system-web-three.vercel.app';
 
@@ -82,6 +82,9 @@ test.describe('Stock through the deployed app', () => {
   test('TC-FLOW-01: a cycle can be bought, shipped and landed', async ({ request }) => {
     const h = await headers(request);
     const mk = async (path: string, data: any) => {
+      // A step the shipment already walked the cycle through (L3) is skipped.
+      const walked = await alreadyWalked(request, h, path, data);
+      if (walked) return walked;
       const res = await request.post(`${API}/${path}`, { headers: h, data });
       expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
       const body = await res.json();

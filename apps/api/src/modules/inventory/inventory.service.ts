@@ -495,7 +495,23 @@ export class InventoryService {
 
     await notifyLowStock(this.prisma, this.notifications, lowStockProducts);
 
-    return { data: batches };
+    // Where the cycle now stands, in the shape a recorded departure or
+    // delivery reports it (L3), so the office app says it the same way.
+    const last = walked[walked.length - 1];
+    return {
+      data: batches,
+      cycleStatus: last
+        ? {
+            cycleId,
+            from: walked[0].from,
+            to: last.to,
+            moved: true,
+            steps: walked.map((p) => p.to),
+            stoppedAt: null,
+            ordersConfirmed: [],
+          }
+        : null,
+    };
   }
 
   async getStock(

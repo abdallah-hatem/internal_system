@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
   refusal: null as Refusal,
   writes: [] as Array<{ method: string; url: string; body: unknown }>,
   leg1Departed: null as string | null,
+  /** What a departure or delivery answers beside the record (L3). */
+  cycleStatus: null as unknown,
 }));
 
 vi.mock('@/lib/auth-context', () => ({
@@ -60,7 +62,7 @@ vi.mock('@/lib/api', () => {
     if (url.endsWith('/transition') && state.refusal) {
       return Promise.reject({ response: { status: 400, data: { error: state.refusal } } });
     }
-    return Promise.resolve({ data: { data: {} } });
+    return Promise.resolve({ data: { data: {}, cycleStatus: url.endsWith('/transition') ? undefined : state.cycleStatus } });
   };
   return {
     api: {
@@ -102,6 +104,7 @@ beforeEach(() => {
   state.refusal = null;
   state.writes = [];
   state.leg1Departed = null;
+  state.cycleStatus = null;
 });
 afterEach(() => cleanup());
 
@@ -285,4 +288,50 @@ describe('the status dialog clears on every way out', () => {
       expect(shipmentDialog('record-departure')).toBeNull();
     });
   }
+});
+
+// L3 (§1, 2026-10-11): recording the departure moves the cycle on by itself.
+describe('a fix that moved the cycle on by itself', () => {
+  it('closes the status dialog — the move happened — and the toast says where the cycle now stands; nothing is retried', async () => {
+    state.refusal = NOT_DEPARTED;
+    state.cycleStatus = {
+      cycleId: 'c-1',
+      from: 'PURCHASING',
+      to: 'IN_TRANSIT',
+      moved: true,
+      steps: ['IN_TRANSIT'],
+      stoppedAt: null,
+      ordersConfirmed: ['PO-1'],
+    };
+    wrap('PURCHASING');
+    const dialog = await tryMove('IN_TRANSIT');
+    fireEvent.click(await within(within(dialog).getByTestId('status-refusal')).findByTestId('status-fix'));
+    const departure = await waitFor(() => {
+      const d = shipmentDialog('record-departure');
+      if (!d) throw new Error('no departure dialog');
+      return d;
+    });
+    fireEvent.click(within(departure).getByRole('button', { name: en.shipment.recordDeparture }));
+
+    await screen.findByText('Departure recorded — cycle is now In transit');
+    expect(shipmentDialog('record-departure')).toBeNull();
+    expect(screen.queryByTestId('change-status-dialog')).toBeNull();
+    expect(state.writes.filter((w) => w.url.endsWith('/transition'))).toHaveLength(1);
+  });
+
+  it('a fix that did not move the cycle still brings the status dialog back to try again', async () => {
+    state.refusal = NOT_DEPARTED;
+    state.cycleStatus = { cycleId: 'c-1', from: 'PURCHASING', to: 'PURCHASING', moved: false, steps: [], stoppedAt: null, ordersConfirmed: [] };
+    wrap('PURCHASING');
+    const dialog = await tryMove('IN_TRANSIT');
+    fireEvent.click(await within(within(dialog).getByTestId('status-refusal')).findByTestId('status-fix'));
+    const departure = await waitFor(() => {
+      const d = shipmentDialog('record-departure');
+      if (!d) throw new Error('no departure dialog');
+      return d;
+    });
+    fireEvent.click(within(departure).getByRole('button', { name: en.shipment.recordDeparture }));
+    const back = await screen.findByTestId('change-status-dialog');
+    expect(within(back).getByTestId('status-fix-saved')).toBeTruthy();
+  });
 });

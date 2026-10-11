@@ -26,6 +26,7 @@ import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
 import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
 import { DepartedOnField } from '@/components/shipment/RecordDepartureDialog';
+import { useAnnounceStatusMove } from '@/components/shipment/status-move';
 import { Link } from '../../../i18n/navigation';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -71,6 +72,7 @@ export default function ShipmentsPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  const announce = useAnnounceStatusMove();
   const codeLabel = useCodeLabel();
   // An investor reads their cycles' legs; adding and editing one are a partner's (R1c).
   const may = { create: useCan('shippingLeg.create'), edit: useCan('shippingLeg.edit') };
@@ -117,10 +119,11 @@ export default function ShipmentsPage() {
       const { cycleId, ...body } = data;
       return api.post(`/cycles/${cycleId}/shipping-legs`, body);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+    onSuccess: (res) => {
+      // A leg created departed or arrived moves its cycle on (L3).
+      for (const key of SHIPMENT_QUERY_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
       setShowCreateModal(false);
-      addToast(t('createSuccess'), 'success');
+      announce(t('createSuccess'), res);
     },
     onError: (error: any) => {
       addToast(apiError(error, tc('operationFailed')), 'error');
@@ -129,11 +132,12 @@ export default function ShipmentsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, ...data }: any) => api.put(`/shipping/legs/${id}`, data),
-    onSuccess: () => {
-      // A departure moves the cycle's shipment and its leg statuses too.
+    onSuccess: (res) => {
+      // A departure moves the cycle's shipment, its leg statuses and, since
+      // L3, the cycle's status too.
       for (const key of SHIPMENT_QUERY_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
       closeEdit();
-      addToast(t('legUpdated'), 'success');
+      announce(t('legUpdated'), res);
     },
     onError: (error: any) => {
       addToast(apiError(error, tc('operationFailed')), 'error');
