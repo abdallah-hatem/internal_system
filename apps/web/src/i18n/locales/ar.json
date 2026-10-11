@@ -1442,6 +1442,19 @@
       "TH": "تايلاند"
     }
   },
+  "goodsLocation": {
+    "title": "أين البضاعة",
+    "inChina": "في الصين",
+    "toUae": "في الطريق إلى الإمارات",
+    "inUae": "في الإمارات",
+    "toEgypt": "في الطريق إلى مصر",
+    "inEgypt": "في مصر",
+    "notCheckedIn": "{count} لم تُستلم في المخزن بعد",
+    "sold": "مُباع",
+    "lost": "مفقود",
+    "ordered": "المطلوب",
+    "product": "المنتج"
+  },
   "shipment": {
     "title": "الشحنة",
     "totals": "المطلوب {ordered} · المستلم {received} · بانتظار الاستلام {waiting} · المفقود {lost} · في الطريق {onTheWay}",

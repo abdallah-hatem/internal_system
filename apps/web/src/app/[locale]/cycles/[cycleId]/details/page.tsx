@@ -1,5 +1,6 @@
 'use client';
 import { CycleShippingCard } from '@/components/cycles/cycle-shipping-card';
+import { GoodsLocationCards } from '@/components/cycles/goods-location-cards';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 
@@ -220,6 +221,9 @@ export default function CycleDetailsPage() {
           </button>
         </div>
       </div>
+
+      {/* Where the goods are — layout A, chosen by the owner (I3). */}
+      <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <Tile label={t('participants')} value={String(participants.length)} />

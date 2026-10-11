@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page).
+Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -154,6 +154,29 @@ on it would be refused; no fix is offered to a role that cannot take it, nor
 when the refusal names no leg. Every refusal of a status change is now shown
 inside the dialog rather than as a toast, so the reason sits beside the
 choices it refers to.
+
+**DECIDED 2026-10-11 (owner, I3; layout A) — where a cycle's goods are.** The
+top of a cycle's page shows how many units are **in China** (ordered, the leg
+out of China has not left), **on the way to the UAE**, **in the UAE** (reached
+Dubai, not yet on a leg that has left — on a UAE-direct cycle, ordered and not
+yet shipped), **on the way to Egypt**, **in Egypt** (on the shelf plus
+delivered but not yet checked in, the latter named underneath) and **sold**;
+**lost** only when something was. Then the same per product — a table, or a
+card per product on a phone. A UAE-direct cycle has no China or To-UAE place.
+Every unit ordered is in exactly one place, so the places add up to what was
+ordered. All of it is read from the shipment's figures (§1) and the cycle's
+batches; nothing new is entered. One function: `components/cycles/goods-location.ts`.
+Guesses, open until confirmed (autonomous run, 2026-10-11):
+- A leg has one departure, so once it has left, everything that has entered it
+  counts as on the way — including goods that reached Dubai after leg 2 left and
+  are physically still there. The system holds no record that tells them apart.
+- **Sold** is what left this cycle's shelves through a sale: received less what
+  remains, so a cancelled sale or a return to stock puts units back, and a unit
+  returned damaged (not restocked) stays counted as sold — it is not on the
+  shelf and did not come back to it. This differs from Analytics' units sold,
+  which nets every return; the cards need every unit in exactly one place.
+- A unit marked lost after reaching Egypt (never found at the count) is in Lost,
+  not in Egypt.
 
 ---
 
