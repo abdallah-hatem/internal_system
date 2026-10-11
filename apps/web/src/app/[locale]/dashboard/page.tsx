@@ -20,7 +20,7 @@ import { YourCycles } from '../../../components/dashboard/your-cycles';
 import { Money } from '../../../components/ui/money';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
-  Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins,
+  Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins, Boxes,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -35,6 +35,7 @@ interface DashboardData {
   netProfit: number;
   activeCycles: number;
   inventoryValue: number;
+  unitsInStock?: number;
   receivables: number;
   collected: number;
   lowStockAlerts: number;
@@ -62,7 +63,7 @@ const TILE_COUNT = 12;
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   // Money tiles read as money: two decimals, grouped thousands, Latin digits.
-  const { formatMoney: egp } = useNumberFormat();
+  const { formatMoney: egp, formatNumber } = useNumberFormat();
   const { user } = useAuth();
   const role = user?.role;
   // A temporary investor sees only their own cycles (R1): the business-wide
@@ -129,6 +130,8 @@ export default function DashboardPage() {
     },
     { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
     { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
+    // Every unit on the shelf, all products together — not how many products exist.
+    { key: 'unitsInStock', value: formatNumber(Number(data.unitsInStock ?? 0), { maximumFractionDigits: 3 }), icon: Boxes, color: 'bg-orange-400' },
     { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
     // In each friend's currency — the debt itself — and in pounds at today's
     // rate, which is what paying it all today would cost (§18).

@@ -43,6 +43,19 @@ test.describe('Analytics figures', () => {
     expect(summed).toBeCloseTo(Number(dash.totalRevenue), 2);
   });
 
+  test('TC-ANA-08: items in stock is every unit on the shelf, the sum the inventory page shows', async ({ request }) => {
+    const t = await token(request);
+    const h = { Authorization: `Bearer ${t}` };
+
+    const dash = (await (await request.get(`${API}/analytics/dashboard`, { headers: h })).json()).data;
+    const inventory = (await (await request.get(`${API}/inventory?limit=1000`, { headers: h })).json()).data ?? [];
+    const shelf = inventory.reduce((s: number, p: any) => s + Number(p.totalStock ?? 0), 0);
+
+    // Units, all products together — not how many products exist (owner, 2026-10-11).
+    expect(dash.unitsInStock).toBeDefined();
+    expect(Number(dash.unitsInStock)).toBeCloseTo(shelf, 3);
+  });
+
   test('TC-ANA-02: draft orders are excluded from top products', async ({ request }) => {
     const t = await token(request);
     const h = { Authorization: `Bearer ${t}` };

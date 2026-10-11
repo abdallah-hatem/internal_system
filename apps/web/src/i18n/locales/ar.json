@@ -118,6 +118,7 @@
     "netProfit": "صافي الربح",
     "expenses": "المصروفات",
     "inventoryValue": "قيمة المخزون",
+    "unitsInStock": "عدد القطع في المخزون",
     "receivables": "المبالغ المستحقة",
     "activeCycles": "الدورات النشطة",
     "lowStockAlerts": "تنبيهات انخفاض المخزون",
