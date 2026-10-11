@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 
 import { BackLink } from '../../../../components/ui/back-link';
+import { CustomerStatement } from '../../../../components/customers/customer-statement';
 interface SaleOrder {
   id: string;
   orderNo: string;
@@ -125,9 +126,13 @@ export default function CustomerPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink onClick={() => router.push(`/${locale}/customers`)} />
+      {/* On paper only the statement is printed (its own heading says whose);
+          the rest of the page is for the screen. */}
+      <div className="print:hidden">
+        <BackLink onClick={() => router.push(`/${locale}/customers`)} />
+      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{customer.displayName}</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -161,7 +166,7 @@ export default function CustomerPage() {
       </div>
 
       {plan?.isOverdue && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 print:hidden">
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
           <p className="text-sm text-red-800">
             {tpl('overdue')} — <Money value={num(plan.overdueEgp)} className="font-semibold" />
@@ -169,8 +174,8 @@ export default function CustomerPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Tile label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 print:hidden">
+        <Tile testId="customer-balance" label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
         <Tile label={tp('title')} value={<Money value={paid} />} />
         <Tile label={ts('title')} value={String(orderList.length)} />
       </div>
@@ -280,6 +285,8 @@ export default function CustomerPage() {
         )}
       </Card>
 
+      <CustomerStatement customerId={id} customerName={customer.displayName} />
+
       <RecordPaymentDialog
         open={showPay}
         onClose={() => setShowPay(false)}
@@ -289,9 +296,9 @@ export default function CustomerPage() {
   );
 }
 
-function Tile({ label, value, tone }: { label: string; value: React.ReactNode; tone?: 'red' | 'green' }) {
+function Tile({ label, value, tone, testId }: { label: string; value: React.ReactNode; tone?: 'red' | 'green'; testId?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
+    <div data-testid={testId} className="rounded-xl border border-gray-200 bg-white p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className={`mt-1 text-xl font-bold ${tone === 'red' ? 'text-red-600' : tone === 'green' ? 'text-green-600' : 'text-gray-900'}`}>
         {value}
@@ -302,7 +309,7 @@ function Tile({ label, value, tone }: { label: string; value: React.ReactNode; t
 
 function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 print:hidden">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">{icon}{title}</h2>
       {children}
     </div>

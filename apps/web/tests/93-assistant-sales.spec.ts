@@ -199,10 +199,14 @@ test.describe('record_sale (§16, 2026-10-11)', () => {
     expect(payments.data).toHaveLength(0);
   });
 
-  test('TC-AS-09: tools/list has record_sale and still no payment, return or settlement tool', async () => {
+  test('TC-AS-09: tools/list has record_sale and record_payment and still no return, settlement or reversal tool', async () => {
     const { tools } = await client!.listTools();
     const writes = tools.filter((t) => t.annotations?.readOnlyHint !== true).map((t) => t.name);
     expect(writes).toContain('record_sale');
-    expect(writes.filter((n) => /sale|payment|instal|settle|return|refund|ledger/i.test(n))).toEqual(['record_sale']);
+    // record_payment added 2026-10-11 (I2), approved by the owner (§16).
+    expect(writes.filter((n) => /sale|payment|instal|settle|return|refund|ledger/i.test(n)).sort()).toEqual([
+      'record_payment',
+      'record_sale',
+    ]);
   });
 });

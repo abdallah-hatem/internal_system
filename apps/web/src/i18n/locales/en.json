@@ -48,7 +48,9 @@
     "clearSearchAndFilters": "Clear search and filters",
     "listCapped": "Showing the first {count} only. More exist and are not listed here.",
     "selectPlaceholder": "Select…",
-    "noOptionsMatch": "No matches"
+    "noOptionsMatch": "No matches",
+    "print": "Print",
+    "brand": "MotoParts"
   },
   "pagination": {
     "showing": "Showing <n>{start}</n> – <n>{end}</n> of <n>{total}</n>",
@@ -461,7 +463,39 @@
     "sellAndTakePayment": "Sell & take payment",
     "walkInPaidBy": "Paid in full now · {method}",
     "walkInSold": "Sold and paid",
-    "walkInNoBalance": "paid on the spot"
+    "walkInNoBalance": "paid on the spot",
+    "invoice": {
+      "open": "Invoice",
+      "title": "Sales invoice / Delivery note",
+      "number": "Invoice no.",
+      "date": "Date",
+      "billTo": "Customer",
+      "walkIn": "Walk-in customer",
+      "phone": "Phone",
+      "line": "#",
+      "product": "Product",
+      "quantity": "Qty",
+      "unitPrice": "Unit price",
+      "discount": "Discount",
+      "lineTotal": "Line total",
+      "subtotal": "Subtotal",
+      "discountTotal": "Discounts",
+      "total": "Order total",
+      "paid": "Paid on this order",
+      "owes": "Still owed on this order",
+      "account": "Customer account",
+      "balanceBefore": "Balance before this sale",
+      "thisInvoice": "This invoice",
+      "balanceAfter": "Balance after this sale",
+      "paidInFull": "Paid in full on the spot.",
+      "receivedBy": "Received by",
+      "deliveredBy": "Delivered by",
+      "back": "Back to sales",
+      "notAvailable": "No invoice for this order",
+      "printedOn": "Printed {date}",
+      "credited": "Returns credited",
+      "returnedInFull": "Returned in full — nothing is owed on it."
+    }
   },
   "customers": {
     "title": "Customers",
@@ -501,7 +535,38 @@
     "backToCustomers": "Back to customers",
     "noPlanTitle": "No payment plan for this customer",
     "noPlanHint": "A plan splits what they owe into agreed instalments with due dates.",
-    "openPlans": "Open payment plans"
+    "openPlans": "Open payment plans",
+    "statement": {
+      "title": "Statement",
+      "heading": "Statement of account",
+      "hint": "Every sale, payment and return in these dates, with the balance after each.",
+      "allDates": "All dates",
+      "range": "{from} – {to}",
+      "rangeFrom": "From {from}",
+      "rangeTo": "Up to {to}",
+      "opening": "Opening balance",
+      "closing": "Closing balance",
+      "date": "Date",
+      "description": "Description",
+      "debit": "Owes more",
+      "credit": "Owes less",
+      "balance": "Balance",
+      "kind": {
+        "SALE": "Sale {order}",
+        "PAYMENT": "Payment",
+        "RETURN": "Return {reference}",
+        "REVERSAL": "Payment reversed"
+      },
+      "onOrders": "on {orders}",
+      "unapplied": "{amount} on no order",
+      "refundCash": "refunded in cash",
+      "refundCredit": "credit note",
+      "empty": "Nothing was sold, paid or returned in these dates.",
+      "csv": "statement",
+      "printedOn": "Printed {date}",
+      "totals": "Totals for the period",
+      "loadFailed": "The statement could not be loaded."
+    }
   },
   "payments": {
     "title": "Payments",
@@ -536,7 +601,6 @@
     "selectCustomer": "Choose the customer who paid",
     "referencePlaceholder": "e.g. receipt or transfer number",
     "recordedToast": "Payment recorded",
-    "recordedNotApplied": "The payment was recorded, but not all of it could be applied to orders. Allocate the rest from Payments.",
     "recordFailed": "Could not record the payment",
     "allocated": "Payment allocated",
     "allocateFailed": "Could not allocate the payment",
@@ -1167,7 +1231,10 @@
     "NOT_LAST_LEG_DELIVERY": "This delivery reached the UAE, not Egypt. Stock is received from deliveries on the leg that ends in Egypt.",
     "DELIVERY_REQUIRED": "{deliveries} deliveries of {product} are waiting to be received. Choose the delivery the goods came in.",
     "RECEIVED_EXCEEDS_DELIVERED": "{received} of {product} cannot be received: only {available} are waiting to be received from this delivery.",
-    "SHIPMENT_NOT_ACCOUNTED": "Cycle {cycle} cannot be settled yet: {onTheWay} unit(s) are still on the way and {waiting} delivered but not received, across {lines} order line(s). Receive them, or mark them lost, first."
+    "SHIPMENT_NOT_ACCOUNTED": "Cycle {cycle} cannot be settled yet: {onTheWay} unit(s) are still on the way and {waiting} delivered but not received, across {lines} order line(s). Receive them, or mark them lost, first.",
+    "WALK_IN_NO_STATEMENT": "A walk-in buyer has no account, so there is no statement.",
+    "INVOICE_DRAFT": "Order {order} is a draft, so it has no invoice yet. Confirm it first.",
+    "INVOICE_CANCELLED": "Order {order} was cancelled, so it has no invoice."
   },
   "orderRequests": {
     "title": "Order requests",

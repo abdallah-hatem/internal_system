@@ -30,8 +30,9 @@ import {
 import {
   Plus, Search, X, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
-  Undo2, ShoppingCart, Wallet,
+  Undo2, ShoppingCart, Wallet, FileText,
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   RecordPaymentDialog,
   canTakePayment,
@@ -158,10 +159,14 @@ function SalesPageContent() {
     capped,
     isLoading,
     error: listError,
-  } = useAllRecords(['sales', dates], '/sales/orders', {
-    from: dates.from || undefined,
-    to: dates.to || undefined,
-  });
+    reloading,
+  } = useAllRecords(
+    ['sales', dates],
+    '/sales/orders',
+    { from: dates.from || undefined, to: dates.to || undefined },
+    // A new range keeps the rows on screen, dimmed, until it arrives (I2).
+    { keepPrevious: true },
+  );
   const dated = Boolean(dates.from || dates.to);
   const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDates({ from: '', to: '' }); };
   const { items: customers } = useAllRecords(['customers'], '/customers');
@@ -434,7 +439,7 @@ function SalesPageContent() {
             className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        <DateRangeFilter idPrefix="sales" value={dates} onChange={setDates} />
+        <DateRangeFilter idPrefix="sales" value={dates} onChange={setDates} busy={reloading} />
         {listError && (
           <p role="alert" data-testid="sales-range-error" className="text-sm text-destructive">
             {apiError(listError, tc('error'))}
@@ -482,7 +487,7 @@ function SalesPageContent() {
 
       {/* Desktop Table */}
       {!isLoading && !noOrdersYet && (
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div data-testid="sales-table" aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -556,7 +561,7 @@ function SalesPageContent() {
 
       {/* Mobile Cards */}
       {!isLoading && !noOrdersYet && (
-        <div className="md:hidden space-y-3">
+        <div data-testid="sales-cards" aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200"><NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} /></div>
           ) : (
@@ -773,6 +778,18 @@ function SalesPageContent() {
 
             {/* Actions */}
             <div className="flex flex-wrap justify-end gap-3 pt-2 border-t border-gray-100">
+              {/* A confirmed sale has an invoice / delivery note; a draft is
+                  not a sale yet and a cancelled order never happened (§4). */}
+              {detail.status !== 'DRAFT' && detail.status !== 'CANCELLED' && (
+                <Link
+                  href={`/${locale}/sales/${detail.id}/invoice`}
+                  data-testid="order-invoice"
+                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-muted"
+                >
+                  <FileText className="h-4 w-4" />
+                  {t('invoice.open')}
+                </Link>
+              )}
               {canTakePayment(detail) && (
                 <button
                   type="button"

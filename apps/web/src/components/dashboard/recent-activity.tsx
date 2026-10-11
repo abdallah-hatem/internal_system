@@ -1,5 +1,5 @@
 'use client';
-import { LatinText } from '@/components/ui/latin-text';
+import { CustomerLink, ProductLink } from '@/components/ui/entity-link';
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -21,7 +21,7 @@ export interface RecentActivityItem {
   amount?: number;
   currency?: string;
   quantity?: number;
-  customer?: { id: string; displayName: string };
+  customer?: { id: string; displayName: string; isWalkIn?: boolean };
   product?: { id: string; name: string; sku: string };
   cycleId?: string;
 }
@@ -42,6 +42,7 @@ const KIND_ICON = { SALE: ShoppingCart, PAYMENT: Banknote, RECEIPT: PackageCheck
  */
 export function RecentActivity() {
   const t = useTranslations('dashboard');
+  const ts = useTranslations('sales');
   const { formatDate } = useDateFormat();
   const codeLabel = useCodeLabel();
 
@@ -106,9 +107,22 @@ export function RecentActivity() {
                       <span className="text-xs text-muted-foreground">{codeLabel('orderStatus', item.status)}</span>
                     )}
                   </p>
-                  <LatinText truncate className="text-xs text-muted-foreground">
-                    {item.customer?.displayName ?? item.product?.name ?? '—'}
-                  </LatinText>
+                  {/* Who or what it was, linked to its own page (I2): a shop's
+                      name opens the shop. The walk-in record has no page, and
+                      reads "Walk-in" in the reader's language. */}
+                  <p className="min-w-0 text-xs text-muted-foreground" data-testid="recent-activity-subject">
+                    {item.customer ? (
+                      item.customer.isWalkIn ? (
+                        <span>{ts('walkInCustomer')}</span>
+                      ) : (
+                        <CustomerLink truncate id={item.customer.id} name={item.customer.displayName} />
+                      )
+                    ) : item.product ? (
+                      <ProductLink truncate id={item.product.id} name={item.product.name} />
+                    ) : (
+                      '—'
+                    )}
+                  </p>
                 </div>
                 <div className="flex-shrink-0 text-end">
                   {item.amount !== undefined ? (

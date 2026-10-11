@@ -323,3 +323,66 @@ form [aria-invalid="true"][data-validated] {
   height: var(--field-h);
 }
 /* field-row:end */
+
+/* print:start ──────────────────────────────────────────────────────────
+ * Printing a document from the office app (I2, 2026-10-11): a sale's invoice
+ * / delivery note and a customer's statement. No PDF library — the browser's
+ * own print, onto A4.
+ *
+ * The app frame is a full-height flex box whose <main> scrolls on its own,
+ * which on paper prints one screenful and stops. On paper it becomes plain
+ * flowing blocks; the sidebar, the top bar and the phone bar are not printed
+ * (`data-print-hide`), nor is anything a page marks `print:hidden` — buttons,
+ * filters, the parts of a page that are not the document.
+ *
+ * The direction stays the page's: an Arabic invoice prints right to left,
+ * because nothing here touches `dir`. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  [data-app-frame],
+  [data-app-frame] > div,
+  [data-app-frame] main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  /* A document's rows never split across two sheets, and a table's header
+   * repeats at the top of every sheet it runs onto. */
+  [data-print-doc] tr,
+  [data-print-doc] [data-print-keep] {
+    break-inside: avoid;
+  }
+  [data-print-doc] thead {
+    display: table-header-group;
+  }
+  [data-print-doc] {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}
+/* print:end */

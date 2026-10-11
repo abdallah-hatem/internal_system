@@ -1161,10 +1161,11 @@ async function toolsOf(server: McpServer): Promise<Tool[]> {
 }
 
 /**
- * §16, 2026-10-11: the assistant can record a sale — that one tool, and no
- * payment, return or settlement besides.
+ * §16, 2026-10-11: the assistant can record a sale and, approved by the owner
+ * the same day, a payment a shop made — those two tools, and no reversal,
+ * allocation, return or settlement besides.
  */
-const SALE_WRITES = new Set(['record_sale']);
+const SALE_WRITES = new Set(['record_sale', 'record_payment']);
 
 function forbiddenWrites(tools: Tool[]): string[] {
   return tools
@@ -1175,12 +1176,15 @@ function forbiddenWrites(tools: Tool[]): string[] {
 }
 
 describe('What the assistant offers', () => {
-  it('tools/list offers no tool that writes payments, instalments, settlements, returns or the ledger, and no sale tool but record_sale', async () => {
+  it('tools/list offers no tool that writes instalments, settlements, returns or the ledger, and no sale or payment tool but record_sale and record_payment', async () => {
     const { assistant } = harness(emptyDb());
 
     const tools = await toolsOf(assistant.create(partner));
 
     expect(forbiddenWrites(tools)).toEqual([]);
+    expect(tools.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['record_sale', 'record_payment']),
+    );
     // The read tools are all there, and all say they only read.
     const reads = [
       'find_suppliers',
@@ -1213,7 +1217,7 @@ describe('What the assistant offers', () => {
     writeTool(
       server,
       ctx,
-      'record_payment',
+      'reverse_payment',
       { title: 'x', description: 'x', inputSchema: { amount: z.number() } },
       handlers,
     );
@@ -1234,8 +1238,8 @@ describe('What the assistant offers', () => {
 
     expect(forbiddenWrites(await toolsOf(server)).sort()).toEqual([
       'mark_goods_lost',
-      'record_payment',
       'reverse_ledger_entry',
+      'reverse_payment',
     ]);
   });
 

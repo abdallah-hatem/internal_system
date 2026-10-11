@@ -41,6 +41,21 @@ export class CustomersController {
     return this.customersService.findAll(query);
   }
 
+  // A shop's statement is its money, so the same roles as its balance.
+  @Get(':id/statement')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary:
+      "A customer's statement for a range of days: opening balance, every sale, payment, return and reversal with a running balance, closing balance",
+  })
+  statement(
+    @Param('id') id: string,
+    @Query() query: { from?: string; to?: string },
+  ) {
+    return this.customersService.statement(id, query);
+  }
+
   @Get(':id')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
@@ -73,11 +88,7 @@ export class CustomersController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Update a customer (CORE_PARTNER only)' })
-  update(
-    @Param('id') id: string,
-    @Body() body: any,
-    @CurrentUser() user: any,
-  ) {
+  update(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
     return this.customersService.update(id, body, user.id);
   }
 }

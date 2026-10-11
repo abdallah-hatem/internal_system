@@ -17,7 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, giveStock, stockedProduct, owedOrder } from './support/fixtures';
+import { apiCtx, giveStock, stockedProduct, owedOrder, refusedCallers } from './support/fixtures';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -670,5 +670,265 @@ test.describe('A sale that takes stock under its minimum says so, once (§3 — 
     await mk('sales/orders', shopSale(customer.id, product.id, 3)); // 9: crossed again
 
     expect(await lowAlerts(request, headers, product.id)).toHaveLength(2);
+  });
+});
+
+test.describe('A statement closes at the balance the app shows (§7b — 2026-10-11)', () => {
+  /** The closing balance of a statement running to today, and the balance the shop's page and list show. */
+  async function both(request: APIRequestContext, headers: any, customerId: string) {
+    const st = (await (await request.get(`${API}/customers/${customerId}/statement`, { headers })).json()).data;
+    const page = (await (await request.get(`${API}/customers/${customerId}`, { headers })).json()).data;
+    return { st, shown: Number(page.outstandingBalance) };
+  }
+
+  test('TC-INV-26: sales, payments oldest first, a credit note, a full cash return and a reversal — the statement closes at the balance, row by row', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const stamp = Date.now();
+    const { product } = await stockedProduct(request, headers, mk, `Inv Statement ${stamp}`, 40);
+    const customer = await mk('customers', { displayName: `Inv Statement Shop ${stamp}`, type: 'B2B' });
+    const sell = async (quantity: number, unitPrice: number) =>
+      mk('sales/orders', {
+        customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true,
+        items: [{ productId: product.id, quantity, unitPrice, discount: 0 }],
+      });
+
+    const a = await sell(1, 3000);
+    const b = await sell(2, 2000);
+    // Neither of these owes anything, and neither may appear.
+    await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 1, unitPrice: 9999, discount: 0 }],
+    });
+    const cancelled = await sell(1, 7777);
+    await mk(`sales/orders/${cancelled.id}/cancel`, {});
+
+    await mk('payments', { customerId: customer.id, amount: 3500, currency: 'EGP', applyOldestFirst: true });
+    const bItem = (await (await request.get(`${API}/sales/orders/${b.id}`, { headers })).json()).data.items[0];
+    await mk('returns', { saleOrderId: b.id, reason: 'one came back', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: bItem.id, qty: 1 }] });
+
+    const c = await sell(1, 1000);
+    const onC = await mk('payments', { customerId: customer.id, amount: 200, currency: 'EGP', orderId: c.id });
+    const cItem = (await (await request.get(`${API}/sales/orders/${c.id}`, { headers })).json()).data.items[0];
+    await mk('returns', { saleOrderId: c.id, reason: 'all of it back', refundMethod: 'CASH', items: [{ saleItemId: cItem.id, qty: 1 }] });
+    await mk(`payments/${onC.id}/reverse`, { reason: 'cheque bounced' });
+
+    const { st, shown } = await both(request, headers, customer.id);
+    // a 0, b 4000 - 500 - 2000 = 1500, c owed again after the reversal: 1000.
+    expect(shown).toBe(2500);
+    expect(Number(st.closingBalance)).toBe(shown);
+    expect(Number(st.openingBalance)).toBe(0);
+    const refs = st.rows.map((r: any) => r.reference);
+    expect(refs).toContain(a.orderNo);
+    expect(refs).not.toContain(cancelled.orderNo);
+    expect(st.rows.filter((r: any) => r.kind === 'SALE')).toHaveLength(3);
+    // Every row's balance is the one before it plus what it did.
+    let running = Number(st.openingBalance);
+    for (const row of st.rows) {
+      running = Math.round((running + Number(row.effect)) * 100) / 100;
+      expect(Number(row.balance), `${row.kind} ${row.reference}`).toBe(running);
+    }
+    expect(running).toBe(shown);
+  });
+
+  test('TC-INV-27: every customer in the system — whatever earlier suites left — closes at the balance the list shows', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const list = (await (await request.get(`${API}/customers?verification=ALL&limit=200`, { headers })).json()).data;
+    expect(list.length).toBeGreaterThan(0);
+    for (const customer of list) {
+      const st = (await (await request.get(`${API}/customers/${customer.id}/statement`, { headers })).json()).data;
+      expect(Number(st.closingBalance), customer.displayName).toBe(Number(customer.outstandingBalance));
+    }
+  });
+
+  test('TC-INV-28: a statement is the office\'s — an investor and a shop owner are refused, a stranger id is not found, and a walk-in has none', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const customer = await mk('customers', { displayName: `Inv Statement Fence ${Date.now()}`, type: 'B2B' });
+    for (const who of await refusedCallers(request, 'inv-st')) {
+      const res = await request.get(`${API}/customers/${customer.id}/statement`, { headers: who.headers });
+      expect(res.status(), who.who).toBe(403);
+      expect((await res.json()).error.code, who.who).toBe(who.code);
+    }
+    const missing = await request.get(`${API}/customers/00000000-0000-0000-0000-000000000000/statement`, { headers });
+    expect(missing.status()).toBe(404);
+    const junk = await request.get(`${API}/customers/not-a-shop/statement`, { headers });
+    expect(junk.status()).toBe(404);
+    const reversed = await request.get(`${API}/customers/${customer.id}/statement?from=2026-10-02&to=2026-10-01`, { headers });
+    expect((await reversed.json()).error.code).toBe('DATE_RANGE_REVERSED');
+
+    // A walk-in sale, so the walk-in record exists; it has no account to state.
+    const { product } = await stockedProduct(request, headers, mk, `Inv Statement Walk-in ${Date.now()}`, 2);
+    const walkIn = await mk('sales/orders', {
+      walkIn: true, currency: 'EGP', items: [{ productId: product.id, quantity: 1, unitPrice: 300, discount: 0 }],
+    });
+    const none = await request.get(`${API}/customers/${walkIn.customerId}/statement`, { headers });
+    expect(none.status()).toBe(400);
+    expect((await none.json()).error.code).toBe('WALK_IN_NO_STATEMENT');
+  });
+});
+
+test.describe('Returning part of an order leaves the rest owed (§5 — found 2026-10-11)', () => {
+  test('TC-INV-29: one of two units back on credit note — the order is not RETURNED and the shop still owes the other', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const stamp = Date.now();
+    const { product } = await stockedProduct(request, headers, mk, `Inv Half Back ${stamp}`, 10);
+    const customer = await mk('customers', { displayName: `Inv Half Back Shop ${stamp}`, type: 'B2B' });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true,
+      items: [{ productId: product.id, quantity: 2, unitPrice: 1000, discount: 0 }],
+    });
+    const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
+    await mk('returns', { saleOrderId: order.id, reason: 'one came back', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 1 }] });
+
+    const after = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data;
+    expect(after.status).not.toBe('RETURNED');
+    expect(Number(after.outstanding)).toBe(1000);
+    const shop = (await (await request.get(`${API}/customers/${customer.id}`, { headers })).json()).data;
+    expect(Number(shop.outstandingBalance)).toBe(1000);
+
+    // The second unit back is the whole order: now it is RETURNED, owing nothing.
+    await mk('returns', { saleOrderId: order.id, reason: 'and the other', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 1 }] });
+    const done = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data;
+    expect(done.status).toBe('RETURNED');
+    const cleared = (await (await request.get(`${API}/customers/${customer.id}`, { headers })).json()).data;
+    expect(Number(cleared.outstandingBalance)).toBe(0);
+  });
+});
+
+/**
+ * Two cycles, both selling, hold one product at different landed costs; one
+ * sale takes more than the older batch has left (§3 FIFO, §8 cycle profit —
+ * asked by the owner 2026-10-11). Built the way the business builds stock
+ * (CLAUDE.md §4): cycle → purchase order → leg → delivery → receipt, for a
+ * fresh product, received one after the other on different arrival days.
+ */
+test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3, §8 — 2026-10-11)', () => {
+  const daysAgoIso = (n: number) => dayFromNow(-n);
+
+  /** A UAE-direct cycle of `qty` units of `productId` landing at exactly `unit` EGP, received into stock now. */
+  async function cycleReceived(
+    request: APIRequestContext,
+    headers: any,
+    mk: (path: string, data: any) => Promise<any>,
+    productId: string,
+    unit: number,
+    qty: number,
+    arrivedDaysAgo: number,
+  ) {
+    const supplier = await mk('suppliers', { name: `FIFO Sup ${Date.now()}${unit}`, country: 'AE' });
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    // A cycle starts with its partners at zero; one puts the money in, so
+    // settlement has a basis to split on (§10 — no basis, no split).
+    const seeded = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data.participants;
+    const funded = await request.put(`${API}/cycles/participants/${seeded[0].id}`, {
+      headers, data: { contributionAmount: unit * qty },
+    });
+    expect(funded.ok(), await funded.text()).toBeTruthy();
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgoIso(30),
+      items: [{ productId, orderedQty: qty, unitPrice: unit }],
+    });
+    // Free freight, so a unit lands at exactly what it cost.
+    const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
+      provider: 'FIFO Freight', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+      departedOn: daysAgoIso(arrivedDaysAgo + 10),
+    });
+    const full = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
+    const item = full.purchaseOrders[0].items[0];
+    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+      await mk(`cycles/${cycle.id}/transition`, { status });
+    }
+    const delivery = await mk(`shipping/legs/${leg.id}/deliveries`, {
+      arrivedOn: daysAgoIso(arrivedDaysAgo), lines: [{ purchaseOrderItemId: item.id, qty }],
+    });
+    await mk(`cycles/${cycle.id}/transition`, { status: 'ARRIVED_EGYPT' });
+    await mk('receipts/verify', {
+      cycleId: cycle.id, deliveryId: delivery.id,
+      items: [{ deliveryLineId: delivery.lines[0].id, receivedQty: qty }],
+    });
+    const after = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
+    expect(after.status, 'the first receipt puts the cycle on sale').toBe('SELLING');
+    return cycle;
+  }
+
+  async function batches(request: APIRequestContext, headers: any, productId: string) {
+    const body = await (await request.get(`${API}/inventory?productId=${productId}`, { headers })).json();
+    const row = (body.data ?? []).find((p: any) => p.productId === productId);
+    return new Map<string, any>((row?.batches ?? []).map((b: any) => [b.cycleId, b]));
+  }
+
+  async function profitOf(request: APIRequestContext, headers: any, cycleId: string) {
+    const all = (await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data;
+    return all.find((c: any) => c.cycleId === cycleId);
+  }
+
+  test('TC-INV-30: 3 sold with 2 left in the older batch — 2 at 900 then 1 at 1,100; each cycle counts only its own units; cancel and return give each batch its own back', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const product = await mk('products', { name: `FIFO Helmet ${Date.now()}`, minStock: 0 });
+    const older = await cycleReceived(request, headers, mk, product.id, 900, 2, 12);
+    const newer = await cycleReceived(request, headers, mk, product.id, 1100, 5, 4);
+    const customer = await mk('customers', { displayName: `FIFO Shop ${Date.now()}`, type: 'B2B' });
+
+    const sale = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true,
+      items: [{ productId: product.id, quantity: 3, unitPrice: 1500, discount: 0 }],
+    });
+    const detail = (await (await request.get(`${API}/sales/orders/${sale.id}`, { headers })).json()).data;
+    const allocs = detail.items[0].allocations;
+    const b = await batches(request, headers, product.id);
+    const olderBatch = b.get(older.id);
+    const newerBatch = b.get(newer.id);
+
+    // The older-received batch is drawn first and emptied; the rest from the newer.
+    expect(allocs).toHaveLength(2);
+    const fromOlder = allocs.find((a: any) => a.inventoryBatchId === olderBatch.id);
+    const fromNewer = allocs.find((a: any) => a.inventoryBatchId === newerBatch.id);
+    expect([Number(fromOlder.qty), Number(fromOlder.unitCostEgp), Number(fromOlder.cogsEgp)]).toEqual([2, 900, 1800]);
+    expect([Number(fromNewer.qty), Number(fromNewer.unitCostEgp), Number(fromNewer.cogsEgp)]).toEqual([1, 1100, 1100]);
+    expect(Number(olderBatch.remainingQty)).toBe(0);
+    expect(Number(newerBatch.remainingQty)).toBe(4);
+
+    // Revenue follows each allocation: 2 × 1,500 to the older cycle, 1 × 1,500 to the newer.
+    const pOlder = await profitOf(request, headers, older.id);
+    const pNewer = await profitOf(request, headers, newer.id);
+    expect([pOlder.totalRevenue, pOlder.totalCost, pOlder.profit, pOlder.unitsSold]).toEqual([3000, 1800, 1200, 2]);
+    expect([pNewer.totalRevenue, pNewer.totalCost, pNewer.profit, pNewer.unitsSold]).toEqual([1500, 1100, 400, 1]);
+    // The two add up to the sale's own profit: 4,500 − 2,900.
+    expect(pOlder.profit + pNewer.profit).toBe(4500 - 2900);
+
+    // Settlement sees the same split.
+    const preview = async (cycleId: string) =>
+      (await (await request.get(`${API}/settlements/preview/${cycleId}`, { headers })).json()).data;
+    const sOlder = await preview(older.id);
+    const sNewer = await preview(newer.id);
+    expect([Number(sOlder.revenueEgp), Number(sOlder.cogsEgp)]).toEqual([3000, 1800]);
+    expect([Number(sNewer.revenueEgp), Number(sNewer.cogsEgp)]).toEqual([1500, 1100]);
+    expect(Number(sOlder.grossProfitEgp) + Number(sNewer.grossProfitEgp)).toBeCloseTo(
+      3000 - 1800 - Number(sOlder.expensesEgp) + 1500 - 1100 - Number(sNewer.expensesEgp), 2,
+    );
+
+    // A third, cheaper batch arriving later re-prices nothing already sold.
+    const third = await cycleReceived(request, headers, mk, product.id, 700, 5, 1);
+    const again = (await (await request.get(`${API}/sales/orders/${sale.id}`, { headers })).json()).data.items[0].allocations;
+    expect(again.map((a: any) => Number(a.cogsEgp)).sort()).toEqual([1100, 1800]);
+    expect((await profitOf(request, headers, older.id)).totalCost).toBe(1800);
+    expect((await profitOf(request, headers, third.id)).unitsSold).toBe(0);
+
+    // Every unit back, on credit: each batch gets its own back, and nothing moves to the third.
+    const line = detail.items[0];
+    await mk('returns', { saleOrderId: sale.id, reason: 'all three back', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: line.id, qty: 3 }] });
+    let now = await batches(request, headers, product.id);
+    expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([2, 5, 5]);
+
+    // The same sale again then cancelled: the older batch first again, and each gets its own back.
+    const second = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true,
+      items: [{ productId: product.id, quantity: 3, unitPrice: 1500, discount: 0 }],
+    });
+    now = await batches(request, headers, product.id);
+    expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([0, 4, 5]);
+    await mk(`sales/orders/${second.id}/cancel`, {});
+    now = await batches(request, headers, product.id);
+    expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([2, 5, 5]);
   });
 });

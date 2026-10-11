@@ -359,6 +359,27 @@ Guesses made while building it, open until confirmed:
 - The dashboard's customer count leaves the walk-in record out; its sales
   count in revenue as any sale does.
 - A payment method on a sale that is not a walk-in is refused, not ignored.
+
+**Built 2026-10-11 (I2) — a confirmed sale prints as an invoice / delivery note.**
+From the order, *Invoice* opens a page in the reader's language and direction
+with a *Print* button (the browser's print onto A4; no menu, buttons or chrome on
+the paper). It shows the business name, "Sales invoice / Delivery note", the order
+number and date, the shop (name, phone), every line (product and SKU, quantity,
+unit price, discount, line total), subtotal, discounts, order total, what has been
+paid on this order and what it still owes, and "Received by / Delivered by" lines
+to sign. A draft and a cancelled order have no invoice (`INVOICE_DRAFT`,
+`INVOICE_CANCELLED`) and offer no button. Guesses, open until confirmed (2026-10-11):
+- **The shop's balance on the invoice is its balance at the moment of this sale**:
+  "balance before this sale", "this invoice", "balance after this sale" — the
+  running balance from the shop's statement (§7b) right after this sale's row, so
+  a reprint next month shows the same figures. "Paid" and "still owed" on the order
+  are as of printing. The alternative — today's balance — changes every reprint.
+- What returns took off the order is shown as "Returns credited", so total − paid −
+  returns = still owed on paper; a fully returned order says so and owes nothing.
+- The business name printed is "MotoParts"; no address, tax number or logo is
+  printed — none is on file. A walk-in sale prints "Walk-in customer", "paid in
+  full on the spot", and no account box.
+- The invoice number is the order number; there is no separate invoice sequence.
 ---
 
 ## 5. Returns
@@ -384,6 +405,15 @@ ledger as an outflow.
 
 You cannot return more than remains returnable, counting earlier returns. A
 reason is required.
+
+**FIXED 2026-10-11 — returning part of an order leaves the rest owed.** An order
+is RETURNED only when every sold unit has come back, and a RETURNED order owes
+nothing. The check counted the return being recorded twice, so bringing back one
+of two units marked the order RETURNED and what the shop still owed on the other
+unit dropped out of its balance. Found by the customer statement's invariant
+(§7b). `scripts/check-data.sh` check 18 lists any order already caught by it;
+each needs its status put back by hand (CONFIRMED, PARTIALLY_PAID or PAID by what
+it owes) — not done on production by this change.
 
 **Returns net off every profit figure** — cycle profitability, the dashboard,
 revenue by month, top products. Revenue by month nets the return in the month it
@@ -469,6 +499,12 @@ confirmed, with something still owed, and the payment cannot be more than that
 order owes. Recorded from the shop or the payments list, it goes on the oldest
 unpaid orders first, as before.
 
+*2026-10-11 (I2):* "oldest first" now happens on the server, in the same
+transaction that records the payment (`applyOldestFirst`), for the office form and
+the assistant alike. It was a loop in the browser after the payment was saved, so a
+dropped connection could leave money recorded but applied to nothing; now it is all
+of it or none of it. Oldest means the order created first.
+
 A payment is in the order's currency or in Egyptian pounds; no other currency is
 offered.
 
@@ -505,6 +541,43 @@ because two schedules would claim the same payments. Cancel and re-agree
 instead.
 
 A plan cannot promise more than the shop actually owes.
+
+---
+
+## 7b. A customer's statement  — built 2026-10-11 (I2)
+
+On the shop's page: pick a range of days and read the balance it opened at, every
+sale, payment, return and payment reversal in date order with the balance after
+each, and the balance it closed at. Printed on A4 from the browser, or taken out as
+a CSV. Core partners and admin support only, as the shop's balance is.
+
+**The rule: a statement running to today closes at the balance the app shows** —
+the shop's page, the customers list, the payment form's "owes now". It is not a
+second set of rules: it replays, order by order, exactly what each payment, return
+and reversal did to what that order owed, so the rows add up to the stored figures
+(34, TC-INV-26/27 check every customer in the system). Building it found a real bug:
+a partial return marked the whole order returned (§5, fixed the same day).
+
+Guesses, open until confirmed (2026-10-11):
+- A draft never appears (it owed nothing), and **a cancelled order does not appear
+  at all** — cancelling is for an order that never happened (§4) — rather than a sale
+  and a cancellation.
+- Each row is dated the day it happened in Cairo: a sale on the day it was placed, a
+  payment on the day it was received (even if typed in later), a return on its
+  return date, a reversal on the day it was reversed. Within a day, in the order they
+  were recorded.
+- A payment shows what it took off the balance. Money on no order (possible only
+  from before 2026-10-11, when "oldest first" ran in the browser) is shown as "on no
+  order" and changes nothing owed — the balance never counted it either.
+- A cash refund of part of an order changes nothing owed (the money went back in
+  cash); the return that brings back the last unit ends what the order owed, as the
+  order itself does (§5).
+- A reversed payment is shown as received and then reversed, two rows, not hidden.
+- Everything is shown in EGP, as the balance tile is; an order in another currency is
+  added in as its own figure, exactly as the balance adds it (both are a guess the
+  day a shop is sold to in USD).
+- The walk-in record has no statement (`WALK_IN_NO_STATEMENT`): it has no account.
+- With no dates chosen the statement covers everything, opening at zero.
 
 ---
 
@@ -1038,8 +1111,9 @@ still owed after a return). Reading it notifies nobody.
 
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,
-cycle status, and verifying stock in — and, since 2026-10-11, recording a sale (below). It cannot change sales, payments,
-instalments, settlements, returns or the ledger — those stay in the office app.
+cycle status, and verifying stock in — and, since 2026-10-11, recording a sale and recording a payment a shop
+made (below). It cannot change, reverse or re-allocate sales or payments, nor touch instalments, settlements,
+returns or the ledger — those stay in the office app.
 This is enforced by the system, not by the assistant's good behaviour: its access
 is valid nowhere except the assistant's own tools.
 
@@ -1105,6 +1179,24 @@ stricter. Guesses made while building it, open until confirmed:
   elsewhere before the partner confirms, even leaving enough, the partner is
   shown a fresh preview (`PREVIEW_CHANGED`).
 - A payment method on a named customer's sale is refused, not ignored.
+
+**DECIDED 2026-10-11 by the owner — the assistant can record a payment.**
+*Built 2026-10-11 (I2, `record_payment`).* "El-Sayed paid 5,000 cash" is a payment the assistant records,
+the same two-call way: it finds the shop with the one matcher (a close or unknown name is asked, never
+assumed, and never becomes a new customer), and previews the amount, the method (cash when unsaid), the day
+received (today in Cairo when unsaid, never a future day), which orders the money lands on and the shop's
+balance before and after. It saves only on a clear yes. It goes through the same payment service the office
+app's Record payment uses, so every guard there applies unchanged — not more than the shop owes (§7a), not
+more than a named order owes, only the shop's own confirmed orders, not an unverified shop. Without a named
+order the money goes on the oldest unpaid orders first (§7); with one, on that order alone. The roles allowed
+are the office endpoint's (`PAYMENT_ROLES`: core partners and admin support — the assistant itself only
+admits core partners). The preview binds: a sale or another payment for the same shop between the preview
+and the yes is `PREVIEW_CHANGED`, and the partner is shown the new preview. It records no reversal,
+re-allocation, refund or instalment plan. Guesses, open until confirmed (2026-10-11):
+- The assistant's payments are in EGP, as its sales are.
+- An order is named by its number (or id); one that is not this shop's is "not found", as on the office form,
+  rather than saying whose it is.
+- A reference (receipt, transfer or cheque number) is recorded only when the partner gives one.
 
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it

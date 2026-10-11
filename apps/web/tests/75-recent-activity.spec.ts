@@ -184,3 +184,29 @@ test('TC-RECENT-09: the dashboard lists a sale confirmed a moment ago, reached b
   await expect(page).toHaveURL(/\/dashboard/);
   await expect(page.getByText(order.orderNo)).toBeVisible();
 });
+
+// I2 (from I1): a shop's name in the panel is the way to that shop — it was
+// plain text, and clicking it did nothing. The walk-in record has no page and
+// reads "Walk-in", never "Walk-in" as a link to a record.
+test('TC-RECENT-10: a shop named in recent activity opens that shop; a walk-in sale names no record', async ({
+  page,
+  request,
+}) => {
+  const { mk, product, customer } = await shopWithStock(request, 'Recent Link');
+  const order = await owedOrder(mk, customer.id, product.id, 515);
+  const walkIn = await mk('sales/orders', {
+    walkIn: true, currency: 'EGP', items: [{ productId: product.id, quantity: 1, unitPrice: 300, discount: 0 }],
+  });
+  await login(page);
+
+  const panel = page.locator('section[aria-labelledby="recent-activity-heading"]');
+  const saleLine = panel.locator('li', { hasText: order.orderNo });
+  await expect(saleLine).toBeVisible();
+  const walkInLine = panel.locator('li', { hasText: walkIn.orderNo });
+  await expect(walkInLine.getByTestId('recent-activity-subject')).toHaveText('Walk-in');
+  await expect(walkInLine.getByRole('link')).toHaveCount(0);
+
+  await saleLine.getByRole('link', { name: customer.displayName }).click();
+  await expect(page).toHaveURL(new RegExp(`/en/customers/${customer.id}$`), { timeout: 15000 });
+  await expect(page.getByRole('main').getByRole('heading', { name: customer.displayName, level: 1 })).toBeVisible();
+});

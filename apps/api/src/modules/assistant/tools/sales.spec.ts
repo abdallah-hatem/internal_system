@@ -823,20 +823,23 @@ describe('record_sale — stock and the binding', () => {
 });
 
 describe('record_sale — what the assistant offers', () => {
-  it('tools/list has record_sale and still no payment, return or settlement tool', async () => {
+  it('tools/list has record_sale and record_payment, and still no return, settlement or reversal tool', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
 
     expect(names).toContain('record_sale');
-    // Reading payments is allowed (list_payments); writing them is not.
+    // Reading payments is allowed (list_payments); recording one a shop made
+    // is too since 2026-10-11 (record_payment, §16); nothing else writes them.
     const writes = tools
       .filter((t) => t.annotations?.readOnlyHint !== true)
       .map((t) => t.name);
     expect(
-      writes.filter((n) =>
-        /sale|payment|instal|settle|return|refund|ledger|allocat/i.test(n),
-      ),
-    ).toEqual(['record_sale']);
+      writes
+        .filter((n) =>
+          /sale|payment|instal|settle|return|refund|ledger|allocat/i.test(n),
+        )
+        .sort(),
+    ).toEqual(['record_payment', 'record_sale']);
     const sale = tools.find((t) => t.name === 'record_sale')!;
     expect(sale.annotations?.readOnlyHint).toBe(false);
     expect(Object.keys(sale.inputSchema.properties ?? {}).sort()).toEqual([
