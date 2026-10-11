@@ -24,6 +24,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   API saved whatever came, so a typed `contribution` or `purchase` row would have moved cash and profit.
   The owner: "how is there a category that is text? also cycle Id as text ???? insane". — 2026-10-11
 
+- Lint the whole app (`npm run lint`), not the files you touched. This repo freezes old violations per file in
+  `eslint-suppressions.json`; one new `any` in a spec pushes that file past its count and every frozen error in it
+  reappears. I linted `src/` only after adding TC-ANA-08 and left 7 errors on master for the next agent. — 2026-10-11
+
 ## New apps in this product family
 
 - Copy the conventions, do not re-derive them. The storefront was scaffolded fresh and so

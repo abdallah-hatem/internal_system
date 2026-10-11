@@ -13,6 +13,12 @@ _(none)_
 _(none)_
 
 ## Next up
+- L6 phase 1 built on `feature/l6-ledger-entry` (migration 20261011220000_ledger_entry_date); phase 2 after L4.
+  Fixed on the way: cycle profitability ignored cycle-charged expenses while settlement subtracted them; reversed
+  expenses stayed in Expenses. §9 guesses: foreign amounts stored in pounds (+ original_*), other income into net
+  profit, a cycle in SETTLEMENT still takes a late cost.
+- Investigate (money): the dashboard's Expenses may count a sale return's money-out `revenue` row and the cash
+  `refund` row while Revenue already nets returns — possible double count. Reproduce + test before any fix.
 - L7 queued (owner said build, 2026-10-11): running costs come out of the core partners' payouts + a payout that explains itself line by line (§8). Starts once L5 (leftovers) and L6 (ledger form) are merged — all three touch settlement.
 - L3 building: status follows departures/deliveries (owner 2026-10-11); no money account on a friend's repayment
   (owner); amount inputs start-aligned app-wide (owner screenshot).
