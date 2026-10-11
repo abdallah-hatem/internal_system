@@ -839,7 +839,12 @@ describe('record_sale — what the assistant offers', () => {
           /sale|payment|instal|settle|return|refund|ledger|allocat/i.test(n),
         )
         .sort(),
-    ).toEqual(['record_payment', 'record_sale']);
+    ).toEqual([
+      // L2, 2026-10-11 (§16, §18): repaying a friend, not a shop's payment.
+      'record_lender_repayment',
+      'record_payment',
+      'record_sale',
+    ]);
     const sale = tools.find((t) => t.name === 'record_sale')!;
     expect(sale.annotations?.readOnlyHint).toBe(false);
     expect(Object.keys(sale.inputSchema.properties ?? {}).sort()).toEqual([

@@ -350,6 +350,15 @@ export class LendersService {
   ) {
     if (!isUuid(purchaseOrderId)) throw notFound('purchaseOrder');
     if (!isUuid(dto.lenderId)) throw notFound('lender');
+    // Here as well as in the DTO: the assistant calls this method directly
+    // (§16), and a guard only in the DTO would let it record a zero.
+    const asked = D(dto.amount);
+    if (!asked.isFinite() || asked.lte(0)) {
+      throw badRequest(
+        'AMOUNT_NOT_POSITIVE',
+        'The amount must be greater than zero.',
+      );
+    }
     assertNotFuture(dto.paidOn, 'LENDER_PAID');
 
     const [po, lender] = await Promise.all([

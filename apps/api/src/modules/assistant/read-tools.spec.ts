@@ -1167,23 +1167,38 @@ async function toolsOf(server: McpServer): Promise<Tool[]> {
  */
 const SALE_WRITES = new Set(['record_sale', 'record_payment']);
 
+/**
+ * §16 and §18, 2026-10-11 (L2): what a friend paid a supplier for us, and our
+ * repayments to him — through LendersService, every guard the office has.
+ */
+const LENDER_WRITES = new Set([
+  'record_lender_financing',
+  'record_lender_repayment',
+]);
+
 function forbiddenWrites(tools: Tool[]): string[] {
   return tools
     .filter((t) => t.annotations?.readOnlyHint !== true)
     .filter((t) => !SALE_WRITES.has(t.name))
+    .filter((t) => !LENDER_WRITES.has(t.name))
     .filter((t) => !INTAKE_WRITES.has(t.name) || OFFICE_ONLY.test(t.name))
     .map((t) => t.name);
 }
 
 describe('What the assistant offers', () => {
-  it('tools/list offers no tool that writes instalments, settlements, returns or the ledger, and no sale or payment tool but record_sale and record_payment', async () => {
+  it('tools/list offers no tool that writes instalments, settlements, returns or the ledger, and no sale or payment tool but record_sale, record_payment and the two lender writes', async () => {
     const { assistant } = harness(emptyDb());
 
     const tools = await toolsOf(assistant.create(partner));
 
     expect(forbiddenWrites(tools)).toEqual([]);
     expect(tools.map((t) => t.name)).toEqual(
-      expect.arrayContaining(['record_sale', 'record_payment']),
+      expect.arrayContaining([
+        'record_sale',
+        'record_payment',
+        'record_lender_financing',
+        'record_lender_repayment',
+      ]),
     );
     // The read tools are all there, and all say they only read.
     const reads = [
@@ -1198,6 +1213,8 @@ describe('What the assistant offers', () => {
       'list_receivables',
       'get_dashboard',
       'get_fx_rates',
+      'list_lenders',
+      'get_lender',
     ];
     const byName = new Map(tools.map((t) => [t.name, t]));
     for (const name of reads) {

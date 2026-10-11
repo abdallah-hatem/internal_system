@@ -13,15 +13,22 @@ _(none)_
 _(none)_
 
 ## Next up
+- L2 built 2026-10-11 on `feature/l2-lenders-assistant` (not merged, not pushed): (1) owner decision — a cycle a
+  friend paid for entirely splits its profit equally among its core partners (§8, §18; spec 34 TC-INV-45..47);
+  (2) assistant tools `list_lenders`, `get_lender`, `record_lender_financing`, `record_lender_repayment` (§16, §18;
+  unit `tools/lenders.spec.ts`, e2e spec 99); (3) the I3 "Not departed" twice nit. No migration. Full e2e green
+  (5 groups), api jest, web unit, lint, typecheck, check-data zero. Owner to confirm the §16 lender-tool guesses
+  (today's rate when unsaid, ask for the account when several, ask which order, currency checked not converted)
+  and the §8 residual guess (residual to the last participant with a share). After merging, toggle the assistant
+  connector off/on to see the new tools.
 - L1 merged into master 2026-10-11 (alignment review: money rules ALIGNED; 8 missing edge-case tests + 4 doc gaps fixed in a04608e) — from `feature/l1-lender-financing` (§18, spec/plan `docs/superpowers/{specs,plans}/2026-10-11-lender-financing.md`):
   lenders, "Paid by a friend" on the order and cycle page, repayments in pounds at the day's rate, plans, the settlement
   gate, the dashboard's owed-to-lenders figure. Migration `20261011200000_lender_financing` — run `scripts/ship-prod.sh
   migrate` before the deploy. Full e2e green (5 groups), check-data zero (new checks 19–19.5). Ship after the owner's go.
-  Owner to confirm the §18 guesses (rounding down, ledger rows, one friend per order, plans) — and decide the OPEN one:
-  a cycle a friend paid for entirely has no partner contributions, so settlement refuses until a custom split is set.
+  Owner to confirm the §18 guesses (rounding down, ledger rows, one friend per order, plans). The OPEN one — a cycle a
+  friend paid for entirely — was decided by the owner 2026-10-11 and built in L2.
   Seen while testing, not fixed: approving a settlement while a recalculation replaces its draft answers 500 (P2025)
   instead of NOT_FOUND — a race between Calculate and Approve.
-- I3 nit: a leg that hasn't left reads "Not departed" twice in its header (badge + date slot).
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
 - I2 shipped 2026-10-11: assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
   the server; printable sale invoice / delivery note (§4); customer statement with print + CSV (§7b); recent activity

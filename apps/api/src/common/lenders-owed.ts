@@ -35,28 +35,65 @@ export async function owedToLenders(
   if (byCurrency.size === 0) {
     return { lines: [], totalEgp: '0.00', missingRate: false };
   }
-  const rates = await db.currencyRate.findMany({
-    where: { code: { in: [...byCurrency.keys()] } },
-  });
+  return inPoundsToday(
+    db,
+    [...byCurrency.entries()].map(([currency, owed]) => ({ currency, owed })),
+  );
+}
+
+/**
+ * Today's rate for each currency: the one on the exchange-rate page, which the
+ * repayment form and the assistant's repayment prefill. EGP is 1; a currency
+ * with no rate there is absent, never zero.
+ */
+export async function ratesToday(
+  db: Pick<Prisma.TransactionClient, 'currencyRate'>,
+  codes: readonly string[],
+): Promise<Map<string, Prisma.Decimal>> {
+  const rows = codes.some((c) => c !== 'EGP')
+    ? await db.currencyRate.findMany({
+        where: { code: { in: codes.filter((c) => c !== 'EGP') } },
+      })
+    : [];
+  const out = new Map<string, Prisma.Decimal>();
+  if (codes.includes('EGP')) out.set('EGP', new Prisma.Decimal(1));
+  for (const r of rows) {
+    if (r.rateToEgp !== null) out.set(r.code, new Prisma.Decimal(r.rateToEgp));
+  }
+  return out;
+}
+
+/**
+ * Debts in their own currencies, each also in pounds at today's rate — the
+ * dashboard's "owed to lenders" and the assistant's list_lenders and
+ * get_lender read this one definition (CLAUDE.md rule 11).
+ */
+export async function inPoundsToday(
+  db: Pick<Prisma.TransactionClient, 'currencyRate'>,
+  owed: readonly { currency: string; owed: Prisma.Decimal.Value }[],
+) {
+  const rates = await ratesToday(
+    db,
+    owed.map((o) => o.currency),
+  );
   let totalEgp = new Prisma.Decimal(0);
   let missingRate = false;
-  const lines = [...byCurrency.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([currency, owed]) => {
-      const rate =
-        currency === 'EGP'
-          ? new Prisma.Decimal(1)
-          : (rates.find((r) => r.code === currency)?.rateToEgp ?? null);
+  const lines = owed
+    .slice()
+    .sort((a, b) => a.currency.localeCompare(b.currency))
+    .map(({ currency, owed: amount }) => {
+      const debt = new Prisma.Decimal(amount);
+      const rate = rates.get(currency) ?? null;
       const owedEgp =
         rate === null
           ? null
-          : owed.mul(rate).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+          : debt.mul(rate).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
       if (owedEgp === null) missingRate = true;
       else totalEgp = totalEgp.add(owedEgp);
       return {
         currency,
-        owed: owed.toFixed(2),
-        rateToEgp: rate === null ? null : new Prisma.Decimal(rate).toFixed(4),
+        owed: debt.toFixed(2),
+        rateToEgp: rate === null ? null : rate.toFixed(4),
         owedEgp: owedEgp === null ? null : owedEgp.toFixed(2),
       };
     });

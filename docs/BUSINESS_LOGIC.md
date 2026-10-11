@@ -1135,9 +1135,10 @@ still owed after a return). Reading it notifies nobody.
 
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,
-cycle status, and verifying stock in — and, since 2026-10-11, recording a sale and recording a payment a shop
-made (below). It cannot change, reverse or re-allocate sales or payments, nor touch instalments, settlements,
-returns or the ledger — those stay in the office app.
+cycle status, and verifying stock in — and, since 2026-10-11, recording a sale, recording a payment a shop
+made, and recording what a friend paid a supplier for us and our repayments to him (below). It cannot change,
+reverse or re-allocate sales or payments, nor touch instalments, settlements, returns or the ledger — those stay
+in the office app.
 This is enforced by the system, not by the assistant's good behaviour: its access
 is valid nowhere except the assistant's own tools.
 
@@ -1221,6 +1222,50 @@ re-allocation, refund or instalment plan. Guesses, open until confirmed (2026-10
 - An order is named by its number (or id); one that is not this shop's is "not found", as on the office form,
   rather than saying whose it is.
 - A reference (receipt, transfer or cheque number) is recorded only when the partner gives one.
+
+**Friends who paid a supplier (lenders, §18) — built 2026-10-11 (L2), autonomous run.**
+The assistant reads and records a friend's loan the same two-call way, through the methods
+the office app's "Paid by a friend" and "Record repayment" call (`LendersService.finance`,
+`.repay`, `.quote`, `.list`, `.findOne`), so every guard there applies unchanged — not more
+than is left on the order, not more than is owed, not dated forward or before he paid, not on
+a cycle being settled, closed or cancelled. Roles are the office endpoints' (`lender-roles.ts`:
+reading for core partners and admin support, writing for core partners; the assistant itself
+admits only core partners). Four tools:
+- `list_lenders` — every friend still owed: per currency, and in pounds at today's rate on the
+  exchange-rate page (the dashboard's "owed to lenders" definition, one function), with any
+  overdue plan instalment. A friend owed nothing is not listed.
+- `get_lender` — one friend by name or id (a close name returns the candidates, as
+  `get_customer` does): each order he paid for and its cycle, every repayment with its rate,
+  what it cleared, the exchange difference and the account, his plan, and what is still owed.
+- `record_lender_financing` — "Mahmoud paid 30,000 AED for PO-2026-0004". The friend is
+  found with the one matcher; an unknown or close name is a question with nothing to confirm,
+  and a new friend is added only when the partner agrees (`newLender`). The order is named by
+  its reference. The preview shows what the partners fund before and after (the costing's
+  "to fund", §18).
+- `record_lender_repayment` — "paid Mahmoud 50,000 pounds today", or "pay him off" (the
+  service's own settling figure at the rate used). The preview shows the rate and where it
+  came from, what it clears in his currency, what is still owed before and after, the
+  exchange difference and the money account.
+What the preview showed binds (`PREVIEW_CHANGED`): another friend's payment on the order, or
+another repayment to him, between the preview and the yes. It does not remove a friend's
+payment, reverse a repayment, or agree or cancel a plan — those stay in the office app.
+Guesses made while building it, open until confirmed (2026-10-11):
+- The rate left unsaid is today's on the exchange-rate page — the one the office form
+  prefills — and the preview says so; a currency with no rate there is asked, never guessed.
+- The money account: the one the partner names; with exactly one active pounds account, that
+  one (the office form's default); with several and none named, the assistant asks, offering
+  them in the office form's order and naming its default (the first by name).
+- A friend owed on more than one order is asked which order the repayment is for; it is never
+  split across orders.
+- A currency the partner states must be the order's; another is refused
+  (`LENDER_CURRENCY_MISMATCH`), never converted.
+- A friend named who already exists by exact name is that friend even if `newLender` is sent;
+  two lenders of one name would make every later lookup a question.
+- A new friend is created just before his payment is recorded, as two steps; if recording the
+  payment were then refused (only possible if something changed after the bound preview was
+  re-checked), the friend stays on file with nothing owed.
+- The amount must be more than zero now in `LendersService.finance` itself, not only in the
+  office form's DTO, because the assistant calls the method directly.
 
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it
@@ -1313,4 +1358,5 @@ confirms it.**
 | "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
 | "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
 | A cycle a friend paid for entirely | **DECIDED 2026-10-11 by the owner, built in L2:** its profit is split equally among the cycle's core partners; a temporary investor on it gets nothing; a custom split still overrides. "Entirely" means every contribution is zero and the friends' payments leave nothing to fund (`toFundEgp` zero). A cycle a friend paid for only partly, with no contributions, still refuses (§8). | The owner's rule. Partly paid still refuses: rounding must not pick who gets the money. |
+| Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; the account is asked when there are several and none was said; a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
 | Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). The money accounts a repayment leaves from are listed at `GET /ledger/accounts`, which the ledger's own roles guard — core partners and admin support. A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |

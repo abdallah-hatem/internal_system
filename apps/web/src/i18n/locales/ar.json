@@ -1265,6 +1265,8 @@
     "LENDER_REPAYMENT_ALREADY_REVERSED": "أُلغي هذا السداد من قبل. إلغاؤه مرة أخرى يحسبه مرتين.",
     "LENDER_CYCLE_SETTLED": "الدورة {cycle} مُسوّاة؛ ألغِ التسوية قبل التراجع عن سداد عليها.",
     "LENDER_NOTHING_OWED": "لا شيء مستحق لـ {lender} على هذا، فلا يوجد ما يُجدول.",
+    "LENDER_NOT_OWED": "لا شيء مستحق لـ {lender}، فلا يوجد ما يُسدَّد.",
+    "LENDER_CURRENCY_MISMATCH": "{reference} بعملة {orderCurrency}؛ ما دفعه الصديق عنه يُسجَّل بـ {orderCurrency} وليس {currency}.",
     "LENDER_PLAN_EXISTS": "لهذا خطة نشطة بالفعل. ألغِها قبل الاتفاق على غيرها.",
     "LENDER_PLAN_EXCEEDS_OWED": "مجموع الأقساط {total} {currency} والمستحق {owed} فقط.",
     "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه."

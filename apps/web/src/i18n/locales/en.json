@@ -1265,6 +1265,8 @@
     "LENDER_REPAYMENT_ALREADY_REVERSED": "This repayment was already reversed. Reversing again would count it twice.",
     "LENDER_CYCLE_SETTLED": "Cycle {cycle} is settled; reverse the settlement before undoing a repayment on it.",
     "LENDER_NOTHING_OWED": "{lender} is owed nothing on this, so there is nothing to schedule.",
+    "LENDER_NOT_OWED": "{lender} is owed nothing, so there is nothing to repay.",
+    "LENDER_CURRENCY_MISMATCH": "{reference} is in {orderCurrency}; what a friend paid for it is recorded in {orderCurrency}, not {currency}.",
     "LENDER_PLAN_EXISTS": "This already has an active plan. Cancel it before agreeing another.",
     "LENDER_PLAN_EXCEEDS_OWED": "The instalments total {total} {currency} but only {owed} is owed.",
     "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for."

@@ -76,3 +76,52 @@ export async function previewByRollback<T>(
   }
   throw new Error('dry run finished without reaching its transaction');
 }
+
+/**
+ * A preview that must create something before the write it previews can run
+ * — a new lender before the payment he made (§18) — rolled back as a whole.
+ *
+ * `rollingBack` cannot do it: the service reads the lender outside its own
+ * transaction, before the point where `inspect` would run. So here the whole
+ * rehearsal runs inside one transaction: `run` is handed a database whose
+ * every query goes to that transaction and whose `$transaction(fn)` simply
+ * runs `fn` in it. Its result is kept and the transaction is then failed on
+ * purpose, so nothing it wrote survives.
+ *
+ * Services handed this database must not call another service that has its
+ * own connection (an audit log, a notifier): on a one-connection host that
+ * call would wait on the transaction that holds the connection. Pass them
+ * stand-ins that do nothing — a preview records no audit and tells nobody.
+ */
+export async function rehearse<T>(
+  prisma: PrismaService,
+  run: (db: PrismaService) => Promise<T>,
+): Promise<T> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const nested = new Proxy(tx, {
+        get(target, prop) {
+          if (prop === '$transaction') {
+            return (fn: unknown) => {
+              if (typeof fn !== 'function') {
+                throw new Error(
+                  'rehearse only supports interactive transactions',
+                );
+              }
+              return (fn as (t: Tx) => Promise<unknown>)(target);
+            };
+          }
+          const value: unknown = Reflect.get(target, prop, target);
+          return typeof value === 'function'
+            ? (value as (...a: unknown[]) => unknown).bind(target)
+            : value;
+        },
+      }) as unknown as PrismaService;
+      throw new DryRunFinished(await run(nested));
+    });
+  } catch (err) {
+    if (err instanceof DryRunFinished) return err.seen as T;
+    throw err;
+  }
+  throw new Error('rehearsal finished without rolling back');
+}

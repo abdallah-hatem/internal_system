@@ -10,7 +10,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { ACTION_ROLES, can } from '../src/lib/permissions.ts';
@@ -26,9 +26,30 @@ function decoratorsFrom(lines, i, step) {
   }
   return out;
 }
+/**
+ * The shared role lists a controller spreads into `@Roles(...X_ROLES)` —
+ * `payments/payment-roles.ts`, `lenders/lender-roles.ts` — read from their
+ * `*-roles.ts` files, so a list shared with the assistant (§16) is checked
+ * like a literal one.
+ */
+const SHARED_ROLES = Object.fromEntries(
+  readdirSync(API, { recursive: true })
+    .filter((f) => String(f).endsWith('-roles.ts'))
+    .flatMap((f) =>
+      [...readFileSync(join(API, String(f)), 'utf8').matchAll(/export const (\w+) = \[([^\]]*)\]/g)].map((m) => [
+        m[1],
+        [...m[2].matchAll(/'([A-Z_]+)'/g)].map((r) => r[1]),
+      ]),
+    ),
+);
 const rolesIn = (decorators) => {
   const d = decorators.find((l) => l.startsWith('@Roles('));
-  return d ? [...d.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]).sort() : null;
+  if (!d) return null;
+  const spread = [...d.matchAll(/\.\.\.(\w+)/g)].map((m) => {
+    assert.ok(SHARED_ROLES[m[1]], `${m[1]} is not an exported role list in a *-roles.ts file`);
+    return SHARED_ROLES[m[1]];
+  });
+  return [...[...d.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]), ...spread.flat()].sort();
 };
 const guarded = (decorators) =>
   decorators.some((l) => l.startsWith('@UseGuards(') && l.includes('RolesGuard'));
