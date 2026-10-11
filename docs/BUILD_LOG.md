@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: I3 live in production 2026-10-11 (`0f9b829`, three deploys READY, smoke ok) · I1–I3 all shipped · next: the owner's open decisions (improvements note) and the I3 nit
+Current stage: production wiped at the owner's request 2026-10-11 6:30 PM — kept the three core-partner logins (+ partner rows, assistant connection), money accounts, FX rates; removed the investor and shop-owner logins and all business data. Backup `.backups/prod-before-wipe-20261011-182759.sql` (pg_dump 18). Smoke ok after.
 
 ## Waiting on the user
 _(none)_
@@ -52,4 +52,5 @@ _(none)_
   `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`, `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`, `tests/(8[0-9]|9[0-9])-` (the fifth group: 80–94 were missing from "full" runs until 2026-10-11).
 - Production: `scripts/ship-prod.sh status|migrate|env|stranded|smoke`. Pushing `master` deploys all three
   apps. Vercel builds production only (`ignoreCommand`). Check each deploy reaches READY on the new commit.
-- Auto mode blocks production steps. Ask the user to switch the session to manual for a ship.
+- Auto mode blocks production steps: switch this session to manual (set_session_permission_mode), let the owner
+  approve each step, switch back to auto.
