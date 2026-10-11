@@ -244,6 +244,24 @@ deliveries, another leg and a leg's cost are the cycle page's work (below).
 Guess, open until confirmed (autonomous run, 2026-10-12): a cycle moved back
 into Purchasing by Change status is set up again, so Continue setup returns.
 
+**DECIDED 2026-10-12 (owner) — Add next leg, and a leg's cost, on the cycle
+page.** *Built 2026-10-12.* The Shipment panel offers **Add leg N** for the
+route's first leg not yet recorded — a China cycle's Dubai → Egypt leg added
+after leg 1 left, or any leg never added (the empty panel offers leg 1) — and
+**Edit leg** on each leg. Both are the Shipments page's own forms, defined once
+(`components/shipment/LegForm.tsx`, CLAUDE.md §13): route, provider with its
+`+`, tracking, the first departure (L8), cost basis, amount or rate, currency
+and FX. The cost is editable there only while the rule allows (§2: nothing of
+the cycle received or marked lost); after that the form says why and points to
+recording the late charge as a cycle expense in the ledger, and sends no cost.
+Same roles as the Shipments page (`shippingLeg.create`, `shippingLeg.edit`);
+hidden on a cycle being settled, closed or cancelled. Guesses, open until
+confirmed (autonomous run, 2026-10-12): the route's places are offered and
+editable; a third China leg or a second UAE-direct leg is never offered; the
+Shipments page's edit form shows the same cost lock; the web's copy of the
+route (`components/cycles/leg-plan.ts`, also the wizard's) is pinned to the
+API's `cycle-routes.ts` by a test.
+
 **DECIDED 2026-10-11 (owner, I3) — a leg's departure and its deliveries are
 recorded from the cycle's page.** Each leg's header in the details page's
 Shipment panel carries **Record departure** while it has not left, and **Record

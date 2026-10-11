@@ -3,58 +3,25 @@ import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
-import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
-import { useToast } from '../../../components/ui/toast';
-import { ShippingCostFields, readShippingCostFields } from '../../../components/shipping/ShippingCostFields';
 import {
-  Plus, Search, Edit, X, Loader2, MapPin,
+  Plus, Search, Edit, Loader2, MapPin,
 } from 'lucide-react';
 import { LegRoute } from '@/components/shipment/LegRoute';
 import { Money } from '@/components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
 
-import { useApiError } from '../../../lib/api-error';
 import { useDateFormat } from '../../../lib/dates';
-import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
-import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
-import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
-import { LegDepartureFields, useLegDeparture } from '@/components/shipment/LegDepartureFields';
-import { useAnnounceStatusMove } from '@/components/shipment/status-move';
-import { Link } from '../../../i18n/navigation';
-import { ValidatedForm } from '@/components/ui/validated-form';
+import { LegCreateForm, LegEditForm, LegFormModal, type LegRow } from '@/components/shipment/LegForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
-interface Shipment {
-  id: string;
-  cycleId: string;
-  cycle?: { code: string };
-  sequence: number;
-  origin: string;
-  destination: string;
-  provider: string;
-  /** Null on every leg made before the pickers carried the id. */
-  providerId?: string | null;
-  trackingRef?: string;
-  status: string;
-  departedOn?: string;
-  arrivedOn?: string;
-  amount?: number | string | null;
-  costBasis?: 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
-  ratePerUnit?: number | string | null;
-  chargeablePieces?: number | string | null;
-  chargeableWeightKg?: number | string | null;
-  currency?: string;
-  fxRateToEgp?: number | string | null;
-  amountEgp?: number | string | null;
-}
+/** A leg as the list returns it — the shared leg forms' own type. */
+type Shipment = LegRow;
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-600',
@@ -68,54 +35,23 @@ const STATUS_COLORS: Record<string, string> = {
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
   const { formatDate } = useDateFormat();
-  const apiError = useApiError();
   const t = useTranslations('shipments');
-  const tShipment = useTranslations('shipment');
   const tc = useTranslations('common');
-  const queryClient = useQueryClient();
-  const { addToast } = useToast();
-  const announce = useAnnounceStatusMove();
-  const codeLabel = useCodeLabel();
   // An investor reads their cycles' legs; adding and editing one are a partner's (R1c).
   const may = { create: useCan('shippingLeg.create'), edit: useCan('shippingLeg.edit') };
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  // A provider created from inside either modal, so it can be selected the
-  // moment it exists.
-  const [newProviderId, setNewProviderId] = useState('');
-  const [editProviderId, setEditProviderId] = useState('');
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
-  // The create form's cycle, so its departure can show what waits (L8).
-  const [newCycleId, setNewCycleId] = useState('');
-  const createDeparture = useLegDeparture(newCycleId);
-  const editDeparture = useLegDeparture(editingShipment?.cycleId, editingShipment?.id);
 
-  // Every way in and out of the edit modal clears the provider override and
-  // the departure typed into it, or the next shipment opens showing the
-  // previous one's.
-  const openEdit = (ship: Shipment) => {
-    setEditProviderId('');
-    editDeparture.reset();
-    setEditingShipment(ship);
-  };
-  const closeEdit = () => {
-    setEditProviderId('');
-    editDeparture.reset();
-    setEditingShipment(null);
-  };
-  const openCreate = () => {
-    setNewCycleId('');
-    createDeparture.reset();
-    setShowCreateModal(true);
-  };
-  const closeCreate = () => {
-    setNewCycleId('');
-    createDeparture.reset();
-    setShowCreateModal(false);
-  };
+  // Each form is mounted fresh on open and dropped on close, so nothing typed
+  // into one — a provider, a departure — survives into the next (§13).
+  const openEdit = (ship: Shipment) => setEditingShipment(ship);
+  const closeEdit = () => setEditingShipment(null);
+  const openCreate = () => setShowCreateModal(true);
+  const closeCreate = () => setShowCreateModal(false);
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search]);
@@ -127,86 +63,9 @@ export default function ShipmentsPage() {
   const { items: shipments, capped, isLoading } = useAllRecords(['shipments'], '/shipping/legs');
   const { items: cycles } = useAllRecords(['cycles'], '/cycles');
 
-  const { data: providersData = [] } = useQuery({
-    queryKey: ['providers'],
-    queryFn: () => api.get('/providers').then((r) => r.data.data ?? r.data),
-  });
-
-  // ── Mutations ─────────────────────────────────────────────────────
-  const createMutation = useMutation({
-    mutationFn: (data: any) => {
-      const { cycleId, ...body } = data;
-      return api.post(`/cycles/${cycleId}/shipping-legs`, body);
-    },
-    onSuccess: (res) => {
-      // A leg created departed or arrived moves its cycle on (L3).
-      for (const key of SHIPMENT_QUERY_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
-      closeCreate();
-      announce(t('createSuccess'), res);
-    },
-    onError: (error: any) => {
-      addToast(apiError(error, tc('operationFailed')), 'error');
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, ...data }: any) => api.put(`/shipping/legs/${id}`, data),
-    onSuccess: (res) => {
-      // A departure moves the cycle's shipment, its leg statuses and, since
-      // L3, the cycle's status too.
-      for (const key of SHIPMENT_QUERY_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
-      closeEdit();
-      announce(t('legUpdated'), res);
-    },
-    onError: (error: any) => {
-      addToast(apiError(error, tc('operationFailed')), 'error');
-    },
-  });
-
   // ── Derived ───────────────────────────────────────────────────────
   const shipmentList: Shipment[] = Array.isArray(shipments) ? shipments : [];
   const cycleList: any[] = Array.isArray(cycles) ? cycles : [];
-  const providerList: any[] = Array.isArray(providersData) ? providersData : [];
-
-  /**
-   * A chosen provider, as both the link and the label.
-   *
-   * The pickers used to carry the provider's NAME, so `provider_id` was null on
-   * every leg the UI created: a provider's shipments could not be found from
-   * the provider, and the delete guard — which counts through that relation —
-   * reported every provider as unused however many legs were riding on it.
-   *
-   * The leg keeps the name too. It is what the tables render, and it has to
-   * survive the provider record being renamed or removed.
-   */
-  const providerFields = (id: FormDataEntryValue | null) => {
-    const value = String(id ?? '');
-    // `name:<x>` is a leg's own unlinked provider offered back to it: it names
-    // a provider the records do not have, so there is no id to send.
-    if (value.startsWith('name:')) return { providerId: undefined, provider: value.slice(5) };
-    const found = providerList.find((p: any) => p.id === value);
-    return { providerId: found?.id, provider: found?.name };
-  };
-
-  /**
-   * The providers to choose from, plus whatever this leg already says.
-   *
-   * Legs were created with a free-text provider for a long time, so an older
-   * one can name something the records do not have. Offering only real
-   * providers left the field empty for those, and the leg could no longer be
-   * edited at all — the browser just refused to submit, silently.
-   */
-  const providerOptions = (current?: string) => {
-    const options = providerList.map((p: any) => ({
-      value: p.id,
-      label: p.name,
-      hint: p.contactPerson ?? undefined,
-    }));
-    if (current && !providerList.some((p: any) => p.name === current)) {
-      options.unshift({ value: `name:${current}`, label: current, hint: undefined });
-    }
-    return options;
-  };
 
   const filtered = shipmentList.filter((s) => {
     if (!search) return true;
@@ -393,204 +252,22 @@ export default function ShipmentsPage() {
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
+      {/* The leg forms are defined once and shared with the cycle page (§13). */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={closeCreate}>
-          <ValidatedForm
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              // The leg's first departure, per product (L8).
-              const { departureLines, invalid } = createDeparture.read();
-              if (invalid) {
-                addToast(tShipment('qtyNotNumber', { product: createDeparture.productNames[invalid] ?? '' }), 'error');
-                return;
-              }
-              createMutation.mutate({
-                cycleId: fd.get('cycleId'),
-                sequence: Number(fd.get('sequence')),
-                origin: fd.get('origin'),
-                destination: fd.get('destination'),
-                ...providerFields(fd.get('providerId')),
-                trackingRef: fd.get('trackingRef'),
-                ...(createDeparture.departedOn ? { departedOn: createDeparture.departedOn, departureLines } : {}),
-                ...readShippingCostFields(fd),
-              });
-            }}
-            className="space-y-4"
-          >
-            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
-                <Select
-                  name="cycleId"
-                  required
-                  value={newCycleId}
-                  onChange={(v) => {
-                    setNewCycleId(v);
-                    // Another cycle waits for other goods: start its quantities afresh.
-                    createDeparture.setTyped({});
-                  }}
-                  placeholder={t('cycle')}
-                  searchPlaceholder={tc('search')}
-                  options={cycleList.map((c: any) => ({
-                    value: c.id,
-                    label: c.code,
-                    hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
-                  }))}
-                />
-              </div>
-              <InputField label={t('sequence')} name="sequence" type="number" required placeholder="0" />
-            </div>
-
-            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('origin')} name="origin" required />
-              <InputField label={t('destination')} name="destination" required />
-            </div>
-
-            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('provider')}<span className="text-red-500 ms-1">*</span>
-                </label>
-                <FieldWithQuickCreate
-                  entity="provider"
-                  onCreated={(pr) => setNewProviderId(pr.id)}
-                >
-                  <Select
-                    name="providerId"
-                    required
-                    value={newProviderId}
-                    onChange={setNewProviderId}
-                    placeholder={t('provider')}
-                    searchPlaceholder={tc('search')}
-                    options={providerList.map((p: any) => ({
-                      value: p.id,
-                      label: p.name,
-                      hint: p.contactPerson ?? undefined,
-                    }))}
-                  />
-                </FieldWithQuickCreate>
-              </div>
-              <InputField label={t('trackingRef')} name="trackingRef" />
-            </div>
-
-            <LegDepartureFields state={createDeparture} cycleId={newCycleId || undefined} label={t('firstDeparture')} />
-
-            <ShippingCostFields />
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={closeCreate} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('create')}
-              </button>
-            </div>
-          </ValidatedForm>
-        </Modal>
+        <LegFormModal title={t('create')} onClose={closeCreate} testId="create">
+          <LegCreateForm cycles={cycleList} onDone={closeCreate} />
+        </LegFormModal>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingShipment && (
-        <Modal title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`} onClose={() => closeEdit()}>
-          <ValidatedForm
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              // A leg that has not left records its first departure, per
-              // product, as Record departure does (L8).
-              const { departureLines, invalid } = editDeparture.read();
-              if (invalid) {
-                addToast(tShipment('qtyNotNumber', { product: editDeparture.productNames[invalid] ?? '' }), 'error');
-                return;
-              }
-              // No `status` and no `arrivedOn`: a leg's status is read from
-              // what was recorded, and arrivals are deliveries now, recorded on
-              // the cycle's Shipment panel (BUSINESS_LOGIC §1, 2026-10-10).
-              // Sending an empty arrival used to ask the server to clear it.
-              updateMutation.mutate({
-                id: editingShipment.id,
-                departedOn: fd.get('departedOn') || null,
-                departureLines,
-                ...providerFields(fd.get('providerId')),
-                trackingRef: fd.get('trackingRef'),
-                ...readShippingCostFields(fd),
-              });
-            }}
-            className="space-y-4"
-          >
-            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* The same fields Record departure renders on the cycle page (I3, L8): one definition. */}
-              <LegDepartureFields
-                state={editDeparture}
-                cycleId={editingShipment.cycleId}
-                label={t('departedOn')}
-                defaultDepartedOn={editingShipment.departedOn ?? null}
-              />
-              <div>
-                <p className="mb-1 block text-sm font-medium text-foreground">{t('arrivedOn')}</p>
-                <p data-testid="leg-arrival" className="px-3 py-2 text-sm text-muted-foreground">
-                  {codeLabel('legStatus', editingShipment.status)}
-                  {editingShipment.arrivedOn ? ` · ${formatDate(editingShipment.arrivedOn)}` : ''}
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {t('arrivalsAreDeliveries')}{' '}
-              <Link
-                href={`/cycles/${editingShipment.cycleId}/details`}
-                data-testid="leg-open-cycle"
-                className="cursor-pointer font-medium text-primary hover:underline"
-              >
-                {t('openShipmentPanel')}
-              </Link>
-            </p>
-
-            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('provider')}</label>
-                <FieldWithQuickCreate
-                  entity="provider"
-                  onCreated={(pr) => setEditProviderId(pr.id)}
-                >
-                  <Select
-                    name="providerId"
-                    value={
-                      editProviderId ||
-                      editingShipment.providerId ||
-                      providerList.find((p: any) => p.name === editingShipment.provider)?.id ||
-                      (editingShipment.provider ? `name:${editingShipment.provider}` : '')
-                    }
-                    onChange={setEditProviderId}
-                    placeholder={t('provider')}
-                    searchPlaceholder={tc('search')}
-                    options={providerOptions(editingShipment.provider)}
-                  />
-                </FieldWithQuickCreate>
-              </div>
-              <InputField label={t('trackingRef')} name="trackingRef" defaultValue={editingShipment.trackingRef} />
-            </div>
-
-            <ShippingCostFields
-              defaults={{
-                costBasis: editingShipment.costBasis ?? 'FLAT',
-                ratePerUnit: editingShipment.ratePerUnit ?? '',
-                chargeablePieces: editingShipment.chargeablePieces ?? '',
-                chargeableWeightKg: editingShipment.chargeableWeightKg ?? '',
-                amount: editingShipment.amount ?? '',
-                currency: editingShipment.currency ?? 'EGP',
-                fxRateToEgp: editingShipment.fxRateToEgp ?? 1,
-              }}
-            />
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => closeEdit()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={updateMutation.isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
-          </ValidatedForm>
-        </Modal>
+        <LegFormModal
+          title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`}
+          onClose={closeEdit}
+          testId="edit"
+        >
+          <LegEditForm leg={editingShipment} onDone={closeEdit} />
+        </LegFormModal>
       )}
     </div>
   );
@@ -641,21 +318,6 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
       {labelKey}
     </span>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
-    </div>
   );
 }
 

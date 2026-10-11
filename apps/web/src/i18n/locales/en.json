@@ -365,7 +365,9 @@
     "firstDepartureHint": "Leave the date empty if the goods have not left yet.",
     "departuresRecorded": "Departures",
     "departuresOnCyclePage": "Later departures, and undoing one, are on the cycle page.",
-    "departurePickCycle": "Choose the cycle to see what is waiting to leave."
+    "departurePickCycle": "Choose the cycle to see what is waiting to leave.",
+    "costLocked": "The cost of this leg is fixed: goods of this cycle have already been received or marked lost, so a changed cost would price the next delivery differently from the last. Record a late or corrected charge as a cycle expense instead.",
+    "costLockedLedger": "Open the ledger"
   },
   "inventory": {
     "title": "Inventory",
@@ -1720,7 +1722,10 @@
     "partlyDeparted": "Partly departed",
     "atOriginCol": "Not left",
     "departedCol": "Left",
-    "departureHintParts": "Each product starts at everything still waiting. Lower a number if only part left; the rest stays waiting."
+    "departureHintParts": "Each product starts at everything still waiting. Lower a number if only part left; the rest stays waiting.",
+    "addLeg": "Add leg {leg}",
+    "editLeg": "Edit leg",
+    "editLegTitle": "Edit leg {leg}"
   },
   "shippingCost": {
     "title": "Shipment cost",
