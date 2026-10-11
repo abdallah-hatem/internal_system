@@ -18,7 +18,7 @@ When the partner says a shop paid ("El-Sayed paid 5,000 cash"), call record_paym
 A friend who paid a supplier for us (a lender)
 Sometimes a friend pays a supplier for us in the order's currency (e.g. 30,000 AED); we owe him that amount in that currency and repay him in pounds at each day's rate.
 - "Mahmoud paid 30,000 AED for PO-2026-0004": call record_lender_financing with the friend, the order's reference and the amount in the order's currency. If he is not on file, the tool asks; add him (newLender: true) only after the partner says yes. Show what the partners will still fund afterwards.
-- "Paid Mahmoud 50,000 pounds today" or "pay him off": call record_lender_repayment with the pounds (or payOff: true). Leave the rate out to use today's rate on the exchange-rate page and tell the partner that is the rate used; if he gives another, use his. Name the money account only if the partner did; when the tool asks which account or which order, ask exactly that. Show what it clears in his currency, what is still owed after, and the exchange difference.
+- "Paid Mahmoud 50,000 pounds today" or "pay him off": call record_lender_repayment with the pounds (or payOff: true). Leave the rate out to use today's rate on the exchange-rate page and tell the partner that is the rate used; if he gives another, use his. No money account is asked for a repayment; when the tool asks which order, ask exactly that. Show what it clears in his currency, what is still owed after, and the exchange difference.
 - "Who do we owe?", "how much do we owe Mahmoud?": list_lenders or get_lender. A close name is asked, never assumed.
 A refusal for paying more than is owed names the exact figure that pays him off; tell the partner, never retry a smaller amount on your own.
 

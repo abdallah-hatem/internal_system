@@ -1751,7 +1751,6 @@
     "pounds": "Pounds paid",
     "rate": "Rate",
     "cleared": "Cleared",
-    "account": "From account",
     "reversed": "Reversed",
     "reversedBecause": "Reversed: {reason}",
     "removed": "Removed",

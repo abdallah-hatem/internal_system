@@ -89,11 +89,6 @@ async function todaysAed(request: APIRequestContext, headers: Record<string, str
   return Number(rates.find((r) => r.code === 'AED').rateToEgp);
 }
 
-async function egpAccount(request: APIRequestContext, headers: Record<string, string>) {
-  const accounts = (await (await request.get(`${API}/ledger/accounts`, { headers })).json()).data as any[];
-  return accounts.find((a) => a.currency === 'EGP');
-}
-
 test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2)', () => {
   test('TC-AL-01: "<friend> paid 30,000 AED for <PO>" — a new friend is asked, then added only on yes; the preview shows what partners fund; his page shows it', async ({
     page,
@@ -153,22 +148,23 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     const lender = await mk('lenders', { name: `Sami AL ${s}` });
     await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000, paidOn: daysAgo(20) });
     const rate = await todaysAed(request, headers);
-    const account = await egpAccount(request, headers);
 
-    const args = { lender: lender.name, amountEgp: 50000, account: account.name };
+    // No money account is asked or stored (§18, owner 2026-10-11).
+    const args = { lender: lender.name, amountEgp: 50000 };
     const shown = await tool('record_lender_repayment', args);
     expect(shown.structuredContent?.status, text(shown)).toBe('preview');
     const cleared = Math.floor((50000 / rate) * 100) / 100;
     expect(shown.structuredContent?.data).toMatchObject({
       rateToEgp: rate.toFixed(4),
       rateFrom: 'today',
-      account: { id: account.id },
       cleared: cleared.toFixed(2),
       owedBefore: '30000.00',
       owedAfter: (30000 - cleared).toFixed(2),
       exchangeDiffEgp: (50000 - Math.round(cleared * 13 * 100) / 100).toFixed(2),
     });
     expect(text(shown)).toContain("today's rate on the exchange-rate page");
+    expect(shown.structuredContent?.data).not.toHaveProperty('account');
+    expect(text(shown)).not.toMatch(/account/i);
     const before = (await (await request.get(`${API}/lenders/${lender.id}`, { headers })).json()).data;
     expect(before.financings[0].repayments).toHaveLength(0);
 
@@ -185,10 +181,10 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     const after = (await (await request.get(`${API}/lenders/${lender.id}`, { headers })).json()).data.financings[0];
     expect(after.owed).toBe((30000 - cleared).toFixed(2));
     expect(after.repayments[0]).toMatchObject({ amountEgp: '50000.00', rateToEgp: rate.toFixed(4) });
-    expect(after.repayments[0].account.id).toBe(account.id);
+    expect(after.repayments[0].account).toBeNull();
 
     // "Pay him off" at a rate he gives: the exact settling figure, owed ends at zero.
-    const off = { lender: lender.name, payOff: true, rateToEgp: 13.5, account: account.name };
+    const off = { lender: lender.name, payOff: true, rateToEgp: 13.5 };
     const quote = (await (await request.get(`${API}/lender-financings/${after.id}/quote?rateToEgp=13.5`, { headers })).json()).data;
     const offShown = await tool('record_lender_repayment', off);
     expect(offShown.structuredContent?.data).toMatchObject({ amountEgp: quote.settlingEgp, rateFrom: 'given', owedAfter: '0.00' });
