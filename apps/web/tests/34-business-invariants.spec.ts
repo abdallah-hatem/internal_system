@@ -672,3 +672,31 @@ test.describe('A sale that takes stock under its minimum says so, once (§3 — 
     expect(await lowAlerts(request, headers, product.id)).toHaveLength(2);
   });
 });
+
+test.describe('Returning part of an order leaves the rest owed (§5 — found 2026-10-11)', () => {
+  test('TC-INV-29: one of two units back on credit note — the order is not RETURNED and the shop still owes the other', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const stamp = Date.now();
+    const { product } = await stockedProduct(request, headers, mk, `Inv Half Back ${stamp}`, 10);
+    const customer = await mk('customers', { displayName: `Inv Half Back Shop ${stamp}`, type: 'B2B' });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true,
+      items: [{ productId: product.id, quantity: 2, unitPrice: 1000, discount: 0 }],
+    });
+    const item = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data.items[0];
+    await mk('returns', { saleOrderId: order.id, reason: 'one came back', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 1 }] });
+
+    const after = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data;
+    expect(after.status).not.toBe('RETURNED');
+    expect(Number(after.outstanding)).toBe(1000);
+    const shop = (await (await request.get(`${API}/customers/${customer.id}`, { headers })).json()).data;
+    expect(Number(shop.outstandingBalance)).toBe(1000);
+
+    // The second unit back is the whole order: now it is RETURNED, owing nothing.
+    await mk('returns', { saleOrderId: order.id, reason: 'and the other', refundMethod: 'CREDIT_NOTE', items: [{ saleItemId: item.id, qty: 1 }] });
+    const done = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json()).data;
+    expect(done.status).toBe('RETURNED');
+    const cleared = (await (await request.get(`${API}/customers/${customer.id}`, { headers })).json()).data;
+    expect(Number(cleared.outstandingBalance)).toBe(0);
+  });
+});

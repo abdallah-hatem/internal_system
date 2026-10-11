@@ -330,6 +330,15 @@ ledger as an outflow.
 You cannot return more than remains returnable, counting earlier returns. A
 reason is required.
 
+**FIXED 2026-10-11 — returning part of an order leaves the rest owed.** An order
+is RETURNED only when every sold unit has come back, and a RETURNED order owes
+nothing. The check counted the return being recorded twice, so bringing back one
+of two units marked the order RETURNED and what the shop still owed on the other
+unit dropped out of its balance. Found by the customer statement's invariant
+(§7b). `scripts/check-data.sh` check 18 lists any order already caught by it;
+each needs its status put back by hand (CONFIRMED, PARTIALLY_PAID or PAID by what
+it owes) — not done on production by this change.
+
 **Returns net off every profit figure** — cycle profitability, the dashboard,
 revenue by month, top products. Revenue by month nets the return in the month it
 came back, not the month of the sale, so a month already reported does not move.
