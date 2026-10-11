@@ -771,6 +771,82 @@ recorded, and reduces Receivables when it is **allocated** to an order. Both
 the customer's page and a payment recorded against a chosen order (§7) do both
 in one action.
 
+**DECIDED 2026-10-11 (owner, mockup accepted) — a manual entry can't lie.**
+*Built 2026-10-11 (L6), phase 1: API, form, unit tests; browser check pending.*
+The ledger's "New Entry" form offered system types like Purchase, a free-text
+category, an Inflow/Outflow radio, a free-text cycle id and no date, and
+`POST /ledger` saved whatever it was sent — a partner could write `purchase`,
+`contribution` or `settlement` in either direction and silently move cash,
+profit or a settlement. Now "Record money in or out":
+
+- **Two kinds, and the kind sets the direction.** *An expense* (money we spent:
+  out) or *other income* (money in that isn't a sale, a customer payment, a
+  contribution or a refund: in). There is no direction to choose.
+- **Categories come from one fixed list**, `common/manual-ledger-categories.ts`,
+  which the API validates against and the web form and the ledger's category
+  filter offer (the web holds a copy only because Next cannot import across apps;
+  a test fails if they differ).
+  - Expense: rent, salaries, utilities, transport and delivery, packaging,
+    marketing, bank fees, customs and clearance, extra freight (for a cycle), other.
+  - Other income: other income, interest, other.
+- **Refused by the server**, each with a code in both languages: any other
+  category (`LEDGER_CATEGORY_NOT_MANUAL` — every system category, free text,
+  wrong case), a category of the other kind (`LEDGER_CATEGORY_WRONG_KIND`), a
+  direction or type that disagrees with the kind (`LEDGER_DIRECTION_MISMATCH`,
+  `LEDGER_TYPE_NOT_MANUAL`), an amount of zero or less, a foreign currency
+  without a rate above zero, pounds at a rate other than 1, a day that is not a
+  real calendar day or has not arrived in Cairo, and any field a flow sets
+  (`relatedType`, `accountId`, `reversalOfId` — refused as unknown fields).
+- **Charge to a cycle** is optional; **extra freight requires one** — a late
+  freight charge is a cost of that cycle's goods (§2). The cycle must exist (a
+  404, never a 500, for an unknown id or a cycle code typed in its place) and
+  must not be cancelled or closed (`LEDGER_CYCLE_NOT_OPEN`). A cycle in
+  settlement still takes a late cost.
+- **Core partners only**, as before; the office reads the ledger and does not
+  write it. Reversing stays core partners only.
+- **The date** is its own column, `occurred_on`, the Cairo day the money moved;
+  today by default. Rows written before this have none and show when they were
+  entered, as they always did.
+- **Old rows keep working.** A free-text category written before this shows as
+  written, still counts as it did, and can still be reversed.
+
+What each counts as — one definition each in `common/ledger-categories.ts`,
+read by settlement, the cycle's profit and the dashboard alike (rule 11):
+
+- **A manual expense is an operating expense** — the dashboard's Expenses —
+  because `NOT_OPERATING_EXPENSE` does not list it (`operatingExpenseEgp`).
+- **Charged to a cycle, it comes off that cycle's profit** on the settlement
+  *and* on the cycle's page and Analytics. Found while building this: settlement
+  already charged a cycle-linked expense, the cycle profitability did not, so the
+  two showed different profits for the same cycle. They now agree; the cycle
+  page shows "Expenses charged to it".
+- **Other income raises net profit but is not Revenue** — shown on its own, like
+  recoveries (`totalOtherIncomeEgp` on the dashboard figures). Credited to a
+  cycle, it raises that cycle's profit on the settlement and the cycle page.
+- **A reversed entry stops counting.** Found while building this: every reader
+  summed only the outflows, so a reversed expense stayed in Expenses for good, and
+  undone income (money out under an income category) would have counted as an
+  expense. Both now net through the signed readings.
+- **Reversing an entry charged to a closed or cancelled cycle is refused** — its
+  profit was settled and paid on the figure as it stood.
+
+Guesses made while building it (2026-10-11, open until confirmed):
+
+- **Foreign money is stored in pounds.** `amount` is the pounds figure (amount ×
+  the rate entered, to the piastre) with currency EGP, because the settlement and
+  the dashboard sum `amount` as pounds; what was actually paid is kept beside it
+  (`original_amount`, `original_currency`) and shown on the entry. Recording the
+  foreign figure as `amount` would have been summed as if it were pounds.
+- **Income "Other" has its own key** (`income_other`), distinct from the expense
+  "Other" (`other_expense`), so the category alone says which kind a row is.
+- **Other income on the dashboard** is added to net profit and returned as its
+  own figure; no separate tile was added (recoveries have none either).
+- **A cycle in settlement still takes a late cost**, per the rule as given (only
+  cancelled and closed are shut). Approving or paying a settlement after such an
+  entry uses the figure as it then stands.
+- **The ledger's date filter still reads when an entry was entered**, not its
+  `occurred_on`.
+
 ---
 
 ## 10. Notifications
