@@ -7,7 +7,12 @@ import {
   cursorPage,
 } from '../../common/dto/pagination.dto';
 
-import { notFound } from '../../common/api-error';
+import { badRequest, notFound } from '../../common/api-error';
+import { isUuid } from '../../common/uuid';
+import {
+  buildStatement,
+  loadStatementSource,
+} from '../../common/customer-statement';
 import {
   OWED_STATUSES,
   owedBy,
@@ -143,6 +148,41 @@ export class CustomersService {
     // it — so the balance shown and the balance enforced cannot disagree.
     const outstandingBalance = await owedBy(this.prisma, id);
     return { data: { ...customer, outstandingBalance } };
+  }
+
+  /**
+   * The shop's statement for a range of days (BUSINESS_LOGIC §7b,
+   * 2026-10-11): the balance it opened at, every sale, payment, return and
+   * reversal in order with a running balance, and the balance it closed at —
+   * which, for a range running to today, is the balance on the shop's page.
+   */
+  async statement(id: string, range: { from?: string; to?: string }) {
+    if (!isUuid(id)) throw notFound('customer');
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      select: { id: true, displayName: true, phone: true, isWalkIn: true },
+    });
+    if (!customer) throw notFound('customer');
+    // A walk-in buyer has no account to state (§4): every walk-in sale was
+    // paid as it was made, and the record is shared by all of them.
+    if (customer.isWalkIn) {
+      throw badRequest(
+        'WALK_IN_NO_STATEMENT',
+        'A walk-in buyer has no account, so there is no statement.',
+      );
+    }
+    const source = await loadStatementSource(this.prisma, id);
+    return {
+      data: buildStatement(
+        {
+          id: customer.id,
+          displayName: customer.displayName,
+          phone: customer.phone,
+        },
+        source,
+        { from: range.from || undefined, to: range.to || undefined },
+      ),
+    };
   }
 
   async create(

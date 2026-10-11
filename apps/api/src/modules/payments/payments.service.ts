@@ -85,6 +85,12 @@ export class PaymentsService {
       method?: string;
       reference?: string;
       orderId?: string;
+      /**
+       * Without `orderId`: put the money on the shop's unpaid orders, oldest
+       * first, in the same transaction (§7). The one definition of "oldest
+       * first" — the Record payment dialog and the assistant both ask for it.
+       */
+      applyOldestFirst?: boolean;
     },
     actorId: string,
     idempotencyKey?: string,
@@ -168,6 +174,7 @@ export class PaymentsService {
           method: data.method,
           reference: data.reference || idempotencyKey,
           orderId: data.orderId,
+          applyOldestFirst: !data.orderId && data.applyOldestFirst === true,
         },
         actorId,
       ),
@@ -198,6 +205,7 @@ export class PaymentsService {
       method?: string;
       reference?: string;
       orderId?: string;
+      applyOldestFirst?: boolean;
     },
     actorId: string,
   ) {
@@ -229,24 +237,77 @@ export class PaymentsService {
       },
     });
 
-    const allocated = data.orderId
-      ? await this.allocateWithin(
+    const allocated: { audit: unknown }[] = [];
+    if (data.orderId) {
+      allocated.push(
+        await this.allocateWithin(
           tx,
           payment,
           data.orderId,
           Number(data.amount),
           { chosenByPayer: true },
-        )
-      : null;
+        ),
+      );
+    } else if (data.applyOldestFirst) {
+      allocated.push(
+        ...(await this.allocateOldestFirst(tx, payment, Number(data.amount))),
+      );
+    }
 
     return { payment, allocated };
+  }
+
+  /**
+   * Oldest unpaid orders first — what a shop paying down its balance expects,
+   * and the order the instalment logic already applies money in (§7). Each
+   * piece goes through `allocateWithin`, so every cap and ownership check
+   * still applies; the caller's transaction makes it all or nothing.
+   *
+   * What is left after every open order is cleared stays on the payment
+   * unapplied. The owed check before the transaction makes that unreachable
+   * from `create`; it is not invented here as credit (§7a).
+   */
+  private async allocateOldestFirst(
+    tx: Prisma.TransactionClient,
+    payment: {
+      id: string;
+      customerId: string;
+      amount: Prisma.Decimal | number;
+      status: string;
+    },
+    amount: number,
+  ) {
+    const open = await tx.saleOrder.findMany({
+      where: {
+        customerId: payment.customerId,
+        status: { in: [...OWED_STATUSES] },
+        outstanding: { gt: 0 },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, outstanding: true },
+    });
+    const done: { audit: unknown }[] = [];
+    // In cents, so 0.1 + 0.2 never leaves a 0.0000001 to allocate.
+    let left = Math.round(amount * 100);
+    for (const order of open) {
+      if (left <= 0) break;
+      const take = Math.min(left, Math.round(Number(order.outstanding) * 100));
+      if (take <= 0) continue;
+      done.push(
+        await this.allocateWithin(tx, payment, order.id, take / 100, {
+          chosenByPayer: false,
+        }),
+      );
+      left -= take;
+    }
+    return done;
   }
 
   /** The audit rows for what `recordWithin` wrote, once it has committed. */
   async logRecorded(
     outcome: {
       payment: { id: string };
-      allocated: { audit: unknown } | null;
+      allocated: { audit: unknown }[];
     },
     actorId: string,
   ) {
@@ -257,13 +318,13 @@ export class PaymentsService {
       entityId: outcome.payment.id,
       afterJson: outcome.payment,
     });
-    if (outcome.allocated) {
+    for (const allocated of outcome.allocated) {
       await this.audit.log({
         actorUserId: actorId,
         action: 'ALLOCATE',
         entityType: 'Payment',
         entityId: outcome.payment.id,
-        afterJson: outcome.allocated.audit,
+        afterJson: allocated.audit,
       });
     }
   }

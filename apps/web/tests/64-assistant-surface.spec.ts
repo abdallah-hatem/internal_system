@@ -4,7 +4,10 @@
  * ═══════════════════════════════════════════════════════════════════════
  *  BUSINESS_LOGIC §16: the assistant may not record or change sales, payments,
  *  instalments, settlements, returns or the ledger — "enforced by the system,
- *  not by the assistant's good behaviour". This is that enforcement, checked
+ *  not by the assistant's good behaviour". Since 2026-10-11 it records a sale
+ *  and a payment, and only through its own tools (`record_sale`,
+ *  `record_payment`), each a confirmed preview over the office's services; its
+ *  token still opens none of the office routes below. This is that enforcement, checked
  *  from outside: a real `mcp` token, signed with the API's own secret for a real
  *  core partner, sent to each of those routes, refused at the fence.
  *

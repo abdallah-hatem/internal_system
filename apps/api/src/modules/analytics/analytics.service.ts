@@ -48,7 +48,8 @@ export type RecentActivityItem = {
   amount?: number;
   currency?: string;
   quantity?: number;
-  customer?: { id: string; displayName: string };
+  /** `isWalkIn`: the shared walk-in record (§4) — named, never linked, by the client. */
+  customer?: { id: string; displayName: string; isWalkIn: boolean };
   product?: { id: string; name: string; sku: string };
   cycleId?: string;
 };
@@ -574,7 +575,7 @@ export class AnalyticsService {
           currency: true,
           orderedAt: true,
           createdAt: true,
-          customer: { select: { id: true, displayName: true } },
+          customer: { select: { id: true, displayName: true, isWalkIn: true } },
         },
       }),
       this.prisma.payment.findMany({
@@ -588,7 +589,7 @@ export class AnalyticsService {
           method: true,
           receivedOn: true,
           createdAt: true,
-          customer: { select: { id: true, displayName: true } },
+          customer: { select: { id: true, displayName: true, isWalkIn: true } },
         },
       }),
       this.prisma.inventoryBatch.findMany({

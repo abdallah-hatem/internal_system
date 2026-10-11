@@ -9,7 +9,13 @@ import { isUniqueViolation } from '../../prisma/unique-violation';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { availableQty } from '../../common/available-stock';
-import { businessToday, instantRange } from '../../common/dates';
+import { businessDay, businessToday, instantRange } from '../../common/dates';
+import { isUuid } from '../../common/uuid';
+import { OWED_STATUSES } from '../../common/customer-balance';
+import {
+  buildStatement,
+  loadStatementSource,
+} from '../../common/customer-statement';
 import {
   PAYMENT_METHODS,
   type PaymentMethod,
@@ -140,6 +146,141 @@ export class SalesService {
     });
     if (!order) throw notFound('saleOrder');
     return { data: order };
+  }
+
+  /**
+   * A confirmed sale as an invoice / delivery note (BUSINESS_LOGIC §4,
+   * 2026-10-11): the shop, the order, its lines and totals, what has been
+   * paid on it and what it still owes, and — for a shop with an account — the
+   * balance before this sale and after it, from the shop's own statement so
+   * the two documents cannot disagree.
+   *
+   * A draft is not a sale yet and a cancelled order never happened (§4):
+   * neither has an invoice.
+   */
+  async invoice(id: string) {
+    if (!isUuid(id)) throw notFound('saleOrder');
+    const order = await this.prisma.saleOrder.findUnique({
+      where: { id },
+      include: {
+        customer: {
+          select: { id: true, displayName: true, phone: true, isWalkIn: true },
+        },
+        items: {
+          orderBy: { createdAt: 'asc' },
+          include: { product: { select: { name: true, sku: true } } },
+        },
+        paymentAllocations: {
+          select: { amount: true, payment: { select: { status: true } } },
+        },
+      },
+    });
+    if (!order) throw notFound('saleOrder');
+    if (order.status === 'DRAFT') {
+      throw badRequest(
+        'INVOICE_DRAFT',
+        `Order ${order.orderNo} is a draft, so it has no invoice yet.`,
+        { order: order.orderNo },
+      );
+    }
+    if (order.status === 'CANCELLED') {
+      throw badRequest(
+        'INVOICE_CANCELLED',
+        `Order ${order.orderNo} was cancelled, so it has no invoice.`,
+        { order: order.orderNo },
+      );
+    }
+
+    // Money still standing on the order; a reversed payment no longer pays it.
+    const paid = order.paymentAllocations
+      .filter((a) => a.payment.status !== 'REVERSED')
+      .reduce((s, a) => s.add(a.amount), new Prisma.Decimal(0));
+    // What it owes counts only while the order is owed at all (§7a): a
+    // returned order owes nothing, whatever its stored figure.
+    const owes = (OWED_STATUSES as readonly string[]).includes(order.status)
+      ? new Prisma.Decimal(order.outstanding)
+      : new Prisma.Decimal(0);
+
+    let account: {
+      balanceBefore: string;
+      balanceAfter: string;
+      balanceNow: string;
+    } | null = null;
+    if (!order.customer.isWalkIn) {
+      const statement = buildStatement(
+        {
+          id: order.customer.id,
+          displayName: order.customer.displayName,
+          phone: order.customer.phone,
+        },
+        await loadStatementSource(this.prisma, order.customerId),
+      );
+      const row = statement.rows.find(
+        (r) => r.kind === 'SALE' && r.orderId === order.id,
+      );
+      if (row) {
+        account = {
+          balanceBefore: new Prisma.Decimal(row.balance)
+            .sub(row.effect)
+            .toFixed(2),
+          balanceAfter: row.balance,
+          balanceNow: statement.closingBalance,
+        };
+      }
+    }
+
+    const subtotal = order.items.reduce(
+      (s, it) => s.add(new Prisma.Decimal(it.unitPrice).mul(it.quantity)),
+      new Prisma.Decimal(0),
+    );
+    const discount = order.items.reduce(
+      (s, it) => s.add(it.discount),
+      new Prisma.Decimal(0),
+    );
+
+    return {
+      data: {
+        id: order.id,
+        orderNo: order.orderNo,
+        status: order.status,
+        channel: order.channel,
+        currency: order.currency,
+        date: businessDay(order.orderedAt),
+        customer: {
+          id: order.customer.id,
+          displayName: order.customer.displayName,
+          phone: order.customer.phone,
+          isWalkIn: order.customer.isWalkIn,
+        },
+        lines: order.items.map((it) => ({
+          id: it.id,
+          productId: it.productId,
+          product: it.product.name,
+          sku: it.product.sku,
+          quantity: new Prisma.Decimal(it.quantity).toString(),
+          unitPrice: new Prisma.Decimal(it.unitPrice).toFixed(2),
+          discount: new Prisma.Decimal(it.discount).toFixed(2),
+          lineTotal: new Prisma.Decimal(it.lineTotal).toFixed(2),
+        })),
+        subtotal: subtotal.toFixed(2),
+        discount: discount.toFixed(2),
+        total: new Prisma.Decimal(order.total).toFixed(2),
+        paid: paid.toFixed(2),
+        // What returns took off what this order owes — a credit note lowers
+        // it (§5) — so total, paid, credited and owed add up on paper. A
+        // returned order owes nothing and says so instead.
+        credited:
+          order.status === 'RETURNED'
+            ? '0.00'
+            : Prisma.Decimal.max(
+                new Prisma.Decimal(order.total).sub(paid).sub(owes),
+                0,
+              ).toFixed(2),
+        returned: order.status === 'RETURNED',
+        owes: owes.toFixed(2),
+        account,
+      },
+    };
   }
 
   /**

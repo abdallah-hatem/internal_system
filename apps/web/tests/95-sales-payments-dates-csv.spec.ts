@@ -223,3 +223,42 @@ test.describe('Sales and Payments: date range and CSV (I1)', () => {
     await expect(page.getByTestId('payments-export')).toContainText(ar.common.export);
   });
 });
+
+// I2 (from I1): a new date range used to swap the table for a spinner and
+// back. The rows on screen now stay, dimmed and marked busy, until the new
+// range arrives. The range's request is held so the in-between is visible.
+for (const path of ['sales', 'payments'] as const) {
+  test(`TC-DR-0${path === 'sales' ? 7 : 8}: ${path} — while a new range loads, the rows already shown stay, dimmed, with a busy sign`, async ({
+    page,
+    request,
+  }) => {
+    const { stamp, customer, mk } = await shopWithSales(request, `DRK${path[0]}`, 2);
+    if (path === 'payments') {
+      await mk('payments', { customerId: customer.id, amount: 100, currency: 'EGP', applyOldestFirst: true });
+    }
+    await login(page);
+    await open(page, path);
+    const search = path === 'sales' ? en.sales.search : en.payments.search;
+    await page.getByPlaceholder(search).fill(stamp);
+    const rows = page.getByTestId(`${path}-table`).locator('tbody tr');
+    await expect(rows.first()).toBeVisible();
+    const before = await rows.count();
+
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    const pattern = path === 'sales' ? '**/sales/orders?*from=*' : '**/payments?*from=*';
+    await page.route(pattern, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await pickDate(page, `${path}From`, day(0));
+    await expect(page.getByTestId(`${path}-reloading`)).toBeVisible();
+    await expect(page.getByTestId(`${path}-table`)).toHaveAttribute('aria-busy', 'true');
+    await expect(rows).toHaveCount(before);
+    release();
+    await expect(page.getByTestId(`${path}-reloading`)).toBeHidden();
+    await expect(page.getByTestId(`${path}-table`)).toHaveAttribute('aria-busy', 'false');
+    await expect(rows).toHaveCount(before);
+    await page.unroute(pattern);
+  });
+}

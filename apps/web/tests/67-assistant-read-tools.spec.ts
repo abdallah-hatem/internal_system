@@ -162,7 +162,7 @@ test.describe('Assistant read tools', () => {
     expect(refusal(await tool(request, token, 'list_sales', { from: '2026-02-30' })).code).toBe('BAD_DATE');
   });
 
-  test('TC-MCP-READ-06: tools/list offers no tool that writes payments, instalments, settlements, returns or the ledger (record_sale is the one sale write)', async ({
+  test('TC-MCP-READ-06: tools/list offers no tool that writes instalments, settlements, returns or the ledger (record_sale and record_payment are the sale and payment writes)', async ({
     request,
   }) => {
     const token = await assistantToken(request);
@@ -175,11 +175,19 @@ test.describe('Assistant read tools', () => {
       // record_sale added 2026-10-11 (W3): the owner asked the assistant to record sales (§16).
       'record_sale',
     ]);
-    // Still office-only: payments, instalments, settlements, returns, refunds and the ledger.
+    // record_payment added 2026-10-11 (I2): the owner approved the assistant recording a shop's payment (§16).
+    const moneyIn = new Set(['record_payment']);
+    // Still office-only: reversing or allocating payments, instalments, settlements, returns, refunds and the ledger.
     const officeOnly = /payment|instal|settle|return|refund|ledger|transaction|allocat/i;
     const writes = tools.filter((t: any) => t.annotations?.readOnlyHint !== true);
 
-    expect(writes.filter((t: any) => !intake.has(t.name) || officeOnly.test(t.name)).map((t: any) => t.name)).toEqual([]);
+    expect(
+      writes
+        .filter((t: any) => !moneyIn.has(t.name))
+        .filter((t: any) => !intake.has(t.name) || officeOnly.test(t.name))
+        .map((t: any) => t.name),
+    ).toEqual([]);
+    expect(writes.map((t: any) => t.name)).toEqual(expect.arrayContaining(['record_sale', 'record_payment']));
     for (const name of ['list_sales', 'list_payments', 'list_receivables', 'get_customer', 'get_dashboard']) {
       expect(tools.find((t: any) => t.name === name)?.annotations?.readOnlyHint).toBe(true);
     }

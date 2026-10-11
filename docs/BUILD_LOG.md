@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: I1 live in production 2026-10-11 (`0835007`, three deploys READY, smoke ok, both crons registered, job refuses without the secret) · I2 building in a worktree (record_payment, invoice, statement, audit leftovers, I1 follow-ups, app-boot test)
+Current stage: I1 live in production 2026-10-11 (`0835007`) · I2 merged into master 2026-10-11 (not pushed; check-data check 18 on production first) · I3 phase 1 building (no DB)
 
 ## Waiting on the user
 _(none)_
@@ -14,10 +14,16 @@ _(none)_
 
 ## Next up
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
+- Ship I2 (merged 2026-10-11): assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
+  the server; printable sale invoice / delivery note (§4); customer statement with print + CSV (§7b); recent activity
+  links the shop; Sales/Payments keep their rows while a new range loads; AppModule compiles in jest; FIFO across two
+  selling cycles pinned (34 TC-INV-30). **Found and fixed: a partial return marked the whole order RETURNED and its
+  remaining debt vanished from the shop's balance** (§5). Before shipping, run `scripts/check-data.sh` against
+  production: check 18 lists orders already caught. Guesses to confirm: §4, §7b, §16.
+- `PaymentsService.reverse` does not check the payment is still RECORDED — reversing twice adds the money back twice.
+  Fix in I3 phase 2.
 - I3 (owner 2026-10-11): record a leg's departure and its deliveries from the cycle details page (reuse RecordDeliveryDialog / the shipments page's departure form, no second definition); a LEG_NOT_DEPARTED / LEG_NOT_ARRIVED refusal in Change status offers that action in place. After this the wizard is only for setting a cycle up.
   Also (owner 2026-10-11): location cards at the top of cycle details — per cycle and per product, how many are in China (not shipped), on the way to UAE, in UAE, on the way to Egypt, in Egypt (received + not checked in), sold; Lost only when > 0. Built from the shipment model's per-leg entered/delivered/onTheWay/received/waiting/lost. Layout: option A (cards + product table; cards per product on a phone) — chosen by the owner 2026-10-11.
-- From I1: the dashboard's recent activity names a shop as plain text — not a link to it (a person clicking it gets
-  nothing). A list's spinner replaces the table each time its date range changes (keep the previous rows instead?).
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
 - Queued from this run: system-written ledger reasons are stored in English (needs a code/params migration); the app

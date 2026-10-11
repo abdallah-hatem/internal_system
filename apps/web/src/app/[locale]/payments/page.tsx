@@ -106,10 +106,14 @@ function PaymentsPageContent() {
     capped,
     isLoading,
     error: listError,
-  } = useAllRecords(['payments', dates], '/payments', {
-    from: dates.from || undefined,
-    to: dates.to || undefined,
-  });
+    reloading,
+  } = useAllRecords(
+    ['payments', dates],
+    '/payments',
+    { from: dates.from || undefined, to: dates.to || undefined },
+    // A new range keeps the rows on screen, dimmed, until it arrives (I2).
+    { keepPrevious: true },
+  );
   const { items: orders } = useAllRecords(['sales'], '/sales/orders');
 
   const { data: paymentDetail } = useQuery({
@@ -245,7 +249,7 @@ function PaymentsPageContent() {
             className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        <DateRangeFilter idPrefix="payments" value={dates} onChange={setDates} />
+        <DateRangeFilter idPrefix="payments" value={dates} onChange={setDates} busy={reloading} />
         {listError && (
           <p role="alert" data-testid="payments-range-error" className="text-sm text-destructive">
             {apiError(listError, tc('error'))}
@@ -264,7 +268,7 @@ function PaymentsPageContent() {
 
       {/* Desktop Table */}
       {!isLoading && (
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div data-testid="payments-table" aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -353,7 +357,7 @@ function PaymentsPageContent() {
 
       {/* Mobile Cards */}
       {!isLoading && (
-        <div className="md:hidden space-y-3">
+        <div data-testid="payments-cards" aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">
               {search || dated ? (

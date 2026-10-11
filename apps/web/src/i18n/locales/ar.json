@@ -48,7 +48,9 @@
     "clearSearchAndFilters": "مسح البحث والتصفية",
     "listCapped": "يتم عرض أول {count} فقط. توجد سجلات أخرى غير معروضة هنا.",
     "selectPlaceholder": "اختر…",
-    "noOptionsMatch": "لا توجد نتائج"
+    "noOptionsMatch": "لا توجد نتائج",
+    "print": "طباعة",
+    "brand": "MotoParts"
   },
   "pagination": {
     "showing": "عرض <n>{start}</n> – <n>{end}</n> من <n>{total}</n>",
@@ -460,7 +462,39 @@
     "sellAndTakePayment": "بيع وتحصيل المبلغ",
     "walkInPaidBy": "مدفوع بالكامل الآن · {method}",
     "walkInSold": "تم البيع والتحصيل",
-    "walkInNoBalance": "مدفوع في الحال"
+    "walkInNoBalance": "مدفوع في الحال",
+    "invoice": {
+      "open": "الفاتورة",
+      "title": "فاتورة بيع / إذن تسليم",
+      "number": "رقم الفاتورة",
+      "date": "التاريخ",
+      "billTo": "العميل",
+      "walkIn": "عميل عابر",
+      "phone": "الهاتف",
+      "line": "#",
+      "product": "الصنف",
+      "quantity": "الكمية",
+      "unitPrice": "سعر الوحدة",
+      "discount": "الخصم",
+      "lineTotal": "الإجمالي",
+      "subtotal": "المجموع",
+      "discountTotal": "الخصومات",
+      "total": "إجمالي الطلب",
+      "paid": "المدفوع على هذا الطلب",
+      "owes": "المتبقي على هذا الطلب",
+      "account": "حساب العميل",
+      "balanceBefore": "الرصيد قبل هذا البيع",
+      "thisInvoice": "قيمة هذه الفاتورة",
+      "balanceAfter": "الرصيد بعد هذا البيع",
+      "paidInFull": "دُفع بالكامل عند البيع.",
+      "receivedBy": "المستلم",
+      "deliveredBy": "المسلِّم",
+      "back": "العودة إلى المبيعات",
+      "notAvailable": "لا توجد فاتورة لهذا الطلب",
+      "printedOn": "طُبعت في {date}",
+      "credited": "مرتجعات مخصومة",
+      "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه."
+    }
   },
   "customers": {
     "title": "العملاء",
@@ -500,7 +534,38 @@
     "backToCustomers": "العودة إلى العملاء",
     "noPlanTitle": "لا توجد خطة سداد لهذا العميل",
     "noPlanHint": "الخطة تقسّم المستحق عليه إلى أقساط متفق عليها بمواعيد استحقاق.",
-    "openPlans": "فتح خطط السداد"
+    "openPlans": "فتح خطط السداد",
+    "statement": {
+      "title": "كشف الحساب",
+      "heading": "كشف حساب",
+      "hint": "كل بيع ودفعة ومرتجع في هذه الفترة، والرصيد بعد كلٍّ منها.",
+      "allDates": "كل التواريخ",
+      "range": "{from} – {to}",
+      "rangeFrom": "من {from}",
+      "rangeTo": "حتى {to}",
+      "opening": "الرصيد الافتتاحي",
+      "closing": "الرصيد الختامي",
+      "date": "التاريخ",
+      "description": "البيان",
+      "debit": "مدين",
+      "credit": "دائن",
+      "balance": "الرصيد",
+      "kind": {
+        "SALE": "بيع {order}",
+        "PAYMENT": "دفعة",
+        "RETURN": "مرتجع {reference}",
+        "REVERSAL": "عكس دفعة"
+      },
+      "onOrders": "على {orders}",
+      "unapplied": "{amount} غير مخصّص لأي طلب",
+      "refundCash": "رُدّ نقدًا",
+      "refundCredit": "إشعار دائن",
+      "empty": "لم يُبَع أو يُدفَع أو يُرتجَع شيء في هذه الفترة.",
+      "csv": "كشف-حساب",
+      "printedOn": "طُبع في {date}",
+      "totals": "مجاميع الفترة",
+      "loadFailed": "تعذّر تحميل كشف الحساب."
+    }
   },
   "payments": {
     "title": "المدفوعات",
@@ -535,7 +600,6 @@
     "selectCustomer": "اختر العميل الذي دفع",
     "referencePlaceholder": "مثلاً رقم الإيصال أو التحويل",
     "recordedToast": "تم تسجيل الدفعة",
-    "recordedNotApplied": "تم تسجيل الدفعة، لكن لم يُطبَّق كامل مبلغها على الطلبات. خصّص الباقي من صفحة المدفوعات.",
     "recordFailed": "تعذّر تسجيل الدفعة",
     "allocated": "تم تخصيص الدفعة",
     "allocateFailed": "تعذّر تخصيص الدفعة",
@@ -1166,7 +1230,10 @@
     "NOT_LAST_LEG_DELIVERY": "هذه التسليمة وصلت إلى الإمارات وليس إلى مصر. يُستلم المخزون من التسليمات على المرحلة التي تنتهي في مصر.",
     "DELIVERY_REQUIRED": "هناك {deliveries} تسليمات من {product} بانتظار الاستلام. اختر التسليمة التي جاءت فيها البضاعة.",
     "RECEIVED_EXCEEDS_DELIVERED": "لا يمكن استلام {received} من {product}: المتبقي بانتظار الاستلام من هذه التسليمة {available} فقط.",
-    "SHIPMENT_NOT_ACCOUNTED": "لا يمكن تسوية الدورة {cycle} بعد: لا تزال {onTheWay} وحدة في الطريق و{waiting} وصلت ولم تُستلم، في {lines} بند. استلمها أو سجّلها كمفقودة أولًا."
+    "SHIPMENT_NOT_ACCOUNTED": "لا يمكن تسوية الدورة {cycle} بعد: لا تزال {onTheWay} وحدة في الطريق و{waiting} وصلت ولم تُستلم، في {lines} بند. استلمها أو سجّلها كمفقودة أولًا.",
+    "WALK_IN_NO_STATEMENT": "المشتري العابر ليس له حساب، لذا لا يوجد كشف حساب.",
+    "INVOICE_DRAFT": "الطلب {order} مسودة، لذا ليس له فاتورة بعد. أكّده أولًا.",
+    "INVOICE_CANCELLED": "الطلب {order} أُلغي، لذا ليس له فاتورة."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

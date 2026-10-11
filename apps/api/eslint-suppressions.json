@@ -308,9 +308,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 3
-    },
-    "prettier/prettier": {
-      "count": 1
     }
   },
   "src/modules/customers/customers.service.ts": {
@@ -322,9 +319,6 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 4
-    },
-    "prettier/prettier": {
-      "count": 2
     }
   },
   "src/modules/cycles/cycles.controller.ts": {

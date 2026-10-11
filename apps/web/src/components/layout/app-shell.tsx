@@ -174,14 +174,14 @@ export function AppShell({
   return (
     <ToastProvider>
       <ToastBridge />
-      <div className="flex h-dvh overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+      <div data-app-frame className="flex h-dvh overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div data-print-hide className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
-      <aside className={`
+      {/* Sidebar — never on paper (globals.css, print). */}
+      <aside data-print-hide className={`
         fixed lg:static inset-y-0 ${locale === 'ar' ? 'right-0' : 'left-0'}
         w-64 bg-white border-e border-gray-200 z-50
         transform transition-transform duration-200 ease-in-out
@@ -248,7 +248,7 @@ export function AppShell({
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+        <header data-print-hide className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
           {/* Below md the phone bar's "More" opens the menu, so this button
               is for tablet widths only. The search box that sat beside it was
               never wired to anything and is gone (spec A #6). */}

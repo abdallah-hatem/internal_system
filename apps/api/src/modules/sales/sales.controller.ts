@@ -44,6 +44,15 @@ export class SalesController {
     return this.salesService.findAll(query);
   }
 
+  @Get(':id/invoice')
+  @ApiOperation({
+    summary:
+      'A confirmed sale as an invoice / delivery note: lines, totals, paid, still owed, and the shop balance before and after it. Refused for a draft or a cancelled order.',
+  })
+  invoice(@Param('id') id: string) {
+    return this.salesService.invoice(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get sale order details with allocations' })
   findById(@Param('id') id: string) {

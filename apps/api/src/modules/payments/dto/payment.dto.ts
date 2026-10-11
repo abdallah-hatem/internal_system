@@ -6,6 +6,7 @@ import {
   IsDateString,
   Min,
   IsPositive,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -42,6 +43,14 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsUUID('all')
   orderId?: string;
+
+  /**
+   * Without `orderId`, put the money on the shop's unpaid orders oldest first
+   * in the same transaction (§7). Ignored with `orderId`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  applyOldestFirst?: boolean;
 }
 
 export class AllocatePaymentDto {

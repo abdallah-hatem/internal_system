@@ -284,7 +284,7 @@ export class ReturnsService {
           ? Prisma.Decimal.max(outstanding.sub(refundEgp), D(0))
           : outstanding;
 
-      const fullyReturned = await this.isFullyReturned(tx, order.id, restocks);
+      const fullyReturned = await this.isFullyReturned(tx, order.id);
 
       await tx.saleOrder.update({
         where: { id: order.id },
@@ -353,11 +353,19 @@ export class ReturnsService {
     return { data: created };
   }
 
-  /** True once every sold unit on the order has come back. */
+  /**
+   * True once every sold unit on the order has come back.
+   *
+   * Read inside the return's transaction, after its own lines were written,
+   * so `returnItems` already holds this return. It used to add this return's
+   * lines a second time: one of two units back read as two of two, the order
+   * went RETURNED, and a RETURNED order owes nothing — so what the shop still
+   * owed on the other unit dropped out of its balance (found 2026-10-11 by the
+   * statement's invariant, 34 TC-INV-26 / TC-INV-29).
+   */
   private async isFullyReturned(
     tx: Prisma.TransactionClient,
     saleOrderId: string,
-    justAdded: { saleItemId: string; qty: Prisma.Decimal }[],
   ) {
     const items = await tx.saleItem.findMany({
       where: { saleOrderId },
@@ -365,11 +373,11 @@ export class ReturnsService {
     });
 
     return items.every((item) => {
-      const previously = item.returnItems.reduce((s, r) => s.add(D(r.qty)), D(0));
-      const now = justAdded
-        .filter((r) => r.saleItemId === item.id)
-        .reduce((s, r) => s.add(r.qty), D(0));
-      return previously.add(now).gte(D(item.quantity));
+      const returned = item.returnItems.reduce(
+        (s, r) => s.add(D(r.qty)),
+        D(0),
+      );
+      return returned.gte(D(item.quantity));
     });
   }
 }

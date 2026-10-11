@@ -233,6 +233,19 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM (
            SELECT reference FROM purchase_orders GROUP BY reference HAVING count(*) > 1
          ) shared
+  -- RETURNED means every sold unit came back (§5). Until 2026-10-11 a return
+  -- counted its own lines twice, so bringing back half an order marked it
+  -- RETURNED — and a RETURNED order owes nothing, so what the shop still owed
+  -- on the other half vanished from its balance. Found by the statement
+  -- invariant (34, TC-INV-26). An order here needs its status put back.
+  UNION ALL SELECT 18, 'order marked returned with units never returned',
+         count(*) FROM sale_orders o
+   WHERE o.status = 'RETURNED'
+     AND EXISTS (
+           SELECT 1 FROM sale_items i
+            WHERE i.sale_order_id = o.id
+              AND coalesce((SELECT sum(ri.qty) FROM sale_return_items ri
+                             WHERE ri.sale_item_id = i.id), 0) < i.quantity)
 SQL
 )
 
