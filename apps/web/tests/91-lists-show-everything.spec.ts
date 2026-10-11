@@ -143,8 +143,8 @@ test.describe('L1 — a list shows the record that is not among the newest 20', 
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
     const entry = (reason: string) =>
       mk('ledger', {
-        type: 'EXPENSE', category: 'other', direction: 'OUTFLOW', amount: 5,
-        currency: 'EGP', cycleId: cycle.id, reason,
+        kind: 'EXPENSE', category: 'extra_freight', amount: 5,
+        currency: 'EGP', cycleId: cycle.id, note: reason,
       });
     await entry(`${tag} target freight surcharge`);
     await many(PAST_20, (i) => entry(`${tag} newer charge ${i}`));
