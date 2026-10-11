@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: I2 live in production 2026-10-11 (`74f85ea`) · I3 on master at `1ebcc73` (full e2e green; duplicate shipping section merged into the Shipment panel) · ship on the owner's go
+Current stage: I3 live in production 2026-10-11 (`0f9b829`, three deploys READY, smoke ok) · I1–I3 all shipped · next: the owner's open decisions (improvements note) and the I3 nit
 
 ## Waiting on the user
 _(none)_
