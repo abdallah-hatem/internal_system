@@ -429,6 +429,12 @@ export function registerSalesTools(
       plan.lines.map((l) => l.productId),
     );
     const seen = await dryRun(plan.body);
+    // Below cost (§4, 2026-10-11): the sales service's own price check, the
+    // one every office screen reads — each line against the FIFO cost of the
+    // units it would draw, after its discount. A warning, never a refusal.
+    const { data: cost } = await ctx
+      .resolve(SalesService)
+      .priceCheck({ currency: CURRENCY, items: plan.body.items });
     const method = input.paymentMethod ?? 'CASH';
     const lines = plan.lines.map((l, i) => ({
       line: l.line,
@@ -442,6 +448,13 @@ export function registerSalesTools(
       discount: Number(l.discount).toFixed(2),
       lineTotal: seen.items[i].lineTotal,
       available: available.get(l.productId)?.toString() ?? '0',
+      belowCost: cost.lines[i]?.belowCost
+        ? {
+            unitCostEgp: cost.lines[i].unitCostEgp!,
+            unitPriceEgp: cost.lines[i].unitPriceEgp!,
+            lossEgp: cost.lines[i].lossEgp!,
+          }
+        : null,
     }));
     const who = plan.walkIn
       ? 'a walk-in buyer (B2C)'
@@ -455,9 +468,17 @@ export function registerSalesTools(
             `- ${l.product} (${l.sku}): ${formatQty(l.qty)} × ${formatMoney(l.unitPrice)}` +
             (l.priceSource === 'list' ? ` (${LIST_PRICE_NOTE})` : '') +
             (Number(l.discount) ? ` less ${formatMoney(l.discount)}` : '') +
-            ` = ${formatMoney(l.lineTotal)} ${CURRENCY}; ${formatQty(l.available)} in stock`,
+            ` = ${formatMoney(l.lineTotal)} ${CURRENCY}; ${formatQty(l.available)} in stock` +
+            (l.belowCost
+              ? `\n  Below cost: each costs ${formatMoney(l.belowCost.unitCostEgp)}, selling at ${formatMoney(l.belowCost.unitPriceEgp)}, a loss of ${formatMoney(l.belowCost.lossEgp)} on this line.`
+              : ''),
         ),
         `Total: ${formatMoney(seen.total)} ${CURRENCY}.`,
+        ...(cost.belowCostLines > 0
+          ? [
+              `Selling below cost loses ${formatMoney(cost.totalLossEgp)} ${CURRENCY} on this sale. Say so before the partner confirms; it is still theirs to confirm.`,
+            ]
+          : []),
         plan.walkIn
           ? `Paid on the spot by ${method}; nothing is owed.`
           : `${plan.customer!.name} will owe ${formatMoney(seen.outstanding)} ${CURRENCY}; no payment is recorded.`,
@@ -469,6 +490,8 @@ export function registerSalesTools(
         currency: CURRENCY,
         lines,
         total: seen.total,
+        /** What the lines below cost lose together; "0.00" when none is. */
+        belowCostLossEgp: cost.totalLossEgp,
         statusAfter: seen.status,
         outstandingAfter: seen.outstanding,
         payment: plan.walkIn ? { method, amount: seen.total } : null,
@@ -485,7 +508,9 @@ export function registerSalesTools(
       description:
         'Records a sale the partner made: created and confirmed in one step. Name the customer (a shop on file) — the sale is then owed — or set walkIn for a buyer who is not a shop, which is paid in full on the spot at retail prices. ' +
         'Products and customers are matched by exact name, SKU or id only: a close name comes back as a question with candidates and nothing to confirm. ' +
-        'Without a price the preview offers the list price, which the partner must confirm. Call without a confirmationToken to preview. Records no other payments, returns or settlements.',
+        'Without a price the preview offers the list price, which the partner must confirm. ' +
+        'A line sold below cost — under what its goods cost, the FIFO cost of the units it would draw, after its discount — carries a belowCost block (each unit\'s cost, the price after discount, the loss on the line), and belowCostLossEgp is the total: tell the partner the loss before the partner confirms. It is a warning, never a refusal. ' +
+        'Call without a confirmationToken to preview. Records no other payments, returns or settlements.',
       inputSchema: saleShape,
     },
     {
