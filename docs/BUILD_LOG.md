@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: production wiped at the owner's request 2026-10-11 6:30 PM — kept the three core-partner logins (+ partner rows, assistant connection), money accounts, FX rates; removed the investor and shop-owner logins and all business data. Backup `.backups/prod-before-wipe-20261011-182759.sql` (pg_dump 18). Smoke ok after.
+Current stage: L1 live in production 2026-10-11 (`c4b6568`, migration 20261011200000_lender_financing applied first, three deploys READY, smoke ok) · L2 building: owner chose (a) — a cycle a friend paid for entirely splits profit equally among its core partners; lender tools for the assistant; I3 "Not departed" nit
 
 ## Waiting on the user
 _(none)_
