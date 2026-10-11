@@ -1296,4 +1296,6 @@ confirms it.**
 | Who is told when one is late | Every active core partner, once per instalment, by the existing morning job. | §7. |
 | "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
 | "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
+| A cycle a friend paid for entirely | The partners put up nothing, so there is no contribution to split profit by and settling refuses as it already does for a cycle nobody funded (§8, working rules §10). Until the owner decides, set a custom profit split on the cycle. **OPEN.** | Refusing beats letting rounding pick who gets the money. |
+| An order line cut below what friends paid | Not reachable today: a line cannot be edited once added, so an order's total only grows. The check-data script looks for it anyway (19.1). | — |
 | Who sees the lenders list and a lender's page | Core partners and admin support. A temporary investor sees "Paid by" only on his own cycles' orders. | §18: read-only where they already see the cycle. |

@@ -76,6 +76,24 @@ export function CustomerLink({
   return <EntityLink href={`${prefix}/customers/${id}`} label={name} className={className} truncate={truncate} />;
 }
 
+/** A friend who paid a supplier for us (§18), to his own page. */
+export function LenderLink({
+  id,
+  name,
+  className,
+  truncate = false,
+}: {
+  id?: string | null;
+  name?: string | null;
+  className?: string;
+  truncate?: boolean;
+}) {
+  const prefix = useLocalePrefix();
+  if (!name) return <span className={className}>—</span>;
+  if (!id) return <LatinText truncate={truncate} className={className}>{name}</LatinText>;
+  return <EntityLink href={`${prefix}/lenders/${id}`} label={name} className={className} truncate={truncate} />;
+}
+
 export function ProductLink({
   id,
   name,

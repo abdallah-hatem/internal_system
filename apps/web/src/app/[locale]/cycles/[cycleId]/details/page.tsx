@@ -42,6 +42,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useNumberFormat } from '@/lib/numbers';
+import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -139,9 +140,11 @@ export default function CycleDetailsPage() {
         .filter((p) => p.participantType !== 'CORE_PARTNER')
         .reduce((sum, p) => sum + num(p.contributionAmount), 0);
 
-      // What the partners are funding: the cycle's cost less whatever an
-      // investor already put in.
-      const total = Math.max(num(costing?.totals?.landedEgp) - investors, 0);
+      // What the partners are funding: the cycle's cost less what friends
+      // paid suppliers for it (§18, the server's `toFundEgp`) and less
+      // whatever an investor already put in.
+      const toFund = num(costing?.totals?.toFundEgp ?? costing?.totals?.landedEgp);
+      const total = Math.max(toFund - investors, 0);
       const cents = Math.round(total * 100);
       const each = Math.floor(cents / partners.length);
 
@@ -308,6 +311,17 @@ export default function CycleDetailsPage() {
           )
         )}
       </Card>
+
+      {/* A friend who paid a supplier for us (§18): who, how much, still owed. */}
+      {orders.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+          <PaidByFriend
+            cycleId={cycle.id}
+            orders={orders.map((o) => ({ id: o.id, reference: o.reference, currency: o.currency }))}
+            closed={['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(cycle.status)}
+          />
+        </div>
+      )}
 
       <Card title={t('purchases')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
         {orders.length === 0 ? (

@@ -18,19 +18,22 @@ export interface StatTileProps {
   /** The list behind the figure. Null renders a plain tile (the role cannot open it). */
   href: string | null;
   testId?: string;
+  /** A second line under the figure — what it is made of. */
+  sub?: React.ReactNode;
 }
 
 /**
  * One dashboard figure. With an `href` the whole tile is the link, so the
  * target is the full card on a phone rather than a small "view" word.
  */
-export function StatTile({ label, value, icon: Icon, color, href, testId }: StatTileProps) {
+export function StatTile({ label, value, icon: Icon, color, href, testId, sub }: StatTileProps) {
   const figure = <TileFigure value={value} />;
   const body = (
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
         <p className="mt-1 break-words text-base font-bold text-card-foreground sm:text-2xl">{figure}</p>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
       <div className={`${color} hidden flex-shrink-0 rounded-lg p-3 sm:block`} aria-hidden="true">
         <Icon className="size-6 text-primary-foreground" />

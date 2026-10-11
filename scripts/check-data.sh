@@ -246,6 +246,38 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
             WHERE i.sale_order_id = o.id
               AND coalesce((SELECT sum(ri.qty) FROM sale_return_items ri
                              WHERE ri.sale_item_id = i.id), 0) < i.quantity)
+  -- A friend who paid a supplier (§18, L1 2026-10-11): what standing
+  -- repayments cleared can never exceed what he paid — a debt below zero
+  -- means he was repaid twice.
+  UNION ALL SELECT 19, 'friend repaid more than he paid (debt below zero)',
+         count(*) FROM lender_financings f
+   WHERE (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
+           WHERE r.financing_id = f.id AND r.reversed_at IS NULL) > f.amount
+  UNION ALL SELECT 19.1, 'friends paid more of an order than its total',
+         count(*) FROM purchase_orders o
+   WHERE (SELECT coalesce(sum(f.amount), 0) FROM lender_financings f
+           WHERE f.purchase_order_id = o.id AND f.removed_at IS NULL)
+       > (SELECT coalesce(sum(i.line_total), 0) FROM purchase_order_items i
+           WHERE i.purchase_order_id = o.id)
+  UNION ALL SELECT 19.2, 'repayment to a friend dated in the future or before he paid',
+         count(*) FROM lender_repayments r JOIN lender_financings f ON f.id = r.financing_id
+   WHERE r.paid_on > (now() AT TIME ZONE 'Africa/Cairo')::date OR r.paid_on < f.paid_on
+  UNION ALL SELECT 19.3, 'friend''s payment or repayment with no ledger row',
+         (SELECT count(*) FROM lender_financings f
+           WHERE NOT EXISTS (SELECT 1 FROM financial_transactions t WHERE t.id = f.ledger_transaction_id))
+       + (SELECT count(*) FROM lender_repayments r
+           WHERE NOT EXISTS (SELECT 1 FROM financial_transactions t WHERE t.id = r.ledger_transaction_id))
+  UNION ALL SELECT 19.4, 'ledger points at a friend''s payment or repayment that does not exist',
+         count(*) FROM financial_transactions t
+   WHERE (t.related_type = 'LENDER_FINANCING'
+          AND NOT EXISTS (SELECT 1 FROM lender_financings f WHERE f.id = t.related_id))
+      OR (t.related_type = 'LENDER_REPAYMENT'
+          AND NOT EXISTS (SELECT 1 FROM lender_repayments r WHERE r.id = t.related_id))
+  UNION ALL SELECT 19.5, 'cycle settled or closed while a friend is still owed',
+         count(*) FROM lender_financings f JOIN import_cycles c ON c.id = f.cycle_id
+   WHERE f.removed_at IS NULL AND c.status IN ('SETTLEMENT', 'CLOSED')
+     AND f.amount > (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
+                      WHERE r.financing_id = f.id AND r.reversed_at IS NULL)
 SQL
 )
 

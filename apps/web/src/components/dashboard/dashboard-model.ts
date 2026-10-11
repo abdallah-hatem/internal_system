@@ -30,7 +30,8 @@ export type TileKey =
   | 'cashOnHand'
   | 'activeCycles'
   | 'inventoryValue'
-  | 'lowStockAlerts';
+  | 'lowStockAlerts'
+  | 'owedToLenders';
 
 export interface TileTarget {
   href: string;
@@ -55,6 +56,8 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
   activeCycles: { href: '/cycles' },
   inventoryValue: { href: '/inventory' },
   lowStockAlerts: { href: '/inventory?stock=low' },
+  // GET /lenders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) (§18)
+  owedToLenders: { href: '/lenders', roles: SELLING_ROLES },
 };
 
 export type QuickActionKey = 'newSale' | 'recordPayment' | 'newCycle';

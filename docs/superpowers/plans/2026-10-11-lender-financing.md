@@ -53,7 +53,7 @@ Edge cases:
 - [ ] `lender_financing` / `lender_repayment` in `CAPITALISED_CATEGORIES`; not in totalExpenses, not in cycle "investment"
 - [ ] Transition to SETTLEMENT and settlement approve refuse while owed (`LENDER_DEBT_OUTSTANDING`); pass once repaid
 - [ ] Cancelling a cycle with a standing financing refused
-- [ ] A purchase line edited below the financed total refused
+- [x] A purchase line edited below the financed total — not reachable (lines cannot be edited, only added); check-data 19.1 watches for it
 - [ ] Costing totals: `lenderFinancedEgp`, `toFundEgp`; "Split equally" asks partners only for the remainder
 - [ ] Dashboard: owed to lenders per currency + EGP at today's rate; a currency with no rate says so
 

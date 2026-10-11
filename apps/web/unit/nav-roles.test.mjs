@@ -110,6 +110,7 @@ const SOURCES = {
   customers: ['customers/customers.controller.ts', 'CustomersController', ''],
   payments: ['payments/payments.controller.ts', 'PaymentsController', ''],
   paymentPlans: ['payment-plans/payment-plans.controller.ts', 'PaymentPlansController', ''],
+  lenders: ['lenders/lenders.controller.ts', 'LendersController', ''],
   ledger: ['ledger/ledger.controller.ts', 'LedgerController', ''],
   partners: ['users/users.controller.ts', 'UsersController', 'participation'],
   settlements: ['settlements/settlements.controller.ts', 'SettlementsController', ''],
@@ -135,11 +136,11 @@ for (const item of ALL) {
 
 // ─── What each role is offered ──────────────────────────────────────────
 
-test('a core partner sees all 22 entries', () => {
-  assert.equal(menuKeys('CORE_PARTNER').length, 22);
+test('a core partner sees all 23 entries', () => {
+  assert.equal(menuKeys('CORE_PARTNER').length, 23);
 });
 
-test('admin support sees all 22 entries — every restricted endpoint lets them read', () => {
+test('admin support sees all 23 entries — every restricted endpoint lets them read', () => {
   assert.deepEqual(menuKeys('ADMIN_SUPPORT'), menuKeys('CORE_PARTNER'));
 });
 
@@ -164,7 +165,7 @@ test('a temporary investor sees only the entries whose endpoints let them in', (
 test('a temporary investor is not offered analytics, customers, sales, money, partners or the audit log', () => {
   const seen = menuKeys('TEMP_INVESTOR');
   for (const k of ['analytics', 'orderRequests', 'importRequests', 'sales', 'customers',
-    'payments', 'paymentPlans', 'ledger', 'partners', 'auditLogs']) {
+    'payments', 'paymentPlans', 'lenders', 'ledger', 'partners', 'auditLogs']) {
     assert.ok(!seen.includes(k), k);
   }
 });

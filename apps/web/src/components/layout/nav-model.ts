@@ -101,6 +101,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { key: 'payments', href: '/payments', roles: BOOKS_READERS },
       // GET /payment-plans — @Roles(CORE_PARTNER, ADMIN_SUPPORT) since R1
       { key: 'paymentPlans', href: '/payment-plans', roles: BOOKS_READERS },
+      // GET /lenders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) (§18)
+      { key: 'lenders', href: '/lenders', roles: BOOKS_READERS },
       // GET /ledger — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
       { key: 'ledger', href: '/ledger', roles: BOOKS_READERS },
     ],

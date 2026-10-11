@@ -189,6 +189,20 @@ function SupplierFields({ record }: { record?: any }) {
   );
 }
 
+// ─── Lender ───────────────────────────────────────────────────────────
+// A friend who pays a supplier for us (BUSINESS_LOGIC §18). The Lenders tab and
+// the `+` beside a lender picker both render this.
+function LenderFields({ record }: { record?: { name?: string; phone?: string | null; notes?: string | null } }) {
+  const t = useTranslations('lenders');
+  return (
+    <>
+      <InputField label={t('name')} name="name" defaultValue={record?.name} required />
+      <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone ?? undefined} />
+      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes ?? undefined} />
+    </>
+  );
+}
+
 // ─── The registry ─────────────────────────────────────────────────────
 export const ENTITY_FORMS = {
   category: {
@@ -255,6 +269,18 @@ export const ENTITY_FORMS = {
         wechat: str(fd, 'wechat'),
         whatsapp: str(fd, 'whatsapp'),
       },
+      notes: str(fd, 'notes'),
+    }),
+  },
+  lender: {
+    endpoint: '/lenders',
+    queryKey: ['lenders'],
+    namespace: 'lenders',
+    titleKey: 'create',
+    Fields: LenderFields,
+    toPayload: (fd) => ({
+      name: fd.get('name'),
+      phone: str(fd, 'phone'),
       notes: str(fd, 'notes'),
     }),
   },
