@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { SalesService, type CreateSaleOrderInput } from './sales.service';
+import {
+  SalesService,
+  type CreateSaleOrderInput,
+  type PriceCheckInput,
+} from './sales.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
@@ -70,6 +74,15 @@ export class SalesController {
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.salesService.create(body, user.id, idempotencyKey);
+  }
+
+  @Post('price-check')
+  @ApiOperation({
+    summary:
+      'Would these lines sell below cost? Each line against the FIFO cost of the units it would draw, after its discount. A warning only — nothing is refused and nothing is written (BUSINESS_LOGIC §4).',
+  })
+  priceCheck(@Body() body: PriceCheckInput) {
+    return this.salesService.priceCheck(body);
   }
 
   @Post(':id/confirm')

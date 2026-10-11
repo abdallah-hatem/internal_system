@@ -32,6 +32,12 @@ import {
   centsToDecimalString,
   saleOrderTotals,
 } from '../../common/sale-totals';
+import {
+  centsText,
+  type CostLayer,
+  priceAgainstCost,
+  unitFigure,
+} from '../../common/below-cost';
 
 /** The client or a transaction — whichever the caller holds. */
 type Db = Prisma.TransactionClient;
@@ -63,6 +69,61 @@ export interface CreateSaleOrderInput {
   walkIn?: boolean;
   /** How a walk-in sale was paid. Only with `walkIn`; cash when unsaid. */
   payment?: { method?: string };
+}
+
+/** What the price check is asked: the lines as they stand on a form. */
+export interface PriceCheckInput {
+  /** The sale's currency. Only EGP is compared — the cost is in pounds. */
+  currency?: string;
+  items: {
+    productId: string;
+    quantity: number | string;
+    unitPrice: number | string;
+    discount?: number | string | null;
+  }[];
+}
+
+/** One line of the answer. Figures are EGP decimal strings, null when not costed. */
+export interface PriceCheckLine {
+  /** 1-based, in the order sent. */
+  line: number;
+  productId: string;
+  costed: boolean;
+  reason?: 'NO_STOCK' | 'INCOMPLETE' | 'CURRENCY';
+  belowCost: boolean;
+  /** The warning's code, for the client to say in the reader's language. */
+  code: 'BELOW_COST' | null;
+  /** What each unit costs: the line's FIFO cost over its quantity. */
+  unitCostEgp: string | null;
+  /** What each unit is sold at after the line discount. */
+  unitPriceEgp: string | null;
+  costEgp: string | null;
+  netEgp: string | null;
+  lossEgp: string | null;
+}
+
+/** A form can hold a few dozen lines; this is a ceiling on the work, not a rule. */
+const PRICE_CHECK_MAX_LINES = 200;
+
+/**
+ * The batches a sale of this product draws from, in the order it draws them:
+ * verified, something left to sell, oldest received first, batch id breaking a
+ * tie (BUSINESS_LOGIC §3). Confirming allocates from exactly this list and the
+ * price check costs from it, so the warning can never name a cost the sale
+ * would not record.
+ */
+export function fifoBatches(
+  db: Pick<Prisma.TransactionClient, 'inventoryBatch'>,
+  productId: string,
+) {
+  return db.inventoryBatch.findMany({
+    where: {
+      productId,
+      verificationStatus: 'VERIFIED',
+      saleableQty: { gt: 0 },
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
 }
 
 const refuseShape = (field: string, message: string) =>
@@ -748,6 +809,124 @@ export class SalesService {
     };
   }
 
+  /**
+   * Would these lines sell below cost? (BUSINESS_LOGIC §4, DECIDED 2026-10-11.)
+   *
+   * A warning, never a refusal: nothing here stops a sale, and nothing is
+   * written. Each line is costed at the units confirming would draw now —
+   * `fifoBatches`, the list `confirmWithin` allocates from — through
+   * `priceAgainstCost`, the one definition. Every surface asks this: the sale
+   * form, a draft's confirm, a storefront request's approval, a product's
+   * price, and the assistant's `record_sale` preview.
+   *
+   * Costs are the partners' figures. The endpoint carries the sales roles,
+   * which already read landed costs on the inventory page and a sale's
+   * allocations; an investor or a shop cannot reach it.
+   */
+  async priceCheck(input: PriceCheckInput, db: Db = this.prisma) {
+    const items: unknown = input?.items;
+    if (!Array.isArray(items)) {
+      throw refuseShape('items', 'items must be a list of sale lines.');
+    }
+    if (items.length > PRICE_CHECK_MAX_LINES) {
+      throw refuseShape(
+        'items',
+        `At most ${PRICE_CHECK_MAX_LINES} lines can be checked at once.`,
+      );
+    }
+    const lines = (items as PriceCheckInput['items']).map((item) => ({
+      // A product id that cannot be one is a line still being filled in, not
+      // a query for Postgres to fail on.
+      productId: isUuid(item?.productId) ? item.productId : '',
+      quantity: item?.quantity,
+      unitPrice: item?.unitPrice,
+      discount: item?.discount,
+    }));
+
+    const currency = input.currency ?? 'EGP';
+    const compared = currency === 'EGP';
+
+    const layers = new Map<string, CostLayer[]>();
+    if (compared) {
+      for (const productId of new Set(lines.map((l) => l.productId))) {
+        if (!productId) continue;
+        const batches = await fifoBatches(db, productId);
+        layers.set(
+          productId,
+          batches.map((b) => ({
+            qty: b.saleableQty,
+            unitCostEgp: b.landedUnitCostEgp,
+          })),
+        );
+      }
+    }
+
+    const result = priceAgainstCost(
+      lines.map((l) => ({
+        ...l,
+        quantity: l.quantity ?? 0,
+        unitPrice: l.unitPrice ?? 0,
+      })),
+      layers,
+    );
+
+    const checked: PriceCheckLine[] = result.lines.map((r, i) => {
+      if (!compared) {
+        return {
+          line: i + 1,
+          productId: r.productId,
+          costed: false,
+          reason: 'CURRENCY',
+          belowCost: false,
+          code: null,
+          unitCostEgp: null,
+          unitPriceEgp: null,
+          costEgp: null,
+          netEgp: null,
+          lossEgp: null,
+        };
+      }
+      if (!r.costed) {
+        return {
+          line: i + 1,
+          productId: r.productId,
+          costed: false,
+          reason: r.reason,
+          belowCost: false,
+          code: null,
+          unitCostEgp: null,
+          unitPriceEgp: null,
+          costEgp: null,
+          netEgp: null,
+          lossEgp: null,
+        };
+      }
+      const quantity = lines[i].quantity ?? 0;
+      return {
+        line: i + 1,
+        productId: r.productId,
+        costed: true,
+        belowCost: r.belowCost,
+        code: r.belowCost ? 'BELOW_COST' : null,
+        unitCostEgp: unitFigure(r.costCents, quantity),
+        unitPriceEgp: unitFigure(r.netCents, quantity),
+        costEgp: centsText(r.costCents),
+        netEgp: centsText(r.netCents),
+        lossEgp: centsText(r.lossCents),
+      };
+    });
+
+    return {
+      data: {
+        currency,
+        compared,
+        lines: checked,
+        belowCostLines: checked.filter((l) => l.belowCost).length,
+        totalLossEgp: centsText(compared ? result.totalLossCents : 0),
+      },
+    };
+  }
+
   async confirmOrder(id: string, actorId: string, version: number) {
     const outcome = await this.prisma.$transaction((tx) =>
       this.confirmWithin(tx, id, actorId, version),
@@ -808,15 +987,9 @@ export class SalesService {
       // float rounding drift here would quietly misstate every settlement.
       let remainingQty = new Prisma.Decimal(item.quantity);
 
-      // FIFO: oldest verified receipt first, batch id breaking any tie.
-      const batches = await tx.inventoryBatch.findMany({
-        where: {
-          productId: item.productId,
-          verificationStatus: 'VERIFIED',
-          saleableQty: { gt: 0 },
-        },
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      });
+      // FIFO: oldest verified receipt first, batch id breaking any tie —
+      // the same query the price check reads (`fifoBatches`).
+      const batches = await fifoBatches(tx, item.productId);
 
       for (const batch of batches) {
         if (remainingQty.lte(0)) break;

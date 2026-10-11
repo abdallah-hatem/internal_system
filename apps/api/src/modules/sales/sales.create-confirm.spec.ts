@@ -899,3 +899,183 @@ describe('a sale that takes a product into low stock says so (§3, 2026-10-11)',
     expect(notify).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the price check — selling below cost warns, never refuses (§4, 2026-10-11)', () => {
+  /** TC-INV-30's shelf: 2 at 900 received first, then 5 at 1,100. */
+  function twoBatches() {
+    const built = build({ [PISTON]: 2 });
+    const [older] = built.db.store.batches;
+    older.landedUnitCostEgp = D(900);
+    built.db.store.batches.push({
+      id: 'batch-newer',
+      productId: PISTON,
+      verificationStatus: 'VERIFIED',
+      saleableQty: D(5),
+      remainingQty: D(5),
+      landedUnitCostEgp: D('1100.0000'),
+      createdAt: new Date(2026, 5, 1),
+    });
+    return built;
+  }
+
+  const check = (service: SalesService, items: any[], currency = 'EGP') =>
+    service.priceCheck({ currency, items }) as Promise<{ data: any }>;
+
+  it('3 at 950 across two batches → below cost: each costs 966.67, selling at 950.00, a loss of 50.00', async () => {
+    const { service } = twoBatches();
+    const { data } = await check(service, [
+      { productId: PISTON, quantity: 3, unitPrice: 950 },
+    ]);
+    expect(data.compared).toBe(true);
+    expect(data.lines).toEqual([
+      expect.objectContaining({
+        line: 1,
+        productId: PISTON,
+        costed: true,
+        belowCost: true,
+        code: 'BELOW_COST',
+        unitCostEgp: '966.67',
+        unitPriceEgp: '950.00',
+        costEgp: '2900.00',
+        netEgp: '2850.00',
+        lossEgp: '50.00',
+      }),
+    ]);
+    expect(data.totalLossEgp).toBe('50.00');
+    expect(data.belowCostLines).toBe(1);
+  });
+
+  it('checking writes nothing: no order, no allocation, the shelf unchanged', async () => {
+    const { service, db } = twoBatches();
+    await check(service, [{ productId: PISTON, quantity: 3, unitPrice: 1 }]);
+    expect(db.store.orders).toHaveLength(0);
+    expect(db.store.allocations).toHaveLength(0);
+    expect(saleable(db, PISTON)).toBe(7);
+  });
+
+  it.each([
+    ['one batch', [{ quantity: 2, unitPrice: 800 }]],
+    ['spanning both', [{ quantity: 3, unitPrice: 950 }]],
+    [
+      'two lines, the second on the newer batch',
+      [
+        { quantity: 2, unitPrice: 1000 },
+        { quantity: 1, unitPrice: 1000, discount: 5 },
+      ],
+    ],
+    ['all seven', [{ quantity: 7, unitPrice: 1 }]],
+  ])(
+    'what the check says it costs is the COGS confirming records (%s)',
+    async (_name, lines) => {
+      const { service, db } = twoBatches();
+      const items = (lines as any[]).map((l) => ({ productId: PISTON, ...l }));
+      const { data } = await check(service, items);
+      await service.create(order(items, { confirm: true }), 'actor-1');
+
+      const cogs = db.store.allocations
+        .reduce((t, a) => t.add(a.cogsEgp), D(0))
+        .toFixed(2);
+      const predicted = data.lines
+        .reduce((t: Prisma.Decimal, l: any) => t.add(l.costEgp), D(0))
+        .toFixed(2);
+      expect(predicted).toBe(cogs);
+    },
+  );
+
+  it('a confirmed sale below cost goes through — the warning never refuses', async () => {
+    const { service, db } = twoBatches();
+    const res: any = await service.create(
+      order([{ productId: PISTON, quantity: 3, unitPrice: 1 }], {
+        confirm: true,
+      }),
+      'actor-1',
+    );
+    expect(res.data.status).toBe('CONFIRMED');
+    expect(db.store.orders).toHaveLength(1);
+  });
+
+  it('a sale in another currency is not compared (the cost is in pounds and the order carries no rate)', async () => {
+    const { service } = twoBatches();
+    const { data } = await check(
+      service,
+      [{ productId: PISTON, quantity: 3, unitPrice: 1 }],
+      'USD',
+    );
+    expect(data.compared).toBe(false);
+    expect(data.lines[0]).toMatchObject({
+      costed: false,
+      belowCost: false,
+      reason: 'CURRENCY',
+      code: null,
+    });
+    expect(data.totalLossEgp).toBe('0.00');
+  });
+
+  it('no stock, more than the shelf, and an id that is not a product are not costed — and never a 500', async () => {
+    const { service } = twoBatches();
+    const { data } = await check(service, [
+      { productId: CHAIN, quantity: 1, unitPrice: 1 },
+      { productId: PISTON, quantity: 8, unitPrice: 1 },
+      { productId: 'not-a-uuid', quantity: 1, unitPrice: 1 },
+      { productId: NOBODY, quantity: 1, unitPrice: 1 },
+    ]);
+    expect(
+      data.lines.map((l: any) => [l.costed, l.belowCost, l.reason]),
+    ).toEqual([
+      [false, false, 'NO_STOCK'],
+      [false, false, 'NO_STOCK'],
+      [false, false, 'INCOMPLETE'],
+      [false, false, 'NO_STOCK'],
+    ]);
+    expect(data.totalLossEgp).toBe('0.00');
+  });
+
+  it('a body without an items list → VALIDATION_FAILED, not a 500', async () => {
+    const { service } = twoBatches();
+    expect(await refused(service.priceCheck({} as any))).toEqual({
+      status: 400,
+      code: 'VALIDATION_FAILED',
+    });
+    expect(await refused(service.priceCheck({ items: 'x' } as any))).toEqual({
+      status: 400,
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('more lines than any order would carry → VALIDATION_FAILED', async () => {
+    const { service } = twoBatches();
+    const items = Array.from({ length: 201 }, () => ({
+      productId: PISTON,
+      quantity: 1,
+      unitPrice: 1,
+    }));
+    expect(await refused(service.priceCheck({ items }))).toEqual({
+      status: 400,
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  describe('who may ask — the roles that sell, and no one else', () => {
+    function contextFor(role: string): ExecutionContext {
+      return {
+        // eslint-disable-next-line @typescript-eslint/unbound-method -- the guard reads metadata off the handler; it never calls it
+        getHandler: () => SalesController.prototype.priceCheck,
+        getClass: () => SalesController,
+        switchToHttp: () => ({ getRequest: () => ({ user: { role } }) }),
+      } as unknown as ExecutionContext;
+    }
+    const guard = new RolesGuard(new Reflector());
+
+    it('an investor and a shop are refused (costs are not theirs to see)', () => {
+      expect(() => guard.canActivate(contextFor('TEMP_INVESTOR'))).toThrow();
+      expect(() =>
+        guard.canActivate(contextFor('SHOP_OWNER_PORTAL')),
+      ).toThrow();
+    });
+
+    it('a core partner and admin support may ask', () => {
+      expect(guard.canActivate(contextFor('CORE_PARTNER'))).toBe(true);
+      expect(guard.canActivate(contextFor('ADMIN_SUPPORT'))).toBe(true);
+    });
+  });
+});
