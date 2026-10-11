@@ -387,8 +387,8 @@ export default function PurchasesPage() {
               ) : (
                 <div className="space-y-3">
                   {lineItems.map((item, idx) => (
-                    <div key={idx} className="field-row flex gap-2 bg-gray-50 rounded-lg p-3">
-                      <div className="flex-1">
+                    <div key={idx} className="field-row flex flex-wrap gap-2 bg-gray-50 rounded-lg p-3 sm:flex-nowrap">
+                      <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                         <label className="block text-xs text-gray-500 mb-1">{t('product')}</label>
                         <FieldWithQuickCreate
                           entity="product"
@@ -407,7 +407,7 @@ export default function PurchasesPage() {
                           />
                         </FieldWithQuickCreate>
                       </div>
-                      <div className="w-20">
+                      <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">{t('orderedQty')}</label>
                         <input
                           type="number"
@@ -418,7 +418,7 @@ export default function PurchasesPage() {
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
-                      <div className="w-24">
+                      <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>
                         <MoneyInput
                           placeholder="0.00"
@@ -427,7 +427,7 @@ export default function PurchasesPage() {
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
-                      <div className="w-20">
+                      <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
                         <MoneyInput
                           placeholder="0.00"

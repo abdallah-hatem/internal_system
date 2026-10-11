@@ -1301,9 +1301,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     <div
                       key={idx}
                       data-testid="wizard-line-item"
-                      className="field-row flex gap-2 bg-gray-50 rounded-lg p-3"
+                      className="field-row flex flex-wrap gap-2 bg-gray-50 rounded-lg p-3 sm:flex-nowrap"
                     >
-                      <div className="flex-1">
+                      <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('product')}
                         </label>
@@ -1325,7 +1325,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         </FieldWithQuickCreate>
                       </div>
 
-                      <div className="w-20">
+                      <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('qty')}
                         </label>
@@ -1344,7 +1344,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         />
                       </div>
 
-                      <div className="w-24">
+                      <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('unitPrice')}
                         </label>
@@ -1358,7 +1358,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         />
                       </div>
 
-                      <div className="w-20">
+                      <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('discount')}
                         </label>
