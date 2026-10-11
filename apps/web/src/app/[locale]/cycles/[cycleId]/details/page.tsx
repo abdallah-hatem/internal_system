@@ -1,5 +1,6 @@
 'use client';
 import { GoodsLocationCards } from '@/components/cycles/goods-location-cards';
+import { CycleTransfersSection, MoveLeftoversButton, useCycleTransfers } from '@/components/cycles/cycle-transfers';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 
@@ -90,6 +91,8 @@ export default function CycleDetailsPage() {
   const codeLabel = useCodeLabel();
   const { formatDate: formatLocalDate } = useDateFormat();
   const { data: shipment } = useShipment(id);
+  // Leftovers moved out of and into this cycle (§8, L5): the cards and the Transfers section.
+  const { data: transfers } = useCycleTransfers(id);
   const { data: profitability = [] } = useQuery<CycleProfit[]>({
     queryKey: ['analytics', 'cycle-profitability'],
     queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
@@ -213,6 +216,7 @@ export default function CycleDetailsPage() {
             className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-700 touch-manipulation"
           />
           <CycleStatusButton cycleId={cycle.id} status={cycle.status} />
+          <MoveLeftoversButton cycleId={cycle.id} cycleCode={cycle.code} status={cycle.status} />
           <button
             type="button"
             onClick={() => router.push(`/${locale}/settlements`)}
@@ -224,7 +228,7 @@ export default function CycleDetailsPage() {
       </div>
 
       {/* Where the goods are — layout A, chosen by the owner (I3). */}
-      <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} />
+      <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} transfers={transfers} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <Tile label={t('participants')} value={String(participants.length)} />
@@ -237,6 +241,9 @@ export default function CycleDetailsPage() {
       </div>
 
       <ProfitCard figure={(Array.isArray(profitability) ? profitability : []).find((p) => p.cycleCode === cycle.code)} />
+
+      {/* Leftovers moved to or from another cycle at their cost (§8, L5). */}
+      <CycleTransfersSection cycleId={cycle.id} />
 
       <ShipmentPanel cycle={cycle} />
 

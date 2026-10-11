@@ -1269,7 +1269,21 @@
     "LENDER_CURRENCY_MISMATCH": "{reference} is in {orderCurrency}; what a friend paid for it is recorded in {orderCurrency}, not {currency}.",
     "LENDER_PLAN_EXISTS": "This already has an active plan. Cancel it before agreeing another.",
     "LENDER_PLAN_EXCEEDS_OWED": "The instalments total {total} {currency} but only {owed} is owed.",
-    "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for."
+    "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for.",
+    "TRANSFER_SOURCE_NOT_SELLING": "Cycle {cycle} is {status}. Leftovers can be moved only from a cycle that is selling or being settled.",
+    "TRANSFER_SOURCE_PAID": "Cycle {cycle} has been paid out; its stock can no longer move.",
+    "TRANSFER_SOURCE_NOT_ACCOUNTED": "Cycle {cycle} still has {onTheWay} unit(s) on the way and {waiting} delivered but not received; account for every unit before moving leftovers.",
+    "TRANSFER_TARGET_CLOSED": "Cycle {cycle} is {status} and cannot take stock in.",
+    "TRANSFER_SAME_CYCLE": "Leftovers cannot be moved from {cycle} to itself.",
+    "TRANSFER_QTY_NOT_POSITIVE": "The quantity of {product} to move must be more than zero.",
+    "TRANSFER_MORE_THAN_ON_SHELF": "Only {available} of {product} can be moved; {requested} was asked for.",
+    "TRANSFER_DUPLICATE_PRODUCT": "{product} is listed twice; give one quantity per product.",
+    "TRANSFER_NO_LINES": "Say how many of which product to move.",
+    "TRANSFER_REASON_REQUIRED": "Say why.",
+    "TRANSFER_ALREADY_UNDONE": "This move has already been undone.",
+    "TRANSFER_UNITS_SOLD": "Some of the {product} moved to {cycle} has been sold or used there; the move is permanent now.",
+    "CYCLE_HAS_TRANSFERS_IN": "Cycle {cycle} holds leftover stock moved in from another cycle; undo that move before cancelling it.",
+    "LEDGER_CATEGORY_RESERVED": "Moving leftover stock between cycles is recorded from the cycle page, not as a ledger entry."
   },
   "orderRequests": {
     "title": "Order requests",
@@ -1458,7 +1472,9 @@
       "ADJUSTMENT": "Adjustment",
       "WRITE_OFF": "Written off",
       "PURCHASE_RECEIPT": "Received",
-      "SALE_ALLOCATION": "Sold"
+      "SALE_ALLOCATION": "Sold",
+      "TRANSFER_OUT": "Moved to another cycle",
+      "TRANSFER_IN": "Moved in from another cycle"
     },
     "referenceType": {
       "PURCHASE_ORDER_ITEM": "Purchase order",
@@ -1470,7 +1486,8 @@
       "SUPPLIER_REFUND": "Supplier refund",
       "CYCLE_PARTICIPANT": "Cycle participant",
       "LENDER_FINANCING": "Friend's payment",
-      "LENDER_REPAYMENT": "Repayment to a friend"
+      "LENDER_REPAYMENT": "Repayment to a friend",
+      "STOCK_TRANSFER": "Leftovers moved between cycles"
     },
     "auditAction": {
       "CREATE": "Created",
@@ -1534,7 +1551,8 @@
       "ARRIVAL": "An arrival date",
       "DELIVERY": "A delivery date",
       "LENDER_PAID": "The date a friend paid a supplier",
-      "LENDER_REPAID": "The date a friend was repaid"
+      "LENDER_REPAID": "The date a friend was repaid",
+      "STOCK_MOVED": "The date leftover stock was moved"
     },
     "country": {
       "CN": "China",
@@ -1563,7 +1581,11 @@
     "sold": "Sold",
     "lost": "Lost",
     "ordered": "Ordered",
-    "product": "Product"
+    "product": "Product",
+    "moved": "Moved to another cycle",
+    "fromCycle": "From <code>cycle</code>",
+    "fromCycleUnits": "{units} units — {onShelf} on the shelf, {sold} sold",
+    "fromCycleMovedOn": "{count} moved on to another cycle"
   },
   "shipment": {
     "title": "Shipment",
@@ -1811,5 +1833,46 @@
     "cancelPlanHint": "The schedule stops counting; repayments and what is owed do not change.",
     "rateFor": "Rate ({currency} → EGP)",
     "poundsEgp": "Pounds paid (EGP)"
+  },
+  "transfers": {
+    "title": "Transfers",
+    "movedOut": "Moved out",
+    "movedIn": "Moved in",
+    "toCycle": "To <code>cycle</code>",
+    "fromCycle": "From <code>cycle</code>",
+    "undone": "Undone",
+    "undo": "Undo",
+    "undoNotAllowed": "This move can no longer be undone.",
+    "byWhy": "By {name} — {reason}",
+    "undoneBy": "Undone by {name} — {reason}",
+    "undoTitle": "Undo this move",
+    "undoHint": "The units go back to the cycle they came from at the same cost, and the ledger rows are balanced. The move stays on record, marked undone.",
+    "undoFailed": "Could not undo the move",
+    "undoDone": "Move undone",
+    "reason": "Why",
+    "reasonRequired": "Say why.",
+    "reasonHint": "e.g. end of season — sell them with the next shipment",
+    "moveLeftovers": "Move leftovers",
+    "moveTitle": "Move leftovers to another cycle",
+    "moveHint": "The units leave this cycle at exactly their landed cost: no profit and no loss on them here. The cycle that takes them funds them and sells them as its own.",
+    "target": "Cycle that takes them",
+    "pickTarget": "Choose a cycle",
+    "noTargets": "No open cycle can take them",
+    "newCycle": "Start a new cycle for them",
+    "movedOn": "Date moved",
+    "qtyPerProduct": "How many of each",
+    "onShelf": "{count} on the shelf",
+    "totalCost": "Cost moving:",
+    "move": "Move",
+    "moved": "Leftovers moved",
+    "moveFailed": "Could not move the leftovers",
+    "cannotMove": "This cycle cannot move its leftovers now.",
+    "nothingOnShelf": "Nothing on the shelf to move.",
+    "nothingChosen": "Enter how many of at least one product.",
+    "qtyNotNumber": "The quantity of {product} is not a number.",
+    "instead": "Or move the leftovers to another cycle at their cost — nothing is written off.",
+    "movedTryAgain": "Leftovers moved. Pay out again: what the cycle still holds is read afresh.",
+    "newCycleReady": "This cycle was started for another cycle’s leftover stock.",
+    "backToMove": "Move them into this cycle"
   }
 }
