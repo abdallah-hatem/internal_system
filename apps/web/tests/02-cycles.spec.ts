@@ -5,6 +5,7 @@
  *  Tests: create cycle, view details, status transitions, participants
  */
 import { test, expect } from '@playwright/test';
+import { apiCtx } from './support/fixtures';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const API = 'http://localhost:3001/api/v1';
@@ -141,23 +142,18 @@ test.describe('Import Cycles Flow', () => {
     }
   });
 
-  test('TC-CYC-07: Cycle status transition is available', async ({ page }) => {
+  test('TC-CYC-07: Cycle status transition is available', async ({ page, request }) => {
+    // The status change lives on the cycle's page now (owner, 2026-10-11);
+    // the list's slide-over that held it is gone. This used to look for a
+    // button matching /transition|advance/ only "if visible", so it passed
+    // whatever the page showed. A cycle of its own, so there is a move to make.
+    const { mk } = await apiCtx(request);
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
     await login(page);
     await page.goto(`${BASE}/en/cycles`);
-    await page.waitForTimeout(2000);
-
-    // Click Details on first cycle
-    const detailsBtn = page.getByRole('button', { name: /Details/i }).first();
-    if (await detailsBtn.isVisible()) {
-      await detailsBtn.click();
-      await page.waitForTimeout(1000);
-
-      // Look for transition button
-      const transitionBtn = page.getByRole('button', { name: /transition|advance|next status|move to/i }).first();
-      if (await transitionBtn.isVisible()) {
-        await expect(transitionBtn).toBeVisible();
-      }
-    }
+    await page.locator('tr', { hasText: cycle.code }).getByTestId('cycle-details').click();
+    await expect(page).toHaveURL(new RegExp(`/cycles/${cycle.id}/details$`), { timeout: 15000 });
+    await expect(page.getByTestId('change-status')).toBeVisible();
   });
 
   test('TC-CYC-08: Cycle search/filter works', async ({ page }) => {

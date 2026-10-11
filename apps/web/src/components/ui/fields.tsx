@@ -121,6 +121,33 @@ export function FieldLabel({
   );
 }
 
+/**
+ * A control with no label in a row of labelled fields — a remove ✕, a +.
+ *
+ * A `field-row` aligns its fields to the top (see globals.css), so an
+ * unlabelled button would sit level with the labels, not the boxes. This keeps
+ * an empty line above it in the row's own label style — pass the same classes
+ * the row's labels use — and centres the control on a box-high band, so it
+ * lines up with the boxes beside it whatever shows under them.
+ */
+export function RowAction({
+  labelClassName = 'block text-sm font-medium mb-1',
+  children,
+}: {
+  /** The classes of the labels beside it, so the empty line is as tall. */
+  labelClassName?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div data-row-action className="shrink-0">
+      <span aria-hidden="true" className={`${labelClassName} invisible select-none`}>
+        {' '}
+      </span>
+      <div className="flex h-(--field-h) items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
 export function FormActions({
   onCancel,
   cancelLabel,

@@ -347,7 +347,7 @@ export default function ProvidersPage() {
           <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="name" defaultValue={editingProvider.name} required />
             <InputField label={t('contactPerson')} name="contactPerson" defaultValue={editingProvider.contactPerson} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingProvider.phone} />
               <InputField label={t('email')} name="email" type="email" defaultValue={editingProvider.email} />
             </div>

@@ -63,13 +63,19 @@ async function openCycleList(page: Page) {
   await expect(page).toHaveURL(/\/cycles$/, { timeout: 15000 });
 }
 
-/** Find a cycle in the list by its code and click its row. */
+/**
+ * Find a cycle in the list by its code and resume its setup.
+ *
+ * Clicking the row opens the cycle's details page (owner, 2026-10-11); the
+ * wizard is reached by the row's own "Continue setup".
+ */
 async function openCycleFromList(page: Page, code: string) {
   await openCycleList(page);
   await page.getByPlaceholder(/search/i).fill(code);
   const row = page.locator('tr', { hasText: code });
   await expect(row).toBeVisible({ timeout: 15000 });
-  await row.click();
+  await row.getByTestId('continue-setup').click();
+  await expect(page).toHaveURL(/\/cycles\/[0-9a-f-]+$/, { timeout: 15000 });
 }
 
 async function cycleFromApi(request: APIRequestContext, headers: Record<string, string>, id: string) {
@@ -227,7 +233,7 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await expect(page).toHaveURL(new RegExp(`/cycles/${cycle.id}/details`), { timeout: 15000 });
     expect((await cycleFromApi(request, headers, cycle.id)).status).toBe('PURCHASING');
 
-    // Back through the list's resume, and finish again.
+    // Back through the list's Continue setup, and finish again.
     await openCycleFromList(page, cycle.code);
     await page.getByRole('button', { name: /^finish$/i }).click();
     await expect(page).toHaveURL(new RegExp(`/cycles/${cycle.id}/details`), { timeout: 15000 });
@@ -259,13 +265,14 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await tracking.fill(`TRK-${stamp}`);
     await pickDate(page, 'leg1_departedOn', daysAgo(4));
 
-    // Out to the list, and back in by clicking the row.
+    // Out to the list, and back in by its Continue setup.
     await openCycleFromList(page, cycle.code);
     await expect(tracking).toHaveValue(`TRK-${stamp}`, { timeout: 15000 });
     await expect(page.locator('input[type="hidden"][name="leg1_departedOn"]')).toHaveValue(daysAgo(4));
 
     // And back a step and forward again.
-    await page.getByRole('button', { name: 'Back' }).click();
+    // exact: the wizard also has "Back to the cycle" now.
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await page.getByRole('button', { name: 'Continue' }).click();
     await expect(tracking).toHaveValue(`TRK-${stamp}`);
   });
@@ -337,7 +344,7 @@ test.describe('The cycle list', () => {
     await expect(row.getByTestId('cycle-roi')).toHaveText('—');
   });
 
-  test('TC-F1B-09: in Arabic the first chip is "All", resume is translated, statuses are words', async ({
+  test('TC-F1B-09: in Arabic the first chip is "All", Continue setup is translated, statuses are words', async ({
     page,
   }) => {
     await login(page, 'ar');
@@ -347,6 +354,7 @@ test.describe('The cycle list', () => {
 
     const body = await page.locator('main').innerText();
     expect(body).not.toContain('Click to resume');
+    expect(body).not.toContain(en.cycles.continueSetup);
     expect(body).not.toContain('Filter');
     // Status codes were shown as raw keys ("purchasing") before.
     expect(body).not.toMatch(/\b(planning|purchasing|inTransit|PURCHASING|IN_TRANSIT)\b/);

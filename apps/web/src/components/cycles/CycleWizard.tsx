@@ -38,6 +38,8 @@ import {
 
 import { useApiError } from '../../lib/api-error';
 import { FieldWithQuickCreate } from '../ui/quick-create';
+import { RowAction } from '../ui/fields';
+import { BackLink } from '../ui/back-link';
 import { ValidatedForm } from '@/components/ui/validated-form';
 // ---------------------------------------------------------------------------
 // Constants
@@ -957,6 +959,16 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* A cycle that exists has a page of its own, and the list now opens
+          that page; this is the way back to it without finishing the wizard.
+          Leaving keeps what was typed — the draft store holds it. */}
+      {existingCycleId && (
+        <BackLink
+          label={t('backToCycle')}
+          onClick={() => router.push(`/${locale}/cycles/${existingCycleId}/details`)}
+        />
+      )}
+
       {/* Restored draft.
 
           Reopening onto a half-filled form with no explanation reads as a bug,
@@ -1174,7 +1186,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           <ValidatedForm onSubmit={handleStep2Submit} className="space-y-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('purchaseOrder')}</h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('supplier')} <span className="text-red-500">*</span>
@@ -1223,7 +1235,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('fxRateToEgp')} <span className="text-red-500">*</span>
@@ -1289,9 +1301,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     <div
                       key={idx}
                       data-testid="wizard-line-item"
-                      className="flex items-end gap-2 bg-gray-50 rounded-lg p-3"
+                      className="field-row flex flex-wrap gap-2 bg-gray-50 rounded-lg p-3 sm:flex-nowrap"
                     >
-                      <div className="flex-1">
+                      <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('product')}
                         </label>
@@ -1313,7 +1325,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         </FieldWithQuickCreate>
                       </div>
 
-                      <div className="w-20">
+                      <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('qty')}
                         </label>
@@ -1332,7 +1344,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         />
                       </div>
 
-                      <div className="w-24">
+                      <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('unitPrice')}
                         </label>
@@ -1346,7 +1358,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         />
                       </div>
 
-                      <div className="w-20">
+                      <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">
                           {t('discount')}
                         </label>
@@ -1359,14 +1371,16 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         />
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeLineItem(idx)}
-                        aria-label={t('removeItem')}
-                        className="p-1.5 text-red-400 hover:text-red-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      <RowAction labelClassName="block text-xs text-gray-500 mb-1">
+                        <button
+                          type="button"
+                          onClick={() => removeLineItem(idx)}
+                          aria-label={t('removeItem')}
+                          className="p-1.5 text-red-400 hover:text-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </RowAction>
                     </div>
                   ))}
                 </div>
@@ -1435,7 +1449,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     <h3 className="text-sm font-semibold text-gray-900">{leg.label}</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t('shippingProvider')} <span className="text-red-500">*</span>
@@ -1479,7 +1493,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t('origin')} <span className="text-red-500">*</span>
@@ -1508,7 +1522,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t('departedOn')}{' '}
@@ -1631,7 +1645,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   {addableUsers.length === 0 ? (
                     <p className="text-xs text-gray-400">{t('everyoneIsOn')}</p>
                   ) : (
-                    <div className="flex flex-wrap items-end gap-2">
+                    <div className="field-row flex flex-wrap gap-2">
                       <div className="min-w-[12rem] flex-1">
                         <label className="block text-[11px] text-gray-500 mb-1">
                           {t('investorPerson')}
@@ -1679,15 +1693,17 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void addInvestor()}
-                        disabled={!investorUserId || isAddingInvestor}
-                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        {isAddingInvestor && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {t('addInvestorAction')}
-                      </button>
+                      <RowAction labelClassName="block text-[11px] text-gray-500 mb-1">
+                        <button
+                          type="button"
+                          onClick={() => void addInvestor()}
+                          disabled={!investorUserId || isAddingInvestor}
+                          className="inline-flex h-full items-center gap-2 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {isAddingInvestor && <Loader2 className="h-3 w-3 animate-spin" />}
+                          {t('addInvestorAction')}
+                        </button>
+                      </RowAction>
                     </div>
                   )}
                 </div>

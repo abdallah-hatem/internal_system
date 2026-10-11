@@ -229,7 +229,6 @@
     "transition": "Change Status",
     "contribution": "Contribution",
     "addParticipant": "Add Participant",
-    "timeline": "Timeline",
     "currency": "Currency",
     "startDate": "Start Date",
     "planning": "Planning",
@@ -265,9 +264,7 @@
     "settlement": "Settlement",
     "splitEqually": "Split equally",
     "all": "All",
-    "clickToResume": "Click to resume",
-    "tapToResume": "Tap to resume",
-    "resume": "Resume",
+    "continueSetup": "Continue setup",
     "profit": "Profit",
     "roi": "ROI",
     "emptyTitle": "No import cycles yet",
@@ -896,7 +893,8 @@
     "finishHint": "Finishing moves the cycle only as far as the shipping dates allow. Deliveries are recorded and received into stock on the cycle page as they arrive.",
     "finished": "Cycle saved — {status}",
     "finishFailed": "The cycle could not be moved on",
-    "baseCurrency": "base currency"
+    "baseCurrency": "base currency",
+    "backToCycle": "Back to the cycle"
   },
   "settlementsPage": {
     "title": "Settlements",

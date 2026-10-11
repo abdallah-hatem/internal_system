@@ -387,7 +387,7 @@ export default function ShipmentsPage() {
             }}
             className="space-y-4"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
                 <Select
@@ -405,12 +405,12 @@ export default function ShipmentsPage() {
               <InputField label={t('sequence')} name="sequence" type="number" required placeholder="0" />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField label={t('origin')} name="origin" required />
               <InputField label={t('destination')} name="destination" required />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('provider')}<span className="text-red-500 ms-1">*</span>
@@ -471,7 +471,7 @@ export default function ShipmentsPage() {
             }}
             className="space-y-4"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField label={t('departedOn')} name="departedOn" type="date" defaultValue={editingShipment.departedOn} />
               <div>
                 <p className="mb-1 block text-sm font-medium text-foreground">{t('arrivedOn')}</p>
@@ -492,7 +492,7 @@ export default function ShipmentsPage() {
               </Link>
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('provider')}</label>
                 <FieldWithQuickCreate

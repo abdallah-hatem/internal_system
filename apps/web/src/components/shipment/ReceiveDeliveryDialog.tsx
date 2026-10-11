@@ -159,7 +159,7 @@ export function ReceiveDeliveryDialog({
             const id = row.id;
             const unit = costs.get(row.purchaseOrderItemId);
             return (
-              <li key={id} className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-[1fr_7rem_8rem_9rem] sm:items-center">
+              <li key={id} className="field-row grid grid-cols-2 gap-3 p-3 sm:grid-cols-[1fr_7rem_8rem_9rem]">
                 <div className="col-span-2 min-w-0 sm:col-span-1">
                   <LatinText truncate className="text-sm font-medium text-foreground">
                     {productNames[row.purchaseOrderItemId] ?? '—'}
@@ -188,7 +188,7 @@ export function ReceiveDeliveryDialog({
                 </label>
                 <div className="text-xs text-muted-foreground">
                   {t('landedUnitCost')}
-                  <p data-testid="receive-unit-cost" className="mt-1 py-2 text-sm text-foreground">
+                  <p data-testid="receive-unit-cost" className="mt-1 flex h-(--field-h) items-center text-sm text-foreground">
                     {unit !== undefined ? <Money value={unit} /> : '—'}
                   </p>
                 </div>

@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales).
+Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed).
 
 ---
 
@@ -108,6 +108,20 @@ cycle.
 Rate-based legs derive their total rather than asking for it, so the per-piece
 rate itself stays on the record. A leg can be priced in another currency with an
 FX rate; everything lands in EGP.
+
+**DECIDED 2026-10-11 (owner) — opening a cycle opens its page, and its status
+is changed there.** Clicking a cycle on the list, as a table row or a phone card,
+always opens the cycle's details page, whatever its status. A cycle still being
+set up (planning through arrived Egypt) is resumed in the wizard by a separate
+**Continue setup**, shown on the row, the card and the details header, and only
+to a role that may write a cycle (a core partner); the wizard links back to the
+cycle. Moving a cycle to another status is a **Change status** button on the
+details page, shown only to a core partner and only while the status has
+somewhere to go; it offers exactly the moves the server allows (the table in
+`apps/api/src/common/cycle-transitions.ts`), and the server still refuses a move
+the shipment's dates do not support (table above). The list has no status
+control: the slide-over that held it could no longer be reached once a row
+opened the details page, and was removed.
 
 ---
 

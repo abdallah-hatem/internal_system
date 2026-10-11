@@ -76,7 +76,7 @@ export function QuickCreate({
         title={title ?? t(config.titleKey)}
         aria-label={title ?? t(config.titleKey)}
         data-quick-create={entity}
-        className="shrink-0 inline-flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        className="shrink-0 inline-flex h-(--field-h) w-(--field-h) items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -191,16 +191,13 @@ export function FieldWithQuickCreate({
   children: React.ReactNode;
 }) {
   return (
-    // The + lines up with the field's box, not with the bottom of the whole
-    // block: when the field shows its error under itself ("Required"), the
-    // block grows by that line and an items-end + would drop beside the error.
-    // The error line is mt-1 + one text-xs line = 20px, so the + gets that
-    // much room below it whenever an error is showing.
-    <div className="group flex items-end gap-2">
+    // A `field-row`, so the + lines up with the field's box — top and bottom,
+    // the box being the shared row height — and the "Required" the field
+    // shows under itself grows the block downward without moving the +. This
+    // replaces a margin that guessed the error line's height (see globals.css).
+    <div className="field-row flex gap-2">
       <div className="min-w-0 flex-1">{children}</div>
-      <div className="shrink-0 group-has-[[role=alert]]:mb-5">
-        <QuickCreate entity={entity} onCreated={onCreated} />
-      </div>
+      <QuickCreate entity={entity} onCreated={onCreated} />
     </div>
   );
 }
