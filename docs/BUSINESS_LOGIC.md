@@ -941,7 +941,7 @@ the customer's page and a payment recorded against a chosen order (§7) do both
 in one action.
 
 **DECIDED 2026-10-11 (owner, mockup accepted) — a manual entry can't lie.**
-*Built 2026-10-11 (L6), phase 1: API, form, unit tests; browser check pending.*
+*Built 2026-10-12 (L6): API, form, unit tests and the browser e2e (spec 99-ledger-entry, 34 TC-INV-54..58).*
 The ledger's "New Entry" form offered system types like Purchase, a free-text
 category, an Inflow/Outflow radio, a free-text cycle id and no date, and
 `POST /ledger` saved whatever it was sent — a partner could write `purchase`,
