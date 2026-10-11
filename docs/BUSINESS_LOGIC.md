@@ -976,6 +976,8 @@ profit or a settlement. Now "Record money in or out":
 - **The date** is its own column, `occurred_on`, the Cairo day the money moved;
   today by default. Rows written before this have none and show when they were
   entered, as they always did.
+- **A reversal is dated the day it is undone** (Cairo), not the original's day, and carries the original's
+  foreign amount and currency so both rows read the same money.
 - **Old rows keep working.** A free-text category written before this shows as
   written, still counts as it did, and can still be reversed.
 

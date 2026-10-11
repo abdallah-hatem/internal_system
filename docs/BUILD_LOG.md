@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L5 (leftover transfer) live in production 2026-10-12 (`6d03bc5`, migration 20261012100000_stock_transfers applied first, three deploys READY, smoke ok; alignment: code matches §8) · L6 phase 2 running (rename its migration to 20261012130000) · then L8 phase 2, L7
+Current stage: L6 merged 2026-10-12 (alignment: code matches §9; doc gained the reversal-date line) — shipping · L8 phase 2 next · L7 phase 1 next
 
 ## Waiting on the user
 _(none)_
