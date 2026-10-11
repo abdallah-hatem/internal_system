@@ -967,7 +967,7 @@ export function registerLenderTools(
         'We paid a friend (lender) back in pounds — "paid Mahmoud 50,000 pounds today", or "pay him off". It clears pounds ÷ that day\'s rate of what we owe him in his currency. ' +
         "The rate defaults to today's rate on the exchange-rate page (the preview says so); use the partner's rate when he gives one. payOff uses the exact pounds that settle the debt at that rate. " +
         'The friend is matched by exact name or id; a close or unknown name, an unsaid account when there are several, or which order when he is owed on several, comes back as a question with nothing to confirm. ' +
-        'Refused when it is more than is owed, dated in the future or before he paid, or the cycle is settled. ' +
+        'Refused when it is more than is owed, dated in the future or before he paid, or nothing is owed (a cycle settles only once its friends are repaid). ' +
         'The preview shows what it clears, what is still owed after and the exchange difference. Call without a confirmationToken to preview.',
       inputSchema: repaymentShape,
     },

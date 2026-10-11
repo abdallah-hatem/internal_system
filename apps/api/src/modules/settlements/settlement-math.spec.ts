@@ -342,6 +342,33 @@ describe('distributeCycleProfit', () => {
       ]);
     });
   });
+
+  describe('the rounding residual (§8 guess, 2026-10-11)', () => {
+    it('an agreed split whose last participant has 0% gives the residual to the last non-zero share, not to him', () => {
+      // Thirds to four places leave 0.01 over on 100.00. Before L2 the last
+      // line took it, so D — agreed 0% — was paid a piastre.
+      const withPct = (id: string, pct: string) => ({
+        ...partner(id, 10_000),
+        customProfitPct: D(pct),
+      });
+      const r = distributeCycleProfit(
+        [
+          withPct('A', '33.3333'),
+          withPct('B', '33.3333'),
+          withPct('C', '33.3334'),
+          withPct('D', '0'),
+        ],
+        D(100),
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '33.33',
+        '33.33',
+        '33.34',
+        '0.00',
+      ]);
+      expect(r.totals.grossProfit.toFixed(2)).toBe('100.00');
+    });
+  });
 });
 
 describe('summarizeCyclePnl', () => {

@@ -1227,8 +1227,11 @@ re-allocation, refund or instalment plan. Guesses, open until confirmed (2026-10
 The assistant reads and records a friend's loan the same two-call way, through the methods
 the office app's "Paid by a friend" and "Record repayment" call (`LendersService.finance`,
 `.repay`, `.quote`, `.list`, `.findOne`), so every guard there applies unchanged — not more
-than is left on the order, not more than is owed, not dated forward or before he paid, not on
-a cycle being settled, closed or cancelled. Roles are the office endpoints' (`lender-roles.ts`:
+than is left on the order, not more than is owed, not dated forward or before he paid, and no
+friend's payment on a cycle being settled, closed or cancelled. A repayment has no status check
+of its own and needs none: a cycle reaches settlement only once its friends are repaid, and is
+cancelled only once his payment was removed, so a repayment there is refused as nothing owed
+(`LENDER_NOT_OWED`, or `LENDER_REPAYMENT_EXCEEDS_OWED` with the order named). Roles are the office endpoints' (`lender-roles.ts`:
 reading for core partners and admin support, writing for core partners; the assistant itself
 admits only core partners). Four tools:
 - `list_lenders` — every friend still owed: per currency, and in pounds at today's rate on the

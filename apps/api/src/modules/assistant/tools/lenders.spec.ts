@@ -252,6 +252,23 @@ class FakeDb {
         rows[i] = { ...rows[i], ...(args.data as Row) };
         return Promise.resolve(this.shape(table, rows[i], args));
       },
+      delete: (args: Row) => {
+        const rows = this.tables[table];
+        const i = rows.findIndex((r) => this.matches(r, args.where as Row));
+        if (i < 0) return Promise.reject(new Error(`fake db: no ${table}`));
+        const [row] = rows.splice(i, 1);
+        return Promise.resolve(row);
+      },
+      updateMany: (args: Row) => {
+        const rows = this.tables[table];
+        let count = 0;
+        rows.forEach((r, i) => {
+          if (!this.matches(r, args.where as Row)) return;
+          rows[i] = { ...r, ...(args.data as Row) };
+          count++;
+        });
+        return Promise.resolve({ count });
+      },
       aggregate: (args: Row) => {
         const sumOf = Object.keys((args._sum as Row) ?? {})[0];
         const rows = all(args);
@@ -1059,5 +1076,161 @@ describe('LendersService.finance — the guard lives in the service, not only th
       ).rejects.toMatchObject({ response: { code: 'AMOUNT_NOT_POSITIVE' } });
     }
     expect(db.tables.lenderFinancing).toHaveLength(1);
+  });
+});
+
+// ── The cases the L2 alignment review asked to see (§16, §18) ─────────────
+
+describe('lender tools — the documented cases, each named (L2 review)', () => {
+  const cycleRow = () => db.tables.importCycle.find((c) => c.id === ids.cycle)!;
+
+  it('newLender sent for a friend who already exists by exact name uses that friend and creates no duplicate', async () => {
+    const args = { ...paid30k, newLender: true };
+    const preview = await finance(args);
+    expect(preview.s.status).toBe('preview');
+    expect(preview.s.data!.lender).toEqual({
+      id: ids.mahmoud,
+      name: 'Mahmoud',
+      isNew: false,
+    });
+    expect(preview.text).not.toContain('added as a new lender');
+
+    const done = await finance({
+      ...args,
+      confirmationToken: preview.s.confirmationToken,
+    });
+    expect(done.s.status).toBe('committed');
+    expect(db.tables.lender.filter((l) => l.name === 'Mahmoud')).toHaveLength(
+      1,
+    );
+    expect(
+      db.tables.lenderFinancing.filter((f) => f.lenderId === ids.mahmoud),
+    ).toHaveLength(1);
+  });
+
+  it('a repayment dated before the friend paid the supplier is refused, nothing written', async () => {
+    await mahmoudPaid(); // paid 20 days ago
+    const before = db.counts();
+    const r = await repay({
+      lender: 'Mahmoud',
+      amountEgp: 1000,
+      account: 'Cash Box',
+      paidOn: daysAgo(25),
+    });
+    expect(codeOf(r)).toBe('LENDER_REPAYMENT_BEFORE_FINANCING');
+    expect(r.s.confirmationToken).toBeUndefined();
+    expect(db.counts()).toEqual(before);
+  });
+
+  it("a friend's payment on a cycle in settlement, closed or cancelled is refused, nothing written", async () => {
+    for (const status of ['SETTLEMENT', 'CLOSED', 'CANCELLED']) {
+      cycleRow().status = status;
+      const before = db.counts();
+      const r = await finance(paid30k);
+      expect([status, codeOf(r)]).toEqual([
+        status,
+        'CYCLE_CLOSED_FOR_FINANCING',
+      ]);
+      expect(r.s.confirmationToken).toBeUndefined();
+      expect(db.counts()).toEqual(before);
+    }
+  });
+
+  /**
+   * A cycle reaches SETTLEMENT or CLOSED only once every friend on it is
+   * repaid (§18 settlement gate), and CANCELLED only once his payment was
+   * removed. Those are the states built here (CLAUDE.md §4): a repayment on
+   * such a cycle has nothing to clear, and is refused both ways it can be
+   * asked — with the order named and without.
+   */
+  it('a repayment on a cycle in settlement, closed or cancelled is refused, nothing written', async () => {
+    const f = await mahmoudPaid();
+    await lendersService.repay(
+      f,
+      { amountEgp: 390000, rateToEgp: 13, accountId: ids.cash },
+      partner.id,
+    );
+    for (const status of ['SETTLEMENT', 'CLOSED']) {
+      cycleRow().status = status;
+      const before = db.counts();
+      const unnamed = await repay({
+        lender: 'Mahmoud',
+        amountEgp: 1000,
+        account: 'Cash Box',
+      });
+      expect([status, codeOf(unnamed)]).toEqual([status, 'LENDER_NOT_OWED']);
+      const named = await repay({
+        lender: 'Mahmoud',
+        amountEgp: 1000,
+        account: 'Cash Box',
+        order: 'PO-2026-0004',
+      });
+      expect([status, codeOf(named)]).toEqual([
+        status,
+        'LENDER_REPAYMENT_EXCEEDS_OWED',
+      ]);
+      expect(db.counts()).toEqual(before);
+    }
+
+    // Cancelled: his payment on it was removed first (§18 "Which cycles").
+    cycleRow().status = 'PURCHASING';
+    const { data: hassan } = await lendersService.finance(
+      ids.po5,
+      { lenderId: ids.mahmoudHassan, amount: 1000 },
+      partner.id,
+    );
+    await lendersService.removeFinancing(
+      hassan.id,
+      'cycle cancelled',
+      partner.id,
+    );
+    cycleRow().status = 'CANCELLED';
+    const before = db.counts();
+    const unnamed = await repay({
+      lender: 'Mahmoud Hassan',
+      amountEgp: 100,
+      account: 'Cash Box',
+    });
+    expect(codeOf(unnamed)).toBe('LENDER_NOT_OWED');
+    const named = await repay({
+      lender: 'Mahmoud Hassan',
+      amountEgp: 100,
+      account: 'Cash Box',
+      order: 'PO-2026-0005',
+    });
+    expect(codeOf(named)).toBe('NOT_FOUND');
+    expect(db.counts()).toEqual(before);
+  });
+
+  it('a new friend stays on file, owing nothing, when his payment is refused after he was added (the two-step path)', async () => {
+    // The race the two steps leave open: the cycle is cancelled after the
+    // bound preview was re-checked and after he was added, before his
+    // payment is written. Simulated at exactly that point.
+    const create = lendersService.create.bind(lendersService);
+    jest
+      .spyOn(lendersService, 'create')
+      .mockImplementation(async (...a: Parameters<typeof create>) => {
+        const made = await create(...a);
+        cycleRow().status = 'CANCELLED';
+        return made;
+      });
+    const args = { ...paid30k, lender: 'Khaled', newLender: true };
+    const preview = await finance(args);
+    expect(preview.s.status).toBe('preview');
+
+    const r = await finance({
+      ...args,
+      confirmationToken: preview.s.confirmationToken,
+    });
+    expect(codeOf(r)).toBe('CYCLE_CLOSED_FOR_FINANCING');
+
+    const khaled = db.tables.lender.filter((l) => l.name === 'Khaled');
+    expect(khaled).toHaveLength(1);
+    expect(
+      db.tables.lenderFinancing.filter((f) => f.lenderId === khaled[0].id),
+    ).toHaveLength(0);
+    const shown = await call('get_lender', { lender: 'Khaled' });
+    expect(shown.s.data!.owed).toEqual([]);
+    expect(shown.s.data!.financings).toEqual([]);
   });
 });
