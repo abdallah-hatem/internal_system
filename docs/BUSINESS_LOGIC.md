@@ -711,6 +711,13 @@ open (or to a new cycle started for them). Exactly how:
 - **Undo:** only while none of the moved units has sold in B and A has not been paid out. After that it is permanent.
 - **Who:** core partners.
 
+**DECIDED 2026-10-11 (owner) — general running costs are the three core partners', in equal shares.** *Planned, L7.*
+An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by the active core partners.
+Temporary investors never share it. It is not taken out of any settlement: cycle profits stay the shipment's own.
+It lives on the Partners page as **Running costs**: a period picker (default this quarter), what was spent by
+category, and each core partner's share beside the profit he earned. The partners' totals row gains a Running costs
+figure. An expense charged to a cycle is that cycle's cost instead and is not counted here.
+
 **Reversing a settlement writes balancing entries and reopens the cycle.** It
 never rewrites history. A reason is required.
 

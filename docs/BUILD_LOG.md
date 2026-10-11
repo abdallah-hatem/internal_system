@@ -13,6 +13,7 @@ _(none)_
 _(none)_
 
 ## Next up
+- L7 queued: Running costs on the Partners page — general expenses split equally among the core partners (owner 2026-10-11, §8). After L6 (ledger form).
 - L3 building: status follows departures/deliveries (owner 2026-10-11); no money account on a friend's repayment
   (owner); amount inputs start-aligned app-wide (owner screenshot).
 - L4 phase 1 building (no DB, beside L3): below-cost warning wherever a selling price is set — sale form, walk-in,
