@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Loader2 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
 export interface DayRange {
@@ -26,11 +27,17 @@ export function DateRangeFilter({
   value,
   onChange,
   idPrefix,
+  busy = false,
 }: {
   value: DayRange;
   onChange: (next: DayRange) => void;
   /** Names the two pickers (`<prefix>From`, `<prefix>To`) for tests. */
   idPrefix: string;
+  /**
+   * The list under it is loading the range just picked, and still shows the
+   * previous one (I2): a small busy sign here, never a blank list.
+   */
+  busy?: boolean;
 }) {
   const t = useTranslations('common');
 
@@ -63,6 +70,16 @@ export function DateRangeFilter({
         >
           {t('clearDates')}
         </button>
+      )}
+      {busy && (
+        <span
+          role="status"
+          data-testid={`${idPrefix}-reloading`}
+          className="col-span-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {t('loading')}
+        </span>
       )}
     </div>
   );

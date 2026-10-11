@@ -1,4 +1,4 @@
-import { useQuery, type QueryKey } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, type QueryKey } from '@tanstack/react-query';
 import { api } from './api';
 
 /**
@@ -63,16 +63,27 @@ export function useAllRecords<T = any>( // eslint-disable-line @typescript-eslin
   queryKey: QueryKey,
   path: string,
   params?: Params,
-  options: { enabled?: boolean } = {},
+  options: {
+    enabled?: boolean;
+    /**
+     * Keep showing the rows already on screen while a new filter loads (I2),
+     * rather than dropping to a spinner and back: `reloading` says when the
+     * rows are the previous filter's.
+     */
+    keepPrevious?: boolean;
+  } = {},
 ) {
+  const { keepPrevious, ...rest } = options;
   const query = useQuery({
     queryKey,
     queryFn: () => fetchAll<T>(path, params),
-    ...options,
+    ...(keepPrevious ? { placeholderData: keepPreviousData } : {}),
+    ...rest,
   });
   return {
     ...query,
     items: (query.data?.items ?? NONE) as T[],
     capped: query.data?.capped ?? false,
+    reloading: query.isFetching && query.isPlaceholderData,
   };
 }

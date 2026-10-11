@@ -145,7 +145,7 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
       data-testid="customer-statement"
       data-print-doc
       aria-labelledby="statement-heading"
-      className="rounded-xl border border-border bg-card p-5"
+      className="rounded-xl border border-border bg-card p-4 sm:p-5"
     >
       {/* On paper: what this is, whose, and for when. */}
       <div className="mb-4 hidden print:block">
@@ -191,13 +191,7 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3 print:hidden">
-        <DateRangeFilter idPrefix="statement" value={range} onChange={setRange} />
-        {reloading && (
-          <span data-testid="statement-reloading" role="status" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {tc('loading')}
-          </span>
-        )}
+        <DateRangeFilter idPrefix="statement" value={range} onChange={setRange} busy={reloading} />
       </div>
 
       {error && (
