@@ -39,6 +39,38 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
 
+/**
+ * The customer list, reached from the menu, once it has actually loaded.
+ *
+ * These tests used to `page.goto` the list and click the filter at once, and
+ * flaked (I1, 2026-10-11) with "#verification-filter resolved to 2 elements".
+ * The page sits in a <Suspense> boundary, so a full load streams it: for a
+ * moment after `load` the whole page is a hidden `<div hidden id="S:0">` copy
+ * next to the one being swapped into place — two filters, or one that React
+ * has not yet attached its handler to. A person never sees the hidden copy
+ * and cannot click it; a test that clicks the instant `load` fires can.
+ *
+ * So: through the menu (a client navigation, no streamed copy), wait for the
+ * URL, wait for a row the API sent (rows exist only once the page is live and
+ * fetched), and look for controls inside <main> only. Waiting for a row also
+ * makes "the shop is not in the default list" a real check rather than one
+ * that passes because nothing has loaded yet.
+ */
+async function openCustomers(page: Page) {
+  await page.locator('aside a[href="/en/customers"]').click();
+  await expect(page).toHaveURL(/\/en\/customers$/, { timeout: 15000 });
+  const main = page.getByRole('main');
+  await expect(main.locator('table tbody tr').first()).toBeVisible({ timeout: 15000 });
+  return main;
+}
+
+async function showAwaitingReview(page: Page) {
+  const main = page.getByRole('main');
+  await main.locator('#verification-filter').click();
+  await page.getByRole('listbox').getByRole('option').filter({ hasText: /awaiting review/i }).first().click();
+  return main;
+}
+
 test.describe('Customer verification', () => {
   test('TC-VER-01: a self-signup is hidden by default and found under Awaiting review', async ({ page, request }) => {
     const h = await officeHeaders(request);
@@ -55,13 +87,12 @@ test.describe('Customer verification', () => {
 
     // …and the panel can now reach that list, which was the missing half.
     await login(page);
-    await page.goto(`${BASE}/en/customers`);
-    await expect(page.getByText(shopName).first()).toHaveCount(0);
+    const main = await openCustomers(page);
+    await expect(main.getByText(shopName)).toHaveCount(0);
 
-    await page.locator('#verification-filter').click();
-    await page.getByRole('listbox').getByRole('option').filter({ hasText: /awaiting review/i }).first().click();
-    await expect(page.getByText(shopName).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('tr', { hasText: shopName }).getByText(/awaiting review/i)).toBeVisible();
+    await showAwaitingReview(page);
+    await expect(main.getByText(shopName).first()).toBeVisible({ timeout: 10000 });
+    await expect(main.locator('tr', { hasText: shopName }).getByText(/awaiting review/i)).toBeVisible();
   });
 
   test('TC-VER-02: verifying from the panel moves the shop into the real list', async ({ page, request }) => {
@@ -69,11 +100,10 @@ test.describe('Customer verification', () => {
     const { shopName } = await signUpShop(request);
 
     await login(page);
-    await page.goto(`${BASE}/en/customers`);
-    await page.locator('#verification-filter').click();
-    await page.getByRole('listbox').getByRole('option').filter({ hasText: /awaiting review/i }).first().click();
+    await openCustomers(page);
+    const main = await showAwaitingReview(page);
 
-    const row = page.locator('tr', { hasText: shopName });
+    const row = main.locator('tr', { hasText: shopName });
     await expect(row).toBeVisible({ timeout: 10000 });
     await row.getByTitle('Verify').click();
     await page.getByRole('button', { name: /^verify$/i }).last().click();

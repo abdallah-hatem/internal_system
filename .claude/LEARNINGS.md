@@ -173,6 +173,21 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   about, and it is not in tension with the one above — narrow while iterating, wide before
   it ships. — 2026-09-02
 
+## Tests that click the moment a page changes
+
+- A nav click starts a client navigation; it does not finish one. TC-RP-06 clicked the
+  customers link and then `getByText(<shop>)` — which, late in a full run with a slow route
+  change, matched the shop's name in the *dashboard's* recent activity (plain text), clicked
+  it, and the customer list arrived afterwards: "left on the list". Wait for the URL, and
+  look inside `getByRole('main')` for the thing a person would click. Reproduced by delaying
+  the route with `page.route`: 3/3 fail before, 3/3 pass after. — 2026-10-11
+- `page.goto` to a page wrapped in `<Suspense>` streams it: for a moment after `load` the
+  page is a `<div hidden id="S:0">` copy beside the one being swapped in, so an id matches
+  twice ("strict mode violation … resolved to 2 elements", spec 57, 1 in 140) or the click
+  lands before React attached the handler. Reach the page through the menu, wait for a row
+  the API sent, scope to `main`. Found from the failure's trace snapshot, not by guessing.
+  — 2026-10-11
+
 ## Running a suite against another suite
 
 - Run the combination, not the parts. Two Playwright projects in one config share a database:
