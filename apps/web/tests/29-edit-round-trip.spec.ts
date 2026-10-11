@@ -359,7 +359,7 @@ test.describe('FX rates reach the forms', () => {
     request,
   }) => {
     // Going back to ARRIVED_EGYPT is the only way into the wizard to correct a
-    // shipping leg, so the list offers "Resume" — but stock can only be
+    // shipping leg, so the list offers "Continue setup" — but stock can only be
     // received once, and pressing Complete used to fail at the last click with
     // "Stock already verified".
     //
@@ -422,9 +422,9 @@ test.describe('FX rates reach the forms', () => {
     await page.goto(`${BASE}/en/cycles`);
     const listRow = page.locator('tr', { hasText: code });
     await expect(listRow).toContainText(/arrived/i, { timeout: 15000 });
-    await expect(listRow).toContainText(/resume/i);
-    await listRow.click();
-    await expect(page).toHaveURL(new RegExp(cycleId), { timeout: 15000 });
+    // A row opens the details page; the wizard is its "Continue setup".
+    await listRow.getByTestId('continue-setup').click();
+    await expect(page).toHaveURL(new RegExp(`/cycles/${cycleId}$`), { timeout: 15000 });
 
     // Step 4 is the money; nothing offers to receive the stock again.
     const finish = page.getByRole('button', { name: /^finish$/i });
