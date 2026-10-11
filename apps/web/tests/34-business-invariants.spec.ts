@@ -17,7 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
+import { anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
 import { psqlStdin } from './support/database';
 
 /**
@@ -962,7 +962,12 @@ test.describe('A payment is reversed once (§7 — found 2026-10-11)', () => {
  * every unit received — so the only thing between the cycle and settlement is
  * whatever a friend is still owed. Built the business's way (rule 4).
  */
-async function friendCycle(request: APIRequestContext, label: string) {
+async function friendCycle(
+  request: APIRequestContext,
+  label: string,
+  opts: { freight?: number; partnersFund?: boolean } = {},
+) {
+  const freight = opts.freight ?? 13000;
   const { headers, mk } = await apiCtx(request);
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const product = await mk('products', { name: `${label} ${stamp} Part`, minStock: 0 });
@@ -974,7 +979,7 @@ async function friendCycle(request: APIRequestContext, label: string) {
   });
   await mk(`cycles/${cycle.id}/shipping-legs`, {
     sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
-    costBasis: 'FLAT', amount: 13000, currency: 'EGP', fxRateToEgp: 1,
+    costBasis: 'FLAT', amount: freight, currency: 'EGP', fxRateToEgp: 1,
     departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-10),
   });
   for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
@@ -988,7 +993,7 @@ async function friendCycle(request: APIRequestContext, label: string) {
   });
   // The partners fund the freight, the friend the goods (§18 "Split equally").
   const partners = ((full.data ?? full).participants as any[]).filter((p) => p.participantType === 'CORE_PARTNER');
-  for (const [i, p] of partners.entries()) {
+  for (const [i, p] of (opts.partnersFund === false ? [] : partners).entries()) {
     const share = i === partners.length - 1 ? 13000 - 4333.33 * (partners.length - 1) : 4333.33;
     const res = await request.put(`${API}/cycles/participants/${p.id}`, { headers, data: { contributionAmount: share } });
     expect(res.ok(), await res.text()).toBeTruthy();
@@ -996,7 +1001,7 @@ async function friendCycle(request: APIRequestContext, label: string) {
   const accounts = (await (await request.get(`${API}/ledger/accounts`, { headers })).json()).data;
   const account = accounts.find((a: any) => a.currency === 'EGP');
   const lender = await mk('lenders', { name: `${label} Friend ${stamp}` });
-  return { headers, mk, cycle, po, lender, account, stamp };
+  return { headers, mk, cycle, po, lender, account, stamp, product, partners };
 }
 
 const codeOf = async (res: any) => (await res.json()).error?.code;
@@ -1355,5 +1360,96 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
     expect(owed.missingRate).toBe(true);
     // Not counted as zero pounds, and not counted at the order's rate either.
     expect(Number(owed.totalEgp)).toBeCloseTo(Number(before.totalEgp), 2);
+  });
+});
+
+// ─── A cycle a friend paid for entirely (owner decision 2026-10-11, §8 §18) ──
+
+test.describe('A cycle a friend paid for entirely splits its profit equally among its partners (§8, §18 — L2)', () => {
+  /**
+   * 30,000 AED at 13.00 (390,000 EGP) paid by the friend, free freight, so the
+   * partners are asked for nothing; the friend repaid at the order's own rate
+   * (no exchange difference); all 100 sold for 480,000 — 90,000 of profit.
+   */
+  async function soldFriendCycle(request: APIRequestContext, label: string, freight: number) {
+    const built = await friendCycle(request, label, { freight, partnersFund: false });
+    const { mk, po, lender, account, product, stamp } = built;
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000 });
+    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 390000, rateToEgp: 13 });
+    const shop = await mk('customers', { displayName: `${label} Shop ${stamp}`, type: 'B2B' });
+    await mk('sales/orders', {
+      customerId: shop.id, channel: 'B2B', currency: 'EGP', confirm: true,
+      items: [{ productId: product.id, quantity: 100, unitPrice: 4800, discount: 0 }],
+    });
+    return built;
+  }
+
+  test('TC-INV-45: 90,000 of profit, three partners who put in nothing and an investor on it — 30,000 each and nothing to him; preview, approve and the partners page agree', async ({ request }) => {
+    const { headers, mk, cycle, stamp } = await soldFriendCycle(request, 'Inv L2 Whole', 0);
+    const investor = await anInvestorUser(request, headers);
+    await mk(`cycles/${cycle.id}/participants`, {
+      participantType: 'TEMP_INVESTOR', investorUserId: investor.id, contributionAmount: 0, investorFeePct: 15,
+    });
+    const costing = (await (await request.get(`${API}/costing/cycles/${cycle.id}/landed-cost`, { headers })).json());
+    expect([costing.totals.landedEgp, costing.totals.lenderFinancedEgp, costing.totals.toFundEgp]).toEqual(['390000.00', '390000.00', '0.00']);
+
+    const participants: any[] = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data.participants;
+    const core = participants.filter((p) => p.participantType === 'CORE_PARTNER');
+    const inv = participants.find((p) => p.participantType === 'TEMP_INVESTOR');
+    expect(core).toHaveLength(3);
+    expect(participants.every((p) => Number(p.contributionAmount) === 0)).toBeTruthy();
+
+    // Preview.
+    const pr = await request.get(`${API}/settlements/preview/${cycle.id}`, { headers });
+    expect(pr.status(), await pr.text()).toBe(200);
+    const preview = (await pr.json()).data;
+    expect(preview.grossProfitEgp).toBe('90000.00');
+    const line = (id: string) => preview.lines.find((l: any) => l.participantId === id);
+    expect(core.map((p) => line(p.id).payoutEgp)).toEqual(['30000.00', '30000.00', '30000.00']);
+    expect([line(inv.id).payoutEgp, line(inv.id).sharePct]).toEqual(['0.00', '0.0000']);
+
+    // The partners page shows the same split before it settles.
+    const participation: any[] = (await (await request.get(`${API}/users/participation`, { headers })).json()).data;
+    const accruedOn = (userId: string) =>
+      participation.find((u) => u.id === userId)?.cycles.find((c: any) => c.id === cycle.id)?.accruedProfitEgp;
+    expect(core.map((p) => accruedOn(p.partnerUserId))).toEqual([30000, 30000, 30000]);
+    // The cycle's own profit, as the dashboard reads it.
+    const prof: any[] = (await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data;
+    expect(prof.find((c) => c.cycleId === cycle.id).profit).toBe(90000);
+
+    // Calculate and approve: the same figures are settled.
+    const draft = await mk(`settlements/calculate/${cycle.id}`, {});
+    const ok = await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} });
+    expect(ok.status(), await ok.text()).toBe(201);
+    const settled = (await ok.json()).data;
+    const profitOf = (pid: string) =>
+      settled.lines.filter((l: any) => l.participantId === pid && l.component === 'PROFIT_SHARE').map((l: any) => Number(l.amount));
+    expect(core.map((p) => profitOf(p.id))).toEqual([[30000], [30000], [30000]]);
+    expect(profitOf(inv.id)).toEqual([0]);
+    expect(settled.lines.filter((l: any) => l.component === 'INVESTOR_FEE')).toEqual([]);
+    expect(stamp).toBeTruthy();
+  });
+
+  test('TC-INV-46: a cycle a friend paid for only partly, with nothing recorded from the partners, still refuses — preview and calculate alike', async ({ request }) => {
+    const { headers, cycle } = await soldFriendCycle(request, 'Inv L2 Part', 13000);
+    const costing = (await (await request.get(`${API}/costing/cycles/${cycle.id}/landed-cost`, { headers })).json());
+    expect(costing.totals.toFundEgp).toBe('13000.00');
+    const pr = await request.get(`${API}/settlements/preview/${cycle.id}`, { headers });
+    expect(pr.status()).toBe(400);
+    expect(await codeOf(pr)).toBe('CYCLE_NOT_FUNDED');
+    const calc = await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers, data: {} });
+    expect(calc.status()).toBe(400);
+    expect(await codeOf(calc)).toBe('CYCLE_NOT_FUNDED');
+  });
+
+  test('TC-INV-47: a custom split still overrides the equal one on a cycle a friend paid for entirely', async ({ request }) => {
+    const { headers, cycle, partners } = await soldFriendCycle(request, 'Inv L2 Custom', 0);
+    const pcts = [50, 30, 20];
+    for (const [i, p] of partners.entries()) {
+      const res = await request.put(`${API}/cycles/participants/${p.id}`, { headers, data: { customProfitPct: pcts[i] } });
+      expect(res.ok(), await res.text()).toBeTruthy();
+    }
+    const preview = (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;
+    expect(partners.map((p: any) => preview.lines.find((l: any) => l.participantId === p.id).payoutEgp)).toEqual(['45000.00', '27000.00', '18000.00']);
   });
 });

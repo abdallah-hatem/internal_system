@@ -659,6 +659,22 @@ Naming participants when creating a cycle overrides the default entirely.
 **Distribution defaults to actual contribution.** 80k / 100k / 120k gives
 26.67% / 33.33% / 40%. A custom split can be agreed per cycle.
 
+**DECIDED 2026-10-11 (owner) — a cycle a friend paid for entirely splits its
+profit equally among its core partners.** *Built 2026-10-11 (L2).* When every
+participant's contribution is zero and friends' payments cover the cycle's whole
+cost to fund (§18: the costing's "to fund" is zero and a friend paid something),
+the profit — or the loss — goes equally to the cycle's core partners. A temporary
+investor on it put in nothing and takes nothing (no share, no fee). A custom split
+still overrides it. Every other cycle with no contributions still refuses
+(`CYCLE_NOT_FUNDED`): a cycle a friend paid for only partly, or one nobody paid
+for at all — rounding must never decide who gets the money (working rules §10).
+Settlement preview, calculate/approve and the partners page all read the one
+projection, so they agree. Guess made while building it (2026-10-11, open until
+confirmed): the rounding residual goes to the last participant whose share is
+not zero — not to an investor on the cycle who takes nothing; for every split
+that already existed this is the same last line as before unless that line's
+share was zero.
+
 **A temporary investor's fee comes out of their profit, never their capital.**
 50,000 gross profit at 15% is a 7,500 fee; the investor keeps 42,500 and their
 capital is returned in full. The fee line shown against the investor is a memo
@@ -1296,5 +1312,5 @@ confirms it.**
 | Who is told when one is late | Every active core partner, once per instalment, by the existing morning job. | §7. |
 | "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
 | "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
-| A cycle a friend paid for entirely | The partners put up nothing, so there is no contribution to split profit by and settling refuses as it already does for a cycle nobody funded (§8, working rules §10). Until the owner decides, set a custom profit split on the cycle. **OPEN.** | Refusing beats letting rounding pick who gets the money. |
+| A cycle a friend paid for entirely | **DECIDED 2026-10-11 by the owner, built in L2:** its profit is split equally among the cycle's core partners; a temporary investor on it gets nothing; a custom split still overrides. "Entirely" means every contribution is zero and the friends' payments leave nothing to fund (`toFundEgp` zero). A cycle a friend paid for only partly, with no contributions, still refuses (§8). | The owner's rule. Partly paid still refuses: rounding must not pick who gets the money. |
 | Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). The money accounts a repayment leaves from are listed at `GET /ledger/accounts`, which the ledger's own roles guard — core partners and admin support. A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |
