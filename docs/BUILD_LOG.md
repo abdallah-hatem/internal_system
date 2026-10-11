@@ -13,6 +13,14 @@ _(none)_
 _(none)_
 
 ## Next up
+- L1 built 2026-10-11 on `feature/l1-lender-financing` (§18, spec/plan `docs/superpowers/{specs,plans}/2026-10-11-lender-financing.md`):
+  lenders, "Paid by a friend" on the order and cycle page, repayments in pounds at the day's rate, plans, the settlement
+  gate, the dashboard's owed-to-lenders figure. Migration `20261011200000_lender_financing` — run `scripts/ship-prod.sh
+  migrate` before the deploy. Full e2e green (5 groups), check-data zero (new checks 19–19.5). Ship after the owner's go.
+  Owner to confirm the §18 guesses (rounding down, ledger rows, one friend per order, plans) — and decide the OPEN one:
+  a cycle a friend paid for entirely has no partner contributions, so settlement refuses until a custom split is set.
+  Seen while testing, not fixed: approving a settlement while a recalculation replaces its draft answers 500 (P2025)
+  instead of NOT_FOUND — a race between Calculate and Approve.
 - I3 nit: a leg that hasn't left reads "Not departed" twice in its header (badge + date slot).
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
 - I2 shipped 2026-10-11: assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
