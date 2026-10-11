@@ -468,6 +468,43 @@ A plan cannot promise more than the shop actually owes.
 
 ---
 
+## 7b. A customer's statement  — built 2026-10-11 (I2)
+
+On the shop's page: pick a range of days and read the balance it opened at, every
+sale, payment, return and payment reversal in date order with the balance after
+each, and the balance it closed at. Printed on A4 from the browser, or taken out as
+a CSV. Core partners and admin support only, as the shop's balance is.
+
+**The rule: a statement running to today closes at the balance the app shows** —
+the shop's page, the customers list, the payment form's "owes now". It is not a
+second set of rules: it replays, order by order, exactly what each payment, return
+and reversal did to what that order owed, so the rows add up to the stored figures
+(34, TC-INV-26/27 check every customer in the system). Building it found a real bug:
+a partial return marked the whole order returned (§5, fixed the same day).
+
+Guesses, open until confirmed (2026-10-11):
+- A draft never appears (it owed nothing), and **a cancelled order does not appear
+  at all** — cancelling is for an order that never happened (§4) — rather than a sale
+  and a cancellation.
+- Each row is dated the day it happened in Cairo: a sale on the day it was placed, a
+  payment on the day it was received (even if typed in later), a return on its
+  return date, a reversal on the day it was reversed. Within a day, in the order they
+  were recorded.
+- A payment shows what it took off the balance. Money on no order (possible only
+  from before 2026-10-11, when "oldest first" ran in the browser) is shown as "on no
+  order" and changes nothing owed — the balance never counted it either.
+- A cash refund of part of an order changes nothing owed (the money went back in
+  cash); the return that brings back the last unit ends what the order owed, as the
+  order itself does (§5).
+- A reversed payment is shown as received and then reversed, two rows, not hidden.
+- Everything is shown in EGP, as the balance tile is; an order in another currency is
+  added in as its own figure, exactly as the balance adds it (both are a guess the
+  day a shop is sold to in USD).
+- The walk-in record has no statement (`WALK_IN_NO_STATEMENT`): it has no account.
+- With no dates chosen the statement covers everything, opening at zero.
+
+---
+
 ## 7a. What cannot be recorded
 
 **DECIDED 2026-08-22**, after each of these was found to be possible.

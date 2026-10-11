@@ -74,7 +74,7 @@ const DISMISS_MS = 5_000;
 
 /** Exported for its test: the container must never be wider than the screen. */
 export const TOAST_VIEWPORT_CLASS =
-  'pointer-events-none fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-[100] flex flex-col gap-3 sm:inset-x-auto sm:end-4 sm:w-96 sm:max-w-[calc(100vw-2rem)]';
+  'pointer-events-none fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-[100] flex flex-col gap-3 print:hidden sm:inset-x-auto sm:end-4 sm:w-96 sm:max-w-[calc(100vw-2rem)]';
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);

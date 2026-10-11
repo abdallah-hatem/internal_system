@@ -45,6 +45,7 @@ export function PhoneBar({
     <nav
       aria-label={t('phoneBar')}
       data-testid="phone-bar"
+      data-print-hide
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom,0px)] md:hidden"
     >
       <ul className="flex">
