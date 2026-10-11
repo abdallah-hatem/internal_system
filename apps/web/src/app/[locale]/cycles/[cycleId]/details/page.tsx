@@ -452,7 +452,7 @@ function AddParticipantForm({
           <label className="mb-1 block text-sm font-medium text-gray-700">{t('contribution')}</label>
           <MoneyInput
             name="contributionAmount" required placeholder="0.00"
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
         <div>
@@ -511,7 +511,7 @@ function ProfitCard({ figure }: { figure?: CycleProfit }) {
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <div>
             <dt className="text-xs text-muted-foreground">{t('profit')}</dt>
-            <dd data-testid="cycle-profit-value" className={`text-lg font-bold ${figure.profit < 0 ? 'text-destructive' : 'text-foreground'}`}>
+            <dd data-testid="cycle-profit-value" className={`text-lg font-bold ${figure.profit > 0 ? 'text-success' : figure.profit < 0 ? 'text-destructive' : 'text-foreground'}`}>
               <Money value={figure.profit} />
             </dd>
           </div>

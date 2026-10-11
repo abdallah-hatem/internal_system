@@ -246,6 +246,14 @@ export function registerCycleTools(
           ? await arrivalDelivery(id, planned)
           : null;
         const status = arrival?.status ?? planned.status;
+        // What the leg does to the cycle's status (§1, L3), from the same
+        // write rolled back: a departure or an arrival moves it on.
+        const move =
+          leg.departedOn || leg.arrivedOn
+            ? await dryRunStatus(id, (dry) =>
+                dryShipping(dry).createLeg(id, leg, ctx.user.id),
+              )
+            : null;
         const deliveryLines = arrival
           ? arrival.lines.length > 0
             ? [
@@ -261,6 +269,7 @@ export function registerCycleTools(
             `Add leg ${planned.sequence} to ${cycle.code}: ${route(planned.origin, planned.destination)}.`,
             `Status ${status}${planned.departedOn ? `, departed ${leg.departedOn}` : ''}.`,
             ...deliveryLines,
+            ...(move ? statusLines(cycle.code, move) : []),
             `Cost (${planned.costBasis}): ${native} ${planned.currency}` +
               (planned.currency === 'EGP'
                 ? '.'
@@ -272,18 +281,33 @@ export function registerCycleTools(
             status,
             amountEgp: planned.amountEgp.toFixed(2),
             delivers: arrival?.lines ?? [],
+            cycleStatus: move,
           },
         };
       },
       // The units the arrival delivers: if the leg before delivered more
       // after the preview, the same arrival date would deliver goods the
-      // partner was never shown.
-      binds: (preview) => (preview.data as { delivers: unknown }).delivers,
+      // partner was never shown. And the status it moves the cycle to, with
+      // the orders that confirms: the cycle may have moved in between.
+      binds: (preview) => {
+        const shown = preview.data as {
+          delivers: unknown;
+          cycleStatus: unknown;
+        };
+        return [shown.delivers, shown.cycleStatus ?? null];
+      },
       async commit({ cycleId: id, ...leg }) {
-        const { data } = await shipping().createLeg(id, leg, ctx.user.id);
+        const { data, cycleStatus } = await shipping().createLeg(
+          id,
+          leg,
+          ctx.user.id,
+        );
         return {
-          summary: `Added leg ${data.sequence} (${route(data.origin, data.destination)}), ${data.status}, ${formatMoney(data.amountEgp)} EGP.`,
-          data,
+          summary: [
+            `Added leg ${data.sequence} (${route(data.origin, data.destination)}), ${data.status}, ${formatMoney(data.amountEgp)} EGP.`,
+            ...committedStatusLines(cycleStatus),
+          ].join('\n'),
+          data: { ...data, cycleStatus },
         };
       },
     },
@@ -498,6 +522,7 @@ export function registerCycleTools(
                 `- ${l.product}: ${l.qty} arrived; ${l.onTheWayBefore} were on the way, ${l.onTheWayAfter} will still be on the way.`,
             ),
             `Afterwards the leg reads ${seen.leg.status}.`,
+            ...statusLines(seen.cycle.code, seen.move),
             seen.leg.isLast
               ? 'This leg ends in Egypt: once recorded, the delivery can be received into stock with verify_stock.'
               : 'The goods can then travel on the next leg.',
@@ -510,31 +535,47 @@ export function registerCycleTools(
             arrivedOn: input.arrivedOn,
             lines,
             legStatusAfter: seen.leg.status,
+            cycleStatus: seen.move,
           },
         };
       },
       // What the partner was told would still be on the way. A delivery
       // recorded by someone else in between leaves less than that, so the
       // same quantities would no longer mean what the partner agreed to.
-      binds: (preview) =>
-        (
-          preview.data as {
-            lines: {
-              purchaseOrderItemId: string;
-              qty: string;
-              onTheWayAfter: string;
-            }[];
-          }
-        ).lines.map((l) => [l.purchaseOrderItemId, l.qty, l.onTheWayAfter]),
+      // The status it moves the cycle to is bound too (§1, L3): a cycle moved
+      // by someone else in between would land somewhere the partner was not
+      // shown, or confirm orders he did not see.
+      binds: (preview) => {
+        const shown = preview.data as {
+          lines: {
+            purchaseOrderItemId: string;
+            qty: string;
+            onTheWayAfter: string;
+          }[];
+          cycleStatus: unknown;
+        };
+        return [
+          shown.lines.map((l) => [
+            l.purchaseOrderItemId,
+            l.qty,
+            l.onTheWayAfter,
+          ]),
+          shown.cycleStatus,
+        ];
+      },
       async commit({ legId, ...body }) {
-        const { data } = await deliveries().recordDelivery(
+        const { data, cycleStatus } = await deliveries().recordDelivery(
           legId,
           body,
           ctx.user.id,
         );
         return {
-          summary: `Recorded the delivery of ${body.arrivedOn}: ${data.lines.length} product${data.lines.length === 1 ? '' : 's'}.`,
+          summary: [
+            `Recorded the delivery of ${body.arrivedOn}: ${data.lines.length} product${data.lines.length === 1 ? '' : 's'}.`,
+            ...committedStatusLines(cycleStatus),
+          ].join('\n'),
           data: {
+            cycleStatus,
             deliveryId: data.id,
             legId: data.legId,
             arrivedOn: body.arrivedOn,
@@ -560,35 +601,152 @@ export function registerCycleTools(
     lines: { purchaseOrderItemId: string; qty: number }[];
     note?: string;
   }) {
+    const legCycle = isUuid(input.legId)
+      ? await prisma().shippingLeg.findUnique({
+          where: { id: input.legId },
+          select: { cycleId: true },
+        })
+      : null;
+    const before = legCycle ? await cycleBefore(legCycle.cycleId) : null;
     const dry = rollingBack(prisma(), async (tx) => {
       const leg = await tx.shippingLeg.findUniqueOrThrow({
         where: { id: input.legId },
         select: { cycleId: true },
       });
-      return loadShipment(tx, leg.cycleId);
+      return {
+        loaded: await loadShipment(tx, leg.cycleId),
+        after: await cycleAfter(tx, leg.cycleId, before),
+      };
     });
-    const service = new DeliveriesService(
-      dry,
-      ctx.resolve(AuditService),
-      ctx.resolve(NotificationsService),
-      ctx.resolve(CostingService),
-    );
-    const seen = await previewByRollback<
-      Awaited<ReturnType<typeof loadShipment>>
-    >(() =>
-      service.recordDelivery(
+    const seen = await previewByRollback<{
+      loaded: Awaited<ReturnType<typeof loadShipment>>;
+      after: Awaited<ReturnType<typeof cycleAfter>>;
+    }>(() =>
+      dryDeliveries(dry).recordDelivery(
         input.legId,
         { arrivedOn: input.arrivedOn, lines: input.lines, note: input.note },
         ctx.user.id,
       ),
     );
-    const { cycle, position } = seen!;
+    const { cycle, position } = seen.loaded!;
     return {
       cycle,
       position,
+      move: seen.after,
       leg: position.legs.find((l) => l.legId === input.legId)!,
       legRow: cycle.shippingLegs.find((l) => l.id === input.legId)!,
     };
+  }
+
+  // ─── The status a record moves the cycle to (§1, L3) ────────────────────
+
+  /** The deliveries service on a rolled-back database, walk included. */
+  function dryDeliveries(dry: PrismaService) {
+    return new DeliveriesService(
+      dry,
+      ctx.resolve(AuditService),
+      ctx.resolve(NotificationsService),
+      ctx.resolve(CostingService),
+      cycles(),
+    );
+  }
+  function dryShipping(dry: PrismaService) {
+    return new ShippingService(
+      dry,
+      ctx.resolve(AuditService),
+      ctx.resolve(CostingService),
+      dryDeliveries(dry),
+    );
+  }
+
+  /** The cycle's status and its draft orders, before a record is made. */
+  async function cycleBefore(cycleId: string) {
+    const cycle = await prisma().importCycle.findUnique({
+      where: { id: cycleId },
+      select: { status: true },
+    });
+    const drafts = await prisma().purchaseOrder.findMany({
+      where: { cycleId, status: 'DRAFT' },
+      select: { id: true, reference: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { status: cycle?.status ?? null, drafts };
+  }
+
+  /** Read inside the rolled-back write: where the walk left the cycle. */
+  async function cycleAfter(
+    tx: Parameters<Parameters<typeof rollingBack>[1]>[0],
+    cycleId: string,
+    before: Awaited<ReturnType<typeof cycleBefore>> | null,
+  ) {
+    const cycle = await tx.importCycle.findUnique({
+      where: { id: cycleId },
+      select: { status: true },
+    });
+    const ids = (before?.drafts ?? []).map((d) => d.id);
+    const confirmed = ids.length
+      ? await tx.purchaseOrder.findMany({
+          where: { id: { in: ids }, status: 'CONFIRMED' },
+          select: { reference: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+    return {
+      from: before?.status ?? cycle?.status ?? null,
+      to: cycle?.status ?? null,
+      ordersConfirmed: confirmed.map((o) => o.reference),
+    };
+  }
+
+  /** The rolled-back write's effect on the cycle's status. */
+  async function dryRunStatus(
+    cycleId: string,
+    write: (dry: PrismaService) => Promise<unknown>,
+  ) {
+    const before = await cycleBefore(cycleId);
+    const dry = rollingBack(prisma(), (tx) => cycleAfter(tx, cycleId, before));
+    return previewByRollback<Awaited<ReturnType<typeof cycleAfter>>>(() =>
+      write(dry),
+    );
+  }
+
+  /** The preview's sentence about the status. */
+  function statusLines(
+    code: string,
+    move: { from: string | null; to: string | null; ordersConfirmed: string[] },
+  ): string[] {
+    if (!move.to || move.from === move.to) {
+      return [`${code} stays ${move.from ?? move.to}.`];
+    }
+    return [
+      `This moves ${code} from ${move.from} to ${move.to}, through each step's own checks.`,
+      ...(move.ordersConfirmed.length
+        ? [
+            `Leaving PURCHASING confirms and locks ${move.ordersConfirmed.join(', ')} — no line can be added afterwards.`,
+          ]
+        : []),
+    ];
+  }
+
+  /** What the commit says about the status it actually reached. */
+  function committedStatusLines(
+    cycleStatus: {
+      from: string;
+      to: string;
+      moved: boolean;
+      stoppedAt: { status: string; message: string } | null;
+    } | null,
+  ): string[] {
+    if (!cycleStatus) return [];
+    const out = cycleStatus.moved
+      ? [`The cycle is now ${cycleStatus.to} (was ${cycleStatus.from}).`]
+      : [];
+    if (cycleStatus.stoppedAt) {
+      out.push(
+        `It did not move on to ${cycleStatus.stoppedAt.status}: ${cycleStatus.stoppedAt.message}`,
+      );
+    }
+    return out;
   }
 
   // ─── verify_stock ───────────────────────────────────────────────────────

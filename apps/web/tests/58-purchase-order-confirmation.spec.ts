@@ -41,7 +41,11 @@ async function cycleInPurchasing(
     items: withItems ? [{ productId: product.id, orderedQty: 10, unitPrice: 25 }] : [],
   });
 
-  await mk(`cycles/${cycle.id}/shipping-legs`, {
+  // No dates yet: since L3 (§1, 2026-10-11) a departure recorded here would
+  // move the cycle out of Purchasing by itself, confirming the order before
+  // these tests could look at it as a draft. A UAE-direct cycle leaves
+  // Purchasing through Arrived UAE, which asks nothing of its one leg.
+  const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
     sequence: 1,
     origin: 'Dubai, UAE',
     destination: 'Cairo, Egypt',
@@ -50,14 +54,12 @@ async function cycleInPurchasing(
     amount: 0,
     currency: 'EGP',
     fxRateToEgp: 1,
-    departedOn: daysAgo(8),
-    arrivedOn: daysAgo(3),
   });
 
   await mk(`cycles/${cycle.id}/transition`, { status: 'FUNDING' });
   await mk(`cycles/${cycle.id}/transition`, { status: 'PURCHASING' });
 
-  return { cycle, supplier, product };
+  return { cycle, supplier, product, leg };
 }
 
 async function purchaseOrdersOf(request: any, headers: any, cycleId: string) {
@@ -161,11 +163,20 @@ test.describe('Purchase order confirmation', () => {
     // or disturb an order that is already confirmed.
     const { headers, mk } = await apiCtx(request);
     const label = `Twice${stamp()}`;
-    const { cycle } = await cycleInPurchasing(request, mk, label);
+    const { cycle, leg } = await cycleInPurchasing(request, mk, label);
 
     await mk(`cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
     const [first] = await purchaseOrdersOf(request, headers, cycle.id);
     expect(first.status).toBe('CONFIRMED');
+
+    // The shipment's dates, which since L3 also walk the cycle to Arrived
+    // Egypt — past Purchasing already, so nothing is confirmed a second time.
+    const dated = await request.put(`${API}/shipping/legs/${leg.id}`, {
+      headers,
+      data: { departedOn: daysAgo(8), arrivedOn: daysAgo(3) },
+    });
+    expect(dated.ok(), await dated.text()).toBeTruthy();
+    expect((await dated.json()).cycleStatus).toMatchObject({ to: 'ARRIVED_EGYPT', ordersConfirmed: [] });
 
     await mk(`cycles/${cycle.id}/transition`, { status: 'IN_TRANSIT_TO_EGYPT' });
     await mk(`cycles/${cycle.id}/transition`, { status: 'ARRIVED_EGYPT' });

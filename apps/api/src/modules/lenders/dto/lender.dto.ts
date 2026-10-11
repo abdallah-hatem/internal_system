@@ -64,8 +64,14 @@ export class CreateRepaymentDto {
   @Type(() => Number)
   rateToEgp: number;
 
+  /**
+   * Not asked (§18, owner 2026-10-11): no other money flow records an account,
+   * and the office app and the assistant send none. Still accepted, and
+   * checked, from a caller that names one.
+   */
+  @IsOptional()
   @IsUUID('all')
-  accountId: string;
+  accountId?: string;
 
   @IsOptional()
   @IsDateString()

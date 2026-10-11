@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CostingService, lineEventCost } from '../costing/costing.service';
+import { CyclesService } from '../cycles/cycles.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertNotFuture, businessDay } from '../../common/dates';
 import { isUuid } from '../../common/uuid';
@@ -172,7 +173,28 @@ export class DeliveriesService {
     private audit: AuditService,
     private notifications: NotificationsService,
     private costing: CostingService,
+    private cycles: CyclesService,
   ) {}
+
+  /**
+   * L3 (§1, 2026-10-11): after a departure or a delivery is written, move the
+   * cycle to what the shipment now proves. In the caller's transaction, which
+   * holds the cycle's lock; announce the steps with `announceFollow` after the
+   * commit.
+   */
+  followShipment(tx: Tx, cycleId: string) {
+    return this.cycles.followShipment(tx, cycleId);
+  }
+
+  /** The audit row and notification of each step the walk took, after commit. */
+  async announceFollow(
+    followed: Awaited<ReturnType<CyclesService['followShipment']>>,
+    actorId: string,
+  ) {
+    for (const plan of followed.walked) {
+      await this.cycles.announceTransition(plan, actorId);
+    }
+  }
 
   /** The leg's cycle, or a 404 — a non-uuid is "no such leg", not a 500. */
   private async legCycle(legId: string) {
@@ -197,33 +219,38 @@ export class DeliveriesService {
     const day = deliveryDay(body.arrivedOn);
     const leg = await this.legCycle(legId);
 
-    const { delivery, changed } = await this.prisma.$transaction(async (tx) => {
-      await lockCycle(tx, leg.cycleId);
-      const delivery = await this.deliverIn(
-        tx,
-        leg.cycleId,
-        legId,
-        day,
-        lines,
-        actorId,
-        body.note,
-      );
-      const changed = await syncLegStatuses(tx, leg.cycleId);
-      await this.audit.log(
-        {
-          actorUserId: actorId,
-          action: 'CREATE',
-          entityType: 'ShipmentDelivery',
-          entityId: delivery.id,
-          afterJson: delivery,
-        },
-        tx,
-      );
-      return { delivery, changed };
-    });
+    const { delivery, changed, followed } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockCycle(tx, leg.cycleId);
+        const delivery = await this.deliverIn(
+          tx,
+          leg.cycleId,
+          legId,
+          day,
+          lines,
+          actorId,
+          body.note,
+        );
+        const changed = await syncLegStatuses(tx, leg.cycleId);
+        // The delivery proves the goods reached the leg's end (§1, L3).
+        const followed = await this.followShipment(tx, leg.cycleId);
+        await this.audit.log(
+          {
+            actorUserId: actorId,
+            action: 'CREATE',
+            entityType: 'ShipmentDelivery',
+            entityId: delivery.id,
+            afterJson: delivery,
+          },
+          tx,
+        );
+        return { delivery, changed, followed };
+      },
+    );
 
+    await this.announceFollow(followed, actorId);
     await this.notifyArrivals(leg.cycleId, changed);
-    return { data: delivery };
+    return { data: delivery, cycleStatus: followed.cycleStatus };
   }
 
   /**

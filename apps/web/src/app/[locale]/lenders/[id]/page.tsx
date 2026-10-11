@@ -323,7 +323,6 @@ function FinancingCard({
                   <th className="px-3 py-2 text-end font-medium">{t('rate')}</th>
                   <th className="px-3 py-2 text-end font-medium">{t('cleared')}</th>
                   <th className="px-3 py-2 text-end font-medium">{t('exchangeDiff')}</th>
-                  <th className="px-3 py-2 text-start font-medium">{t('account')}</th>
                   <th className="py-2" />
                 </tr>
               </thead>
@@ -337,7 +336,6 @@ function FinancingCard({
                       <td className={`px-3 py-2 text-end tabular-nums ${struck}`}><span dir="ltr">{Number(r.rateToEgp)}</span></td>
                       <td className={`px-3 py-2 text-end ${struck}`}><Money value={r.cleared} currency={f.currency} /></td>
                       <td className={`px-3 py-2 text-end ${struck}`}><Money value={r.exchangeDiffEgp} currency="EGP" /></td>
-                      <td className={`px-3 py-2 ${struck}`}><LatinText>{r.account.name}</LatinText></td>
                       <td className="py-2 ps-3 text-end">
                         {r.reversedAt ? (
                           <span className="text-xs" title={r.reversalReason ?? ''}>{t('reversed')}</span>

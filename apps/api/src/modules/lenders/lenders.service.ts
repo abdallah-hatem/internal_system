@@ -564,21 +564,29 @@ export class LendersService {
 
   /**
    * Pounds paid to him on a day at that day's rate (§18): clears pounds ÷ rate
-   * of the debt (common/lender-math.ts) and leaves the chosen account.
+   * of the debt (common/lender-math.ts).
+   *
+   * No money account is asked for (§18, owner 2026-10-11): customer payments,
+   * purchases and the other money flows record none, and the owner said the
+   * step does not matter. One a caller does name is still checked and kept.
    */
   async repay(financingId: string, dto: CreateRepaymentDto, actorId: string) {
     const f = await this.findFinancing(this.prisma, financingId);
-    if (!isUuid(dto.accountId)) throw notFound('moneyAccount');
-    const account = await this.prisma.moneyAccount.findUnique({
-      where: { id: dto.accountId },
-    });
-    if (!account) throw notFound('moneyAccount');
-    if (!account.active || account.currency !== 'EGP') {
-      throw badRequest(
-        'ACCOUNT_NOT_USABLE',
-        `${account.name} is not an active account in EGP; a repayment leaves one in pounds.`,
-        { account: account.name },
-      );
+    let accountId: string | null = null;
+    if (dto.accountId !== undefined && dto.accountId !== null) {
+      if (!isUuid(dto.accountId)) throw notFound('moneyAccount');
+      const account = await this.prisma.moneyAccount.findUnique({
+        where: { id: dto.accountId },
+      });
+      if (!account) throw notFound('moneyAccount');
+      if (!account.active || account.currency !== 'EGP') {
+        throw badRequest(
+          'ACCOUNT_NOT_USABLE',
+          `${account.name} is not an active account in EGP; a repayment leaves one in pounds.`,
+          { account: account.name },
+        );
+      }
+      accountId = account.id;
     }
     assertNotFuture(dto.paidOn, 'LENDER_REPAID');
     const paidOn = asDay(dto.paidOn);
@@ -626,7 +634,7 @@ export class LendersService {
           amount: amountEgp,
           currency: 'EGP',
           fxRateToEgp: dto.rateToEgp,
-          accountId: account.id,
+          accountId,
           cycleId: now.cycleId,
           relatedType: 'LENDER_REPAYMENT',
           relatedId: id,
@@ -641,7 +649,7 @@ export class LendersService {
           id,
           financingId,
           paidOn,
-          accountId: account.id,
+          accountId,
           amountEgp,
           rateToEgp: dto.rateToEgp,
           cleared: plan.cleared,

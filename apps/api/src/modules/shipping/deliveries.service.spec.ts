@@ -55,18 +55,19 @@ beforeEach(() => {
   const audit = { log: jest.fn() } as unknown as AuditService;
   notifications = { createForMultipleUsers: jest.fn() };
   const costing = new CostingService(prisma);
-  deliveries = new DeliveriesService(
-    prisma,
-    audit,
-    notifications as unknown as NotificationsService,
-    costing,
-  );
-  shipping = new ShippingService(prisma, audit, costing, deliveries);
   cycles = new CyclesService(
     prisma,
     audit,
     notifications as unknown as NotificationsService,
   );
+  deliveries = new DeliveriesService(
+    prisma,
+    audit,
+    notifications as unknown as NotificationsService,
+    costing,
+    cycles,
+  );
+  shipping = new ShippingService(prisma, audit, costing, deliveries);
 });
 
 const ACTOR = randomUUID();
@@ -741,10 +742,12 @@ describe('cycle transitions read deliveries', () => {
     const none = await refusal(cycles.planTransition(cycle.id, 'ARRIVED_UAE'));
     expect(none.code).toBe('LEG_NOT_ARRIVED');
 
+    // L3: the delivery itself walks the cycle through this same gate — and
+    // on, since this fixture's leg 2 has already left.
     await deliver(leg1, item, 15, '2026-09-08');
-    await expect(
-      cycles.planTransition(cycle.id, 'ARRIVED_UAE'),
-    ).resolves.toEqual(expect.objectContaining({ to: 'ARRIVED_UAE' }));
+    expect(db.cycles.find((c) => c.id === cycle.id)!.status).toBe(
+      'IN_TRANSIT_TO_EGYPT',
+    );
   });
 
   it('Cycle → ARRIVED_EGYPT with the last leg partly arrived → allowed', async () => {
@@ -757,9 +760,10 @@ describe('cycle transitions read deliveries', () => {
 
     await deliver(leg2, item, 12, '2026-09-20');
     expect(legRow(leg2.id).status).toBe('PARTLY_ARRIVED');
-    await expect(
-      cycles.planTransition(cycle.id, 'ARRIVED_EGYPT'),
-    ).resolves.toEqual(expect.objectContaining({ to: 'ARRIVED_EGYPT' }));
+    // L3: the partial delivery walks the cycle there, through this same gate.
+    expect(db.cycles.find((c) => c.id === cycle.id)!.status).toBe(
+      'ARRIVED_EGYPT',
+    );
   });
 
   // I3: the cycle page's Change status offers the fix for exactly the leg

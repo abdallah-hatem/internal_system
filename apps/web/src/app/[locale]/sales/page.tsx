@@ -963,7 +963,7 @@ function SalesPageContent() {
                       placeholder="0"
                       value={returnQty[it.id] ?? ''}
                       onChange={(e) => setReturnQty((q) => ({ ...q, [it.id]: e.target.value }))}
-                      className="w-24 shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-end focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-24 shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-start focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   {Number(returnQty[it.id] ?? 0) > 0 && (

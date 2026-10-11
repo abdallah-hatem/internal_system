@@ -182,9 +182,14 @@ test.describe('When stock arrived', () => {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
 
+    // Since L3 the departure itself walked the cycle as far as it proves: In
+    // transit to Egypt, and no further.
+    const now = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
+    expect(now.status).toBe('IN_TRANSIT_TO_EGYPT');
+
     // Somewhere in the walk to VERIFICATION it must refuse, and name why.
     let refusal: any = null;
-    for (const status of ['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['ARRIVED_EGYPT', 'VERIFICATION']) {
       const res = await request.post(`${API}/cycles/${cycle.id}/transition`, {
         headers,
         data: { status },

@@ -7,6 +7,7 @@ import type { AuditService } from '../audit/audit.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import { CostingService } from '../costing/costing.service';
 import { DeliveriesService } from './deliveries.service';
+import { CyclesService } from '../cycles/cycles.service';
 
 /**
  * The race, against a real Postgres (plan B2: "two deliveries sent at once
@@ -37,11 +38,16 @@ suite('deliveries and losses against Postgres', () => {
   beforeAll(() => {
     prisma = new PrismaClient({ datasources: { db: { url } } });
     const db = prisma as unknown as PrismaService;
+    const audit = { log: jest.fn() } as unknown as AuditService;
+    const notifications = {
+      createForMultipleUsers: jest.fn(),
+    } as unknown as NotificationsService;
     deliveries = new DeliveriesService(
       db,
-      { log: jest.fn() } as unknown as AuditService,
-      { createForMultipleUsers: jest.fn() } as unknown as NotificationsService,
+      audit,
+      notifications,
       new CostingService(db),
+      new CyclesService(db, audit, notifications),
     );
   });
   afterAll(() => prisma.$disconnect());

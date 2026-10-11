@@ -453,7 +453,7 @@ export function SaleOrderForm({
                       onChange={(raw) =>
                         update(line.key, { unitPrice: Number(raw), priceTyped: true })
                       }
-                      className={`${fieldClass} border-border text-end focus:ring-ring`}
+                      className={`${fieldClass} border-border text-start focus:ring-ring`}
                     />
                     {line.productId && list == null && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
@@ -474,7 +474,7 @@ export function SaleOrderForm({
                       value={line.discount}
                       onChange={(raw) => update(line.key, { discount: Number(raw) })}
                       aria-invalid={discountTooLarge || undefined}
-                      className={`${fieldClass} text-end ${
+                      className={`${fieldClass} text-start ${
                         discountTooLarge
                           ? 'border-destructive focus:ring-destructive'
                           : 'border-border focus:ring-ring'

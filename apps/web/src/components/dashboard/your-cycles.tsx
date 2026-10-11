@@ -74,7 +74,7 @@ export function YourCycles() {
                   <p className="text-xs text-muted-foreground">{t('cycleProfit')}</p>
                   <Money
                     value={c.profit}
-                    className={`text-sm font-semibold ${c.profit < 0 ? 'text-destructive' : 'text-card-foreground'}`}
+                    className={`text-sm font-semibold ${c.profit > 0 ? 'text-success' : c.profit < 0 ? 'text-destructive' : 'text-card-foreground'}`}
                   />
                 </div>
               </Link>

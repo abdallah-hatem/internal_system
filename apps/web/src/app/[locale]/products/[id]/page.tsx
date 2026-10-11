@@ -748,7 +748,7 @@ function PriceRow({
           value={value}
           onChange={setValue}
           placeholder="0.00"
-          className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         <button
           type="button"

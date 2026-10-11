@@ -126,9 +126,11 @@ test.describe('Shipment panel (F1a)', () => {
     await expect(cell(page, product.name, 'line-on-the-way')).toHaveText('25');
     await expect(panel(page).getByTestId('leg-status').first()).toHaveText(en.codes.legStatus.PARTLY_ARRIVED);
 
-    // Receiving opens at Arrived Egypt; the panel offers the step.
-    await page.getByTestId('walk-to-egypt').click();
+    // Receiving opens at Arrived Egypt, and since L3 the delivery took the
+    // cycle there by itself: the toast says so, and no step is left to offer.
+    await expect(page.getByText(`${en.shipment.deliveryRecorded} — cycle is now ${en.codes.cycleStatus.ARRIVED_EGYPT}`)).toBeVisible();
     await expect(page.getByTestId('cycle-status')).toHaveText(en.codes.cycleStatus.ARRIVED_EGYPT);
+    await expect(page.getByTestId('walk-to-egypt')).toHaveCount(0);
 
     // Receive 14 of the 15.
     await panel(page).getByTestId('receive-delivery').click();

@@ -356,17 +356,21 @@ function ProfitFigure({ figure }: { figure?: CycleProfit }) {
   return (
     <Money
       value={figure.profit}
-      className={figure.profit < 0 ? 'text-destructive' : 'text-foreground'}
+      className={signTone(figure.profit)}
     />
   );
 }
+
+/** A gain reads green, a loss red, nothing earned yet stays plain. */
+const signTone = (n: number) =>
+  n > 0 ? 'text-success' : n < 0 ? 'text-destructive' : 'text-foreground';
 
 /** ROI is only meaningful once something has sold; otherwise a dash. */
 function RoiFigure({ figure }: { figure?: CycleProfit }) {
   const { formatNumber } = useNumberFormat();
   if (!figure || figure.roiPct == null) return <span className="text-muted-foreground">—</span>;
   return (
-    <span dir="ltr" className={figure.roiPct < 0 ? 'text-destructive' : 'text-foreground'}>
+    <span dir="ltr" className={signTone(figure.roiPct)}>
       {formatNumber(figure.roiPct, { maximumFractionDigits: 1 })}%
     </span>
   );

@@ -1029,7 +1029,9 @@ model LenderRepayment {
   id                    String    @id @default(uuid()) @db.Uuid
   financingId           String    @map("financing_id") @db.Uuid
   paidOn                DateTime  @map("paid_on") @db.Date
-  accountId             String    @map("account_id") @db.Uuid
+  /// Which money account it left from — not asked since 2026-10-11 (§18):
+  /// no other money flow records one. Kept on rows that already have it.
+  accountId             String?   @map("account_id") @db.Uuid
   /// Pounds actually paid.
   amountEgp             Decimal   @map("amount_egp") @db.Decimal(18, 2)
   /// That day's rate, as entered.
@@ -1051,7 +1053,7 @@ model LenderRepayment {
   reversalTransactionId String?   @unique @map("reversal_transaction_id") @db.Uuid
 
   financing LenderFinancing @relation(fields: [financingId], references: [id])
-  account   MoneyAccount    @relation(fields: [accountId], references: [id])
+  account   MoneyAccount?   @relation(fields: [accountId], references: [id])
 
   @@index([financingId])
   @@map("lender_repayments")

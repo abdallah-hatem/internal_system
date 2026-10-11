@@ -37,7 +37,7 @@ import {
  * A friend pays a supplier for us in the order's currency, and we repay him
  * in pounds at the day's rate. Every rule of that lives in `LendersService` —
  * the methods the office app's "Paid by a friend" and "Record repayment"
- * call. These tools find the friend, the order, the rate and the account a
+ * call. These tools find the friend, the order and the rate a
  * partner names on a phone, and hand the rest to those methods, so every
  * guard there applies unchanged: not more than the order, not more than is
  * owed, not dated forward, not on a settled cycle.
@@ -69,8 +69,7 @@ export interface LenderQuestion {
     | 'LENDER_NEW'
     | 'LENDER_UNKNOWN'
     | 'FINANCING_WHICH'
-    | 'RATE_NEEDED'
-    | 'ACCOUNT_WHICH';
+    | 'RATE_NEEDED';
   kind: LenderQuestion['id'];
   text: string;
   options: { value: string; label: string; score?: number }[];
@@ -245,15 +244,6 @@ const repaymentShape = {
     .describe(
       "EGP per unit of his currency that day. Leave out to use today's rate from the exchange-rate page — the preview says so; use the partner's figure if he gives one. At most four decimals.",
     ),
-  account: z
-    .string()
-    .trim()
-    .min(1)
-    .max(200)
-    .optional()
-    .describe(
-      'The money account the pounds left from, by name or id — only if the partner said. With several accounts and none said, the preview asks.',
-    ),
   order: z
     .string()
     .trim()
@@ -283,7 +273,6 @@ type RepaymentInput = {
   amountEgp?: number;
   payOff?: boolean;
   rateToEgp?: number;
-  account?: string;
   order?: string;
   paidOn?: string;
   note?: string;
@@ -718,11 +707,9 @@ export function registerLenderTools(
         financing: FinancingView;
         rate: string;
         rateFrom: 'given' | 'today';
-        account: Named;
         body: {
           amountEgp: number;
           rateToEgp: number;
-          accountId: string;
           paidOn: string;
           note?: string;
         };
@@ -821,44 +808,9 @@ export function registerLenderTools(
       }
     }
 
-    // The accounts the office dialog offers: active, in pounds, by name — its
-    // default is the first. With more than one and none said, ask.
-    const accounts = await prisma().moneyAccount.findMany({
-      where: { active: true, currency: 'EGP' },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    });
-    let account: Named | undefined;
-    if (input.account) {
-      const said = matchByName(
-        { id: input.account, name: input.account },
-        accounts,
-        'customer',
-      );
-      if (said.status === 'matched') {
-        account = said.match.item;
-      } else {
-        questions.push({
-          id: 'ACCOUNT_WHICH',
-          kind: 'ACCOUNT_WHICH',
-          text: `"${input.account}" is not exactly one of the money accounts in pounds. Which account did the money leave from?`,
-          options: accounts.map((a) => ({ value: a.id, label: a.name })),
-        });
-      }
-    } else if (accounts.length === 1) {
-      account = accounts[0];
-    } else if (accounts.length === 0) {
-      throw notFound('moneyAccount');
-    } else {
-      questions.push({
-        id: 'ACCOUNT_WHICH',
-        kind: 'ACCOUNT_WHICH',
-        text: `Which money account did the pounds leave from? The office form starts on ${accounts[0].name}.`,
-        options: accounts.map((a) => ({ value: a.id, label: a.name })),
-      });
-    }
-
-    if (questions.length || rate === null || !account) {
+    // No money account is asked (§18, owner 2026-10-11): no other money flow
+    // records one, and the office dialog does not ask either.
+    if (questions.length || rate === null) {
       return { status: 'questions', questions };
     }
 
@@ -874,12 +826,10 @@ export function registerLenderTools(
       financing,
       rate,
       rateFrom,
-      account,
       payOff: input.payOff === true,
       body: {
         amountEgp,
         rateToEgp: Number(rate),
-        accountId: account.id,
         paidOn: input.paidOn ?? businessToday(),
         ...(input.note ? { note: input.note } : {}),
       },
@@ -924,7 +874,7 @@ export function registerLenderTools(
     const f = p.financing;
     const diff = D(seen.exchangeDiffEgp);
     return [
-      `Repay ${p.lender.name} ${formatMoney(p.body.amountEgp)} EGP on ${p.body.paidOn}, from ${p.account.name}` +
+      `Repay ${p.lender.name} ${formatMoney(p.body.amountEgp)} EGP on ${p.body.paidOn}` +
         (p.payOff ? ' — the exact figure that pays him off.' : '.'),
       p.rateFrom === 'today'
         ? `Rate ${p.rate} EGP per ${f.currency}: today's rate on the exchange-rate page. If he was paid at another rate, give it and preview again.`
@@ -951,7 +901,6 @@ export function registerLenderTools(
       rateToEgp: D(p.rate).toFixed(4),
       rateFrom: p.rateFrom,
       payOff: p.payOff,
-      account: { id: p.account.id, name: p.account.name },
       paidOn: p.body.paidOn,
       ...seen,
     };
@@ -966,7 +915,7 @@ export function registerLenderTools(
       description:
         'We paid a friend (lender) back in pounds — "paid Mahmoud 50,000 pounds today", or "pay him off". It clears pounds ÷ that day\'s rate of what we owe him in his currency. ' +
         "The rate defaults to today's rate on the exchange-rate page (the preview says so); use the partner's rate when he gives one. payOff uses the exact pounds that settle the debt at that rate. " +
-        'The friend is matched by exact name or id; a close or unknown name, an unsaid account when there are several, or which order when he is owed on several, comes back as a question with nothing to confirm. ' +
+        'The friend is matched by exact name or id; a close or unknown name, or which order when he is owed on several, comes back as a question with nothing to confirm. No money account is asked. ' +
         'Refused when it is more than is owed, dated in the future or before he paid, or nothing is owed (a cycle settles only once its friends are repaid). ' +
         'The preview shows what it clears, what is still owed after and the exchange difference. Call without a confirmationToken to preview.',
       inputSchema: repaymentShape,
@@ -994,8 +943,8 @@ export function registerLenderTools(
           data: repaymentData(p, seen),
         };
       },
-      // What was agreed to: whom, which order, the pounds, the rate, the
-      // account and the day, and what it cleared and left owed. A repayment
+      // What was agreed to: whom, which order, the pounds, the rate and the
+      // day, and what it cleared and left owed. A repayment
       // in between changes the last two and is refused.
       binds: (shown) => {
         if (shown.needsAnswers) return { needsAnswers: shown.data };
@@ -1004,7 +953,6 @@ export function registerLenderTools(
           financingId: d.financingId,
           amountEgp: d.amountEgp,
           rateToEgp: d.rateToEgp,
-          account: d.account.id,
           paidOn: d.paidOn,
           cleared: d.cleared,
           owedBefore: d.owedBefore,

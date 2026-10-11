@@ -12,7 +12,6 @@ import { useToast } from '@/components/ui/toast';
 import { Money } from '@/components/ui/money';
 import { MoneyInput } from '@/components/ui/money-input';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Select } from '@/components/ui/select';
 import { FieldLabel, FormActions } from '@/components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { selectOnFocus } from '@/lib/select-on-focus';
@@ -47,7 +46,8 @@ export interface FinancingView {
     rateToEgp: string;
     cleared: string;
     exchangeDiffEgp: string;
-    account: { id: string; name: string };
+    /** Only on repayments recorded before 2026-10-11, when an account was asked (§18). */
+    account: { id: string; name: string } | null;
     reversedAt: string | null;
     reversalReason: string | null;
   }[];
@@ -140,15 +140,8 @@ export function RecordRepaymentDialog({
   const current = rates[financing.currency];
   const rate = typedRate ?? (current ? String(current) : '');
   const [amount, setAmount] = useState('');
-  const [chosenAccount, setAccountId] = useState('');
-
-  const { data: accounts = [] } = useQuery<{ id: string; name: string; currency: string }[]>({
-    queryKey: ['ledger', 'accounts'],
-    queryFn: () => api.get('/ledger/accounts').then((r) => r.data.data ?? r.data),
-  });
-  const egpAccounts = accounts.filter((a) => a.currency === 'EGP');
-  // The first pounds account until another is chosen.
-  const accountId = chosenAccount || egpAccounts[0]?.id || '';
+  // No money account is asked (§18, owner 2026-10-11): no other money flow in
+  // the app records one, and the step did not matter to him.
 
   const rateNumber = Number(rate);
   const { data: quote } = useQuery<{ owed: string; settlingEgp: string }>({
@@ -185,7 +178,6 @@ export function RecordRepaymentDialog({
           save.mutate({
             amountEgp: Number(amount),
             rateToEgp: Number(rate),
-            accountId,
             paidOn: (fd.get('paidOn') as string) || undefined,
           });
         }}
@@ -217,7 +209,7 @@ export function RecordRepaymentDialog({
             onChange={(e) => setTypedRate(e.target.value.replace(/[^\d.]/g, ''))}
             {...selectOnFocus}
             dir="ltr"
-            className="w-full rounded-lg border border-border px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <p className="mt-1 text-xs text-muted-foreground">{t('rateHint')}</p>
         </div>
@@ -235,7 +227,7 @@ export function RecordRepaymentDialog({
               value={amount}
               onChange={setAmount}
               placeholder="0.00"
-              className="w-full min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <button
               type="button"
@@ -253,17 +245,6 @@ export function RecordRepaymentDialog({
             </p>
           )}
         </div>
-
-        <FieldLabel label={t('account')} required>
-          <Select
-            name="accountId"
-            required
-            value={accountId}
-            onChange={setAccountId}
-            placeholder={t('account')}
-            options={egpAccounts.map((a) => ({ value: a.id, label: a.name }))}
-          />
-        </FieldLabel>
 
         <FormActions onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={t('recordRepayment')} busy={save.isPending} />
       </ValidatedForm>
@@ -392,7 +373,7 @@ export function PlanDialog({ financing, onClose }: { financing: FinancingView; o
                   value={r.amount}
                   onChange={(v) => setRows((xs) => xs.map((x) => (x.key === r.key ? { ...x, amount: v } : x)))}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-border px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </FieldLabel>
             </div>
