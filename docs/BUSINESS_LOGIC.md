@@ -815,7 +815,7 @@ Paying writes one ledger entry per participant and closes the cycle.
 explicitly accepted.** That stock's cost stays with the cycle, so closing writes
 it off. The refusal makes it a decision rather than an accident.
 
-**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Built 2026-10-11 (L5, phase 1: API, screens, unit tests; e2e pending).*
+**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Built 2026-10-12 (L5): API, screens, unit and e2e tests (99-leftover-transfer, TC-INV-51..53).*
 Instead of writing leftovers off when a cycle closes, the partners can move them to another cycle that is still
 open (or to a new cycle started for them). Exactly how:
 
