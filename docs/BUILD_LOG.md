@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: row-alignment + cycle-nav merged into master locally (`6d1631a`) 2026-10-11 · waiting for the owner's go to push (pushing master deploys production)
+Current stage: row-alignment + cycle-nav live in production 2026-10-11 (`e0583eb`, all three deploys READY, smoke ok, assistant reads ok live) · next: improvement batch I1 (no-decision items)
 
 ## Waiting on the user
 _(none)_
@@ -13,7 +13,7 @@ _(none)_
 _(none)_
 
 ## Next up
-- Ship row-alignment + cycle-nav: push master on the owner's go, then `scripts/ship-prod.sh smoke` and check all three deploys READY. Verified: lint 0 errors, typecheck clean, unit 377/377, e2e 5 groups green except TC-RP-06 (spec 79, customer row click; flaky, passes alone, branch doesn't touch customers). Measurements 76 states, 0px. Spec 94 (13 tests) break-verified.
+- Improvement batch I1 (decided 2026-10-11, autonomous): overdue-payments daily cron notifying all partners; low-stock alert after a sale; assistant tool for who owes / overdue; date range + CSV on Sales and Payments; quick-create closes on Escape; fix flaky customer-row click (specs 57/79). Survey of the rest: build-log/notes/improvements-2026-10-11.md
 - Open from it: quick-create dialog ignores Escape; TC-RP-06/TC-VER-01 flake on customer row click.
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
