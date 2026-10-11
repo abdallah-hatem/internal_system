@@ -13,6 +13,7 @@ _(none)_
 _(none)_
 
 ## Next up
+- Owner asleep 2026-10-12: finish L6, L8, L7 unattended (ship each when green; `Bash(scripts/ship-prod.sh:*)` is allowed now), then stop all dev, quit Docker, end the Amphetamine session.
 - L8 phase 1 building: departures in parts (owner 2026-10-12) + wizard only through Purchasing + Add next leg / edit leg cost on the cycle page. Phase 2 after L5.
 - L6 phase 1 built on `feature/l6-ledger-entry` (migration 20261011220000_ledger_entry_date); phase 2 after L4.
   Fixed on the way: cycle profitability ignored cycle-charged expenses while settlement subtracted them; reversed
