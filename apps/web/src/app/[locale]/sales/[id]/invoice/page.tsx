@@ -148,7 +148,7 @@ export default function InvoicePage() {
             {walkIn ? t('walkIn') : <LatinText>{data.customer.displayName}</LatinText>}
           </p>
           {!walkIn && data.customer.phone && (
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground" data-testid="invoice-phone">
               {t('phone')}: <LatinText dir="ltr">{data.customer.phone}</LatinText>
             </p>
           )}

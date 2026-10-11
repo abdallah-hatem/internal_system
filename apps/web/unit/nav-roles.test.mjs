@@ -10,7 +10,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -42,10 +42,27 @@ function decoratorsFrom(lines, i, step) {
   return out;
 }
 
-const rolesIn = (decorators) => {
+/**
+ * `@Roles('A', 'B')`, or `@Roles(...LIST)` with LIST a constant exported from a
+ * file beside the controller (payments: `payment-roles.ts`, I2). The spread
+ * read as no roles at all, so the test failed on a list that was correct.
+ */
+const rolesIn = (decorators, dir) => {
   const d = decorators.find((l) => l.startsWith('@Roles('));
-  return d ? [...d.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]).sort() : null;
+  if (!d) return null;
+  const roles = [...d.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+  for (const [, name] of d.matchAll(/\.\.\.([A-Z_]+)/g)) roles.push(...constantRoles(dir, name));
+  return roles.sort();
 };
+
+/** The string literals of `export const <name> = [...]` in any .ts file of `dir`. */
+function constantRoles(dir, name) {
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.ts'))) {
+    const m = readFileSync(join(dir, f), 'utf8').match(new RegExp(`export const ${name} = \\[([^\\]]*)\\]`));
+    if (m) return [...m[1].matchAll(/'([A-Z_]+)'/g)].map((x) => x[1]);
+  }
+  assert.fail(`@Roles(...${name}): no "export const ${name} = [...]" beside the controller in ${dir}`);
+}
 const guarded = (decorators) =>
   decorators.some((l) => l.startsWith('@UseGuards(') && l.includes('RolesGuard'));
 
@@ -69,7 +86,8 @@ function endpointRoles(file, cls, route) {
   const onClass = decoratorsFrom(lines, classLine, -1);
   const onMethod = [...decoratorsFrom(lines, getLine, -1), ...decoratorsFrom(lines, getLine, 1)];
   if (!guarded(onClass) && !guarded(onMethod)) return null;
-  return rolesIn(onMethod) ?? rolesIn(onClass);
+  const dir = dirname(join(API, file));
+  return rolesIn(onMethod, dir) ?? rolesIn(onClass, dir);
 }
 
 /** Each entry's page, and the endpoint it lists from. */

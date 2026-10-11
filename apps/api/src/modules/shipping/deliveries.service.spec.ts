@@ -665,6 +665,51 @@ describe('PUT /shipping/legs/:id', () => {
     await shipping.updateLeg(leg.id, { trackingRef: 'X' }, ACTOR);
     expect(legRow(leg.id).currency).toBe('USD');
   });
+
+  // I3: the cycle page records a departure with this endpoint. §1 says no
+  // departure is recorded on a cancelled or closed cycle; the button is hidden
+  // there, and the server says so too (CLAUDE.md §3).
+  it('A departure on a SETTLEMENT or CLOSED cycle → CYCLE_SETTLING; on a CANCELLED one → CYCLE_CLOSED; nothing written', async () => {
+    for (const [status, code] of [
+      ['SETTLEMENT', 'CYCLE_SETTLING'],
+      ['CLOSED', 'CYCLE_SETTLING'],
+      ['CANCELLED', 'CYCLE_CLOSED'],
+    ]) {
+      const { cycle, items } = cycleWithOrder(db, { status });
+      const leg = addLeg(db, cycle, 1, { departedOn: null });
+      const r = await refusal(
+        shipping.updateLeg(leg.id, { departedOn: '2026-09-05' }, ACTOR),
+      );
+      expect(r.code).toBe(code);
+      expect(legRow(leg.id).departedOn).toBeNull();
+      expect(items).toHaveLength(1);
+    }
+  });
+
+  it('Moving the departure of a closed cycle is refused; re-sending the same day (the edit form does) is not', async () => {
+    const { leg } = oneLeg('CLOSED'); // departed 2026-09-01
+    expect(
+      (
+        await refusal(
+          shipping.updateLeg(leg.id, { departedOn: '2026-09-02' }, ACTOR),
+        )
+      ).code,
+    ).toBe('CYCLE_SETTLING');
+    await shipping.updateLeg(
+      leg.id,
+      { departedOn: '2026-09-01', trackingRef: 'T-1' },
+      ACTOR,
+    );
+    expect(legRow(leg.id).departedOn).toEqual(new Date('2026-09-01T00:00:00Z'));
+  });
+
+  it('A departure on an open cycle is recorded, and the leg reads in transit', async () => {
+    const { cycle } = cycleWithOrder(db, { status: 'PURCHASING' });
+    const leg = addLeg(db, cycle, 1, { departedOn: null });
+    await shipping.updateLeg(leg.id, { departedOn: '2026-09-05' }, ACTOR);
+    expect(legRow(leg.id).departedOn).toEqual(new Date('2026-09-05T00:00:00Z'));
+    expect(legRow(leg.id).status).toBe('IN_TRANSIT');
+  });
 });
 
 describe('POST /cycles/:id/shipping-legs with an arrival date', () => {
@@ -715,6 +760,48 @@ describe('cycle transitions read deliveries', () => {
     await expect(
       cycles.planTransition(cycle.id, 'ARRIVED_EGYPT'),
     ).resolves.toEqual(expect.objectContaining({ to: 'ARRIVED_EGYPT' }));
+  });
+
+  // I3: the cycle page's Change status offers the fix for exactly the leg
+  // named, so the refusal carries its id beside the readable route.
+  it('LEG_NOT_DEPARTED and LEG_NOT_ARRIVED name the leg by id as well as by route', async () => {
+    const { cycle, items } = cycleWithOrder(db, {
+      status: 'PURCHASING',
+      originType: 'CHINA',
+    });
+    const leg1 = addLeg(db, cycle, 1, { departedOn: null });
+    addLeg(db, cycle, 2, { departedOn: null });
+    const notLeft = await refusal(
+      cycles.planTransition(cycle.id, 'IN_TRANSIT'),
+    );
+    expect(notLeft.code).toBe('LEG_NOT_DEPARTED');
+    expect(notLeft.params).toEqual({
+      leg: 'Guangzhou, CN → Dubai, UAE',
+      legId: leg1.id,
+    });
+
+    legRow(leg1.id).departedOn = new Date('2026-09-01T00:00:00Z');
+    legRow(leg1.id).status = 'IN_TRANSIT';
+    cycle.status = 'IN_TRANSIT';
+    const notArrived = await refusal(
+      cycles.planTransition(cycle.id, 'ARRIVED_UAE'),
+    );
+    expect(notArrived.code).toBe('LEG_NOT_ARRIVED');
+    expect(notArrived.params).toEqual({
+      leg: 'Guangzhou, CN → Dubai, UAE',
+      legId: leg1.id,
+    });
+    expect(items).toHaveLength(1);
+  });
+
+  it('A delivery on a leg that has not left names the leg by id too', async () => {
+    const { cycle, items } = cycleWithOrder(db, { status: 'PURCHASING' });
+    const leg = addLeg(db, cycle, 1, { departedOn: null });
+    const r = await refusal(deliver(leg, items[0], 5));
+    expect(r.params).toEqual({
+      leg: 'Dubai, UAE → Cairo, Egypt',
+      legId: leg.id,
+    });
   });
 
   it("A UAE-direct cycle reaches Egypt on its one leg's first delivery", async () => {

@@ -17,7 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, giveStock, stockedProduct, owedOrder, refusedCallers } from './support/fixtures';
+import { apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -930,5 +930,26 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     await mk(`sales/orders/${second.id}/cancel`, {});
     now = await batches(request, headers, product.id);
     expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([2, 5, 5]);
+  });
+});
+
+test.describe('A payment is reversed once (§7 — found 2026-10-11)', () => {
+  test('TC-INV-31: reversing the same payment twice — the second is refused, and the order owes what it owed after the first', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const stamp = Date.now();
+    const { product } = await stockedProduct(request, headers, mk, `Inv Reverse ${stamp}`, 5);
+    const customer = await mk('customers', { displayName: `Inv Reverse Shop ${stamp}`, type: 'B2B' });
+    const order = await owedOrder(mk, customer.id, product.id, 1000);
+    const payment = await mk('payments', { customerId: customer.id, amount: 400, currency: 'EGP', orderId: order.id });
+    expect(await outstandingOf(request, headers, order.id)).toBe(600);
+
+    await mk(`payments/${payment.id}/reverse`, { reason: 'cheque bounced' });
+    expect(await outstandingOf(request, headers, order.id)).toBe(1000);
+
+    const again = await request.post(`${API}/payments/${payment.id}/reverse`, { headers, data: { reason: 'clicked twice' } });
+    expect(again.status()).toBe(400);
+    expect((await again.json()).error?.code).toBe('PAYMENT_ALREADY_REVERSED');
+    // Never more than the order is worth.
+    expect(await outstandingOf(request, headers, order.id)).toBe(1000);
   });
 });

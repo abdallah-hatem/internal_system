@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what).
+Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -122,6 +122,61 @@ somewhere to go; it offers exactly the moves the server allows (the table in
 the shipment's dates do not support (table above). The list has no status
 control: the slide-over that held it could no longer be reached once a row
 opened the details page, and was removed.
+
+**DECIDED 2026-10-11 (owner, I3) — a leg's departure and its deliveries are
+recorded from the cycle's page.** Each leg on the details page's Shipping card
+carries **Record departure** while it has not left, and **Record delivery**
+once it has left and still has goods on the way. They are the same dialog and
+the same request as everywhere else — the departure is the date the Shipments
+page's edit form sets (`PUT /shipping/legs/:id`, one field definition used in
+both places), the delivery is the Shipment panel's dialog — and they follow the
+same roles (a core partner). After this the wizard is only for setting a cycle
+up. Guesses, open until confirmed (autonomous run, 2026-10-11):
+- Neither button is shown on a cycle being settled, closed or cancelled — the
+  same statuses in which the server refuses a delivery. Recording a departure
+  there is now refused by the server too (`CYCLE_SETTLING` / `CYCLE_CLOSED`); it
+  used to be accepted. Re-sending the departure a leg already has (the edit form
+  does, on every save) is not a change and is still accepted.
+- Record departure is offered only on a leg with no departure yet. Correcting a
+  departure stays on the Shipments page's edit form.
+- The departure starts at Cairo's today and cannot be a later day, like a
+  delivery.
+
+**DECIDED 2026-10-11 (owner, I3) — a refused status change offers its fix.**
+When Change status is refused because a leg has not left (`LEG_NOT_DEPARTED`)
+or has had nothing delivered (`LEG_NOT_ARRIVED`), the dialog shows the reason
+with a button that opens Record departure or Record delivery for the leg the
+server named; the refusal carries the leg's id (`params.legId`) beside its route
+for that. After a save the dialog comes back and the move can be tried again.
+Guesses, open until confirmed (autonomous run, 2026-10-11): a `LEG_NOT_ARRIVED`
+on a leg that has not even left offers the departure first, since a delivery
+on it would be refused; no fix is offered to a role that cannot take it, nor
+when the refusal names no leg. Every refusal of a status change is now shown
+inside the dialog rather than as a toast, so the reason sits beside the
+choices it refers to.
+
+**DECIDED 2026-10-11 (owner, I3; layout A) — where a cycle's goods are.** The
+top of a cycle's page shows how many units are **in China** (ordered, the leg
+out of China has not left), **on the way to the UAE**, **in the UAE** (reached
+Dubai, not yet on a leg that has left — on a UAE-direct cycle, ordered and not
+yet shipped), **on the way to Egypt**, **in Egypt** (on the shelf plus
+delivered but not yet checked in, the latter named underneath) and **sold**;
+**lost** only when something was. Then the same per product — a table, or a
+card per product on a phone. A UAE-direct cycle has no China or To-UAE place.
+Every unit ordered is in exactly one place, so the places add up to what was
+ordered. All of it is read from the shipment's figures (§1) and the cycle's
+batches; nothing new is entered. One function: `components/cycles/goods-location.ts`.
+Guesses, open until confirmed (autonomous run, 2026-10-11):
+- A leg has one departure, so once it has left, everything that has entered it
+  counts as on the way — including goods that reached Dubai after leg 2 left and
+  are physically still there. The system holds no record that tells them apart.
+- **Sold** is what left this cycle's shelves through a sale: received less what
+  remains, so a cancelled sale or a return to stock puts units back, and a unit
+  returned damaged (not restocked) stays counted as sold — it is not on the
+  shelf and did not come back to it. This differs from Analytics' units sold,
+  which nets every return; the cards need every unit in exactly one place.
+- A unit marked lost after reaching Egypt (never found at the count) is in Lost,
+  not in Egypt.
 
 ---
 
@@ -523,6 +578,13 @@ Guesses, open until confirmed (2026-10-11):
   day a shop is sold to in USD).
 - The walk-in record has no statement (`WALK_IN_NO_STATEMENT`): it has no account.
 - With no dates chosen the statement covers everything, opening at zero.
+
+**FIXED 2026-10-11 (I3 run) — a payment is reversed once.** Reversing a payment
+puts what it paid back on the orders it was allocated to. A second reversal of
+the same payment used to do that again, so the shop owed more than it was ever
+charged. Now it is refused (`PAYMENT_ALREADY_REVERSED`) and changes nothing; of
+two reversals sent at once, one wins. Not a new rule — a reversal undoes a
+payment, and there is only one payment to undo.
 
 ---
 

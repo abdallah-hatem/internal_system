@@ -14,7 +14,7 @@ import {
   lockCycle,
   syncLegStatuses,
 } from '../../common/shipment-load';
-import { DeliveriesService } from './deliveries.service';
+import { assertOpen, DeliveriesService } from './deliveries.service';
 import { AuditService } from '../audit/audit.service';
 import {
   PaginationDto,
@@ -375,6 +375,13 @@ export class ShippingService {
 
       if (data.departedOn) {
         const departed = businessDay(data.departedOn);
+        // No departure is recorded on a cycle cancelled, being settled or
+        // closed (§1). Only a change counts: the Shipments page's edit form
+        // sends the leg's departure back with every save, unchanged.
+        const before = existing.departedOn
+          ? businessDay(existing.departedOn)
+          : null;
+        if (departed !== before) assertOpen(loaded.cycle);
         const legRow = loaded.cycle.shippingLegs.find((l) => l.id === id);
         const earliest = (legRow?.deliveries ?? [])
           .map((d) => businessDay(d.arrivedOn))

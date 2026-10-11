@@ -1,5 +1,6 @@
 'use client';
-import { LegRoute } from '@/components/shipment/LegRoute';
+import { CycleShippingCard } from '@/components/cycles/cycle-shipping-card';
+import { GoodsLocationCards } from '@/components/cycles/goods-location-cards';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 
@@ -28,7 +29,7 @@ import { useToast } from '../../../../../components/ui/toast';
 import { selectOnFocus } from '../../../../../lib/select-on-focus';
 import { MoneyInput } from '../../../../../components/ui/money-input';
 import {
-  Loader2, Users, ShoppingCart, Truck, Boxes, Plus, Scale, TrendingUp,
+  Loader2, Users, ShoppingCart, Boxes, Plus, Scale, TrendingUp,
 } from 'lucide-react';
 
 import { useApiError } from '../../../../../lib/api-error';
@@ -38,7 +39,6 @@ import { CycleStatusButton } from '@/components/cycles/cycle-status-button';
 import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
-import { num as qtyNum } from '../../../../../components/shipment/shipment-model';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -189,7 +189,6 @@ export default function CycleDetailsPage() {
 
   const participants: any[] = cycle.participants ?? [];
   const orders: any[] = cycle.purchaseOrders ?? [];
-  const legs: any[] = cycle.shippingLegs ?? [];
   const batches: any[] = cycle.inventoryBatches ?? [];
   const invested = participants.reduce((s, p) => s + num(p.contributionAmount), 0);
   const isClosed = cycle.status === 'CLOSED';
@@ -222,6 +221,9 @@ export default function CycleDetailsPage() {
           </button>
         </div>
       </div>
+
+      {/* Where the goods are — layout A, chosen by the owner (I3). */}
+      <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <Tile label={t('participants')} value={String(participants.length)} />
@@ -333,54 +335,13 @@ export default function CycleDetailsPage() {
         )}
       </Card>
 
-      {/* Each leg's status and deliveries, as the shipment reads them; the
-          old card showed a departure and never an arrival. */}
-      <Card title={t('shipping')} icon={<Truck className="h-4 w-4 text-muted-foreground" />}>
-        {legs.length === 0 ? (
-          <EmptyState
-            size="compact"
-            icon={Truck}
-            title={t('noLegsTitle')}
-            description={t('noLegsHint')}
-            action={canAddLeg && !isClosed ? { label: t('goToShipments'), href: '/shipments' } : undefined}
-          />
-        ) : (
-          <Rows>
-            {legs.map((l) => {
-              const position = shipment?.legs?.find((p) => p.legId === l.id);
-              const deliveries = position?.deliveries ?? [];
-              return (
-                <div key={l.id} data-testid="shipping-card-leg" className="space-y-1 py-2">
-                  <Row>
-                    <LegRoute className="text-sm" origin={l.origin} destination={l.destination} />
-                    <span className="text-xs text-muted-foreground"><LatinText>{l.provider ?? '—'}</LatinText></span>
-                    <span className="text-xs text-muted-foreground">
-                      {l.departedOn ? t('legDeparted', { date: formatLocalDate(l.departedOn) }) : t('legNotDeparted')}
-                    </span>
-                    <span data-testid="shipping-card-status" className="text-xs font-medium text-foreground">
-                      {codeLabel('legStatus', position?.status ?? l.status)}
-                    </span>
-                    <span className="text-sm"><Money value={num(l.amountEgp)} /></span>
-                  </Row>
-                  <p className="text-xs text-muted-foreground">
-                    {deliveries.length === 0
-                      ? t('legNoDeliveries')
-                      : deliveries
-                          .map((d) =>
-                            t('legDelivery', {
-                              date: formatLocalDate(d.arrivedOn),
-                              units: d.lines.reduce((sum, line) => sum + qtyNum(line.qty), 0),
-                            }),
-                          )
-                          .join(' · ')}
-                  </p>
-                </div>
-              );
-            })}
-          </Rows>
-        )}
-      </Card>
-
+      {/* Each leg's status and deliveries, as the shipment reads them, with
+          Record departure and Record delivery on the leg itself (I3). */}
+      <CycleShippingCard
+        cycle={cycle}
+        shipment={shipment}
+        emptyAction={canAddLeg && !isClosed ? { label: t('goToShipments'), href: '/shipments' } : undefined}
+      />
       <Card title={t('inventory')} icon={<Boxes className="h-4 w-4 text-gray-400" />}>
         {batches.length === 0 ? (
           <EmptyState size="compact" icon={Boxes} title={t('noBatchesTitle')} description={t('noBatchesHint')} />

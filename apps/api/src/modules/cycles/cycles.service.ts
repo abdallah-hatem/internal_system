@@ -467,6 +467,7 @@ export class CyclesService {
       where: { cycleId },
       orderBy: { sequence: 'asc' },
       select: {
+        id: true,
         sequence: true,
         status: true,
         departedOn: true,
@@ -490,7 +491,8 @@ export class CyclesService {
       throw badRequest(
         'LEG_NOT_DEPARTED',
         `${where(l)} has not departed. Record the departure date on that leg first.`,
-        { leg: where(l) },
+        // The id lets the cycle page offer the fix for this exact leg (I3).
+        { leg: where(l), legId: l.id },
       );
     };
 
@@ -499,7 +501,8 @@ export class CyclesService {
       throw badRequest(
         'LEG_NOT_ARRIVED',
         `${where(l)} has not arrived: no delivery has been recorded on it. Record the arrival on that leg first.`,
-        { leg: where(l) },
+        // The id lets the cycle page offer the fix for this exact leg (I3).
+        { leg: where(l), legId: l.id },
       );
     };
 

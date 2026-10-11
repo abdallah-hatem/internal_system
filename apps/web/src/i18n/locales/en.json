@@ -275,6 +275,7 @@
     "emptyTitle": "No import cycles yet",
     "emptyHint": "A cycle is one shipment: what was ordered, how it travelled, and what it sold for.",
     "statusUpdated": "Cycle status updated",
+    "statusFixSaved": "Recorded. Choose the status again to move the cycle on.",
     "transitionFailed": "The status could not be changed",
     "currentStatus": "Current status:",
     "profitNotYet": "No profit yet: nothing from this cycle has been received and sold.",
@@ -1128,6 +1129,7 @@
     "PARTNER_ID_REQUIRED": "Choose the partner for a core partner.",
     "PAYMENT_EXCEEDS_OWED": "{customer} owes {owed}, so {amount} cannot be received against it.",
     "PAYMENT_FULLY_ALLOCATED": "This payment is already fully allocated or reversed.",
+    "PAYMENT_ALREADY_REVERSED": "This payment has already been reversed.",
     "PER_PIECE_FIELDS_REQUIRED": "Per-piece shipping needs both a rate per unit and a chargeable piece count.",
     "PER_WEIGHT_FIELDS_REQUIRED": "Per-weight shipping needs both a rate per unit and a chargeable weight.",
     "PLAN_ALREADY_CANCELLED": "This plan is already cancelled.",
@@ -1508,6 +1510,19 @@
       "TH": "Thailand"
     }
   },
+  "goodsLocation": {
+    "title": "Where the goods are",
+    "inChina": "In China",
+    "toUae": "On the way to UAE",
+    "inUae": "In UAE",
+    "toEgypt": "On the way to Egypt",
+    "inEgypt": "In Egypt",
+    "notCheckedIn": "{count} not checked in yet",
+    "sold": "Sold",
+    "lost": "Lost",
+    "ordered": "Ordered",
+    "product": "Product"
+  },
   "shipment": {
     "title": "Shipment",
     "totals": "Ordered {ordered} · received {received} · waiting {waiting} · lost {lost} · on the way {onTheWay}",
@@ -1536,6 +1551,12 @@
     "lossLine": "<name>{product}</name> × {qty} lost",
     "recordDelivery": "Record delivery",
     "recordDeliveryTitle": "Record a delivery on leg {leg}",
+    "recordDeparture": "Record departure",
+    "recordDepartureTitle": "Record the departure of leg {leg}",
+    "departureDate": "Departed on",
+    "departureHint": "The day the goods left. It cannot be a day that has not come yet.",
+    "departureRecorded": "Departure recorded",
+    "departureFailed": "The departure could not be recorded.",
     "deliveredOn": "Arrived on",
     "qtyPerProduct": "Quantity that arrived, per product",
     "onTheWayCount": "{count} on the way",

@@ -35,10 +35,13 @@ export function RecordDeliveryDialog({
   leg,
   productNames,
   onClose,
+  onSaved,
 }: {
   leg: ShipmentLeg;
   productNames: Record<string, string>;
   onClose: () => void;
+  /** Runs once the server accepted the delivery, before the dialog closes — a save, not a cancel. */
+  onSaved?: () => void;
 }) {
   const t = useTranslations('shipment');
   const tc = useTranslations('common');
@@ -93,6 +96,7 @@ export function RecordDeliveryDialog({
     }
     refresh();
     toast.success(t('deliveryRecorded'));
+    onSaved?.();
     onClose();
   };
 

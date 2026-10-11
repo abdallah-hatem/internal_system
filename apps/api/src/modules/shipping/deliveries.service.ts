@@ -103,7 +103,7 @@ export function deliveryDay(value: string | undefined): string {
 }
 
 /** Refuse anything on a cycle that is cancelled, being settled or closed. */
-function assertOpen(cycle: { code: string; status: string }) {
+export function assertOpen(cycle: { code: string; status: string }) {
   if (cycle.status === 'CANCELLED') {
     throw badRequest(
       'CYCLE_CLOSED',
@@ -274,7 +274,7 @@ export class DeliveriesService {
       throw badRequest(
         'LEG_NOT_DEPARTED',
         `${where(leg)} has not departed. Record the departure date on that leg first.`,
-        { leg: where(leg) },
+        { leg: where(leg), legId: leg.id },
       );
     }
     const departed = businessDay(leg.departedOn);
