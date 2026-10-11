@@ -206,4 +206,4 @@ export function useRefreshShipment() {
 
 /** The input every quantity field uses: 16px on phones, no spinner, no wheel. */
 export const qtyInputClass =
-  'w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-end text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-ring md:text-sm';
+  'w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-start text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-ring md:text-sm';

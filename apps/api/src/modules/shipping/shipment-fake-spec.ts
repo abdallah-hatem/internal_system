@@ -642,7 +642,37 @@ export function fakePrisma(db: Store) {
         after(db.participants.filter((p) => p.cycleId === where.cycleId)),
     },
     purchaseOrder: {
-      findMany: () => after([]),
+      // Only the status-filtered read leaving PURCHASING makes (L3): which of
+      // the cycle's orders are still drafts. Every other read sees none, as
+      // before — a fixture's order carries a status only when a test sets one.
+      findMany: ({ where = {} }: Row = {}) =>
+        after(
+          where.status === undefined
+            ? []
+            : db.orders
+                .filter(
+                  (o) =>
+                    o.status === where.status &&
+                    (where.cycleId === undefined ||
+                      o.cycleId === where.cycleId) &&
+                    (where.id?.in === undefined || where.id.in.includes(o.id)),
+                )
+                .map((o) => ({
+                  ...o,
+                  _count: {
+                    items: db.items.filter((i) => i.purchaseOrderId === o.id)
+                      .length,
+                  },
+                  supplier: db.suppliers.find((x) => x.id === o.supplierId),
+                })),
+        ),
+      updateMany: ({ where, data }: Row) => {
+        const rows = db.orders.filter(
+          (o) => o.cycleId === where.cycleId && o.status === where.status,
+        );
+        for (const o of rows) Object.assign(o, data);
+        return after({ count: rows.length });
+      },
       findUnique: ({ where, include }: Row) => {
         const o = db.orders.find((x) => x.id === where.id);
         if (!o) return after(null);

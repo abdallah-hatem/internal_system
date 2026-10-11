@@ -240,7 +240,9 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
 // ─── 2. A refused status change offers its fix ──────────────────────────
 
 test.describe('Change status offers the fix for the leg it names', () => {
-  test('TC-I3-05: Purchasing → In transit refused (leg 1 not departed): record the departure from the refusal, try again, it moves', async ({ page, request }) => {
+  // L3 (§1, 2026-10-11): the departure recorded from the refusal moves the
+  // cycle on by itself, so there is nothing left to try again.
+  test('TC-I3-05: Purchasing → In transit refused (leg 1 not departed): record the departure from the refusal — the cycle moves by itself', async ({ page, request }) => {
     const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING'] });
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
@@ -259,17 +261,15 @@ test.describe('Change status offers the fix for the leg it names', () => {
     await expect(dep).toContainText(en.shipment.recordDepartureTitle.replace('{leg}', '1'));
     await dep.getByRole('button', { name: en.shipment.recordDeparture, exact: true }).click();
 
-    await expect(status).toBeVisible();
-    await expect(status.getByTestId('status-refusal')).toHaveCount(0);
-    await expect(status.getByTestId('status-fix-saved')).toHaveText(en.cycles.statusFixSaved);
-    await status.locator('[data-status="IN_TRANSIT"]').click();
-    await expect(page.getByText(en.cycles.statusUpdated)).toBeVisible();
+    await expect(page.getByText(`${en.shipment.departureRecorded} — cycle is now ${en.codes.cycleStatus.IN_TRANSIT}`)).toBeVisible();
+    await expect(dep).toHaveCount(0);
+    await expect(status).toBeHidden();
     await expect(page.getByTestId('cycle-status')).toHaveText(en.codes.cycleStatus.IN_TRANSIT);
     expect(await statusOf(request, headers, cycle.id)).toBe('IN_TRANSIT');
     await expect(leg(page, legs[0].id).getByTestId('leg-status')).toHaveText(en.codes.legStatus.IN_TRANSIT);
   });
 
-  test('TC-I3-06: In transit → Arrived UAE refused (nothing delivered): cancel the fix, the refusal is still there; record the delivery, try again, it moves', async ({ page, request }) => {
+  test('TC-I3-06: In transit → Arrived UAE refused (nothing delivered): cancel the fix, the refusal is still there; record the delivery — the cycle moves by itself', async ({ page, request }) => {
     const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { departed: [1], status: ['FUNDING', 'PURCHASING', 'IN_TRANSIT'] });
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
@@ -291,8 +291,8 @@ test.describe('Change status offers the fix for the leg it names', () => {
     await status.getByTestId('status-fix').click();
     await expect(del.getByTestId('delivery-qty').first()).toHaveValue('40');
     await del.getByRole('button', { name: en.shipment.recordDelivery, exact: true }).click();
-    await expect(status.getByTestId('status-fix-saved')).toBeVisible();
-    await status.locator('[data-status="ARRIVED_UAE"]').click();
+    await expect(page.getByText(`${en.shipment.deliveryRecorded} — cycle is now ${en.codes.cycleStatus.ARRIVED_UAE}`)).toBeVisible();
+    await expect(status).toBeHidden();
     await expect(page.getByTestId('cycle-status')).toHaveText(en.codes.cycleStatus.ARRIVED_UAE);
     expect(await statusOf(request, headers, cycle.id)).toBe('ARRIVED_UAE');
     // All of it reached Dubai; leg 2 has not left.

@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { businessToday } from '@/lib/dates';
 import { DatePicker } from '@/components/ui/date-picker';
-import { useToast } from '@/components/ui/toast';
+import { useAnnounceStatusMove } from './status-move';
 import { LegRoute } from './LegRoute';
 import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, useRefreshShipment } from './ShipmentDialog';
 
@@ -72,12 +72,12 @@ export function RecordDepartureDialog({
 }: {
   leg: { legId: string; sequence: number; origin?: string; destination?: string };
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (res: unknown) => void;
 }) {
   const t = useTranslations('shipment');
   const tc = useTranslations('common');
   const apiError = useApiError();
-  const toast = useToast();
+  const announce = useAnnounceStatusMove();
   const refresh = useRefreshShipment();
 
   const [departedOn, setDepartedOn] = useState(() => businessToday());
@@ -93,8 +93,9 @@ export function RecordDepartureDialog({
     submitting.current = true;
     setPending(true);
     setRefusal(null);
+    let res: unknown;
     try {
-      await recordDeparture(leg.legId, departedOn);
+      res = await recordDeparture(leg.legId, departedOn);
     } catch (err) {
       setRefusal(apiError(err, t('departureFailed')));
       submitting.current = false;
@@ -102,8 +103,9 @@ export function RecordDepartureDialog({
       return;
     }
     refresh();
-    toast.success(t('departureRecorded'));
-    onSaved?.();
+    // The departure may have moved the cycle on (L3): say where it now stands.
+    announce(t('departureRecorded'), res);
+    onSaved?.(res);
     onClose();
   };
 

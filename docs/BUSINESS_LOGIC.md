@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (§18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-11 (L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -104,6 +104,59 @@ nothing of it — the goods are sitting at its origin and it has not started.
 A departure or a delivery cannot be dated in the future; a delivery cannot be
 dated before its leg departed, and none can be recorded on a cancelled or closed
 cycle.
+
+**DECIDED 2026-10-11 (owner, L3) — the cycle's status follows its shipment.**
+*Built 2026-10-11.* The owner expects recording that goods left or arrived to
+move the cycle by itself, without a second visit to Change status. So
+**recording a departure or a delivery moves the cycle forward to the furthest
+status the shipment then proves**, one step at a time through the same
+transition Change status makes — each step's own check runs, and leaving
+Purchasing confirms the cycle's draft orders exactly once (§15), with the same
+audit row and notification per step. What proves what is the table above, read
+the other way round:
+
+| Recorded | China cycle moves to | UAE-direct cycle moves to |
+|---|---|---|
+| leg 1 departed | In transit | In transit to Egypt, through Arrived UAE (which asks nothing of its one leg) |
+| leg 1 has a delivery | Arrived UAE | Arrived Egypt |
+| the last leg departed | In transit to Egypt | — |
+| the last leg has a delivery | Arrived Egypt | — |
+
+- **Never backward, never past Arrived Egypt.** A cycle already at or beyond
+  what the record proves stays where it is; verifying and selling belong to
+  receiving (§3). A cycle in settlement, closed or cancelled is never moved
+  (and nothing can be recorded on one but a leg added in settlement, which
+  moves nothing).
+- **A step whose own check refuses stops the walk there, and the record still
+  saves.** The response names the step and the refusal; the office app shows it
+  as a warning beside the success.
+- **A cycle still in Planning or Funding** when a departure or delivery is
+  recorded is walked through Funding and Purchasing too, each through its own
+  checks (recommended option, chosen in the autonomous run 2026-10-11): the
+  goods have left, so the money and the order already happened in the world.
+- **A China cycle whose second leg is not recorded** is proved no further than
+  Arrived UAE, although the transition check lets a missing leg through.
+- **Every entry point:** Record departure and Record delivery on the cycle's
+  page, the fix offered by a refused Change status, the Shipments page's
+  create and edit forms, the wizard's legs step, and the assistant's
+  `add_shipping_leg` (a departure or an arrival) and `record_delivery`. Each
+  response carries `cycleStatus` (from, to, the steps taken, the step that
+  refused if one did, the orders it confirmed); the office app says it in the
+  success toast — "Delivery recorded — cycle is now Arrived Egypt" — and
+  refetches the cycle. The assistant's previews say where the record will
+  move the cycle and which orders it will confirm, and that is bound to the
+  confirmation: a cycle moved in between needs a fresh preview.
+- **Deleting a delivery** keeps its guard: refused while the cycle's status
+  depends on it. The cycle is not moved back by itself.
+- Guesses, open until confirmed (autonomous run, 2026-10-11):
+  - Only a change is news. The Shipments page's edit form sends a leg's
+    departure back with every save; an unchanged departure moves nothing, so a
+    cycle a partner kept behind its recorded shipment before this rule is not
+    moved by an unrelated edit — only by the next real departure or delivery.
+  - When a fix offered by a refused Change status moves the cycle by itself,
+    the status dialog closes instead of offering the move again.
+  - Receiving into stock reports its own walk to Selling the same way
+    ("Received into stock — cycle is now Selling").
 
 Rate-based legs derive their total rather than asking for it, so the per-piece
 rate itself stays on the record. A leg can be priced in another currency with an
@@ -256,7 +309,10 @@ line can never total more than were ordered.
 
 Stock can only be received once the cycle has reached Arrived Egypt. The first
 receipt moves the cycle on to Selling, through each step's own checks, as the
-wizard used to. Selling then continues while later deliveries come in.
+wizard used to. Since L3 (§1, 2026-10-11) the delivery that reaches Egypt
+has already moved the cycle to Arrived Egypt by itself, so a cycle in transit
+holding a last-leg delivery exists only in data from before that rule; the
+refusal (`CYCLE_NOT_ARRIVED`) stays for it. Selling then continues while later deliveries come in.
 
 FIFO still means the oldest **received** batch first: the day it was checked
 in, not the day it landed.
@@ -1275,7 +1331,8 @@ admits only core partners). Four tools:
   overdue plan instalment. A friend owed nothing is not listed.
 - `get_lender` — one friend by name or id (a close name returns the candidates, as
   `get_customer` does): each order he paid for and its cycle, every repayment with its rate,
-  what it cleared, the exchange difference and the account, his plan, and what is still owed.
+  what it cleared, the exchange difference (and the account, on repayments recorded before
+  2026-10-11 that named one), his plan, and what is still owed.
 - `record_lender_financing` — "Mahmoud paid 30,000 AED for PO-2026-0004". The friend is
   found with the one matcher; an unknown or close name is a question with nothing to confirm,
   and a new friend is added only when the partner agrees (`newLender`). The order is named by
@@ -1283,17 +1340,17 @@ admits only core partners). Four tools:
   "to fund", §18).
 - `record_lender_repayment` — "paid Mahmoud 50,000 pounds today", or "pay him off" (the
   service's own settling figure at the rate used). The preview shows the rate and where it
-  came from, what it clears in his currency, what is still owed before and after, the
-  exchange difference and the money account.
+  came from, what it clears in his currency, what is still owed before and after, and the
+  exchange difference. It asks no money account (§18, DECIDED 2026-10-11).
 What the preview showed binds (`PREVIEW_CHANGED`): another friend's payment on the order, or
 another repayment to him, between the preview and the yes. It does not remove a friend's
 payment, reverse a repayment, or agree or cancel a plan — those stay in the office app.
 Guesses made while building it, open until confirmed (2026-10-11):
 - The rate left unsaid is today's on the exchange-rate page — the one the office form
   prefills — and the preview says so; a currency with no rate there is asked, never guessed.
-- The money account: the one the partner names; with exactly one active pounds account, that
-  one (the office form's default); with several and none named, the assistant asks, offering
-  them in the office form's order and naming its default (the first by name).
+- ~~The money account: the one the partner names; with several and none named, the assistant
+  asks~~ — superseded 2026-10-11: no account is asked (§18, DECIDED by the owner). The tool
+  has no account parameter, and the confirmation binds no account.
 - A friend owed on more than one order is asked which order the repayment is for; it is never
   split across orders.
 - A currency the partner states must be the order's; another is refused
@@ -1309,6 +1366,14 @@ Guesses made while building it, open until confirmed (2026-10-11):
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it
 books a loss, and a partner should decide that on a screen.
+
+**The status a record moves the cycle to (2026-10-11, L3, §1).** `record_delivery`
+and `add_shipping_leg` with a departure or an arrival move the cycle on by
+themselves, as the office app's do. Each preview says where the cycle will land
+("This moves CYC-… from PURCHASING to IN_TRANSIT_TO_EGYPT") and which draft
+orders leaving Purchasing will confirm, read from the same write rolled back;
+both are part of what the confirmation binds. The commit says where it actually
+landed, and the step that refused if the walk stopped short.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
 the supplier's invoice number, and the photograph stays in the conversation.
@@ -1359,7 +1424,7 @@ confirms it.**
 | Who the friend is | A **lender**: a new kind of contact — not a partner, not a customer, not a supplier. He shares in no profit. | He is owed money; he does not own any of the cycle. |
 | What he can pay for | All or part of one purchase order, in that order's currency. Never more than the order's total. | The example is a supplier order in dirhams. Shipping legs paid by a friend can be added later. |
 | What we owe | The amount he paid, **in his currency** (e.g. 30,000 AED), until it reaches zero. | The owner's rule: each payment is worth the rate on that day. |
-| A repayment | We pay pounds on a date, at that day's rate (prefilled from the current rate, editable). It clears pounds ÷ rate of the debt. The money leaves one of our money accounts. | — |
+| A repayment | We pay pounds on a date, at that day's rate (prefilled from the current rate, editable). It clears pounds ÷ rate of the debt. | — |
 | Paying too much | Refused: a repayment cannot clear more than is still owed. The last one shows exactly how many pounds settle it at the rate entered. | Rule 1 of the working rules: too much is refused. |
 | A plan | Optional: a number of instalments and their due dates (e.g. 10,000 AED a month for three months). An instalment past its due date alerts the partners once, like a customer's (§7). | Same habit as customer plans. |
 | What the goods cost | **Unchanged**: the order's lines cost what they cost at the order's own rate, and the batches are costed from that as always (§2). Nothing is re-priced when a repayment happens. | A sale's cost is never changed after the fact (§3). |
@@ -1385,8 +1450,8 @@ confirms it.**
 | A repayment so small it clears 0.00 | Refused. | A payment that changes nothing is a slip. |
 | The exchange difference, exactly | Each repayment's pounds − what it cleared at the order's rate (to the piastre); the last one takes whatever keeps the total at the order's rate equal to what he paid at that rate. Over a repaid debt: pounds paid − his amount at the order's rate. | §2's residual habit. |
 | Where it is kept | On each repayment, not as a ledger row — the ledger shows the pounds leaving; settlement, cycle profit and the dashboard read the difference from the repayments through one function. | A loss is handled the same way (§9). |
-| Ledger | When he pays: money *in* (`lender_financing`) at the order's rate, no account — the goods are booked out at receipt as always, and this says whose money paid. Each repayment: money *out* (`lender_repayment`) for the pounds, from the account chosen. Both are financing: not income, not an expense. | Keeps cash on hand true: we did not pay the supplier. |
-| Which account | Any active money account in EGP. | Repayments are in pounds. |
+| Ledger | When he pays: money *in* (`lender_financing`) at the order's rate, no account — the goods are booked out at receipt as always, and this says whose money paid. Each repayment: money *out* (`lender_repayment`) for the pounds, with no account (below). Both are financing: not income, not an expense. | Keeps cash on hand true: we did not pay the supplier. |
+| Which account | **DECIDED 2026-10-11 by the owner: none is asked.** He said the step does not matter, and the code agrees: customer payments, purchases and the other money flows record no account (`financial_transactions.account_id` stays null for them), so a repayment was the only flow that asked. The office's Record repayment has no "From account" field and the lender page no account column; the assistant's `record_lender_repayment` asks none. A repayment and its ledger row store none. Rows already stored with one keep it (the production test data with Business Bank Account among them). The API still accepts an account a caller names, and then still refuses one that is not an active EGP account (`ACCOUNT_NOT_USABLE`). | The owner's rule; one flow behaving like the others. |
 | One friend, one order | A friend's payment for an order is recorded once; to change it, remove it (only while nothing is repaid) and record it again. Two friends may share one order, never above its total. | Doubles are the second-time bug. |
 | Which cycles | Not on a cycle in settlement, closed or cancelled. Cancelling a cycle whose order a friend paid for is refused until his payment is removed. An order with no lines (a draft from before PO_NEEDS_ITEM) takes no friend's payment. No guard stops a purchase line being cut below what friends paid — none is needed today, because a line cannot be edited once added; check-data 19.1 watches for it. | A cancelled cycle "never ordered anything" (§15). |
 | Dates | His payment and each repayment cannot be in the future; a repayment cannot be dated before he paid. A date left out is today in Cairo, as a payment's is (§7a). | Records of things that happened. |
@@ -1397,5 +1462,5 @@ confirms it.**
 | "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
 | "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
 | A cycle a friend paid for entirely | **DECIDED 2026-10-11 by the owner, built in L2:** its profit is split equally among the cycle's core partners; a temporary investor on it gets nothing; a custom split still overrides. "Entirely" means every contribution is zero and the friends' payments leave nothing to fund (`toFundEgp` zero). A cycle a friend paid for only partly, with no contributions, still refuses (§8). | The owner's rule. Partly paid still refuses: rounding must not pick who gets the money. |
-| Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; the account is asked when there are several and none was said; a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
-| Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). The money accounts a repayment leaves from are listed at `GET /ledger/accounts`, which the ledger's own roles guard — core partners and admin support. A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |
+| Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; no money account is asked (DECIDED 2026-10-11, "Which account" above); a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
+| Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |

@@ -79,13 +79,12 @@ test.describe('Shipping legs follow their dates', () => {
     expect(inTransit.status()).toBe(400);
     expect(JSON.stringify(await inTransit.json())).toMatch(/has not departed/i);
 
-    await request.put(`${API}/shipping/legs/${legIds[0]}`, {
+    // Since L3 (§1, 2026-10-11) recording the departure moves the cycle
+    // through that same gate by itself.
+    const departed = await request.put(`${API}/shipping/legs/${legIds[0]}`, {
       headers, data: { departedOn: '2026-08-10' },
     });
-    const nowOk = await request.post(`${API}/cycles/${cycle.id}/transition`, {
-      headers, data: { status: 'IN_TRANSIT' },
-    });
-    expect(nowOk.ok(), await nowOk.text()).toBeTruthy();
+    expect((await departed.json()).cycleStatus).toMatchObject({ from: 'PURCHASING', to: 'IN_TRANSIT' });
 
     // And it cannot land in the UAE until that leg has an arrival date.
     const arrived = await request.post(`${API}/cycles/${cycle.id}/transition`, {
@@ -117,13 +116,11 @@ test.describe('Shipping legs follow their dates', () => {
     });
     expect(early.status()).toBe(400);
 
-    await request.put(`${API}/shipping/legs/${legIds[1]}`, {
+    // The arrival moves it the last step by itself (L3).
+    const landed = await request.put(`${API}/shipping/legs/${legIds[1]}`, {
       headers, data: { arrivedOn: '2026-08-16' },
     });
-    const landed = await request.post(`${API}/cycles/${cycle.id}/transition`, {
-      headers, data: { status: 'ARRIVED_EGYPT' },
-    });
-    expect(landed.ok(), await landed.text()).toBeTruthy();
+    expect((await landed.json()).cycleStatus).toMatchObject({ from: 'IN_TRANSIT_TO_EGYPT', to: 'ARRIVED_EGYPT' });
     expect(await legStatuses(request, headers, cycle.id)).toEqual(['ARRIVED', 'ARRIVED']);
   });
 

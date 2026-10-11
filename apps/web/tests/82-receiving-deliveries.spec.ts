@@ -177,13 +177,17 @@ test.describe('POST /receipts/verify', () => {
     expect(await batchesOf(request, headers, product.id)).toHaveLength(2);
   });
 
-  test('TC-RCV-06: Receipt on a cycle still IN_TRANSIT → CYCLE_NOT_ARRIVED', async ({ request }) => {
-    const { headers, mk, cycle, leg, item } = await departedCycle(request);
+  // Since L3 (§1, 2026-10-11) a last-leg delivery moves the cycle to Arrived
+  // Egypt by itself, so a cycle in transit holding one can no longer be built
+  // through the API; the CYCLE_NOT_ARRIVED guard stays for cycles left behind
+  // by data from before, and is pinned in receipts.spec.ts.
+  test('TC-RCV-06: A last-leg delivery puts the cycle at Arrived Egypt, so it can be received straight away', async ({ request }) => {
+    const { headers, cycle, leg, item } = await departedCycle(request);
+    expect((await cycleOf(request, headers, cycle.id)).status).toBe('IN_TRANSIT_TO_EGYPT');
     const d = await deliver(request, headers, leg.id, item, 15);
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
-      await mk(`cycles/${cycle.id}/transition`, { status });
-    }
-    expect((await receive(request, headers, cycle.id, d, 15)).code).toBe('CYCLE_NOT_ARRIVED');
+    expect((await cycleOf(request, headers, cycle.id)).status).toBe('ARRIVED_EGYPT');
+    expect((await receive(request, headers, cycle.id, d, 15)).status).toBeLessThan(300);
+    expect((await cycleOf(request, headers, cycle.id)).status).toBe('SELLING');
   });
 
   test('TC-RCV-07: The first receipt walks ARRIVED_EGYPT → VERIFICATION → SELLING; a later delivery is received in SELLING', async ({ request }) => {
