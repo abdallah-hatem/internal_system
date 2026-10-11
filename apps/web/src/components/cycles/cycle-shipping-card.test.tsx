@@ -14,7 +14,7 @@ import CycleDetailsPage from '@/app/[locale]/cycles/[cycleId]/details/page';
  * Both directions of every rule (CLAUDE.md §12): the role that may and the
  * roles that may not; an open cycle and a frozen one. The dialogs are the
  * existing ones, portalled, and every way out of them leaves nothing behind
- * (§13). e2e (phase 2): apps/web/tests/95-cycle-details-shipping.spec.ts.
+ * (§13). e2e (phase 2): apps/web/tests/99-cycle-details-shipping.spec.ts.
  */
 
 const state = vi.hoisted(() => ({

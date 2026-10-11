@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: I1 live in production 2026-10-11 (`0835007`) · I2 merged into master 2026-10-11 (not pushed; check-data check 18 on production first) · I3 phase 1 building (no DB)
+Current stage: I1 live in production 2026-10-11 (`0835007`) · I2 merged into master 2026-10-11 (not pushed; check-data check 18 on production first) · I3 phase 1 built on `feature/i3-cycle-details` (no DB; e2e and screenshots in phase 2)
 
 ## Waiting on the user
 _(none)_
@@ -20,8 +20,8 @@ _(none)_
   selling cycles pinned (34 TC-INV-30). **Found and fixed: a partial return marked the whole order RETURNED and its
   remaining debt vanished from the shop's balance** (§5). Before shipping, run `scripts/check-data.sh` against
   production: check 18 lists orders already caught. Guesses to confirm: §4, §7b, §16.
-- `PaymentsService.reverse` does not check the payment is still RECORDED — reversing twice adds the money back twice.
-  Fix in I3 phase 2.
+- `PaymentsService.reverse` reversing twice added the money back twice — fixed in I3 phase 1
+  (`PAYMENT_ALREADY_REVERSED`; unit spec + 34 TC-INV-31, the latter to run in phase 2).
 - I3 (owner 2026-10-11): record a leg's departure and its deliveries from the cycle details page (reuse RecordDeliveryDialog / the shipments page's departure form, no second definition); a LEG_NOT_DEPARTED / LEG_NOT_ARRIVED refusal in Change status offers that action in place. After this the wizard is only for setting a cycle up.
   Also (owner 2026-10-11): location cards at the top of cycle details — per cycle and per product, how many are in China (not shipped), on the way to UAE, in UAE, on the way to Egypt, in Egypt (received + not checked in), sold; Lost only when > 0. Built from the shipment model's per-leg entered/delivered/onTheWay/received/waiting/lost. Layout: option A (cards + product table; cards per product on a phone) — chosen by the owner 2026-10-11.
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
