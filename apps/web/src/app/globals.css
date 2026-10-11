@@ -276,3 +276,50 @@ form [aria-invalid="true"][data-validated] {
   border-color: var(--color-destructive);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-destructive) 20%, transparent);
 }
+
+/* field-row:start ─────────────────────────────────────────────────────
+ * Fields side by side share one baseline, whether or not one shows an error.
+ *
+ * The bug (2026-10-11): the cycle wizard's purchase-order line aligned its
+ * columns to the END. After an empty submit the Product picker grew a
+ * "Required" line under itself, its column got 20px taller, and every box
+ * beside it — Qty, Unit Price, Discount, the remove ✕ — dropped below the
+ * Product box, with their labels on a different line from "Product". The Qty
+ * input was also 34px against the picker's 38px, so even without an error the
+ * tops and bottoms never met. `FieldWithQuickCreate` had patched its own +
+ * with a margin that guessed the error line's height; no other row had a patch.
+ *
+ * The cause is the alignment, not the error line. A field is a label, a box,
+ * then whatever sits under the box (an error, a hint like "Current rate: …").
+ * Aligned to the TOP, every label is on one line and every box at the same
+ * offset, and nothing under a box can move a neighbour. Aligned to the bottom,
+ * each box's position depends on how tall the things under it are.
+ *
+ * Two rules, applied by giving a row the `field-row` class:
+ *   1. its fields align to the top. Unlayered, so it beats an `items-end` left
+ *      on a row — Tailwind's utilities are a layer, and lose to this on purpose;
+ *   2. every box in it is one height, so tops AND bottoms meet — a text input,
+ *      a native select, the shared Select and DatePicker triggers.
+ * A control with no label of its own — a remove ✕, a + — sits in `RowAction`
+ * (components/ui/fields.tsx), which keeps the label's line free above it.
+ *
+ * `--field-h` is 38px: `py-2`, a 20px `text-sm` line and the 1px borders —
+ * the height the shared Select and DatePicker already were. */
+:root {
+  --field-h: 2.375rem;
+}
+
+.field-row {
+  align-items: start;
+}
+
+.field-row
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"], [type="range"], [aria-hidden="true"]),
+    select,
+    [data-slot="select-trigger"],
+    [data-slot="date-picker-trigger"]
+  ) {
+  height: var(--field-h);
+}
+/* field-row:end */

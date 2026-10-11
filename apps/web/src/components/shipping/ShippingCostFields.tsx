@@ -121,7 +121,7 @@ export function ShippingCostFields({
       </div>
 
       {basis === 'PER_PIECE' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={label}>
               {t('costPerPiece')}<span className="text-red-500 ms-1">*</span>
@@ -164,7 +164,7 @@ export function ShippingCostFields({
       )}
 
       {basis === 'PER_WEIGHT' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={label}>
               {t('costPerKg')}<span className="text-red-500 ms-1">*</span>
@@ -201,7 +201,7 @@ export function ShippingCostFields({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={label}>{t('currency')}</label>
           <Select

@@ -12,7 +12,7 @@ import { ArrowLeft } from 'lucide-react';
  * to the heading below. The arrow turns round under Arabic, where back is to
  * the right.
  */
-export function BackLink({ onClick }: { onClick: () => void }) {
+export function BackLink({ onClick, label }: { onClick: () => void; label?: string }) {
   const tc = useTranslations('common');
   return (
     <button
@@ -21,7 +21,7 @@ export function BackLink({ onClick }: { onClick: () => void }) {
       data-testid="back-link"
       className="-mx-2 -mt-3 inline-flex min-h-11 cursor-pointer items-center gap-1.5 px-2 text-sm text-muted-foreground transition-colors hover:text-foreground touch-manipulation"
     >
-      <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {tc('back')}
+      <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {label ?? tc('back')}
     </button>
   );
 }

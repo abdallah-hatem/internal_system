@@ -33,6 +33,7 @@ import {
 
 import { useApiError } from '../../../../../lib/api-error';
 import { BackLink } from '../../../../../components/ui/back-link';
+import { ContinueSetupLink } from '@/components/cycles/continue-setup';
 import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
@@ -204,13 +205,20 @@ export default function CycleDetailsPage() {
             <span data-testid="cycle-status">{codeLabel('cycleStatus', cycle.status)}</span>
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push(`/${locale}/settlements`)}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          <Scale className="h-4 w-4" /> {t('settlement')}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ContinueSetupLink
+            cycleId={cycle.id}
+            status={cycle.status}
+            className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 touch-manipulation"
+          />
+          <button
+            type="button"
+            onClick={() => router.push(`/${locale}/settlements`)}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Scale className="h-4 w-4" /> {t('settlement')}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -426,7 +434,7 @@ function AddParticipantForm({
         });
       }}
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">{t('participantType')}</label>
           <Select
@@ -471,7 +479,7 @@ function AddParticipantForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">{t('contribution')}</label>
           <MoneyInput

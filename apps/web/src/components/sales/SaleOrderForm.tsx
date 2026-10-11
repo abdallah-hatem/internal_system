@@ -13,7 +13,7 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
-import { FieldMark } from '@/components/ui/fields';
+import { FieldMark, RowAction } from '@/components/ui/fields';
 import { invalidFields } from '@/components/ui/validated-form';
 import { useCodeLabel } from '@/lib/labels';
 import { PAYMENT_METHODS } from '@/components/payments/RecordPaymentDialog';
@@ -276,7 +276,7 @@ export function SaleOrderForm({
 
   return (
     <form onSubmit={submit} noValidate className="space-y-4" data-testid="sale-order-form">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           {/* The label row holds the switch and keeps the height of the other
               labels; the switch's touch area reaches past it. */}
@@ -361,7 +361,7 @@ export function SaleOrderForm({
                 {/* Row 1 at every width: the product, and the way to remove it.
                     Sharing a row with the numbers left the product ~75px on a
                     desktop dialog, too narrow to read a name (UI audit #4). */}
-                <div className="flex items-start gap-2">
+                <div className="field-row flex gap-2">
                   <div className="min-w-0 flex-1">
                     <label className="mb-1 block text-xs text-muted-foreground">
                       {t('product')}
@@ -401,19 +401,21 @@ export function SaleOrderForm({
                       })}
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
-                    aria-label={t('removeItem')}
-                    title={t('removeItem')}
-                    className="mt-5 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-destructive hover:text-destructive/80 sm:size-9"
-                  >
-                    <MinusCircle className="h-4 w-4" />
-                  </button>
+                  <RowAction labelClassName="mb-1 block text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                      aria-label={t('removeItem')}
+                      title={t('removeItem')}
+                      className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-destructive hover:text-destructive/80 sm:size-9"
+                    >
+                      <MinusCircle className="h-4 w-4" />
+                    </button>
+                  </RowAction>
                 </div>
 
                 {/* Row 2: quantity / price / discount, with room for their values. */}
-                <div className="mt-2 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
+                <div className="field-row mt-2 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('quantity')}</label>
                     <input

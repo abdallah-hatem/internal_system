@@ -84,7 +84,7 @@ function ProviderFields({ record }: { record?: any }) {
         name="contactPerson"
         defaultValue={record?.contactPerson}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone} />
         <InputField label={t('email')} name="email" type="email" defaultValue={record?.email} />
       </div>
@@ -176,11 +176,11 @@ function SupplierFields({ record }: { record?: any }) {
     <>
       <InputField label={t('name')} name="name" defaultValue={record?.name} required />
       <InputField label={t('country')} name="country" defaultValue={record?.country} required />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={t('phone')} name="phone" type="tel" defaultValue={contact.phone} />
         <InputField label={t('email')} name="email" type="email" defaultValue={contact.email} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={t('wechat')} name="wechat" defaultValue={contact.wechat} />
         <InputField label={t('whatsapp')} name="whatsapp" defaultValue={contact.whatsapp} />
       </div>

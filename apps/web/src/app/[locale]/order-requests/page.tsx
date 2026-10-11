@@ -214,7 +214,7 @@ function RequestCard({
           const line = lines[item.productId];
           const short = Number(line.qty) > Number(item.couldGive);
           return (
-            <div key={item.productId} className="flex flex-wrap items-end gap-3 px-5 py-4">
+            <div key={item.productId} className="field-row flex flex-wrap gap-3 px-5 py-4">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
                 <p className="text-xs text-gray-500">

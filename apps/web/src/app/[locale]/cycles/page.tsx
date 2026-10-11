@@ -9,14 +9,14 @@ import { api } from '../../../lib/api';
 import { useDateFormat } from '../../../lib/dates';
 import { useCodeLabel } from '../../../lib/labels';
 import { EmptyState } from '../../../components/ui/empty-state';
-import { WIZARD_STATUSES } from '../../../components/cycles/wizard-walk';
+import { ContinueSetupLink } from '../../../components/cycles/continue-setup';
 import { useToast } from '../../../components/ui/toast';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import Link from 'next/link';
 import {
-  Route, Plus, Search, ChevronRight, X, Users, ShoppingCart, Truck, Boxes,
+  Route, Plus, Search, X, Users, ShoppingCart, Truck, Boxes,
   CheckCircle2, Loader2,
 } from 'lucide-react';
 
@@ -276,27 +276,20 @@ export default function CyclesPage() {
                 </tr>
               ) : (
                 paginated.map((cycle) => {
-                  const canResume = canCreate && WIZARD_STATUSES.includes(cycle.status);
                   const figure = profitByCode.get(cycle.code);
                   return (
                     <tr
                       key={cycle.id}
-                      onClick={() =>
-                        router.push(
-                          canResume
-                            ? `/${locale}/cycles/${cycle.id}`
-                            : `/${locale}/cycles/${cycle.id}/details`,
-                        )
-                      }
+                      data-testid="cycle-row"
+                      // Always the cycle's page. A cycle still being set up
+                      // used to open the wizard here, and the only way from the
+                      // wizard to the details was to finish it; resuming setup
+                      // is the separate "Continue setup" in the last column.
+                      onClick={() => router.push(`/${locale}/cycles/${cycle.id}/details`)}
                       className="cursor-pointer transition-colors hover:bg-primary-50"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
                         <bdi className="whitespace-nowrap">{cycle.code}</bdi>
-                        {canResume && (
-                          <span className="block whitespace-nowrap font-sans text-[10px] font-normal text-primary-500">
-                            {t('clickToResume')}
-                          </span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{cycle.originType === 'CHINA' ? t('china') : t('uaeDirect')}</td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -327,11 +320,7 @@ export default function CyclesPage() {
                           >
                             {tc('details')}
                           </button>
-                          {canResume && (
-                            <span className="inline-flex items-center gap-1 text-sm font-medium text-primary-600">
-                              {t('resume')} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
-                            </span>
-                          )}
+                          <ContinueSetupLink cycleId={cycle.id} status={cycle.status} />
                         </div>
                       </td>
                     </tr>
@@ -350,15 +339,15 @@ export default function CyclesPage() {
             <div className="rounded-xl border border-border bg-card">{emptyList}</div>
           ) : (
             paginated.map((cycle) => {
-                const canResume = canCreate && WIZARD_STATUSES.includes(cycle.status);
                 const figure = profitByCode.get(cycle.code);
                 return (
               <div
                 key={cycle.id}
-                onClick={() => canResume ? router.push(`/${locale}/cycles/${cycle.id}`) : setViewingCycle(cycle)}
-                className={`bg-white rounded-xl border border-gray-200 p-4 transition-shadow ${
-                  canResume ? 'cursor-pointer hover:shadow-md border-primary-200' : 'cursor-pointer hover:shadow-md'
-                }`}
+                data-testid="cycle-card"
+                // Always the cycle's page, as the table row does; setup is
+                // resumed from the card's own "Continue setup".
+                onClick={() => router.push(`/${locale}/cycles/${cycle.id}/details`)}
+                className="cursor-pointer rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-sm font-bold text-gray-900">{cycle.code}</span>
@@ -377,9 +366,11 @@ export default function CyclesPage() {
                     {t('roi')}: <RoiFigure figure={figure} />
                   </span>
                 </div>
-                {canResume && (
-                  <p className="text-xs text-primary-500 mt-2 font-medium">{t('tapToResume')}</p>
-                )}
+                <ContinueSetupLink
+                  cycleId={cycle.id}
+                  status={cycle.status}
+                  className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-3 text-sm font-medium text-primary-700 touch-manipulation active:bg-primary-100"
+                />
               </div>
               );
             })

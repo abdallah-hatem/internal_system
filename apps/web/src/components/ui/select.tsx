@@ -141,6 +141,7 @@ export function Select({
             ref={triggerRef}
             type="button"
             role="combobox"
+            data-slot="select-trigger"
             aria-expanded={open}
             disabled={disabled}
             className={cn(
