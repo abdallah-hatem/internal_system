@@ -511,7 +511,7 @@ function ProfitCard({ figure }: { figure?: CycleProfit }) {
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <div>
             <dt className="text-xs text-muted-foreground">{t('profit')}</dt>
-            <dd data-testid="cycle-profit-value" className={`text-lg font-bold ${figure.profit < 0 ? 'text-destructive' : 'text-foreground'}`}>
+            <dd data-testid="cycle-profit-value" className={`text-lg font-bold ${figure.profit > 0 ? 'text-success' : figure.profit < 0 ? 'text-destructive' : 'text-foreground'}`}>
               <Money value={figure.profit} />
             </dd>
           </div>
