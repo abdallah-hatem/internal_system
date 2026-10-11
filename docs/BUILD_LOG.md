@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: shipped 2026-10-11 (`aedabe9`): walk-in sales + assistant record_sale + matching fixes · next: live assistant test with receipt images and a spoken sale (needs the connector reconnected)
+Current stage: paused 2026-10-11 by the owner · in flight: branch `fix/row-alignment-and-cycle-nav` (field rows misalign when one shows its error; clicking a cycle should open its details with a separate Continue setup) — merge, verify on screen, test, ship
 
 ## Waiting on the user
 _(none)_
@@ -13,6 +13,9 @@ _(none)_
 _(none)_
 
 ## Next up
+- Resume: finish/merge `fix/row-alignment-and-cycle-nav`, look at its before/after screenshots, run e2e 94 + full suite, ship.
+- Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
+- Rotate the seeded `password123` on partner accounts.
 - Queued from this run: system-written ledger reasons are stored in English (needs a code/params migration); the app
   has no dark theme; audit nits #39–#46; §3 vs §12 reservations contradiction (Still open); R1's reference-data guesses
   for investors; partner logins still use the seeded password (rotate).
