@@ -7,6 +7,7 @@ import {
   Query,
   Headers,
   UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -76,15 +77,6 @@ export class SalesController {
     return this.salesService.create(body, user.id, idempotencyKey);
   }
 
-  @Post('price-check')
-  @ApiOperation({
-    summary:
-      'Would these lines sell below cost? Each line against the FIFO cost of the units it would draw, after its discount. A warning only — nothing is refused and nothing is written (BUSINESS_LOGIC §4).',
-  })
-  priceCheck(@Body() body: PriceCheckInput) {
-    return this.salesService.priceCheck(body);
-  }
-
   @Post(':id/confirm')
   @ApiOperation({ summary: 'Confirm order and perform FIFO stock allocation' })
   confirmOrder(
@@ -111,5 +103,33 @@ export class SalesController {
   @ApiOperation({ summary: 'Cancel a sale order and release allocations' })
   cancelOrder(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.cancelOrder(id, user.id);
+  }
+}
+
+/**
+ * Would these lines sell below cost? (BUSINESS_LOGIC §4, 2026-10-11.)
+ *
+ * Its own path, beside the orders rather than under them: it is not an order
+ * and writes nothing, and a screen watching for "the order was sent" must not
+ * count every check the form makes as the user types. The roles are the
+ * sales roles — the people who already read landed costs — named here rather
+ * than left to the guard's default, which is to allow (rule 12).
+ */
+@ApiTags('Sales')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+@Controller('sales')
+export class PriceCheckController {
+  constructor(private salesService: SalesService) {}
+
+  @Post('price-check')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Would these lines sell below cost? Each line against the FIFO cost of the units it would draw, after its discount. A warning only — nothing is refused and nothing is written (BUSINESS_LOGIC §4).',
+  })
+  priceCheck(@Body() body: PriceCheckInput) {
+    return this.salesService.priceCheck(body);
   }
 }

@@ -27,7 +27,7 @@ const priceCheck = vi.fn();
 vi.mock('@/lib/api', () => ({
   api: {
     post: (path: string, ...args: unknown[]) => {
-      if (path === '/sales/orders/price-check') {
+      if (path === '/sales/price-check') {
         priceCheck(...args);
         return Promise.resolve({ data: { data: priceCheckAnswer(args[0] as PriceCheckBody) } });
       }

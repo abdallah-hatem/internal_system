@@ -462,7 +462,7 @@ clearance or a favour to a shop is his decision, not the system's.
   the message. A line still being filled in (no product, no quantity) is not
   costed either.
 - **One rule, one definition** (CLAUDE.md §11). `apps/api/src/common/below-cost.ts`
-  computes it; `POST /sales/orders/price-check` answers every surface; the batch
+  computes it; `POST /sales/price-check` answers every surface; the batch
   list it reads is the same function confirming allocates from (`fifoBatches`).
   Nothing is written and nothing is refused by it.
 - **Where it shows.** The office sale form, shop and walk-in, under each line and

@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 
 /**
  * Selling below cost (BUSINESS_LOGIC §4, DECIDED 2026-10-11): a warning,
- * never a refusal. The server decides it — `POST /sales/orders/price-check`,
+ * never a refusal. The server decides it — `POST /sales/price-check`,
  * which costs each line at the FIFO units it would draw (`common/below-cost.ts`
  * in the API). Every screen that sets a selling price asks it through this
  * hook; none works the cost out for itself, so the form, a draft's confirm,
@@ -80,9 +80,14 @@ export function usePriceCheck(
     queryKey: ['price-check', settled],
     queryFn: () =>
       api
-        .post('/sales/orders/price-check', JSON.parse(settled) as unknown)
+        .post('/sales/price-check', JSON.parse(settled) as unknown)
         .then((r) => (r.data?.data ?? r.data) as PriceCheckResult),
-    enabled: enabled && anything,
+    // Only once the lines have stopped moving. Enabling on the lines as they
+    // are now, while the key still held the settled lines from before, sent
+    // the old body: a price field going from empty to 850 was checked at a
+    // price of 0, and a loss for a price nobody typed was shown until the real
+    // answer came (found by spec 99-below-cost, TC-BC-07).
+    enabled: enabled && anything && settled === body,
     placeholderData: keepPreviousData,
     // Stock moves with every sale: a cost read a minute ago may be gone.
     staleTime: 0,

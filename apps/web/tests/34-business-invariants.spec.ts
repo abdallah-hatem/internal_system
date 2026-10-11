@@ -935,6 +935,33 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     now = await batches(request, headers, product.id);
     expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([2, 5, 5]);
   });
+
+  test('TC-INV-48: the below-cost check costs a sale at exactly the COGS confirming records — across batches, over two lines, with a discount (§4, L4)', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const product = await mk('products', { name: `Cost Check ${Date.now()}`, minStock: 0 });
+    await cycleReceived(request, headers, mk, product.id, 900, 2, 12);
+    await cycleReceived(request, headers, mk, product.id, 1100, 5, 4);
+    const customer = await mk('customers', { displayName: `Cost Check Shop ${Date.now()}`, type: 'B2B' });
+    const items = [
+      { productId: product.id, quantity: 3, unitPrice: 950, discount: 0 },
+      { productId: product.id, quantity: 2, unitPrice: 1200, discount: 250 },
+    ];
+
+    const check = await request.post(`${API}/sales/price-check`, { headers, data: { currency: 'EGP', items } });
+    expect(check.ok(), await check.text()).toBeTruthy();
+    const said = (await check.json()).data;
+    // 2 × 900 + 1 × 1,100 = 2,900 against 2,850; then 2 × 1,100 = 2,200 against 2,150.
+    expect(said.lines.map((l: any) => [l.costEgp, l.lossEgp])).toEqual([['2900.00', '50.00'], ['2200.00', '50.00']]);
+    expect(said.totalLossEgp).toBe('100.00');
+
+    // A warning, not a refusal: the same lines confirm.
+    const sale = await mk('sales/orders', { customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true, items });
+    const detail = (await (await request.get(`${API}/sales/orders/${sale.id}`, { headers })).json()).data;
+    const cogs = detail.items.map((i: any) =>
+      (i.allocations ?? []).reduce((t: number, a: any) => t + Math.round(Number(a.cogsEgp) * 100), 0) / 100,
+    );
+    expect(cogs).toEqual(said.lines.map((l: any) => Number(l.costEgp)));
+  });
 });
 
 test.describe('A payment is reversed once (§7 — found 2026-10-11)', () => {

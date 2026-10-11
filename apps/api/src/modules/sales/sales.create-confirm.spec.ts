@@ -10,7 +10,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import type { PaymentsService } from '../payments/payments.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { SalesController } from './sales.controller';
+import { PriceCheckController, SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
 
 /**
@@ -1059,8 +1059,8 @@ describe('the price check — selling below cost warns, never refuses (§4, 2026
     function contextFor(role: string): ExecutionContext {
       return {
         // eslint-disable-next-line @typescript-eslint/unbound-method -- the guard reads metadata off the handler; it never calls it
-        getHandler: () => SalesController.prototype.priceCheck,
-        getClass: () => SalesController,
+        getHandler: () => PriceCheckController.prototype.priceCheck,
+        getClass: () => PriceCheckController,
         switchToHttp: () => ({ getRequest: () => ({ user: { role } }) }),
       } as unknown as ExecutionContext;
     }
