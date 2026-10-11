@@ -969,6 +969,16 @@ Settings as its own connection.
 stock with arrival and receipt dates, sales, payments, customer balances, the
 dashboard, FX rates.
 
+*Added 2026-10-11 (I1, autonomous run): who owes what* (`list_receivables`). Every
+customer with an unpaid balance, largest first, with how many orders are open,
+the day the oldest unpaid one was placed (in Cairo), and how much is overdue on
+their payment plan; optionally only those with something overdue. The balance is
+the customer's balance as everywhere else (confirmed and partly paid orders).
+Decided while building it: **overdue comes only from payment plans** (§7) — a
+shop with no plan has nothing overdue, because no date was ever promised — and is
+**never shown above what the customer owes now** (a plan can promise more than is
+still owed after a return). Reading it notifies nobody.
+
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,
 cycle status, and verifying stock in — and, since 2026-10-11, recording a sale (below). It cannot change sales, payments,

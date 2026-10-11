@@ -180,7 +180,7 @@ test.describe('Assistant read tools', () => {
     const writes = tools.filter((t: any) => t.annotations?.readOnlyHint !== true);
 
     expect(writes.filter((t: any) => !intake.has(t.name) || officeOnly.test(t.name)).map((t: any) => t.name)).toEqual([]);
-    for (const name of ['list_sales', 'list_payments', 'get_customer', 'get_dashboard']) {
+    for (const name of ['list_sales', 'list_payments', 'list_receivables', 'get_customer', 'get_dashboard']) {
       expect(tools.find((t: any) => t.name === name)?.annotations?.readOnlyHint).toBe(true);
     }
   });
@@ -202,5 +202,67 @@ test.describe('Assistant read tools', () => {
     // The two that take no input still answer.
     expect(data(await tool(request, token, 'get_dashboard'))).toHaveProperty('receivables');
     expect(Array.isArray(data(await tool(request, token, 'get_fx_rates')))).toBe(true);
+  });
+
+  test("TC-MCP-READ-08: list_receivables — who owes what, largest first, overdue from the plan, balances equal the office's", async ({
+    request,
+  }) => {
+    const { headers, mk } = await apiCtx(request);
+    const token = await assistantToken(request);
+    const stamp = Date.now();
+    const { product } = await stockedProduct(request, headers, mk, `Recv ${stamp}`, 10);
+    const day = (n: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+    };
+
+    // Large enough to sit above anything else the run has left owing.
+    const late = await mk('customers', { displayName: `Recv Late ${stamp}`, type: 'B2B' });
+    await owedOrder(mk, late.id, product.id, 7_000_000);
+    await owedOrder(mk, late.id, product.id, 1_000_000);
+    await mk('payment-plans', {
+      customerId: late.id, agreedOn: day(-20),
+      instalments: [{ dueOn: day(-5), amount: 3_000_000 }, { dueOn: day(10), amount: 1_000_000 }],
+    });
+    const big = await mk('customers', { displayName: `Recv Big ${stamp}`, type: 'B2B' });
+    await owedOrder(mk, big.id, product.id, 9_000_000);
+    // A draft owes nothing and must not make a shop appear.
+    const draftOnly = await mk('customers', { displayName: `Recv Draft ${stamp}`, type: 'B2B' });
+    await mk('sales/orders', {
+      customerId: draftOnly.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 1, unitPrice: 99_000_000, discount: 0 }],
+    });
+
+    const rows = data(await tool(request, token, 'list_receivables', { limit: 50 }));
+    const ids = rows.map((r: any) => r.customerId);
+    expect(ids.indexOf(big.id)).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf(big.id)).toBeLessThan(ids.indexOf(late.id));
+    expect(ids).not.toContain(draftOnly.id);
+    const outstanding = rows.map((r: any) => Number(r.outstanding));
+    expect(outstanding).toEqual([...outstanding].sort((a, b) => b - a));
+
+    const lateRow = rows.find((r: any) => r.customerId === late.id);
+    expect(lateRow).toMatchObject({ outstanding: '8000000.00', overdue: '3000000.00', openOrders: 2, oldestUnpaidOn: day(0) });
+    expect(rows.find((r: any) => r.customerId === big.id).overdue).toBe('0.00');
+
+    // The same balance the customer's page shows.
+    const detail = await (await request.get(`${API}/customers/${late.id}`, { headers })).json();
+    expect(lateRow.outstanding).toBe((detail.data ?? detail).outstandingBalance);
+
+    // overdueOnly: the late shop, not the big one.
+    const overdue = data(await tool(request, token, 'list_receivables', { overdueOnly: true, limit: 50 }));
+    expect(overdue.map((r: any) => r.customerId)).toContain(late.id);
+    expect(overdue.map((r: any) => r.customerId)).not.toContain(big.id);
+    expect(overdue.every((r: any) => Number(r.overdue) > 0)).toBe(true);
+
+    // A second read changes nothing and tells nobody.
+    const again = data(await tool(request, token, 'list_receivables', { limit: 50 }));
+    expect(again.find((r: any) => r.customerId === late.id)).toEqual(lateRow);
+    const notes = (await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data ?? [];
+    expect(notes.filter((n: any) => n.payloadJson?.customerId === late.id)).toEqual([]);
+
+    // Abuse: a limit that is not a number is refused by the schema, never a 500.
+    expect((await tool(request, token, 'list_receivables', { limit: 'all' })).isError).toBe(true);
   });
 });

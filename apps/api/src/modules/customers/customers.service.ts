@@ -1,6 +1,4 @@
-import {
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -10,7 +8,12 @@ import {
 } from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
-import { owedBy, owedByEach } from '../../common/customer-balance';
+import {
+  OWED_STATUSES,
+  owedBy,
+  owedByEach,
+} from '../../common/customer-balance';
+import { receivablesByCustomer } from '../../common/receivables';
 import { assertNotWalkIn } from '../../common/walk-in';
 @Injectable()
 export class CustomersService {
@@ -26,7 +29,13 @@ export class CustomersService {
       verification?: string;
     },
   ) {
-    const { cursor, limit: rawLimit = 20, type, search, verification } = pagination;
+    const {
+      cursor,
+      limit: rawLimit = 20,
+      type,
+      search,
+      verification,
+    } = pagination;
     const limit = pageSize(rawLimit);
     // The walk-in record is not a customer anyone chose (BUSINESS_LOGIC §4,
     // 2026-10-11): it is behind every walk-in sale and is reached with the
@@ -91,6 +100,27 @@ export class CustomersService {
         limit,
       },
     };
+  }
+
+  /**
+   * Who owes what: one row per customer with something outstanding, the
+   * largest balance first, with how many orders are open and the oldest one
+   * still owing (I1, 2026-10-11). The same orders `owedBy` sums, so each row
+   * equals that customer's balance on their own page.
+   */
+  async receivables() {
+    const orders = await this.prisma.saleOrder.findMany({
+      where: { status: { in: [...OWED_STATUSES] }, outstanding: { gt: 0 } },
+      select: {
+        customerId: true,
+        outstanding: true,
+        orderedAt: true,
+        customer: {
+          select: { displayName: true, phone: true, isWalkIn: true },
+        },
+      },
+    });
+    return { data: receivablesByCustomer(orders) };
   }
 
   async findById(id: string) {
