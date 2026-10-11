@@ -28,6 +28,7 @@ import { UndoRefundDialog } from './UndoRefundDialog';
 import {
   FROZEN_STATUSES,
   RECEIVING_STATUSES,
+  hasWaitingToLeave,
   isWaiting,
   legLineProgress,
   losableByLine,
@@ -60,6 +61,7 @@ export interface PanelCycle {
 /** Which dialog is open. One value, so every way of closing clears all of it. */
 type Open =
   | { kind: 'departure'; legId: string }
+  | { kind: 'undoDeparture'; departureId: string }
   | { kind: 'delivery'; legId: string }
   | { kind: 'lost'; legId: string }
   | { kind: 'receive'; legId: string; deliveryId: string }
@@ -79,8 +81,9 @@ type ShipmentPermissions = ReturnType<typeof useShipmentPermissions>;
 function useShipmentPermissions() {
   return {
     transition: useCan('cycle.transition'),
-    // PUT /shipping/legs/:id — the departure date, as the Shipments page sets it (I3).
-    recordDeparture: useCan('shippingLeg.edit'),
+    // POST /shipping/legs/:id/departures and DELETE /shipping/departures/:id (L8).
+    recordDeparture: useCan('shipment.recordDeparture'),
+    undoDeparture: useCan('shipment.undoDeparture'),
     createLeg: useCan('shippingLeg.create'),
     recordDelivery: useCan('shipment.recordDelivery'),
     deleteDelivery: useCan('shipment.deleteDelivery'),
@@ -254,7 +257,19 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
 
       {/* Dialogs portal to <body>; the ids are looked up again so they always show the latest figures. */}
       {open?.kind === 'departure' && legById(open.legId) && (
-        <RecordDepartureDialog leg={legById(open.legId)!} onClose={close} />
+        <RecordDepartureDialog leg={legById(open.legId)!} productNames={productNames} onClose={close} />
+      )}
+      {open?.kind === 'undoDeparture' && (
+        <ConfirmActionDialog
+          testId="undo-departure"
+          title={t('undoDepartureTitle')}
+          message={t('undoDepartureConfirm')}
+          confirmLabel={t('undoDeparture')}
+          successMessage={t('departureUndone')}
+          failMessage={t('undoDepartureFailed')}
+          action={() => api.delete(`/shipping/departures/${open.departureId}`)}
+          onClose={close}
+        />
       )}
       {open?.kind === 'delivery' && legById(open.legId) && (
         <RecordDeliveryDialog leg={legById(open.legId)!} productNames={productNames} onClose={close} />
@@ -360,6 +375,13 @@ function LegBlock({
             <span data-testid="leg-status" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
               {codeLabel('legStatus', leg.status)}
             </span>
+            {/* Partly arrived and partly departed at once: the status says
+                the furthest thing that happened, this says the rest (L8). */}
+            {leg.status === 'PARTLY_ARRIVED' && hasWaitingToLeave(leg) && (
+              <span data-testid="leg-partly-departed" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                {t('partlyDeparted')}
+              </span>
+            )}
             {/* A leg that has not left is said once, by the badge — the date
                 slot only appears with a date in it. */}
             {leg.departedOn && (
@@ -381,9 +403,10 @@ function LegBlock({
         </div>
         {!frozen && (
           <div className="flex flex-wrap gap-2">
-            {/* A leg that has not left: its departure, from here (I3). Once it
-                has, a delivery; never both. */}
-            {may.recordDeparture && !leg.departedOn && leg.status === 'PENDING' && (
+            {/* While anything waits at the leg's origin, another departure
+                (L8); while anything is on the way, a delivery. Both at once
+                when goods left in parts. */}
+            {may.recordDeparture && hasWaitingToLeave(leg) && (
               <button
                 type="button"
                 data-testid="record-departure"
@@ -393,7 +416,7 @@ function LegBlock({
                 <Send className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" /> {t('recordDeparture')}
               </button>
             )}
-            {may.recordDelivery && leg.onTheWay > 0 && leg.departedOn && (
+            {may.recordDelivery && leg.onTheWay > 0 && (
               <button
                 type="button"
                 data-testid="record-delivery"
@@ -424,6 +447,7 @@ function LegBlock({
             <tr className="border-b border-border text-xs text-muted-foreground">
               <th className="py-2 text-start font-medium">{t('product')}</th>
               <th className="py-2 text-end font-medium">{t('ordered')}</th>
+              <th className="py-2 text-end font-medium">{t('atOriginCol')}</th>
               <th className="py-2 text-end font-medium">{t('delivered')}</th>
               <th className="py-2 text-end font-medium">{t('receivedCol')}</th>
               <th className="py-2 text-end font-medium">{t('waiting')}</th>
@@ -443,6 +467,7 @@ function LegBlock({
                   <LatinText truncate>{productNames[line.purchaseOrderItemId]}</LatinText>
                 </td>
                 <Cell id="line-ordered" value={ordered.get(line.purchaseOrderItemId) ?? 0} />
+                <Cell id="line-at-origin" value={num(line.atOrigin)} />
                 <Cell id="line-delivered" value={line.delivered} />
                 <Cell id="line-received" value={line.received} />
                 <Cell id="line-waiting" value={line.waiting} />
@@ -467,6 +492,7 @@ function LegBlock({
             <p className="break-words text-sm font-medium text-foreground">{productNames[line.purchaseOrderItemId]}</p>
             <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
               <Stat id="line-ordered" label={t('ordered')} value={ordered.get(line.purchaseOrderItemId) ?? 0} />
+              <Stat id="line-at-origin" label={t('atOriginCol')} value={num(line.atOrigin)} />
               <Stat id="line-delivered" label={t('delivered')} value={line.delivered} />
               <Stat id="line-on-the-way" label={t('onTheWay')} value={line.onTheWay} />
               {leg.isLast && <Stat id="line-received" label={t('receivedCol')} value={line.received} />}
@@ -477,6 +503,45 @@ function LegBlock({
           </li>
         ))}
       </ul>
+
+      {/* Departures (L8): each day goods left, with Undo where the server allows it. */}
+      <div>
+        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('departures')}</h4>
+        {(leg.departures ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('noDepartures')}</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {(leg.departures ?? []).map((d) => (
+              <li key={d.id} data-testid="shipment-departure" className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground">{formatDate(d.departedOn)}</p>
+                  <ul data-testid="departure-summary" className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    {d.lines.map((l) => (
+                      <li key={l.purchaseOrderItemId}>
+                        {t.rich('departureLine', {
+                          product: productNames[l.purchaseOrderItemId] ?? '—',
+                          qty: l.qty,
+                          name: (chunks) => <LatinText>{chunks}</LatinText>,
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {may.undoDeparture && !frozen && d.undoable && (
+                  <button
+                    type="button"
+                    data-testid="undo-departure"
+                    onClick={() => onOpen({ kind: 'undoDeparture', departureId: d.id })}
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-0"
+                  >
+                    <Undo2 className="h-4 w-4" aria-hidden="true" /> {t('undoDeparture')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Deliveries */}
       <div>

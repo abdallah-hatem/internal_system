@@ -54,8 +54,9 @@ const EXPECTED_TOOLS = [
   'list_sales', 'get_customer', 'list_payments', 'list_receivables', 'get_dashboard', 'get_fx_rates',
   // receipt
   'match_receipt', 'create_purchase_order', 'create_supplier', 'create_product',
-  // cycle (record_delivery added 2026-10-10, B4: §16 lets it record deliveries)
-  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
+  // cycle (record_delivery added 2026-10-10, B4: §16 lets it record deliveries;
+  // record_departure 2026-10-12, L8: goods leave in parts too)
+  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_departure', 'record_delivery', 'verify_stock',
   // sales (record_sale added 2026-10-11, W3: the owner asked the assistant to record sales, §16)
   'record_sale',
   // payments (record_payment added 2026-10-11, I2: the owner approved the assistant recording payments, §16)
@@ -67,7 +68,7 @@ const EXPECTED_TOOLS = [
 /** The intake path, receipt to sellable stock — the only things it may change (§16). */
 const WRITE_TOOLS = [
   'create_purchase_order', 'create_supplier', 'create_product',
-  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
+  'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_departure', 'record_delivery', 'verify_stock',
   'record_sale',
   'record_payment',
   'record_lender_financing', 'record_lender_repayment',

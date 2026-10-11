@@ -1,13 +1,35 @@
 import {
-  shipmentPosition,
+  shipmentPosition as readPosition,
   ShipmentPositionInput,
   PositionDeliveryInput,
 } from './shipment-position';
+import { planDepartureBackfill } from './departure-backfill';
 
 /**
  * B1 edge cases (plan 2026-10-10). Each test is named after the case it pins.
  * Pure: no database, no clock.
+ *
+ * Written before L8, with one departure date per leg. Since L8 (2026-10-12) a
+ * leg's goods leave in departures; every case here is read through the L8
+ * backfill (`planDepartureBackfill`, the migration's rule) — so this whole file
+ * is also the proof that old legs keep their meaning after the migration.
  */
+
+type OldLeg = { id: string; sequence: number; departedOn?: string | null };
+type OldInput = Omit<ShipmentPositionInput, 'legs' | 'departures'> & {
+  legs: OldLeg[];
+};
+
+/** The position of a cycle recorded the old way, as the migration leaves it. */
+function shipmentPosition(input: OldInput) {
+  const departures = planDepartureBackfill({
+    legs: input.legs.map((l) => ({ ...l, departedOn: l.departedOn ?? null })),
+    lines: input.lines,
+    deliveries: input.deliveries,
+    departures: [],
+  }).map((d, i) => ({ id: `dep${i}`, ...d }));
+  return readPosition({ ...input, departures });
+}
 
 const L1 = 'leg-1';
 const L2 = 'leg-2';
@@ -30,9 +52,7 @@ const delivery = (
   })),
 });
 
-function base(
-  over: Partial<ShipmentPositionInput> = {},
-): ShipmentPositionInput {
+function base(over: Partial<OldInput> = {}): OldInput {
   return {
     lines: [{ id: A, orderedQty: 40 }],
     legs: [{ id: L1, sequence: 1, departedOn: '2026-09-01' }],
@@ -184,6 +204,7 @@ describe('shipmentPosition', () => {
       ordered: 0,
       received: 0,
       lost: 0,
+      atOrigin: 0,
       onTheWay: 0,
       waiting: 0,
     });

@@ -347,6 +347,7 @@ export function registerReadTools(
             ordered: l.ordered,
             received: l.received,
             lost: l.lost,
+            notLeftYet: l.atOrigin,
             onTheWay: l.onTheWay,
             waiting: l.waiting,
           })),
@@ -356,8 +357,12 @@ export function registerReadTools(
             route: `${l.origin} → ${l.destination}`,
             endsInEgypt: l.isLast,
             status: l.status,
+            departedOn: l.departedOn,
             arrivedOn: l.arrivedOn,
             entered: l.entered,
+            // L8: what entered the leg and has not left its origin yet.
+            waitingAtOrigin: l.atOrigin,
+            departed: l.departed,
             delivered: l.delivered,
             lost: l.lost,
             onTheWay: l.onTheWay,
@@ -367,11 +372,22 @@ export function registerReadTools(
               purchaseOrderItemId: x.purchaseOrderItemId,
               product: productOf.get(x.purchaseOrderItemId) ?? null,
               entered: x.entered,
+              waitingAtOrigin: x.atOrigin,
+              departed: x.departed,
               delivered: x.delivered,
               lost: x.lost,
               onTheWay: x.onTheWay,
               received: x.received,
               waiting: x.waiting,
+            })),
+            departures: l.departures.map((d) => ({
+              departureId: d.id,
+              departedOn: d.departedOn,
+              lines: d.lines.map((x) => ({
+                purchaseOrderItemId: x.purchaseOrderItemId,
+                product: productOf.get(x.purchaseOrderItemId) ?? null,
+                qty: x.qty,
+              })),
             })),
             deliveries: l.deliveries.map((d) => ({
               deliveryId: d.id,
@@ -389,7 +405,7 @@ export function registerReadTools(
       };
       const t = shipment.totals;
       return answer(
-        `Cycle ${c.code}, ${c.status}. Shipment: ${t.onTheWay} on the way, ${t.waiting} waiting to be received, ${t.received} received, ${t.lost} lost, of ${t.ordered} ordered.`,
+        `Cycle ${c.code}, ${c.status}. Shipment: ${t.atOrigin} not left yet, ${t.onTheWay} on the way, ${t.waiting} waiting to be received, ${t.received} received, ${t.lost} lost, of ${t.ordered} ordered.`,
         data,
       );
     },

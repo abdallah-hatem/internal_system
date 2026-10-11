@@ -330,6 +330,14 @@ describe('get_cycle', () => {
         departedOn: new Date('2026-09-01T00:00:00Z'),
         arrivedOn: null,
         status: 'PARTLY_ARRIVED',
+        departures: [
+          {
+            id: 'dep-1',
+            legId: 'leg-1',
+            departedOn: new Date('2026-09-01T00:00:00Z'),
+            lines: [{ id: 'depl-1', purchaseOrderItemId: 'item-1', qty: 40 }],
+          },
+        ],
         deliveries: [
           {
             id: 'del-1',
@@ -360,6 +368,15 @@ describe('get_cycle', () => {
         departedOn: new Date('2026-09-12T00:00:00Z'),
         arrivedOn: null,
         status: 'PARTLY_ARRIVED',
+        // L8: 25 of the 30 that reached Dubai left; 5 are still there.
+        departures: [
+          {
+            id: 'dep-2',
+            legId: 'leg-2',
+            departedOn: new Date('2026-09-12T00:00:00Z'),
+            lines: [{ id: 'depl-2', purchaseOrderItemId: 'item-1', qty: 25 }],
+          },
+        ],
         deliveries: [
           {
             id: 'del-2',
@@ -404,7 +421,8 @@ describe('get_cycle', () => {
       ordered: 40,
       received: 15,
       lost: 4,
-      onTheWay: 16, // 6 on leg 1, 10 on leg 2
+      onTheWay: 11, // 6 on leg 1, 5 on leg 2
+      notLeftYet: 5, // reached Dubai, not on leg 2 yet (L8)
       waiting: 5,
     });
     const [leg1, leg2] = got.shipment.legs;
@@ -421,7 +439,9 @@ describe('get_cycle', () => {
       legId: 'leg-2',
       status: 'PARTLY_ARRIVED',
       entered: 30,
-      onTheWay: 10,
+      waitingAtOrigin: 5,
+      departed: 25,
+      onTheWay: 5,
       received: 15,
       waiting: 5,
       endsInEgypt: true,
@@ -1146,6 +1166,8 @@ const INTAKE_WRITES = new Set([
   'transition_cycle',
   // §16, 2026-10-10: recording a delivery is intake; marking goods lost is not.
   'record_delivery',
+  // L8, 2026-10-12: goods leave in parts too, and a later part is intake.
+  'record_departure',
   'verify_stock',
 ]);
 const OFFICE_ONLY =

@@ -25,7 +25,7 @@ import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
 import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
-import { DepartedOnField } from '@/components/shipment/RecordDepartureDialog';
+import { LegDepartureFields, useLegDeparture } from '@/components/shipment/LegDepartureFields';
 import { useAnnounceStatusMove } from '@/components/shipment/status-move';
 import { Link } from '../../../i18n/navigation';
 import { ValidatedForm } from '@/components/ui/validated-form';
@@ -58,6 +58,7 @@ interface Shipment {
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-gray-100 text-gray-600',
+  PARTLY_DEPARTED: 'bg-sky-100 text-sky-700',
   IN_TRANSIT: 'bg-yellow-100 text-yellow-700',
   PARTLY_ARRIVED: 'bg-amber-100 text-amber-700',
   ARRIVED: 'bg-green-100 text-green-700',
@@ -69,6 +70,7 @@ export default function ShipmentsPage() {
   const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('shipments');
+  const tShipment = useTranslations('shipment');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -86,16 +88,33 @@ export default function ShipmentsPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
+  // The create form's cycle, so its departure can show what waits (L8).
+  const [newCycleId, setNewCycleId] = useState('');
+  const createDeparture = useLegDeparture(newCycleId);
+  const editDeparture = useLegDeparture(editingShipment?.cycleId, editingShipment?.id);
 
-  // Every way in and out of the edit modal clears the provider override, or
-  // the next shipment opens showing the previous one's provider.
+  // Every way in and out of the edit modal clears the provider override and
+  // the departure typed into it, or the next shipment opens showing the
+  // previous one's.
   const openEdit = (ship: Shipment) => {
     setEditProviderId('');
+    editDeparture.reset();
     setEditingShipment(ship);
   };
   const closeEdit = () => {
     setEditProviderId('');
+    editDeparture.reset();
     setEditingShipment(null);
+  };
+  const openCreate = () => {
+    setNewCycleId('');
+    createDeparture.reset();
+    setShowCreateModal(true);
+  };
+  const closeCreate = () => {
+    setNewCycleId('');
+    createDeparture.reset();
+    setShowCreateModal(false);
   };
 
   // Reset page when filters change
@@ -122,7 +141,7 @@ export default function ShipmentsPage() {
     onSuccess: (res) => {
       // A leg created departed or arrived moves its cycle on (L3).
       for (const key of SHIPMENT_QUERY_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
-      setShowCreateModal(false);
+      closeCreate();
       announce(t('createSuccess'), res);
     },
     onError: (error: any) => {
@@ -211,7 +230,7 @@ export default function ShipmentsPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
+        action={may.create ? { label: t('create'), onClick: openCreate } : undefined}
       />
     ) : (
       <NoMatch onClear={() => setSearch('')} />
@@ -227,7 +246,7 @@ export default function ShipmentsPage() {
         <button
           type="button"
           data-testid="create-action"
-          onClick={() => setShowCreateModal(true)}
+          onClick={openCreate}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
@@ -375,11 +394,17 @@ export default function ShipmentsPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
+        <Modal title={t('create')} onClose={closeCreate}>
           <ValidatedForm
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
+              // The leg's first departure, per product (L8).
+              const { departureLines, invalid } = createDeparture.read();
+              if (invalid) {
+                addToast(tShipment('qtyNotNumber', { product: createDeparture.productNames[invalid] ?? '' }), 'error');
+                return;
+              }
               createMutation.mutate({
                 cycleId: fd.get('cycleId'),
                 sequence: Number(fd.get('sequence')),
@@ -387,6 +412,7 @@ export default function ShipmentsPage() {
                 destination: fd.get('destination'),
                 ...providerFields(fd.get('providerId')),
                 trackingRef: fd.get('trackingRef'),
+                ...(createDeparture.departedOn ? { departedOn: createDeparture.departedOn, departureLines } : {}),
                 ...readShippingCostFields(fd),
               });
             }}
@@ -398,6 +424,12 @@ export default function ShipmentsPage() {
                 <Select
                   name="cycleId"
                   required
+                  value={newCycleId}
+                  onChange={(v) => {
+                    setNewCycleId(v);
+                    // Another cycle waits for other goods: start its quantities afresh.
+                    createDeparture.setTyped({});
+                  }}
                   placeholder={t('cycle')}
                   searchPlaceholder={tc('search')}
                   options={cycleList.map((c: any) => ({
@@ -442,10 +474,12 @@ export default function ShipmentsPage() {
               <InputField label={t('trackingRef')} name="trackingRef" />
             </div>
 
+            <LegDepartureFields state={createDeparture} cycleId={newCycleId || undefined} label={t('firstDeparture')} />
+
             <ShippingCostFields />
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="button" onClick={closeCreate} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={createMutation.isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('create')}
@@ -462,6 +496,13 @@ export default function ShipmentsPage() {
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
+              // A leg that has not left records its first departure, per
+              // product, as Record departure does (L8).
+              const { departureLines, invalid } = editDeparture.read();
+              if (invalid) {
+                addToast(tShipment('qtyNotNumber', { product: editDeparture.productNames[invalid] ?? '' }), 'error');
+                return;
+              }
               // No `status` and no `arrivedOn`: a leg's status is read from
               // what was recorded, and arrivals are deliveries now, recorded on
               // the cycle's Shipment panel (BUSINESS_LOGIC §1, 2026-10-10).
@@ -469,6 +510,7 @@ export default function ShipmentsPage() {
               updateMutation.mutate({
                 id: editingShipment.id,
                 departedOn: fd.get('departedOn') || null,
+                departureLines,
                 ...providerFields(fd.get('providerId')),
                 trackingRef: fd.get('trackingRef'),
                 ...readShippingCostFields(fd),
@@ -477,8 +519,13 @@ export default function ShipmentsPage() {
             className="space-y-4"
           >
             <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* The same field Record departure renders on the cycle page (I3): one definition. */}
-              <DepartedOnField label={t('departedOn')} defaultValue={editingShipment.departedOn ?? undefined} />
+              {/* The same fields Record departure renders on the cycle page (I3, L8): one definition. */}
+              <LegDepartureFields
+                state={editDeparture}
+                cycleId={editingShipment.cycleId}
+                label={t('departedOn')}
+                defaultDepartedOn={editingShipment.departedOn ?? null}
+              />
               <div>
                 <p className="mb-1 block text-sm font-medium text-foreground">{t('arrivedOn')}</p>
                 <p data-testid="leg-arrival" className="px-3 py-2 text-sm text-muted-foreground">

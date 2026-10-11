@@ -18,6 +18,7 @@ import { DeliveriesService } from '../shipping/deliveries.service';
 import { ShippingService } from '../shipping/shipping.service';
 import {
   addLeg,
+  departAll,
   cycleWithOrder,
   D,
   emptyStore,
@@ -126,14 +127,18 @@ function oneLeg(
   return { cycle, item: items[0], items, leg };
 }
 
-/** A China cycle: leg 1 China→UAE, leg 2 UAE→Egypt, both departed. */
+/**
+ * A China cycle: leg 1 China→UAE departed, leg 2 UAE→Egypt recorded. Leg 2
+ * departs (`departAll`) once leg 1 has delivered — nothing leaves Dubai before
+ * it is there (L8).
+ */
 function twoLegs(status = 'ARRIVED_EGYPT') {
   const { cycle, items } = cycleWithOrder(db, {
     status,
     originType: 'CHINA',
   });
   const leg1 = addLeg(db, cycle, 1, { departedOn: '2026-09-01' });
-  const leg2 = addLeg(db, cycle, 2, { departedOn: '2026-09-10' });
+  const leg2 = addLeg(db, cycle, 2, { departedOn: null });
   return { cycle, item: items[0], leg1, leg2 };
 }
 
@@ -400,6 +405,7 @@ describe('POST /receipts/verify', () => {
   it('Receive a leg-1 (UAE) delivery into stock → NOT_LAST_LEG_DELIVERY', async () => {
     const { cycle, item, leg1, leg2 } = twoLegs();
     const uae = await deliver(leg1, item, 40, '2026-09-08');
+    departAll(db, leg2, '2026-09-10');
     await deliver(leg2, item, 40, '2026-09-20');
     const r = await refusal(receive(cycle, uae, 40));
     expect(r.code).toBe('NOT_LAST_LEG_DELIVERY');
@@ -799,6 +805,7 @@ describe('GET /inventory', () => {
   it('Inventory shows each batch’s own Arrived date; two deliveries → two dates; never leg 1’s date', async () => {
     const { cycle, item, leg1, leg2 } = twoLegs();
     await deliver(leg1, item, 40, '2026-09-08');
+    departAll(db, leg2, '2026-09-10');
     await receive(cycle, await deliver(leg2, item, 15, '2026-09-20'), 15);
     await receive(cycle, await deliver(leg2, item, 10, '2026-09-29'), 10);
 

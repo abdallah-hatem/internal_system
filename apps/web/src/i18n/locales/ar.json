@@ -360,7 +360,12 @@
     "emptyHint": "كل مرحلة من رحلة بضاعة الدورة، بشركة الشحن والتواريخ والتكلفة.",
     "route": "المسار",
     "basisPerPiece": "{rate} × {qty} قطعة",
-    "basisPerWeight": "{rate} × {qty} كجم"
+    "basisPerWeight": "{rate} × {qty} كجم",
+    "firstDeparture": "المغادرة",
+    "firstDepartureHint": "اترك التاريخ فارغاً إن لم تغادر البضاعة بعد.",
+    "departuresRecorded": "المغادرات",
+    "departuresOnCyclePage": "المغادرات اللاحقة والتراجع عنها في صفحة الدورة.",
+    "departurePickCycle": "اختر الدورة لترى ما ينتظر المغادرة."
   },
   "inventory": {
     "title": "المخزون",
@@ -1087,7 +1092,8 @@
       "lenderFinancing": "ما دفعه الصديق",
       "lenderRepayment": "السداد",
       "lenderPlan": "خطة السداد",
-      "moneyAccount": "الحساب"
+      "moneyAccount": "الحساب",
+      "shipmentDeparture": "المغادرة"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -1270,7 +1276,14 @@
     "LENDER_CURRENCY_MISMATCH": "{reference} بعملة {orderCurrency}؛ ما دفعه الصديق عنه يُسجَّل بـ {orderCurrency} وليس {currency}.",
     "LENDER_PLAN_EXISTS": "لهذا خطة نشطة بالفعل. ألغِها قبل الاتفاق على غيرها.",
     "LENDER_PLAN_EXCEEDS_OWED": "مجموع الأقساط {total} {currency} والمستحق {owed} فقط.",
-    "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه."
+    "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه.",
+    "DEPARTURE_EXCEEDS_WAITING": "المنتظر للشحن {waiting} فقط من {line}، لذلك لا يمكن تسجيل مغادرة {asked}.",
+    "DEPARTURE_BEFORE_ORDER": "طُلب {line} في {orderedOn}، لذلك لا يمكن أن يكون قد غادر في {day}.",
+    "DEPARTURE_BEFORE_ARRIVAL": "لم يكن قد وصل إلى بداية {leg} ولم يغادر حتى {day} إلا {available} من {line}، لذلك لا يمكن أن يكون {asked} قد غادر في ذلك اليوم.",
+    "DEPARTURE_NOTHING_WAITING": "لا شيء ينتظر المغادرة على {leg}.",
+    "DEPARTURE_IN_USE": "لا يمكن التراجع عن هذه المغادرة: سُلّمت بضاعة منها أو سُجّلت مفقودة، أو تقدّمت الدورة بسببها.",
+    "DELIVERY_BEFORE_GOODS_LEFT": "لم يغادر على {leg} حتى {day} إلا {available} من {line}، لذلك لا يمكن تسجيل وصول {asked} في ذلك اليوم.",
+    "LEG_HAS_SEVERAL_DEPARTURES": "غادرت {leg} على {departures} دفعات، لذلك لا يمكن تغيير تاريخها هنا. تراجع عن المغادرة الخاطئة في صفحة الدورة وسجّلها من جديد."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1397,7 +1410,8 @@
       "PENDING": "لم تُشحن بعد",
       "IN_TRANSIT": "في الطريق",
       "PARTLY_ARRIVED": "وصلت جزئياً",
-      "ARRIVED": "وصلت"
+      "ARRIVED": "وصلت",
+      "PARTLY_DEPARTED": "غادرت جزئياً"
     },
     "role": {
       "CORE_PARTNER": "شريك أساسي",
@@ -1691,7 +1705,22 @@
     "undoRefundReasonRequired": "اذكر سبب إلغاء هذا التعويض.",
     "undoRefundFailed": "تعذّر إلغاء التعويض.",
     "refundUndone": "أُلغي التعويض",
-    "refundUndoneBadge": "مُلغى"
+    "refundUndoneBadge": "مُلغى",
+    "departureQtyPerProduct": "الكمية التي غادرت لكل منتج",
+    "waitingCount": "{count} تنتظر المغادرة",
+    "nothingWaitingToLeave": "لا شيء ينتظر المغادرة على هذه المرحلة.",
+    "departures": "المغادرات",
+    "noDepartures": "لم يغادر شيء على هذه المرحلة بعد.",
+    "departureLine": "<name>{product}</name>: {qty}",
+    "undoDeparture": "تراجع عن المغادرة",
+    "undoDepartureTitle": "التراجع عن هذه المغادرة؟",
+    "undoDepartureConfirm": "ستعود البضاعة التي حملتها إلى انتظار المغادرة. لا يمكن ذلك بعد تسليم أي منها أو تسجيله مفقوداً.",
+    "departureUndone": "تم التراجع عن المغادرة",
+    "undoDepartureFailed": "تعذّر التراجع عن المغادرة.",
+    "partlyDeparted": "غادرت جزئياً",
+    "atOriginCol": "لم يغادر",
+    "departedCol": "غادر",
+    "departureHintParts": "يبدأ كل منتج بكل ما ينتظر المغادرة. اخفض الرقم إن غادر جزء فقط؛ يبقى الباقي منتظراً."
   },
   "shippingCost": {
     "title": "تكلفة الشحن",

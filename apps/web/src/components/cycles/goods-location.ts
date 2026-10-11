@@ -4,12 +4,13 @@
  * sold — and lost, when anything was.
  *
  * Nothing here is new arithmetic about the shipment. Every figure comes from
- * the server's `shipmentPosition` (per leg and order line: on the way, lost,
- * received, waiting) and from the cycle's batches for what was sold; this only
- * decides which place each of those numbers is. The one rule it adds is the
- * reading of a leg's "on the way" before it has left: goods that have not left
- * a leg's origin are still AT that origin — in China for a China cycle's first
- * leg, in the UAE for the leg to Egypt.
+ * the server's `shipmentPosition` (per leg and order line: waiting at the
+ * origin, on the way, lost, received, waiting to be received) and from the
+ * cycle's batches for what was sold; this only decides which place each of
+ * those numbers is (`legLinePlaces`). Goods can leave in parts (L8,
+ * 2026-10-12): what has not left a leg's origin is still AT that origin — in
+ * China for a China cycle's first leg, in the UAE for the leg to Egypt — and
+ * only what has left is on the way.
  *
  *   China cycle:  leg 1 China → UAE,  leg 2 UAE → Egypt
  *   UAE direct:   leg 1 UAE → Egypt
@@ -18,7 +19,7 @@
  * what was ordered (lost is its own place). Pure: no clock, no requests.
  */
 
-import { num, type Shipment } from '@/components/shipment/shipment-model';
+import { num, type Shipment, type ShipmentLeg, type ShipmentLegLine } from '@/components/shipment/shipment-model';
 
 export interface GoodsBuckets {
   ordered: number;
@@ -97,19 +98,11 @@ export function locateGoods(input: {
   for (const leg of legs) {
     // Which stretch this leg is: out of China, or into Egypt.
     const outOfChina = !direct && leg.sequence === 1;
-    const departed = !!leg.departedOn || leg.status !== 'PENDING';
     for (const l of leg.lines) {
       const p = byProduct.get(productOf.get(l.purchaseOrderItemId) ?? '');
       if (!p) continue;
-      const onTheWay = milli(l.onTheWay);
-      if (outOfChina) {
-        if (departed) p.b.toUae += onTheWay;
-        else p.b.inChina += onTheWay;
-      } else if (departed) {
-        p.b.toEgypt += onTheWay;
-      } else {
-        p.b.inUae += onTheWay;
-      }
+      const places = legLinePlaces(leg, l, outOfChina);
+      for (const k of Object.keys(places) as (keyof GoodsBuckets)[]) p.b[k] += places[k] ?? 0;
       p.b.lost += milli(l.lost);
       if (leg.isLast) {
         const waiting = milli(l.waiting ?? 0);
@@ -154,6 +147,29 @@ export function locateGoods(input: {
   }
 
   return { direct, totals: toUnits(totals), products };
+}
+
+/**
+ * Where one leg line's goods that have not arrived are, in milli-units (L8):
+ * what waits at the leg's origin is at that place (in China out of China, in
+ * the UAE on the leg to Egypt); what has left is on the way to the leg's end.
+ *
+ * A server from before L8 sends no `atOrigin`: a leg that had left then read as
+ * everything on the way, and one that had not as everything still at origin.
+ */
+export function legLinePlaces(
+  leg: Pick<ShipmentLeg, 'departedOn' | 'status'>,
+  line: Pick<ShipmentLegLine, 'onTheWay' | 'atOrigin'>,
+  outOfChina: boolean,
+): Partial<GoodsBuckets> {
+  let atOrigin = milli(line.atOrigin);
+  let onTheWay = milli(line.onTheWay);
+  if (line.atOrigin === undefined) {
+    const departed = !!leg.departedOn || leg.status !== 'PENDING';
+    atOrigin = departed ? 0 : onTheWay;
+    onTheWay = departed ? onTheWay : 0;
+  }
+  return outOfChina ? { inChina: atOrigin, toUae: onTheWay } : { inUae: atOrigin, toEgypt: onTheWay };
 }
 
 /** The places that add up to `ordered` — `notCheckedIn` is inside `inEgypt`, so it is not one. */

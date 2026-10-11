@@ -82,6 +82,8 @@ const ENDPOINTS = {
   'cycle.transition': ['cycles/cycles.controller.ts', 'CyclesController', 'Post', ':id/transition'],
   'cycle.addParticipant': ['cycles/cycles.controller.ts', 'CyclesController', 'Post', ':id/participants'],
   'cycle.editParticipant': ['cycles/cycles.controller.ts', 'CyclesController', 'Put', 'participants/:id'],
+  'shipment.recordDeparture': ['shipping/shipping.controller.ts', 'ShippingController', 'Post', 'legs/:id/departures'],
+  'shipment.undoDeparture': ['shipping/shipping.controller.ts', 'ShippingController', 'Delete', 'departures/:id'],
   'shipment.recordDelivery': ['shipping/shipping.controller.ts', 'ShippingController', 'Post', 'legs/:id/deliveries'],
   'shipment.deleteDelivery': ['shipping/shipping.controller.ts', 'ShippingController', 'Delete', 'deliveries/:id'],
   'shipment.markLost': ['shipping/shipping.controller.ts', 'ShippingController', 'Post', 'legs/:id/losses'],

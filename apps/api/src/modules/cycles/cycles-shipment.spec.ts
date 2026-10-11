@@ -103,6 +103,14 @@ describe('GET /cycles/:id/shipment', () => {
           origin: 'Dubai, UAE',
           destination: 'Cairo, Egypt',
           departedOn: new Date('2026-09-01T00:00:00Z'),
+          departures: [
+            {
+              id: 'dep1',
+              legId: 'l1',
+              departedOn: new Date('2026-09-01T00:00:00Z'),
+              lines: [{ id: 'depl1', purchaseOrderItemId: 'i1', qty: '40' }],
+            },
+          ],
           deliveries: [
             {
               id: 'd1',
@@ -143,6 +151,7 @@ describe('GET /cycles/:id/shipment', () => {
       ordered: 40,
       received: 14,
       lost: 0,
+      atOrigin: 0,
       onTheWay: 25,
       waiting: 1,
     });

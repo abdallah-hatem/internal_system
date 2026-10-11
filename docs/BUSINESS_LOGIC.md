@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-12 (L8: goods can leave in parts — built, phase 1, guesses OPEN). Before that 2026-10-11 (L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -55,11 +55,12 @@ A leg's status is still a reading of what was recorded, never a field anyone set
 | Recorded | Leg reads |
 |---|---|
 | nothing | pending |
-| a departure | in transit |
+| a departure, with goods still waiting at the leg's origin (L8) | partly departed |
+| a departure, everything that entered it left | in transit |
 | a departure and at least one delivery, with goods still unaccounted for | partly arrived |
 | every unit that entered it delivered or marked lost | arrived |
 
-**DECIDED 2026-10-12 (owner) — goods can also leave in parts.** *Planned, L8.* Supersedes "goods leave in one
+**DECIDED 2026-10-12 (owner) — goods can also leave in parts.** *Built 2026-10-12 (L8, phase 1; e2e in phase 2).* Supersedes "goods leave in one
 shipment" above for departures. A supplier may ship part of an order now and the rest later, and Dubai may forward
 only part of what arrived. So a leg records each **departure** the way it records each delivery: the date it left and
 how many of each product left on it (the form starts every product at "everything still waiting here"). A leg can
@@ -75,6 +76,46 @@ have any number of departures.
   expense charged to the cycle (§9).
 - Existing legs with one departure and no lines are read as "everything that entered it left on that day", so old
   data keeps its meaning.
+
+Guesses made while building L8, open until confirmed (autonomous run, 2026-10-12):
+- **The backfill is SQL in the migration** (`20261012120000_shipment_departures`), so there is one model: every leg
+  with a departure date gets one departure on that day (its Cairo day) carrying what had entered it when the
+  migration ran — the order, for the first leg; what the leg before delivered, for a later leg (a later leg whose
+  leg before had delivered nothing gets a departure with no lines, so it still reads as left). Goods that reached
+  Dubai *after* leg 2's date were "on the way" before; they now read as **in the UAE**, waiting for a departure to
+  be recorded — which is where they physically were (the I3 guess below said the system could not tell; now it
+  can). The rule is also written as `planDepartureBackfill` (unit-tested) for the fixtures and the demo seed.
+- **When the goods could have left.** The first leg: not before the day the product's order was placed. A later
+  leg, on day D: only what the leg before had delivered by D, less what already left on this leg
+  (`DEPARTURE_BEFORE_ORDER`, `DEPARTURE_BEFORE_ARRIVAL`). A departure date with no quantities (the old forms, the
+  wizard, the assistant's `add_shipping_leg`, the fixtures) means everything waiting that could have left by that
+  day; with nothing waiting it is refused (`DEPARTURE_NOTHING_WAITING`) — **so leg 2 can no longer be marked as
+  left before anything reached Dubai**, which used to be accepted.
+- **A delivery on day D brings only what had left by D** (`DELIVERY_BEFORE_GOODS_LEFT`), beside the existing "not
+  before the leg's first departure".
+- **Losses come only from what left** (on the way, and on the last leg delivered-but-not-received). A loss
+  recorded before L8 on a leg that had not left is read as coming off what waited at its origin, so nothing is
+  counted twice. A leg backfilled in B1 with deliveries but no departure date has its delivered goods read as left.
+- **Undo** is refused (`DEPARTURE_IN_USE`) once goods from the departure were delivered or marked lost —
+  deliveries and losses are matched to departures in the order they left (first in, first out), so the latest
+  departures are the ones free to undo — or when it is the leg's only departure and the cycle's status says the
+  leg has left (the L3 rule deleting a delivery follows). Undoing never moves the cycle back. Deleting a leg-1
+  delivery whose goods leg 2 already sent on is refused like one leg 2 delivered (`DELIVERY_IN_USE`, carried).
+- **Partly departed and partly arrived at once** reads PARTLY_ARRIVED (the furthest thing that happened) and the
+  leg header shows a second "Partly departed" badge. A leg that has sent on everything that entered it so far
+  reads in transit, and partly departed again when more reaches its origin.
+- **The status walk (L3)**: only a leg's *first* departure moves the cycle; a later one moves nothing even when the
+  cycle is behind its shipment.
+- **No departure on a cycle being settled, closed or cancelled** — including a leg added in settlement with a
+  departure date (before L8 that was accepted and moved nothing); a leg without one can still be added there.
+- **The Shipments page** records a leg's first departure in its create and edit forms, per product, starting at
+  everything waiting. Changing the date of a leg with exactly one departure moves that departure (its goods are
+  checked again for the new day); a leg with several cannot be re-dated there (`LEG_HAS_SEVERAL_DEPARTURES`) — undo
+  the wrong one on the cycle page and record it again. Supersedes the I3 guess that correcting a departure stays on
+  the edit form.
+- `shipping_legs.departed_on` stays, as the stored reading of the first departure's day (`syncLegStatuses`), like
+  `arrived_on`; `scripts/check-data.sh` 12.91–12.93 look for a leg that sent more than entered it, delivered more
+  than left on it, or whose date is not its first departure.
 
 **Goods that have not come are still on the way until a partner says
 otherwise.** At any point a partner can mark some or all of what is still on the
@@ -143,7 +184,7 @@ the other way round:
   what the record proves stays where it is; verifying and selling belong to
   receiving (§3). A cycle in settlement, closed or cancelled is never moved
   (and nothing can be recorded on one but a leg added in settlement, which
-  moves nothing).
+  moves nothing — and since L8, 2026-10-12, carries no departure).
 - **A step whose own check refuses stops the walk there, and the record still
   saves.** The response names the step and the refusal; the office app shows it
   as a warning beside the success.
@@ -208,7 +249,8 @@ this the wizard is only for setting a cycle up. Guesses, open until confirmed (a
   there is now refused by the server too (`CYCLE_SETTLING` / `CYCLE_CLOSED`); it
   used to be accepted. Re-sending the departure a leg already has (the edit form
   does, on every save) is not a change and is still accepted.
-- Record departure is offered only on a leg with no departure yet. Correcting a
+- ~~Record departure is offered only on a leg with no departure yet.~~ Superseded
+  2026-10-12 (L8): it is offered while anything waits at the leg's origin. Correcting a
   departure stays on the Shipments page's edit form.
 - The departure starts at Cairo's today and cannot be a later day, like a
   delivery.
@@ -238,7 +280,8 @@ Every unit ordered is in exactly one place, so the places add up to what was
 ordered. All of it is read from the shipment's figures (§1) and the cycle's
 batches; nothing new is entered. One function: `components/cycles/goods-location.ts`.
 Guesses, open until confirmed (autonomous run, 2026-10-11):
-- A leg has one departure, so once it has left, everything that has entered it
+- ~~A leg has one departure~~ — superseded 2026-10-12 (L8): what has not left a leg's
+  origin is at that origin, and only what left is on the way. Was: A leg has one departure, so once it has left, everything that has entered it
   counts as on the way — including goods that reached Dubai after leg 2 left and
   are physically still there. The system holds no record that tells them apart.
 - **Sold** is what left this cycle's shelves through a sale: received less what
@@ -1383,6 +1426,16 @@ Guesses made while building it, open until confirmed (2026-10-11):
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it
 books a loss, and a partner should decide that on a screen.
+
+**Departures in parts (2026-10-12, L8, §1).** `add_shipping_leg` with `departedOn` records the
+leg's first departure: everything waiting, or only `departureLines` when part left. A later part
+is `record_departure` — the leg, the day, per product how many left (none named: everything
+waiting) — previewed by the write rolled back: what leaves, what will still wait, what will be on
+the way, the leg's status after, and whether the cycle moves (only a leg's first departure moves
+it). The confirmation binds the lines, what still waits after them, and the status move: another
+departure or a delivery into the origin in between is `PREVIEW_CHANGED`. `get_cycle` shows, per
+leg and product, what waits at the origin and each departure. Undoing a departure stays in the
+office app.
 
 **The status a record moves the cycle to (2026-10-11, L3, §1).** `record_delivery`
 and `add_shipping_leg` with a departure or an arrival move the cycle on by

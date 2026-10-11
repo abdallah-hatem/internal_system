@@ -113,6 +113,15 @@ suite('loss refunds against Postgres', () => {
         amountEgp: 400,
       },
     });
+    // L8 (2026-10-12): a leg's goods leave in departures. This one left with
+    // everything ordered, as the migration reads a dated leg.
+    await prisma.shipmentDeparture.create({
+      data: {
+        legId: leg.id,
+        departedOn: new Date('2026-09-01T00:00:00Z'),
+        lines: { create: [{ purchaseOrderItemId: item.id, qty: 40 }] },
+      },
+    });
     const { data } = await deliveries.recordLoss(
       leg.id,
       { lines: [{ purchaseOrderItemId: item.id, qty: 5 }] },

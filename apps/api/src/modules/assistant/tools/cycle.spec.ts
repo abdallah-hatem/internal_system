@@ -39,6 +39,8 @@ interface Store {
   cycles: Row[];
   participants: Row[];
   legs: Row[];
+  /** L8: departures, each with its lines inline. */
+  departures: Row[];
   deliveries: Row[];
   suppliers: Row[];
   products: Row[];
@@ -88,6 +90,7 @@ function fakePrisma() {
           // losses and batches with the legs.
           shippingLegs: legsOf(c.id).map((l) => ({
             ...l,
+            departures: db.departures.filter((d) => d.legId === l.id),
             deliveries: db.deliveries.filter((d) => d.legId === l.id),
             losses: [],
           })),
@@ -178,6 +181,31 @@ function fakePrisma() {
           if (v !== undefined) l[k] = v;
         return Promise.resolve({ ...l });
       },
+    },
+    shipmentDeparture: {
+      create: ({ data }: Row) => {
+        const id = randomUUID();
+        const row = {
+          id,
+          legId: data.legId,
+          departedOn: data.departedOn,
+          note: data.note,
+          createdAt: new Date(),
+          lines: (data.lines?.create ?? []).map((l: Row) => ({
+            id: randomUUID(),
+            departureId: id,
+            ...l,
+          })),
+        };
+        db.departures.push(row);
+        return Promise.resolve(row);
+      },
+      findMany: ({ where }: Row) =>
+        Promise.resolve(
+          db.departures
+            .filter((d) => d.legId === where.legId)
+            .map((d) => ({ id: d.id })),
+        ),
     },
     shipmentDelivery: {
       create: ({ data }: Row) => {
@@ -383,6 +411,7 @@ function freshStore(): Store {
     cycles: [],
     participants: [],
     legs: [],
+    departures: [],
     deliveries: [],
     suppliers: [{ id: SUPPLIER, name: 'Yiwu Parts' }],
     products: [
@@ -913,10 +942,12 @@ describe('add_shipping_leg', () => {
   });
 
   it('previews the cost in EGP and the status the dates give, then saves exactly that', async () => {
-    const c = cycle('PURCHASING', 'CHINA');
+    // Since L8 a leg leaves with goods: this one carries the order's 40 pads.
+    const c = cycle('PURCHASING', 'UAE_DIRECT');
+    order(c, 'PO-2026-0001', 'CONFIRMED', [[PAD, 40, 4]], 2.5);
     const args = {
       cycleId: c.id,
-      sequence: 2,
+      sequence: 1,
       departedOn: daysFromToday(-3),
       costBasis: 'PER_PIECE',
       ratePerUnit: 1.5,
@@ -928,6 +959,7 @@ describe('add_shipping_leg', () => {
 
     expect(textOf(preview)).toContain('Dubai, UAE → Cairo, Egypt');
     expect(textOf(preview)).toContain('IN_TRANSIT');
+    expect(textOf(preview)).toContain('Brake pad: 40 left');
     expect(textOf(preview)).toContain('60.00 USD × 48.5 = 2,910.00 EGP');
     expect(commit.isError).toBeFalsy();
     expect(db.legs).toHaveLength(1);

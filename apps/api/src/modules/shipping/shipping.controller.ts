@@ -15,6 +15,7 @@ import { ShippingService } from './shipping.service';
 import { DeliveriesService } from './deliveries.service';
 import {
   CreateDeliveryDto,
+  CreateDepartureDto,
   CreateLossDto,
   CreateLossRefundDto,
 } from './dto/delivery.dto';
@@ -62,8 +63,32 @@ export class ShippingController {
     return this.shippingService.updateLeg(id, body, user.id);
   }
 
-  // Deliveries and losses (BUSINESS_LOGIC §1, 2026-10-10). Core partners only:
-  // each one moves goods, and a loss books a cost against the cycle (rule 12).
+  // Departures (L8, 2026-10-12), deliveries and losses (BUSINESS_LOGIC §1).
+  // Core partners only: each one moves goods, a departure can move the cycle,
+  // and a loss books a cost against the cycle (rule 12).
+
+  @Post('legs/:id/departures')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: "Record goods leaving a leg's origin" })
+  recordDeparture(
+    @Param('id') id: string,
+    @Body() body: CreateDepartureDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.deliveries.recordDeparture(id, body, user.id);
+  }
+
+  @Delete('departures/:id')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Undo a departure recorded by mistake' })
+  deleteDeparture(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.deliveries.deleteDeparture(id, user.id);
+  }
 
   @Post('legs/:id/deliveries')
   @UseGuards(RolesGuard)
