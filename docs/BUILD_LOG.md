@@ -13,6 +13,7 @@ _(none)_
 _(none)_
 
 ## Next up
+- L1 building (2026-10-11): §18 a purchase paid by a friend, repaid in EGP at each day's rate — branch `feature/l1-lender-financing`. §18 guesses await the owner.
 - I3 nit: a leg that hasn't left reads "Not departed" twice in its header (badge + date slot).
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
 - I2 shipped 2026-10-11: assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
