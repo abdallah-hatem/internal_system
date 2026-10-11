@@ -13,6 +13,10 @@ _(none)_
 _(none)_
 
 ## Next up
+- L3 building: status follows departures/deliveries (owner 2026-10-11); no money account on a friend's repayment
+  (owner); amount inputs start-aligned app-wide (owner screenshot).
+- L4 phase 1 building (no DB, beside L3): below-cost warning wherever a selling price is set — sale form, walk-in,
+  confirm, order-request approval, price list, assistant record_sale preview. Warns, never refuses (owner 2026-10-11).
 - TEST DATA IN PRODUCTION (owner asked 2026-10-11, remove when he says): CYC-2026-0001 (UAE direct, In transit to Egypt),
   PO-2026-0001 (TEST Al Noor Trading; TEST Full face helmet ×100 @200 AED, TEST Brake pad set ×200 @50 AED; rate 13),
   lender TEST Mahmoud paid 30,000 AED; repayments 100,000 EGP @13.3 (20 Sep) and 150,000 EGP @13.85 (5 Oct), both from
