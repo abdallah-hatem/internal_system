@@ -10,6 +10,7 @@ import {
 } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
 import { cycleFinancedEgp } from '../../common/lender-debt';
+import { cycleTransfersInEgp, toFundEgp } from '../../common/stock-transfers';
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
 
@@ -69,19 +70,22 @@ export class CostingService {
   }
 
   /**
-   * What the partners and investors are asked to fund: the landed cost less
-   * what friends paid, never below zero (§18). One definition for the
-   * costing's `toFundEgp` and settlement's "a friend paid for it entirely"
-   * (§8, CLAUDE.md rule 11).
+   * What the partners and investors are asked to fund: the landed cost, plus
+   * leftover stock moved in from another cycle at its cost (§8, L5), less what
+   * friends paid — never below zero (§18). One definition for the costing's
+   * `toFundEgp`, "Split equally" and settlement's "a friend paid for it
+   * entirely" (§8, CLAUDE.md rule 11).
    */
   async fundingFor(cycleId: string) {
     const landed = (await this.computeCycleLandedCosts(cycleId)).totalLandedEgp;
     const financed = await this.lenderFinancedEgp(cycleId);
-    const rest = landed.sub(financed);
+    const transferredIn = await cycleTransfersInEgp(this.prisma, cycleId);
+    const { rest, toFund } = toFundEgp({ landed, transferredIn, financed });
     return {
       landed,
       financed,
-      toFund: rest.isNegative() ? ZERO : rest,
+      transferredIn,
+      toFund,
       /** A friend paid something and the partners are asked for nothing. */
       fundedByLenders: financed.gt(0) && rest.lte(0),
     };

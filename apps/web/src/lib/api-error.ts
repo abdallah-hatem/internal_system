@@ -57,6 +57,8 @@ export const PARAM_KINDS: Record<string, Record<string, CodeKind>> = {
   SETTLEMENT_LOCKED: { status: 'settlementStatus' },
   ONLY_CONFIRMED_RETURNABLE: { status: 'orderStatus' },
   CYCLE_CLOSED_FOR_FINANCING: { status: 'cycleStatus' },
+  TRANSFER_SOURCE_NOT_SELLING: { status: 'cycleStatus' },
+  TRANSFER_TARGET_CLOSED: { status: 'cycleStatus' },
 };
 
 export function resolveApiError(

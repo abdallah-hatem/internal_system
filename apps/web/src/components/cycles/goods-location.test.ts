@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { shipmentPosition } from '../../../../api/src/common/shipment-position';
 import type { Shipment } from '@/components/shipment/shipment-model';
-import { LOCATION_PLACES, locateGoods, type GoodsBuckets, type LocationBatch } from './goods-location';
+import { LOCATION_PLACES, locateGoods, type GoodsBuckets, type LocationBatch, type LocationTransfer } from './goods-location';
 
 /**
  * The where-the-goods-are cards (I3, layout A). Each scenario is built the way
@@ -25,6 +25,8 @@ interface Scenario {
   batches?: Array<{ line: typeof PAD; received: number; remaining: number }>;
   /** Batches the position does not see (no source order line — older data). */
   extraBatches?: LocationBatch[];
+  /** Transfers out of and into the cycle (§8, L5); batches are `batch-1`, `batch-2`… in order. */
+  transfers?: { out: LocationTransfer[]; in: LocationTransfer[] };
 }
 
 function scenario(s: Scenario) {
@@ -47,17 +49,23 @@ function scenario(s: Scenario) {
     lines: position.lines,
     legs: position.legs.map((p) => ({ ...p, departedOn: legs.find((l) => l.id === p.legId)?.departedOn ?? null })),
   } as unknown as Pick<Shipment, 'lines' | 'legs'>;
-  const batches: LocationBatch[] = (s.batches ?? []).map((b) => ({
+  const batches: LocationBatch[] = (s.batches ?? []).map((b, i) => ({
+    id: `batch-${i + 1}`,
     productId: b.line.productId,
     receivedQty: String(b.received),
     remainingQty: String(b.remaining),
   }));
   const extra = s.extraBatches ?? [];
-  return locateGoods({ originType: s.direct ? 'UAE_DIRECT' : 'CHINA', shipment, batches: [...batches, ...extra] });
+  return locateGoods({
+    originType: s.direct ? 'UAE_DIRECT' : 'CHINA',
+    shipment,
+    batches: [...batches, ...extra],
+    transfers: s.transfers,
+  });
 }
 
 const expectPlaces = (actual: GoodsBuckets, expected: Partial<GoodsBuckets>) => {
-  const all: GoodsBuckets = { ordered: 0, inChina: 0, toUae: 0, inUae: 0, toEgypt: 0, inEgypt: 0, notCheckedIn: 0, sold: 0, lost: 0, ...expected };
+  const all: GoodsBuckets = { ordered: 0, inChina: 0, toUae: 0, inUae: 0, toEgypt: 0, inEgypt: 0, notCheckedIn: 0, sold: 0, lost: 0, moved: 0, ...expected };
   const picked = Object.fromEntries(Object.keys(all).map((k) => [k, actual[k as keyof GoodsBuckets]]));
   expect(picked).toEqual(all);
 };
@@ -251,7 +259,15 @@ describe('the places always add up to what was ordered', () => {
           }
         });
       }
-      const r = scenario({ direct, ordered, legs, deliveries, losses, batches });
+      // Some of what is left moved to another cycle (L5): off the shelf, and a place of its own.
+      const out: LocationTransfer[] = [];
+      batches.forEach((b, i) => {
+        const moved = b.remaining ? rnd(b.remaining + 1) : 0;
+        if (!moved) return;
+        b.remaining -= moved;
+        out.push(transfer('ACTIVE', [{ sourceBatchId: `batch-${i + 1}`, destBatchId: `elsewhere-${i}`, qty: moved }]));
+      });
+      const r = scenario({ direct, ordered, legs, deliveries, losses, batches, transfers: { out, in: [] } });
       for (const p of r.products) {
         expect(placesSum(p), `seed run ${run}, ${p.productName}`).toBe(p.ordered);
         for (const k of LOCATION_PLACES) expect(p[k], `run ${run} ${k}`).toBeGreaterThanOrEqual(0);
@@ -261,5 +277,65 @@ describe('the places always add up to what was ordered', () => {
       expect(placesSum(r.totals), `run ${run}`).toBe(r.totals.ordered);
       expect(r.totals.ordered).toBe(ordered.reduce((s, [, q]) => s + q, 0));
     }
+  });
+});
+
+function transfer(status: string, lines: LocationTransfer['lines'], from = { id: 'cyc-a', code: 'CYC-A' }, to = { id: 'cyc-b', code: 'CYC-B' }): LocationTransfer {
+  return { status, fromCycle: from, toCycle: to, lines };
+}
+
+describe('leftovers moved to another cycle at their cost (§8, L5)', () => {
+  // A: 40 pads, all delivered and checked in; 10 sold, 30 left.
+  const a = (moves: LocationTransfer[]) =>
+    scenario({
+      direct: true,
+      ordered: [[PAD, 40]],
+      legs: ['2026-09-01'],
+      deliveries: [{ leg: 1, line: PAD, qty: 40 }],
+      batches: [{ line: PAD, received: 40, remaining: 30 - moves.filter((t) => t.status === 'ACTIVE').reduce((s, t) => s + t.lines.reduce((x, l) => x + Number(l.qty), 0), 0) }],
+      transfers: { out: moves, in: [] },
+    });
+
+  it('on A, a partial move is its own place — Moved to another cycle — and A still adds up to what it ordered', () => {
+    const r = a([transfer('ACTIVE', [{ sourceBatchId: 'batch-1', destBatchId: 'b-1', qty: 20 }])]);
+    expectPlaces(r.totals, { ordered: 40, sold: 10, moved: 20, inEgypt: 10 });
+    expect(placesSum(r.totals)).toBe(40);
+    expect(r.fromCycles).toEqual([]);
+  });
+
+  it('on A, moving everything leaves nothing in Egypt; a move that was undone counts for nothing', () => {
+    const all = a([transfer('ACTIVE', [{ sourceBatchId: 'batch-1', destBatchId: 'b-1', qty: 30 }])]);
+    expectPlaces(all.totals, { ordered: 40, sold: 10, moved: 30 });
+    const undone = a([transfer('REVERSED', [{ sourceBatchId: 'batch-1', destBatchId: null, qty: 30 }])]);
+    expectPlaces(undone.totals, { ordered: 40, sold: 10, inEgypt: 30 });
+  });
+
+  it('on B, units moved in are not part of what B ordered: listed apart, From CYC-A, with what is left and what sold', () => {
+    const r = scenario({
+      direct: true,
+      ordered: [[CHAIN, 10]],
+      legs: [null],
+      // B's own nothing yet; one batch moved in from A, 3 of its 20 sold here.
+      extraBatches: [{ id: 'moved-1', productId: PAD.productId, receivedQty: 20, remainingQty: 17, transferredFromBatchId: 'a-batch' }],
+      transfers: { out: [], in: [transfer('ACTIVE', [{ sourceBatchId: 'a-batch', destBatchId: 'moved-1', qty: 20 }])] },
+    });
+    expectPlaces(r.totals, { ordered: 10, inUae: 10 });
+    expect(placesSum(r.totals)).toBe(10);
+    expect(r.products.map((p) => p.productId)).toEqual([CHAIN.productId]);
+    expect(r.fromCycles).toEqual([{ cycleId: 'cyc-a', cycleCode: 'CYC-A', units: 20, onShelf: 17, sold: 3, movedOn: 0 }]);
+  });
+
+  it('on B, a product B also ordered itself: what sold from the moved batch is not B’s own sold', () => {
+    const r = scenario({
+      direct: true,
+      ordered: [[PAD, 10]],
+      legs: ['2026-09-01'],
+      deliveries: [{ leg: 1, line: PAD, qty: 10 }],
+      batches: [{ line: PAD, received: 10, remaining: 10 }],
+      extraBatches: [{ id: 'moved-1', productId: PAD.productId, receivedQty: 20, remainingQty: 17, transferredFromBatchId: 'a-batch' }],
+      transfers: { out: [], in: [transfer('ACTIVE', [{ sourceBatchId: 'a-batch', destBatchId: 'moved-1', qty: 20 }])] },
+    });
+    expectPlaces(r.totals, { ordered: 10, inEgypt: 10 });
+    expect(r.fromCycles[0]).toMatchObject({ units: 20, onShelf: 17, sold: 3 });
   });
 });

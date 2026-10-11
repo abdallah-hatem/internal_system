@@ -63,6 +63,9 @@ export const ACTION_ROLES = {
   'lender.plan': PARTNERS, //             POST /lender-financings/:id/plan
   'lender.reverseRepayment': PARTNERS, // POST /lender-repayments/:id/reverse
   'lender.cancelPlan': PARTNERS, //       POST /lender-plans/:id/cancel
+  // Leftovers moved to another cycle at cost (§8, L5) — CycleTransfersController, StockTransfersController
+  'stockTransfer.create': PARTNERS, //    POST /cycles/:id/transfers
+  'stockTransfer.undo': PARTNERS, //      POST /stock-transfers/:id/undo
   // Reads a page makes on the side — UsersController
   'users.list': BOOKS_READERS, //         GET /users (the participant picker)
 } as const satisfies Record<string, readonly string[]>;

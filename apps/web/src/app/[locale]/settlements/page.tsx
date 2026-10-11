@@ -23,6 +23,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { SettlementWarnings, type SettlementWarning } from '@/components/settlements/settlement-warnings';
 import { SettlementParticipants, type SettlementLine } from '@/components/settlements/settlement-participants';
 import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
+import { UnsoldStockPrompt } from '@/components/settlements/unsold-stock-prompt';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Settlement {
   id: string;
@@ -103,7 +104,15 @@ export default function SettlementsPage() {
   // while the dialog is open.
   const [reversing, setReversing] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState('');
-  const [stockPrompt, setStockPrompt] = useState<{ id: string; message: string } | null>(null);
+  // `attempt` keys the prompt, so a second refusal after moving only some of
+  // the leftovers opens it fresh rather than still saying "moved, try again".
+  const [stockPrompt, setStockPrompt] = useState<{
+    id: string;
+    message: string;
+    cycleId?: string;
+    cycleCode?: string;
+    attempt: number;
+  } | null>(null);
 
   const actionMutation = useMutation({
     // Each endpoint takes its OWN body, and the API rejects anything else
@@ -141,7 +150,16 @@ export default function SettlementsPage() {
       // stuck with a refusal and no way past it.
       const code = e?.response?.data?.error?.code;
       if (!variables.acceptRemainingStock && code === 'CYCLE_HAS_UNSOLD_STOCK') {
-        setStockPrompt({ id: variables.id, message: apiError(e, tc('error')) });
+        // The cycle, so the prompt can offer to move its leftovers instead (L5).
+        const params = e?.response?.data?.error?.params ?? {};
+        const settlement = list.find((x) => x.id === variables.id);
+        setStockPrompt((prev) => ({
+          id: variables.id,
+          message: apiError(e, tc('error')),
+          cycleId: typeof params.cycleId === 'string' ? params.cycleId : settlement?.cycle?.id,
+          cycleCode: typeof params.cycle === 'string' ? params.cycle : settlement?.cycle?.code,
+          attempt: (prev?.attempt ?? 0) + 1,
+        }));
         return;
       }
       onError(e);
@@ -281,34 +299,20 @@ export default function SettlementsPage() {
         </Modal>
       )}
 
-      {/* Unsold stock keeps its cost with the cycle, so closing writes it off. */}
+      {/* Unsold stock keeps its cost with the cycle, so closing writes it off —
+          or its leftovers move to another cycle at their cost (L5). */}
       {stockPrompt && (
-        <Modal title={t('markPaid')} onClose={() => setStockPrompt(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">{stockPrompt.message}</p>
-            <p className="text-sm text-gray-600">{t('acceptRemainingStockHint')}</p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setStockPrompt(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                {tc('cancel')}
-              </button>
-              <button
-                type="button"
-                disabled={payMutation.isPending}
-                onClick={() =>
-                  payMutation.mutate({ id: stockPrompt.id, acceptRemainingStock: true })
-                }
-                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {payMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('closeAnyway')}
-              </button>
-            </div>
-          </div>
-        </Modal>
+        <UnsoldStockPrompt
+          key={stockPrompt.attempt}
+          message={stockPrompt.message}
+          cycleId={stockPrompt.cycleId}
+          cycleCode={stockPrompt.cycleCode}
+          paying={payMutation.isPending}
+          onPay={(accept) =>
+            payMutation.mutate({ id: stockPrompt.id, acceptRemainingStock: accept || undefined })
+          }
+          onClose={() => setStockPrompt(null)}
+        />
       )}
     </div>
   );

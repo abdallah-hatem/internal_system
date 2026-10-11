@@ -23,10 +23,29 @@ export async function assertShipmentAccounted(
   db: Pick<Prisma.TransactionClient, 'importCycle'>,
   cycleId: string,
 ) {
+  const open = await shipmentUnaccounted(db, cycleId);
+  if (!open) return;
+  throw badRequest(
+    'SHIPMENT_NOT_ACCOUNTED',
+    `Cycle ${open.cycle} cannot be settled yet: ${open.onTheWay} unit(s) are still on the way and ${open.waiting} delivered but not received, across ${open.lines} order line(s). Receive them, or mark them lost, first.`,
+    open,
+  );
+}
+
+/**
+ * What still stops a cycle being accounted for, or null when every unit is
+ * received or lost: its code, the units on the way, the units delivered and
+ * not received, and how many order lines. The figures behind the settlement
+ * gate above and the leftover-transfer gate (§8, L5) — one reading.
+ */
+export async function shipmentUnaccounted(
+  db: Pick<Prisma.TransactionClient, 'importCycle'>,
+  cycleId: string,
+) {
   const loaded = await loadShipment(db, cycleId);
   if (!loaded) throw notFound('cycle');
   const { cycle, position } = loaded;
-  if (position.accounted) return;
+  if (position.accounted) return null;
 
   const open = position.lines.filter((l) => !l.accounted);
   const milli = (n: number) => Math.round(n * 1000);
@@ -46,10 +65,5 @@ export async function assertShipmentAccounted(
       0,
     ) / 1000;
   const waiting = open.reduce((s, l) => s + milli(l.waiting), 0) / 1000;
-
-  throw badRequest(
-    'SHIPMENT_NOT_ACCOUNTED',
-    `Cycle ${cycle.code} cannot be settled yet: ${onTheWay} unit(s) are still on the way and ${waiting} delivered but not received, across ${open.length} order line(s). Receive them, or mark them lost, first.`,
-    { cycle: cycle.code, onTheWay, waiting, lines: open.length },
-  );
+  return { cycle: cycle.code, onTheWay, waiting, lines: open.length };
 }

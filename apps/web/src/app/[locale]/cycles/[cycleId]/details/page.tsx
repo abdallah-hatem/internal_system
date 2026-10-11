@@ -1,5 +1,6 @@
 'use client';
 import { GoodsLocationCards } from '@/components/cycles/goods-location-cards';
+import { CycleTransfersSection, MoveLeftoversButton, useCycleTransfers } from '@/components/cycles/cycle-transfers';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
 
@@ -90,6 +91,8 @@ export default function CycleDetailsPage() {
   const codeLabel = useCodeLabel();
   const { formatDate: formatLocalDate } = useDateFormat();
   const { data: shipment } = useShipment(id);
+  // Leftovers moved out of and into this cycle (§8, L5): the cards and the Transfers section.
+  const { data: transfers } = useCycleTransfers(id);
   const { data: profitability = [] } = useQuery<CycleProfit[]>({
     queryKey: ['analytics', 'cycle-profitability'],
     queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
@@ -213,6 +216,7 @@ export default function CycleDetailsPage() {
             className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-700 touch-manipulation"
           />
           <CycleStatusButton cycleId={cycle.id} status={cycle.status} />
+          <MoveLeftoversButton cycleId={cycle.id} cycleCode={cycle.code} status={cycle.status} />
           <button
             type="button"
             onClick={() => router.push(`/${locale}/settlements`)}
@@ -224,7 +228,7 @@ export default function CycleDetailsPage() {
       </div>
 
       {/* Where the goods are — layout A, chosen by the owner (I3). */}
-      <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} />
+      <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} transfers={transfers} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <Tile label={t('participants')} value={String(participants.length)} />
@@ -233,10 +237,21 @@ export default function CycleDetailsPage() {
         <Tile
           label={t('landedCost')}
           value={<Money value={num(costing?.totals?.landedEgp)} />}
+          // Leftovers moved in from another cycle at their cost (§8, L5): the partners fund them too.
+          note={
+            num(costing?.totals?.transferredInEgp) > 0 ? (
+              <span data-testid="landed-moved-in">
+                {t('movedInAtCost')} <Money value={num(costing?.totals?.transferredInEgp)} />
+              </span>
+            ) : undefined
+          }
         />
       </div>
 
       <ProfitCard figure={(Array.isArray(profitability) ? profitability : []).find((p) => p.cycleCode === cycle.code)} />
+
+      {/* Leftovers moved to or from another cycle at their cost (§8, L5). */}
+      <CycleTransfersSection cycleId={cycle.id} />
 
       <ShipmentPanel cycle={cycle} />
 
@@ -293,7 +308,7 @@ export default function CycleDetailsPage() {
               </button>
               {canEditParticipant &&
                 participants.some((p) => p.participantType === 'CORE_PARTNER') &&
-                num(costing?.totals?.landedEgp) > 0 && (
+                num(costing?.totals?.landedEgp) + num(costing?.totals?.transferredInEgp) > 0 && (
                   <button
                     onClick={() => splitEqually.mutate()}
                     disabled={splitEqually.isPending}
@@ -539,11 +554,12 @@ function ProfitCard({ figure }: { figure?: CycleProfit }) {
   );
 }
 
-function Tile({ label, value }: { label: string; value: React.ReactNode }) {
+function Tile({ label, value, note }: { label: string; value: React.ReactNode; note?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="mt-1 text-lg font-bold text-gray-900">{value}</p>
+      {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { TRANSFER_CATEGORY } from '../../common/ledger-categories';
 @Injectable()
 export class LedgerService {
   constructor(
@@ -100,6 +101,16 @@ export class LedgerService {
     },
     userId: string,
   ) {
+    // A transfer of leftovers between cycles (§8, L5) is written only by the
+    // transfer, in pairs, with its record behind it. Typed by hand it would
+    // move a cycle's cost with no stock behind it.
+    if (data.category === TRANSFER_CATEGORY) {
+      throw badRequest(
+        'LEDGER_CATEGORY_RESERVED',
+        'Moving leftover stock between cycles is recorded from the cycle page, not as a ledger entry.',
+        { category: data.category },
+      );
+    }
     const transaction = await this.prisma.financialTransaction.create({
       data: {
         type: data.type,

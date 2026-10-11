@@ -1,5 +1,6 @@
 'use client';
 import { useAllRecords } from '@/lib/list-all';
+import { LeftoversReturnLink } from './leftovers-return-link';
 import { Select } from '../ui/select';
 import { DatePicker } from '../ui/date-picker';
 import { useCurrencyRates } from '../../lib/currency-rates';
@@ -975,6 +976,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* Started for another cycle's leftovers (§8, L5): the way back to move them. */}
+      <LeftoversReturnLink cycleId={cycleId} />
+
       {/* A cycle that exists has a page of its own, and the list now opens
           that page; this is the way back to it without finishing the wizard.
           Leaving keeps what was typed — the draft store holds it. */}
