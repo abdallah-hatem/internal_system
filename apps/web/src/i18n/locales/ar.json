@@ -1129,6 +1129,7 @@
     "PARTNER_ID_REQUIRED": "اختر الشريك في حالة الشريك الأساسي.",
     "PAYMENT_EXCEEDS_OWED": "المستحق على {customer} هو {owed}، لذا لا يمكن استلام {amount} مقابله.",
     "PAYMENT_FULLY_ALLOCATED": "هذه الدفعة مُخصصة بالكامل أو معكوسة بالفعل.",
+    "PAYMENT_ALREADY_REVERSED": "تم عكس هذه الدفعة بالفعل.",
     "PER_PIECE_FIELDS_REQUIRED": "الشحن بالقطعة يحتاج إلى سعر الوحدة وعدد القطع المحتسبة معًا.",
     "PER_WEIGHT_FIELDS_REQUIRED": "الشحن بالوزن يحتاج إلى سعر الوحدة والوزن المحتسب معًا.",
     "PLAN_ALREADY_CANCELLED": "هذه الخطة ملغاة بالفعل.",

@@ -1129,6 +1129,7 @@
     "PARTNER_ID_REQUIRED": "Choose the partner for a core partner.",
     "PAYMENT_EXCEEDS_OWED": "{customer} owes {owed}, so {amount} cannot be received against it.",
     "PAYMENT_FULLY_ALLOCATED": "This payment is already fully allocated or reversed.",
+    "PAYMENT_ALREADY_REVERSED": "This payment has already been reversed.",
     "PER_PIECE_FIELDS_REQUIRED": "Per-piece shipping needs both a rate per unit and a chargeable piece count.",
     "PER_WEIGHT_FIELDS_REQUIRED": "Per-weight shipping needs both a rate per unit and a chargeable weight.",
     "PLAN_ALREADY_CANCELLED": "This plan is already cancelled.",

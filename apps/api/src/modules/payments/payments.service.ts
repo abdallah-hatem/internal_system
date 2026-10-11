@@ -494,26 +494,40 @@ export class PaymentsService {
     });
     if (!payment) throw notFound('payment');
 
-    // Reverse allocations
-    for (const alloc of payment.allocations) {
-      const order = await this.prisma.saleOrder.findUnique({
-        where: { id: alloc.saleOrderId },
-      });
-      if (order) {
-        await this.prisma.saleOrder.update({
-          where: { id: alloc.saleOrderId },
-          data: {
-            outstanding: { increment: Number(alloc.amount) },
-            status: 'PARTIALLY_PAID',
-            version: { increment: 1 },
-          },
-        });
-      }
-    }
+    // A payment is reversed once. Without this a second reversal put the
+    // money back on its orders again, so a shop owed more than it was charged.
+    const alreadyReversed = () =>
+      badRequest(
+        'PAYMENT_ALREADY_REVERSED',
+        'This payment has already been reversed.',
+      );
+    if (payment.status !== 'RECORDED') throw alreadyReversed();
 
-    await this.prisma.payment.update({
-      where: { id },
-      data: { status: 'REVERSED', version: { increment: 1 } },
+    await this.prisma.$transaction(async (tx) => {
+      // Claim the payment first, on its status: of two reversals sent at
+      // once, only one finds it still RECORDED.
+      const claimed = await tx.payment.updateMany({
+        where: { id, status: 'RECORDED' },
+        data: { status: 'REVERSED', version: { increment: 1 } },
+      });
+      if (claimed.count === 0) throw alreadyReversed();
+
+      // Put each allocation back on its order.
+      for (const alloc of payment.allocations) {
+        const order = await tx.saleOrder.findUnique({
+          where: { id: alloc.saleOrderId },
+        });
+        if (order) {
+          await tx.saleOrder.update({
+            where: { id: alloc.saleOrderId },
+            data: {
+              outstanding: { increment: Number(alloc.amount) },
+              status: 'PARTIALLY_PAID',
+              version: { increment: 1 },
+            },
+          });
+        }
+      }
     });
 
     await this.audit.log({

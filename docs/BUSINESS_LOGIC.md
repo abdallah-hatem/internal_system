@@ -579,6 +579,13 @@ Guesses, open until confirmed (2026-10-11):
 - The walk-in record has no statement (`WALK_IN_NO_STATEMENT`): it has no account.
 - With no dates chosen the statement covers everything, opening at zero.
 
+**FIXED 2026-10-11 (I3 run) — a payment is reversed once.** Reversing a payment
+puts what it paid back on the orders it was allocated to. A second reversal of
+the same payment used to do that again, so the shop owed more than it was ever
+charged. Now it is refused (`PAYMENT_ALREADY_REVERSED`) and changes nothing; of
+two reversals sent at once, one wins. Not a new rule — a reversal undoes a
+payment, and there is only one payment to undo.
+
 ---
 
 ## 7a. What cannot be recorded
