@@ -17,8 +17,9 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
+import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
 import { psqlStdin } from './support/database';
+import { leftoverWorld } from './support/leftovers';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -43,6 +44,9 @@ async function ctx(request: APIRequestContext) {
   const stamp = Date.now() + Math.floor(Math.random() * 1000);
 
   const mk = async (path: string, data: any) => {
+    // A step the shipment already walked the cycle through (L3) is skipped.
+    const walked = await alreadyWalked(request, headers, path, data);
+    if (walked) return walked;
     const res = await request.post(`${API}/${path}`, { headers, data });
     expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
     const body = await res.json();
@@ -932,6 +936,33 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     now = await batches(request, headers, product.id);
     expect([now.get(older.id).remainingQty, now.get(newer.id).remainingQty, now.get(third.id).remainingQty].map(Number)).toEqual([2, 5, 5]);
   });
+
+  test('TC-INV-48: the below-cost check costs a sale at exactly the COGS confirming records — across batches, over two lines, with a discount (§4, L4)', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const product = await mk('products', { name: `Cost Check ${Date.now()}`, minStock: 0 });
+    await cycleReceived(request, headers, mk, product.id, 900, 2, 12);
+    await cycleReceived(request, headers, mk, product.id, 1100, 5, 4);
+    const customer = await mk('customers', { displayName: `Cost Check Shop ${Date.now()}`, type: 'B2B' });
+    const items = [
+      { productId: product.id, quantity: 3, unitPrice: 950, discount: 0 },
+      { productId: product.id, quantity: 2, unitPrice: 1200, discount: 250 },
+    ];
+
+    const check = await request.post(`${API}/sales/price-check`, { headers, data: { currency: 'EGP', items } });
+    expect(check.ok(), await check.text()).toBeTruthy();
+    const said = (await check.json()).data;
+    // 2 × 900 + 1 × 1,100 = 2,900 against 2,850; then 2 × 1,100 = 2,200 against 2,150.
+    expect(said.lines.map((l: any) => [l.costEgp, l.lossEgp])).toEqual([['2900.00', '50.00'], ['2200.00', '50.00']]);
+    expect(said.totalLossEgp).toBe('100.00');
+
+    // A warning, not a refusal: the same lines confirm.
+    const sale = await mk('sales/orders', { customerId: customer.id, channel: 'B2B', currency: 'EGP', confirm: true, items });
+    const detail = (await (await request.get(`${API}/sales/orders/${sale.id}`, { headers })).json()).data;
+    const cogs = detail.items.map((i: any) =>
+      (i.allocations ?? []).reduce((t: number, a: any) => t + Math.round(Number(a.cogsEgp) * 100), 0) / 100,
+    );
+    expect(cogs).toEqual(said.lines.map((l: any) => Number(l.costEgp)));
+  });
 });
 
 test.describe('A payment is reversed once (§7 — found 2026-10-11)', () => {
@@ -998,17 +1029,15 @@ async function friendCycle(
     const res = await request.put(`${API}/cycles/participants/${p.id}`, { headers, data: { contributionAmount: share } });
     expect(res.ok(), await res.text()).toBeTruthy();
   }
-  const accounts = (await (await request.get(`${API}/ledger/accounts`, { headers })).json()).data;
-  const account = accounts.find((a: any) => a.currency === 'EGP');
   const lender = await mk('lenders', { name: `${label} Friend ${stamp}` });
-  return { headers, mk, cycle, po, lender, account, stamp, product, partners };
+  return { headers, mk, cycle, po, lender, stamp, product, partners };
 }
 
 const codeOf = async (res: any) => (await res.json()).error?.code;
 
 test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () => {
   test('TC-INV-32: nothing clears more than is owed, and every way of doing too much, twice or in the wrong place is refused with a code', async ({ request }) => {
-    const { headers, mk, cycle, po, lender, account, stamp } = await friendCycle(request, 'Inv L1');
+    const { headers, mk, cycle, po, lender, stamp } = await friendCycle(request, 'Inv L1');
     const post = (path: string, data: any) => request.post(`${API}/${path}`, { headers, data });
 
     // More than the order, alone or across two friends.
@@ -1025,7 +1054,7 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     for (const [path, data] of [
       [`purchases/00000000-0000-4000-8000-00000000dead/financings`, { lenderId: lender.id, amount: 5 }],
       [`purchases/${po.id}/financings`, { lenderId: '00000000-0000-4000-8000-00000000dead', amount: 5 }],
-      [`lender-financings/not-a-uuid/repayments`, { amountEgp: 5, rateToEgp: 13, accountId: account.id }],
+      [`lender-financings/not-a-uuid/repayments`, { amountEgp: 5, rateToEgp: 13 }],
       [`lender-repayments/00000000-0000-4000-8000-00000000dead/reverse`, { reason: 'nothing there' }],
     ] as const) {
       const res = await post(path, data);
@@ -1034,7 +1063,7 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     }
 
     // Repayments: a rate of zero, one piastre past the payoff, a day in the future or before he paid.
-    const pay = (data: any) => post(`lender-financings/${f.id}/repayments`, { accountId: account.id, ...data });
+    const pay = (data: any) => post(`lender-financings/${f.id}/repayments`, { ...data });
     expect(await codeOf(await pay({ amountEgp: 100, rateToEgp: 0 }))).toBe('RATE_NOT_POSITIVE');
     const quote = (await (await request.get(`${API}/lender-financings/${f.id}/quote?rateToEgp=13.7`, { headers })).json()).data;
     expect(quote.settlingEgp).toBe('274000.00');
@@ -1042,10 +1071,10 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     expect(await codeOf(await pay({ amountEgp: 0.05, rateToEgp: 13.7 }))).toBe('LENDER_REPAYMENT_CLEARS_NOTHING');
     expect(await codeOf(await pay({ amountEgp: 100, rateToEgp: 13.7, paidOn: dayFromNow(2) }))).toBe('DATE_IN_FUTURE');
     const early = await mk(`purchases/${po.id}/financings`, { lenderId: second.id, amount: 100, paidOn: dayFromNow(-1) });
-    expect(await codeOf(await post(`lender-financings/${early.id}/repayments`, { accountId: account.id, amountEgp: 100, rateToEgp: 13, paidOn: dayFromNow(-2) }))).toBe('LENDER_REPAYMENT_BEFORE_FINANCING');
+    expect(await codeOf(await post(`lender-financings/${early.id}/repayments`, { amountEgp: 100, rateToEgp: 13, paidOn: dayFromNow(-2) }))).toBe('LENDER_REPAYMENT_BEFORE_FINANCING');
 
     // Paid off exactly, then nothing more.
-    const done = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 274000, rateToEgp: 13.7 });
+    const done = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 274000, rateToEgp: 13.7 });
     expect(done.owed).toBe('0.00');
     expect(await codeOf(await pay({ amountEgp: 1, rateToEgp: 13.7 }))).toBe('LENDER_REPAYMENT_EXCEEDS_OWED');
 
@@ -1053,7 +1082,7 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     const rid = done.repayments[0].id;
     await mk(`lender-repayments/${rid}/reverse`, { reason: 'wrong day' });
     expect(await codeOf(await post(`lender-repayments/${rid}/reverse`, { reason: 'again' }))).toBe('LENDER_REPAYMENT_ALREADY_REVERSED');
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 1300, rateToEgp: 13 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 1300, rateToEgp: 13 });
     expect(await codeOf(await post(`lender-financings/${f.id}/remove`, { reason: 'mistake' }))).toBe('FINANCING_HAS_REPAYMENTS');
     // A reason is required for every undo.
     expect((await post(`lender-financings/${early.id}/remove`, { reason: '   ' })).status()).toBe(400);
@@ -1078,12 +1107,12 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
   });
 
   test('TC-INV-33: cash out is the pounds actually paid — repayments out, reversals back, the friend\'s payment in at the order rate', async ({ request }) => {
-    const { headers, mk, cycle, po, lender, account } = await friendCycle(request, 'Inv L1 Cash');
+    const { headers, mk, cycle, po, lender } = await friendCycle(request, 'Inv L1 Cash');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000 });
-    const r1 = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 137000, rateToEgp: 13.7 });
-    const r2 = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 125555.55, rateToEgp: 12.5555 });
+    const r1 = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 137000, rateToEgp: 13.7 });
+    const r2 = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 125555.55, rateToEgp: 12.5555 });
     await mk(`lender-repayments/${r2.repayments[1].id}/reverse`, { reason: 'bounced' });
-    const r3 = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 100000, rateToEgp: 12.5 });
+    const r3 = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 100000, rateToEgp: 12.5 });
     void r1;
 
     const rows: any[] = (await (await request.get(`${API}/ledger?cycleId=${cycle.id}&limit=200`, { headers })).json()).data;
@@ -1097,19 +1126,20 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     expect(net('lender_repayment')).toBeCloseTo(-237000, 2);
     // His money paying our supplier is in, once, at the order's rate.
     expect(net('lender_financing')).toBeCloseTo(390000, 2);
-    // Each repayment row is the account the pounds left.
-    expect(rows.filter((r) => r.category === 'lender_repayment').every((r) => r.account?.id === account.id || r.accountId === account.id)).toBeTruthy();
+    // No account is asked or stored (§18, owner 2026-10-11), as for every
+    // other money flow.
+    expect(rows.filter((r) => r.category === 'lender_repayment').every((r) => !r.account && !r.accountId)).toBeTruthy();
   });
 
   test('TC-INV-34: the exchange difference is cycle profit — settlement, the cycle\'s figure and the dashboard agree, and it is not an operating expense', async ({ request }) => {
-    const { headers, mk, cycle, po, lender, account } = await friendCycle(request, 'Inv L1 Profit');
+    const { headers, mk, cycle, po, lender } = await friendCycle(request, 'Inv L1 Profit');
     const dash = async () => (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
     const before = await dash();
 
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000 });
     // Up (+7,000) then down (-1,000 on 10,000 at 12.9): +6,000 net so far.
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 137000, rateToEgp: 13.7 });
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 129000, rateToEgp: 12.9 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 137000, rateToEgp: 13.7 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 129000, rateToEgp: 12.9 });
     const view = (await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financings[0];
     expect(view.exchangeDiffEgp).toBe('6000.00');
 
@@ -1131,16 +1161,16 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     expect(mine.investment).toBeCloseTo(403000 + 6000, 2);
 
     // A dirham that fell is a gain: 10,000 at 12 costs 120,000 for 130,000 of debt.
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 120000, rateToEgp: 12 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 120000, rateToEgp: 12 });
     const last = (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;
     expect(last.exchangeDifferenceEgp).toBe('-4000.00');
     expect((await dash()).netProfit).toBeCloseTo(before.netProfit + 4000, 2);
   });
 
   test('TC-INV-35: a cycle cannot settle while a friend is owed — by the plain transition or by approving — and can once he is repaid', async ({ request }) => {
-    const { headers, mk, cycle, po, lender, account } = await friendCycle(request, 'Inv L1 Gate');
+    const { headers, mk, cycle, po, lender } = await friendCycle(request, 'Inv L1 Gate');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000 });
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 260000, rateToEgp: 13 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 260000, rateToEgp: 13 });
 
     const t = await request.post(`${API}/cycles/${cycle.id}/transition`, { headers, data: { status: 'SETTLEMENT' } });
     expect(t.status()).toBe(400);
@@ -1153,7 +1183,7 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     expect(approve.status()).toBe(400);
     expect(await codeOf(approve)).toBe('LENDER_DEBT_OUTSTANDING');
 
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 130000, rateToEgp: 13 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 130000, rateToEgp: 13 });
     const ok = await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} });
     expect(ok.status(), await ok.text()).toBe(201);
     // Settled: a repayment on it cannot now be undone underneath the partners.
@@ -1215,9 +1245,16 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
     expect(await codeOf(res)).toBe('FINANCING_ORDER_EMPTY');
   });
 
-  test('TC-INV-38: a repayment from an account that is not an active EGP account is refused (ACCOUNT_NOT_USABLE)', async ({ request }) => {
-    const { headers, mk, po, lender } = await friendCycle(request, 'Inv L1 Acct');
+  // §18, owner 2026-10-11: a repayment does not ask which account the pounds
+  // left from — no other money flow records one. None is stored by default;
+  // an account a caller names anyway must still be a real, active EGP one.
+  test('TC-INV-38: no account is asked or stored for a repayment; one named anyway must be an active EGP account (ACCOUNT_NOT_USABLE)', async ({ request }) => {
+    const { headers, mk, cycle, po, lender } = await friendCycle(request, 'Inv L1 Acct');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    const plain = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 130, rateToEgp: 13 });
+    expect(plain.repayments[0].account).toBeNull();
+    const ledger: any[] = (await (await request.get(`${API}/ledger?cycleId=${cycle.id}&limit=200`, { headers })).json()).data;
+    expect(ledger.filter((r) => r.category === 'lender_repayment').map((r) => r.account ?? null)).toEqual([null]);
     // No endpoint creates accounts (one cash, one bank, seeded); these two are
     // the shapes a later accounts screen could produce.
     const usd = '00000000-0000-4000-8000-0000000000d1';
@@ -1235,15 +1272,15 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
       expect(await codeOf(res)).toBe('ACCOUNT_NOT_USABLE');
     }
     const owed = (await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financings[0].owed;
-    expect(owed).toBe('1000.00');
+    expect(owed).toBe('990.00');
   });
 
   test('TC-INV-39: repaying a financing that was removed is refused', async ({ request }) => {
-    const { headers, mk, po, lender, account } = await friendCycle(request, 'Inv L1 Removed');
+    const { headers, mk, po, lender } = await friendCycle(request, 'Inv L1 Removed');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
     await mk(`lender-financings/${f.id}/remove`, { reason: 'recorded on the wrong order' });
     const res = await request.post(`${API}/lender-financings/${f.id}/repayments`, {
-      headers, data: { amountEgp: 1300, rateToEgp: 13, accountId: account.id },
+      headers, data: { amountEgp: 1300, rateToEgp: 13 },
     });
     expect(res.status()).toBe(400);
     expect(await codeOf(res)).toBe('FINANCING_REMOVED');
@@ -1252,9 +1289,9 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
   });
 
   test('TC-INV-40: reversing a repayment with a blank reason is refused', async ({ request }) => {
-    const { headers, mk, po, lender, account } = await friendCycle(request, 'Inv L1 Reason');
+    const { headers, mk, po, lender } = await friendCycle(request, 'Inv L1 Reason');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
-    const view = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 1300, rateToEgp: 13 });
+    const view = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 1300, rateToEgp: 13 });
     for (const reason of ['', '   ']) {
       const res = await request.post(`${API}/lender-repayments/${view.repayments[0].id}/reverse`, { headers, data: { reason } });
       expect([JSON.stringify(reason), res.status()]).toEqual([JSON.stringify(reason), 400]);
@@ -1265,9 +1302,9 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
   });
 
   test('TC-INV-41: a plan when nothing is owed is refused (LENDER_NOTHING_OWED)', async ({ request }) => {
-    const { headers, mk, po, lender, account } = await friendCycle(request, 'Inv L1 Nothing');
+    const { headers, mk, po, lender } = await friendCycle(request, 'Inv L1 Nothing');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 13000, rateToEgp: 13 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 13000, rateToEgp: 13 });
     const res = await request.post(`${API}/lender-financings/${f.id}/plan`, {
       headers, data: { instalments: [{ dueOn: dayFromNow(10), amount: 1 }] },
     });
@@ -1276,14 +1313,14 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
   });
 
   test('TC-INV-42: every write on a friend\'s loan refuses an investor (ROLE_NOT_ALLOWED) and a portal token (WRONG_SURFACE); a partner still may', async ({ request }) => {
-    const { mk, po, lender, account } = await friendCycle(request, 'Inv L1 Roles');
+    const { mk, po, lender } = await friendCycle(request, 'Inv L1 Roles');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
-    const repaid = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 1300, rateToEgp: 13 });
+    const repaid = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 1300, rateToEgp: 13 });
     const planned = await mk(`lender-financings/${f.id}/plan`, { instalments: [{ dueOn: dayFromNow(10), amount: 100 }] });
     const writes: [string, Record<string, unknown>][] = [
       ['lenders', { name: 'Not allowed' }],
       [`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1 }],
-      [`lender-financings/${f.id}/repayments`, { amountEgp: 13, rateToEgp: 13, accountId: account.id }],
+      [`lender-financings/${f.id}/repayments`, { amountEgp: 13, rateToEgp: 13 }],
       [`lender-financings/${f.id}/remove`, { reason: 'not mine to remove' }],
       [`lender-repayments/${repaid.repayments[0].id}/reverse`, { reason: 'not mine to reverse' }],
       [`lender-financings/${f.id}/plan`, { instalments: [{ dueOn: dayFromNow(5), amount: 1 }] }],
@@ -1307,7 +1344,7 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
   });
 
   test('TC-INV-43: wrong owner — another friend\'s financing, or a plan id where a financing id belongs, is not found on these routes', async ({ request }) => {
-    const { headers, mk, po, lender, account, stamp } = await friendCycle(request, 'Inv L1 Owner');
+    const { headers, mk, po, lender, stamp } = await friendCycle(request, 'Inv L1 Owner');
     const other = await mk('lenders', { name: `Inv L1 Owner Other ${stamp}` });
     const mine = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
     const theirs = await mk(`purchases/${po.id}/financings`, { lenderId: other.id, amount: 500 });
@@ -1321,7 +1358,7 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
     // another belongs — a plan id on a financing route, a financing id on a
     // plan or repayment route — is not found, never quietly matched.
     const crossed: [string, Record<string, unknown>][] = [
-      [`lender-financings/${planned.plan.id}/repayments`, { amountEgp: 13, rateToEgp: 13, accountId: account.id }],
+      [`lender-financings/${planned.plan.id}/repayments`, { amountEgp: 13, rateToEgp: 13 }],
       [`lender-financings/${planned.plan.id}/plan`, { instalments: [{ dueOn: dayFromNow(5), amount: 1 }] }],
       [`lender-financings/${planned.plan.id}/remove`, { reason: 'crossed ids' }],
       [`lender-plans/${theirs.id}/cancel`, { reason: 'crossed ids' }],
@@ -1373,9 +1410,9 @@ test.describe('A cycle a friend paid for entirely splits its profit equally amon
    */
   async function soldFriendCycle(request: APIRequestContext, label: string, freight: number) {
     const built = await friendCycle(request, label, { freight, partnersFund: false });
-    const { mk, po, lender, account, product, stamp } = built;
+    const { mk, po, lender, product, stamp } = built;
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000 });
-    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 390000, rateToEgp: 13 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 390000, rateToEgp: 13 });
     const shop = await mk('customers', { displayName: `${label} Shop ${stamp}`, type: 'B2B' });
     await mk('sales/orders', {
       customerId: shop.id, channel: 'B2B', currency: 'EGP', confirm: true,
@@ -1451,5 +1488,86 @@ test.describe('A cycle a friend paid for entirely splits its profit equally amon
     }
     const preview = (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;
     expect(partners.map((p: any) => preview.lines.find((l: any) => l.participantId === p.id).payoutEgp)).toEqual(['45000.00', '27000.00', '18000.00']);
+  });
+});
+
+// ─── L5: leftover stock moved to another cycle at its cost (§8) ──────────
+
+test.describe('Leftovers moved between cycles (L5, §8)', () => {
+  const dashboard = async (request: APIRequestContext, headers: any) =>
+    (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
+  const preview = async (request: APIRequestContext, headers: any, id: string) =>
+    (await (await request.get(`${API}/settlements/preview/${id}`, { headers })).json()).data;
+  const profitability = async (request: APIRequestContext, headers: any, id: string) =>
+    ((await (await request.get(`${API}/analytics/cycle-profitability`, { headers })).json()).data as any[]).find((c) => c.cycleId === id);
+
+  test('TC-INV-51: value is conserved — what leaves A at cost is exactly what B funds and what each side of the ledger pair says; A’s profit does not move; five moves at once never take more than the shelf', async ({ request }) => {
+    const { headers, a, b, pad } = await leftoverWorld(request, 'Inv L5 Conserve');
+    const before = await preview(request, headers, a.id);
+    expect(before.grossProfitEgp).toBe('1000.00'); // 10 × (200 − 100): not zero (§10)
+    const fundB = async () => Number((await (await request.get(`${API}/costing/cycles/${b.id}/landed-cost`, { headers })).json()).totals.toFundEgp);
+    const fundBefore = await fundB();
+
+    // Five moves of 20 from a shelf of 30, sent at once: one stands.
+    const send = () => request.post(`${API}/cycles/${a.id}/transfers`, { headers, data: { toCycleId: b.id, reason: 'race', lines: [{ productId: pad.id, qty: 20 }] } });
+    const results = await Promise.all([send(), send(), send(), send(), send()]);
+    const ok = results.filter((r) => r.ok());
+    expect(ok, (await Promise.all(results.map((r) => r.text()))).join(' | ')).toHaveLength(1);
+    for (const refused of results.filter((r) => !r.ok())) {
+      expect((await refused.json()).error.code).toBe('TRANSFER_MORE_THAN_ON_SHELF');
+    }
+    const moved = (await ok[0].json()).data;
+
+    const after = await preview(request, headers, a.id);
+    expect(after.grossProfitEgp).toBe(before.grossProfitEgp);
+    expect(Number(before.unsoldValueEgp) - Number(after.unsoldValueEgp)).toBe(2000);
+    expect(moved.totalCostEgp).toBe('2000.00');
+    expect((await fundB()) - fundBefore).toBe(2000);
+    const ledger = async (cycleId: string) =>
+      ((await (await request.get(`${API}/ledger?cycleId=${cycleId}&limit=200`, { headers })).json()).data as any[])
+        .filter((r) => r.category === 'cycle_transfer')
+        .map((r) => [r.direction, Number(r.amount), r.accountId ?? null]);
+    expect(await ledger(a.id)).toEqual([['INFLOW', 2000, null]]);
+    expect(await ledger(b.id)).toEqual([['OUTFLOW', 2000, null]]);
+    expect((await profitability(request, headers, a.id)).profit).toBe(1000);
+  });
+
+  test('TC-INV-52: the business’s cash in, cash out, cash on hand and net profit are the same before a move, after it, and after undoing it', async ({ request }) => {
+    const { headers, mk, a, b, pad } = await leftoverWorld(request, 'Inv L5 Cash');
+    const pick = (d: any) => [d.totalCashIn, d.totalCashOut, d.cashOnHand, d.netProfit, d.inventoryValue];
+    const before = pick(await dashboard(request, headers));
+    const t = await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'cash', lines: [{ productId: pad.id, qty: 30 }] });
+    expect(pick(await dashboard(request, headers))).toEqual(before);
+    await mk(`stock-transfers/${t.id}/undo`, { reason: 'back' });
+    expect(pick(await dashboard(request, headers))).toEqual(before);
+  });
+
+  test('TC-INV-53: after B sells moved units, preview, approve, the partners page and analytics agree — for A and for B', async ({ request }) => {
+    const { headers, mk, a, b, pad, customer } = await leftoverWorld(request, 'Inv L5 Agree', { bFunding: 3000 });
+    await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'agree', lines: [{ productId: pad.id, qty: 30 }] });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: pad.id, quantity: 5, unitPrice: 300, discount: 0 }],
+    });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+
+    const participation: any[] = (await (await request.get(`${API}/users/participation`, { headers })).json()).data;
+    for (const [cycle, profit] of [[a, 1000], [b, 1000]] as const) {
+      const pr = await preview(request, headers, cycle.id);
+      expect(pr.grossProfitEgp, cycle.code).toBe(`${profit}.00`); // B: 5 × (300 − 100)
+      expect((await profitability(request, headers, cycle.id)).profit, cycle.code).toBe(profit);
+      const accrued = participation
+        .flatMap((u) => u.cycles.filter((c: any) => c.id === cycle.id))
+        .reduce((s: number, c: any) => s + c.accruedProfitEgp, 0);
+      expect(accrued, cycle.code).toBe(profit);
+    }
+    // B's units still on the shelf are its own unsold stock, at A's cost.
+    expect((await preview(request, headers, b.id)).unsoldValueEgp).toBe('2500.00');
+
+    // Approve A: the same figures are settled, and it has nothing to write off.
+    const draft = await mk(`settlements/calculate/${a.id}`, {});
+    const approved = (await (await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} })).json()).data;
+    expect(Number(approved.grossProfitEgp)).toBe(1000);
+    expect(Number(approved.unitsRemaining)).toBe(0);
   });
 });

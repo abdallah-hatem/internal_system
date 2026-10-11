@@ -171,7 +171,7 @@ export function RecordRefundDialog({
             setRefusal(null);
           }}
           placeholder={unrecovered > 0 ? unrecovered.toFixed(2) : '0.00'}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
         />
       </div>
 

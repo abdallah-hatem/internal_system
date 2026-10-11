@@ -1,6 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
 import { Prisma } from '@prisma/client';
 import { badRequest } from '../../common/api-error';
+import { TRANSFER_CATEGORY } from '../../common/ledger-categories';
 import { assertDay, assertNotFuture, businessToday } from '../../common/dates';
 import {
   CYCLE_REQUIRED_CATEGORIES,
@@ -60,6 +61,18 @@ const num = (v: unknown): number =>
  * Pure, so the rules are tested without a database and read in one place.
  */
 export function checkManualEntry(input: ManualEntryInput): CheckedManualEntry {
+  // A transfer of leftovers between cycles (§8, L5) is written only by the
+  // transfer, in pairs, with its record behind it. Typed by hand it would
+  // move a cycle's cost with no stock behind it. Asked first, so it is named
+  // as reserved whatever else the body gets wrong.
+  if (input.category === TRANSFER_CATEGORY) {
+    throw badRequest(
+      'LEDGER_CATEGORY_RESERVED',
+      'Moving leftover stock between cycles is recorded from the cycle page, not as a ledger entry.',
+      { category: input.category },
+    );
+  }
+
   const kind = input.kind as ManualEntryKind;
   if (!kind || !Object.hasOwn(MANUAL_ENTRY_KINDS, kind)) {
     throw invalid('kind', 'kind must be EXPENSE or OTHER_INCOME');

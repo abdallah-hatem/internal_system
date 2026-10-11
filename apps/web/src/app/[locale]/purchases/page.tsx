@@ -425,7 +425,7 @@ export default function PurchasesPage() {
                           placeholder="0.00"
                           value={item.unitPrice}
                           onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
@@ -434,7 +434,7 @@ export default function PurchasesPage() {
                           placeholder="0.00"
                           value={item.discount}
                           onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       <RowAction labelClassName="block text-xs text-gray-500 mb-1">
@@ -584,7 +584,7 @@ export default function PurchasesPage() {
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 {t('amount')}<span className="ms-1 text-red-500">*</span>
               </label>
-              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <TextareaField label={t('reason')} name="reason" />
             <InputField label={tc('date')} name="recordedOn" type="date" required />

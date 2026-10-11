@@ -102,7 +102,7 @@ beforeEach(async () => {
   const notify = notifications as unknown as NotificationsService;
   const costing = new CostingService(p);
   const cycles = new CyclesService(p, audit, notify);
-  deliveries = new DeliveriesService(p, audit, notify, costing);
+  deliveries = new DeliveriesService(p, audit, notify, costing, cycles);
   const shipping = new ShippingService(p, audit, costing, deliveries);
   inventory = new InventoryService(p, audit, notify, costing, cycles);
 
@@ -741,5 +741,102 @@ describe('marking goods lost is office-app only (§16)', () => {
     it('the same token on /mcp is let through — the refusal is the surface, not the token', async () => {
       expect(await refusal(McpController, 'post')).toBeNull();
     });
+  });
+});
+
+// ─── L3: the preview names the status the record moves the cycle to ─────
+
+describe('L3 — the status a record moves the cycle to (§1, 2026-10-11)', () => {
+  it('record_delivery: the preview says the cycle moves to Arrived Egypt and moves nothing; the commit moves it', async () => {
+    const { cycle, item, leg } = inTransit('IN_TRANSIT_TO_EGYPT');
+    const args = deliveryArgs(leg, item, 15);
+    const before = snapshot();
+
+    const shown = await preview('record_delivery', args);
+    expect(textOf(shown)).toContain(
+      `This moves ${cycle.code} from IN_TRANSIT_TO_EGYPT to ARRIVED_EGYPT, through each step's own checks.`,
+    );
+    expect(structured(shown).data.cycleStatus).toEqual({
+      from: 'IN_TRANSIT_TO_EGYPT',
+      to: 'ARRIVED_EGYPT',
+      ordersConfirmed: [],
+    });
+    // The walk ran inside the rolled-back write: nothing kept, nobody told.
+    expect(snapshot()).toBe(before);
+    expect(notifications.createForMultipleUsers).not.toHaveBeenCalled();
+
+    const done = await commitWith('record_delivery', args, shown);
+    expect(done.isError ? textOf(done) : '').toBe('');
+    expect(textOf(done)).toContain(
+      'The cycle is now ARRIVED_EGYPT (was IN_TRANSIT_TO_EGYPT).',
+    );
+    expect(structured(done).data.cycleStatus).toMatchObject({
+      to: 'ARRIVED_EGYPT',
+      moved: true,
+    });
+    expect(db.cycles.find((c) => c.id === cycle.id)!.status).toBe(
+      'ARRIVED_EGYPT',
+    );
+  });
+
+  it('record_delivery a second time: the preview says the cycle stays where it is', async () => {
+    const { cycle, item, leg } = inTransit('IN_TRANSIT_TO_EGYPT');
+    await officeDelivers(leg, item, 15, '2026-09-15');
+    const shown = await preview('record_delivery', deliveryArgs(leg, item, 10));
+    expect(textOf(shown)).toContain(`${cycle.code} stays ARRIVED_EGYPT.`);
+    expect(structured(shown).data.cycleStatus).toMatchObject({
+      from: 'ARRIVED_EGYPT',
+      to: 'ARRIVED_EGYPT',
+    });
+  });
+
+  it('add_shipping_leg with a departure: the preview names the status and the orders it confirms, and writes nothing', async () => {
+    const { cycle, po } = cycleWithOrder(db, {
+      status: 'PURCHASING',
+      originType: 'UAE_DIRECT',
+    });
+    const order: Row = po;
+    order.status = 'DRAFT';
+    const args = {
+      cycleId: cycle.id,
+      sequence: 1,
+      departedOn: '2026-09-01',
+      costBasis: 'FLAT',
+      amount: 400,
+    };
+    const state = () =>
+      JSON.stringify({ cycles: db.cycles, legs: db.legs, orders: db.orders });
+    const before = state();
+
+    const shown = await preview('add_shipping_leg', args);
+    expect(textOf(shown)).toContain(
+      `This moves ${cycle.code} from PURCHASING to IN_TRANSIT_TO_EGYPT, through each step's own checks.`,
+    );
+    expect(textOf(shown)).toContain(
+      `Leaving PURCHASING confirms and locks ${order.reference}`,
+    );
+    expect(state()).toBe(before);
+
+    const done = await commitWith('add_shipping_leg', args, shown);
+    expect(done.isError ? textOf(done) : '').toBe('');
+    expect(db.cycles.find((c) => c.id === cycle.id)!.status).toBe(
+      'IN_TRANSIT_TO_EGYPT',
+    );
+    expect(order.status).toBe('CONFIRMED');
+  });
+
+  it('add_shipping_leg with no dates: no status line at all', async () => {
+    const { cycle } = cycleWithOrder(db, {
+      status: 'PURCHASING',
+      originType: 'UAE_DIRECT',
+    });
+    const shown = await preview('add_shipping_leg', {
+      cycleId: cycle.id,
+      sequence: 1,
+      costBasis: 'FLAT',
+      amount: 400,
+    });
+    expect(textOf(shown)).not.toContain('This moves');
+    expect(structured(shown).data.cycleStatus).toBeNull();
   });
 });

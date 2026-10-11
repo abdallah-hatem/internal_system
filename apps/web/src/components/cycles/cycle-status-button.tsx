@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, Loader2, Plus, Send } from 'lucide-react';
@@ -14,6 +14,7 @@ import { useShipment } from '@/components/shipment/ShipmentPanel';
 import { RecordDeliveryDialog } from '@/components/shipment/RecordDeliveryDialog';
 import { RecordDepartureDialog } from '@/components/shipment/RecordDepartureDialog';
 import type { ShipmentLeg } from '@/components/shipment/shipment-model';
+import { statusMoveOf } from '@/components/shipment/status-move';
 import {
   Dialog,
   DialogContent,
@@ -99,6 +100,10 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
   // dialog is closed; its refusal is kept so a cancel brings it back as it was.
   const [fixing, setFixing] = useState<{ kind: LegFix; legId: string } | null>(null);
   const [fixSaved, setFixSaved] = useState(false);
+  // Set when a fix's save moved the cycle and closed everything: the fix
+  // dialog's own close, which follows its save, must not bring the status
+  // dialog back.
+  const fixFinished = useRef(false);
 
   // The shipment the details page already holds (one cache entry), read only
   // once a refusal names a leg.
@@ -146,11 +151,26 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
 
   const startFix = () => {
     if (!fix || !refusal?.legId) return;
+    fixFinished.current = false;
     setFixing({ kind: fix, legId: refusal.legId });
     setOpen(false);
   };
-  /** The fix dialog closed: by a save (`saved`) or any other way. Either way the status dialog comes back. */
-  const endFix = (saved: boolean) => {
+  /**
+   * The fix dialog closed: by a save (`saved`) or any other way. The status
+   * dialog comes back — unless the save itself moved the cycle on (L3, §1):
+   * then the move the reader came for has happened, the toast said where the
+   * cycle now stands, and there is nothing left to try.
+   */
+  const endFix = (saved: boolean, res?: unknown) => {
+    if (fixFinished.current) {
+      fixFinished.current = false;
+      return;
+    }
+    if (saved && statusMoveOf(res)?.moved) {
+      fixFinished.current = true;
+      closeStatus();
+      return;
+    }
     setFixing(null);
     if (saved) {
       setRefusal(null);
@@ -254,7 +274,7 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
       {fixing?.kind === 'departure' && fixingLeg && (
         <RecordDepartureDialog
           leg={fixingLeg}
-          onSaved={() => endFix(true)}
+          onSaved={(res) => endFix(true, res)}
           onClose={() => endFix(false)}
         />
       )}
@@ -262,7 +282,7 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
         <RecordDeliveryDialog
           leg={fixingLeg}
           productNames={productNames}
-          onSaved={() => endFix(true)}
+          onSaved={(res) => endFix(true, res)}
           onClose={() => endFix(false)}
         />
       )}

@@ -40,6 +40,7 @@ import {
 } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
 import { settlementWarnings } from './settlement-warnings';
+import { unsoldStock } from '../../common/unsold-stock';
 /** Sale states whose stock has genuinely left the business. */
 const REALISED_ORDER_STATUSES = [
   'CONFIRMED',
@@ -264,18 +265,12 @@ export class SettlementsService {
     }
 
     // --- Stock still on the shelf -----------------------------------------
-    const batches = await this.prisma.inventoryBatch.findMany({
-      where: { cycleId },
-      select: { remainingQty: true, landedUnitCostEgp: true },
-    });
-    const unitsRemaining = batches.reduce(
-      (s, b) => s.add(b.remainingQty),
-      new Prisma.Decimal(0),
-    );
-    const unsoldValue = batches.reduce(
-      (s, b) =>
-        s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
-      new Prisma.Decimal(0),
+    // Leftovers moved to another cycle (§8, L5) have left these batches, so
+    // they are no longer here — and the moved batch on the cycle that took
+    // them is that cycle's own stock. One reading (common/unsold-stock.ts).
+    const { unitsRemaining, unsoldValue } = await unsoldStock(
+      this.prisma,
+      cycleId,
     );
 
     // --- Expenses not already inside landed cost ---------------------------
@@ -703,18 +698,26 @@ export class SettlementsService {
       );
     }
 
-    const unitsRemaining = new Prisma.Decimal(settlement.unitsRemaining ?? 0);
+    // What the cycle holds NOW, not what it held when the figures were
+    // calculated: leftovers moved to another cycle after approval (§8, L5)
+    // have left, and paying out must not ask to write them off.
+    const { unitsRemaining, unsoldValue } = await unsoldStock(
+      this.prisma,
+      settlement.cycleId,
+    );
     if (unitsRemaining.gt(0) && !opts.acceptRemainingStock) {
       throw badRequest(
         'CYCLE_HAS_UNSOLD_STOCK',
         `Cycle ${settlement.cycle.code} still holds ${formatQty(unitsRemaining)} units ` +
-          `worth ${formatMoney(settlement.unsoldValueEgp)} EGP at landed cost. ` +
+          `worth ${formatMoney(unsoldValue)} EGP at landed cost. ` +
           'Closing now writes that cost off against this cycle. ' +
           'Sell the remaining stock first, or confirm explicitly to accept it.',
         {
           cycle: settlement.cycle.code,
           units: formatQty(unitsRemaining),
-          value: formatMoney(settlement.unsoldValueEgp),
+          value: formatMoney(unsoldValue),
+          // So the refusal can offer "Move leftovers" for this cycle (L5).
+          cycleId: settlement.cycleId,
         },
       );
     }

@@ -32,6 +32,17 @@ export const today = () => {
 
 export type Mk = (path: string, data: any) => Promise<any>;
 
+/** The statuses the shipment walk moves a cycle through (L3), in order. */
+const WALKED = [
+  'PLANNING',
+  'FUNDING',
+  'PURCHASING',
+  'IN_TRANSIT',
+  'ARRIVED_UAE',
+  'IN_TRANSIT_TO_EGYPT',
+  'ARRIVED_EGYPT',
+];
+
 /**
  * Somebody who can actually hold a share of a cycle.
  *
@@ -68,6 +79,31 @@ export async function anInvestorUser(request: APIRequestContext, headers: any) {
   return investor;
 }
 
+/**
+ * L3 (§1, 2026-10-11): recording a departure or a delivery moves the cycle on
+ * by itself. A fixture that records the shipment and then asks for the steps
+ * it proves finds the cycle already there, and asking again would be
+ * BAD_STATUS_TRANSITION. For a POST to `cycles/:id/transition` naming a step
+ * the shipment walk takes, this returns the cycle when it already stands at
+ * that step or further along the way to Egypt, so the caller can skip the
+ * request; otherwise null. A move back, a cancel, or a step past Arrived Egypt
+ * is never skipped. Every `mk` in the suite goes through this.
+ */
+export async function alreadyWalked(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  path: string,
+  data: { status?: string } | undefined,
+): Promise<{ id: string; status: string } | null> {
+  const step = /^cycles\/([^/]+)\/transition$/.exec(path);
+  const target = data?.status;
+  if (!step || !target || !WALKED.includes(target)) return null;
+  const res = await request.get(`${API}/cycles/${step[1]}`, { headers });
+  const cycle = ((await res.json()) as { data?: { id: string; status: string } }).data;
+  const at = WALKED.indexOf(cycle?.status ?? '');
+  return cycle && at >= WALKED.indexOf('IN_TRANSIT') && at >= WALKED.indexOf(target) ? cycle : null;
+}
+
 /** An authenticated context plus a POST helper that fails loudly. */
 export async function apiCtx(request: APIRequestContext) {
   const auth = await request.post(`${API}/auth/login`, {
@@ -76,6 +112,8 @@ export async function apiCtx(request: APIRequestContext) {
   const headers = { Authorization: `Bearer ${(await auth.json()).data.accessToken}` };
 
   const mk: Mk = async (path, data) => {
+    const walked = await alreadyWalked(request, headers, path, data);
+    if (walked) return walked;
     const res = await request.post(`${API}/${path}`, { headers, data });
     expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
     const body = await res.json();
@@ -136,12 +174,14 @@ export async function giveStock(
   productId: string,
   label: string,
   qty = 100,
+  /** What each unit cost the supplier; freight is free, so it is also the landed cost. */
+  unitPrice = 10,
 ) {
   const supplier = await mk('suppliers', { name: `${label} Supplier`, country: 'AE' });
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${cycle.id}/purchases`, {
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
-    items: [{ productId, orderedQty: qty, unitPrice: 10 }],
+    items: [{ productId, orderedQty: qty, unitPrice }],
   });
   // The departure and arrival dates are the point: a cycle cannot pass a stage
   // its shipment has not reached, so stock cannot exist without them.

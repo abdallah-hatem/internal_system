@@ -43,6 +43,8 @@ model User {
   productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
   financialTransactions FinancialTransaction[]
   inventoryMovements    InventoryMovement[]
+  stockTransfers        StockTransfer[]        @relation("StockTransferCreatedBy")
+  stockTransfersUndone  StockTransfer[]        @relation("StockTransferReversedBy")
 
   createdSaleReturns SaleReturn[] @relation("CreatedSaleReturnUser")
 
@@ -131,6 +133,7 @@ model Product {
   productRequests    ProductRequest[]
   fileAssets         FileAsset[]
   orderRequestItems  OrderRequestItem[]
+  stockTransferLines StockTransferLine[]
 
   @@map("products")
 }
@@ -298,6 +301,9 @@ model ImportCycle {
   financialTransactions FinancialTransaction[]
   settlements           Settlement[]
   lenderFinancings      LenderFinancing[]
+  /// Leftover stock moved out of this cycle, and into it (§8, L5).
+  transfersOut          StockTransfer[]        @relation("TransferFromCycle")
+  transfersIn           StockTransfer[]        @relation("TransferToCycle")
 
   @@map("import_cycles")
 }
@@ -344,10 +350,10 @@ model PurchaseOrder {
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int      @default(1)
 
-  cycle           ImportCycle         @relation(fields: [cycleId], references: [id])
-  supplier        Supplier            @relation(fields: [supplierId], references: [id])
-  items           PurchaseOrderItem[]
-  supplierRefunds SupplierRefund[]
+  cycle            ImportCycle         @relation(fields: [cycleId], references: [id])
+  supplier         Supplier            @relation(fields: [supplierId], references: [id])
+  items            PurchaseOrderItem[]
+  supplierRefunds  SupplierRefund[]
   /// Friends who paid the supplier for all or part of this order (§18).
   lenderFinancings LenderFinancing[]
 
@@ -659,6 +665,9 @@ enum InventoryMovementType {
   RETURN
   ADJUSTMENT
   WRITE_OFF
+  /// Leftover stock moved to another cycle at its cost (§8, L5), and back when undone.
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
 enum VerificationStatus {
@@ -668,29 +677,36 @@ enum VerificationStatus {
 }
 
 model InventoryBatch {
-  id                   String             @id @default(uuid()) @db.Uuid
-  cycleId              String             @map("cycle_id") @db.Uuid
-  productId            String             @map("product_id") @db.Uuid
-  sourcePoItemId       String?            @map("source_po_item_id") @db.Uuid
+  id                     String             @id @default(uuid()) @db.Uuid
+  cycleId                String             @map("cycle_id") @db.Uuid
+  productId              String             @map("product_id") @db.Uuid
+  sourcePoItemId         String?            @map("source_po_item_id") @db.Uuid
   /// The last-leg delivery line this batch was received from. Not unique: one
   /// delivery line can be received in several goes.
-  sourceDeliveryLineId String?            @map("source_delivery_line_id") @db.Uuid
+  sourceDeliveryLineId   String?            @map("source_delivery_line_id") @db.Uuid
   /// The day the delivery that brought it reached Egypt (§14).
-  arrivedOn            DateTime?          @map("arrived_on") @db.Date
-  receivedQty          Decimal            @map("received_qty") @db.Decimal(18, 3)
-  remainingQty         Decimal            @map("remaining_qty") @db.Decimal(18, 3)
-  reservedQty          Decimal            @default(0) @map("reserved_qty") @db.Decimal(18, 3)
-  saleableQty          Decimal            @map("saleable_qty") @db.Decimal(18, 3)
-  landedUnitCostEgp    Decimal            @map("landed_unit_cost_egp") @db.Decimal(18, 4)
-  verificationStatus   VerificationStatus @default(PENDING) @map("verification_status")
-  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
-  version              Int                @default(1)
+  arrivedOn              DateTime?          @map("arrived_on") @db.Date
+  /// The batch on another cycle these units were moved from (§8, L5). Null for
+  /// stock this cycle received itself.
+  transferredFromBatchId String?            @map("transferred_from_batch_id") @db.Uuid
+  receivedQty            Decimal            @map("received_qty") @db.Decimal(18, 3)
+  remainingQty           Decimal            @map("remaining_qty") @db.Decimal(18, 3)
+  reservedQty            Decimal            @default(0) @map("reserved_qty") @db.Decimal(18, 3)
+  saleableQty            Decimal            @map("saleable_qty") @db.Decimal(18, 3)
+  landedUnitCostEgp      Decimal            @map("landed_unit_cost_egp") @db.Decimal(18, 4)
+  verificationStatus     VerificationStatus @default(PENDING) @map("verification_status")
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
+  version                Int                @default(1)
 
   cycle               ImportCycle            @relation(fields: [cycleId], references: [id])
   product             Product                @relation(fields: [productId], references: [id])
   sourcePoItem        PurchaseOrderItem?     @relation(fields: [sourcePoItemId], references: [id])
   sourceDeliveryLine  ShipmentDeliveryLine?  @relation(fields: [sourceDeliveryLineId], references: [id])
+  transferredFrom     InventoryBatch?        @relation("BatchTransfer", fields: [transferredFromBatchId], references: [id])
+  transferredTo       InventoryBatch[]       @relation("BatchTransfer")
+  transferLinesOut    StockTransferLine[]    @relation("TransferSourceBatch")
+  transferLinesIn     StockTransferLine[]    @relation("TransferDestBatch")
   movements           InventoryMovement[]
   reservations        InventoryReservation[]
   saleItemAllocations SaleItemAllocation[]
@@ -698,6 +714,7 @@ model InventoryBatch {
 
   @@index([sourcePoItemId])
   @@index([sourceDeliveryLineId])
+  @@index([transferredFromBatchId])
   @@map("inventory_batches")
 }
 
@@ -715,6 +732,66 @@ model InventoryMovement {
   actor User?          @relation(fields: [createdBy], references: [id])
 
   @@map("inventory_movements")
+}
+
+// ─── Leftover stock moved between cycles (BUSINESS_LOGIC §8, L5) ─────
+
+enum StockTransferStatus {
+  ACTIVE
+  /// Undone: the units went back to the source cycle's batches.
+  REVERSED
+}
+
+/// Leftover units moved from one cycle to another at exactly their landed
+/// cost. The source cycle recovers the cost (no profit, no loss on them); the
+/// target cycle's partners fund it. Never edited: undone, with a reason.
+model StockTransfer {
+  id             String              @id @default(uuid()) @db.Uuid
+  fromCycleId    String              @map("from_cycle_id") @db.Uuid
+  toCycleId      String              @map("to_cycle_id") @db.Uuid
+  /// The Cairo day the units were moved.
+  movedOn        DateTime            @map("moved_on") @db.Date
+  reason         String
+  status         StockTransferStatus @default(ACTIVE)
+  createdBy      String              @map("created_by") @db.Uuid
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+  reversedAt     DateTime?           @map("reversed_at") @db.Timestamptz()
+  reversedBy     String?             @map("reversed_by") @db.Uuid
+  reversalReason String?             @map("reversal_reason")
+
+  fromCycle ImportCycle         @relation("TransferFromCycle", fields: [fromCycleId], references: [id])
+  toCycle   ImportCycle         @relation("TransferToCycle", fields: [toCycleId], references: [id])
+  actor     User                @relation("StockTransferCreatedBy", fields: [createdBy], references: [id])
+  reverser  User?               @relation("StockTransferReversedBy", fields: [reversedBy], references: [id])
+  lines     StockTransferLine[]
+
+  @@index([fromCycleId])
+  @@index([toCycleId])
+  @@map("stock_transfers")
+}
+
+/// One source batch's units in a transfer, and the batch they became.
+model StockTransferLine {
+  id            String  @id @default(uuid()) @db.Uuid
+  transferId    String  @map("transfer_id") @db.Uuid
+  productId     String  @map("product_id") @db.Uuid
+  sourceBatchId String  @map("source_batch_id") @db.Uuid
+  /// The new batch on the target cycle; null once the transfer is undone and
+  /// that batch removed.
+  destBatchId   String? @unique @map("dest_batch_id") @db.Uuid
+  qty           Decimal @db.Decimal(18, 3)
+  /// The source batch's landed unit cost — never re-priced.
+  unitCostEgp   Decimal @map("unit_cost_egp") @db.Decimal(18, 4)
+  costEgp       Decimal @map("cost_egp") @db.Decimal(18, 2)
+
+  transfer    StockTransfer   @relation(fields: [transferId], references: [id])
+  product     Product         @relation(fields: [productId], references: [id])
+  sourceBatch InventoryBatch  @relation("TransferSourceBatch", fields: [sourceBatchId], references: [id])
+  destBatch   InventoryBatch? @relation("TransferDestBatch", fields: [destBatchId], references: [id], onDelete: SetNull)
+
+  @@index([transferId])
+  @@index([sourceBatchId])
+  @@map("stock_transfer_lines")
 }
 
 enum ReservationStatus {
@@ -1036,7 +1113,9 @@ model LenderRepayment {
   id                    String    @id @default(uuid()) @db.Uuid
   financingId           String    @map("financing_id") @db.Uuid
   paidOn                DateTime  @map("paid_on") @db.Date
-  accountId             String    @map("account_id") @db.Uuid
+  /// Which money account it left from — not asked since 2026-10-11 (§18):
+  /// no other money flow records one. Kept on rows that already have it.
+  accountId             String?   @map("account_id") @db.Uuid
   /// Pounds actually paid.
   amountEgp             Decimal   @map("amount_egp") @db.Decimal(18, 2)
   /// That day's rate, as entered.
@@ -1058,7 +1137,7 @@ model LenderRepayment {
   reversalTransactionId String?   @unique @map("reversal_transaction_id") @db.Uuid
 
   financing LenderFinancing @relation(fields: [financingId], references: [id])
-  account   MoneyAccount    @relation(fields: [accountId], references: [id])
+  account   MoneyAccount?   @relation(fields: [accountId], references: [id])
 
   @@index([financingId])
   @@map("lender_repayments")

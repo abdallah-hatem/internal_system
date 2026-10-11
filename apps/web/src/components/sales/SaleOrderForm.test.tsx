@@ -7,6 +7,13 @@ import { ToastProvider } from '@/components/ui/toast';
 import { formatAmount } from '@/lib/numbers';
 // The server's own formula, to hold the screen to.
 import { saleOrderTotals } from '../../../../api/src/common/sale-totals';
+import {
+  centsText,
+  type CostLayer,
+  priceAgainstCost,
+  unitFigure,
+} from '../../../../api/src/common/below-cost';
+import ar from '@/i18n/locales/ar.json';
 import { SaleOrderForm, type SaleFormProduct } from './SaleOrderForm';
 
 // `post` records the calls; `answer` is what the API replies. Kept apart because
@@ -14,14 +21,50 @@ import { SaleOrderForm, type SaleFormProduct } from './SaleOrderForm';
 // and that copy rejects with nobody listening — a failure the form never had.
 const post = vi.fn();
 let answer: () => Promise<unknown> = () => new Promise(() => {});
+// The price check (L4) is a request of its own, answered by `priceCheckAnswer`
+// and recorded in `priceCheck`, so `post` still means "the order was sent".
+const priceCheck = vi.fn();
 vi.mock('@/lib/api', () => ({
   api: {
-    post: (...args: unknown[]) => {
-      post(...args);
+    post: (path: string, ...args: unknown[]) => {
+      if (path === '/sales/price-check') {
+        priceCheck(...args);
+        return Promise.resolve({ data: { data: priceCheckAnswer(args[0] as PriceCheckBody) } });
+      }
+      post(path, ...args);
       return answer();
     },
   },
 }));
+
+/**
+ * The server's price check, run on the server's own function over a shelf the
+ * test sets: the piston kits landed at 2,000 each unless a test says otherwise.
+ */
+interface PriceCheckBody {
+  currency: string;
+  items: { productId: string; quantity: number; unitPrice: number; discount?: number }[];
+}
+let shelf = new Map<string, CostLayer[]>();
+function priceCheckAnswer(body: PriceCheckBody) {
+  const r = priceAgainstCost(body.items, shelf);
+  return {
+    currency: body.currency,
+    compared: true,
+    lines: r.lines.map((l, i) => ({
+      line: i + 1,
+      productId: l.productId,
+      costed: l.costed,
+      belowCost: l.belowCost,
+      code: l.belowCost ? 'BELOW_COST' : null,
+      unitCostEgp: l.costed ? unitFigure(l.costCents, body.items[i].quantity) : null,
+      unitPriceEgp: l.costed ? unitFigure(l.netCents, body.items[i].quantity) : null,
+      lossEgp: l.costed ? centsText(l.lossCents) : null,
+    })),
+    belowCostLines: r.lines.filter((l) => l.belowCost).length,
+    totalLossEgp: centsText(r.totalLossCents),
+  };
+}
 
 beforeAll(() => {
   // cmdk and Radix measure and scroll things jsdom does not lay out.
@@ -47,10 +90,14 @@ const PISTON: SaleFormProduct = {
 
 // A shop is chosen up front: the form refuses to send an order with no
 // customer (it is noValidate, so it checks its own required pickers).
-function renderForm(onSaved = vi.fn(), initialCustomerId: string | undefined = SHOP.id) {
+function renderForm(
+  onSaved = vi.fn(),
+  initialCustomerId: string | undefined = SHOP.id,
+  locale: 'en' | 'ar' = 'en',
+) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   render(
-    <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
+    <NextIntlClientProvider locale={locale} messages={locale === 'ar' ? ar : en} timeZone="Africa/Cairo">
       <QueryClientProvider client={client}>
         <ToastProvider>
           <SaleOrderForm
@@ -87,7 +134,11 @@ function pick(nth: number, label: string) {
 
 const amount = (cents: number) => formatAmount(cents / 100);
 
-beforeEach(() => post.mockReset());
+beforeEach(() => {
+  post.mockReset();
+  priceCheck.mockReset();
+  shelf = new Map([[PISTON.id, [{ qty: 60, unitCostEgp: '2000.0000' }]]]);
+});
 afterEach(cleanup);
 
 describe('SaleOrderForm', () => {
@@ -583,5 +634,142 @@ describe('SaleOrderForm — walk-in', () => {
     turnOn();
     fireEvent.click(walkInSwitch());
     expect(comboText(1)).toContain(en.sales.b2c);
+  });
+});
+
+describe('SaleOrderForm — selling below cost (L4, §4)', () => {
+  // The piston kits landed at 2,000 each; the B2B list price is 1,800.
+  const warningOn = (line: HTMLElement) => within(line).queryByTestId('below-cost-line');
+  const total = () => screen.queryByTestId('below-cost-total');
+  /** Money as the screen writes it, with the bidi isolates taken out. */
+  const text = (el: HTMLElement | null) => (el?.textContent ?? '').replace(/[\u2066-\u2069]/g, '').replace(/\u00a0/g, ' ');
+
+  it('a line priced below cost says so: each costs 2,000.00, selling at 1,800.00, a loss of 600.00 on 3', async () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    typeInto(field(lines()[0], 'quantity'), '3');
+
+    await waitFor(() => expect(warningOn(lines()[0])).toBeTruthy());
+    expect(text(warningOn(lines()[0]))).toBe(
+      'Below cost: each costs 2,000.00 EGP, you’re selling at 1,800.00 EGP, a loss of 600.00 EGP on this line.',
+    );
+    expect(text(total())).toContain('600.00 EGP');
+  });
+
+  it('it is the house warning — the amber accent token SettlementWarnings uses, a status, never the red refusal style', async () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    const warning = await waitFor(() => {
+      const w = warningOn(lines()[0]);
+      expect(w).toBeTruthy();
+      return w!;
+    });
+    expect(warning.className).toMatch(/accent-50/);
+    expect(warning.className).not.toMatch(/destructive|red-/);
+    expect(warning.getAttribute('role')).toBe('status');
+    expect(total()!.className).toMatch(/accent-50/);
+  });
+
+  it('live: raising the price clears it, a discount brings it back, the quantity moves the loss', async () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    await waitFor(() => expect(warningOn(lines()[0])).toBeTruthy());
+
+    typeInto(field(lines()[0], 'unitPrice'), '2100');
+    await waitFor(() => expect(warningOn(lines()[0])).toBeNull());
+    expect(total()).toBeNull();
+
+    // 2 × 2,100 − 300 = 3,900 against 4,000.
+    typeInto(field(lines()[0], 'quantity'), '2');
+    typeInto(field(lines()[0], 'discount'), '300');
+    await waitFor(() => expect(text(warningOn(lines()[0]))).toContain('a loss of 100.00 EGP'));
+    expect(text(warningOn(lines()[0]))).toContain('you’re selling at 1,950.00 EGP');
+
+    typeInto(field(lines()[0], 'quantity'), '4');
+    // 4 × 2,100 − 300 = 8,100 against 8,000: above cost again.
+    await waitFor(() => expect(warningOn(lines()[0])).toBeNull());
+  });
+
+  it('exactly at cost is not a warning', async () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    await waitFor(() => expect(warningOn(lines()[0])).toBeTruthy());
+    typeInto(field(lines()[0], 'unitPrice'), '2000');
+    await waitFor(() => expect(warningOn(lines()[0])).toBeNull());
+  });
+
+  it('the total adds up every line below cost, and only those', async () => {
+    renderForm();
+    pick(3, 'Piston kit'); // 1 at 1,800: a loss of 200
+    fireEvent.click(screen.getByRole('button', { name: /add item/i }));
+    pick(4, 'Piston kit');
+    typeInto(field(lines()[1], 'quantity'), '2');
+    typeInto(field(lines()[1], 'unitPrice'), '1500'); // 2 at 1,500: a loss of 1,000
+    fireEvent.click(screen.getByRole('button', { name: /add item/i }));
+    pick(5, 'Piston kit');
+    typeInto(field(lines()[2], 'unitPrice'), '2500'); // above cost
+
+    await waitFor(() => expect(text(total())).toContain('1,200.00 EGP'));
+    expect(warningOn(lines()[0])).toBeTruthy();
+    expect(warningOn(lines()[1])).toBeTruthy();
+    expect(warningOn(lines()[2])).toBeNull();
+  });
+
+  it('the request is the lines as typed, discount and currency included', async () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    typeInto(field(lines()[0], 'quantity'), '2');
+    typeInto(field(lines()[0], 'discount'), '50');
+    await waitFor(() =>
+      expect(priceCheck).toHaveBeenLastCalledWith({
+        currency: 'EGP',
+        items: [{ productId: PISTON.id, quantity: 2, unitPrice: 1800, discount: 50 }],
+      }),
+    );
+  });
+
+  it('no stock behind the line, no warning (confirming refuses it anyway)', async () => {
+    shelf = new Map();
+    renderForm();
+    pick(3, 'Piston kit');
+    await waitFor(() => expect(priceCheck).toHaveBeenCalled());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(warningOn(lines()[0])).toBeNull();
+    expect(total()).toBeNull();
+  });
+
+  it('a warning never blocks: Create & confirm still sends the order', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'CONFIRMED' } } });
+    const { onSaved } = renderForm();
+    pick(3, 'Piston kit');
+    await waitFor(() => expect(warningOn(lines()[0])).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][0]).toBe('/sales/orders');
+  });
+
+  it('a walk-in sale is checked the same way', async () => {
+    renderForm();
+    fireEvent.click(screen.getByTestId('walk-in-switch'));
+    pick(3, 'Piston kit'); // payment method, channel, currency, then the line
+    typeInto(field(lines()[0], 'unitPrice'), '1000');
+    await waitFor(() => expect(text(warningOn(lines()[0]))).toContain('a loss of 1,000.00 EGP'));
+  });
+
+  it('in Arabic the sentence is Arabic and each amount is its own left-to-right run', async () => {
+    renderForm(vi.fn(), SHOP.id, 'ar');
+    fireEvent.click(screen.getAllByRole('combobox')[3]);
+    fireEvent.click(screen.getByRole('option', { name: /Piston kit/ }));
+    const warning = await waitFor(() => {
+      const w = warningOn(lines()[0]);
+      expect(w).toBeTruthy();
+      return w!;
+    });
+    expect(warning.textContent).toContain('أقل من التكلفة');
+    // One run, kept on one line: a no-break space before the currency.
+    expect(warning.textContent).toContain('\u20662,000.00\u00a0EGP\u2069');
+    expect(total()!.textContent).toContain('\u2066200.00\u00a0EGP\u2069');
   });
 });

@@ -65,7 +65,13 @@ beforeEach(() => {
   } as unknown as NotificationsService;
   const costing = new CostingService(prisma);
   cycles = new CyclesService(prisma, audit, notifications);
-  deliveries = new DeliveriesService(prisma, audit, notifications, costing);
+  deliveries = new DeliveriesService(
+    prisma,
+    audit,
+    notifications,
+    costing,
+    cycles,
+  );
   inventory = new InventoryService(
     prisma,
     audit,

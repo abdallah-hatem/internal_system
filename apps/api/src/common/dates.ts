@@ -67,6 +67,7 @@ export const DATE_FIELDS = {
   LENDER_PAID: 'The date a friend paid a supplier',
   LENDER_REPAID: 'The date a friend was repaid',
   LEDGER_ENTRY: 'The date of a ledger entry',
+  STOCK_MOVED: 'The date leftover stock was moved',
 } as const;
 export type DateField = keyof typeof DATE_FIELDS;
 

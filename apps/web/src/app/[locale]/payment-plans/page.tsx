@@ -378,7 +378,7 @@ export default function PaymentPlansPage() {
                         onChange={(raw) =>
                           setLines((l) => l.map((x, i) => (i === idx ? { ...x, amount: raw } : x)))
                         }
-                        className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                       <input
                         type="text"

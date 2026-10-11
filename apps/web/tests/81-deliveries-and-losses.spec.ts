@@ -31,7 +31,10 @@ type Headers = Record<string, string>;
 async function departedCycle(
   request: APIRequestContext,
   route: 'UAE_DIRECT' | 'CHINA' = 'UAE_DIRECT',
+  /** False: the legs are recorded but none has left, so the cycle stays in Planning (L3). */
+  departed = true,
 ) {
+  const when = (n: number) => (departed ? { departedOn: daysAgo(n) } : {});
   const { headers, mk } = await apiCtx(request);
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const product = await mk('products', { name: `Deliv ${stamp} Part`, minStock: 0 });
@@ -47,19 +50,19 @@ async function departedCycle(
           await mk(`cycles/${cycle.id}/shipping-legs`, {
             sequence: 1, origin: 'Guangzhou, CN', destination: 'Dubai, UAE',
             costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1,
-            departedOn: daysAgo(20),
+            ...when(20),
           }),
           await mk(`cycles/${cycle.id}/shipping-legs`, {
             sequence: 2, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
             costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
-            departedOn: daysAgo(10),
+            ...when(10),
           }),
         ]
       : [
           await mk(`cycles/${cycle.id}/shipping-legs`, {
             sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
             costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1,
-            departedOn: daysAgo(20),
+            ...when(20),
           }),
         ];
   const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
@@ -157,7 +160,10 @@ test.describe('POST /shipping/legs/:id/deliveries', () => {
   });
 
   test('TC-DL-07: Delivery or loss on a CANCELLED cycle → CYCLE_CLOSED', async ({ request }) => {
-    const { headers, mk, cycle, leg, item } = await departedCycle(request);
+    // Since L3 a departure moves the cycle past Purchasing, and a cycle whose
+    // goods have left cannot be cancelled — so the cancelled cycle's leg never
+    // left. The cancelled-cycle refusal comes before any departure check.
+    const { headers, mk, cycle, leg, item } = await departedCycle(request, 'UAE_DIRECT', false);
     await mk(`cycles/${cycle.id}/transition`, { status: 'CANCELLED' });
     expect((await deliver(request, headers, leg.id, item, 5)).code).toBe('CYCLE_CLOSED');
     expect((await lose(request, headers, leg.id, item, 5)).code).toBe('CYCLE_CLOSED');
@@ -380,11 +386,14 @@ test.describe('The old leg form and the cycle gates', () => {
     for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
+    // Leg 2 left too, but the walk (L3) stopped at In transit: Arrived UAE
+    // needs a leg-1 delivery, and the gate said so.
     const early = await post(request, headers, `cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
     expect(early.code).toBe('LEG_NOT_ARRIVED');
-    await deliver(request, headers, legs[0].id, item, 15, daysAgo(15));
-    const ok = await post(request, headers, `cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
-    expect(ok.status, JSON.stringify(ok.body)).toBeLessThan(300);
+    // The first delivery of 15/40 passes that gate by itself, and on.
+    const d = await deliver(request, headers, legs[0].id, item, 15, daysAgo(15));
+    expect(d.status, JSON.stringify(d.body)).toBeLessThan(300);
+    expect(d.body.cycleStatus).toMatchObject({ from: 'IN_TRANSIT', steps: ['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT'] });
   });
 
   test('TC-DL-51: Cycle → ARRIVED_EGYPT with the last leg partly arrived → allowed', async ({ request }) => {
@@ -393,9 +402,9 @@ test.describe('The old leg form and the cycle gates', () => {
     for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
-    await deliver(request, headers, legs[1].id, item, 12, daysAgo(5));
-    const ok = await post(request, headers, `cycles/${cycle.id}/transition`, { status: 'ARRIVED_EGYPT' });
-    expect(ok.status, JSON.stringify(ok.body)).toBeLessThan(300);
+    // The last leg partly arrived (12 of 30) passes the Arrived Egypt gate by itself (L3).
+    const d = await deliver(request, headers, legs[1].id, item, 12, daysAgo(5));
+    expect(d.body.cycleStatus).toMatchObject({ from: 'IN_TRANSIT_TO_EGYPT', to: 'ARRIVED_EGYPT', moved: true });
   });
 });
 

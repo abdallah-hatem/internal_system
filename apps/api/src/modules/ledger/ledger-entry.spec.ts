@@ -181,8 +181,9 @@ describe('a correct manual entry saves', () => {
 });
 
 describe('the category list decides what can be recorded', () => {
+  // `cycle_transfer` has its own refusal, LEDGER_CATEGORY_RESERVED (L5).
   const SYSTEM = [
-    ...CAPITALISED_CATEGORIES,
+    ...CAPITALISED_CATEGORIES.filter((c) => c !== 'cycle_transfer'),
     ...COST_RECOVERY_CATEGORIES,
     'revenue',
     'refund',
@@ -201,6 +202,19 @@ describe('the category list decides what can be recorded', () => {
       expect(created).toHaveLength(0);
     },
   );
+
+  it('a transfer between cycles is reserved, whatever kind it is sent as', async () => {
+    const { ledger, created } = setup();
+    for (const body of [
+      expense({ category: 'cycle_transfer' }),
+      income({ category: 'cycle_transfer' }),
+      { category: 'cycle_transfer', amount: 100, currency: 'EGP' },
+    ]) {
+      const r = await refusal(ledger.create(body as never, 'u-1'));
+      expect(r.code).toBe('LEDGER_CATEGORY_RESERVED');
+    }
+    expect(created).toHaveLength(0);
+  });
 
   it.each(['Rent', 'misc', '', '  rent'])(
     'free text %p is refused',

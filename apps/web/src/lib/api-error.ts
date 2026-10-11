@@ -61,6 +61,8 @@ export const PARAM_KINDS: Record<string, Record<string, CodeKind>> = {
   LEDGER_DIRECTION_MISMATCH: { kind: 'ledgerKind', direction: 'ledgerDirection' },
   LEDGER_CYCLE_REQUIRED: { category: 'ledgerCategory' },
   LEDGER_CYCLE_NOT_OPEN: { status: 'cycleStatus' },
+  TRANSFER_SOURCE_NOT_SELLING: { status: 'cycleStatus' },
+  TRANSFER_TARGET_CLOSED: { status: 'cycleStatus' },
 };
 
 export function resolveApiError(
