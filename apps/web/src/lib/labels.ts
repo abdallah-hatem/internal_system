@@ -31,7 +31,11 @@ export type CodeKind =
   | 'auditAction' // AuditLog.action
   | 'entityType' // AuditLog.entityType
   // R1b — codes a refusal carries in its params (lib/api-error.ts PARAM_KINDS).
-  | 'dateField'; // the date assertNotFuture refused (api common/dates.ts DATE_FIELDS)
+  | 'dateField' // the date assertNotFuture refused (api common/dates.ts DATE_FIELDS)
+  // L6 — a manual ledger entry (api common/manual-ledger-categories.ts).
+  | 'ledgerCategory'
+  | 'ledgerKind'
+  | 'ledgerDirection';
 
 /**
  * Translate an API code for display.

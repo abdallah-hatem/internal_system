@@ -56,6 +56,10 @@ interface CycleProfit {
   totalCost: number;
   lossesEgp?: number;
   supplierRefundsEgp?: number;
+  /** Expenses charged to the cycle, already off profit (L6). */
+  expensesEgp?: number;
+  /** Other income credited to the cycle, already in profit (L6). */
+  otherIncomeEgp?: number;
   roiPct: number | null;
 }
 const num = (v: unknown) => Number(v ?? 0);
@@ -496,7 +500,7 @@ function AddParticipantForm({
   );
 }
 
-/** Profit as the analytics figure states it — revenue less cost of goods sold, plus refunds, less losses. */
+/** Profit as the analytics figure states it — revenue less cost of goods sold, plus refunds, less losses, less expenses charged to the cycle, plus its other income. */
 function ProfitCard({ figure }: { figure?: CycleProfit }) {
   const t = useTranslations('cycles');
   return (
@@ -508,7 +512,7 @@ function ProfitCard({ figure }: { figure?: CycleProfit }) {
       {!figure ? (
         <p className="text-sm text-muted-foreground">{t('profitNotYet')}</p>
       ) : (
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           <div>
             <dt className="text-xs text-muted-foreground">{t('profit')}</dt>
             <dd data-testid="cycle-profit-value" className={`text-lg font-bold ${figure.profit > 0 ? 'text-success' : figure.profit < 0 ? 'text-destructive' : 'text-foreground'}`}>
@@ -533,6 +537,16 @@ function ProfitCard({ figure }: { figure?: CycleProfit }) {
             <dt className="text-xs text-muted-foreground">{t('profitLosses')}</dt>
             <dd data-testid="cycle-profit-losses" className="text-sm text-foreground"><Money value={figure.lossesEgp ?? 0} /></dd>
           </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('profitExpenses')}</dt>
+            <dd data-testid="cycle-profit-expenses" className="text-sm text-foreground"><Money value={figure.expensesEgp ?? 0} /></dd>
+          </div>
+          {!!figure.otherIncomeEgp && (
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('profitOtherIncome')}</dt>
+              <dd data-testid="cycle-profit-other-income" className="text-sm text-foreground"><Money value={figure.otherIncomeEgp} /></dd>
+            </div>
+          )}
         </dl>
       )}
     </div>

@@ -108,16 +108,13 @@
   },
   "src/app/[locale]/ledger/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-floating-promises": {
-      "count": 2
+      "count": 1
     },
     "local/no-raw-colors": {
-      "count": 81
-    },
-    "no-restricted-syntax": {
-      "count": 2
+      "count": 65
     },
     "react-hooks/set-state-in-effect": {
       "count": 1

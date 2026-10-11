@@ -57,6 +57,10 @@ export const PARAM_KINDS: Record<string, Record<string, CodeKind>> = {
   SETTLEMENT_LOCKED: { status: 'settlementStatus' },
   ONLY_CONFIRMED_RETURNABLE: { status: 'orderStatus' },
   CYCLE_CLOSED_FOR_FINANCING: { status: 'cycleStatus' },
+  LEDGER_CATEGORY_WRONG_KIND: { category: 'ledgerCategory', kind: 'ledgerKind' },
+  LEDGER_DIRECTION_MISMATCH: { kind: 'ledgerKind', direction: 'ledgerDirection' },
+  LEDGER_CYCLE_REQUIRED: { category: 'ledgerCategory' },
+  LEDGER_CYCLE_NOT_OPEN: { status: 'cycleStatus' },
 };
 
 export function resolveApiError(

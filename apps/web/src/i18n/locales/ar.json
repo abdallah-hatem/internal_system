@@ -302,7 +302,9 @@
     "noLegsHint": "كل مرحلة جزء من رحلة الشحنة، بناقلها وتكلفتها.",
     "goToShipments": "الذهاب إلى الشحنات",
     "noBatchesTitle": "لم يدخل المخزون شيء بعد",
-    "noBatchesHint": "يظهر المخزون هنا بعد استلام شحنة من هذه الدورة."
+    "noBatchesHint": "يظهر المخزون هنا بعد استلام شحنة من هذه الدورة.",
+    "profitExpenses": "مصروفات محمّلة عليها",
+    "profitOtherIncome": "دخل آخر"
   },
   "purchases": {
     "title": "المشتريات",
@@ -659,7 +661,25 @@
     "entryCreated": "تم تسجيل القيد",
     "entryReversed": "تم عكس القيد",
     "emptyTitle": "لا توجد قيود بعد",
-    "emptyHint": "حركة الأموال داخلاً وخارجاً — المدفوعات والمصروفات والمساهمات تُسجَّل هنا."
+    "emptyHint": "حركة الأموال داخلاً وخارجاً — المدفوعات والمصروفات والمساهمات تُسجَّل هنا.",
+    "recordTitle": "تسجيل مال داخل أو خارج",
+    "whatIsIt": "ما هذا؟",
+    "kindExpense": "مصروف",
+    "kindExpenseHint": "مال أنفقناه",
+    "kindIncome": "دخل آخر",
+    "kindIncomeHint": "مال دخل وليس بيعًا ولا دفعة عميل ولا مساهمة ولا استردادًا",
+    "chooseCategory": "اختر الفئة",
+    "chargeToCycle": "تحميله على دورة",
+    "optional": "(اختياري)",
+    "noCycle": "بدون دورة — على النشاط كله",
+    "cycleRequiredHint": "الشحن الإضافي من تكلفة بضاعة دورة واحدة، لذلك يحتاج إلى دورته.",
+    "occurredOn": "التاريخ",
+    "note": "ملاحظة",
+    "notePlaceholder": "لأي شيء كان",
+    "allCategories": "جميع الفئات",
+    "otherIncome": "دخل آخر",
+    "originalAmount": "دُفع بمبلغ",
+    "recordFailed": "لم يُحفظ القيد."
   },
   "settlements": {
     "title": "التسويات",
@@ -1270,7 +1290,16 @@
     "LENDER_CURRENCY_MISMATCH": "{reference} بعملة {orderCurrency}؛ ما دفعه الصديق عنه يُسجَّل بـ {orderCurrency} وليس {currency}.",
     "LENDER_PLAN_EXISTS": "لهذا خطة نشطة بالفعل. ألغِها قبل الاتفاق على غيرها.",
     "LENDER_PLAN_EXCEEDS_OWED": "مجموع الأقساط {total} {currency} والمستحق {owed} فقط.",
-    "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه."
+    "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه.",
+    "LEDGER_CATEGORY_NOT_MANUAL": "«{category}» ليست فئة يمكن استخدامها في قيد يدوي. اختر واحدة من القائمة.",
+    "LEDGER_CATEGORY_WRONG_KIND": "{category} ليست {kind}.",
+    "LEDGER_DIRECTION_MISMATCH": "هذا {kind}، لذلك لا يمكن تسجيله {direction}.",
+    "LEDGER_TYPE_NOT_MANUAL": "قيد من نوع {type} يُسجَّل من خلال عمليته الخاصة، لا يدويًا.",
+    "LEDGER_AMOUNT_NOT_POSITIVE": "يجب أن يكون المبلغ أكبر من صفر.",
+    "LEDGER_RATE_NOT_POSITIVE": "يجب أن يكون سعر التحويل من {currency} إلى الجنيه أكبر من صفر.",
+    "LEDGER_EGP_RATE": "المبلغ بالجنيه يُحوَّل إلى الجنيه بسعر 1.",
+    "LEDGER_CYCLE_REQUIRED": "{category} من تكلفة بضاعة دورة واحدة — اختر الدورة التي يخصها.",
+    "LEDGER_CYCLE_NOT_OPEN": "الدورة {cycle} حالتها {status}، لذلك لا يمكن تحميل أي شيء آخر عليها."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1535,7 +1564,8 @@
       "ARRIVAL": "تاريخ الوصول",
       "DELIVERY": "تاريخ التسليمة",
       "LENDER_PAID": "تاريخ دفع الصديق للمورد",
-      "LENDER_REPAID": "تاريخ السداد للصديق"
+      "LENDER_REPAID": "تاريخ السداد للصديق",
+      "LEDGER_ENTRY": "تاريخ قيد في الدفتر"
     },
     "country": {
       "CN": "الصين",
@@ -1551,6 +1581,29 @@
       "DE": "ألمانيا",
       "US": "الولايات المتحدة",
       "TH": "تايلاند"
+    },
+    "ledgerCategory": {
+      "rent": "إيجار",
+      "salaries": "رواتب",
+      "utilities": "مرافق",
+      "transport_delivery": "نقل وتوصيل",
+      "packaging": "تغليف",
+      "marketing": "تسويق",
+      "bank_fees": "رسوم بنكية",
+      "customs_clearance": "جمارك وتخليص",
+      "extra_freight": "شحن إضافي (لدورة)",
+      "other_expense": "أخرى",
+      "other_income": "دخل آخر",
+      "interest": "فوائد",
+      "income_other": "أخرى"
+    },
+    "ledgerKind": {
+      "EXPENSE": "مصروفًا",
+      "OTHER_INCOME": "دخلًا آخر"
+    },
+    "ledgerDirection": {
+      "INFLOW": "مالًا داخلًا",
+      "OUTFLOW": "مالًا خارجًا"
     }
   },
   "goodsLocation": {
