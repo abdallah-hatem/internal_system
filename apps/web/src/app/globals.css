@@ -56,6 +56,8 @@
 
   --color-destructive: #ef4444;
   --color-destructive-foreground: #ffffff;
+  /* A gain: profit and ROI above zero. The partner of destructive for money. */
+  --color-success: #16a34a;
 
   --color-border: #e5e7eb;
   --color-input: #e5e7eb;
