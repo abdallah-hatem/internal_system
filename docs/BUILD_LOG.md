@@ -13,7 +13,13 @@ _(none)_
 _(none)_
 
 ## Next up
-- Resume: finish/merge `fix/row-alignment-and-cycle-nav`, look at its before/after screenshots, run e2e 94 + full suite, ship.
+- Resume: branch `fix/row-alignment-and-cycle-nav` @ `96f15ee` (WIP, typecheck passes). DONE in it: shared
+  `field-row` (equal 38px boxes, top-aligned; error lines can't move neighbours) on ~20 rows; `RowAction`; cycle
+  row/card → details; `ContinueSetupLink` (row, card, details header; `cycle.create` + WIZARD_STATUSES); wizard
+  "Back to the cycle". LEFT: on-screen check with bounding-box measurements in error and normal states (1440/390,
+  en/ar) + screenshots under `.ui-audit/rowfix/`; Vitest; spec 94; lint; test:unit; update specs 29 and 80 (they
+  click a row expecting the wizard → click Continue setup); DECIDED: status changes move to a button on the cycle
+  details page and the phone slide-over goes (it is now unreachable). Then full e2e and ship.
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
 - Queued from this run: system-written ledger reasons are stored in English (needs a code/params migration); the app
