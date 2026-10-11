@@ -1,6 +1,14 @@
 import {
-  IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID,
-  MinLength, ArrayMinSize, ValidateNested, IsPositive,
+  IsArray,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+  ArrayMinSize,
+  ValidateNested,
+  IsPositive,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -14,7 +22,8 @@ export class InstalmentDto {
   @Type(() => Number)
   amount: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   note?: string;
 }
 
@@ -22,10 +31,12 @@ export class CreatePaymentPlanDto {
   @IsUUID('all')
   customerId: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional()
+  @IsDateString()
   agreedOn?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   note?: string;
 
   /**
@@ -42,6 +53,8 @@ export class CreatePaymentPlanDto {
 
 export class CancelPaymentPlanDto {
   @IsString()
-  @MinLength(3, { message: 'reason must explain why the plan is being cancelled' })
+  @MinLength(3, {
+    message: 'reason must explain why the plan is being cancelled',
+  })
   reason: string;
 }

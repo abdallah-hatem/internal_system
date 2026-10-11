@@ -65,7 +65,7 @@ TAG="motoparts-dev"
 say "Opening API, office and store in Terminal windows"
 osascript >/dev/null <<APPLESCRIPT
 tell application "Terminal"
-  set apiTab to do script "cd '$ROOT/apps/api' && npm run start:dev"
+  set apiTab to do script "cd '$ROOT/apps/api' && CRON_SECRET=${CRON_SECRET:-local-cron-secret} npm run start:dev"
   set custom title of apiTab to "$TAG — api"
   set webTab to do script "cd '$ROOT/apps/web' && npm run dev"
   set custom title of webTab to "$TAG — web"

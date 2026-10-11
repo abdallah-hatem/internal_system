@@ -15,8 +15,13 @@ import { formatMoney } from '../../common/money';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { owedBy } from '../../common/customer-balance';
+import {
+  overdueNotificationsToSend,
+  type OverdueInstalment,
+} from '../../common/overdue-notifications';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
-const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+const money = (v: Prisma.Decimal) =>
+  v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
 export type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
@@ -73,7 +78,13 @@ export class PaymentPlansService {
    * already covered.
    */
   private evaluate(
-    instalments: { id: string; sequence: number; dueOn: Date; amount: Prisma.Decimal; note: string | null }[],
+    instalments: {
+      id: string;
+      sequence: number;
+      dueOn: Date;
+      amount: Prisma.Decimal;
+      note: string | null;
+    }[],
     paidToDate: Prisma.Decimal,
   ) {
     const today = todayLocalDay();
@@ -88,7 +99,10 @@ export class PaymentPlansService {
 
       // Money is applied to the earliest instalments first: a shop paying down
       // a running balance clears its oldest promise, not the nearest one.
-      const remainingPayment = Prisma.Decimal.max(paidToDate.sub(applied), D(0));
+      const remainingPayment = Prisma.Decimal.max(
+        paidToDate.sub(applied),
+        D(0),
+      );
       const coveredHere = Prisma.Decimal.min(remainingPayment, amount);
       applied = applied.add(coveredHere);
 
@@ -117,7 +131,8 @@ export class PaymentPlansService {
 
     const totalEgp = cumulativeDue;
     const remainingEgp = Prisma.Decimal.max(totalEgp.sub(paidToDate), D(0));
-    const nextDue = lines.find((l) => l.state === 'DUE' || l.state === 'UPCOMING') ?? null;
+    const nextDue =
+      lines.find((l) => l.state === 'DUE' || l.state === 'UPCOMING') ?? null;
 
     return {
       instalments: lines,
@@ -140,12 +155,17 @@ export class PaymentPlansService {
     return D(agg._sum.amount);
   }
 
-  async findAll(pagination: PaginationDto & { customerId?: string; overdueOnly?: string }) {
+  async findAll(
+    pagination: PaginationDto & { customerId?: string; overdueOnly?: string },
+  ) {
     const { cursor, customerId } = pagination;
     const limit = pageSize(pagination.limit);
 
     const plans = await this.prisma.paymentPlan.findMany({
-      where: { ...(customerId ? { customerId } : {}), status: { not: 'CANCELLED' } },
+      where: {
+        ...(customerId ? { customerId } : {}),
+        status: { not: 'CANCELLED' },
+      },
       ...cursorPage(cursor, limit),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: PLAN_INCLUDE,
@@ -157,16 +177,24 @@ export class PaymentPlansService {
     const data = await Promise.all(
       page.map(async (plan) => ({
         ...plan,
-        ...this.evaluate(plan.instalments, await this.paidSince(plan.customerId, plan.agreedOn)),
+        ...this.evaluate(
+          plan.instalments,
+          await this.paidSince(plan.customerId, plan.agreedOn),
+        ),
       })),
     );
 
     const filtered =
-      pagination.overdueOnly === 'true' ? data.filter((p) => p.isOverdue) : data;
+      pagination.overdueOnly === 'true'
+        ? data.filter((p) => p.isOverdue)
+        : data;
 
     return {
       data: filtered,
-      meta: { nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null, limit },
+      meta: {
+        nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+        limit,
+      },
     };
   }
 
@@ -180,7 +208,10 @@ export class PaymentPlansService {
     return {
       data: {
         ...plan,
-        ...this.evaluate(plan.instalments, await this.paidSince(plan.customerId, plan.agreedOn)),
+        ...this.evaluate(
+          plan.instalments,
+          await this.paidSince(plan.customerId, plan.agreedOn),
+        ),
       },
     };
   }
@@ -245,7 +276,11 @@ export class PaymentPlansService {
         'INSTALMENTS_EXCEED_OWED',
         `The instalments total ${formatMoney(total)} EGP but ${customer.displayName} ` +
           `only owes ${formatMoney(owed)} EGP.`,
-        { total: formatMoney(total), customer: customer.displayName, owed: formatMoney(owed) },
+        {
+          total: formatMoney(total),
+          customer: customer.displayName,
+          owed: formatMoney(owed),
+        },
       );
     }
 
@@ -297,7 +332,10 @@ export class PaymentPlansService {
     const plan = await this.prisma.paymentPlan.findUnique({ where: { id } });
     if (!plan) throw notFound('paymentPlan');
     if (plan.status === 'CANCELLED') {
-      throw badRequest('PLAN_ALREADY_CANCELLED', 'This plan is already cancelled');
+      throw badRequest(
+        'PLAN_ALREADY_CANCELLED',
+        'This plan is already cancelled',
+      );
     }
 
     const updated = await this.prisma.paymentPlan.update({
@@ -318,58 +356,32 @@ export class PaymentPlansService {
     return { data: updated };
   }
 
-  /**
-   * Everything overdue right now, and a notification for anything newly so.
-   *
-   * The BRD scopes V1 to flagging and telling someone (19): nothing here blocks
-   * a sale or charges a penalty.
-   */
-  async overdueSummary(notifyUserIds: string[] = []) {
+  /** Every active plan, evaluated as of today. */
+  private async evaluateActive() {
     const plans = await this.prisma.paymentPlan.findMany({
       where: { status: 'ACTIVE' },
       include: PLAN_INCLUDE,
     });
-
-    const evaluated = await Promise.all(
+    return Promise.all(
       plans.map(async (plan) => ({
         plan,
-        ...this.evaluate(plan.instalments, await this.paidSince(plan.customerId, plan.agreedOn)),
+        ...this.evaluate(
+          plan.instalments,
+          await this.paidSince(plan.customerId, plan.agreedOn),
+        ),
       })),
     );
+  }
 
-    const overdue = evaluated.filter((p) => p.isOverdue);
-
-    if (overdue.length > 0 && notifyUserIds.length > 0) {
-      for (const p of overdue) {
-        // One notification per plan per day at most: re-raising it on every
-        // dashboard load would bury everything else in the bell.
-        const since = startOfToday();
-        const already = await this.prisma.notification.findFirst({
-          where: {
-            eventType: 'PAYMENT_OVERDUE',
-            createdAt: { gte: since },
-            payloadJson: { path: ['planId'], equals: p.plan.id },
-          },
-          select: { id: true },
-        });
-        if (already) continue;
-
-        await this.notifications.createForMultipleUsers(notifyUserIds, {
-          eventType: 'PAYMENT_OVERDUE',
-          code: 'PAYMENT_OVERDUE',
-          params: {
-            customer: p.plan.customer.displayName,
-            amount: formatMoney(p.overdueEgp),
-            reference: p.plan.reference,
-          },
-          payload: {
-            planId: p.plan.id,
-            customerId: p.plan.customerId,
-            overdueEgp: p.overdueEgp,
-          },
-        });
-      }
-    }
+  /**
+   * Everything overdue right now. Only reads: who is told, and when, is
+   * `notifyOverdue`'s job (BUSINESS_LOGIC §7, 2026-10-11).
+   *
+   * The BRD scopes V1 to flagging and telling someone (19): nothing here blocks
+   * a sale or charges a penalty.
+   */
+  async overdueSummary() {
+    const overdue = (await this.evaluateActive()).filter((p) => p.isOverdue);
 
     return {
       data: {
@@ -384,5 +396,96 @@ export class PaymentPlansService {
         })),
       },
     };
+  }
+
+  /**
+   * Tell every active core partner about each instalment that has fallen
+   * behind — once per instalment, ever (BUSINESS_LOGIC §7, DECIDED 2026-10-11).
+   *
+   * Run daily by the scheduler (`GET /jobs/overdue-payments` on Vercel, the
+   * `@Cron` on a host with a process). It used to run only when somebody
+   * opened `GET /payment-plans/overdue`, telling only that person, at most once
+   * per plan per day — and the office app never opens it.
+   *
+   * Running it twice in a day, or every day for a month, sends nothing new: what
+   * was already sent is read back from the notifications' `instalmentId`.
+   */
+  async notifyOverdue() {
+    const evaluated = await this.evaluateActive();
+
+    const overdue: OverdueInstalment[] = evaluated.flatMap((p) =>
+      p.instalments
+        .filter((i) => i.state === 'OVERDUE')
+        .map((i) => ({
+          instalmentId: i.id,
+          planId: p.plan.id,
+          customerId: p.plan.customerId,
+          customer: p.plan.customer.displayName,
+          reference: p.plan.reference,
+          dueOn: dayOf(i.dueOn),
+          outstandingEgp: i.outstandingEgp.toFixed(2),
+        })),
+    );
+    if (overdue.length === 0)
+      return { overdueInstalments: 0, notifications: 0 };
+
+    const partners = await this.prisma.user.findMany({
+      where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+      select: { id: true },
+    });
+    const partnerIds = partners.map((u) => u.id);
+    if (partnerIds.length === 0) {
+      return { overdueInstalments: overdue.length, notifications: 0 };
+    }
+
+    // Nothing can have been sent about an instalment before it was due, so
+    // the earliest due day bounds what has to be read back.
+    const earliest = overdue.reduce(
+      (min, o) => (o.dueOn < min ? o.dueOn : min),
+      overdue[0].dueOn,
+    );
+    const previous = await this.prisma.notification.findMany({
+      where: {
+        eventType: 'PAYMENT_OVERDUE',
+        userId: { in: partnerIds },
+        createdAt: { gte: new Date(`${earliest}T00:00:00Z`) },
+      },
+      select: { userId: true, payloadJson: true },
+    });
+    const alreadySent = previous.flatMap((n) => {
+      const id = (n.payloadJson as { instalmentId?: unknown } | null)
+        ?.instalmentId;
+      return typeof id === 'string'
+        ? [{ userId: n.userId, instalmentId: id }]
+        : [];
+    });
+
+    let notifications = 0;
+    for (const { instalment, userIds } of overdueNotificationsToSend(
+      overdue,
+      partnerIds,
+      alreadySent,
+    )) {
+      await this.notifications.createForMultipleUsers(userIds, {
+        eventType: 'PAYMENT_OVERDUE',
+        code: 'INSTALMENT_OVERDUE',
+        params: {
+          customer: instalment.customer,
+          amount: formatMoney(instalment.outstandingEgp),
+          reference: instalment.reference,
+          dueOn: instalment.dueOn,
+        },
+        payload: {
+          planId: instalment.planId,
+          instalmentId: instalment.instalmentId,
+          customerId: instalment.customerId,
+          dueOn: instalment.dueOn,
+          outstandingEgp: instalment.outstandingEgp,
+        },
+      });
+      notifications += userIds.length;
+    }
+
+    return { overdueInstalments: overdue.length, notifications };
   }
 }

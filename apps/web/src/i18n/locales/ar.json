@@ -681,6 +681,7 @@
     "SHIPPING_LEG_ARRIVED": "وصلت مرحلة الشحن {sequence} ({origin} ← {destination})",
     "LOW_STOCK_DETECTED": "مخزون منخفض: {products}",
     "PAYMENT_OVERDUE": "{customer} متأخر بمبلغ {amount} جنيه في {reference}",
+    "INSTALMENT_OVERDUE": "{customer} لم يسدد قسط {dueOn} في {reference} — المتبقي {amount} جنيه",
     "ORDER_REQUEST_SUBMITTED": "{shopName} طلب شراء — {requestNo}",
     "IMPORT_REQUEST_SUBMITTED": "{shopName} طلب {productName}",
     "SHOP_SIGNED_UP": "سجّل {shopName} في المتجر",

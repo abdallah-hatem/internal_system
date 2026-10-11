@@ -113,6 +113,9 @@ export function notificationHref(notification: Notification): string | null {
     case 'PAYMENT_RECEIVED':
       return '/payments';
 
+    // PAYMENT_OVERDUE is what the API raises (per instalment since 2026-10-11);
+    // PAYMENT_PLAN_OVERDUE was never raised, and kept the link from working.
+    case 'PAYMENT_OVERDUE':
     case 'PAYMENT_PLAN_OVERDUE':
     case 'PAYMENT_PLAN_CREATED':
       return '/payment-plans';

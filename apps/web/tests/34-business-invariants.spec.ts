@@ -17,6 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
+import { apiCtx, stockedProduct, owedOrder } from './support/fixtures';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -550,5 +551,49 @@ test.describe('Compensation recovers a loss, never more (§6 — 2026-10-10)', (
     expect(refunded, 'refunds must stay within the loss cost').toBeLessThanOrEqual(70000);
     expect(refunded).toBe(60000);
     expect(Number(read.unrecoveredEgp)).toBe(100);
+  });
+});
+
+/** The scheduler's secret on a local API (scripts/dev.sh sets this default). */
+const CRON = process.env.CRON_SECRET ?? 'local-cron-secret';
+
+test.describe('An overdue instalment is told once, to every partner (§7 — 2026-10-11)', () => {
+  test('TC-INV-21: the daily check run again tells nobody anything twice', async ({ request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const customer = await mk('customers', { displayName: `Inv Overdue ${Date.now()}`, type: 'B2B' });
+    const { product } = await stockedProduct(request, headers, mk, `InvOverdue-${Date.now()}`, 5);
+    await owedOrder(mk, customer.id, product.id, 10_000);
+    await mk('payment-plans', {
+      customerId: customer.id,
+      agreedOn: dayFromNow(-20),
+      instalments: [{ dueOn: dayFromNow(-10), amount: 3000 }, { dueOn: dayFromNow(-2), amount: 2000 }],
+    });
+
+    const run = async () => {
+      const res = await request.get(`${API}/jobs/overdue-payments`, { headers: { Authorization: `Bearer ${CRON}` } });
+      expect(res.status(), await res.text()).toBe(200);
+      return res.json();
+    };
+    const first = await run();
+    const second = await run();
+    const third = await run();
+
+    expect(first.notifications, 'the first run tells each partner about each instalment').toBeGreaterThanOrEqual(2);
+    expect([second.notifications, third.notifications]).toEqual([0, 0]);
+
+    const notes = (await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data
+      .filter((n: any) => n.eventType === 'PAYMENT_OVERDUE' && n.payloadJson?.customerId === customer.id);
+    expect(notes.map((n: any) => n.params.amount).sort()).toEqual(['2,000.00', '3,000.00']);
+  });
+
+  test('TC-INV-22: an investor is not told about shops’ debts', async ({ request }) => {
+    // Customer data is the office's (roles, 2026-10-10): the check names only core partners.
+    const login = await request.post(`${API}/auth/login`, {
+      data: { email: 'investor@motoparts.com', password: PASSWORD },
+    });
+    const headers = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
+    await request.get(`${API}/jobs/overdue-payments`, { headers: { Authorization: `Bearer ${CRON}` } });
+    const notes = (await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data ?? [];
+    expect(notes.filter((n: any) => n.eventType === 'PAYMENT_OVERDUE')).toEqual([]);
   });
 });

@@ -61,6 +61,18 @@ export const NOTIFICATION_MESSAGES = {
     en: { title: '{customer} is {amount} EGP behind on {reference}' },
     ar: { title: '{customer} متأخر بمبلغ {amount} جنيه في {reference}' },
   },
+  // Per instalment, from the daily job (BUSINESS_LOGIC §7, 2026-10-11).
+  // PAYMENT_OVERDUE above stays for the rows written before it.
+  INSTALMENT_OVERDUE: {
+    en: {
+      title:
+        '{customer} missed the instalment due {dueOn} on {reference} — {amount} EGP outstanding',
+    },
+    ar: {
+      title:
+        '{customer} لم يسدد قسط {dueOn} في {reference} — المتبقي {amount} جنيه',
+    },
+  },
 
   // ── What the office hears from the storefront ─────────────────────────
   ORDER_REQUEST_SUBMITTED: {

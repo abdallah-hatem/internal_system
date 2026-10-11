@@ -400,10 +400,30 @@ A payment is in the order's currency or in Egyptian pounds; no other currency is
 offered.
 
 **DECIDED 2026-08-21 — overdue flags and notifies, nothing more.** It appears in
-the overdue summary and raises a notification, at most one per plan per day. It
+the overdue summary and raises a notification. It
 does **not** block new sales, warn on the sale screen, or charge a penalty. This
 matches the BRD's V1 scope, and each of those is a deliberate future choice
 rather than an oversight.
+
+**DECIDED 2026-10-11 (I1, autonomous run) — overdue is checked every morning and
+every partner is told, once per instalment.** *Built 2026-10-11.* Until now overdue
+was worked out only when someone opened the overdue summary, only that person was
+notified, and nothing in the office app opens it — so in practice nobody was told.
+A daily job (05:00 UTC, 07:00–08:00 in Cairo) now finds every instalment that has
+fallen behind on an active plan and notifies **every active core partner** —
+not investors, not admin support, not shops. Each partner hears about each
+instalment **once, ever**: the job runs every day and an instalment stays overdue
+until paid, and a daily repeat of the same figure teaches people to ignore the
+bell. A later instalment of the same plan falling behind is new and is told. A
+partner added after an instalment fell behind is told on the next run. The
+notification names the shop, the plan, the instalment's due day and what is
+still owed on it (money covers the earliest instalment first, as above). Reading
+the overdue summary no longer notifies anyone. This replaces "at most one per
+plan per day". Guesses, open until confirmed:
+- An instalment that is paid and then falls behind again (a payment reversed)
+  is not told a second time.
+- Admin support can read plans but is not notified; the notification is for the
+  partners whose money it is.
 
 One active plan per customer. Agreeing a second while one is live is refused,
 because two schedules would claim the same payments. Cancel and re-agree

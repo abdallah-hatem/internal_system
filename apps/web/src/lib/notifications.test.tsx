@@ -26,6 +26,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { NotificationBell } from '@/components/layout/notification-bell';
+import { notificationHref } from '@/lib/notifications';
 
 beforeAll(() => {
   globalThis.ResizeObserver ??= class {
@@ -115,5 +116,14 @@ describe('the locale files and the server catalogue agree', () => {
       const orphans = Object.keys(messages.notifications).filter((k) => isCode(k) && !codes.includes(k));
       expect(orphans).toEqual([]);
     }
+  });
+});
+
+describe('where a notification the API actually raises takes you', () => {
+  const href = (eventType: string, payloadJson: Record<string, unknown> = {}) =>
+    notificationHref({ ...NEW, eventType, payloadJson } as Parameters<typeof notificationHref>[0]);
+
+  it('an overdue instalment (eventType PAYMENT_OVERDUE) opens the payment plans', () => {
+    expect(href('PAYMENT_OVERDUE', { planId: 'p', instalmentId: 'i' })).toBe('/payment-plans');
   });
 });
