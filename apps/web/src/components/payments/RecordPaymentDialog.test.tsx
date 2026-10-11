@@ -191,14 +191,15 @@ describe('RecordPaymentDialog opened from a customer', () => {
     fireEvent.click(save());
     await waitFor(() => expect(onClose).toHaveBeenCalled());
 
-    expect(post.mock.calls.map((c) => c[0])).toEqual([
-      '/payments',
-      '/payments/pay-1/allocations',
-      '/payments/pay-1/allocations',
-    ]);
+    // One request: the server records it and applies it oldest first in the
+    // same transaction (§7), so it is never recorded but applied to nothing.
+    expect(post.mock.calls.map((c) => c[0])).toEqual(['/payments']);
     expect(post.mock.calls[0][1]).not.toHaveProperty('orderId');
-    expect(post.mock.calls[1][1]).toEqual({ saleOrderId: 'o-old', amount: 500 });
-    expect(post.mock.calls[2][1]).toEqual({ saleOrderId: 'o-new', amount: 200 });
+    expect(post.mock.calls[0][1]).toMatchObject({
+      customerId: 'c-shop',
+      amount: 700,
+      applyOldestFirst: true,
+    });
   });
 });
 

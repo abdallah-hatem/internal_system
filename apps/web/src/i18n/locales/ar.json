@@ -535,7 +535,6 @@
     "selectCustomer": "اختر العميل الذي دفع",
     "referencePlaceholder": "مثلاً رقم الإيصال أو التحويل",
     "recordedToast": "تم تسجيل الدفعة",
-    "recordedNotApplied": "تم تسجيل الدفعة، لكن لم يُطبَّق كامل مبلغها على الطلبات. خصّص الباقي من صفحة المدفوعات.",
     "recordFailed": "تعذّر تسجيل الدفعة",
     "allocated": "تم تخصيص الدفعة",
     "allocateFailed": "تعذّر تخصيص الدفعة",

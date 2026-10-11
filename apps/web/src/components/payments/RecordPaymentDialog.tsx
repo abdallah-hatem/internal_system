@@ -184,7 +184,7 @@ function RecordPaymentForm({
     return null;
   };
 
-  const finish = async (message: string, tone: 'success' | 'warning') => {
+  const finish = async (message: string, tone: 'success') => {
     for (const key of ['payments', 'payment', 'sales', 'sale', 'customer', 'customers', 'paymentPlans', 'analytics']) {
       void queryClient.invalidateQueries({ queryKey: [key] });
     }
@@ -207,45 +207,25 @@ function RecordPaymentForm({
     setRefusal(null);
 
     const value = Number(amount);
-    let payment: { id: string } | null = null;
     try {
-      const res = await api.post('/payments', {
+      // On a chosen order, or — from a shop or the Payments page — on the
+      // oldest unpaid orders first. Either way the server records and applies
+      // the money in one transaction (§7): the same `applyOldestFirst` the
+      // assistant's record_payment asks for, so "oldest first" is defined once
+      // and a payment can never be left recorded but applied to nothing.
+      await api.post('/payments', {
         customerId,
         amount: value,
         currency,
         method,
         receivedOn,
         reference: reference.trim() || undefined,
-        ...(order ? { orderId: order.id } : {}),
+        ...(order ? { orderId: order.id } : { applyOldestFirst: true }),
       });
-      payment = res.data?.data ?? res.data;
     } catch (err) {
       setRefusal(apiError(err, t('recordFailed')));
       submitting.current = false;
       setPending(false);
-      return;
-    }
-
-    if (order) {
-      await finish(t('recordedToast'), 'success');
-      return;
-    }
-
-    // Oldest first. The payment is already recorded, so a failure here must not
-    // leave the form open to be sent again — that would take the money twice.
-    // It closes and says what is left to do instead.
-    let left = value;
-    try {
-      for (const o of openOrders) {
-        if (left <= 0) break;
-        const take = Math.min(left, num(o.outstanding));
-        if (take <= 0) continue;
-        await api.post(`/payments/${payment!.id}/allocations`, { saleOrderId: o.id, amount: take });
-        left = Math.round((left - take) * 100) / 100;
-      }
-    } catch {
-      submitting.current = false;
-      await finish(t('recordedNotApplied'), 'warning');
       return;
     }
     submitting.current = false;

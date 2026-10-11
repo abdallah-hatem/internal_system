@@ -414,6 +414,12 @@ confirmed, with something still owed, and the payment cannot be more than that
 order owes. Recorded from the shop or the payments list, it goes on the oldest
 unpaid orders first, as before.
 
+*2026-10-11 (I2):* "oldest first" now happens on the server, in the same
+transaction that records the payment (`applyOldestFirst`), for the office form and
+the assistant alike. It was a loop in the browser after the payment was saved, so a
+dropped connection could leave money recorded but applied to nothing; now it is all
+of it or none of it. Oldest means the order created first.
+
 A payment is in the order's currency or in Egyptian pounds; no other currency is
 offered.
 
@@ -983,8 +989,9 @@ still owed after a return). Reading it notifies nobody.
 
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,
-cycle status, and verifying stock in — and, since 2026-10-11, recording a sale (below). It cannot change sales, payments,
-instalments, settlements, returns or the ledger — those stay in the office app.
+cycle status, and verifying stock in — and, since 2026-10-11, recording a sale and recording a payment a shop
+made (below). It cannot change, reverse or re-allocate sales or payments, nor touch instalments, settlements,
+returns or the ledger — those stay in the office app.
 This is enforced by the system, not by the assistant's good behaviour: its access
 is valid nowhere except the assistant's own tools.
 
@@ -1050,6 +1057,24 @@ stricter. Guesses made while building it, open until confirmed:
   elsewhere before the partner confirms, even leaving enough, the partner is
   shown a fresh preview (`PREVIEW_CHANGED`).
 - A payment method on a named customer's sale is refused, not ignored.
+
+**DECIDED 2026-10-11 by the owner — the assistant can record a payment.**
+*Built 2026-10-11 (I2, `record_payment`).* "El-Sayed paid 5,000 cash" is a payment the assistant records,
+the same two-call way: it finds the shop with the one matcher (a close or unknown name is asked, never
+assumed, and never becomes a new customer), and previews the amount, the method (cash when unsaid), the day
+received (today in Cairo when unsaid, never a future day), which orders the money lands on and the shop's
+balance before and after. It saves only on a clear yes. It goes through the same payment service the office
+app's Record payment uses, so every guard there applies unchanged — not more than the shop owes (§7a), not
+more than a named order owes, only the shop's own confirmed orders, not an unverified shop. Without a named
+order the money goes on the oldest unpaid orders first (§7); with one, on that order alone. The roles allowed
+are the office endpoint's (`PAYMENT_ROLES`: core partners and admin support — the assistant itself only
+admits core partners). The preview binds: a sale or another payment for the same shop between the preview
+and the yes is `PREVIEW_CHANGED`, and the partner is shown the new preview. It records no reversal,
+re-allocation, refund or instalment plan. Guesses, open until confirmed (2026-10-11):
+- The assistant's payments are in EGP, as its sales are.
+- An order is named by its number (or id); one that is not this shop's is "not found", as on the office form,
+  rather than saying whose it is.
+- A reference (receipt, transfer or cheque number) is recorded only when the partner gives one.
 
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it

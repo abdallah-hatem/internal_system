@@ -170,7 +170,7 @@ export default function CustomerPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Tile label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
+        <Tile testId="customer-balance" label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
         <Tile label={tp('title')} value={<Money value={paid} />} />
         <Tile label={ts('title')} value={String(orderList.length)} />
       </div>
@@ -289,9 +289,9 @@ export default function CustomerPage() {
   );
 }
 
-function Tile({ label, value, tone }: { label: string; value: React.ReactNode; tone?: 'red' | 'green' }) {
+function Tile({ label, value, tone, testId }: { label: string; value: React.ReactNode; tone?: 'red' | 'green'; testId?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
+    <div data-testid={testId} className="rounded-xl border border-gray-200 bg-white p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className={`mt-1 text-xl font-bold ${tone === 'red' ? 'text-red-600' : tone === 'green' ? 'text-green-600' : 'text-gray-900'}`}>
         {value}

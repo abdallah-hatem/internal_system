@@ -535,7 +535,6 @@
     "selectCustomer": "Choose the customer who paid",
     "referencePlaceholder": "e.g. receipt or transfer number",
     "recordedToast": "Payment recorded",
-    "recordedNotApplied": "The payment was recorded, but not all of it could be applied to orders. Allocate the rest from Payments.",
     "recordFailed": "Could not record the payment",
     "allocated": "Payment allocated",
     "allocateFailed": "Could not allocate the payment",
