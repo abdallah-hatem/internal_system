@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: resumed 2026-10-11 — first agent died after `bcdd701` (status button on details, slide-over gone) and the alignment measurements (41 states, all 0px deltas, `.ui-audit/rowfix/`); second agent finishing: Details-column nit, spec 94, specs 29/80, lint/unit, full e2e · in flight: branch `fix/row-alignment-and-cycle-nav` (field rows misalign when one shows its error; clicking a cycle should open its details with a separate Continue setup) — merge, verify on screen, test, ship
+Current stage: row-alignment + cycle-nav merged into master locally (`6d1631a`) 2026-10-11 · waiting for the owner's go to push (pushing master deploys production)
 
 ## Waiting on the user
 _(none)_
@@ -13,13 +13,8 @@ _(none)_
 _(none)_
 
 ## Next up
-- Resume: branch `fix/row-alignment-and-cycle-nav` @ `96f15ee` (WIP, typecheck passes). DONE in it: shared
-  `field-row` (equal 38px boxes, top-aligned; error lines can't move neighbours) on ~20 rows; `RowAction`; cycle
-  row/card → details; `ContinueSetupLink` (row, card, details header; `cycle.create` + WIZARD_STATUSES); wizard
-  "Back to the cycle". LEFT: on-screen check with bounding-box measurements in error and normal states (1440/390,
-  en/ar) + screenshots under `.ui-audit/rowfix/`; Vitest; spec 94; lint; test:unit; update specs 29 and 80 (they
-  click a row expecting the wizard → click Continue setup); DECIDED: status changes move to a button on the cycle
-  details page and the phone slide-over goes (it is now unreachable). Then full e2e and ship.
+- Ship row-alignment + cycle-nav: push master on the owner's go, then `scripts/ship-prod.sh smoke` and check all three deploys READY. Verified: lint 0 errors, typecheck clean, unit 377/377, e2e 5 groups green except TC-RP-06 (spec 79, customer row click; flaky, passes alone, branch doesn't touch customers). Measurements 76 states, 0px. Spec 94 (13 tests) break-verified.
+- Open from it: quick-create dialog ignores Escape; TC-RP-06/TC-VER-01 flake on customer row click.
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
 - Queued from this run: system-written ledger reasons are stored in English (needs a code/params migration); the app
@@ -44,7 +39,7 @@ _(none)_
 - Port 3000 may belong to another project. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003
   npm run start:dev`; web `cd apps/web && npm run dev -- -p 3003`; storefront `PORT=3002` (specs 54/59).
 - Specs: `WEB_URL=http://localhost:3003 npx playwright test '<pattern>' --project=chromium`, in 4 groups:
-  `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`, `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`.
+  `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`, `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`, `tests/(8[0-9]|9[0-9])-` (the fifth group: 80–94 were missing from "full" runs until 2026-10-11).
 - Production: `scripts/ship-prod.sh status|migrate|env|stranded|smoke`. Pushing `master` deploys all three
   apps. Vercel builds production only (`ignoreCommand`). Check each deploy reaches READY on the new commit.
 - Auto mode blocks production steps. Ask the user to switch the session to manual for a ship.
