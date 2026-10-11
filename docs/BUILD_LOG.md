@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: improvement batch I1 built on `feature/i1-improvements` 2026-10-11 (lint, typecheck, unit, 5 e2e groups green) · next: merge, then ship on the owner's go — the new daily job uses the same `CRON_SECRET` as sweep-holds (`vercel env ls` to confirm it is set)
+Current stage: improvement batch I2 built on `feature/i2-improvements` 2026-10-11 (lint, typecheck, unit, 5 e2e groups green) · next: merge, then ship on the owner's go (no migration; check-data check 18 should be run on production first)
 
 ## Waiting on the user
 _(none)_
@@ -17,8 +17,15 @@ _(none)_
   Hobby plan's limit is two), low stock after a sale, `list_receivables`, date range + CSV on Sales and Payments,
   quick-create closes on Escape, specs 57/79/77 flakes fixed in the tests. Survey of the rest:
   build-log/notes/improvements-2026-10-11.md
-- From I1: the dashboard's recent activity names a shop as plain text — not a link to it (a person clicking it gets
-  nothing). A list's spinner replaces the table each time its date range changes (keep the previous rows instead?).
+- Merge and ship I2 (built 2026-10-11): assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
+  the server; printable sale invoice / delivery note (§4); customer statement with print + CSV (§7b); recent activity
+  links the shop; Sales/Payments keep their rows while a new range loads; UI re-audit N1–N8 closed; AppModule compiles
+  in jest; FIFO across two selling cycles pinned (34 TC-INV-30). **Found and fixed: a partial return marked the whole
+  order RETURNED and its remaining debt vanished from the shop's balance** (§5). Before shipping, run
+  `scripts/check-data.sh` against production: check 18 lists orders already caught; each needs its status put back
+  by hand (owner's call). Guesses to confirm: §4 (invoice balance = at the time of the sale), §7b, §16.
+- `PaymentsService.reverse` does not check the payment is still RECORDED — reversing twice adds the money back twice.
+  Not fixed in I2 (out of scope); needs a guard and a test.
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
 - Queued from this run: system-written ledger reasons are stored in English (needs a code/params migration); the app
