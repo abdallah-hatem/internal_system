@@ -48,8 +48,10 @@ test.describe('Analytics figures', () => {
     const h = { Authorization: `Bearer ${t}` };
 
     const dash = (await (await request.get(`${API}/analytics/dashboard`, { headers: h })).json()).data;
-    const inventory = (await (await request.get(`${API}/inventory?limit=1000`, { headers: h })).json()).data ?? [];
-    const shelf = inventory.reduce((s: number, p: any) => s + Number(p.totalStock ?? 0), 0);
+    const body = (await (await request.get(`${API}/inventory?limit=1000`, { headers: h })).json()) as {
+      data?: { totalStock?: number | string }[];
+    };
+    const shelf = (body.data ?? []).reduce((s, p) => s + Number(p.totalStock ?? 0), 0);
 
     // Units, all products together — not how many products exist (owner, 2026-10-11).
     expect(dash.unitsInStock).toBeDefined();
