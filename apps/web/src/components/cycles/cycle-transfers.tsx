@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Undo2 } from 'lucide-react';
+import { ArrowRightLeft, Forklift, Undo2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -62,7 +62,7 @@ export function MoveLeftoversButton({ cycleId, cycleCode, status }: { cycleId: s
         onClick={() => setOpen({})}
         className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted touch-manipulation"
       >
-        <ArrowRightLeft className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" /> {t('moveLeftovers')}
+        <Forklift className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" /> {t('moveLeftovers')}
       </button>
       {open && (
         <MoveLeftoversDialog
@@ -169,8 +169,9 @@ function TransferList({
                 {r.lines.map((l) => (
                   <li key={l.id} className="flex flex-wrap gap-x-2">
                     <LatinText>{l.productName}</LatinText>
-                    <span className="text-muted-foreground">
-                      × <bdi dir="ltr">{fmt(l.qty)}</bdi> @ <Money value={Number(l.unitCostEgp)} />
+                    {/* One left-to-right run, so "× 20 @ 100.00 EGP" is not reordered in Arabic. */}
+                    <span dir="ltr" className="inline-block whitespace-nowrap text-muted-foreground">
+                      × {fmt(l.qty)} @ <Money value={Number(l.unitCostEgp)} />
                     </span>
                   </li>
                 ))}

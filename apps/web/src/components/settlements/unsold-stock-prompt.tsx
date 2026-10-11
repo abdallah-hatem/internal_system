@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowRightLeft, Loader2 } from 'lucide-react';
+import { Forklift, Loader2 } from 'lucide-react';
 import { useCan } from '@/lib/can';
 import { MoveLeftoversDialog } from '@/components/cycles/move-leftovers-dialog';
 import { DialogCancel, ShipmentDialog } from '@/components/shipment/ShipmentDialog';
@@ -98,8 +98,7 @@ export function UnsoldStockPrompt({
         </p>
       ) : (
         <>
-          <p role="alert" data-testid="unsold-refusal" className="text-sm text-muted-foreground">{message}</p>
-          <p className="text-sm text-muted-foreground">{t('acceptRemainingStockHint')}</p>
+          <p role="alert" data-testid="unsold-refusal" className="text-sm text-foreground">{message}</p>
           {mayMove && cycleId && (
             <div className="rounded-lg border border-border p-3">
               <p className="mb-2 text-sm text-foreground">{tt('instead')}</p>
@@ -109,11 +108,13 @@ export function UnsoldStockPrompt({
                 onClick={() => setMoving(true)}
                 className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:min-h-0"
               >
-                <ArrowRightLeft className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" />
+                <Forklift className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" />
                 {tt('moveLeftovers')}
               </button>
             </div>
           )}
+          {/* What "Close anyway" does, beside it. */}
+          <p className="text-xs text-muted-foreground">{t('acceptRemainingStockHint')}</p>
         </>
       )}
     </ShipmentDialog>

@@ -237,6 +237,14 @@ export default function CycleDetailsPage() {
         <Tile
           label={t('landedCost')}
           value={<Money value={num(costing?.totals?.landedEgp)} />}
+          // Leftovers moved in from another cycle at their cost (§8, L5): the partners fund them too.
+          note={
+            num(costing?.totals?.transferredInEgp) > 0 ? (
+              <span data-testid="landed-moved-in">
+                {t('movedInAtCost')} <Money value={num(costing?.totals?.transferredInEgp)} />
+              </span>
+            ) : undefined
+          }
         />
       </div>
 
@@ -300,7 +308,7 @@ export default function CycleDetailsPage() {
               </button>
               {canEditParticipant &&
                 participants.some((p) => p.participantType === 'CORE_PARTNER') &&
-                num(costing?.totals?.landedEgp) > 0 && (
+                num(costing?.totals?.landedEgp) + num(costing?.totals?.transferredInEgp) > 0 && (
                   <button
                     onClick={() => splitEqually.mutate()}
                     disabled={splitEqually.isPending}
@@ -546,11 +554,12 @@ function ProfitCard({ figure }: { figure?: CycleProfit }) {
   );
 }
 
-function Tile({ label, value }: { label: string; value: React.ReactNode }) {
+function Tile({ label, value, note }: { label: string; value: React.ReactNode; note?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="mt-1 text-lg font-bold text-gray-900">{value}</p>
+      {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }

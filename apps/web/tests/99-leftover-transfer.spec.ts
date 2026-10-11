@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- API responses are parsed JSON; each assertion names the field it checks */
 /**
  * ═══════════════════════════════════════════════════════════════════════
  *  TEST SUITE: L5 — leftover stock moves to another cycle at its cost
@@ -25,16 +26,20 @@ const SHOTS = process.env.L5_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l5';
 type Headers = Record<string, string>;
 
-async function tokenFor(request: APIRequestContext, email: string): Promise<Headers> {
-  const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-  expect(r.ok(), `login ${email}: ${await r.text()}`).toBeTruthy();
-  return { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
+/**
+ * `next dev` draws its own badge in the bottom corner — the start corner, so
+ * on the left in Arabic, over the phone bar's menu button. It is not part of
+ * the app (a build has none) and must not be in a review screenshot.
+ */
+async function hideDevBadge(page: Page) {
+  await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
 }
 
 /** Menu → Cycles → search the code → the row → its details page. */
 async function openCycle(page: Page, code: string, id: string, locale: Locale = 'en') {
   const phone = (page.viewportSize()?.width ?? 1440) < 768;
   if (phone) {
+    await hideDevBadge(page);
     await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
     await page.locator(`a[href="/${locale}/cycles"]`).filter({ visible: true }).first().click();
   } else {
@@ -288,6 +293,7 @@ test.describe('Screenshots', () => {
         const { headers, mk, a, b } = await leftoverWorld(request, `L5 Shot ${locale}${width}`);
         const tag = `${locale}-${width}`;
         await login(page, locale);
+        await hideDevBadge(page);
         await openCycle(page, a.code, a.id, locale);
         await page.getByTestId('move-leftovers').click();
         await fillMove(page, b.code, '20', locale === 'ar' ? 'نهاية الموسم' : 'End of season', locale);
@@ -295,15 +301,22 @@ test.describe('Screenshots', () => {
         await dialog(page, 'move-leftovers').getByRole('button', { name: m.transfers.move, exact: true }).click();
         await expect(dialog(page, 'move-leftovers')).toHaveCount(0);
         await expect(page.getByTestId('location-card').filter({ hasText: m.goodsLocation.moved })).toBeVisible();
-        await shot(page, `cycle-a-goods-and-transfers-${tag}`);
+        // The "moved" toast has said its piece; it is not part of the page.
+        await expect(page.getByText(m.transfers.moved, { exact: true })).toHaveCount(0, { timeout: 15000 });
+        await shot(page, `cycle-a-goods-${tag}`);
+        await page.getByTestId('cycle-transfers').scrollIntoViewIfNeeded();
+        await shot(page, `cycle-a-transfers-${tag}`);
         await openCycle(page, b.code, b.id, locale);
         await expect(page.getByTestId('location-from-cycle')).toBeVisible();
-        await shot(page, `cycle-b-from-and-transfers-${tag}`);
+        await shot(page, `cycle-b-from-${tag}`);
+        await page.getByTestId('cycle-transfers').scrollIntoViewIfNeeded();
+        await shot(page, `cycle-b-transfers-${tag}`);
 
         // The settlement fix, on A with its last 10 still there.
         const draft = await mk(`settlements/calculate/${a.id}`, {});
         await mk(`settlements/${draft.id}/approve`, {});
         if (width < 768) {
+          await hideDevBadge(page);
           await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
           await page.locator(`a[href="/${locale}/settlements"]`).filter({ visible: true }).first().click();
         } else {

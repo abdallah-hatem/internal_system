@@ -302,7 +302,8 @@
     "noLegsHint": "كل مرحلة جزء من رحلة الشحنة، بناقلها وتكلفتها.",
     "goToShipments": "الذهاب إلى الشحنات",
     "noBatchesTitle": "لم يدخل المخزون شيء بعد",
-    "noBatchesHint": "يظهر المخزون هنا بعد استلام شحنة من هذه الدورة."
+    "noBatchesHint": "يظهر المخزون هنا بعد استلام شحنة من هذه الدورة.",
+    "movedInAtCost": "+ منقول إليها بالتكلفة"
   },
   "purchases": {
     "title": "المشتريات",
@@ -1583,7 +1584,7 @@
     "lost": "مفقود",
     "ordered": "المطلوب",
     "product": "المنتج",
-    "moved": "نُقل إلى دورة أخرى",
+    "moved": "إلى دورة أخرى",
     "fromCycle": "من <code>الدورة</code>",
     "fromCycleUnits": "{units} وحدة — {onShelf} على الرف، {sold} مُباعة",
     "fromCycleMovedOn": "{count} نُقلت إلى دورة أخرى"

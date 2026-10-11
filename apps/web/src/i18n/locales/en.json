@@ -302,7 +302,8 @@
     "noLegsHint": "Each leg is one stretch of the journey, with its carrier and cost.",
     "goToShipments": "Go to shipments",
     "noBatchesTitle": "Nothing received into stock yet",
-    "noBatchesHint": "Stock appears here once a delivery from this cycle is received."
+    "noBatchesHint": "Stock appears here once a delivery from this cycle is received.",
+    "movedInAtCost": "+ moved in at cost"
   },
   "purchases": {
     "title": "Purchases",
@@ -1583,7 +1584,7 @@
     "lost": "Lost",
     "ordered": "Ordered",
     "product": "Product",
-    "moved": "Moved to another cycle",
+    "moved": "To another cycle",
     "fromCycle": "From <code>cycle</code>",
     "fromCycleUnits": "{units} units — {onShelf} on the shelf, {sold} sold",
     "fromCycleMovedOn": "{count} moved on to another cycle"
