@@ -30,7 +30,9 @@ export class LedgerController {
   constructor(private ledgerService: LedgerService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List financial transactions with filtering and pagination' })
+  @ApiOperation({
+    summary: 'List financial transactions with filtering and pagination',
+  })
   findAll(
     @Query()
     query: PaginationDto & {
@@ -44,6 +46,13 @@ export class LedgerController {
     },
   ) {
     return this.ledgerService.findAll(query);
+  }
+
+  /** Where money is kept — what a lender repayment leaves from (§18). */
+  @Get('accounts')
+  @ApiOperation({ summary: 'Active money accounts' })
+  accounts() {
+    return this.ledgerService.accounts();
   }
 
   @Get(':id')

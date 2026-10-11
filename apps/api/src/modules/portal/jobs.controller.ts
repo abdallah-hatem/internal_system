@@ -3,6 +3,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
 
 import { HoldsScheduler } from './holds.scheduler';
 import { PaymentPlansService } from '../payment-plans/payment-plans.service';
+import { LendersService } from '../lenders/lenders.service';
 import { Surface } from '../../common/surface';
 import { unauthorized } from '../../common/api-error';
 
@@ -32,6 +33,7 @@ export class JobsController {
   constructor(
     private holds: HoldsScheduler,
     private plans: PaymentPlansService,
+    private lenders: LendersService,
   ) {}
 
   /**
@@ -64,7 +66,9 @@ export class JobsController {
   async overduePayments(@Headers('authorization') authorization?: string) {
     this.assertScheduled(authorization, 'the overdue check');
     const result = await this.plans.notifyOverdue();
-    return { ok: true, ranAt: new Date().toISOString(), ...result };
+    // A friend's overdue instalment rides the same morning call (§18).
+    const lenders = await this.lenders.notifyOverdue();
+    return { ok: true, ranAt: new Date().toISOString(), ...result, lenders };
   }
 
   /**

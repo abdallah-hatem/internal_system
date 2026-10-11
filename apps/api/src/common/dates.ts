@@ -64,6 +64,8 @@ export const DATE_FIELDS = {
   DEPARTURE: 'A departure date',
   ARRIVAL: 'An arrival date',
   DELIVERY: 'A delivery date',
+  LENDER_PAID: 'The date a friend paid a supplier',
+  LENDER_REPAID: 'The date a friend was repaid',
 } as const;
 export type DateField = keyof typeof DATE_FIELDS;
 

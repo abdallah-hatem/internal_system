@@ -608,6 +608,7 @@ describe("An investor reads their settlement and payout; another participant's p
       distribution: { lines: [line(P4), line(P5)] },
       participants: [],
       lossesEgp: dec('0.00'),
+      exchangeDifferenceEgp: dec('0.00'),
       hasAllocations: true,
     } as never);
     const r = (await settlements.preview(C3, investor)).data;

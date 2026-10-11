@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { JobsController } from '../portal/jobs.controller';
 import type { HoldsScheduler } from '../portal/holds.scheduler';
 import { PaymentPlansService } from './payment-plans.service';
+import type { LendersService } from '../lenders/lenders.service';
 
 /**
  * The daily overdue check (BUSINESS_LOGIC §7, DECIDED 2026-10-11): every
@@ -324,11 +325,17 @@ describe('GET /jobs/overdue-payments — the door the cron knocks on', () => {
         Promise.resolve({ overdueInstalments: 1, notifications: 2 }),
       ),
     };
+    const lenders = {
+      notifyOverdue: jest.fn(() =>
+        Promise.resolve({ overdueInstalments: 1, notifications: 3 }),
+      ),
+    };
     const jobs = new JobsController(
       {} as HoldsScheduler,
       plans as unknown as PaymentPlansService,
+      lenders as unknown as LendersService,
     );
-    return { jobs, plans };
+    return { jobs, plans, lenders };
   }
 
   async function codeOf(p: Promise<unknown>) {
@@ -349,6 +356,16 @@ describe('GET /jobs/overdue-payments — the door the cron knocks on', () => {
       'CRON_NOT_CONFIGURED',
     ]);
     expect(plans.notifyOverdue).not.toHaveBeenCalled();
+  });
+
+  it("a friend's overdue instalment rides the same call — no cron of its own (§18)", async () => {
+    process.env.CRON_SECRET = 'right-secret';
+    const { jobs, lenders } = controller();
+    const res = await jobs.overduePayments('Bearer right-secret');
+    expect(lenders.notifyOverdue).toHaveBeenCalledTimes(1);
+    expect(res).toMatchObject({
+      lenders: { overdueInstalments: 1, notifications: 3 },
+    });
   });
 
   it('no header, or the wrong secret → 401 CRON_FORBIDDEN, nothing runs', async () => {

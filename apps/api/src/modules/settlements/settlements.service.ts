@@ -24,6 +24,10 @@ import { cycleLossesEgp } from '../../common/cycle-losses';
 import { lockCycle } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
 import {
+  assertLendersRepaid,
+  exchangeDifferenceEgp,
+} from '../../common/lender-debt';
+import {
   assertInScope,
   cycleIdWhere,
   cyclesVisibleTo,
@@ -298,10 +302,16 @@ export class SettlementsService {
     // (§9, rule 11).
     const losses = await cycleLossesEgp(this.prisma, cycleId);
 
+    // What repaying a friend in pounds cost beyond his payment at the order's
+    // rate (§18): a cost when the dirham rose, a gain when it fell. Read from
+    // the repayments through the one definition analytics reads too.
+    const exchangeDiff = await exchangeDifferenceEgp(this.prisma, cycleId);
+
     const expenses = expenseTxns
       .reduce((s, t) => s.add(t.amount), new Prisma.Decimal(0))
       .sub(netRecoveredEgp(recoveryTxns))
-      .add(losses);
+      .add(losses)
+      .add(exchangeDiff);
 
     const pnl = summarizeCyclePnl({
       allocations: allocationInputs,
@@ -335,6 +345,7 @@ export class SettlementsService {
       distribution,
       participants,
       lossesEgp: losses,
+      exchangeDifferenceEgp: exchangeDiff,
       hasAllocations: allocationInputs.length > 0,
     };
   }
@@ -373,6 +384,8 @@ export class SettlementsService {
         expensesEgp: projected.pnl.expenses.toFixed(2),
         /** Goods lost on the way, already inside expensesEgp (§2). */
         lossesEgp: projected.lossesEgp.toFixed(2),
+        /** Repaying friends at a moved rate (§18), already inside expensesEgp. */
+        exchangeDifferenceEgp: projected.exchangeDifferenceEgp.toFixed(2),
         grossProfitEgp: projected.pnl.grossProfit.toFixed(2),
         unsoldValueEgp: projected.pnl.unsoldValue.toFixed(2),
         fullySold: projected.pnl.fullySold,
@@ -550,6 +563,8 @@ export class SettlementsService {
         expensesEgp: pnl.expenses.toFixed(2),
         /** Goods lost on the way, already inside expensesEgp (§2). */
         lossesEgp: projected.lossesEgp.toFixed(2),
+        /** Repaying friends at a moved rate (§18), already inside expensesEgp. */
+        exchangeDifferenceEgp: projected.exchangeDifferenceEgp.toFixed(2),
         grossProfitEgp: pnl.grossProfit.toFixed(2),
         unsoldValueEgp: pnl.unsoldValue.toFixed(2),
         unitsSold: pnl.unitsSold.toFixed(3),
@@ -585,6 +600,16 @@ export class SettlementsService {
       // cycle's lock so a loss taken back cannot slip in between.
       await lockCycle(tx, settlement.cycleId);
       await assertShipmentAccounted(tx, settlement.cycleId);
+      // And no friend still owed (§18) — the gate the transition runs too.
+      const cycle = await tx.importCycle.findUnique({
+        where: { id: settlement.cycleId },
+        select: { code: true },
+      });
+      await assertLendersRepaid(
+        tx,
+        settlement.cycleId,
+        cycle?.code ?? settlement.cycleId,
+      );
 
       // Update the cycle first: the settlement is read back with its cycle
       // included, so doing it the other way round returns a stale status.

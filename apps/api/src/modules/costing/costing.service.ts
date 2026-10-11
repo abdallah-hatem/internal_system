@@ -9,6 +9,7 @@ import {
   type ScopeViewer,
 } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
+import { cycleFinancedEgp } from '../../common/lender-debt';
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
 
@@ -58,6 +59,14 @@ export interface CycleLandedCostResult {
 @Injectable()
 export class CostingService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * What friends paid towards this cycle's orders, at each order's rate
+   * (§18). The partners and investors fund the landed cost less this.
+   */
+  lenderFinancedEgp(cycleId: string) {
+    return cycleFinancedEgp(this.prisma, cycleId);
+  }
 
   /**
    * Resolve a shipping leg's cost in EGP from its costing basis.

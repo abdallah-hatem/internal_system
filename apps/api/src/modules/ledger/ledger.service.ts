@@ -26,7 +26,17 @@ export class LedgerService {
       to?: string;
     },
   ) {
-    const { cursor, limit: rawLimit = 20, cycleId, accountId, type, category, direction, from, to } = query;
+    const {
+      cursor,
+      limit: rawLimit = 20,
+      cycleId,
+      accountId,
+      type,
+      category,
+      direction,
+      from,
+      to,
+    } = query;
     const limit = pageSize(rawLimit);
 
     const where: any = {};
@@ -114,6 +124,16 @@ export class LedgerService {
     return { data: transaction };
   }
 
+  /** Active money accounts, for the pickers that move money (§18). */
+  async accounts() {
+    const data = await this.prisma.moneyAccount.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, accountType: true, currency: true },
+    });
+    return { data };
+  }
+
   /**
    * Reverse a financial entry.
    *
@@ -128,7 +148,10 @@ export class LedgerService {
    */
   async reverse(id: string, reason: string, userId: string) {
     if (!reason?.trim()) {
-      throw badRequest('REVERSAL_REASON_REQUIRED', 'A reason is required to reverse an entry');
+      throw badRequest(
+        'REVERSAL_REASON_REQUIRED',
+        'A reason is required to reverse an entry',
+      );
     }
 
     const original = await this.prisma.financialTransaction.findUnique({
@@ -163,7 +186,10 @@ export class LedgerService {
         'ENTRY_OWNED_ELSEWHERE',
         `This entry belongs to a ${original.relatedType
           .toLowerCase()
-          .replace(/_/g, ' ')} and cannot be reversed on its own — the ledger and ` +
+          .replace(
+            /_/g,
+            ' ',
+          )} and cannot be reversed on its own — the ledger and ` +
           'that record would stop agreeing. Reverse it from there instead.',
         // The code (SALE_RETURN), not the English words: the web says it as
         // `codes.referenceType.<CODE>` in the reader's language (rule 9).

@@ -1,0 +1,974 @@
+import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money must not become a float
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { badRequest, notFound } from '../../common/api-error';
+import { formatMoney } from '../../common/money';
+import { isUuid } from '../../common/uuid';
+import { lockCycle } from '../../common/shipment-load';
+import {
+  assertNotFuture,
+  businessDay,
+  businessToday,
+} from '../../common/dates';
+import {
+  assertInScope,
+  cyclesVisibleTo,
+  type ScopeViewer,
+} from '../../common/investor-scope';
+import { owedOn, planRepayment, settlingEgp } from '../../common/lender-math';
+import {
+  STANDING_FINANCING,
+  STANDING_REPAYMENT,
+  cycleFinancedEgp,
+  owedOnCycle,
+} from '../../common/lender-debt';
+import { dayOf, evaluateSchedule } from '../../common/instalment-schedule';
+import { overdueNotificationsToSend } from '../../common/overdue-notifications';
+import type {
+  CreateFinancingDto,
+  CreateLenderDto,
+  CreateLenderPlanDto,
+  CreateRepaymentDto,
+} from './dto/lender.dto';
+
+type Db = Prisma.TransactionClient;
+
+const D = (v: Prisma.Decimal.Value | null | undefined) =>
+  new Prisma.Decimal(v ?? 0);
+const m2 = (v: Prisma.Decimal.Value) => D(v).toFixed(2);
+
+/**
+ * A cycle in these states takes no new friend's payment (§18 guess): it is
+ * being split, was split, or never ordered anything (§15).
+ */
+const CLOSED_FOR_FINANCING = ['SETTLEMENT', 'CLOSED', 'CANCELLED'];
+/** A repayment on a cycle already split is not undone here (§18 guess). */
+const SETTLED = ['SETTLEMENT', 'CLOSED'];
+
+const FINANCING_INCLUDE = {
+  lender: { select: { id: true, name: true, phone: true } },
+  purchaseOrder: {
+    select: { id: true, reference: true, orderedOn: true, currency: true },
+  },
+  cycle: { select: { id: true, code: true, status: true } },
+  repayments: {
+    orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }],
+    include: { account: { select: { id: true, name: true } } },
+  },
+  plans: {
+    where: { status: 'ACTIVE' },
+    include: { instalments: { orderBy: { sequence: 'asc' } } },
+  },
+} satisfies Prisma.LenderFinancingInclude;
+
+type FinancingRow = Prisma.LenderFinancingGetPayload<{
+  include: typeof FINANCING_INCLUDE;
+}>;
+
+/** The Cairo day a value names, as a date column wants it. */
+const asDay = (value: string | undefined) =>
+  new Date(`${value ? businessDay(value) : businessToday()}T00:00:00Z`);
+
+@Injectable()
+export class LendersService {
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+    private notifications: NotificationsService,
+  ) {}
+
+  // ─── Reading ────────────────────────────────────────────────────────
+
+  /** One financing as every screen shows it: what he paid, what is owed, how. */
+  private view(f: FinancingRow) {
+    const standing = f.repayments.filter((r) => r.reversedAt === null);
+    const owed = owedOn(f.amount, standing);
+    const repaid = D(f.amount).sub(owed);
+    const plan = f.plans[0] ?? null;
+    return {
+      id: f.id,
+      lender: f.lender,
+      purchaseOrder: f.purchaseOrder,
+      cycle: f.cycle,
+      currency: f.currency,
+      amount: m2(f.amount),
+      fxRateToEgp: D(f.fxRateToEgp).toFixed(4),
+      amountEgp: m2(f.amountEgp),
+      paidOn: dayOf(f.paidOn),
+      note: f.note,
+      removedAt: f.removedAt,
+      removalReason: f.removalReason,
+      repaid: m2(repaid),
+      owed: m2(owed),
+      paidEgp: m2(standing.reduce((s, r) => s.add(r.amountEgp), D(0))),
+      exchangeDiffEgp: m2(
+        standing.reduce((s, r) => s.add(r.exchangeDiffEgp), D(0)),
+      ),
+      repayments: f.repayments.map((r) => ({
+        id: r.id,
+        paidOn: dayOf(r.paidOn),
+        amountEgp: m2(r.amountEgp),
+        rateToEgp: D(r.rateToEgp).toFixed(4),
+        cleared: m2(r.cleared),
+        clearedAtOrderRateEgp: m2(r.clearedAtOrderRateEgp),
+        exchangeDiffEgp: m2(r.exchangeDiffEgp),
+        account: r.account,
+        note: r.note,
+        reversedAt: r.reversedAt,
+        reversalReason: r.reversalReason,
+      })),
+      plan: plan ? this.evaluatePlan(plan, standing) : null,
+    };
+  }
+
+  /**
+   * A plan evaluated by the one schedule reading customer plans use (§7):
+   * cumulative, earliest first; what counts is what repayments dated on or
+   * after the plan's day cleared.
+   */
+  private evaluatePlan(
+    plan: FinancingRow['plans'][number],
+    standing: readonly { paidOn: Date; cleared: Prisma.Decimal }[],
+  ) {
+    const agreed = dayOf(plan.agreedOn);
+    const paid = standing
+      .filter((r) => dayOf(r.paidOn) >= agreed)
+      .reduce((s, r) => s.add(r.cleared), D(0));
+    const s = evaluateSchedule(plan.instalments, paid, businessToday());
+    return {
+      id: plan.id,
+      agreedOn: agreed,
+      note: plan.note,
+      total: m2(s.total),
+      paid: m2(s.paid),
+      remaining: m2(s.remaining),
+      overdue: m2(s.overdue),
+      isOverdue: s.isOverdue,
+      instalments: s.lines.map((l) => ({
+        id: l.instalment.id,
+        sequence: l.instalment.sequence,
+        dueOn: dayOf(l.instalment.dueOn),
+        amount: m2(l.amount),
+        paid: m2(l.paid),
+        outstanding: m2(l.outstanding),
+        state: l.state,
+      })),
+    };
+  }
+
+  /** What is owed, per currency, across these views. */
+  private owedByCurrency(
+    views: { currency: string; owed: string; removedAt: Date | null }[],
+  ) {
+    const by = new Map<string, Prisma.Decimal>();
+    for (const v of views) {
+      if (v.removedAt) continue;
+      by.set(v.currency, (by.get(v.currency) ?? D(0)).add(v.owed));
+    }
+    return [...by.entries()]
+      .filter(([, owed]) => owed.gt(0))
+      .map(([currency, owed]) => ({ currency, owed: m2(owed) }));
+  }
+
+  async list() {
+    const lenders = await this.prisma.lender.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        financings: {
+          where: STANDING_FINANCING,
+          include: FINANCING_INCLUDE,
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    return {
+      data: lenders.map((l) => {
+        const financings = l.financings.map((f) => this.view(f));
+        return {
+          id: l.id,
+          name: l.name,
+          phone: l.phone,
+          notes: l.notes,
+          financingCount: financings.length,
+          owed: this.owedByCurrency(financings),
+          overdue: financings.some((f) => f.plan?.isOverdue),
+        };
+      }),
+    };
+  }
+
+  async findOne(id: string) {
+    if (!isUuid(id)) throw notFound('lender');
+    const lender = await this.prisma.lender.findUnique({
+      where: { id },
+      include: {
+        financings: {
+          include: FINANCING_INCLUDE,
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!lender) throw notFound('lender');
+    const financings = lender.financings.map((f) => this.view(f));
+    return {
+      data: {
+        id: lender.id,
+        name: lender.name,
+        phone: lender.phone,
+        notes: lender.notes,
+        owed: this.owedByCurrency(financings),
+        financings,
+      },
+    };
+  }
+
+  /** Who paid how much of one order, and what is still owed (§18). */
+  async forOrder(purchaseOrderId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(purchaseOrderId)) throw notFound('purchaseOrder');
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id: purchaseOrderId },
+      select: {
+        id: true,
+        cycleId: true,
+        currency: true,
+        items: { select: { lineTotal: true } },
+      },
+    });
+    if (!po) throw notFound('purchaseOrder');
+    assertInScope(
+      await cyclesVisibleTo(viewer, this.prisma),
+      po.cycleId,
+      'purchaseOrder',
+    );
+    const rows = await this.prisma.lenderFinancing.findMany({
+      where: { purchaseOrderId, ...STANDING_FINANCING },
+      include: FINANCING_INCLUDE,
+      orderBy: { createdAt: 'asc' },
+    });
+    const financings = rows.map((f) => this.view(f));
+    const total = po.items.reduce((s, i) => s.add(i.lineTotal), D(0));
+    const financed = rows.reduce((s, f) => s.add(f.amount), D(0));
+    return {
+      data: {
+        currency: po.currency,
+        orderTotal: m2(total),
+        financed: m2(financed),
+        available: m2(Prisma.Decimal.max(total.sub(financed), D(0))),
+        financings,
+      },
+    };
+  }
+
+  /** Every friend's payment on a cycle's orders, and who is still owed. */
+  async forCycle(cycleId: string, viewer: ScopeViewer = 'internal') {
+    if (!isUuid(cycleId)) throw notFound('cycle');
+    assertInScope(await cyclesVisibleTo(viewer, this.prisma), cycleId);
+    const cycle = await this.prisma.importCycle.findUnique({
+      where: { id: cycleId },
+      select: { id: true },
+    });
+    if (!cycle) throw notFound('cycle');
+    const rows = await this.prisma.lenderFinancing.findMany({
+      where: { cycleId, ...STANDING_FINANCING },
+      include: FINANCING_INCLUDE,
+      orderBy: { createdAt: 'asc' },
+    });
+    const owed = await owedOnCycle(this.prisma, cycleId);
+    return {
+      data: {
+        financedEgp: m2(await cycleFinancedEgp(this.prisma, cycleId)),
+        owed: owed.map((o) => ({
+          lenderId: o.lenderId,
+          lender: o.lender,
+          currency: o.currency,
+          owed: m2(o.owed),
+        })),
+        financings: rows.map((f) => this.view(f)),
+      },
+    };
+  }
+
+  /** What is owed now and the pounds that pay it off at `rate` (§18). */
+  async quote(financingId: string, rate: unknown) {
+    const f = await this.standingFinancing(this.prisma, financingId);
+    const r = Number(rate);
+    if (!Number.isFinite(r) || r <= 0) {
+      throw badRequest(
+        'RATE_NOT_POSITIVE',
+        'An exchange rate must be greater than zero.',
+      );
+    }
+    const owed = owedOn(f.amount, f.repayments);
+    return {
+      data: {
+        currency: f.currency,
+        owed: m2(owed),
+        rateToEgp: D(r).toFixed(4),
+        settlingEgp: m2(settlingEgp(owed, r)),
+      },
+    };
+  }
+
+  // ─── Writing ────────────────────────────────────────────────────────
+
+  async create(dto: CreateLenderDto, actorId: string) {
+    const name = dto.name?.trim();
+    if (!name) {
+      throw badRequest('LENDER_NAME_REQUIRED', 'A lender needs a name.');
+    }
+    const lender = await this.prisma.lender.create({
+      data: {
+        name,
+        phone: dto.phone?.trim() || null,
+        notes: dto.notes?.trim() || null,
+        createdBy: actorId,
+      },
+    });
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CREATE',
+      entityType: 'Lender',
+      entityId: lender.id,
+      afterJson: { name: lender.name },
+    });
+    return { data: lender };
+  }
+
+  /**
+   * A friend paid all or part of this order (§18). His money paying our
+   * supplier comes into the ledger at the order's rate; nothing leaves an
+   * account of ours.
+   */
+  async finance(
+    purchaseOrderId: string,
+    dto: CreateFinancingDto,
+    actorId: string,
+  ) {
+    if (!isUuid(purchaseOrderId)) throw notFound('purchaseOrder');
+    if (!isUuid(dto.lenderId)) throw notFound('lender');
+    assertNotFuture(dto.paidOn, 'LENDER_PAID');
+
+    const [po, lender] = await Promise.all([
+      this.prisma.purchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        select: { id: true, cycleId: true },
+      }),
+      this.prisma.lender.findUnique({
+        where: { id: dto.lenderId },
+        select: { id: true, name: true },
+      }),
+    ]);
+    if (!po) throw notFound('purchaseOrder');
+    if (!lender) throw notFound('lender');
+
+    const id = randomUUID();
+    const created = await this.prisma.$transaction(async (tx) => {
+      // Under the cycle's lock: two friends recorded at once on one order
+      // both read the same "already financed" without it.
+      await lockCycle(tx, po.cycleId);
+      const order = await tx.purchaseOrder.findUniqueOrThrow({
+        where: { id: purchaseOrderId },
+        include: {
+          cycle: { select: { id: true, code: true, status: true } },
+          items: { select: { lineTotal: true } },
+          lenderFinancings: {
+            where: STANDING_FINANCING,
+            select: { lenderId: true, amount: true },
+          },
+        },
+      });
+      if (CLOSED_FOR_FINANCING.includes(order.cycle.status)) {
+        throw badRequest(
+          'CYCLE_CLOSED_FOR_FINANCING',
+          `Cycle ${order.cycle.code} is ${order.cycle.status}; a friend's payment cannot be recorded on it.`,
+          { cycle: order.cycle.code, status: order.cycle.status },
+        );
+      }
+      if (order.lenderFinancings.some((f) => f.lenderId === lender.id)) {
+        throw badRequest(
+          'LENDER_ALREADY_FINANCES_ORDER',
+          `${lender.name} already paid for ${order.reference}. Remove that and record it again to change it.`,
+          { lender: lender.name, reference: order.reference },
+        );
+      }
+      const total = order.items.reduce((s, i) => s.add(i.lineTotal), D(0));
+      const financed = order.lenderFinancings.reduce(
+        (s, f) => s.add(f.amount),
+        D(0),
+      );
+      const amount = D(dto.amount);
+      if (financed.add(amount).gt(total)) {
+        throw badRequest(
+          'FINANCING_EXCEEDS_ORDER',
+          `${formatMoney(amount)} ${order.currency} is more than is left to pay on ${order.reference}: ` +
+            `the order is ${formatMoney(total)} ${order.currency} and friends already paid ${formatMoney(financed)}.`,
+          {
+            amount: formatMoney(amount),
+            currency: order.currency,
+            reference: order.reference,
+            total: formatMoney(total),
+            financed: formatMoney(financed),
+          },
+        );
+      }
+      const amountEgp = amount
+        .mul(order.fxRateToEgp)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+      const ledger = await tx.financialTransaction.create({
+        data: {
+          type: 'LENDER_FINANCING',
+          category: 'lender_financing',
+          direction: 'INFLOW',
+          amount: amountEgp,
+          currency: 'EGP',
+          fxRateToEgp: order.fxRateToEgp,
+          cycleId: order.cycleId,
+          relatedType: 'LENDER_FINANCING',
+          relatedId: id,
+          reason: `${lender.name} paid ${formatMoney(amount)} ${order.currency} of ${order.reference}`,
+          createdBy: actorId,
+        },
+      });
+      return tx.lenderFinancing.create({
+        data: {
+          id,
+          lenderId: lender.id,
+          purchaseOrderId,
+          cycleId: order.cycleId,
+          currency: order.currency,
+          amount,
+          fxRateToEgp: order.fxRateToEgp,
+          amountEgp,
+          paidOn: asDay(dto.paidOn),
+          note: dto.note?.trim() || null,
+          createdBy: actorId,
+          ledgerTransactionId: ledger.id,
+        },
+        include: FINANCING_INCLUDE,
+      });
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CREATE',
+      entityType: 'LenderFinancing',
+      entityId: created.id,
+      afterJson: {
+        lender: lender.name,
+        purchaseOrderId,
+        amount: m2(created.amount),
+        currency: created.currency,
+        amountEgp: m2(created.amountEgp),
+      },
+    });
+    return { data: this.view(created) };
+  }
+
+  /** Taken back while nothing stands repaid; the ledger inflow is balanced. */
+  async removeFinancing(id: string, reason: string, actorId: string) {
+    if (!reason?.trim()) {
+      throw badRequest(
+        'REVERSAL_REASON_REQUIRED',
+        "A reason is required to remove a friend's payment.",
+      );
+    }
+    const f = await this.findFinancing(this.prisma, id);
+    await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, f.cycleId);
+      const now = await tx.lenderFinancing.findUniqueOrThrow({
+        where: { id },
+        include: {
+          repayments: { where: STANDING_REPAYMENT, select: { id: true } },
+          lender: { select: { name: true } },
+        },
+      });
+      if (now.removedAt) {
+        throw badRequest(
+          'FINANCING_REMOVED',
+          "This friend's payment was already removed.",
+        );
+      }
+      if (now.repayments.length > 0) {
+        throw badRequest(
+          'FINANCING_HAS_REPAYMENTS',
+          `${now.lender.name} has been repaid on this; reverse those repayments before removing it.`,
+          { lender: now.lender.name, repayments: now.repayments.length },
+        );
+      }
+      const balancing = await tx.financialTransaction.create({
+        data: {
+          type: 'LENDER_FINANCING',
+          category: 'lender_financing',
+          direction: 'OUTFLOW',
+          amount: now.amountEgp,
+          currency: 'EGP',
+          fxRateToEgp: now.fxRateToEgp,
+          cycleId: now.cycleId,
+          relatedType: 'LENDER_FINANCING',
+          relatedId: now.id,
+          reversalOfId: now.ledgerTransactionId,
+          reason: `Removed: ${reason.trim()}`,
+          createdBy: actorId,
+        },
+      });
+      await tx.lenderPlan.updateMany({
+        where: { financingId: id, status: 'ACTIVE' },
+        data: { status: 'CANCELLED', cancelReason: reason.trim() },
+      });
+      await tx.lenderFinancing.update({
+        where: { id },
+        data: {
+          removedAt: new Date(),
+          removedBy: actorId,
+          removalReason: reason.trim(),
+          removalTransactionId: balancing.id,
+        },
+      });
+    });
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'REVERSE',
+      entityType: 'LenderFinancing',
+      entityId: id,
+      afterJson: { removed: true, reason: reason.trim() },
+    });
+    const after = await this.prisma.lenderFinancing.findUniqueOrThrow({
+      where: { id },
+      include: FINANCING_INCLUDE,
+    });
+    return { data: this.view(after) };
+  }
+
+  /**
+   * Pounds paid to him on a day at that day's rate (§18): clears pounds ÷ rate
+   * of the debt (common/lender-math.ts) and leaves the chosen account.
+   */
+  async repay(financingId: string, dto: CreateRepaymentDto, actorId: string) {
+    const f = await this.findFinancing(this.prisma, financingId);
+    if (!isUuid(dto.accountId)) throw notFound('moneyAccount');
+    const account = await this.prisma.moneyAccount.findUnique({
+      where: { id: dto.accountId },
+    });
+    if (!account) throw notFound('moneyAccount');
+    if (!account.active || account.currency !== 'EGP') {
+      throw badRequest(
+        'ACCOUNT_NOT_USABLE',
+        `${account.name} is not an active account in EGP; a repayment leaves one in pounds.`,
+        { account: account.name },
+      );
+    }
+    assertNotFuture(dto.paidOn, 'LENDER_REPAID');
+    const paidOn = asDay(dto.paidOn);
+    if (dayOf(paidOn) < dayOf(f.paidOn)) {
+      throw badRequest(
+        'LENDER_REPAYMENT_BEFORE_FINANCING',
+        `He paid the supplier on ${dayOf(f.paidOn)}; a repayment cannot be dated before that.`,
+        { paidOn: dayOf(f.paidOn) },
+      );
+    }
+
+    const id = randomUUID();
+    const created = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, f.cycleId);
+      const now = await tx.lenderFinancing.findUniqueOrThrow({
+        where: { id: financingId },
+        include: {
+          lender: { select: { name: true } },
+          purchaseOrder: { select: { reference: true } },
+          repayments: { where: STANDING_REPAYMENT },
+        },
+      });
+      if (now.removedAt) {
+        throw badRequest(
+          'FINANCING_REMOVED',
+          "This friend's payment was removed; there is nothing to repay.",
+        );
+      }
+      const plan = planRepayment(
+        {
+          amount: now.amount,
+          amountEgp: now.amountEgp,
+          orderRate: now.fxRateToEgp,
+        },
+        now.repayments,
+        dto.amountEgp,
+        dto.rateToEgp,
+      );
+      const amountEgp = D(dto.amountEgp);
+      const ledger = await tx.financialTransaction.create({
+        data: {
+          type: 'LENDER_REPAYMENT',
+          category: 'lender_repayment',
+          direction: 'OUTFLOW',
+          amount: amountEgp,
+          currency: 'EGP',
+          fxRateToEgp: dto.rateToEgp,
+          accountId: account.id,
+          cycleId: now.cycleId,
+          relatedType: 'LENDER_REPAYMENT',
+          relatedId: id,
+          reason:
+            `Repaid ${now.lender.name} ${formatMoney(plan.cleared)} ${now.currency} ` +
+            `of ${now.purchaseOrder.reference} at ${dto.rateToEgp}`,
+          createdBy: actorId,
+        },
+      });
+      return tx.lenderRepayment.create({
+        data: {
+          id,
+          financingId,
+          paidOn,
+          accountId: account.id,
+          amountEgp,
+          rateToEgp: dto.rateToEgp,
+          cleared: plan.cleared,
+          clearedAtOrderRateEgp: plan.clearedAtOrderRateEgp,
+          exchangeDiffEgp: plan.exchangeDiffEgp,
+          note: dto.note?.trim() || null,
+          createdBy: actorId,
+          ledgerTransactionId: ledger.id,
+        },
+      });
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CREATE',
+      entityType: 'LenderRepayment',
+      entityId: created.id,
+      afterJson: {
+        financingId,
+        amountEgp: m2(created.amountEgp),
+        rateToEgp: D(created.rateToEgp).toFixed(4),
+        cleared: m2(created.cleared),
+        exchangeDiffEgp: m2(created.exchangeDiffEgp),
+      },
+    });
+    return { data: await this.financingView(financingId) };
+  }
+
+  /** Undone, never deleted (§9): a balancing inflow, once, with a reason. */
+  async reverseRepayment(id: string, reason: string, actorId: string) {
+    if (!reason?.trim()) {
+      throw badRequest(
+        'REVERSAL_REASON_REQUIRED',
+        'A reason is required to reverse a repayment.',
+      );
+    }
+    if (!isUuid(id)) throw notFound('lenderRepayment');
+    const r = await this.prisma.lenderRepayment.findUnique({
+      where: { id },
+      include: { financing: { select: { cycleId: true } } },
+    });
+    if (!r) throw notFound('lenderRepayment');
+
+    await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, r.financing.cycleId);
+      const now = await tx.lenderRepayment.findUniqueOrThrow({
+        where: { id },
+        include: {
+          financing: {
+            include: { cycle: { select: { code: true, status: true } } },
+          },
+        },
+      });
+      if (now.reversedAt) {
+        throw badRequest(
+          'LENDER_REPAYMENT_ALREADY_REVERSED',
+          'This repayment was already reversed. Reversing again would count it twice.',
+        );
+      }
+      if (SETTLED.includes(now.financing.cycle.status)) {
+        throw badRequest(
+          'LENDER_CYCLE_SETTLED',
+          `Cycle ${now.financing.cycle.code} is settled; reverse the settlement before undoing a repayment on it.`,
+          { cycle: now.financing.cycle.code },
+        );
+      }
+      const balancing = await tx.financialTransaction.create({
+        data: {
+          type: 'LENDER_REPAYMENT',
+          category: 'lender_repayment',
+          direction: 'INFLOW',
+          amount: now.amountEgp,
+          currency: 'EGP',
+          fxRateToEgp: now.rateToEgp,
+          accountId: now.accountId,
+          cycleId: now.financing.cycleId,
+          relatedType: 'LENDER_REPAYMENT',
+          relatedId: now.id,
+          reversalOfId: now.ledgerTransactionId,
+          reason: `Reversed: ${reason.trim()}`,
+          createdBy: actorId,
+        },
+      });
+      await tx.lenderRepayment.update({
+        where: { id },
+        data: {
+          reversedAt: new Date(),
+          reversedBy: actorId,
+          reversalReason: reason.trim(),
+          reversalTransactionId: balancing.id,
+        },
+      });
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'REVERSE',
+      entityType: 'LenderRepayment',
+      entityId: id,
+      afterJson: { reason: reason.trim() },
+    });
+    return { data: await this.financingView(r.financingId) };
+  }
+
+  /** A schedule in his currency, the §7 habit (§18). One active at a time. */
+  async createPlan(
+    financingId: string,
+    dto: CreateLenderPlanDto,
+    actorId: string,
+  ) {
+    const f = await this.findFinancing(this.prisma, financingId);
+    const plan = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, f.cycleId);
+      const now = await tx.lenderFinancing.findUniqueOrThrow({
+        where: { id: financingId },
+        include: {
+          repayments: { where: STANDING_REPAYMENT, select: { cleared: true } },
+          plans: { where: { status: 'ACTIVE' }, select: { id: true } },
+          lender: { select: { name: true } },
+        },
+      });
+      if (now.removedAt) {
+        throw badRequest(
+          'FINANCING_REMOVED',
+          "This friend's payment was removed.",
+        );
+      }
+      const owed = owedOn(now.amount, now.repayments);
+      if (owed.lte(0)) {
+        throw badRequest(
+          'LENDER_NOTHING_OWED',
+          `${now.lender.name} is owed nothing on this, so there is nothing to schedule.`,
+          { lender: now.lender.name },
+        );
+      }
+      if (now.plans.length > 0) {
+        throw badRequest(
+          'LENDER_PLAN_EXISTS',
+          'This already has an active plan. Cancel it before agreeing another.',
+        );
+      }
+      const sorted = [...dto.instalments].sort((a, b) =>
+        a.dueOn < b.dueOn ? -1 : a.dueOn > b.dueOn ? 1 : 0,
+      );
+      const total = sorted.reduce((s, i) => s.add(i.amount), D(0));
+      if (total.gt(owed)) {
+        throw badRequest(
+          'LENDER_PLAN_EXCEEDS_OWED',
+          `The instalments total ${formatMoney(total)} ${now.currency} but only ${formatMoney(owed)} is owed.`,
+          {
+            total: formatMoney(total),
+            owed: formatMoney(owed),
+            currency: now.currency,
+          },
+        );
+      }
+      return tx.lenderPlan.create({
+        data: {
+          financingId,
+          agreedOn: asDay(dto.agreedOn),
+          note: dto.note?.trim() || null,
+          createdBy: actorId,
+          instalments: {
+            create: sorted.map((i, idx) => ({
+              sequence: idx + 1,
+              dueOn: new Date(`${i.dueOn.slice(0, 10)}T00:00:00Z`),
+              amount: D(i.amount),
+            })),
+          },
+        },
+      });
+    });
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CREATE',
+      entityType: 'LenderPlan',
+      entityId: plan.id,
+      afterJson: { financingId, instalments: dto.instalments.length },
+    });
+    return { data: await this.financingView(financingId) };
+  }
+
+  async cancelPlan(id: string, reason: string, actorId: string) {
+    if (!reason?.trim()) {
+      throw badRequest(
+        'REVERSAL_REASON_REQUIRED',
+        'A reason is required to cancel a plan.',
+      );
+    }
+    if (!isUuid(id)) throw notFound('lenderPlan');
+    const plan = await this.prisma.lenderPlan.findUnique({ where: { id } });
+    if (!plan) throw notFound('lenderPlan');
+    if (plan.status === 'CANCELLED') {
+      throw badRequest(
+        'PLAN_ALREADY_CANCELLED',
+        'This plan is already cancelled',
+      );
+    }
+    await this.prisma.lenderPlan.update({
+      where: { id },
+      data: { status: 'CANCELLED', cancelReason: reason.trim() },
+    });
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CANCEL',
+      entityType: 'LenderPlan',
+      entityId: id,
+      afterJson: { reason: reason.trim() },
+    });
+    return { data: await this.financingView(plan.financingId) };
+  }
+
+  // ─── Overdue (the daily job, §7 / §18) ─────────────────────────────
+
+  /**
+   * Tell every active core partner about each lender instalment that has
+   * fallen behind — once per instalment, ever — by the same rule a shop's
+   * plan is told (`overdueNotificationsToSend`). Run by the existing morning
+   * job; no cron of its own.
+   */
+  async notifyOverdue() {
+    const plans = await this.prisma.lenderPlan.findMany({
+      where: { status: 'ACTIVE', financing: STANDING_FINANCING },
+      include: {
+        instalments: { orderBy: { sequence: 'asc' } },
+        financing: {
+          include: {
+            lender: { select: { name: true } },
+            purchaseOrder: { select: { reference: true } },
+            repayments: {
+              where: STANDING_REPAYMENT,
+              select: { paidOn: true, cleared: true },
+            },
+          },
+        },
+      },
+    });
+
+    const overdue = plans.flatMap((plan) => {
+      const agreed = dayOf(plan.agreedOn);
+      const paid = plan.financing.repayments
+        .filter((r) => dayOf(r.paidOn) >= agreed)
+        .reduce((s, r) => s.add(r.cleared), D(0));
+      return evaluateSchedule(plan.instalments, paid, businessToday())
+        .lines.filter((l) => l.state === 'OVERDUE')
+        .map((l) => ({
+          instalmentId: l.instalment.id,
+          planId: plan.id,
+          financingId: plan.financingId,
+          lenderId: plan.financing.lenderId,
+          lender: plan.financing.lender.name,
+          reference: plan.financing.purchaseOrder.reference,
+          currency: plan.financing.currency,
+          dueOn: dayOf(l.instalment.dueOn),
+          outstanding: m2(l.outstanding),
+        }));
+    });
+    if (overdue.length === 0)
+      return { overdueInstalments: 0, notifications: 0 };
+
+    const partners = await this.prisma.user.findMany({
+      where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+      select: { id: true },
+    });
+    const partnerIds = partners.map((u) => u.id);
+    if (partnerIds.length === 0) {
+      return { overdueInstalments: overdue.length, notifications: 0 };
+    }
+    const earliest = overdue.reduce(
+      (min, o) => (o.dueOn < min ? o.dueOn : min),
+      overdue[0].dueOn,
+    );
+    const previous = await this.prisma.notification.findMany({
+      where: {
+        eventType: 'LENDER_OVERDUE',
+        userId: { in: partnerIds },
+        createdAt: { gte: new Date(`${earliest}T00:00:00Z`) },
+      },
+      select: { userId: true, payloadJson: true },
+    });
+    const alreadySent = previous.flatMap((n) => {
+      const iid = (n.payloadJson as { instalmentId?: unknown } | null)
+        ?.instalmentId;
+      return typeof iid === 'string'
+        ? [{ userId: n.userId, instalmentId: iid }]
+        : [];
+    });
+
+    let notifications = 0;
+    for (const { instalment, userIds } of overdueNotificationsToSend(
+      overdue,
+      partnerIds,
+      alreadySent,
+    )) {
+      await this.notifications.createForMultipleUsers(userIds, {
+        eventType: 'LENDER_OVERDUE',
+        code: 'LENDER_INSTALMENT_OVERDUE',
+        params: {
+          lender: instalment.lender,
+          amount: formatMoney(instalment.outstanding),
+          currency: instalment.currency,
+          reference: instalment.reference,
+          dueOn: instalment.dueOn,
+        },
+        payload: {
+          lenderId: instalment.lenderId,
+          financingId: instalment.financingId,
+          planId: instalment.planId,
+          instalmentId: instalment.instalmentId,
+          dueOn: instalment.dueOn,
+        },
+      });
+      notifications += userIds.length;
+    }
+    return { overdueInstalments: overdue.length, notifications };
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────
+
+  private async findFinancing(db: Db | PrismaService, id: string) {
+    if (!isUuid(id)) throw notFound('lenderFinancing');
+    const f = await db.lenderFinancing.findUnique({
+      where: { id },
+      include: { repayments: { where: STANDING_REPAYMENT } },
+    });
+    if (!f) throw notFound('lenderFinancing');
+    return f;
+  }
+
+  private async standingFinancing(db: Db | PrismaService, id: string) {
+    const f = await this.findFinancing(db, id);
+    if (f.removedAt) {
+      throw badRequest(
+        'FINANCING_REMOVED',
+        "This friend's payment was removed.",
+      );
+    }
+    return f;
+  }
+
+  private async financingView(id: string) {
+    const f = await this.prisma.lenderFinancing.findUniqueOrThrow({
+      where: { id },
+      include: FINANCING_INCLUDE,
+    });
+    return this.view(f);
+  }
+}

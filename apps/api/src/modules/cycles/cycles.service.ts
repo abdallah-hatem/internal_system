@@ -20,6 +20,10 @@ import {
   lockCycle,
 } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
+import {
+  STANDING_FINANCING,
+  assertLendersRepaid,
+} from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
 import {
   assertInScope,
@@ -586,6 +590,24 @@ export class CyclesService {
     // (§8, amendment 5) — the same helper settlement `approve` calls.
     if (targetStatus === 'SETTLEMENT') {
       await assertShipmentAccounted(db, id);
+      // Nor while a friend who paid a supplier is still owed (§18): the same
+      // helper settlement `approve` calls.
+      await assertLendersRepaid(db, id, cycle.code);
+    }
+
+    // A cycle whose order a friend paid for did order something (§15, §18):
+    // his payment is removed first, which needs nothing repaid on it.
+    if (targetStatus === 'CANCELLED') {
+      const financed = await db.lenderFinancing.count({
+        where: { cycleId: id, ...STANDING_FINANCING },
+      });
+      if (financed > 0) {
+        throw badRequest(
+          'CYCLE_HAS_LENDER_FINANCING',
+          `Cycle ${cycle.code} has an order a friend paid for; remove his payment before cancelling it.`,
+          { cycle: cycle.code },
+        );
+      }
     }
 
     /**

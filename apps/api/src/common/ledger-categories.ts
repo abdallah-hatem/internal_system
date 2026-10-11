@@ -24,13 +24,33 @@ import { Prisma } from '@prisma/client';
  *   either direction. Money coming in is not income and money handed back is
  *   not a cost — the partners would otherwise pay for their own capital being
  *   returned.
+ * - `lender_financing` and `lender_repayment` (§18) are a friend's loan: his
+ *   money paying our supplier comes in, our pounds paying him back go out.
+ *   Borrowing is not income and repaying is not an expense. What the loan
+ *   really cost — the rate moving between the order and each repayment — is
+ *   the exchange difference, which is not a ledger row and is read from the
+ *   repayments (`common/lender-debt.ts`) by settlement, cycle profit and the
+ *   dashboard alike.
  */
 export const CAPITALISED_CATEGORIES = [
   'purchase',
   'shipping',
   'settlement',
   'contribution',
+  'lender_financing',
+  'lender_repayment',
 ] as const;
+
+/** A friend's loan, in and out (§18). Also inside CAPITALISED_CATEGORIES. */
+export const LENDER_CATEGORIES = [
+  'lender_financing',
+  'lender_repayment',
+] as const;
+
+/** Is this row a friend's loan moving — not a cost of the cycle's goods? */
+export function isLenderCategory(category: string): boolean {
+  return (LENDER_CATEGORIES as readonly string[]).includes(category);
+}
 
 /**
  * Money recovered: from a supplier against an order (`supplier_refund`), or

@@ -11,6 +11,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { CreatePaymentPlanDto } from './dto/payment-plan.dto';
 import { formatMoney } from '../../common/money';
+import { dayOf, evaluateSchedule } from '../../common/instalment-schedule';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
@@ -23,7 +24,7 @@ const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
 const money = (v: Prisma.Decimal) =>
   v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
-export type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
+export type { InstalmentState } from '../../common/instalment-schedule';
 
 const PLAN_INCLUDE = {
   customer: { select: { id: true, displayName: true, phone: true } },
@@ -35,19 +36,6 @@ function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-/**
- * The calendar day, as YYYY-MM-DD.
- *
- * Instalment dates are stored as `date` and come back at UTC midnight, while
- * "today" is local. Comparing those as timestamps is wrong by the UTC offset —
- * it made an instalment due today read as overdue. Comparing the day itself
- * sidesteps the offset entirely, which is what a due date actually means:
- * nobody is late until the day is over.
- */
-function dayOf(d: Date) {
-  return d.toISOString().slice(0, 10);
 }
 
 function todayLocalDay() {
@@ -87,62 +75,28 @@ export class PaymentPlansService {
     }[],
     paidToDate: Prisma.Decimal,
   ) {
-    const today = todayLocalDay();
-
-    let cumulativeDue = D(0);
-    let applied = D(0);
-    let overdueEgp = D(0);
-
-    const lines = instalments.map((i) => {
-      const amount = D(i.amount);
-      cumulativeDue = cumulativeDue.add(amount);
-
-      // Money is applied to the earliest instalments first: a shop paying down
-      // a running balance clears its oldest promise, not the nearest one.
-      const remainingPayment = Prisma.Decimal.max(
-        paidToDate.sub(applied),
-        D(0),
-      );
-      const coveredHere = Prisma.Decimal.min(remainingPayment, amount);
-      applied = applied.add(coveredHere);
-
-      const outstanding = amount.sub(coveredHere);
-      const due = dayOf(i.dueOn);
-
-      let state: InstalmentState;
-      if (outstanding.lte(0)) state = 'PAID';
-      else if (due < today) state = 'OVERDUE';
-      else if (due === today) state = 'DUE';
-      else state = 'UPCOMING';
-
-      if (state === 'OVERDUE') overdueEgp = overdueEgp.add(outstanding);
-
-      return {
-        id: i.id,
-        sequence: i.sequence,
-        dueOn: i.dueOn,
-        amount: money(amount),
-        paidEgp: money(coveredHere),
-        outstandingEgp: money(outstanding),
-        state,
-        note: i.note,
-      };
-    });
-
-    const totalEgp = cumulativeDue;
-    const remainingEgp = Prisma.Decimal.max(totalEgp.sub(paidToDate), D(0));
-    const nextDue =
-      lines.find((l) => l.state === 'DUE' || l.state === 'UPCOMING') ?? null;
-
+    // The one cumulative reading (common/instalment-schedule.ts), shared with
+    // a lender's plan (§18) so the two never disagree about who is late.
+    const s = evaluateSchedule(instalments, paidToDate, todayLocalDay());
+    const lines = s.lines.map((l) => ({
+      id: l.instalment.id,
+      sequence: l.instalment.sequence,
+      dueOn: l.instalment.dueOn,
+      amount: l.amount,
+      paidEgp: l.paid,
+      outstandingEgp: l.outstanding,
+      state: l.state,
+      note: l.instalment.note,
+    }));
     return {
       instalments: lines,
-      totalEgp: money(totalEgp),
-      paidEgp: money(Prisma.Decimal.min(paidToDate, totalEgp)),
-      remainingEgp: money(remainingEgp),
-      overdueEgp: money(overdueEgp),
-      isOverdue: overdueEgp.gt(0),
-      nextDueOn: nextDue?.dueOn ?? null,
-      nextDueEgp: nextDue ? nextDue.outstandingEgp : null,
+      totalEgp: s.total,
+      paidEgp: s.paid,
+      remainingEgp: s.remaining,
+      overdueEgp: s.overdue,
+      isOverdue: s.isOverdue,
+      nextDueOn: s.nextDue?.instalment.dueOn ?? null,
+      nextDueEgp: s.nextDue ? s.nextDue.outstanding : null,
     };
   }
 

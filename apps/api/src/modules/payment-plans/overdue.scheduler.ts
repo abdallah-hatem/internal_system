@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
 import { PaymentPlansService } from './payment-plans.service';
+import { LendersService } from '../lenders/lenders.service';
 
 /**
  * The daily overdue check (BUSINESS_LOGIC §7, DECIDED 2026-10-11).
@@ -19,16 +20,23 @@ import { PaymentPlansService } from './payment-plans.service';
 export class OverdueScheduler {
   private readonly log = new Logger(OverdueScheduler.name);
 
-  constructor(private plans: PaymentPlansService) {}
+  constructor(
+    private plans: PaymentPlansService,
+    private lenders: LendersService,
+  ) {}
 
   @Cron('0 5 * * *')
   async daily() {
     try {
       const { overdueInstalments, notifications } =
         await this.plans.notifyOverdue();
-      if (notifications > 0) {
+      // A friend's plan (§18) is checked by the same job: Vercel's Hobby
+      // plan allows two crons and both are used.
+      const lent = await this.lenders.notifyOverdue();
+      const sent = notifications + lent.notifications;
+      if (sent > 0) {
         this.log.log(
-          `${overdueInstalments} overdue instalment(s); ${notifications} notification(s) sent`,
+          `${overdueInstalments + lent.overdueInstalments} overdue instalment(s); ${sent} notification(s) sent`,
         );
       }
     } catch (err) {
