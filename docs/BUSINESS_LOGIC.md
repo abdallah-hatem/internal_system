@@ -690,6 +690,27 @@ Paying writes one ledger entry per participant and closes the cycle.
 explicitly accepted.** That stock's cost stays with the cycle, so closing writes
 it off. The refusal makes it a decision rather than an accident.
 
+**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Planned, L5.*
+Instead of writing leftovers off when a cycle closes, the partners can move them to another cycle that is still
+open (or to a new cycle started for them). Exactly how:
+
+- **When:** from a cycle in Selling or Settlement (not yet paid out), once every unit is accounted for (received or
+  lost). The settlement's "still holds N units" refusal offers it in place.
+- **What moves:** per product, all or some of the units on the shelf. The rest can still be written off by closing
+  as today. A damaged unit is written off, not moved.
+- **At what price:** exactly its landed cost, never re-priced. The moved units keep their original check-in date, so
+  they still sell first (§3).
+- **Cycle A (the one giving):** the units leave its stock and it recovers their cost, so they make no profit and no
+  loss for A. Its partners get their capital back in full; nothing is written off.
+- **Cycle B (the one receiving):** the units join its stock at that cost, and its cost to fund rises by the same
+  amount — its partners fund them. When they sell, the revenue and profit are B's.
+- **Recorded:** a transfer record (date, from, to, product, units, unit cost, who, why). A's page shows "moved to B",
+  B's shows "from A", the original batch in A records the units leaving and B gets a new batch pointing back at it,
+  and two matching ledger entries mark it as a transfer between cycles — not cash, not income, not an expense. The
+  dashboard's cash and profit do not change.
+- **Undo:** only while none of the moved units has sold in B and A has not been paid out. After that it is permanent.
+- **Who:** core partners.
+
 **Reversing a settlement writes balancing entries and reopens the cycle.** It
 never rewrites history. A reason is required.
 
