@@ -1274,3 +1274,26 @@ confirms it.**
 - The purchase order and the cycle page: "Paid by <friend> — 30,000 AED; 18,000 AED still owed".
 - A lender's own page: everything he paid for, every repayment with its rate, and what is still owed.
 - The dashboard: what we owe lenders, in their currency and in pounds at today's rate.
+
+**Settled while building it (L1, 2026-10-11) — guesses, each OPEN until the owner confirms.**
+
+| Question §18 left open | Guess built | Why |
+|---|---|---|
+| How much debt a part repayment clears | Pounds ÷ that day's rate, **rounded down** to the piastre of his currency. | Never clear more than the pounds actually bought. |
+| Rounding left on the debt | At most 0.01 (of his currency) per part repayment. The repayment that pays it off is the exact "pays it off" figure shown — what is owed × the rate, to the piastre — and it clears all that is left, so the debt ends at exactly zero. | The last one settles exactly (rule 1: no hidden residue). |
+| Paying a few piastres more than the "pays it off" figure | Refused, naming the figure. | Too much is refused. |
+| A repayment so small it clears 0.00 | Refused. | A payment that changes nothing is a slip. |
+| The exchange difference, exactly | Each repayment's pounds − what it cleared at the order's rate (to the piastre); the last one takes whatever keeps the total at the order's rate equal to what he paid at that rate. Over a repaid debt: pounds paid − his amount at the order's rate. | §2's residual habit. |
+| Where it is kept | On each repayment, not as a ledger row — the ledger shows the pounds leaving; settlement, cycle profit and the dashboard read the difference from the repayments through one function. | A loss is handled the same way (§9). |
+| Ledger | When he pays: money *in* (`lender_financing`) at the order's rate, no account — the goods are booked out at receipt as always, and this says whose money paid. Each repayment: money *out* (`lender_repayment`) for the pounds, from the account chosen. Both are financing: not income, not an expense. | Keeps cash on hand true: we did not pay the supplier. |
+| Which account | Any active money account in EGP. | Repayments are in pounds. |
+| One friend, one order | A friend's payment for an order is recorded once; to change it, remove it (only while nothing is repaid) and record it again. Two friends may share one order, never above its total. | Doubles are the second-time bug. |
+| Which cycles | Not on a cycle in settlement, closed or cancelled. Cancelling a cycle whose order a friend paid for is refused until his payment is removed. A purchase line cannot be cut below what friends paid for it. | A cancelled cycle "never ordered anything" (§15). |
+| Dates | His payment and each repayment cannot be in the future; a repayment cannot be dated before he paid. | Records of things that happened. |
+| Reversing a repayment on a settled or closed cycle | Refused — reverse the settlement first. | It would reopen a debt on a cycle already split. |
+| Removing his payment once repayments were reversed | Allowed: only standing (not reversed) repayments block it. | Nothing has been repaid. |
+| A plan | Per order he paid for; instalments in his currency, totalling no more than is owed. One active plan at a time; cancel and agree again. Progress counts repayments dated on or after the plan's day, cumulatively, earliest instalment first — the same function as a customer's plan (§7). | Same habit as customer plans. |
+| Who is told when one is late | Every active core partner, once per instalment, by the existing morning job. | §7. |
+| "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
+| "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
+| Who sees the lenders list and a lender's page | Core partners and admin support. A temporary investor sees "Paid by" only on his own cycles' orders. | §18: read-only where they already see the cycle. |
