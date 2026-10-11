@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: row-alignment + cycle-nav live in production 2026-10-11 (`e0583eb`, all three deploys READY, smoke ok, assistant reads ok live) · next: improvement batch I1 (no-decision items)
+Current stage: improvement batch I1 built on `feature/i1-improvements` 2026-10-11 (lint, typecheck, unit, 5 e2e groups green) · next: merge, then ship on the owner's go — the new daily job uses the same `CRON_SECRET` as sweep-holds (`vercel env ls` to confirm it is set)
 
 ## Waiting on the user
 _(none)_
@@ -13,8 +13,12 @@ _(none)_
 _(none)_
 
 ## Next up
-- Improvement batch I1 (decided 2026-10-11, autonomous): overdue-payments daily cron notifying all partners; low-stock alert after a sale; assistant tool for who owes / overdue; date range + CSV on Sales and Payments; quick-create closes on Escape; fix flaky customer-row click (specs 57/79). Survey of the rest: build-log/notes/improvements-2026-10-11.md
-- Open from it: quick-create dialog ignores Escape; TC-RP-06/TC-VER-01 flake on customer row click.
+- Merge and ship I1 (built 2026-10-11): daily overdue alerts (`/jobs/overdue-payments`, second Vercel cron — the
+  Hobby plan's limit is two), low stock after a sale, `list_receivables`, date range + CSV on Sales and Payments,
+  quick-create closes on Escape, specs 57/79/77 flakes fixed in the tests. Survey of the rest:
+  build-log/notes/improvements-2026-10-11.md
+- From I1: the dashboard's recent activity names a shop as plain text — not a link to it (a person clicking it gets
+  nothing). A list's spinner replaces the table each time its date range changes (keep the previous rows instead?).
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
 - Queued from this run: system-written ledger reasons are stored in English (needs a code/params migration); the app
