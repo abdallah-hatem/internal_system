@@ -278,6 +278,44 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE f.removed_at IS NULL AND c.status IN ('SETTLEMENT', 'CLOSED')
      AND f.amount > (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
                       WHERE r.financing_id = f.id AND r.reversed_at IS NULL)
+  -- Leftovers moved to another cycle at their cost (§8, L5, 2026-10-11).
+  UNION ALL SELECT 20, 'moved stock re-priced (its batch cost differs from the source batch)',
+         count(*) FROM stock_transfer_lines l
+           JOIN stock_transfers t ON t.id = l.transfer_id
+           JOIN inventory_batches d ON d.id = l.dest_batch_id
+           JOIN inventory_batches s ON s.id = l.source_batch_id
+   WHERE t.status = 'ACTIVE'
+     AND (d.landed_unit_cost_egp <> s.landed_unit_cost_egp OR l.unit_cost_egp <> s.landed_unit_cost_egp)
+  UNION ALL SELECT 20.1, 'transfer that stands with no moved batch, or a batch of another size',
+         count(*) FROM stock_transfer_lines l
+           JOIN stock_transfers t ON t.id = l.transfer_id
+           LEFT JOIN inventory_batches d ON d.id = l.dest_batch_id
+   WHERE t.status = 'ACTIVE'
+     AND (d.id IS NULL OR d.received_qty <> l.qty OR d.cycle_id <> t.to_cycle_id)
+  UNION ALL SELECT 20.2, 'transfer whose ledger pair does not match its lines',
+         count(*) FROM stock_transfers t
+   WHERE (SELECT coalesce(sum(CASE WHEN f.direction = 'INFLOW' THEN f.amount ELSE -f.amount END), 0)
+            FROM financial_transactions f
+           WHERE f.related_type = 'STOCK_TRANSFER' AND f.related_id = t.id AND f.cycle_id = t.from_cycle_id)
+       <> CASE WHEN t.status = 'ACTIVE'
+               THEN (SELECT coalesce(sum(l.cost_egp), 0) FROM stock_transfer_lines l WHERE l.transfer_id = t.id)
+               ELSE 0 END
+      OR (SELECT coalesce(sum(CASE WHEN f.direction = 'OUTFLOW' THEN f.amount ELSE -f.amount END), 0)
+            FROM financial_transactions f
+           WHERE f.related_type = 'STOCK_TRANSFER' AND f.related_id = t.id AND f.cycle_id = t.to_cycle_id)
+       <> CASE WHEN t.status = 'ACTIVE'
+               THEN (SELECT coalesce(sum(l.cost_egp), 0) FROM stock_transfer_lines l WHERE l.transfer_id = t.id)
+               ELSE 0 END
+  UNION ALL SELECT 20.3, 'transfer dated in the future, or from a cycle to itself',
+         count(*) FROM stock_transfers
+   WHERE moved_on > (now() AT TIME ZONE 'Africa/Cairo')::date OR from_cycle_id = to_cycle_id
+  UNION ALL SELECT 20.4, 'stock moved into a cycle that is cancelled',
+         count(*) FROM stock_transfers t JOIN import_cycles c ON c.id = t.to_cycle_id
+   WHERE t.status = 'ACTIVE' AND c.status = 'CANCELLED'
+  UNION ALL SELECT 20.5, 'ledger points at a transfer that does not exist',
+         count(*) FROM financial_transactions f
+   WHERE f.related_type = 'STOCK_TRANSFER'
+     AND NOT EXISTS (SELECT 1 FROM stock_transfers t WHERE t.id = f.related_id)
 SQL
 )
 

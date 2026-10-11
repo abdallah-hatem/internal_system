@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (§18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -690,7 +690,7 @@ Paying writes one ledger entry per participant and closes the cycle.
 explicitly accepted.** That stock's cost stays with the cycle, so closing writes
 it off. The refusal makes it a decision rather than an accident.
 
-**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Planned, L5.*
+**DECIDED 2026-10-11 (owner) — leftover stock can move to another cycle at its cost.** *Built 2026-10-11 (L5, phase 1: API, screens, unit tests; e2e pending).*
 Instead of writing leftovers off when a cycle closes, the partners can move them to another cycle that is still
 open (or to a new cycle started for them). Exactly how:
 
@@ -710,6 +710,27 @@ open (or to a new cycle started for them). Exactly how:
   dashboard's cash and profit do not change.
 - **Undo:** only while none of the moved units has sold in B and A has not been paid out. After that it is permanent.
 - **Who:** core partners.
+
+Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OPEN until the owner confirms**:
+
+| Question | Guess built | Why |
+|---|---|---|
+| "On the shelf" | Verified batches' sellable units, less units held for a shop's request (`availableQty`'s reading). A held unit stays where the shop was promised it. | Never more than is on the shelf; a hold is a promise. |
+| Which batch the units come from | Oldest check-in first, as a sale would draw; one transfer line per source batch, each at that batch's own landed cost. | The units that would have sold first move first; nothing is re-priced (§3). |
+| The moved batch's check-in | The source batch's own (`createdAt`) and its arrival day. So in B the moved units sell before B's own later stock (§3 FIFO). | "They keep their original check-in date." |
+| Allowed targets | Any cycle that is not being settled, closed or cancelled — including one still in planning or on the way. Never the giving cycle. | Its partners fund them; a cycle settling has already counted its stock. |
+| "Not yet paid out" | The giving cycle is SELLING or SETTLEMENT and has no PAID settlement. | §8. |
+| The record's "why" | Required (500 characters at most), as for every undo. The date defaults to Cairo's today and cannot be later. | Records of things that happened (rule 1). |
+| Ledger | Two `cycle_transfer` rows, no money account: an INFLOW on the giving cycle (cost recovered), an OUTFLOW on the taking cycle (cost taken on), both pointing at the transfer (`relatedType` `STOCK_TRANSFER`), so neither can be reversed on its own (§9). `cycle_transfer` is in `CAPITALISED_CATEGORIES` and in a new `NOT_CASH_CATEGORIES` (`common/ledger-categories.ts`): not income, not an expense, and not cash — the dashboard's cash in, cash out and cash on hand leave it out through `common/cash-position.ts`. It cannot be typed by hand in the ledger (`LEDGER_CATEGORY_RESERVED`). | No money moved; the goods were paid for once. |
+| The taking cycle's cost to fund | `CostingService.fundingFor`: landed cost + stock moved in (transfers that stand) − what friends paid. "Split equally" uses it. The giving cycle's cost to fund is unchanged: its partners did fund those goods and get that capital back at settlement. | §8: "its cost to fund rises by the same amount". |
+| Analytics' cycle "investment" | Nets transfers, signed: lower on the giving cycle, higher on the taking one. Profit is not touched on either side. | So the two cycles' figures agree with each other. |
+| Paying out after a move | Paying a settlement reads what the cycle holds **now**, not the figures from when it was calculated, so leftovers moved after approval leave nothing to write off. A move and its undo also refresh the unsold figures on either cycle's open (draft or approved) settlement; profit and payouts do not change. | Otherwise the "still holds N units" refusal would describe stock that has left. |
+| "None of the moved units has sold in B" | Strict: undo is refused once any sale ever drew from the moved batch — even one since cancelled — or any hold, return, or onward move touched it. The taking cycle must also not be settling, closed or cancelled. | The batch then has history of its own; undoing would erase it. |
+| What undo does | Units back on the giving cycle's batches (movement `TRANSFER_IN`), the moved batch and its movements removed (nothing depends on them — the gate above), two balancing ledger rows pointing at the originals, the transfer kept and marked undone with who, when and why. | §9: history is never rewritten; the record stays. |
+| Cancelling the taking cycle | Refused while it holds stock moved in (`CYCLE_HAS_TRANSFERS_IN`); undo the move first. | A cancelled cycle "never ordered anything" (§15). |
+| Where the goods are | The giving cycle gains a **Moved to another cycle** place, so its units still add up to what it ordered; the taking cycle lists **From CYC-A** apart, with how many are still on its shelf, sold, or moved on — not inside its own ordered total. Recent activity does not list a moved batch as a receipt. | §8. |
+| "Start a new cycle for them" | Opens the cycle wizard (`?leftoversFrom=`); once the new cycle exists, a link goes back to the giving cycle's page with Move leftovers open and the new cycle chosen. There is one Move form. | A cycle has no honest minimal form (CLAUDE.md §13). |
+| The dialog's default | Every product starts at all of it on the shelf; a number typed is never overwritten. | The usual case is moving everything. |
 
 **Reversing a settlement writes balancing entries and reopens the cycle.** It
 never rewrites history. A reason is required.
@@ -749,6 +770,14 @@ settlement and on the dashboard, read through one shared definition — subtract
 it.
 
 **Cash flow is reported separately from profit** (BRD §11).
+
+**Guess 2026-10-11 (L5, open until confirmed) — a transfer of leftovers between
+cycles is a ledger pair, not money.** Moving leftover stock to another cycle at
+its cost (§8) writes a `cycle_transfer` INFLOW on the giving cycle and the same
+OUTFLOW on the taking one, with no money account. They net to zero across the
+business and are left out of cash in, cash out and cash on hand
+(`NOT_CASH_CATEGORIES`, `common/cash-position.ts`), and out of every expense and
+profit figure (`CAPITALISED_CATEGORIES`). Undoing the move writes the mirror pair.
 
 **DECIDED 2026-08-22 — the ledger records money as it is received, not as it
 is earned.** Confirming a sale raises no ledger entry; a payment does. Revenue
@@ -1294,6 +1323,11 @@ Guesses made while building it, open until confirmed (2026-10-11):
 **Deliveries (2026-10-10, built 2026-10-11, B4).** The assistant can record a delivery on a
 leg and receive a delivery into stock. Marking goods lost is office-app only: it
 books a loss, and a partner should decide that on a screen.
+
+**Planned — moving leftovers between cycles (§8, L5).** Out of scope for the first build
+(2026-10-11): the office app only. When it comes, the tool calls `StockTransfersService.create`
+and `undo` with the same roles (`stock-transfers/stock-transfer-roles.ts`), previews the cost and
+the target's new cost to fund before the partner's yes, and is refused exactly as the office is.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
 the supplier's invoice number, and the photograph stays in the conversation.
