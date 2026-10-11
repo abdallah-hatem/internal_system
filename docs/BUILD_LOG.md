@@ -13,6 +13,14 @@ _(none)_
 _(none)_
 
 ## Next up
+- TEST DATA IN PRODUCTION (owner asked 2026-10-11, remove when he says): CYC-2026-0001 (UAE direct, In transit to Egypt),
+  PO-2026-0001 (TEST Al Noor Trading; TEST Full face helmet ×100 @200 AED, TEST Brake pad set ×200 @50 AED; rate 13),
+  lender TEST Mahmoud paid 30,000 AED; repayments 100,000 EGP @13.3 (20 Sep) and 150,000 EGP @13.85 (5 Oct), both from
+  Business Bank Account; leg Dubai→Cairo TEST Gulf Freight 5,000 EGP departed 5 Sep. Still owed 11,650.89 AED;
+  exchange difference 11,461.57 EGP. All entered through the assistant (live test of the L2 tools: pass).
+- Observation: the dashboard's cash on hand counts a friend's payment as money in at once (390,000) while the purchase
+  is only booked out at receipt — the same timing every partner-funded cycle already has (contribution in, purchase
+  out at receipt). Not a new bug; consider booking purchases out when the order is confirmed.
 - L2 built 2026-10-11 on `feature/l2-lenders-assistant` (not merged, not pushed): (1) owner decision — a cycle a
   friend paid for entirely splits its profit equally among its core partners (§8, §18; spec 34 TC-INV-45..47);
   (2) assistant tools `list_lenders`, `get_lender`, `record_lender_financing`, `record_lender_repayment` (§16, §18;
