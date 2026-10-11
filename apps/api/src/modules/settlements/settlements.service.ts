@@ -7,6 +7,7 @@ import {
 } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { CostingService } from '../costing/costing.service';
 import {
   distributeCycleProfit,
   summarizeCyclePnl,
@@ -77,6 +78,7 @@ export class SettlementsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private costing: CostingService = new CostingService(prisma),
   ) {}
 
   async findAll(
@@ -336,9 +338,21 @@ export class SettlementsService {
         : null,
     }));
 
+    // Nobody's capital recorded and no agreed split: the one case with a
+    // stated rule is a cycle a friend paid for entirely (§8, §18 — owner
+    // 2026-10-11), split equally among the core partners. Asked only then,
+    // so every other cycle settles exactly as before.
+    const noBasis =
+      participantInputs.every((p) => p.contribution.lte(0)) &&
+      participantInputs.every((p) => p.customProfitPct === null);
+    const fundedByLenders = noBasis
+      ? (await this.costing.fundingFor(cycleId)).fundedByLenders
+      : false;
+
     const distribution = distributeCycleProfit(
       participantInputs,
       pnl.grossProfit,
+      { fundedByLenders },
     );
     return {
       pnl,

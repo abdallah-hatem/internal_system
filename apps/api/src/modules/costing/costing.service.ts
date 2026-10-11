@@ -69,6 +69,25 @@ export class CostingService {
   }
 
   /**
+   * What the partners and investors are asked to fund: the landed cost less
+   * what friends paid, never below zero (§18). One definition for the
+   * costing's `toFundEgp` and settlement's "a friend paid for it entirely"
+   * (§8, CLAUDE.md rule 11).
+   */
+  async fundingFor(cycleId: string) {
+    const landed = (await this.computeCycleLandedCosts(cycleId)).totalLandedEgp;
+    const financed = await this.lenderFinancedEgp(cycleId);
+    const rest = landed.sub(financed);
+    return {
+      landed,
+      financed,
+      toFund: rest.isNegative() ? ZERO : rest,
+      /** A friend paid something and the partners are asked for nothing. */
+      fundedByLenders: financed.gt(0) && rest.lte(0),
+    };
+  }
+
+  /**
    * Resolve a shipping leg's cost in EGP from its costing basis.
    *
    * PER_PIECE   -> ratePerUnit x chargeablePieces

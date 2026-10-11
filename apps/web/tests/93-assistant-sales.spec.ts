@@ -204,7 +204,9 @@ test.describe('record_sale (§16, 2026-10-11)', () => {
     const writes = tools.filter((t) => t.annotations?.readOnlyHint !== true).map((t) => t.name);
     expect(writes).toContain('record_sale');
     // record_payment added 2026-10-11 (I2), approved by the owner (§16).
+    // record_lender_repayment added 2026-10-11 (L2): repaying a friend in pounds (§18).
     expect(writes.filter((n) => /sale|payment|instal|settle|return|refund|ledger/i.test(n)).sort()).toEqual([
+      'record_lender_repayment',
       'record_payment',
       'record_sale',
     ]);

@@ -219,6 +219,156 @@ describe('distributeCycleProfit', () => {
       ]);
     });
   });
+
+  /**
+   * Owner decision 2026-10-11 (§8, §18): a cycle a friend paid for entirely
+   * splits its profit equally among its core partners. Every other cycle with
+   * no contributions still refuses (CLAUDE.md §10). Non-zero profits only —
+   * zero hides every share bug there is.
+   */
+  describe('a cycle a friend paid for entirely (§18, 2026-10-11)', () => {
+    const lenderFunded = { fundedByLenders: true };
+
+    it('splits 90,000 equally among three partners who put in nothing', () => {
+      const r = distributeCycleProfit(
+        [partner('A', 0), partner('B', 0), partner('C', 0)],
+        D(90_000),
+        lenderFunded,
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '30000.00',
+        '30000.00',
+        '30000.00',
+      ]);
+      expect(r.lines.map((l) => l.capitalReturn.toFixed(2))).toEqual([
+        '0.00',
+        '0.00',
+        '0.00',
+      ]);
+      expect(r.totals.payout.toFixed(2)).toBe('90000.00');
+    });
+
+    it('gives the rounding residual to the last partner, as every split does', () => {
+      const r = distributeCycleProfit(
+        [partner('A', 0), partner('B', 0), partner('C', 0)],
+        D(100_000),
+        lenderFunded,
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '33333.33',
+        '33333.33',
+        '33333.34',
+      ]);
+    });
+
+    it('gives a temporary investor on it nothing — not even the residual — because he put in nothing', () => {
+      const r = distributeCycleProfit(
+        [
+          partner('A', 0),
+          partner('B', 0),
+          partner('C', 0),
+          investor('INV', 0, 15),
+        ],
+        D(100_000),
+        lenderFunded,
+      );
+      expect(byId(r, 'INV').grossProfit.toFixed(2)).toBe('0.00');
+      expect(byId(r, 'INV').payout.toFixed(2)).toBe('0.00');
+      expect(byId(r, 'INV').sharePct.toFixed(2)).toBe('0.00');
+      expect(byId(r, 'C').grossProfit.toFixed(2)).toBe('33333.34');
+      expect(r.totals.payout.toFixed(2)).toBe('100000.00');
+    });
+
+    it('shares a loss equally too', () => {
+      const r = distributeCycleProfit(
+        [partner('A', 0), partner('B', 0), partner('C', 0)],
+        D(-9_000),
+        lenderFunded,
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '-3000.00',
+        '-3000.00',
+        '-3000.00',
+      ]);
+    });
+
+    it('still refuses a cycle the friend paid for only partly', () => {
+      expect(() =>
+        distributeCycleProfit(
+          [partner('A', 0), partner('B', 0), partner('C', 0)],
+          D(90_000),
+          { fundedByLenders: false },
+        ),
+      ).toThrow(/no basis to split/i);
+    });
+
+    it('still refuses when only an investor is on it — there is no partner to share equally among', () => {
+      expect(() =>
+        distributeCycleProfit(
+          [investor('INV', 0, 15)],
+          D(90_000),
+          lenderFunded,
+        ),
+      ).toThrow(/no basis to split/i);
+    });
+
+    it('lets a custom split override the equal one', () => {
+      const withPct = (id: string, pct: number) => ({
+        ...partner(id, 0),
+        customProfitPct: D(pct),
+      });
+      const r = distributeCycleProfit(
+        [withPct('A', 50), withPct('B', 30), withPct('C', 20)],
+        D(90_000),
+        lenderFunded,
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '45000.00',
+        '27000.00',
+        '18000.00',
+      ]);
+    });
+
+    it('follows contributions when any were recorded, friend or not', () => {
+      const r = distributeCycleProfit(
+        [partner('A', 0), partner('B', 1_000), partner('C', 3_000)],
+        D(90_000),
+        lenderFunded,
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '0.00',
+        '22500.00',
+        '67500.00',
+      ]);
+    });
+  });
+
+  describe('the rounding residual (§8 guess, 2026-10-11)', () => {
+    it('an agreed split whose last participant has 0% gives the residual to the last non-zero share, not to him', () => {
+      // Thirds to four places leave 0.01 over on 100.00. Before L2 the last
+      // line took it, so D — agreed 0% — was paid a piastre.
+      const withPct = (id: string, pct: string) => ({
+        ...partner(id, 10_000),
+        customProfitPct: D(pct),
+      });
+      const r = distributeCycleProfit(
+        [
+          withPct('A', '33.3333'),
+          withPct('B', '33.3333'),
+          withPct('C', '33.3334'),
+          withPct('D', '0'),
+        ],
+        D(100),
+      );
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '33.33',
+        '33.33',
+        '33.34',
+        '0.00',
+      ]);
+      expect(r.totals.grossProfit.toFixed(2)).toBe('100.00');
+    });
+  });
 });
 
 describe('summarizeCyclePnl', () => {

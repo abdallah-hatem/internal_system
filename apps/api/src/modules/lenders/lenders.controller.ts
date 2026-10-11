@@ -20,6 +20,7 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
+import { LENDER_READ_ROLES, LENDER_WRITE_ROLES } from './lender-roles';
 
 /**
  * A friend who pays a supplier for us, repaid in pounds (BUSINESS_LOGIC §18).
@@ -36,14 +37,14 @@ export class LendersController {
   constructor(private lenders: LendersService) {}
 
   @Get()
-  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @Roles(...LENDER_READ_ROLES)
   @ApiOperation({ summary: 'Lenders, with what each is still owed' })
   list() {
     return this.lenders.list();
   }
 
   @Get(':id')
-  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @Roles(...LENDER_READ_ROLES)
   @ApiOperation({
     summary: 'A lender: what he paid for, repayments, plans, still owed',
   })
@@ -52,7 +53,7 @@ export class LendersController {
   }
 
   @Post()
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({ summary: 'Add a lender' })
   create(@Body() body: CreateLenderDto, @CurrentUser() user: Viewer) {
     return this.lenders.create(body, user.id);
@@ -76,7 +77,7 @@ export class PurchaseFinancingController {
   }
 
   @Post(':id/financings')
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({ summary: 'A friend paid all or part of this order' })
   finance(
     @Param('id') id: string,
@@ -111,7 +112,7 @@ export class LenderMoneyController {
   constructor(private lenders: LendersService) {}
 
   @Get('lender-financings/:id/quote')
-  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @Roles(...LENDER_READ_ROLES)
   @ApiOperation({
     summary: 'What is owed and the pounds that pay it off at a rate',
   })
@@ -120,7 +121,7 @@ export class LenderMoneyController {
   }
 
   @Post('lender-financings/:id/remove')
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({
     summary: "Remove a friend's payment while nothing is repaid",
   })
@@ -133,7 +134,7 @@ export class LenderMoneyController {
   }
 
   @Post('lender-financings/:id/repayments')
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({ summary: 'Repay a friend in pounds at that day’s rate' })
   repay(
     @Param('id') id: string,
@@ -144,7 +145,7 @@ export class LenderMoneyController {
   }
 
   @Post('lender-financings/:id/plan')
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({ summary: 'Agree a repayment schedule in his currency' })
   plan(
     @Param('id') id: string,
@@ -155,7 +156,7 @@ export class LenderMoneyController {
   }
 
   @Post('lender-repayments/:id/reverse')
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({ summary: 'Reverse a repayment, once, with a reason' })
   reverse(
     @Param('id') id: string,
@@ -166,7 +167,7 @@ export class LenderMoneyController {
   }
 
   @Post('lender-plans/:id/cancel')
-  @Roles('CORE_PARTNER')
+  @Roles(...LENDER_WRITE_ROLES)
   @ApiOperation({ summary: 'Cancel a repayment plan' })
   cancelPlan(
     @Param('id') id: string,

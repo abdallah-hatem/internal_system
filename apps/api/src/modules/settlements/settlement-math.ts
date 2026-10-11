@@ -47,6 +47,14 @@ export interface DistributionResult {
   };
 }
 
+export interface DistributeOptions {
+  /**
+   * Friends' payments cover the cycle's whole cost to fund (§18: the costing's
+   * `toFundEgp` is zero and a friend paid something).
+   */
+  fundedByLenders?: boolean;
+}
+
 /**
  * Split a cycle's profit across its participants.
  *
@@ -63,23 +71,27 @@ export interface DistributionResult {
 export function distributeCycleProfit(
   participants: ParticipantInput[],
   totalProfit: Prisma.Decimal,
+  opts: DistributeOptions = {},
 ): DistributionResult {
   if (participants.length === 0) {
     throw badRequest('CYCLE_NO_PARTICIPANTS', 'Cycle has no participants to settle');
   }
 
-  const shares = resolveShares(participants);
+  const shares = resolveShares(participants, opts);
 
   // --- Gross profit per participant, residual to the last line -------------
-  let allocated = ZERO;
-  const gross = participants.map((p, idx) => {
-    if (idx === participants.length - 1) {
-      return totalProfit.sub(allocated);
-    }
-    const amount = money(totalProfit.mul(shares[idx]));
-    allocated = allocated.add(amount);
-    return amount;
-  });
+  // The last line with a share, so the piastres rounding leaves over never
+  // land on someone the split gives nothing — a temporary investor on a
+  // cycle a friend paid for (§18) put in nothing and takes nothing.
+  let residualIdx = participants.length - 1;
+  while (residualIdx > 0 && shares[residualIdx].lte(0)) residualIdx--;
+  const amounts = participants.map((p, idx) =>
+    idx === residualIdx ? ZERO : money(totalProfit.mul(shares[idx])),
+  );
+  const allocated = amounts.reduce((s, a) => s.add(a), ZERO);
+  const gross = amounts.map((amount, idx) =>
+    idx === residualIdx ? totalProfit.sub(allocated) : amount,
+  );
 
   // --- Investor fees: a share of the investor's profit, only on a gain -----
   const fees = participants.map((p, idx) => {
@@ -142,7 +154,10 @@ export function distributeCycleProfit(
 }
 
 /** Fractional share (0-1) per participant, from an agreed split or capital. */
-function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
+function resolveShares(
+  participants: ParticipantInput[],
+  opts: DistributeOptions,
+): Prisma.Decimal[] {
   const withCustom = participants.filter((p) => p.customProfitPct !== null);
 
   if (withCustom.length > 0) {
@@ -170,6 +185,21 @@ function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
     (s, p) => s.add(p.contribution),
     ZERO,
   );
+
+  const coreCount = participants.filter(
+    (p) => p.type === 'CORE_PARTNER',
+  ).length;
+  if (totalContribution.lte(0) && opts.fundedByLenders && coreCount > 0) {
+    /**
+     * A friend paid for the whole cycle (§18), so nobody's capital is in it
+     * and contribution gives no basis. Owner decision 2026-10-11 (§8): the
+     * core partners share its profit equally. A temporary investor on it put
+     * in nothing and takes nothing. This is a stated rule, not a fallback —
+     * a cycle the friend paid for only partly still refuses below.
+     */
+    const each = new Prisma.Decimal(1).div(coreCount);
+    return participants.map((p) => (p.type === 'CORE_PARTNER' ? each : ZERO));
+  }
 
   if (totalContribution.lte(0)) {
     /**

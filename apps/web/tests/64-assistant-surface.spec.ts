@@ -6,7 +6,9 @@
  *  instalments, settlements, returns or the ledger — "enforced by the system,
  *  not by the assistant's good behaviour". Since 2026-10-11 it records a sale
  *  and a payment, and only through its own tools (`record_sale`,
- *  `record_payment`), each a confirmed preview over the office's services; its
+ *  `record_payment`; and since L2 a friend's payment and our repayment to him,
+ *  `record_lender_financing`, `record_lender_repayment`), each a confirmed
+ *  preview over the office's services; its
  *  token still opens none of the office routes below. This is that enforcement, checked
  *  from outside: a real `mcp` token, signed with the API's own secret for a real
  *  core partner, sent to each of those routes, refused at the fence.
@@ -39,6 +41,15 @@ const FORBIDDEN: Array<{ method: 'get' | 'post'; path: string; what: string }> =
   },
   { method: 'get', path: '/ledger', what: 'the ledger' },
   { method: 'post', path: '/ledger', what: 'writing a ledger entry' },
+  // L2 (2026-10-11): the assistant reaches a friend's loan through its own
+  // lender tools, never through the office's lender routes.
+  { method: 'get', path: '/lenders', what: 'lenders' },
+  { method: 'post', path: '/lenders', what: 'adding a lender' },
+  {
+    method: 'post',
+    path: '/lender-financings/00000000-0000-0000-0000-000000000000/repayments',
+    what: 'repaying a friend',
+  },
 ];
 
 test.describe('An assistant token on the office routes', () => {

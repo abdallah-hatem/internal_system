@@ -177,6 +177,8 @@ test.describe('Assistant read tools', () => {
     ]);
     // record_payment added 2026-10-11 (I2): the owner approved the assistant recording a shop's payment (§16).
     const moneyIn = new Set(['record_payment']);
+    // Added 2026-10-11 (L2): what a friend paid a supplier, and repaying him (§16, §18).
+    const lenders = new Set(['record_lender_financing', 'record_lender_repayment']);
     // Still office-only: reversing or allocating payments, instalments, settlements, returns, refunds and the ledger.
     const officeOnly = /payment|instal|settle|return|refund|ledger|transaction|allocat/i;
     const writes = tools.filter((t: any) => t.annotations?.readOnlyHint !== true);
@@ -184,11 +186,12 @@ test.describe('Assistant read tools', () => {
     expect(
       writes
         .filter((t: any) => !moneyIn.has(t.name))
+        .filter((t: any) => !lenders.has(t.name))
         .filter((t: any) => !intake.has(t.name) || officeOnly.test(t.name))
         .map((t: any) => t.name),
     ).toEqual([]);
     expect(writes.map((t: any) => t.name)).toEqual(expect.arrayContaining(['record_sale', 'record_payment']));
-    for (const name of ['list_sales', 'list_payments', 'list_receivables', 'get_customer', 'get_dashboard']) {
+    for (const name of ['list_sales', 'list_payments', 'list_receivables', 'get_customer', 'get_dashboard', 'list_lenders', 'get_lender']) {
       expect(tools.find((t: any) => t.name === name)?.annotations?.readOnlyHint).toBe(true);
     }
   });

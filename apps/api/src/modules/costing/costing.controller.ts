@@ -25,8 +25,7 @@ export class CostingController {
     const r = await this.costing.landedCostFor(cycleId, user);
     // A friend who paid a supplier funded that part (§18), so "Split
     // equally" and the wizard's funded-versus-cost line ask for the rest.
-    const financed = await this.costing.lenderFinancedEgp(cycleId);
-    const toFund = r.totalLandedEgp.sub(financed);
+    const { financed, toFund } = await this.costing.fundingFor(cycleId);
     return {
       cycleId: r.cycleId,
       totals: {
@@ -34,7 +33,7 @@ export class CostingController {
         shippingEgp: r.totalShippingEgp.toFixed(2),
         landedEgp: r.totalLandedEgp.toFixed(2),
         lenderFinancedEgp: financed.toFixed(2),
-        toFundEgp: toFund.isNegative() ? '0.00' : toFund.toFixed(2),
+        toFundEgp: toFund.toFixed(2),
         pieces: r.totalPieces.toFixed(3),
         weightKg: r.totalWeightKg.toFixed(3),
       },
