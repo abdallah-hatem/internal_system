@@ -59,6 +59,23 @@ A leg's status is still a reading of what was recorded, never a field anyone set
 | a departure and at least one delivery, with goods still unaccounted for | partly arrived |
 | every unit that entered it delivered or marked lost | arrived |
 
+**DECIDED 2026-10-12 (owner) — goods can also leave in parts.** *Planned, L8.* Supersedes "goods leave in one
+shipment" above for departures. A supplier may ship part of an order now and the rest later, and Dubai may forward
+only part of what arrived. So a leg records each **departure** the way it records each delivery: the date it left and
+how many of each product left on it (the form starts every product at "everything still waiting here"). A leg can
+have any number of departures.
+- What can leave on a departure is what is waiting at the leg's origin: ordered (first leg) or delivered by the leg
+  before (later legs), less what already left on this leg. More is refused.
+- What a delivery can bring is what has **left** on that leg, less what was already delivered or marked lost — not
+  what entered the leg. Goods still waiting at origin cannot be delivered or marked lost on the way.
+- A leg reads **partly departed** while some goods have left and some still wait at origin.
+- The cycle's status still follows the record (§1, L3): the first departure moves it on; later ones move nothing.
+- The goods cards split each place in two: waiting at origin vs on the way.
+- The leg's freight cost stays one figure for the leg; a second freight bill for a later departure is recorded as an
+  expense charged to the cycle (§9).
+- Existing legs with one departure and no lines are read as "everything that entered it left on that day", so old
+  data keeps its meaning.
+
 **Goods that have not come are still on the way until a partner says
 otherwise.** At any point a partner can mark some or all of what is still on the
 way as **lost**, on any leg. Nothing is marked lost by itself, however long it

@@ -28,6 +28,11 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   `eslint-suppressions.json`; one new `any` in a spec pushes that file past its count and every frozen error in it
   reappears. I linted `src/` only after adding TC-ANA-08 and left 7 errors on master for the next agent. — 2026-10-11
 
+- When one end of a flow happens in parts, check the other end. Arrivals were built in parts (deliveries,
+  2026-10-10) while departures stayed one date per leg, so recording a departure put every product "on the way"
+  even when part of the order was still at the supplier or in Dubai. The owner: "sometimes thats not the case as I
+  said before, we can receive in batches". — 2026-10-12
+
 ## New apps in this product family
 
 - Copy the conventions, do not re-derive them. The storefront was scaffolded fresh and so
