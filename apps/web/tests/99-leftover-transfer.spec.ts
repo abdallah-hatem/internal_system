@@ -16,7 +16,10 @@
  *
  *  `L5_SHOTS=1` also writes the review screenshots to .ui-audit/l5/.
  */
+import { execFileSync } from 'child_process';
+import path from 'path';
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { psqlStdin } from './support/database';
 import { API, apiCtx, PASSWORD, refusedCallers } from './support/fixtures';
 import { leftoverWorld } from './support/leftovers';
 import { BASE, login, messages, type Locale } from './support/ui';
@@ -277,6 +280,54 @@ test.describe('In Arabic', () => {
     await expect(d).toHaveCount(0);
     await expect(page.getByTestId('location-card').filter({ hasText: ar.goodsLocation.moved })).toContainText('12');
     await expect(page.getByTestId('cycle-transfers')).toContainText(ar.transfers.movedOut);
+  });
+});
+
+/** `scripts/check-data.sh`'s table, check name → count (CLAUDE.md §7). */
+function checkData(): Map<string, number> {
+  let out: string;
+  try {
+    out = execFileSync('bash', [path.resolve(process.cwd(), '../../scripts/check-data.sh')], { encoding: 'utf8' });
+  } catch (e) {
+    // It exits 1 when any count is not zero; the table is still the answer.
+    out = String((e as { stdout?: string }).stdout ?? '');
+  }
+  const rows = new Map<string, number>();
+  for (const m of out.matchAll(/^\|\s*(.+?)\s*\|\s*(\d+)\s*\|$/gm)) rows.set(m[1], Number(m[2]));
+  return rows;
+}
+
+test.describe('The data check knows about transfers (CLAUDE.md §7)', () => {
+  test('TC-L5-07: with moves standing, undone and sold from, every transfer check is zero and a moved batch is not "from no delivery"; a re-priced moved batch is found', async ({ request }) => {
+    const { headers, mk, a, b, pad, customer } = await leftoverWorld(request, 'L5 Check');
+    // B has a leg of its own, so a moved batch sits on a cycle with legs.
+    await mk(`cycles/${b.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+    });
+    const undone = await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'x', lines: [{ productId: pad.id, qty: 5 }] });
+    await mk(`stock-transfers/${undone.id}/undo`, { reason: 'y' });
+    await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'z', lines: [{ productId: pad.id, qty: 30 }] });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: pad.id, quantity: 2, unitPrice: 200, discount: 0 }],
+    });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+
+    const rows = checkData();
+    const transferChecks = [...rows.keys()].filter((k) => /transfer|moved stock|moved into/.test(k));
+    expect(transferChecks.length).toBeGreaterThanOrEqual(6);
+    for (const k of [...transferChecks, 'a batch on a cycle with legs that came from no delivery']) {
+      expect(rows.get(k), k).toBe(0);
+    }
+
+    // Break one: the moved batch re-priced. The check must see it.
+    const moved = ((await (await request.get(`${API}/cycles/${b.id}`, { headers })).json()).data.inventoryBatches as any[])[0];
+    psqlStdin(`UPDATE inventory_batches SET landed_unit_cost_egp = landed_unit_cost_egp + 1 WHERE id = '${moved.id}';`);
+    try {
+      expect(checkData().get('moved stock re-priced (its batch cost differs from the source batch)')).toBe(1);
+    } finally {
+      psqlStdin(`UPDATE inventory_batches SET landed_unit_cost_egp = landed_unit_cost_egp - 1 WHERE id = '${moved.id}';`);
+    }
   });
 });
 

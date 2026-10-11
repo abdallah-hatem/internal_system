@@ -139,6 +139,8 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 12.6, 'a batch on a cycle with legs that came from no delivery',
          count(*) FROM inventory_batches b
    WHERE b.source_delivery_line_id IS NULL
+     -- Leftovers moved in from another cycle (§8, L5) came from a delivery of the cycle that gave them.
+     AND b.transferred_from_batch_id IS NULL
      AND EXISTS (SELECT 1 FROM shipping_legs l WHERE l.cycle_id = b.cycle_id)
   -- A delivery line is received in as many goes as it takes, never past what
   -- it brought (§3, 2026-10-10). Two receipts racing past each other are the
