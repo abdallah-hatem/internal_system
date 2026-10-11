@@ -118,6 +118,7 @@
     "netProfit": "Net Profit",
     "expenses": "Expenses",
     "inventoryValue": "Inventory Value",
+    "unitsInStock": "Items in stock",
     "receivables": "Receivables",
     "activeCycles": "Active Cycles",
     "lowStockAlerts": "Low Stock Alerts",
@@ -1631,6 +1632,8 @@
     "costNotNumber": "The cost for {product} is not a number.",
     "deliveryFailed": "The delivery could not be recorded.",
     "deliveryRecorded": "Delivery recorded",
+    "cycleMovedTo": "{done} — cycle is now {status}",
+    "cycleStayed": "The cycle stayed {status}: {reason}",
     "deleteDelivery": "Delete delivery",
     "deleteDeliveryTitle": "Delete this delivery?",
     "deleteDeliveryConfirm": "Only for a delivery recorded by mistake. Its goods go back to being on the way.",
@@ -1771,7 +1774,6 @@
     "pounds": "Pounds paid",
     "rate": "Rate",
     "cleared": "Cleared",
-    "account": "From account",
     "reversed": "Reversed",
     "reversedBecause": "Reversed: {reason}",
     "removed": "Removed",
@@ -1874,5 +1876,14 @@
     "movedTryAgain": "Leftovers moved. Pay out again: what the cycle still holds is read afresh.",
     "newCycleReady": "This cycle was started for another cycle’s leftover stock.",
     "backToMove": "Move them into this cycle"
+  },
+  "priceCheck": {
+    "BELOW_COST": "Below cost: each costs {cost}, you’re selling at {price}, a loss of {loss} on this line.",
+    "BELOW_COST_TOTAL": "Selling below cost: a loss of {loss} on this order.",
+    "BELOW_COST_PRICE": "Below cost: the oldest stock on the shelf cost {cost} each, so every unit sold at this price loses {loss}.",
+    "summaryTitle": "Part of this sale is below cost",
+    "lineNamed": "{product}: each costs {cost}, selling at {price}, a loss of {loss}.",
+    "confirmHint": "You can still confirm it. This is a warning, not a refusal.",
+    "unknown": "Part of this sale may be below cost."
   }
 }

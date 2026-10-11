@@ -18,6 +18,21 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   numbered steps with the share icon shown is a way in. Steps differ per browser, so name
   the browser. — 2026-08-30
 
+- A field that names another record (a cycle, a customer) or one of a fixed set (a ledger category, a
+  type) is a picker, never a text box — and the server checks the value is in the set. The ledger's New Entry
+  form had Category and Cycle ID as free text and a Type list offering system types like Purchase, and the
+  API saved whatever came, so a typed `contribution` or `purchase` row would have moved cash and profit.
+  The owner: "how is there a category that is text? also cycle Id as text ???? insane". — 2026-10-11
+
+- Lint the whole app (`npm run lint`), not the files you touched. This repo freezes old violations per file in
+  `eslint-suppressions.json`; one new `any` in a spec pushes that file past its count and every frozen error in it
+  reappears. I linted `src/` only after adding TC-ANA-08 and left 7 errors on master for the next agent. — 2026-10-11
+
+- When one end of a flow happens in parts, check the other end. Arrivals were built in parts (deliveries,
+  2026-10-10) while departures stayed one date per leg, so recording a departure put every product "on the way"
+  even when part of the order was still at the supplier or in Dubai. The owner: "sometimes thats not the case as I
+  said before, we can receive in batches". — 2026-10-12
+
 ## New apps in this product family
 
 - Copy the conventions, do not re-derive them. The storefront was scaffolded fresh and so

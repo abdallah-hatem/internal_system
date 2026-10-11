@@ -48,7 +48,13 @@ suite('undoing a refund against Postgres', () => {
     } as unknown as NotificationsService;
     const costing = new CostingService(db);
     cycles = new CyclesService(db, audit, notifications);
-    deliveries = new DeliveriesService(db, audit, notifications, costing);
+    deliveries = new DeliveriesService(
+      db,
+      audit,
+      notifications,
+      costing,
+      cycles,
+    );
     purchases = new PurchasesService(db, audit, notifications);
   });
   afterAll(() => prisma.$disconnect());

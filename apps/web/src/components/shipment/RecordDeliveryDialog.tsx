@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { businessToday } from '@/lib/dates';
 import { DatePicker } from '@/components/ui/date-picker';
-import { useToast } from '@/components/ui/toast';
+import { useAnnounceStatusMove } from './status-move';
 import {
   DialogAlert,
   DialogCancel,
@@ -41,12 +41,12 @@ export function RecordDeliveryDialog({
   productNames: Record<string, string>;
   onClose: () => void;
   /** Runs once the server accepted the delivery, before the dialog closes — a save, not a cancel. */
-  onSaved?: () => void;
+  onSaved?: (res: unknown) => void;
 }) {
   const t = useTranslations('shipment');
   const tc = useTranslations('common');
   const apiError = useApiError();
-  const toast = useToast();
+  const announce = useAnnounceStatusMove();
   const refresh = useRefreshShipment();
 
   const [arrivedOn, setArrivedOn] = useState(() => businessToday());
@@ -82,8 +82,9 @@ export function RecordDeliveryDialog({
     submitting.current = true;
     setPending(true);
     setRefusal(null);
+    let res: unknown;
     try {
-      await api.post(`/shipping/legs/${leg.legId}/deliveries`, {
+      res = await api.post(`/shipping/legs/${leg.legId}/deliveries`, {
         arrivedOn,
         lines,
         note: note.trim() || undefined,
@@ -95,8 +96,9 @@ export function RecordDeliveryDialog({
       return;
     }
     refresh();
-    toast.success(t('deliveryRecorded'));
-    onSaved?.();
+    // The delivery may have moved the cycle on (L3): say where it now stands.
+    announce(t('deliveryRecorded'), res);
+    onSaved?.(res);
     onClose();
   };
 

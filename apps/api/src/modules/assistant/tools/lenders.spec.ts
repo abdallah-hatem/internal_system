@@ -28,8 +28,8 @@ import type { AssistantUser } from '../tool-kit';
  * because "a preview writes nothing" is under test.
  *
  * Beyond the happy path (CLAUDE.md §0): too much, a future day, zero, the
- * wrong currency, a name that is close or unknown, a new friend, an order or
- * an account that is not said, the same token twice, altered arguments, a
+ * wrong currency, a name that is close or unknown, a new friend, an order
+ * that is not said, no account asked, the same token twice, altered arguments, a
  * repayment arriving between the preview and the yes, and roles the office
  * endpoints refuse.
  */
@@ -588,7 +588,6 @@ describe('get_lender — one friend', () => {
       {
         amountEgp: 54800,
         rateToEgp: 13.7,
-        accountId: ids.cash,
         paidOn: daysAgo(2),
       },
       partner.id,
@@ -617,7 +616,6 @@ describe('get_lender — one friend', () => {
         rateToEgp: '13.7000',
         cleared: '4000.00',
         exchangeDifferenceEgp: '2800.00',
-        account: 'Cash Box',
         reversed: false,
       }),
     ]);
@@ -824,7 +822,7 @@ describe('record_lender_financing — "Mahmoud paid 30,000 AED for PO-2026-0004"
 describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () => {
   it("previews at today's rate, says so, shows what it clears, what is still owed and the exchange difference; writes nothing; records exactly that on yes", async () => {
     await mahmoudPaid();
-    const args = { lender: 'Mahmoud', amountEgp: 50000, account: 'Cash Box' };
+    const args = { lender: 'Mahmoud', amountEgp: 50000 };
     const before = db.counts();
     const preview = await repay(args);
     expect(preview.s.status).toBe('preview');
@@ -833,7 +831,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
       amountEgp: '50000.00',
       rateToEgp: '13.8500',
       rateFrom: 'today',
-      account: { id: ids.cash, name: 'Cash Box' },
       paidOn: businessToday(),
       cleared: '3610.10',
       owedBefore: '30000.00',
@@ -863,7 +860,7 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
       D(r.amountEgp).toFixed(2),
       D(r.rateToEgp).toFixed(4),
       r.accountId,
-    ]).toEqual(['50000.00', '13.8500', ids.cash]);
+    ]).toEqual(['50000.00', '13.8500', null]);
   });
 
   it("a rate the partner gives is used instead of today's", async () => {
@@ -872,7 +869,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
       lender: 'Mahmoud',
       amountEgp: 13000,
       rateToEgp: 13,
-      account: 'Cash Box',
     });
     expect(r.s.data).toMatchObject({
       rateToEgp: '13.0000',
@@ -884,7 +880,7 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
 
   it('"pay him off" uses the exact settling figure and ends the debt at zero', async () => {
     await mahmoudPaid();
-    const args = { lender: 'Mahmoud', payOff: true, account: 'Bank Misr' };
+    const args = { lender: 'Mahmoud', payOff: true };
     const preview = await repay(args);
     expect(preview.s.data).toMatchObject({
       amountEgp: '415500.00',
@@ -897,23 +893,29 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     ).toBe('0.00');
   });
 
-  it("several accounts in pounds and none said: asks which, naming the office form's default; one account is taken as it", async () => {
+  // §18, owner 2026-10-11: a repayment does not ask which account the pounds
+  // left from — no other money flow records one.
+  it('no account is asked or stored, though several accounts in pounds exist; an account named anyway is not an argument', async () => {
     await mahmoudPaid();
     const asked = await repay({ lender: 'Mahmoud', amountEgp: 1000 });
-    expect(asked.s.status).toBe('needs_answers');
-    const q = asked.s.data!.questions[0];
-    expect(q.id).toBe('ACCOUNT_WHICH');
-    // Active, in pounds, by name — the dialog's list; its default first.
-    expect(q.options.map((o: any) => o.label)).toEqual([
-      'Bank Misr',
-      'Cash Box',
-    ]);
-    expect(q.text).toContain('The office form starts on Bank Misr.');
+    expect(asked.s.status).toBe('preview');
+    expect(asked.s.data).not.toHaveProperty('account');
+    expect(asked.text).not.toMatch(/account/i);
+    await repay({
+      lender: 'Mahmoud',
+      amountEgp: 1000,
+      confirmationToken: asked.s.confirmationToken,
+    });
+    const [r] = db.tables.lenderRepayment;
+    expect(r.accountId ?? null).toBeNull();
 
-    db.tables.moneyAccount.find((a) => a.id === ids.bank)!.active = false;
-    const one = await repay({ lender: 'Mahmoud', amountEgp: 1000 });
-    expect(one.s.status).toBe('preview');
-    expect(one.s.data!.account.name).toBe('Cash Box');
+    // The tool has no such parameter: what the partner called an account is
+    // dropped, never matched to one.
+    const named = await repay({
+      lender: 'Mahmoud',
+      amountEgp: 1000,
+    });
+    expect(named.s.data).not.toHaveProperty('account');
   });
 
   it('more than is owed is refused with the settling figure; nothing written', async () => {
@@ -922,7 +924,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     const r = await repay({
       lender: 'Mahmoud',
       amountEgp: 415500.01,
-      account: 'Cash Box',
     });
     expect(codeOf(r)).toBe('LENDER_REPAYMENT_EXCEEDS_OWED');
     expect(r.s.error!.params).toMatchObject({ settling: '415,500.00' });
@@ -932,7 +933,7 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
 
   it('a confirmation with a changed amount is refused', async () => {
     await mahmoudPaid();
-    const args = { lender: 'Mahmoud', amountEgp: 50000, account: 'Cash Box' };
+    const args = { lender: 'Mahmoud', amountEgp: 50000 };
     const preview = await repay(args);
     const r = await repay({
       ...args,
@@ -945,14 +946,14 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
 
   it('another repayment between the preview and the yes: PREVIEW_CHANGED, and only that one stands', async () => {
     await mahmoudPaid();
-    const args = { lender: 'Mahmoud', amountEgp: 50000, account: 'Cash Box' };
+    const args = { lender: 'Mahmoud', amountEgp: 50000 };
     const preview = await repay(args);
     const f = db.tables.lenderFinancing.find(
       (x) => x.lenderId === ids.mahmoud,
     )!;
     await lendersService.repay(
       f.id as string,
-      { amountEgp: 13000, rateToEgp: 13, accountId: ids.cash },
+      { amountEgp: 13000, rateToEgp: 13 },
       partner.id,
     );
     const r = await repay({
@@ -967,7 +968,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     const close = await repay({
       lender: 'Mahmod',
       amountEgp: 1000,
-      account: 'Cash Box',
     });
     expect(close.s.data!.questions[0].id).toBe('LENDER_WHICH');
     expect(
@@ -976,7 +976,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     const unknown = await repay({
       lender: 'Zakaria',
       amountEgp: 1000,
-      account: 'Cash Box',
     });
     expect(unknown.s.data!.questions[0].id).toBe('LENDER_UNKNOWN');
     expect(unknown.s.confirmationToken).toBeUndefined();
@@ -992,7 +991,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     const asked = await repay({
       lender: 'Mahmoud',
       amountEgp: 1000,
-      account: 'Cash Box',
     });
     expect(asked.s.data!.questions[0].id).toBe('FINANCING_WHICH');
     expect(asked.s.data!.questions[0].options.map((o: any) => o.value)).toEqual(
@@ -1001,7 +999,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     const named = await repay({
       lender: 'Mahmoud',
       amountEgp: 1000,
-      account: 'Cash Box',
       order: 'po-2026-0005',
     });
     expect(named.s.data).toMatchObject({
@@ -1016,7 +1013,6 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
         await repay({
           lender: 'Mahmoud Hassan',
           amountEgp: 1000,
-          account: 'Cash Box',
         }),
       ),
     ).toBe('LENDER_NOT_OWED');
@@ -1028,14 +1024,13 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     const r = await repay({
       lender: 'Mahmoud Hassan',
       amountEgp: 1000,
-      account: 'Cash Box',
     });
     expect(r.s.data!.questions.map((q: any) => q.id)).toEqual(['RATE_NEEDED']);
   });
 
   it('neither or both of amountEgp and payOff, a future day, and a zero amount are refused with a code', async () => {
     await mahmoudPaid();
-    const base = { lender: 'Mahmoud', account: 'Cash Box' };
+    const base = { lender: 'Mahmoud' };
     expect(codeOf(await repay(base))).toBe('VALIDATION_FAILED');
     expect(codeOf(await repay({ ...base, amountEgp: 10, payOff: true }))).toBe(
       'VALIDATION_FAILED',
@@ -1055,12 +1050,7 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
       const other = await connectAs({ ...partner, id: randomUUID(), role });
       expect([
         role,
-        codeOf(
-          await repay(
-            { lender: 'Mahmoud', amountEgp: 1000, account: 'Cash Box' },
-            other,
-          ),
-        ),
+        codeOf(await repay({ lender: 'Mahmoud', amountEgp: 1000 }, other)),
       ]).toEqual([role, 'ROLE_NOT_ALLOWED']);
       await other.close();
     }
@@ -1118,7 +1108,6 @@ describe('lender tools — the documented cases, each named (L2 review)', () => 
     const r = await repay({
       lender: 'Mahmoud',
       amountEgp: 1000,
-      account: 'Cash Box',
       paidOn: daysAgo(25),
     });
     expect(codeOf(r)).toBe('LENDER_REPAYMENT_BEFORE_FINANCING');
@@ -1151,7 +1140,7 @@ describe('lender tools — the documented cases, each named (L2 review)', () => 
     const f = await mahmoudPaid();
     await lendersService.repay(
       f,
-      { amountEgp: 390000, rateToEgp: 13, accountId: ids.cash },
+      { amountEgp: 390000, rateToEgp: 13 },
       partner.id,
     );
     for (const status of ['SETTLEMENT', 'CLOSED']) {
@@ -1160,13 +1149,11 @@ describe('lender tools — the documented cases, each named (L2 review)', () => 
       const unnamed = await repay({
         lender: 'Mahmoud',
         amountEgp: 1000,
-        account: 'Cash Box',
       });
       expect([status, codeOf(unnamed)]).toEqual([status, 'LENDER_NOT_OWED']);
       const named = await repay({
         lender: 'Mahmoud',
         amountEgp: 1000,
-        account: 'Cash Box',
         order: 'PO-2026-0004',
       });
       expect([status, codeOf(named)]).toEqual([
@@ -1193,13 +1180,11 @@ describe('lender tools — the documented cases, each named (L2 review)', () => 
     const unnamed = await repay({
       lender: 'Mahmoud Hassan',
       amountEgp: 100,
-      account: 'Cash Box',
     });
     expect(codeOf(unnamed)).toBe('LENDER_NOT_OWED');
     const named = await repay({
       lender: 'Mahmoud Hassan',
       amountEgp: 100,
-      account: 'Cash Box',
       order: 'PO-2026-0005',
     });
     expect(codeOf(named)).toBe('NOT_FOUND');

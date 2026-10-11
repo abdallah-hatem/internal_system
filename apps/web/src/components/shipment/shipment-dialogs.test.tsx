@@ -485,3 +485,65 @@ describe('Shipment panel: losses', () => {
     expect(screen.getByRole('option', { name: /Dubai Parts/ })).toBeTruthy();
   });
 });
+
+// L3 (§1, 2026-10-11): the record moves the cycle on by itself, and the
+// success toast says where it now stands.
+describe('the status a record moved the cycle to', () => {
+  const move = (over: Record<string, unknown> = {}) => ({
+    cycleId: 'c-1',
+    from: 'IN_TRANSIT_TO_EGYPT',
+    to: 'ARRIVED_EGYPT',
+    moved: true,
+    steps: ['ARRIVED_EGYPT'],
+    stoppedAt: null,
+    ordersConfirmed: [],
+    ...over,
+  });
+  const submitDelivery = async () => {
+    const onClose = vi.fn();
+    wrap(<RecordDeliveryDialog leg={leg()} productNames={NAMES} onClose={onClose} />);
+    type(qty('delivery-qty', 'poi-1'), '15');
+    type(qty('delivery-qty', 'poi-2'), '');
+    fireEvent.click(within(dialog('record-delivery')).getByRole('button', { name: 'Record delivery' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  };
+
+  it('a delivery that moved the cycle: "Delivery recorded — cycle is now Arrived Egypt"', async () => {
+    state.answer = () => Promise.resolve({ data: { data: { id: 'd-1' }, cycleStatus: move() } });
+    await submitDelivery();
+    expect(await screen.findByText('Delivery recorded — cycle is now Arrived Egypt')).toBeTruthy();
+  });
+
+  it('a delivery that did not move it says only that it was recorded', async () => {
+    state.answer = () =>
+      Promise.resolve({ data: { data: { id: 'd-1' }, cycleStatus: move({ from: 'ARRIVED_EGYPT', moved: false, steps: [] }) } });
+    await submitDelivery();
+    expect(await screen.findByText('Delivery recorded')).toBeTruthy();
+    expect(screen.queryByText(/cycle is now/)).toBeNull();
+  });
+
+  it('a step that refused: the record saved, and a warning names where the cycle stayed and why', async () => {
+    state.answer = () =>
+      Promise.resolve({
+        data: {
+          data: { id: 'd-1' },
+          cycleStatus: move({
+            from: 'PLANNING',
+            to: 'PURCHASING',
+            steps: ['FUNDING', 'PURCHASING'],
+            stoppedAt: {
+              status: 'ARRIVED_UAE',
+              code: 'PO_HAS_NO_ITEMS',
+              message: 'English fallback',
+              params: { reference: 'PO-2026-0009' },
+            },
+          }),
+        },
+      });
+    await submitDelivery();
+    expect(await screen.findByText('Delivery recorded — cycle is now Purchasing')).toBeTruthy();
+    const warning = await screen.findByText(/^The cycle stayed Purchasing: /);
+    expect(warning.textContent).toContain('This purchase order has no items.');
+    expect(warning.textContent).not.toContain('English fallback');
+  });
+});

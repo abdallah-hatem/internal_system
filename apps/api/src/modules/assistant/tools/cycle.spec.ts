@@ -11,11 +11,11 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import { businessToday } from '../../../common/dates';
 import { PrismaService } from '../../../prisma/prisma.service';
-import type { AuditService } from '../../audit/audit.service';
+import { AuditService } from '../../audit/audit.service';
 import { CostingService } from '../../costing/costing.service';
 import { CyclesService } from '../../cycles/cycles.service';
 import { InventoryService } from '../../inventory/inventory.service';
-import type { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { ShippingService } from '../../shipping/shipping.service';
 import { DeliveriesService } from '../../shipping/deliveries.service';
 import { AssistantServer } from '../assistant-server';
@@ -320,7 +320,27 @@ function fakePrisma() {
         Promise.resolve(db.nonces.has(where.jti) ? { jti: where.jti } : null),
     },
   };
-  prisma.$transaction = (fn: (tx: Row) => Promise<unknown>) => fn(prisma);
+  // Rolled back on a throw, as Postgres does: a preview made by rolling the
+  // write back (dry-run.ts, L3's status preview) must leave nothing behind.
+  prisma.$transaction = async (fn: (tx: Row) => Promise<unknown>) => {
+    const store = db as unknown as Record<string, unknown>;
+    const snapshot = new Map<string, Row[]>();
+    for (const [k, v] of Object.entries(store)) {
+      if (Array.isArray(v))
+        snapshot.set(
+          k,
+          v.map((r: Row) => ({ ...r })),
+        );
+    }
+    try {
+      return await fn(prisma);
+    } catch (err) {
+      for (const [k, rows] of snapshot) {
+        (store[k] as Row[]).splice(0, (store[k] as Row[]).length, ...rows);
+      }
+      throw err;
+    }
+  };
   // The cycle's row lock (lockCycle): one test, one caller, nothing to wait on.
   prisma.$queryRaw = () => Promise.resolve([]);
   return prisma as unknown as PrismaService;
@@ -506,7 +526,13 @@ beforeEach(async () => {
       prisma,
       audit,
       costing,
-      new DeliveriesService(prisma, audit, notifications, costing),
+      new DeliveriesService(
+        prisma,
+        audit,
+        notifications,
+        costing,
+        cyclesService,
+      ),
     ),
     inventory: new InventoryService(
       prisma,
@@ -521,6 +547,9 @@ beforeEach(async () => {
     [ShippingService, services.shipping],
     [InventoryService, services.inventory],
     [PrismaService, prisma],
+    [CostingService, costing],
+    [AuditService, audit],
+    [NotificationsService, notifications],
   ]);
   const assistant = new AssistantServer(
     new ConfirmationService(

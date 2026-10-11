@@ -64,6 +64,9 @@ async function repay(page: Page, card: ReturnType<Page['getByTestId']>, rate: st
   await card.getByTestId('record-repayment').click();
   const dialog = page.getByTestId('record-repayment-dialog');
   await expect(dialog).toBeVisible();
+  // No money account is asked (§18, owner 2026-10-11).
+  await expect(dialog.locator('[data-date-picker], input, [role="combobox"]').filter({ hasText: /account/i })).toHaveCount(0);
+  await expect(dialog.getByText(/account/i)).toHaveCount(0);
   const rateField = dialog.locator('#repayment-rate');
   // Select-on-focus: a click selects what is there, so typing replaces it.
   await rateField.click();
@@ -202,7 +205,6 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
   test('TC-L1-02: a role that may not move money is refused, and a partner is not', async ({ request }) => {
     const { headers, mk, po, stamp } = await dirhamCycle(request, 'L1R');
     const lender = await mk('lenders', { name: `Friend R ${stamp}` });
-    const accounts = (await (await request.get(`${API}/ledger/accounts`, { headers })).json()).data;
 
     for (const caller of await refusedCallers(request, 'l1')) {
       const writes: [string, Record<string, unknown>][] = [
@@ -219,12 +221,12 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 100 });
     for (const caller of await refusedCallers(request, 'l1b')) {
       const res = await request.post(`${API}/lender-financings/${f.id}/repayments`, {
-        headers: caller.headers, data: { amountEgp: 100, rateToEgp: 13, accountId: accounts[0].id },
+        headers: caller.headers, data: { amountEgp: 100, rateToEgp: 13 },
       });
       expect(res.status(), caller.who).toBe(403);
       expect((await res.json()).error.code, caller.who).toBe(caller.code);
     }
-    const ok = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 100, rateToEgp: 13, accountId: accounts[0].id });
+    const ok = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 100, rateToEgp: 13 });
     expect(ok.owed).toBe('92.31');
   });
 });

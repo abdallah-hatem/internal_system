@@ -181,6 +181,11 @@ export class AnalyticsService {
     const inventoryValue = inventoryBatches.reduce((sum, b) => {
       return sum + Number(b.remainingQty) * Number(b.landedUnitCostEgp);
     }, 0);
+    // Units on the shelf across every product: the same "stock on hand" the
+    // low-stock rule counts — each batch's remaining quantity, summed (§3).
+    const unitsInStock = money(
+      inventoryBatches.reduce((sum, b) => sum.add(D(b.remainingQty)), D(0)),
+    );
 
     // Receivables: sum of outstanding > 0 from confirmed sales orders
     const receivableOrders = await this.prisma.saleOrder.findMany({
@@ -254,6 +259,7 @@ export class AnalyticsService {
         netProfit: money(netProfit),
         activeCycles,
         inventoryValue,
+        unitsInStock,
         receivables,
         lowStockAlerts,
         totalCustomers,

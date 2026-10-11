@@ -118,6 +118,7 @@
     "netProfit": "صافي الربح",
     "expenses": "المصروفات",
     "inventoryValue": "قيمة المخزون",
+    "unitsInStock": "عدد القطع في المخزون",
     "receivables": "المبالغ المستحقة",
     "activeCycles": "الدورات النشطة",
     "lowStockAlerts": "تنبيهات انخفاض المخزون",
@@ -1631,6 +1632,8 @@
     "costNotNumber": "تكلفة {product} ليست رقماً.",
     "deliveryFailed": "تعذّر تسجيل التسليمة.",
     "deliveryRecorded": "سُجّلت التسليمة",
+    "cycleMovedTo": "{done} — الدورة الآن {status}",
+    "cycleStayed": "بقيت الدورة {status}: {reason}",
     "deleteDelivery": "حذف التسليمة",
     "deleteDeliveryTitle": "حذف هذه التسليمة؟",
     "deleteDeliveryConfirm": "فقط لتسليمة سُجّلت بالخطأ. تعود بضاعتها إلى «في الطريق».",
@@ -1771,7 +1774,6 @@
     "pounds": "المدفوع بالجنيه",
     "rate": "السعر",
     "cleared": "سدّد من الدين",
-    "account": "من حساب",
     "reversed": "مُلغى",
     "reversedBecause": "أُلغي: {reason}",
     "removed": "محذوف",
@@ -1874,5 +1876,14 @@
     "movedTryAgain": "نُقلت البضاعة المتبقية. أعد التسوية: يُقرأ ما تبقى في الدورة من جديد.",
     "newCycleReady": "بُدئت هذه الدورة لبضاعة متبقية من دورة أخرى.",
     "backToMove": "انقلها إلى هذه الدورة"
+  },
+  "priceCheck": {
+    "BELOW_COST": "أقل من التكلفة: تكلفة القطعة {cost}، وتبيعها بـ {price}، أي خسارة {loss} في هذا البند.",
+    "BELOW_COST_TOTAL": "البيع أقل من التكلفة: خسارة {loss} في هذا الطلب.",
+    "BELOW_COST_PRICE": "أقل من التكلفة: أقدم مخزون على الرف تكلفة القطعة منه {cost}، فكل قطعة تُباع بهذا السعر تخسر {loss}.",
+    "summaryTitle": "جزء من هذا البيع أقل من التكلفة",
+    "lineNamed": "{product}: تكلفة القطعة {cost}، وتبيعها بـ {price}، أي خسارة {loss}.",
+    "confirmHint": "يمكنك تأكيده رغم ذلك. هذا تنبيه وليس رفضًا.",
+    "unknown": "قد يكون جزء من هذا البيع أقل من التكلفة."
   }
 }
