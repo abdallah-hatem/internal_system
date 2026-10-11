@@ -209,6 +209,26 @@ describe('Cycles list', () => {
     expect(state.pushes).toEqual(['/en/cycles/c-1/details']);
   });
 
+  it('Details is the last action in every row, with or without Continue setup, and it opens the details', async () => {
+    // Details used to sit left of Continue setup, so rows with and without
+    // setup left it at two different x positions — a ragged column.
+    for (const status of ['PLANNING', 'SELLING']) {
+      state.status = status;
+      state.pushes = [];
+      wrap(<CyclesPage />);
+      const row = (await screen.findAllByTestId('cycle-row'))[0];
+      const details = within(row).getByTestId('cycle-details');
+      const actions = details.parentElement!;
+      expect(actions.lastElementChild, status).toBe(details);
+      expect(within(row).queryAllByTestId('continue-setup').length, status).toBe(status === 'PLANNING' ? 1 : 0);
+      // A button inside the row says what it is; it is not a submit.
+      expect(details.getAttribute('type')).toBe('button');
+      fireEvent.click(details);
+      expect(state.pushes, status).toEqual(['/en/cycles/c-1/details']);
+      cleanup();
+    }
+  });
+
   it('offers no status change on the list — that lives on the details page', async () => {
     state.status = 'SELLING';
     wrap(<CyclesPage />);

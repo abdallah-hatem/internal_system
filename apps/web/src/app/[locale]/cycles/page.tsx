@@ -213,7 +213,7 @@ export default function CyclesPage() {
                 <th className="text-end px-4 py-3 font-medium text-gray-600">{t('profit')}</th>
                 <th className="text-end px-4 py-3 font-medium text-gray-600">{t('roi')}</th>
                 <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('date')}</th>
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
+                <th className="text-end px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -255,10 +255,16 @@ export default function CyclesPage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex items-center justify-end gap-3">
+                          {/* Continue setup comes first and Details last, so
+                              Details sits at the column's end in every row
+                              whether or not the cycle still has setup to do. */}
+                          <ContinueSetupLink cycleId={cycle.id} status={cycle.status} />
                           {/* Details is offered for every cycle, in every
                               status. A closed one is the one you most want to
                               look back at and it used to show the least. */}
                           <button
+                            type="button"
+                            data-testid="cycle-details"
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(`/${locale}/cycles/${cycle.id}/details`);
@@ -267,7 +273,6 @@ export default function CyclesPage() {
                           >
                             {tc('details')}
                           </button>
-                          <ContinueSetupLink cycleId={cycle.id} status={cycle.status} />
                         </div>
                       </td>
                     </tr>
