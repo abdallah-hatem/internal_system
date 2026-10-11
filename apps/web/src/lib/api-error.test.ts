@@ -41,8 +41,8 @@ describe('refusal params that are codes', () => {
     const said = inArabic('DATE_RANGE_REVERSED', { from: '2026-10-11', to: '2026-10-06' });
     expect(said).toContain('⁦2026-10-11⁩');
     expect(said).toContain('⁦2026-10-06⁩');
-    // In English the marks are invisible and the words unchanged.
-    expect(inEnglish('DATE_RANGE_REVERSED', { from: '2026-10-11', to: '2026-10-06' }).replace(/[⁦⁩]/g, '')).toBe(
+    // English is left exactly as it was — no marks at all.
+    expect(inEnglish('DATE_RANGE_REVERSED', { from: '2026-10-11', to: '2026-10-06' })).toBe(
       'The range starts on 2026-10-11, after it ends on 2026-10-06.',
     );
   });
