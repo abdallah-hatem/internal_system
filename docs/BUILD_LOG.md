@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: resumed 2026-10-11 — subagent finishing the branch (status button on details, slide-over removed, measurements, Vitest, spec 94, specs 29/80, full e2e) · in flight: branch `fix/row-alignment-and-cycle-nav` (field rows misalign when one shows its error; clicking a cycle should open its details with a separate Continue setup) — merge, verify on screen, test, ship
+Current stage: resumed 2026-10-11 — first agent died after `bcdd701` (status button on details, slide-over gone) and the alignment measurements (41 states, all 0px deltas, `.ui-audit/rowfix/`); second agent finishing: Details-column nit, spec 94, specs 29/80, lint/unit, full e2e · in flight: branch `fix/row-alignment-and-cycle-nav` (field rows misalign when one shows its error; clicking a cycle should open its details with a separate Continue setup) — merge, verify on screen, test, ship
 
 ## Waiting on the user
 _(none)_
