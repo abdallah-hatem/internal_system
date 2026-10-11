@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: I1 live in production 2026-10-11 (`0835007`) · I2 merged into master 2026-10-11 (not pushed; check-data check 18 on production first) · I3 phase 1 building (no DB)
+Current stage: I2 live in production 2026-10-11 (`74f85ea`, three deploys READY, smoke ok; no production order hit by the partial-return bug) · I3 phase 1 built on `feature/i3-cycle-details`, phase 2 (e2e + screenshots) running
 
 ## Waiting on the user
 _(none)_
@@ -14,7 +14,7 @@ _(none)_
 
 ## Next up
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
-- Ship I2 (merged 2026-10-11): assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
+- I2 shipped 2026-10-11: assistant `record_payment` (owner-approved, §16) with "oldest first" moved to
   the server; printable sale invoice / delivery note (§4); customer statement with print + CSV (§7b); recent activity
   links the shop; Sales/Payments keep their rows while a new range loads; AppModule compiles in jest; FIFO across two
   selling cycles pinned (34 TC-INV-30). **Found and fixed: a partial return marked the whole order RETURNED and its
