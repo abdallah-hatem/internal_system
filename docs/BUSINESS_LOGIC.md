@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what).
+Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page).
 
 ---
 
@@ -122,6 +122,25 @@ somewhere to go; it offers exactly the moves the server allows (the table in
 the shipment's dates do not support (table above). The list has no status
 control: the slide-over that held it could no longer be reached once a row
 opened the details page, and was removed.
+
+**DECIDED 2026-10-11 (owner, I3) — a leg's departure and its deliveries are
+recorded from the cycle's page.** Each leg on the details page's Shipping card
+carries **Record departure** while it has not left, and **Record delivery**
+once it has left and still has goods on the way. They are the same dialog and
+the same request as everywhere else — the departure is the date the Shipments
+page's edit form sets (`PUT /shipping/legs/:id`, one field definition used in
+both places), the delivery is the Shipment panel's dialog — and they follow the
+same roles (a core partner). After this the wizard is only for setting a cycle
+up. Guesses, open until confirmed (autonomous run, 2026-10-11):
+- Neither button is shown on a cycle being settled, closed or cancelled — the
+  same statuses in which the server refuses a delivery. Recording a departure
+  there is now refused by the server too (`CYCLE_SETTLING` / `CYCLE_CLOSED`); it
+  used to be accepted. Re-sending the departure a leg already has (the edit form
+  does, on every save) is not a change and is still accepted.
+- Record departure is offered only on a leg with no departure yet. Correcting a
+  departure stays on the Shipments page's edit form.
+- The departure starts at Cairo's today and cannot be a later day, like a
+  delivery.
 
 ---
 

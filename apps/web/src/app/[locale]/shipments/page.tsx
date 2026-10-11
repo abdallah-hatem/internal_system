@@ -25,6 +25,7 @@ import { FieldWithQuickCreate } from '../../../components/ui/quick-create';
 import { InputField } from '../../../components/ui/fields';
 import { useCodeLabel } from '../../../lib/labels';
 import { SHIPMENT_QUERY_KEYS } from '../../../components/shipment/ShipmentDialog';
+import { DepartedOnField } from '@/components/shipment/RecordDepartureDialog';
 import { Link } from '../../../i18n/navigation';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -472,7 +473,8 @@ export default function ShipmentsPage() {
             className="space-y-4"
           >
             <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('departedOn')} name="departedOn" type="date" defaultValue={editingShipment.departedOn} />
+              {/* The same field Record departure renders on the cycle page (I3): one definition. */}
+              <DepartedOnField label={t('departedOn')} defaultValue={editingShipment.departedOn ?? undefined} />
               <div>
                 <p className="mb-1 block text-sm font-medium text-foreground">{t('arrivedOn')}</p>
                 <p data-testid="leg-arrival" className="px-3 py-2 text-sm text-muted-foreground">

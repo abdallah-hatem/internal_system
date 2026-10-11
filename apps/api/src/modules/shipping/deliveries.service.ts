@@ -103,7 +103,7 @@ export function deliveryDay(value: string | undefined): string {
 }
 
 /** Refuse anything on a cycle that is cancelled, being settled or closed. */
-function assertOpen(cycle: { code: string; status: string }) {
+export function assertOpen(cycle: { code: string; status: string }) {
   if (cycle.status === 'CANCELLED') {
     throw badRequest(
       'CYCLE_CLOSED',
