@@ -4,7 +4,7 @@ import { LatinText } from '@/components/ui/latin-text';
 import { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { PackageCheck, PackageX, Plus, Trash2, Undo2, HandCoins, Truck, MapPin } from 'lucide-react';
+import { PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/toast';
 import { statusesToWalk } from '@/components/cycles/wizard-walk';
 import { useRefreshShipment } from './ShipmentDialog';
 import { RecordDeliveryDialog } from './RecordDeliveryDialog';
+import { RecordDepartureDialog } from './RecordDepartureDialog';
 import { ReceiveDeliveryDialog } from './ReceiveDeliveryDialog';
 import { MarkLostDialog } from './MarkLostDialog';
 import { RecordRefundDialog, type RefundPayer } from './RecordRefundDialog';
@@ -42,7 +43,13 @@ export interface PanelCycle {
   id: string;
   status: string;
   originType: string;
-  shippingLegs?: { id: string; providerId?: string | null; provider?: string | null }[];
+  shippingLegs?: {
+    id: string;
+    providerId?: string | null;
+    provider?: string | null;
+    /** The leg's cost in EGP, shown in its header. */
+    amountEgp?: number | string | null;
+  }[];
   purchaseOrders?: {
     supplierId?: string | null;
     supplier?: { id: string; name: string } | null;
@@ -52,6 +59,7 @@ export interface PanelCycle {
 
 /** Which dialog is open. One value, so every way of closing clears all of it. */
 type Open =
+  | { kind: 'departure'; legId: string }
   | { kind: 'delivery'; legId: string }
   | { kind: 'lost'; legId: string }
   | { kind: 'receive'; legId: string; deliveryId: string }
@@ -71,6 +79,9 @@ type ShipmentPermissions = ReturnType<typeof useShipmentPermissions>;
 function useShipmentPermissions() {
   return {
     transition: useCan('cycle.transition'),
+    // PUT /shipping/legs/:id — the departure date, as the Shipments page sets it (I3).
+    recordDeparture: useCan('shippingLeg.edit'),
+    createLeg: useCan('shippingLeg.create'),
     recordDelivery: useCan('shipment.recordDelivery'),
     deleteDelivery: useCan('shipment.deleteDelivery'),
     markLost: useCan('shipment.markLost'),
@@ -101,6 +112,7 @@ export function useShipment(cycleId: string | undefined) {
  */
 export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
   const t = useTranslations('shipment');
+  const tCycles = useTranslations('cycles');
   const apiError = useApiError();
   const toast = useToast();
   const refresh = useRefreshShipment();
@@ -213,7 +225,13 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
       )}
 
       {legs.length === 0 ? (
-        <EmptyState title={t('noLegs')} description={t('noLegsHint')} icon={Truck} />
+        <EmptyState
+          title={t('noLegs')}
+          description={t('noLegsHint')}
+          icon={Truck}
+          // The details page's old Shipping card offered this way to add one.
+          action={may.createLeg && !frozen ? { label: tCycles('goToShipments'), href: '/shipments' } : undefined}
+        />
       ) : shipment.lines.length === 0 ? (
         <EmptyState title={t('nothingOrdered')} icon={Truck} />
       ) : (
@@ -222,6 +240,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
             <LegBlock
               key={leg.legId}
               leg={leg}
+              meta={cycle.shippingLegs?.find((l) => l.id === leg.legId)}
               productNames={productNames}
               ordered={ordered}
               frozen={frozen}
@@ -234,6 +253,9 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
       )}
 
       {/* Dialogs portal to <body>; the ids are looked up again so they always show the latest figures. */}
+      {open?.kind === 'departure' && legById(open.legId) && (
+        <RecordDepartureDialog leg={legById(open.legId)!} onClose={close} />
+      )}
       {open?.kind === 'delivery' && legById(open.legId) && (
         <RecordDeliveryDialog leg={legById(open.legId)!} productNames={productNames} onClose={close} />
       )}
@@ -300,6 +322,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
 
 function LegBlock({
   leg,
+  meta,
   productNames,
   ordered,
   frozen,
@@ -308,6 +331,8 @@ function LegBlock({
   onOpen,
 }: {
   leg: ShipmentLeg;
+  /** The leg row from the cycle: who carries it and what it costs. */
+  meta?: NonNullable<PanelCycle['shippingLegs']>[number];
   productNames: Record<string, string>;
   ordered: Map<string, number>;
   frozen: boolean;
@@ -322,7 +347,7 @@ function LegBlock({
   const losses = leg.losses ?? [];
 
   return (
-    <div data-testid="shipment-leg" data-leg-sequence={leg.sequence} className="space-y-3">
+    <div data-testid="shipment-leg" data-leg-id={leg.legId} data-leg-sequence={leg.sequence} className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           {/* The leg number and the route are separate flex items, so a Latin
@@ -335,12 +360,37 @@ function LegBlock({
             <span data-testid="leg-status" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
               {codeLabel('legStatus', leg.status)}
             </span>
-            <span>{leg.departedOn ? t('departedOn', { date: formatDate(leg.departedOn) }) : t('notDeparted')}</span>
+            <span data-testid="leg-departure">
+              {leg.departedOn ? t('departedOn', { date: formatDate(leg.departedOn) }) : t('notDeparted')}
+            </span>
             {leg.arrivedOn && <span>{t('arrivedOn', { date: formatDate(leg.arrivedOn) })}</span>}
+            {/* Who carries it and what it costs — the old Shipping card's columns (I3). */}
+            {meta?.provider && (
+              <span data-testid="leg-provider">
+                <LatinText>{meta.provider}</LatinText>
+              </span>
+            )}
+            {meta && (
+              <span data-testid="leg-cost">
+                <Money value={num(meta.amountEgp)} />
+              </span>
+            )}
           </p>
         </div>
         {!frozen && (
           <div className="flex flex-wrap gap-2">
+            {/* A leg that has not left: its departure, from here (I3). Once it
+                has, a delivery; never both. */}
+            {may.recordDeparture && !leg.departedOn && leg.status === 'PENDING' && (
+              <button
+                type="button"
+                data-testid="record-departure"
+                onClick={() => onOpen({ kind: 'departure', legId: leg.legId })}
+                className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:min-h-0"
+              >
+                <Send className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" /> {t('recordDeparture')}
+              </button>
+            )}
             {may.recordDelivery && leg.onTheWay > 0 && leg.departedOn && (
               <button
                 type="button"

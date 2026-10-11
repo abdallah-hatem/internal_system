@@ -1,5 +1,4 @@
 'use client';
-import { CycleShippingCard } from '@/components/cycles/cycle-shipping-card';
 import { GoodsLocationCards } from '@/components/cycles/goods-location-cards';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
@@ -76,7 +75,6 @@ export default function CycleDetailsPage() {
   const canEditParticipant = useCan('cycle.editParticipant');
   const canListUsers = useCan('users.list');
   const canAddPurchase = useCan('purchase.create');
-  const canAddLeg = useCan('shippingLeg.create');
   const { formatNumber } = useNumberFormat();
 
   const { data: cycle, isLoading } = useQuery<any>({
@@ -335,13 +333,6 @@ export default function CycleDetailsPage() {
         )}
       </Card>
 
-      {/* Each leg's status and deliveries, as the shipment reads them, with
-          Record departure and Record delivery on the leg itself (I3). */}
-      <CycleShippingCard
-        cycle={cycle}
-        shipment={shipment}
-        emptyAction={canAddLeg && !isClosed ? { label: t('goToShipments'), href: '/shipments' } : undefined}
-      />
       <Card title={t('inventory')} icon={<Boxes className="h-4 w-4 text-gray-400" />}>
         {batches.length === 0 ? (
           <EmptyState size="compact" icon={Boxes} title={t('noBatchesTitle')} description={t('noBatchesHint')} />

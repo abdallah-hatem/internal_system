@@ -11,7 +11,7 @@
  *  Every flow reaches the page through the menu and the cycles list, the way
  *  a person does (CLAUDE.md §2); cycles are built through the API as a
  *  partner (§4). Unit tests for the same rules:
- *  src/components/cycles/{cycle-shipping-card,cycle-status-fix,goods-location*}.test.ts(x)
+ *  src/components/cycles/{cycle-leg-actions,cycle-status-fix,goods-location*}.test.ts(x)
  *  and apps/api/src/modules/shipping/deliveries.service.spec.ts.
  *
  *  `I3_SHOTS=1` also writes the review screenshots to .ui-audit/i3/.
@@ -110,7 +110,7 @@ async function openCyclePhone(page: Page, code: string, id: string, locale: Loca
   await expect(page.getByTestId('cycle-status')).toBeVisible();
 }
 
-const leg = (page: Page, legId: string) => page.locator(`[data-testid="shipping-card-leg"][data-leg-id="${legId}"]`);
+const leg = (page: Page, legId: string) => page.locator(`[data-testid="shipment-leg"][data-leg-id="${legId}"]`);
 const dialog = (page: Page, kind: string) => page.locator(`[data-shipment-dialog="${kind}"]`);
 
 /** The cycle totals the location cards show, place → figure. */
@@ -144,20 +144,29 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
     await openCycle(page, cycle.code, cycle.id);
 
     expect(await cards(page)).toEqual({ inChina: '50', toUae: '0', inUae: '0', toEgypt: '0', inEgypt: '0', sold: '0' });
+    // One place for the legs: each listed once, in the Shipment panel, and no
+    // second Shipping card repeating them with its own Record delivery.
+    await expect(page.getByTestId('shipment-leg')).toHaveCount(2);
+    await expect(page.getByTestId('shipping-card')).toHaveCount(0);
+    await expect(page.getByTestId('record-departure')).toHaveCount(2);
+    await expect(leg(page, legs[0].id).getByTestId('record-departure')).toHaveCount(1);
     // Not departed: departure offered, delivery not.
-    await expect(leg(page, legs[0].id).getByTestId('leg-record-delivery')).toHaveCount(0);
-    await leg(page, legs[0].id).getByTestId('leg-record-departure').click();
+    await expect(leg(page, legs[0].id).getByTestId('record-delivery')).toHaveCount(0);
+    await leg(page, legs[0].id).getByTestId('record-departure').click();
     await expect(dialog(page, 'record-departure')).toBeVisible();
     await dialog(page, 'record-departure').getByRole('button', { name: en.shipment.recordDeparture, exact: true }).click();
     await expect(dialog(page, 'record-departure')).toHaveCount(0);
     await expect(page.getByText(en.shipment.departureRecorded)).toBeVisible();
 
     // The leg reads in transit and now offers a delivery; the cards moved without a reload.
-    await expect(leg(page, legs[0].id).getByTestId('shipping-card-status')).toHaveText(en.codes.legStatus.IN_TRANSIT);
-    await expect(leg(page, legs[0].id).getByTestId('leg-record-departure')).toHaveCount(0);
+    await expect(leg(page, legs[0].id).getByTestId('leg-status')).toHaveText(en.codes.legStatus.IN_TRANSIT);
+    await expect(leg(page, legs[0].id).getByTestId('record-departure')).toHaveCount(0);
+    // Exactly one Record delivery on the whole page: leg 1's, in its header.
+    await expect(page.getByTestId('record-delivery')).toHaveCount(1);
+    await expect(leg(page, legs[0].id).getByTestId('record-delivery')).toHaveCount(1);
     await expect.poll(() => cards(page)).toEqual({ inChina: '0', toUae: '50', inUae: '0', toEgypt: '0', inEgypt: '0', sold: '0' });
 
-    await leg(page, legs[0].id).getByTestId('leg-record-delivery').click();
+    await leg(page, legs[0].id).getByTestId('record-delivery').click();
     const d = dialog(page, 'record-delivery');
     const pads = d.getByTestId('delivery-qty').first();
     await expect(pads).toHaveValue('40');
@@ -167,7 +176,7 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
     await d.getByRole('button', { name: en.shipment.recordDelivery, exact: true }).click();
     await expect(d).toHaveCount(0);
 
-    await expect(leg(page, legs[0].id).getByTestId('shipping-card-status')).toHaveText(en.codes.legStatus.PARTLY_ARRIVED);
+    await expect(leg(page, legs[0].id).getByTestId('leg-status')).toHaveText(en.codes.legStatus.PARTLY_ARRIVED);
     await expect.poll(() => cards(page)).toEqual({ inChina: '0', toUae: '35', inUae: '15', toEgypt: '0', inEgypt: '0', sold: '0' });
     // Per product, too.
     const padRow = page.getByTestId('location-row').filter({ hasText: 'Brake pad' });
@@ -192,9 +201,9 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
     await openCycle(page, cycle.code, cycle.id);
 
     expect((await cards(page)).toUae).toBe('50');
-    await expect(page.getByTestId('shipping-card-leg')).toHaveCount(2);
-    await expect(page.getByTestId('leg-record-departure')).toHaveCount(0);
-    await expect(page.getByTestId('leg-record-delivery')).toHaveCount(0);
+    await expect(page.getByTestId('shipment-leg')).toHaveCount(2);
+    await expect(page.getByTestId('record-departure')).toHaveCount(0);
+    await expect(page.getByTestId('record-delivery')).toHaveCount(0);
     await expect(page.getByTestId('change-status')).toHaveCount(0);
 
     const investor = await tokenFor(request, INVESTOR_EMAIL);
@@ -207,9 +216,9 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
     const { headers, cycle, legs } = await cycleWithLegs(request, 'UAE_DIRECT', { status: ['CANCELLED'] });
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
-    await expect(page.getByTestId('shipping-card-leg')).toHaveCount(1);
-    await expect(page.getByTestId('leg-record-departure')).toHaveCount(0);
-    await expect(page.getByTestId('leg-record-delivery')).toHaveCount(0);
+    await expect(page.getByTestId('shipment-leg')).toHaveCount(1);
+    await expect(page.getByTestId('record-departure')).toHaveCount(0);
+    await expect(page.getByTestId('record-delivery')).toHaveCount(0);
 
     const r = await request.put(`${API}/shipping/legs/${legs[0].id}`, { headers, data: { departedOn: daysAgo(1) } });
     expect(r.status()).toBe(400);
@@ -257,7 +266,7 @@ test.describe('Change status offers the fix for the leg it names', () => {
     await expect(page.getByText(en.cycles.statusUpdated)).toBeVisible();
     await expect(page.getByTestId('cycle-status')).toHaveText(en.codes.cycleStatus.IN_TRANSIT);
     expect(await statusOf(request, headers, cycle.id)).toBe('IN_TRANSIT');
-    await expect(leg(page, legs[0].id).getByTestId('shipping-card-status')).toHaveText(en.codes.legStatus.IN_TRANSIT);
+    await expect(leg(page, legs[0].id).getByTestId('leg-status')).toHaveText(en.codes.legStatus.IN_TRANSIT);
   });
 
   test('TC-I3-06: In transit → Arrived UAE refused (nothing delivered): cancel the fix, the refusal is still there; record the delivery, try again, it moves', async ({ page, request }) => {
@@ -323,7 +332,7 @@ test.describe('Where the goods are', () => {
     await login(page);
     await openCycle(page, cycle.code, cycle.id);
     expect(await cards(page)).toEqual({ inUae: '50', toEgypt: '0', inEgypt: '0', sold: '0' });
-    await leg(page, legs[0].id).getByTestId('leg-record-departure').click();
+    await leg(page, legs[0].id).getByTestId('record-departure').click();
     await dialog(page, 'record-departure').getByRole('button', { name: en.shipment.recordDeparture, exact: true }).click();
     await expect.poll(() => cards(page)).toEqual({ inUae: '0', toEgypt: '50', inEgypt: '0', sold: '0' });
   });
@@ -403,10 +412,10 @@ test.describe('I3 review screenshots', () => {
       await page.setViewportSize({ width: 1024, height: 1400 });
       await page.screenshot({ path: `${SHOT_DIR}/cycle-details-cards-${locale}-1024.png` });
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.getByTestId('shipping-card').scrollIntoViewIfNeeded();
-      await page.getByTestId('shipping-card').screenshot({ path: `${SHOT_DIR}/shipping-card-actions-${locale}.png` });
+      await page.getByTestId('shipment-panel').scrollIntoViewIfNeeded();
+      await page.getByTestId('shipment-panel').screenshot({ path: `${SHOT_DIR}/shipment-leg-actions-${locale}.png` });
 
-      await leg(page, legs[1].id).getByTestId('leg-record-departure').click();
+      await leg(page, legs[1].id).getByTestId('record-departure').click();
       await expect(dialog(page, 'record-departure')).toBeVisible();
       await page.screenshot({ path: `${SHOT_DIR}/record-departure-dialog-${locale}.png` });
       await page.keyboard.press('Escape');

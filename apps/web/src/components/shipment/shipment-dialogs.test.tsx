@@ -480,7 +480,8 @@ describe('Shipment panel: losses', () => {
     fireEvent.change(amount, { target: { value: '100' } });
     // Two payers: one must be chosen. Choosing is covered above; here the options.
     fireEvent.click(within(dialog('record-refund')).getAllByRole('combobox')[0]);
-    expect(await screen.findByText('Gulf Freight')).toBeTruthy();
-    expect(screen.getByText('Dubai Parts')).toBeTruthy();
+    // The provider is also named in the leg's header now (I3); look in the picker.
+    expect(await screen.findByRole('option', { name: /Gulf Freight/ })).toBeTruthy();
+    expect(screen.getByRole('option', { name: /Dubai Parts/ })).toBeTruthy();
   });
 });

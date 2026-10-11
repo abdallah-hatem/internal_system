@@ -437,8 +437,8 @@ test.describe('Shipment panel (F1a)', () => {
     await expect(page.getByTestId('cycle-profit-value')).toContainText(
       Number(mine.profit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     );
-    // The shipping card shows the leg's status and its delivery.
-    await expect(page.getByTestId('shipping-card-status').first()).toHaveText(en.codes.legStatus.ARRIVED);
+    // The Shipment panel shows the leg's status.
+    await expect(page.getByTestId('leg-status').first()).toHaveText(en.codes.legStatus.ARRIVED);
   });
 
   test('TC-SHP-14: on a phone the product rows are cards and nothing overflows', async ({ page, request }) => {

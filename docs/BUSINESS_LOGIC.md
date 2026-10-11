@@ -124,14 +124,15 @@ control: the slide-over that held it could no longer be reached once a row
 opened the details page, and was removed.
 
 **DECIDED 2026-10-11 (owner, I3) — a leg's departure and its deliveries are
-recorded from the cycle's page.** Each leg on the details page's Shipping card
-carries **Record departure** while it has not left, and **Record delivery**
-once it has left and still has goods on the way. They are the same dialog and
-the same request as everywhere else — the departure is the date the Shipments
-page's edit form sets (`PUT /shipping/legs/:id`, one field definition used in
-both places), the delivery is the Shipment panel's dialog — and they follow the
-same roles (a core partner). After this the wizard is only for setting a cycle
-up. Guesses, open until confirmed (autonomous run, 2026-10-11):
+recorded from the cycle's page.** Each leg's header in the details page's
+Shipment panel carries **Record departure** while it has not left, and **Record
+delivery** once it has left and still has goods on the way, beside Mark lost;
+the header also says when it left, who carries it and what it cost. The page
+lists each leg once — the separate Shipping card that repeated the legs with a
+second Record delivery was removed (2026-10-11). The departure is the date the
+Shipments page's edit form sets (`PUT /shipping/legs/:id`, one field definition
+used in both places), and both follow the same roles (a core partner). After
+this the wizard is only for setting a cycle up. Guesses, open until confirmed (autonomous run, 2026-10-11):
 - Neither button is shown on a cycle being settled, closed or cancelled — the
   same statuses in which the server refuses a delivery. Recording a departure
   there is now refused by the server too (`CYCLE_SETTLING` / `CYCLE_CLOSED`); it
