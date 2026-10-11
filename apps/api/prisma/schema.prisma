@@ -297,6 +297,7 @@ model ImportCycle {
   inventoryBatches      InventoryBatch[]
   financialTransactions FinancialTransaction[]
   settlements           Settlement[]
+  lenderFinancings      LenderFinancing[]
 
   @@map("import_cycles")
 }
@@ -347,6 +348,8 @@ model PurchaseOrder {
   supplier        Supplier            @relation(fields: [supplierId], references: [id])
   items           PurchaseOrderItem[]
   supplierRefunds SupplierRefund[]
+  /// Friends who paid the supplier for all or part of this order (§18).
+  lenderFinancings LenderFinancing[]
 
   @@unique([supplierId, supplierInvoiceRef])
   @@map("purchase_orders")
@@ -946,6 +949,7 @@ model MoneyAccount {
 
   transactions          FinancialTransaction[]
   reconciliationEntries ReconciliationEntry[]
+  lenderRepayments      LenderRepayment[]
 
   @@map("money_accounts")
 }
@@ -960,6 +964,131 @@ model ReconciliationEntry {
   account MoneyAccount @relation(fields: [accountId], references: [id])
 
   @@map("reconciliation_entries")
+}
+
+// ─── Lenders (BUSINESS_LOGIC §18) ─────────────────────────────────
+
+/// A friend who pays a supplier for us and is repaid in pounds. Not a partner,
+/// not a customer, not a supplier: he shares in no profit (§18).
+model Lender {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  phone     String?
+  notes     String?
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  financings LenderFinancing[]
+
+  @@map("lenders")
+}
+
+/// What a friend paid a supplier on one purchase order, in that order's
+/// currency — what we owe him until it reaches zero (§18). A standing one has
+/// no `removedAt`; one friend has at most one standing financing per order
+/// (a partial unique index in the migration, which Prisma cannot express).
+model LenderFinancing {
+  id                   String    @id @default(uuid()) @db.Uuid
+  lenderId             String    @map("lender_id") @db.Uuid
+  purchaseOrderId      String    @map("purchase_order_id") @db.Uuid
+  /// The order's cycle. An order never changes cycle; kept for the gates.
+  cycleId              String    @map("cycle_id") @db.Uuid
+  currency             String
+  amount               Decimal   @db.Decimal(18, 2)
+  /// The ORDER's rate, copied when recorded. The debt is valued at it.
+  fxRateToEgp          Decimal   @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  /// amount × fxRateToEgp, half up — the ledger inflow.
+  amountEgp            Decimal   @map("amount_egp") @db.Decimal(18, 2)
+  /// The Cairo day he paid the supplier.
+  paidOn               DateTime  @map("paid_on") @db.Date
+  note                 String?
+  createdBy            String?   @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  ledgerTransactionId  String?   @unique @map("ledger_transaction_id") @db.Uuid
+  removedAt            DateTime? @map("removed_at") @db.Timestamptz()
+  removedBy            String?   @map("removed_by") @db.Uuid
+  removalReason        String?   @map("removal_reason")
+  removalTransactionId String?   @unique @map("removal_transaction_id") @db.Uuid
+
+  lender        Lender            @relation(fields: [lenderId], references: [id])
+  purchaseOrder PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
+  cycle         ImportCycle       @relation(fields: [cycleId], references: [id])
+  repayments    LenderRepayment[]
+  plans         LenderPlan[]
+
+  @@index([lenderId])
+  @@index([purchaseOrderId])
+  @@index([cycleId])
+  @@map("lender_financings")
+}
+
+/// Pounds paid back to a friend on a day, at that day's rate (§18). Reversed,
+/// never edited or deleted (§9); a standing one has no `reversedAt`.
+model LenderRepayment {
+  id                    String    @id @default(uuid()) @db.Uuid
+  financingId           String    @map("financing_id") @db.Uuid
+  paidOn                DateTime  @map("paid_on") @db.Date
+  accountId             String    @map("account_id") @db.Uuid
+  /// Pounds actually paid.
+  amountEgp             Decimal   @map("amount_egp") @db.Decimal(18, 2)
+  /// That day's rate, as entered.
+  rateToEgp             Decimal   @map("rate_to_egp") @db.Decimal(18, 4)
+  /// Debt cleared, in the financing's currency (common/lender-math.ts).
+  cleared               Decimal   @db.Decimal(18, 2)
+  /// What `cleared` was worth at the order's rate.
+  clearedAtOrderRateEgp Decimal   @map("cleared_at_order_rate_egp") @db.Decimal(18, 2)
+  /// amountEgp − clearedAtOrderRateEgp: a cost when positive, a gain when
+  /// negative. Counts in cycle profit; never an operating expense.
+  exchangeDiffEgp       Decimal   @map("exchange_diff_egp") @db.Decimal(18, 2)
+  note                  String?
+  createdBy             String?   @map("created_by") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  ledgerTransactionId   String?   @unique @map("ledger_transaction_id") @db.Uuid
+  reversedAt            DateTime? @map("reversed_at") @db.Timestamptz()
+  reversedBy            String?   @map("reversed_by") @db.Uuid
+  reversalReason        String?   @map("reversal_reason")
+  reversalTransactionId String?   @unique @map("reversal_transaction_id") @db.Uuid
+
+  financing LenderFinancing @relation(fields: [financingId], references: [id])
+  account   MoneyAccount    @relation(fields: [accountId], references: [id])
+
+  @@index([financingId])
+  @@map("lender_repayments")
+}
+
+/// An agreed schedule for repaying one financing, in its currency (§18, the
+/// §7 habit). One ACTIVE per financing — a partial unique index.
+model LenderPlan {
+  id           String            @id @default(uuid()) @db.Uuid
+  financingId  String            @map("financing_id") @db.Uuid
+  agreedOn     DateTime          @map("agreed_on") @db.Date
+  status       PaymentPlanStatus @default(ACTIVE)
+  note         String?
+  cancelReason String?           @map("cancel_reason")
+  createdBy    String?           @map("created_by") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
+
+  financing   LenderFinancing        @relation(fields: [financingId], references: [id])
+  instalments LenderPlanInstalment[]
+
+  @@index([financingId])
+  @@map("lender_plans")
+}
+
+model LenderPlanInstalment {
+  id       String   @id @default(uuid()) @db.Uuid
+  planId   String   @map("plan_id") @db.Uuid
+  sequence Int
+  dueOn    DateTime @map("due_on") @db.Date
+  /// In the financing's currency.
+  amount   Decimal  @db.Decimal(18, 2)
+
+  plan LenderPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, sequence])
+  @@map("lender_plan_instalments")
 }
 
 // ─── Settlement ────────────────────────────────────────────────────

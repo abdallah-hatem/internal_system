@@ -17,9 +17,10 @@ import {
   type TileKey,
 } from '../../../components/dashboard/dashboard-model';
 import { YourCycles } from '../../../components/dashboard/your-cycles';
+import { Money } from '../../../components/ui/money';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
-  Activity, Route, Wallet, Clock, Receipt, Landmark,
+  Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -39,6 +40,12 @@ interface DashboardData {
   lowStockAlerts: number;
   totalCustomers: number;
   totalProducts: number;
+  /** What friends who paid suppliers are still owed (§18). */
+  owedToLenders?: {
+    lines: { currency: string; owed: string; rateToEgp: string | null; owedEgp: string | null }[];
+    totalEgp: string;
+    missingRate: boolean;
+  };
 }
 
 interface TopProduct {
@@ -50,7 +57,7 @@ interface TopProduct {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 
-const TILE_COUNT = 11;
+const TILE_COUNT = 12;
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
@@ -93,7 +100,9 @@ export default function DashboardPage() {
 
   const productList: TopProduct[] = Array.isArray(topProducts) ? topProducts : [];
 
-  const stats: { key: TileKey; value: string; icon: LucideIcon; color: string }[] = [
+  const owedLines = data.owedToLenders?.lines ?? [];
+
+  const stats: { key: TileKey; value: string; icon: LucideIcon; color: string; sub?: React.ReactNode }[] = [
     // Sold, collected and still owed sit together on purpose: the first two
     // differ by the third, and a strong month of selling with an empty till
     // looks identical to a strong month of collecting if only one is shown.
@@ -121,6 +130,27 @@ export default function DashboardPage() {
     { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
     { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
     { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
+    // In each friend's currency — the debt itself — and in pounds at today's
+    // rate, which is what paying it all today would cost (§18).
+    {
+      key: 'owedToLenders',
+      value: egp(Number(data.owedToLenders?.totalEgp ?? 0)),
+      icon: HandCoins,
+      color: 'bg-accent-600',
+      sub:
+        owedLines.length === 0 ? (
+          t('owedToLendersNone')
+        ) : (
+          <span className="flex flex-col gap-0.5">
+            <span className="flex flex-wrap gap-x-2" data-testid="owed-to-lenders-lines">
+              {owedLines.map((l) => (
+                <Money key={l.currency} value={l.owed} currency={l.currency} />
+              ))}
+            </span>
+            {data.owedToLenders?.missingRate && <span>{t('owedToLendersNoRate')}</span>}
+          </span>
+        ),
+    },
   ];
 
   if (view !== 'business') {
@@ -169,6 +199,7 @@ export default function DashboardPage() {
               icon={stat.icon}
               color={stat.color}
               href={tileHref(stat.key, role)}
+              sub={stat.sub}
             />
           ))}
         </div>

@@ -5,9 +5,12 @@ import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
   isCostRecoveryCategory,
+  isLenderCategory,
   netRecoveredEgp,
 } from '../../common/ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
+import { exchangeDifferenceEgp } from '../../common/lender-debt';
+import { owedToLenders } from '../../common/lenders-owed';
 import { countLowStock } from '../../common/low-stock';
 import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
@@ -138,7 +141,16 @@ export class AnalyticsService {
       await cycleLossesEgp(this.prisma, null),
     );
 
-    const netProfit = revenue.sub(cogs).sub(operatingExpenses).add(recovered);
+    // Repaying friends at a moved rate (§18): a cost or a gain of the cycles,
+    // not an operating expense — shown on its own, and taken off net profit
+    // through the one definition settlement reads (rule 11).
+    const exchangeDiff = await exchangeDifferenceEgp(this.prisma, null);
+
+    const netProfit = revenue
+      .sub(cogs)
+      .sub(operatingExpenses)
+      .add(recovered)
+      .sub(exchangeDiff);
 
     // Cash actually paid out, reported separately from accounting profit
     // (BRD 11).
@@ -236,6 +248,10 @@ export class AnalyticsService {
         totalExpenses,
         /** Supplier and loss refunds, added back in netProfit (§6). */
         totalRecoveredEgp: money(recovered),
+        /** Repaying friends at a moved rate, taken off netProfit (§18). */
+        exchangeDifferenceEgp: money(exchangeDiff),
+        /** What friends are still owed, per currency and in pounds today (§18). */
+        owedToLenders: await owedToLenders(this.prisma),
         totalCashOut,
         totalCashIn: money(cashIn),
         cashOnHand: money(cashOnHand),
@@ -453,8 +469,11 @@ export class AnalyticsService {
     // read through the one definition (§2, §9; rule 11).
     const withStock = cycles.filter((c) => c.inventoryBatches.length > 0);
     const lossesByCycle = new Map<string, Prisma.Decimal>();
+    const exchangeByCycle = new Map<string, Prisma.Decimal>();
     for (const c of withStock) {
       lossesByCycle.set(c.id, await cycleLossesEgp(this.prisma, c.id));
+      // Repaying friends at a moved rate (§18), as settlement reads it.
+      exchangeByCycle.set(c.id, await exchangeDifferenceEgp(this.prisma, c.id));
     }
 
     const result = withStock.map((cycle) => {
@@ -506,13 +525,24 @@ export class AnalyticsService {
       const investment = cycle.financialTransactions
         .filter(
           (t) =>
-            t.direction === 'OUTFLOW' && !isCostRecoveryCategory(t.category),
+            t.direction === 'OUTFLOW' &&
+            !isCostRecoveryCategory(t.category) &&
+            // A friend's loan moving is not what the goods cost: the goods are
+            // in `purchase` already, and repaying him would count them twice.
+            // What the loan really cost is the exchange difference (§18).
+            !isLenderCategory(t.category),
         )
         .reduce((sum, t) => sum.add(D(t.amount)), D(0))
-        .sub(supplierRefunds);
+        .sub(supplierRefunds)
+        .add(exchangeByCycle.get(cycle.id) ?? D(0));
 
       const losses = lossesByCycle.get(cycle.id) ?? D(0);
-      const profit = revenue.sub(cogs).add(supplierRefunds).sub(losses);
+      const exchangeDiff = exchangeByCycle.get(cycle.id) ?? D(0);
+      const profit = revenue
+        .sub(cogs)
+        .add(supplierRefunds)
+        .sub(losses)
+        .sub(exchangeDiff);
 
       return {
         // So a row can link to its cycle (an investor's dashboard, R1).
@@ -524,6 +554,8 @@ export class AnalyticsService {
         supplierRefundsEgp: money(supplierRefunds),
         /** Goods lost on the way, already taken off profit (§2). */
         lossesEgp: money(losses),
+        /** Repaying friends at a moved rate, already taken off profit (§18). */
+        exchangeDifferenceEgp: money(exchangeDiff),
         totalCost: money(cogs),
         totalRevenue: money(revenue),
         profit: money(profit),

@@ -1274,3 +1274,27 @@ confirms it.**
 - The purchase order and the cycle page: "Paid by <friend> — 30,000 AED; 18,000 AED still owed".
 - A lender's own page: everything he paid for, every repayment with its rate, and what is still owed.
 - The dashboard: what we owe lenders, in their currency and in pounds at today's rate.
+
+**Settled while building it (L1, 2026-10-11) — guesses, each OPEN until the owner confirms.**
+
+| Question §18 left open | Guess built | Why |
+|---|---|---|
+| How much debt a part repayment clears | Pounds ÷ that day's rate, **rounded down** to the piastre of his currency. | Never clear more than the pounds actually bought. |
+| Rounding left on the debt | At most 0.01 (of his currency) per part repayment. The repayment that pays it off is the exact "pays it off" figure shown — what is owed × the rate, to the piastre — and it clears all that is left, so the debt ends at exactly zero. | The last one settles exactly (rule 1: no hidden residue). |
+| Paying a few piastres more than the "pays it off" figure | Refused, naming the figure. | Too much is refused. |
+| A repayment so small it clears 0.00 | Refused. | A payment that changes nothing is a slip. |
+| The exchange difference, exactly | Each repayment's pounds − what it cleared at the order's rate (to the piastre); the last one takes whatever keeps the total at the order's rate equal to what he paid at that rate. Over a repaid debt: pounds paid − his amount at the order's rate. | §2's residual habit. |
+| Where it is kept | On each repayment, not as a ledger row — the ledger shows the pounds leaving; settlement, cycle profit and the dashboard read the difference from the repayments through one function. | A loss is handled the same way (§9). |
+| Ledger | When he pays: money *in* (`lender_financing`) at the order's rate, no account — the goods are booked out at receipt as always, and this says whose money paid. Each repayment: money *out* (`lender_repayment`) for the pounds, from the account chosen. Both are financing: not income, not an expense. | Keeps cash on hand true: we did not pay the supplier. |
+| Which account | Any active money account in EGP. | Repayments are in pounds. |
+| One friend, one order | A friend's payment for an order is recorded once; to change it, remove it (only while nothing is repaid) and record it again. Two friends may share one order, never above its total. | Doubles are the second-time bug. |
+| Which cycles | Not on a cycle in settlement, closed or cancelled. Cancelling a cycle whose order a friend paid for is refused until his payment is removed. An order with no lines (a draft from before PO_NEEDS_ITEM) takes no friend's payment. No guard stops a purchase line being cut below what friends paid — none is needed today, because a line cannot be edited once added; check-data 19.1 watches for it. | A cancelled cycle "never ordered anything" (§15). |
+| Dates | His payment and each repayment cannot be in the future; a repayment cannot be dated before he paid. A date left out is today in Cairo, as a payment's is (§7a). | Records of things that happened. |
+| Reversing a repayment on a settled or closed cycle | Refused — reverse the settlement first. | It would reopen a debt on a cycle already split. |
+| Removing his payment once repayments were reversed | Allowed: only standing (not reversed) repayments block it. Removing it, with a reason, cancels his active plan on it and writes a balancing ledger outflow pointing at the original inflow; the row stays, marked removed. | Nothing has been repaid. |
+| A plan | Per order he paid for; instalments in his currency, totalling no more than is owed. One active plan at a time; cancel and agree again. Progress counts repayments dated on or after the plan's day, cumulatively, earliest instalment first — the same function as a customer's plan (§7). | Same habit as customer plans. |
+| Who is told when one is late | Every active core partner, once per instalment, by the existing morning job. | §7. |
+| "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
+| "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
+| A cycle a friend paid for entirely | The partners put up nothing, so there is no contribution to split profit by and settling refuses as it already does for a cycle nobody funded (§8, working rules §10). Until the owner decides, set a custom profit split on the cycle. **OPEN.** | Refusing beats letting rounding pick who gets the money. |
+| Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). The money accounts a repayment leaves from are listed at `GET /ledger/accounts`, which the ledger's own roles guard — core partners and admin support. A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |

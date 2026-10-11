@@ -37,8 +37,8 @@ test('every phone-bar key is a real menu entry — a renamed key cannot vanish s
 test('"More" holds the whole menu, grouped as the sidebar is, bar entries included', () => {
   const groups = navForRole('CORE_PARTNER');
   assert.deepEqual(groups.map((g) => g.key), NAV_GROUPS.map((g) => g.key));
-  assert.equal(allKeys(groups).length, 22 - SYSTEM_ITEMS.length);
-  assert.equal(allKeys(groups).length + systemForRole('CORE_PARTNER').length, 22);
+  assert.equal(allKeys(groups).length, 23 - SYSTEM_ITEMS.length);
+  assert.equal(allKeys(groups).length + systemForRole('CORE_PARTNER').length, 23);
 });
 
 const restricted = [

@@ -30,12 +30,13 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
   reference: string;
   cycleId: string;
-  cycle?: { code: string };
+  cycle?: { code: string; status?: string };
   supplierId: string;
   supplier?: { name: string };
   currency: string;
@@ -470,6 +471,12 @@ export default function PurchasesPage() {
               <Detail label={t('orderedDate')} value={formatDate(viewingPO.orderedOn)} />
               <Detail label={tc('status')} value={codeLabel('poStatus', viewingPO.status)} />
             </div>
+
+            {/* A friend who paid the supplier for us (§18). */}
+            <PaidByFriend
+              purchaseOrder={{ id: viewingPO.id, reference: viewingPO.reference, currency: viewingPO.currency }}
+              closed={['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(viewingPO.cycle?.status ?? '')}
+            />
 
             {/* Items table */}
             <div>

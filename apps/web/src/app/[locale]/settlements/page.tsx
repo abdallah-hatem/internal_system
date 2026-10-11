@@ -22,6 +22,7 @@ import { useCan } from '@/lib/can';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { SettlementWarnings, type SettlementWarning } from '@/components/settlements/settlement-warnings';
 import { SettlementParticipants, type SettlementLine } from '@/components/settlements/settlement-participants';
+import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Settlement {
   id: string;
@@ -349,7 +350,7 @@ function SettlementCard({
   const remaining = Number(s.unitsRemaining ?? 0);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div data-testid="settlement-card" data-cycle={s.cycle?.code} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-100">
         <div className="flex min-w-0 items-center gap-3">
           <span dir="ltr" className="font-mono text-sm text-gray-700 whitespace-nowrap">
@@ -405,6 +406,9 @@ function SettlementCard({
           hint={remaining > 0 ? t('unitsCount', { units: formatNumber(remaining) }) : undefined}
         />
       </div>
+
+      {/* A cycle cannot settle while a friend is owed (§18): who, and how much. */}
+      {s.cycle && s.status === 'DRAFT' && <LenderDebtNotice cycleId={s.cycle.id} />}
 
       {remaining > 0 && (
         <p className="px-5 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">

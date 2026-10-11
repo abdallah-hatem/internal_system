@@ -2,7 +2,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  *  TEST SUITE: The menu by role (U4c)
  * ═══════════════════════════════════════════════════════════════════════
- *  The menu used to show all 22 entries to every role, so a temporary
+ *  The menu used to show all 22 entries (23 since the Lenders page, §18) to every role, so a temporary
  *  investor was offered Sales, Payments, the ledger and the audit log, and
  *  each one opened onto a 403. Now an entry is shown exactly when the API
  *  endpoint its page lists from lets the role in (nav-model.ts mirrors the
@@ -37,7 +37,7 @@ const INVESTOR_HREFS = [
 ];
 const PARTNER_ONLY_HREFS = [
   '/analytics', '/order-requests', '/import-requests', '/sales', '/customers',
-  '/payments', '/payment-plans', '/ledger', '/partners', '/audit-logs',
+  '/payments', '/payment-plans', '/lenders', '/ledger', '/partners', '/audit-logs',
 ];
 
 /** A fresh account with the given role, created by a partner. */
@@ -113,6 +113,7 @@ test.describe('The menu by role', () => {
       '/customers': '/customers',
       '/payments': '/payments',
       '/payment-plans': '/payment-plans',
+      '/lenders': '/lenders',
       '/ledger': '/ledger',
       '/partners': '/users/participation',
       '/audit-logs': '/audit-logs',
@@ -165,14 +166,14 @@ test.describe('The menu by role', () => {
     await bar.getByRole('button', { name: 'More' }).click();
     const aside = page.locator('aside');
     await expect(aside.getByRole('link', { name: 'Settlements' })).toBeInViewport();
-    for (const name of ['Sales', 'Customers', 'Payments', 'Payment Plans', 'Ledger', 'Audit Logs']) {
+    for (const name of ['Sales', 'Customers', 'Payments', 'Payment Plans', 'Lenders', 'Ledger', 'Audit Logs']) {
       await expect(aside.getByRole('link', { name, exact: true })).toHaveCount(0);
     }
   });
 
-  test('TC-MENU-07: a core partner still sees all 22 entries', async ({ page }) => {
+  test('TC-MENU-07: a core partner still sees all 23 entries', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await login(page, EMAIL);
-    expect((await sidebarHrefs(page)).length).toBe(22);
+    expect((await sidebarHrefs(page)).length).toBe(23);
   });
 });

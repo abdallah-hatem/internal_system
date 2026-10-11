@@ -29,6 +29,7 @@ import { PaymentPlansModule } from './modules/payment-plans/payment-plans.module
 import { PortalModule } from './modules/portal/portal.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { OAuthModule } from './modules/oauth/oauth.module';
+import { LendersModule } from './modules/lenders/lenders.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { OAuthModule } from './modules/oauth/oauth.module';
     PortalModule,
     AssistantModule,
     OAuthModule,
+    LendersModule,
   ],
   providers: [
     /**

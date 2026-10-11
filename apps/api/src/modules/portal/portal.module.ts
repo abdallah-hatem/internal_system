@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { LendersModule } from '../lenders/lenders.module';
 
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
@@ -43,6 +44,7 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
     NotificationsModule,
     // For the daily overdue check behind GET /jobs/overdue-payments.
     PaymentPlansModule,
+    LendersModule,
   ],
   controllers: [
     JobsController,

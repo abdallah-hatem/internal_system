@@ -100,7 +100,8 @@
       "customers": "العملاء",
       "inventory": "المخزون",
       "cycles": "الدورات"
-    }
+    },
+    "lenders": "المُقرضون"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -154,7 +155,10 @@
     "yourCyclesEmpty": "لا توجد بضاعة مستلمة في أي من دوراتك بعد",
     "yourCyclesEmptyHint": "يظهر ربح الدورة هنا بعد استلام بضاعتها.",
     "yourCyclesError": "تعذّر تحميل دوراتك.",
-    "cycleProfit": "الربح حتى الآن"
+    "cycleProfit": "الربح حتى الآن",
+    "owedToLenders": "المستحق للمُقرضين",
+    "owedToLendersNone": "لا شيء مستحق",
+    "owedToLendersNoRate": "عملة بلا سعر حالي غير محسوبة بالجنيه"
   },
   "products": {
     "title": "المنتجات",
@@ -759,7 +763,8 @@
     "ORDER_REQUEST_DECLINED": "تعذّر تنفيذ الطلب {requestNo}",
     "IMPORT_REQUEST_SOURCING": "بخصوص {productName}",
     "IMPORT_REQUEST_ANSWERED": "بخصوص {productName}",
-    "IMPORT_REQUEST_DECLINED": "بخصوص {productName}"
+    "IMPORT_REQUEST_DECLINED": "بخصوص {productName}",
+    "LENDER_INSTALMENT_OVERDUE": "تأخر سداد {lender} المستحق {dueOn} على {reference} — المتبقي {amount} {currency}"
   },
   "auditLogs": {
     "title": "سجلات التدقيق",
@@ -837,7 +842,10 @@
       "UNSOLD_STOCK": "ما زالت {units} وحدة في المخزون (قيمتها {valueEgp} جنيه بتكلفة الوصول). تبقى تكلفتها على الدورة حتى تُباع، لذلك يشمل هذا الربح الوحدات المبيعة فقط.",
       "NO_REALISED_SALES": "لا توجد مبيعات محققة لهذه الدورة بعد.",
       "unknown": "لهذا الحساب تنبيه لا يستطيع هذا الإصدار من التطبيق عرضه. حدّث الصفحة."
-    }
+    },
+    "lenderOwedTitle": "لا يمكن التسوية بعد — ما زال لأصدقاء مستحقات",
+    "lenderOwedHint": "سدّد لهم من صفحة المُقرض أولاً؛ فرق العملة جزء من ربح هذه الدورة.",
+    "exchangeDifference": "فرق العملة"
   },
   "providers": {
     "title": "شركات الشحن",
@@ -1002,7 +1010,8 @@
     "finished": "تم حفظ الدورة — {status}",
     "finishFailed": "تعذّر نقل الدورة إلى المرحلة التالية",
     "baseCurrency": "العملة الأساسية",
-    "backToCycle": "العودة إلى الدورة"
+    "backToCycle": "العودة إلى الدورة",
+    "financedByFriends": "دفعه أصدقاء"
   },
   "paymentPlans": {
     "title": "خطط السداد",
@@ -1072,7 +1081,12 @@
       "shipmentDelivery": "التسليمة",
       "shipmentLoss": "الفقد",
       "shipmentDeliveryLine": "بند التسليمة",
-      "supplierRefund": "التعويض"
+      "supplierRefund": "التعويض",
+      "lender": "المُقرض",
+      "lenderFinancing": "ما دفعه الصديق",
+      "lenderRepayment": "السداد",
+      "lenderPlan": "خطة السداد",
+      "moneyAccount": "الحساب"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -1235,7 +1249,25 @@
     "SHIPMENT_NOT_ACCOUNTED": "لا يمكن تسوية الدورة {cycle} بعد: لا تزال {onTheWay} وحدة في الطريق و{waiting} وصلت ولم تُستلم، في {lines} بند. استلمها أو سجّلها كمفقودة أولًا.",
     "WALK_IN_NO_STATEMENT": "المشتري العابر ليس له حساب، لذا لا يوجد كشف حساب.",
     "INVOICE_DRAFT": "الطلب {order} مسودة، لذا ليس له فاتورة بعد. أكّده أولًا.",
-    "INVOICE_CANCELLED": "الطلب {order} أُلغي، لذا ليس له فاتورة."
+    "INVOICE_CANCELLED": "الطلب {order} أُلغي، لذا ليس له فاتورة.",
+    "LENDER_REPAYMENT_EXCEEDS_OWED": "{amount} جنيه أكثر من المستحق: المتبقي {owed}، ويسدّده {settling} جنيه بسعر {rate}.",
+    "LENDER_REPAYMENT_CLEARS_NOTHING": "{amount} جنيه بسعر {rate} لا تسدّد شيئاً من الدين.",
+    "LENDER_DEBT_OUTSTANDING": "لا يمكن تسوية الدورة {cycle} وما زالت مدينة: {owed}. سدّد لهم أولاً.",
+    "CYCLE_HAS_LENDER_FINANCING": "في الدورة {cycle} طلب دفعه صديق؛ احذف ما دفعه قبل إلغائها.",
+    "LENDER_NAME_REQUIRED": "المُقرض يحتاج إلى اسم.",
+    "CYCLE_CLOSED_FOR_FINANCING": "الدورة {cycle} في حالة {status}؛ لا يمكن تسجيل ما دفعه صديق عليها.",
+    "LENDER_ALREADY_FINANCES_ORDER": "{lender} دفع بالفعل للطلب {reference}. احذفه وسجّله من جديد لتغييره.",
+    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed}.",
+    "FINANCING_REMOVED": "تم حذف ما دفعه هذا الصديق.",
+    "FINANCING_HAS_REPAYMENTS": "سُدِّد لـ {lender} على هذا؛ ألغِ تلك السدادات قبل حذفه.",
+    "ACCOUNT_NOT_USABLE": "{account} ليس حساباً نشطاً بالجنيه؛ السداد يخرج من حساب بالجنيه.",
+    "LENDER_REPAYMENT_BEFORE_FINANCING": "دفع للمورد في {paidOn}؛ لا يمكن أن يسبق السداد هذا التاريخ.",
+    "LENDER_REPAYMENT_ALREADY_REVERSED": "أُلغي هذا السداد من قبل. إلغاؤه مرة أخرى يحسبه مرتين.",
+    "LENDER_CYCLE_SETTLED": "الدورة {cycle} مُسوّاة؛ ألغِ التسوية قبل التراجع عن سداد عليها.",
+    "LENDER_NOTHING_OWED": "لا شيء مستحق لـ {lender} على هذا، فلا يوجد ما يُجدول.",
+    "LENDER_PLAN_EXISTS": "لهذا خطة نشطة بالفعل. ألغِها قبل الاتفاق على غيرها.",
+    "LENDER_PLAN_EXCEEDS_OWED": "مجموع الأقساط {total} {currency} والمستحق {owed} فقط.",
+    "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1434,7 +1466,9 @@
       "PAYMENT": "دفعة",
       "SETTLEMENT": "تسوية",
       "SUPPLIER_REFUND": "مرتجع من المورد",
-      "CYCLE_PARTICIPANT": "مشارك في دورة"
+      "CYCLE_PARTICIPANT": "مشارك في دورة",
+      "LENDER_FINANCING": "ما دفعه صديق",
+      "LENDER_REPAYMENT": "سداد لصديق"
     },
     "auditAction": {
       "CREATE": "إنشاء",
@@ -1483,7 +1517,11 @@
       "SupplierRefund": "مرتجع من المورد",
       "Provider": "شركة شحن",
       "Category": "فئة",
-      "CurrencyRate": "سعر صرف"
+      "CurrencyRate": "سعر صرف",
+      "Lender": "مُقرض",
+      "LenderFinancing": "ما دفعه صديق",
+      "LenderRepayment": "سداد لصديق",
+      "LenderPlan": "خطة سداد"
     },
     "dateField": {
       "CYCLE_START": "تاريخ بدء الدورة",
@@ -1492,7 +1530,9 @@
       "REFUND_RECEIVED": "تاريخ استلام التعويض",
       "DEPARTURE": "تاريخ المغادرة",
       "ARRIVAL": "تاريخ الوصول",
-      "DELIVERY": "تاريخ التسليمة"
+      "DELIVERY": "تاريخ التسليمة",
+      "LENDER_PAID": "تاريخ دفع الصديق للمورد",
+      "LENDER_REPAID": "تاريخ السداد للصديق"
     },
     "country": {
       "CN": "الصين",
@@ -1671,5 +1711,104 @@
     "requiredNamed": "يرجى ملء الحقول المطلوبة: {fields}",
     "invalid": "يرجى مراجعة الحقول المحددة.",
     "invalidNamed": "يرجى مراجعة هذه الحقول: {fields}"
+  },
+  "lenders": {
+    "title": "المُقرضون",
+    "subtitle": "أصدقاء دفعوا لمورد نيابةً عنا، وما زلنا مدينين لهم به",
+    "create": "إضافة مُقرض",
+    "createSuccess": "تمت إضافة المُقرض",
+    "createFailed": "تعذّرت إضافة المُقرض",
+    "name": "الاسم",
+    "phone": "الهاتف",
+    "notes": "ملاحظات",
+    "search": "ابحث عن مُقرض…",
+    "emptyTitle": "لا يوجد مُقرضون بعد",
+    "emptyHint": "المُقرض صديق يدفع لمورد نيابةً عنا ونسدّد له بالجنيه.",
+    "owed": "المتبقي له",
+    "nothingOwed": "لا شيء مستحق",
+    "orders": "طلبات دفعها",
+    "overdue": "متأخر",
+    "back": "المُقرضون",
+    "notFoundTitle": "المُقرض غير موجود",
+    "notFoundHint": "ربما حُذف، أو أن الرابط غير صحيح.",
+    "paidFor": "ما دفعه عنا",
+    "noFinancings": "لم يدفع شيئاً بعد",
+    "noFinancingsHint": "سجّل ما دفعه من طلب الشراء أو من صفحة الدورة (\"دفعه صديق\").",
+    "order": "الطلب",
+    "cycle": "الدورة",
+    "paid": "دفع",
+    "paidOn": "تاريخ الدفع",
+    "atOrderRate": "<amount></amount> بسعر الطلب <rate></rate>",
+    "repaid": "المُسدَّد",
+    "exchangeDiff": "فرق العملة",
+    "exchangeDiffHint": "ما دُفع بالجنيه زيادةً على قيمة الدين بسعر الطلب — تكلفة على الدورة؛ والسالب ربح.",
+    "repayments": "السدادات",
+    "noRepayments": "لا سدادات بعد",
+    "date": "التاريخ",
+    "pounds": "المدفوع بالجنيه",
+    "rate": "السعر",
+    "cleared": "سدّد من الدين",
+    "account": "من حساب",
+    "reversed": "مُلغى",
+    "reversedBecause": "أُلغي: {reason}",
+    "removed": "محذوف",
+    "recordRepayment": "تسجيل سداد",
+    "repaymentFor": "{lender} · {reference}",
+    "owedNow": "المتبقي: <amount></amount>",
+    "rateHint": "سعر ذلك اليوم — معبأ مسبقاً من السعر الحالي، غيّره إن كان سعر اليوم مختلفاً",
+    "settles": "<amount></amount> تسدّد الدين كله بهذا السعر",
+    "payAll": "سداد الكل",
+    "clears": "يسدّد <amount></amount>",
+    "repaymentRecorded": "تم تسجيل السداد",
+    "repaymentFailed": "تعذّر تسجيل السداد",
+    "reverse": "إلغاء",
+    "reverseTitle": "إلغاء هذا السداد",
+    "reverseHint": "يعود المبلغ إلى الحساب ويصبح ما سدّده من الدين مستحقاً من جديد. لا يمكن التراجع عن الإلغاء.",
+    "reason": "السبب",
+    "reasonPlaceholder": "لماذا يُلغى هذا؟",
+    "reverseDone": "تم إلغاء السداد",
+    "remove": "حذف",
+    "removeTitle": "حذف ما دفعه الصديق",
+    "removeHint": "فقط ما دام لم يُسدَّد له شيء. يُعادَل قيد الدفتر ولا يُحذف.",
+    "removeDone": "تم حذف ما دفعه الصديق",
+    "plan": "خطة السداد",
+    "noPlan": "لا توجد خطة",
+    "setPlan": "الاتفاق على خطة",
+    "planTitle": "الاتفاق على خطة سداد",
+    "planHint": "أقساط بعملة {currency}، مجموعها لا يزيد على المتبقي ({owed}).",
+    "instalment": "القسط {n}",
+    "addInstalment": "إضافة قسط",
+    "dueOn": "الاستحقاق",
+    "amount": "المبلغ",
+    "planSaved": "تم الاتفاق على الخطة",
+    "cancelPlan": "إلغاء الخطة",
+    "cancelPlanTitle": "إلغاء هذه الخطة",
+    "planCancelled": "تم إلغاء الخطة",
+    "planTotal": "إجمالي الخطة",
+    "state": {
+      "PAID": "مدفوع",
+      "DUE": "مستحق اليوم",
+      "OVERDUE": "متأخر",
+      "UPCOMING": "قادم"
+    },
+    "paidByFriend": "دفعه صديق",
+    "paidByLine": "دفعه <lender></lender> — <amount></amount>؛ المتبقي <owed></owed>",
+    "paidByLineRepaid": "دفعه <lender></lender> — <amount></amount>؛ سُدِّد بالكامل",
+    "noneYet": "لم يدفع أحد هذا الطلب نيابةً عنا.",
+    "noneYetCycle": "لم يدفع أي صديق طلبات هذه الدورة.",
+    "addFinancing": "دفعه صديق",
+    "lender": "المُقرض",
+    "pickLender": "اختر مُقرضاً",
+    "purchaseOrder": "طلب الشراء",
+    "pickOrder": "اختر طلباً",
+    "amountIn": "المبلغ ({currency})",
+    "leftToFinance": "{amount} من الطلب لم يدفعه صديق",
+    "financingSaved": "تم تسجيل ما دفعه الصديق",
+    "financingFailed": "تعذّر تسجيل ما دفعه الصديق",
+    "openLender": "فتح",
+    "save": "حفظ",
+    "cancelPlanHint": "يتوقف احتساب الجدول؛ لا تتغير السدادات ولا المتبقي.",
+    "rateFor": "السعر ({currency} إلى الجنيه)",
+    "poundsEgp": "المدفوع (جنيه)"
   }
 }

@@ -37,20 +37,28 @@ export interface SentOverdue {
   instalmentId: string;
 }
 
-export interface OverdueToSend {
-  instalment: OverdueInstalment;
+export interface OverdueToSend<
+  T extends { instalmentId: string } = OverdueInstalment,
+> {
+  instalment: T;
   userIds: string[];
 }
 
-export function overdueNotificationsToSend(
-  overdue: readonly OverdueInstalment[],
+/**
+ * Generic over what an instalment carries, so a lender's plan (§18) is told by
+ * the same rule as a shop's — only `instalmentId` is read.
+ */
+export function overdueNotificationsToSend<
+  T extends { instalmentId: string } = OverdueInstalment,
+>(
+  overdue: readonly T[],
   partnerIds: readonly string[],
   alreadySent: readonly SentOverdue[],
-): OverdueToSend[] {
+): OverdueToSend<T>[] {
   const sent = new Set(alreadySent.map((s) => `${s.userId}:${s.instalmentId}`));
   const partners = [...new Set(partnerIds)];
   const seen = new Set<string>();
-  const out: OverdueToSend[] = [];
+  const out: OverdueToSend<T>[] = [];
 
   for (const instalment of overdue) {
     if (seen.has(instalment.instalmentId)) continue;

@@ -83,11 +83,36 @@ describe('dashboard tiles lead to their lists', () => {
     ['activeCycles', '/cycles'],
     ['inventoryValue', '/inventory'],
     ['lowStockAlerts', '/inventory?stock=low'],
+    ['owedToLenders', '/lenders'],
   ])('%s → %s', async (key, href) => {
     renderPage();
     const el = await tile(key);
     expect(el.tagName).toBe('A');
     expect(el.getAttribute('href')).toBe(href);
+  });
+
+  it('owed to lenders: pounds at today\'s rate, and each friend\'s currency under it (§18)', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) {
+        return Promise.resolve({
+          data: {
+            data: {
+              ...KPIS,
+              owedToLenders: {
+                lines: [{ currency: 'AED', owed: '20000.00', rateToEgp: '13.8500', owedEgp: '277000.00' }],
+                totalEgp: '277000.00',
+                missingRate: false,
+              },
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    const el = await tile('owedToLenders');
+    expect(el.textContent).toContain('277,000.00');
+    expect(within(el).getByTestId('owed-to-lenders-lines').textContent).toContain('20,000.00 AED');
   });
 
   it('admin support gets the same business figures', async () => {

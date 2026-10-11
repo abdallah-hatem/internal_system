@@ -90,6 +90,13 @@ const ENDPOINTS = {
   'purchase.recordRefund': ['purchases/purchases.controller.ts', 'PurchasesController', 'Post', ':id/refunds'],
   'shippingLeg.create': ['shipping/shipping.controller.ts', 'CycleShippingController', 'Post', ':cycleId/shipping-legs'],
   'shippingLeg.edit': ['shipping/shipping.controller.ts', 'ShippingController', 'Put', 'legs/:id'],
+  'lender.create': ['lenders/lenders.controller.ts', 'LendersController', 'Post', ''],
+  'lender.finance': ['lenders/lenders.controller.ts', 'PurchaseFinancingController', 'Post', ':id/financings'],
+  'lender.removeFinancing': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-financings/:id/remove'],
+  'lender.repay': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-financings/:id/repayments'],
+  'lender.plan': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-financings/:id/plan'],
+  'lender.reverseRepayment': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-repayments/:id/reverse'],
+  'lender.cancelPlan': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-plans/:id/cancel'],
   'users.list': ['users/users.controller.ts', 'UsersController', 'Get', ''],
 };
 

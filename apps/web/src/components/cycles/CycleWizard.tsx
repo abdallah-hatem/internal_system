@@ -420,6 +420,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   };
 
   const landedTotal = Number(landedCost?.totals?.landedEgp ?? 0);
+  // What friends paid suppliers for this cycle (§18) is not the partners' to
+  // fund: the server's `toFundEgp` is the landed cost less it, and both the
+  // split and the funded-versus-cost line read that one figure.
+  const financedTotal = Number(landedCost?.totals?.lenderFinancedEgp ?? 0);
+  const toFund = Number(landedCost?.totals?.toFundEgp ?? landedTotal);
   const fundedTotal = participants.reduce(
     (sum: number, p: any) => sum + Number(contributions[p.id] || 0),
     0,
@@ -442,7 +447,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       .filter((p: any) => p.participantType !== 'CORE_PARTNER')
       .reduce((sum: number, p: any) => sum + Number(contributions[p.id] || 0), 0);
 
-    const cents = Math.round(Math.max(landedTotal - investors, 0) * 100);
+    const cents = Math.round(Math.max(toFund - investors, 0) * 100);
     const each = Math.floor(cents / core.length);
     const next: Record<string, string> = { ...contributions };
     core.forEach((p: any, i: number) => {
@@ -1602,7 +1607,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   <button
                     type="button"
                     onClick={splitEqually}
-                    disabled={landedTotal <= 0}
+                    disabled={toFund <= 0}
                     className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     {t('splitEqually')}
@@ -1714,6 +1719,15 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     <span className="font-medium text-gray-900">
                       <Money value={landedTotal} />
                     </span>
+                    {financedTotal > 0 && (
+                      <>
+                        {' · '}
+                        {t('financedByFriends')}:{' '}
+                        <span className="font-medium text-foreground">
+                          <Money value={financedTotal} />
+                        </span>
+                      </>
+                    )}
                     {' · '}
                     {t('funded')}:{' '}
                     <span className="font-medium text-gray-900">
@@ -1736,14 +1750,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     said plainly, because the settlement will not say it. */}
                 {fundedTotal <= 0 ? (
                   <p className="text-xs text-amber-700">{t('notFundedYet')}</p>
-                ) : Math.abs(fundedTotal - landedTotal) > 0.01 && landedTotal > 0 ? (
+                ) : Math.abs(fundedTotal - toFund) > 0.01 && toFund > 0 ? (
                   <p className="text-xs text-amber-700">
-                    {fundedTotal < landedTotal
+                    {fundedTotal < toFund
                       ? t('fundingShort', {
-                          amount: (landedTotal - fundedTotal).toFixed(2),
+                          amount: (toFund - fundedTotal).toFixed(2),
                         })
                       : t('fundingOver', {
-                          amount: (fundedTotal - landedTotal).toFixed(2),
+                          amount: (fundedTotal - toFund).toFixed(2),
                         })}
                   </p>
                 ) : null}

@@ -123,6 +123,16 @@ function fakePrisma() {
         return Promise.resolve({ ...c });
       },
     },
+    // No friend paid for anything in these worlds (§18): nothing owed,
+    // nothing financed, no exchange difference.
+    lenderFinancing: {
+      count: () => Promise.resolve(0),
+      findMany: () => Promise.resolve([]),
+      aggregate: () => Promise.resolve({ _sum: { amountEgp: null } }),
+    },
+    lenderRepayment: {
+      aggregate: () => Promise.resolve({ _sum: { exchangeDiffEgp: null } }),
+    },
     user: {
       findMany: ({ where }: Row) =>
         Promise.resolve(db.users.filter((u) => matches(u, where))),

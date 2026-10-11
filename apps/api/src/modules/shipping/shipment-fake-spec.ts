@@ -568,6 +568,16 @@ export function fakePrisma(db: Store) {
         return after(row);
       },
     },
+    // No friend paid for anything in these worlds (§18): nothing owed,
+    // nothing financed, no exchange difference.
+    lenderFinancing: {
+      count: () => Promise.resolve(0),
+      findMany: () => Promise.resolve([]),
+      aggregate: () => Promise.resolve({ _sum: { amountEgp: null } }),
+    },
+    lenderRepayment: {
+      aggregate: () => Promise.resolve({ _sum: { exchangeDiffEgp: null } }),
+    },
     shipmentLoss: {
       create: ({ data }: Row) => {
         const row = {

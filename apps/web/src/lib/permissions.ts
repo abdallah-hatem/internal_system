@@ -55,6 +55,14 @@ export const ACTION_ROLES = {
   // Shipping legs — CycleShippingController, ShippingController
   'shippingLeg.create': PARTNERS, //      POST /cycles/:cycleId/shipping-legs
   'shippingLeg.edit': PARTNERS, //        PUT  /shipping/legs/:id
+  // A friend who paid a supplier (§18) — LendersController and its siblings
+  'lender.create': PARTNERS, //           POST /lenders
+  'lender.finance': PARTNERS, //          POST /purchases/:id/financings
+  'lender.removeFinancing': PARTNERS, //  POST /lender-financings/:id/remove
+  'lender.repay': PARTNERS, //            POST /lender-financings/:id/repayments
+  'lender.plan': PARTNERS, //             POST /lender-financings/:id/plan
+  'lender.reverseRepayment': PARTNERS, // POST /lender-repayments/:id/reverse
+  'lender.cancelPlan': PARTNERS, //       POST /lender-plans/:id/cancel
   // Reads a page makes on the side — UsersController
   'users.list': BOOKS_READERS, //         GET /users (the participant picker)
 } as const satisfies Record<string, readonly string[]>;

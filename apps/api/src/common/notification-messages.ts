@@ -74,6 +74,18 @@ export const NOTIFICATION_MESSAGES = {
     },
   },
 
+  // A friend's repayment plan falling behind (§18), from the same daily job.
+  LENDER_INSTALMENT_OVERDUE: {
+    en: {
+      title:
+        'Repayment to {lender} due {dueOn} on {reference} is late — {amount} {currency} outstanding',
+    },
+    ar: {
+      title:
+        'تأخر سداد {lender} المستحق {dueOn} على {reference} — المتبقي {amount} {currency}',
+    },
+  },
+
   // ── What the office hears from the storefront ─────────────────────────
   ORDER_REQUEST_SUBMITTED: {
     en: {

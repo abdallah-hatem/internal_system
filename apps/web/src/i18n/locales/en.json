@@ -100,7 +100,8 @@
       "customers": "Customers",
       "inventory": "Inventory",
       "cycles": "Cycles"
-    }
+    },
+    "lenders": "Lenders"
   },
   "auth": {
     "login": "Login",
@@ -154,7 +155,10 @@
     "yourCyclesEmpty": "None of your cycles has stock yet",
     "yourCyclesEmptyHint": "A cycle's profit appears here once its goods are received.",
     "yourCyclesError": "Your cycles could not be loaded.",
-    "cycleProfit": "Profit so far"
+    "cycleProfit": "Profit so far",
+    "owedToLenders": "Owed to lenders",
+    "owedToLendersNone": "Nothing owed",
+    "owedToLendersNoRate": "A currency with no current rate is left out of the pounds"
   },
   "products": {
     "title": "Products",
@@ -759,7 +763,8 @@
     "ORDER_REQUEST_DECLINED": "{requestNo} could not be filled",
     "IMPORT_REQUEST_SOURCING": "About {productName}",
     "IMPORT_REQUEST_ANSWERED": "About {productName}",
-    "IMPORT_REQUEST_DECLINED": "About {productName}"
+    "IMPORT_REQUEST_DECLINED": "About {productName}",
+    "LENDER_INSTALMENT_OVERDUE": "Repayment to {lender} due {dueOn} on {reference} is late — {amount} {currency} outstanding"
   },
   "auditLogs": {
     "title": "Audit Logs",
@@ -963,7 +968,8 @@
     "finished": "Cycle saved — {status}",
     "finishFailed": "The cycle could not be moved on",
     "baseCurrency": "base currency",
-    "backToCycle": "Back to the cycle"
+    "backToCycle": "Back to the cycle",
+    "financedByFriends": "Paid by friends"
   },
   "settlementsPage": {
     "title": "Settlements",
@@ -1002,7 +1008,10 @@
       "UNSOLD_STOCK": "{units} units are still in stock ({valueEgp} EGP at landed cost). Their cost stays with the cycle until they sell, so this profit covers sold units only.",
       "NO_REALISED_SALES": "This cycle has no realised sales yet.",
       "unknown": "This calculation has a warning this version of the app cannot show. Refresh the page."
-    }
+    },
+    "lenderOwedTitle": "Cannot settle yet — friends are still owed",
+    "lenderOwedHint": "Repay them on the lender page first; the exchange difference is part of this cycle's profit.",
+    "exchangeDifference": "Exchange difference"
   },
   "paymentPlans": {
     "title": "Payment Plans",
@@ -1072,7 +1081,12 @@
       "shipmentDelivery": "Delivery",
       "shipmentLoss": "Loss",
       "shipmentDeliveryLine": "Delivery line",
-      "supplierRefund": "Refund"
+      "supplierRefund": "Refund",
+      "lender": "Lender",
+      "lenderFinancing": "Friend's payment",
+      "lenderRepayment": "Repayment",
+      "lenderPlan": "Repayment plan",
+      "moneyAccount": "Money account"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -1235,7 +1249,25 @@
     "SHIPMENT_NOT_ACCOUNTED": "Cycle {cycle} cannot be settled yet: {onTheWay} unit(s) are still on the way and {waiting} delivered but not received, across {lines} order line(s). Receive them, or mark them lost, first.",
     "WALK_IN_NO_STATEMENT": "A walk-in buyer has no account, so there is no statement.",
     "INVOICE_DRAFT": "Order {order} is a draft, so it has no invoice yet. Confirm it first.",
-    "INVOICE_CANCELLED": "Order {order} was cancelled, so it has no invoice."
+    "INVOICE_CANCELLED": "Order {order} was cancelled, so it has no invoice.",
+    "LENDER_REPAYMENT_EXCEEDS_OWED": "{amount} EGP is more than is owed: {owed} is left, which {settling} EGP pays off at {rate}.",
+    "LENDER_REPAYMENT_CLEARS_NOTHING": "{amount} EGP at {rate} clears nothing of the debt.",
+    "LENDER_DEBT_OUTSTANDING": "Cycle {cycle} cannot be settled while it still owes: {owed}. Repay them first.",
+    "CYCLE_HAS_LENDER_FINANCING": "Cycle {cycle} has an order a friend paid for; remove his payment before cancelling it.",
+    "LENDER_NAME_REQUIRED": "A lender needs a name.",
+    "CYCLE_CLOSED_FOR_FINANCING": "Cycle {cycle} is {status}; a friend's payment cannot be recorded on it.",
+    "LENDER_ALREADY_FINANCES_ORDER": "{lender} already paid for {reference}. Remove that and record it again to change it.",
+    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} is more than is left to pay on {reference}: the order is {total} {currency} and friends already paid {financed}.",
+    "FINANCING_REMOVED": "This friend's payment was removed.",
+    "FINANCING_HAS_REPAYMENTS": "{lender} has been repaid on this; reverse those repayments before removing it.",
+    "ACCOUNT_NOT_USABLE": "{account} is not an active account in EGP; a repayment leaves one in pounds.",
+    "LENDER_REPAYMENT_BEFORE_FINANCING": "He paid the supplier on {paidOn}; a repayment cannot be dated before that.",
+    "LENDER_REPAYMENT_ALREADY_REVERSED": "This repayment was already reversed. Reversing again would count it twice.",
+    "LENDER_CYCLE_SETTLED": "Cycle {cycle} is settled; reverse the settlement before undoing a repayment on it.",
+    "LENDER_NOTHING_OWED": "{lender} is owed nothing on this, so there is nothing to schedule.",
+    "LENDER_PLAN_EXISTS": "This already has an active plan. Cancel it before agreeing another.",
+    "LENDER_PLAN_EXCEEDS_OWED": "The instalments total {total} {currency} but only {owed} is owed.",
+    "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for."
   },
   "orderRequests": {
     "title": "Order requests",
@@ -1434,7 +1466,9 @@
       "PAYMENT": "Payment",
       "SETTLEMENT": "Settlement",
       "SUPPLIER_REFUND": "Supplier refund",
-      "CYCLE_PARTICIPANT": "Cycle participant"
+      "CYCLE_PARTICIPANT": "Cycle participant",
+      "LENDER_FINANCING": "Friend's payment",
+      "LENDER_REPAYMENT": "Repayment to a friend"
     },
     "auditAction": {
       "CREATE": "Created",
@@ -1483,7 +1517,11 @@
       "SupplierRefund": "Supplier refund",
       "Provider": "Shipping provider",
       "Category": "Category",
-      "CurrencyRate": "Exchange rate"
+      "CurrencyRate": "Exchange rate",
+      "Lender": "Lender",
+      "LenderFinancing": "Friend's payment",
+      "LenderRepayment": "Repayment to a friend",
+      "LenderPlan": "Repayment plan"
     },
     "dateField": {
       "CYCLE_START": "A cycle start date",
@@ -1492,7 +1530,9 @@
       "REFUND_RECEIVED": "The date a refund was received",
       "DEPARTURE": "A departure date",
       "ARRIVAL": "An arrival date",
-      "DELIVERY": "A delivery date"
+      "DELIVERY": "A delivery date",
+      "LENDER_PAID": "The date a friend paid a supplier",
+      "LENDER_REPAID": "The date a friend was repaid"
     },
     "country": {
       "CN": "China",
@@ -1671,5 +1711,104 @@
     "requiredNamed": "Fill in the required fields: {fields}",
     "invalid": "Check the highlighted fields.",
     "invalidNamed": "Check these fields: {fields}"
+  },
+  "lenders": {
+    "title": "Lenders",
+    "subtitle": "Friends who paid a supplier for us, and what we still owe them",
+    "create": "Add lender",
+    "createSuccess": "Lender added",
+    "createFailed": "Could not add the lender",
+    "name": "Name",
+    "phone": "Phone",
+    "notes": "Notes",
+    "search": "Search lenders…",
+    "emptyTitle": "No lenders yet",
+    "emptyHint": "A lender is a friend who pays a supplier for us and is repaid in pounds.",
+    "owed": "Still owed",
+    "nothingOwed": "Nothing owed",
+    "orders": "Orders paid for",
+    "overdue": "Overdue",
+    "back": "Lenders",
+    "notFoundTitle": "Lender not found",
+    "notFoundHint": "It may have been removed, or the link is wrong.",
+    "paidFor": "What he paid for",
+    "noFinancings": "Nothing paid for yet",
+    "noFinancingsHint": "Record what he paid from a purchase order or the cycle page (\"Paid by a friend\").",
+    "order": "Order",
+    "cycle": "Cycle",
+    "paid": "Paid",
+    "paidOn": "Paid on",
+    "atOrderRate": "<amount></amount> at the order rate <rate></rate>",
+    "repaid": "Repaid",
+    "exchangeDiff": "Exchange difference",
+    "exchangeDiffHint": "Pounds paid above what the debt was worth at the order rate — a cost to the cycle; negative is a gain.",
+    "repayments": "Repayments",
+    "noRepayments": "No repayments yet",
+    "date": "Date",
+    "pounds": "Pounds paid",
+    "rate": "Rate",
+    "cleared": "Cleared",
+    "account": "From account",
+    "reversed": "Reversed",
+    "reversedBecause": "Reversed: {reason}",
+    "removed": "Removed",
+    "recordRepayment": "Record repayment",
+    "repaymentFor": "{lender} · {reference}",
+    "owedNow": "Still owed: <amount></amount>",
+    "rateHint": "That day's rate — prefilled from the current rate, change it if the day's was different",
+    "settles": "<amount></amount> pays it all off at this rate",
+    "payAll": "Pay it all",
+    "clears": "Clears <amount></amount>",
+    "repaymentRecorded": "Repayment recorded",
+    "repaymentFailed": "Could not record the repayment",
+    "reverse": "Reverse",
+    "reverseTitle": "Reverse this repayment",
+    "reverseHint": "The pounds go back into the account and the debt they cleared is owed again. A reversal cannot itself be undone.",
+    "reason": "Reason",
+    "reasonPlaceholder": "Why is this being reversed?",
+    "reverseDone": "Repayment reversed",
+    "remove": "Remove",
+    "removeTitle": "Remove this friend's payment",
+    "removeHint": "Only while nothing stands repaid. The ledger entry is balanced, not deleted.",
+    "removeDone": "Friend's payment removed",
+    "plan": "Repayment plan",
+    "noPlan": "No plan agreed",
+    "setPlan": "Agree a plan",
+    "planTitle": "Agree a repayment plan",
+    "planHint": "Instalments in {currency}, totalling no more than is owed ({owed}).",
+    "instalment": "Instalment {n}",
+    "addInstalment": "Add instalment",
+    "dueOn": "Due",
+    "amount": "Amount",
+    "planSaved": "Plan agreed",
+    "cancelPlan": "Cancel plan",
+    "cancelPlanTitle": "Cancel this plan",
+    "planCancelled": "Plan cancelled",
+    "planTotal": "Plan total",
+    "state": {
+      "PAID": "Paid",
+      "DUE": "Due today",
+      "OVERDUE": "Overdue",
+      "UPCOMING": "Upcoming"
+    },
+    "paidByFriend": "Paid by a friend",
+    "paidByLine": "Paid by <lender></lender> — <amount></amount>; <owed></owed> still owed",
+    "paidByLineRepaid": "Paid by <lender></lender> — <amount></amount>; repaid in full",
+    "noneYet": "Nobody paid for this order on our behalf.",
+    "noneYetCycle": "No friend paid for this cycle's orders.",
+    "addFinancing": "A friend paid for this",
+    "lender": "Lender",
+    "pickLender": "Choose a lender",
+    "purchaseOrder": "Purchase order",
+    "pickOrder": "Choose an order",
+    "amountIn": "Amount ({currency})",
+    "leftToFinance": "{amount} of the order is not paid by a friend",
+    "financingSaved": "Friend's payment recorded",
+    "financingFailed": "Could not record the friend's payment",
+    "openLender": "Open",
+    "save": "Save",
+    "cancelPlanHint": "The schedule stops counting; repayments and what is owed do not change.",
+    "rateFor": "Rate ({currency} → EGP)",
+    "poundsEgp": "Pounds paid (EGP)"
   }
 }
