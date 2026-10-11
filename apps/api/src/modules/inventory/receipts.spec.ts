@@ -80,7 +80,9 @@ beforeEach(() => {
   );
   settlements = new SettlementsService(prisma, audit);
   analytics = new AnalyticsService(prisma);
-  sales = new SalesService(prisma, audit, new PaymentsService(prisma, audit));
+  sales = new SalesService(prisma, audit, new PaymentsService(prisma, audit), {
+    createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+  });
 });
 
 async function refusal(p: Promise<unknown>) {

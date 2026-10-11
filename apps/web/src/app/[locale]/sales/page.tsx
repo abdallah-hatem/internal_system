@@ -40,6 +40,10 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
+import { downloadCsv, datedFilename } from '@/lib/export-csv';
+import { businessToday } from '@/lib/dates';
+import { Download } from 'lucide-react';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -54,6 +58,8 @@ interface SaleOrder {
   currency: string;
   version: number;
   createdAt: string;
+  /** When it was ordered — what the date filter reads (BUSINESS_LOGIC §4). */
+  orderedAt?: string;
   items?: SaleOrderItem[];
   paymentAllocations?: PaymentAllocation[];
 }
@@ -116,6 +122,8 @@ function SalesPageContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  // Days the order was placed, both included, filtered by the API (I1).
+  const [dates, setDates] = useState<DayRange>({ from: '', to: '' });
   // The new-order form, open or not, and the customer it opened on. The form
   // owns its own lines; unmounting it on close is what resets them.
   const [createFor, setCreateFor] = useState<{ customerId?: string } | null>(null);
@@ -141,10 +149,21 @@ function SalesPageContent() {
   const openedFromCustomer = useRef(false);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, dates]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: orders, capped, isLoading } = useAllRecords(['sales'], '/sales/orders');
+  // Every page of the range, not one: the CSV exports what the filter shows.
+  const {
+    items: orders,
+    capped,
+    isLoading,
+    error: listError,
+  } = useAllRecords(['sales', dates], '/sales/orders', {
+    from: dates.from || undefined,
+    to: dates.to || undefined,
+  });
+  const dated = Boolean(dates.from || dates.to);
+  const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDates({ from: '', to: '' }); };
   const { items: customers } = useAllRecords(['customers'], '/customers');
   const { items: products } = useAllRecords(['products'], '/products');
 
@@ -353,13 +372,45 @@ function SalesPageContent() {
     </span>
   );
   // Nothing at all yet, as opposed to nothing matching the search or chip.
-  const noOrdersYet = !isLoading && orderList.length === 0;
+  const noOrdersYet = !isLoading && orderList.length === 0 && !dated && !listError;
+
+  /**
+   * The rows the filters show — every page of them, not the visible one —
+   * as a spreadsheet. Money goes out as numbers so it can be summed; the day
+   * is the day in Cairo the order was placed, the one the filter reads.
+   */
+  const exportCsv = () =>
+    downloadCsv(datedFilename('sales'), filtered, [
+      { header: t('orderNo'), value: (o) => o.orderNo },
+      { header: t('date'), value: (o) => businessToday(new Date(o.orderedAt ?? o.createdAt)) },
+      { header: t('customer'), value: (o) => buyerName(o) ?? '' },
+      { header: t('channel'), value: (o) => o.channel },
+      { header: tc('status'), value: (o) => codeLabel('orderStatus', o.status) },
+      { header: t('currency'), value: (o) => o.currency },
+      { header: t('total'), value: (o) => Number(o.total) },
+      {
+        header: t('outstanding'),
+        // A draft owes nothing yet and a walk-in never owes (§4).
+        value: (o) => (o.status === 'DRAFT' || o.customer?.isWalkIn ? 0 : Number(o.outstanding)),
+      },
+    ]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="sales-export"
+          onClick={exportCsv}
+          disabled={filtered.length === 0}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
+        >
+          <Download className="h-4 w-4" />
+          {tc('export')}
+        </button>
         <button
           type="button"
           onClick={openCreate}
@@ -368,6 +419,7 @@ function SalesPageContent() {
           <Plus className="h-4 w-4" />
           {t('create')}
         </button>
+        </div>
       </div>
 
       {/* Search + Filter Tabs */}
@@ -382,6 +434,12 @@ function SalesPageContent() {
             className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
+        <DateRangeFilter idPrefix="sales" value={dates} onChange={setDates} />
+        {listError && (
+          <p role="alert" data-testid="sales-range-error" className="text-sm text-destructive">
+            {apiError(listError, tc('error'))}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {FILTER_TABS.map((tab) => (
             <button
@@ -443,7 +501,7 @@ function SalesPageContent() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8}><NoMatch filtered={statusFilter !== 'all'} onClear={() => { setSearch(''); setStatusFilter('all'); }} /></td></tr>
+                  <tr><td colSpan={8}><NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} /></td></tr>
                 ) : (
                   paginated.map((order) => (
                     // The whole row opens the order. The order number is a
@@ -500,7 +558,7 @@ function SalesPageContent() {
       {!isLoading && !noOrdersYet && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200"><NoMatch filtered={statusFilter !== 'all'} onClear={() => { setSearch(''); setStatusFilter('all'); }} /></div>
+            <div className="bg-white rounded-xl border border-gray-200"><NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} /></div>
           ) : (
             paginated.map((order) => (
               <div

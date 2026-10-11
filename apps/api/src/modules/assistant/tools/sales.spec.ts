@@ -46,6 +46,7 @@ const TABLES = [
   'paymentAllocation',
   'auditLog',
   'usedNonce',
+  'user',
 ] as const;
 type Table = (typeof TABLES)[number];
 
@@ -54,7 +55,10 @@ const RELATIONS: Record<
   string,
   Record<string, [Table, string, 'many' | 'one']>
 > = {
-  product: { prices: ['productPrice', 'productId', 'many'] },
+  product: {
+    prices: ['productPrice', 'productId', 'many'],
+    inventoryBatches: ['inventoryBatch', 'productId', 'many'],
+  },
   saleOrder: {
     items: ['saleItem', 'saleOrderId', 'many'],
     customer: ['customer', 'customerId', 'one'],
@@ -290,6 +294,10 @@ const partner: AssistantUser = {
 
 let db: FakeDb;
 let client: Client;
+/** The low-stock alerts the sales service raised (BUSINESS_LOGIC §3, 2026-10-11). */
+const lowStockAlerts = jest.fn((_userIds: string[], _data: unknown) =>
+  Promise.resolve({ count: 0 }),
+);
 let ids: {
   pad: string;
   helmet: string;
@@ -351,6 +359,7 @@ function seed() {
 
 beforeEach(async () => {
   jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  lowStockAlerts.mockClear();
   db = new FakeDb();
   seed();
   const prisma = db as unknown as PrismaService;
@@ -360,7 +369,12 @@ beforeEach(async () => {
     [PrismaService, prisma],
     [AuditService, audit],
     [PaymentsService, payments],
-    [SalesService, new SalesService(prisma, audit, payments)],
+    [
+      SalesService,
+      new SalesService(prisma, audit, payments, {
+        createForMultipleUsers: lowStockAlerts,
+      }),
+    ],
   ]);
   const assistant = new AssistantServer(
     new ConfirmationService(
@@ -832,5 +846,37 @@ describe('record_sale — what the assistant offers', () => {
       'paymentMethod',
       'walkIn',
     ]);
+  });
+});
+
+describe('record_sale — low stock after the sale (§3, 2026-10-11)', () => {
+  function minimum(productId: string, min: number) {
+    const row = db.tables.product.find((p) => p.id === productId)!;
+    row.minStock = D(min);
+    db.insert('user', { role: 'CORE_PARTNER', status: 'ACTIVE' });
+  }
+
+  it('a confirmed walk-in sale taking the pads under their minimum alerts every partner once; the preview alerts nobody', async () => {
+    minimum(ids.pad, 20); // 40 on the shelf, 25 sold → 15
+    const preview = await call(walkInSale);
+    expect(lowStockAlerts).not.toHaveBeenCalled();
+
+    await confirm(walkInSale, preview.s.confirmationToken);
+
+    expect(lowStockAlerts).toHaveBeenCalledTimes(1);
+    const [userIds, data] = lowStockAlerts.mock.calls[0] as [
+      string[],
+      { code: string; payload: { products: { productId: string }[] } },
+    ];
+    expect(userIds).toHaveLength(1);
+    expect(data.code).toBe('LOW_STOCK_DETECTED');
+    expect(data.payload.products.map((p) => p.productId)).toEqual([ids.pad]);
+  });
+
+  it('a sale that leaves the pads above their minimum alerts nobody', async () => {
+    minimum(ids.pad, 10); // 40 → 15, still above 10
+    const preview = await call(walkInSale);
+    await confirm(walkInSale, preview.s.confirmationToken);
+    expect(lowStockAlerts).not.toHaveBeenCalled();
   });
 });

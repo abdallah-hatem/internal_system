@@ -13,6 +13,7 @@ import { PortalSignupController } from './portal-signup.controller';
 import { PortalImagesController } from './portal-images.controller';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PaymentPlansModule } from '../payment-plans/payment-plans.module';
 import { PortalAccountController } from './portal-account.controller';
 import { PortalImportsController } from './portal-imports.controller';
 import { PortalNotificationsController } from './portal-notifications.controller';
@@ -34,7 +35,15 @@ import { OptionalPortalViewerGuard } from '../../common/guards/optional-portal-v
  * `AuthModule` is imported for `JwtModule`, which the viewer guard needs.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, SalesModule, FilesModule, NotificationsModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    SalesModule,
+    FilesModule,
+    NotificationsModule,
+    // For the daily overdue check behind GET /jobs/overdue-payments.
+    PaymentPlansModule,
+  ],
   controllers: [
     JobsController,
     PortalCatalogueController,

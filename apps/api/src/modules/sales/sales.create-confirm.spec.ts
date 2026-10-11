@@ -39,6 +39,7 @@ interface Store {
   items: any[];
   movements: any[];
   allocations: any[];
+  users: any[];
 }
 
 function seed(stock: Record<string, number>): Store {
@@ -69,6 +70,11 @@ function seed(stock: Record<string, number>): Store {
     items: [],
     movements: [],
     allocations: [],
+    users: [
+      { id: 'partner-a', role: 'CORE_PARTNER', status: 'ACTIVE' },
+      { id: 'partner-b', role: 'CORE_PARTNER', status: 'ACTIVE' },
+      { id: 'investor', role: 'TEMP_INVESTOR', status: 'ACTIVE' },
+    ],
   };
 }
 
@@ -118,6 +124,27 @@ function fakePrisma(initial: Store) {
     product: {
       findUnique: async ({ where }: any) =>
         db.store.products.find((p) => p.id === where.id) ?? null,
+      // findLowStock's query: active, a minimum set, these ids; with batches.
+      findMany: async ({ where }: any) =>
+        db.store.products
+          .filter(
+            (p) =>
+              p.status === where.status &&
+              p.minStock != null &&
+              (!where.id || where.id.in.includes(p.id)),
+          )
+          .map((p) => ({
+            ...p,
+            inventoryBatches: db.store.batches
+              .filter((b) => b.productId === p.id)
+              .map((b) => ({ remainingQty: b.remainingQty })),
+          })),
+    },
+    user: {
+      findMany: async ({ where }: any) =>
+        db.store.users.filter(
+          (u) => u.role === where.role && u.status === where.status,
+        ),
     },
     inventoryBatch: {
       groupBy: async ({ where }: any) => {
@@ -262,15 +289,28 @@ function fakePrisma(initial: Store) {
   return { client, db };
 }
 
-function build(stock: Record<string, number>) {
-  const { client, db } = fakePrisma(seed(stock));
+function build(
+  stock: Record<string, number>,
+  /** A minimum per product; the product is then ACTIVE with that minimum. */
+  minStock: Record<string, number> = {},
+) {
+  const store = seed(stock);
+  for (const p of store.products) {
+    if (minStock[p.id] !== undefined) {
+      p.status = 'ACTIVE';
+      p.minStock = D(minStock[p.id]);
+    }
+  }
+  const { client, db } = fakePrisma(store);
   const audit = { log: jest.fn(async () => undefined) };
+  const notify = jest.fn(async () => ({ count: 0 }));
   const service = new SalesService(
     client as PrismaService,
     audit as unknown as AuditService,
     {} as PaymentsService,
+    { createForMultipleUsers: notify },
   );
-  return { service, db, audit };
+  return { service, db, audit, notify };
 }
 
 function refusalOf(e: unknown): { status: number; code: string } {
@@ -614,6 +654,7 @@ describe('POST /sales/orders with confirm: true', () => {
       (service as any).prisma,
       { log: jest.fn(async () => undefined) } as unknown as AuditService,
       {} as PaymentsService,
+      { createForMultipleUsers: () => Promise.resolve({ count: 0 }) },
     );
     const body = order([{ productId: PISTON, quantity: 10, unitPrice: 100 }], {
       confirm: true,
@@ -730,5 +771,131 @@ describe('who may create & confirm', () => {
   it('a core partner and admin support are let through', () => {
     expect(guard.canActivate(contextFor('CORE_PARTNER'))).toBe(true);
     expect(guard.canActivate(contextFor('ADMIN_SUPPORT'))).toBe(true);
+  });
+});
+
+describe('a sale that takes a product into low stock says so (§3, 2026-10-11)', () => {
+  /** The products each low-stock alert named, in the order raised. */
+  const alerts = (notify: jest.Mock) =>
+    notify.mock.calls.map(([userIds, data]: any) => ({
+      userIds,
+      code: data.code,
+      products: data.payload.products.map((p: any) => [
+        p.productName,
+        p.currentStock,
+        p.minStock,
+      ]),
+    }));
+
+  it('12 on the shelf, minimum 10, 3 sold → one alert to every core partner, after the sale', async () => {
+    const { service, notify } = build({ [PISTON]: 12 }, { [PISTON]: 10 });
+    await service.create(
+      order([{ productId: PISTON, quantity: 3, unitPrice: 100 }], {
+        confirm: true,
+      }),
+      'actor-1',
+    );
+    expect(alerts(notify)).toEqual([
+      {
+        userIds: ['partner-a', 'partner-b'],
+        code: 'LOW_STOCK_DETECTED',
+        products: [['Piston kit', 9, 10]],
+      },
+    ]);
+  });
+
+  it('the second sale while it stays low raises nothing more', async () => {
+    const { service, notify } = build({ [PISTON]: 12 }, { [PISTON]: 10 });
+    const sell = (quantity: number) =>
+      service.create(
+        order([{ productId: PISTON, quantity, unitPrice: 100 }], {
+          confirm: true,
+        }),
+        'actor-1',
+      );
+    await sell(3);
+    await sell(2);
+    await sell(7);
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('left exactly at the minimum is not low: no alert', async () => {
+    const { service, notify } = build({ [PISTON]: 12 }, { [PISTON]: 10 });
+    await service.create(
+      order([{ productId: PISTON, quantity: 2, unitPrice: 100 }], {
+        confirm: true,
+      }),
+      'actor-1',
+    );
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('a product with no minimum is never alerted, even sold out', async () => {
+    const { service, notify } = build({ [PISTON]: 5 });
+    await service.create(
+      order([{ productId: PISTON, quantity: 5, unitPrice: 100 }], {
+        confirm: true,
+      }),
+      'actor-1',
+    );
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('a draft takes nothing off the shelf and raises nothing; confirming it does', async () => {
+    const { service, notify } = build({ [PISTON]: 12 }, { [PISTON]: 10 });
+    const draft: any = await service.create(
+      order([{ productId: PISTON, quantity: 5, unitPrice: 100 }]),
+      'actor-1',
+    );
+    expect(notify).not.toHaveBeenCalled();
+    await service.confirmOrder(draft.data.id, 'actor-1', draft.data.version);
+    expect(alerts(notify)[0].products).toEqual([['Piston kit', 7, 10]]);
+  });
+
+  it('a refused sale (more than is in stock) raises nothing — nothing left the shelf', async () => {
+    const { service, notify, db } = build({ [PISTON]: 12 }, { [PISTON]: 10 });
+    await refused(
+      service.create(
+        order([{ productId: PISTON, quantity: 13, unitPrice: 100 }], {
+          confirm: true,
+        }),
+        'actor-1',
+      ),
+    );
+    expect(notify).not.toHaveBeenCalled();
+    expect(saleable(db, PISTON)).toBe(12);
+  });
+
+  it('two lines of one product count together; two products crossing are named in one alert', async () => {
+    const { service, notify } = build(
+      { [PISTON]: 12, [CHAIN]: 20 },
+      { [PISTON]: 10, [CHAIN]: 15 },
+    );
+    await service.create(
+      order(
+        [
+          { productId: PISTON, quantity: 1, unitPrice: 100 },
+          { productId: PISTON, quantity: 2, unitPrice: 100 },
+          { productId: CHAIN, quantity: 6, unitPrice: 50 },
+        ],
+        { confirm: true },
+      ),
+      'actor-1',
+    );
+    expect(alerts(notify)).toHaveLength(1);
+    expect(alerts(notify)[0].products.sort()).toEqual([
+      ['Chain', 14, 15],
+      ['Piston kit', 9, 10],
+    ]);
+  });
+
+  it('the same order sent twice with one key is one sale and one alert', async () => {
+    const { service, notify } = build({ [PISTON]: 12 }, { [PISTON]: 10 });
+    const body = order([{ productId: PISTON, quantity: 3, unitPrice: 100 }], {
+      confirm: true,
+    });
+    await service.create(body, 'actor-1', 'k-1');
+    await service.create(body, 'actor-1', 'k-1');
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 });

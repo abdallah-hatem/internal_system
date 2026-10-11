@@ -75,6 +75,8 @@ function matches(row: Row, where: Where | undefined): boolean {
       }
       if ('in' in c) return (c.in as unknown[]).includes(value);
       if ('not' in c) return value !== c.not;
+      if ('gt' in c && !(value instanceof Date))
+        return Number(value) > Number(c.gt);
       const t = (value as Date).getTime();
       if ('gte' in c && t < (c.gte as Date).getTime()) return false;
       if ('lt' in c && t >= (c.lt as Date).getTime()) return false;
@@ -92,6 +94,10 @@ interface Db {
   customers: Row[];
   orders: Row[];
   suppliers: Row[];
+  /** Active payment plans, with customer and instalments, as PLAN_INCLUDE reads them. */
+  plans?: Row[];
+  /** What each customer has paid since their plan was agreed. */
+  paid?: Record<string, number>;
 }
 
 function emptyCycle(id: string, code: string): Row {
@@ -162,8 +168,17 @@ function fakePrisma(db: Db) {
         );
       }),
     },
-    payment: { findMany: findMany(() => []) },
-    paymentPlan: { findMany: findMany(() => []) },
+    payment: {
+      findMany: findMany(() => []),
+      aggregate: jest.fn((args: { where: Where }) =>
+        Promise.resolve({
+          _sum: {
+            amount: db.paid?.[args.where.customerId as string] ?? 0,
+          },
+        }),
+      ),
+    },
+    paymentPlan: { findMany: findMany(() => db.plans ?? []) },
   };
 }
 
@@ -186,7 +201,12 @@ function harness(db: Db) {
         {} as CyclesService,
       ),
     ],
-    [SalesService, new SalesService(p, audit, new PaymentsService(p, audit))],
+    [
+      SalesService,
+      new SalesService(p, audit, new PaymentsService(p, audit), {
+        createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+      }),
+    ],
     [CustomersService, new CustomersService(p, audit)],
     [PaymentsService, new PaymentsService(p, audit)],
     [PaymentPlansService, new PaymentPlansService(p, audit, notifications)],
@@ -923,6 +943,183 @@ describe('list_payments', () => {
   });
 });
 
+describe('list_receivables', () => {
+  const A = '4a1c0de0-0000-4000-8000-00000000000a';
+  const B = '4a1c0de0-0000-4000-8000-00000000000b';
+  const C = '4a1c0de0-0000-4000-8000-00000000000c';
+  const W = '4a1c0de0-0000-4000-8000-0000000000ff';
+  const shop = (id: string, name: string, isWalkIn = false) => ({
+    id,
+    displayName: name,
+    phone: null,
+    isWalkIn,
+  });
+  const o = (
+    customerId: string,
+    status: string,
+    outstanding: number,
+    at: string,
+    name: string,
+    isWalkIn = false,
+  ) => ({
+    id: `${customerId}-${at}`,
+    customerId,
+    status,
+    outstanding,
+    orderedAt: new Date(at),
+    customer: shop(customerId, name, isWalkIn),
+  });
+  /** A day `n` days from today, as an instalment's due date comes back. */
+  const due = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    const iso = [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0'),
+    ].join('-');
+    return new Date(`${iso}T00:00:00Z`);
+  };
+
+  function db(): Db {
+    const d = emptyDb();
+    d.orders.push(
+      o(A, 'CONFIRMED', 3000, '2026-09-10T08:00:00Z', 'Abbasiya Motors'),
+      o(A, 'PARTIALLY_PAID', 2000, '2026-08-01T08:00:00Z', 'Abbasiya Motors'),
+      o(B, 'CONFIRMED', 9000, '2026-09-20T08:00:00Z', 'Bulaq Bikes'),
+      // Not owed: a draft, paid, cancelled; and the walk-in never owes.
+      o(C, 'DRAFT', 50000, '2026-09-01T08:00:00Z', 'Corniche Parts'),
+      o(C, 'PAID', 0, '2026-09-01T08:00:00Z', 'Corniche Parts'),
+      o(C, 'CANCELLED', 7000, '2026-09-01T08:00:00Z', 'Corniche Parts'),
+      o(W, 'CONFIRMED', 100, '2026-09-01T08:00:00Z', 'Walk-in', true),
+    );
+    // Abbasiya promised 2,500 by a week ago and has paid 500 since: 2,000 behind.
+    d.plans = [
+      {
+        id: 'plan-a',
+        reference: 'PLAN-2026-0001',
+        customerId: A,
+        agreedOn: due(-30),
+        status: 'ACTIVE',
+        customer: { id: A, displayName: 'Abbasiya Motors', phone: null },
+        instalments: [
+          { id: 'i1', sequence: 1, dueOn: due(-7), amount: 2500, note: null },
+          { id: 'i2', sequence: 2, dueOn: due(7), amount: 2500, note: null },
+        ],
+      },
+    ];
+    d.paid = { [A]: 500 };
+    return d;
+  }
+
+  it('every customer who owes, largest balance first, with overdue and the oldest unpaid day', async () => {
+    const { assistant } = harness(db());
+
+    const rows = dataOf<Array<Record<string, unknown>>>(
+      await call(assistant, 'list_receivables'),
+    );
+
+    expect(rows).toEqual([
+      {
+        customerId: B,
+        customer: 'Bulaq Bikes',
+        phone: null,
+        outstanding: '9000.00',
+        overdue: '0.00',
+        openOrders: 1,
+        oldestUnpaidOn: '2026-09-20',
+      },
+      {
+        customerId: A,
+        customer: 'Abbasiya Motors',
+        phone: null,
+        outstanding: '5000.00',
+        overdue: '2000.00',
+        openOrders: 2,
+        oldestUnpaidOn: '2026-08-01',
+      },
+    ]);
+  });
+
+  it('each balance is the one get_customer gives for the same shop (one rule, CLAUDE.md 11)', async () => {
+    const d = db();
+    d.customers.push({ ...shop(A, 'Abbasiya Motors'), type: 'B2B' });
+    const { assistant } = harness(d);
+
+    const rows = dataOf<Array<{ customerId: string; outstanding: string }>>(
+      await call(assistant, 'list_receivables'),
+    );
+    const one = dataOf<{ balance: string }>(
+      await call(assistant, 'get_customer', { customer: A }),
+    );
+
+    expect(rows.find((r) => r.customerId === A)!.outstanding).toBe(one.balance);
+  });
+
+  it('overdueOnly → only those behind on a plan', async () => {
+    const { assistant } = harness(db());
+
+    const rows = dataOf<Array<{ customerId: string }>>(
+      await call(assistant, 'list_receivables', { overdueOnly: true }),
+    );
+
+    expect(rows.map((r) => r.customerId)).toEqual([A]);
+  });
+
+  it('nobody owing → an empty list that says so, not an error', async () => {
+    const { assistant } = harness(emptyDb());
+
+    const res = await call(assistant, 'list_receivables');
+
+    expect(dataOf(res)).toEqual([]);
+    expect((res.content[0] as { text: string }).text).toContain(
+      'Nobody owes anything.',
+    );
+  });
+
+  it('a limit of 1 shows the largest and says there are more; 0 or a huge one → the default or the cap', async () => {
+    const { assistant } = harness(db());
+
+    const one = await call(assistant, 'list_receivables', { limit: 1 });
+    expect(dataOf<unknown[]>(one)).toHaveLength(1);
+    expect((one.content[0] as { text: string }).text).toContain(
+      'showing the first 1',
+    );
+    expect(
+      dataOf<unknown[]>(
+        await call(assistant, 'list_receivables', { limit: 0 }),
+      ),
+    ).toHaveLength(2);
+    expect(
+      dataOf<unknown[]>(
+        await call(assistant, 'list_receivables', { limit: 1_000_000 }),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('overdueOnly that is not true or false → refused by the schema, nothing read', async () => {
+    const { assistant, prisma } = harness(db());
+
+    const res = await call(assistant, 'list_receivables', {
+      overdueOnly: 'yes',
+    });
+
+    expect(res.isError).toBe(true);
+    expect(prisma.saleOrder.findMany).not.toHaveBeenCalled();
+  });
+
+  it('reading who owes notifies nobody: the fake has no notification or user table, so trying would fail the call', async () => {
+    const { assistant, prisma } = harness(db());
+    expect('notification' in prisma || 'user' in prisma).toBe(false);
+
+    const res = await call(assistant, 'list_receivables', {
+      overdueOnly: true,
+    });
+
+    expect(res.isError).toBeFalsy();
+  });
+});
+
 describe('find_suppliers', () => {
   it('find_suppliers with a huge limit is capped, and a blank search does not filter', async () => {
     const { assistant, prisma } = harness(emptyDb());
@@ -994,6 +1191,7 @@ describe('What the assistant offers', () => {
       'list_sales',
       'get_customer',
       'list_payments',
+      'list_receivables',
       'get_dashboard',
       'get_fx_rates',
     ];

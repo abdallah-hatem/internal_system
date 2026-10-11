@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed).
+Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what).
 
 ---
 
@@ -215,6 +215,24 @@ after holds: a held unit is still on the shelf, and a minimum is a reorder point
 (L2, 2026-10-10). The alert raised on receiving uses the same rule. Defined once
 in `apps/api/src/common/low-stock.ts`, with one pinned web copy.
 
+**DECIDED 2026-10-11 (I1, autonomous run) — a sale that takes a product into low
+stock raises the alert too.** *Built 2026-10-11.* The low-stock alert used to be
+raised only on receiving, so the sale that actually emptied the shelf said
+nothing. Now every confirmed sale — a shop's order (in one step or confirmed
+from a draft), a walk-in sale, a sale the assistant records, an approved
+storefront request — raises the same alert to every active core partner when
+it takes a product from not low to low, by the one rule above (below the
+minimum; left exactly at the minimum is not low). **No repeat while it stays
+low:** a sale of a product that was already low raises nothing. It can alert
+again only once stock has been back at or above its minimum — a receipt, a
+cancelled sale, a return — and a sale takes it under once more. Sent after the
+sale is saved; a refused sale, a draft, or an assistant preview raises nothing.
+The brief for this asked for "to or below the minimum"; the decided rule of
+2026-10-10 (at the minimum is not low) was kept, so the alert, the dashboard
+and the inventory page cannot disagree. Guess, open until confirmed: receiving
+stock still alerts whenever the product is low after the receipt, even if it
+was already low before (unchanged from 2026-10-10).
+
 ---
 
 ## 4. Sales
@@ -400,10 +418,32 @@ A payment is in the order's currency or in Egyptian pounds; no other currency is
 offered.
 
 **DECIDED 2026-08-21 — overdue flags and notifies, nothing more.** It appears in
-the overdue summary and raises a notification, at most one per plan per day. It
+the overdue summary and raises a notification. It
 does **not** block new sales, warn on the sale screen, or charge a penalty. This
 matches the BRD's V1 scope, and each of those is a deliberate future choice
 rather than an oversight.
+
+**DECIDED 2026-10-11 (I1, autonomous run) — overdue is checked every morning and
+every partner is told, once per instalment.** *Built 2026-10-11.* Until now overdue
+was worked out only when someone opened the overdue summary, only that person was
+notified, and nothing in the office app opens it — so in practice nobody was told.
+A daily job (05:00 UTC, 07:00–08:00 in Cairo) now finds every instalment that has
+fallen behind on an active plan and notifies **every active core partner** —
+not investors, not admin support, not shops. Each partner hears about each
+instalment **once, ever**: the job runs every day and an instalment stays overdue
+until paid, and a daily repeat of the same figure teaches people to ignore the
+bell. A later instalment of the same plan falling behind is new and is told. A
+partner added after an instalment fell behind is told on the next run. The
+notification names the shop, the plan, the instalment's due day and what is
+still owed on it (money covers the earliest instalment first, as above). Reading
+the overdue summary no longer notifies anyone. This replaces "at most one per
+plan per day". **Confirmed by the owner 2026-10-11:** an alert fires once when an
+instalment first goes overdue, and again only when a further instalment is
+missed — no repeating daily reminder. Guesses, open until confirmed:
+- An instalment that is paid and then falls behind again (a payment reversed)
+  is not told a second time.
+- Admin support can read plans but is not notified; the notification is for the
+  partners whose money it is.
 
 One active plan per customer. Agreeing a second while one is live is refused,
 because two schedules would claim the same payments. Cancel and re-agree
@@ -565,9 +605,10 @@ in one action.
 **V1 is in-app only**, as the BRD scopes. Email and WhatsApp are deliberately
 out.
 
-Raised on: low stock, a shipment arriving, a cycle created or changing state, a
-purchase order created, a partner added to a cycle, and a payment plan falling
-behind.
+Raised on: low stock (after a receipt, and since 2026-10-11 after a sale that
+takes a product into low stock — §3), a shipment arriving, a cycle created or
+changing state, a purchase order created, a partner added to a cycle, and an
+instalment falling behind (checked daily since 2026-10-11 — §7).
 
 ---
 
@@ -929,6 +970,16 @@ Settings as its own connection.
 **What it may read.** Everything a core partner can see: cycles, purchase orders,
 stock with arrival and receipt dates, sales, payments, customer balances, the
 dashboard, FX rates.
+
+*Added 2026-10-11 (I1, autonomous run): who owes what* (`list_receivables`). Every
+customer with an unpaid balance, largest first, with how many orders are open,
+the day the oldest unpaid one was placed (in Cairo), and how much is overdue on
+their payment plan; optionally only those with something overdue. The balance is
+the customer's balance as everywhere else (confirmed and partly paid orders).
+Decided while building it: **overdue comes only from payment plans** (§7) — a
+shop with no plan has nothing overdue, because no date was ever promised — and is
+**never shown above what the customer owes now** (a plan can promise more than is
+still owed after a return). Reading it notifies nobody.
 
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,

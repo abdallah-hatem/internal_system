@@ -16,12 +16,13 @@ import { priceOn } from '../../portal/portal-pricing';
 import { ProductsService } from '../../products/products.service';
 import { SalesService } from '../../sales/sales.service';
 import { SuppliersService } from '../../suppliers/suppliers.service';
+import { withOverdue } from '../../../common/receivables';
 import { readTool, type AssistantContext, type ToolOutcome } from '../tool-kit';
 
 /**
  * The read tools: find_suppliers, find_products, list_cycles, get_cycle,
- * get_stock, list_sales, get_customer, list_payments, get_dashboard,
- * get_fx_rates.
+ * get_stock, list_sales, get_customer, list_payments, list_receivables,
+ * get_dashboard, get_fx_rates.
  *
  * Each calls the service method the office app's controller calls and only
  * reshapes what comes back — it never queries for a figure of its own. A
@@ -650,6 +651,53 @@ export function registerReadTools(
       }));
       return answer(
         `${data.length} payment(s)${res.meta.nextCursor ? ', more exist — narrow the range' : ''}.`,
+        data,
+      );
+    },
+  );
+
+  readTool(
+    server,
+    'list_receivables',
+    {
+      title: 'List who owes money',
+      description:
+        'Who owes what: every customer with an unpaid balance, the largest first. Per customer: what they owe (the same balance get_customer and the office app show — confirmed and partly paid orders), how many orders are open, the day the oldest unpaid order was placed, and how much is overdue on their payment plan (what was promised by today and has not come in; 0.00 when nothing is, and a shop with no plan has nothing overdue). Amounts in EGP. With overdueOnly, only customers with something overdue. Use it for "who owes us", "who is late", "who should we chase".',
+      inputSchema: {
+        overdueOnly: z
+          .boolean()
+          .optional()
+          .describe('Only customers with something overdue on a payment plan.'),
+        limit: limitField,
+      },
+    },
+    async ({ overdueOnly, limit }) => {
+      const [{ data: owing }, { data: overdue }] = await Promise.all([
+        ctx.resolve(CustomersService).receivables(),
+        ctx.resolve(PaymentPlansService).overdueSummary(),
+      ]);
+      const all = withOverdue(owing, overdue.plans, {
+        overdueOnly: overdueOnly === true,
+      });
+      const shown = all.slice(0, rows(limit));
+      const data = shown.map((r) => ({
+        customerId: r.customerId,
+        customer: r.customer,
+        phone: r.phone,
+        outstanding: r.outstanding,
+        overdue: r.overdue,
+        openOrders: r.openOrders,
+        oldestUnpaidOn: r.oldestUnpaidOn,
+      }));
+      const who = overdueOnly
+        ? 'customer(s) with something overdue'
+        : 'customer(s) owe money';
+      return answer(
+        all.length === 0
+          ? overdueOnly
+            ? 'Nobody has anything overdue.'
+            : 'Nobody owes anything.'
+          : `${all.length} ${who}, largest balance first${all.length > shown.length ? `; showing the first ${shown.length}` : ''}.`,
         data,
       );
     },

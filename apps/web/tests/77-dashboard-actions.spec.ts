@@ -132,6 +132,11 @@ test.describe('Quick actions open the existing forms', () => {
     // Exact: the status filter's "Cancelled" chip also matches "Cancel" and
     // sits first in the DOM, under the modal (the form is portalled after it).
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    // The page drops ?new=1 with a router.replace after it opens the form.
+    // Reloading before that lands reloads ?new=1 itself, and the form opens
+    // again — which a test can do within milliseconds and a person cannot
+    // (flaked once in a full group-4 run, I1, 2026-10-11).
+    await expect(page).toHaveURL(/\/en\/sales$/);
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Sales Orders' })).toBeVisible();
     await expect(heading).toHaveCount(0);

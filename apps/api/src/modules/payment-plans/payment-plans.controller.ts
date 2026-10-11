@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentPlansService } from './payment-plans.service';
-import { CreatePaymentPlanDto, CancelPaymentPlanDto } from './dto/payment-plan.dto';
+import {
+  CreatePaymentPlanDto,
+  CancelPaymentPlanDto,
+} from './dto/payment-plan.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -21,7 +32,10 @@ export class PaymentPlansController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'List payment plans with their progress' })
-  findAll(@Query() query: PaginationDto & { customerId?: string; overdueOnly?: string }) {
+  findAll(
+    @Query()
+    query: PaginationDto & { customerId?: string; overdueOnly?: string },
+  ) {
     return this.plans.findAll(query);
   }
 
@@ -29,8 +43,10 @@ export class PaymentPlansController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
   @ApiOperation({ summary: 'Everything behind schedule right now' })
-  overdue(@CurrentUser() user: any) {
-    return this.plans.overdueSummary(user?.id ? [user.id] : []);
+  overdue() {
+    // Reads only. Partners are told by the daily job (notifyOverdue), every
+    // one of them, once per instalment — not whoever happened to look.
+    return this.plans.overdueSummary();
   }
 
   @Get(':id')
@@ -57,7 +73,11 @@ export class PaymentPlansController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Cancel a plan' })
-  cancel(@Param('id') id: string, @Body() body: CancelPaymentPlanDto, @CurrentUser() user: any) {
+  cancel(
+    @Param('id') id: string,
+    @Body() body: CancelPaymentPlanDto,
+    @CurrentUser() user: any,
+  ) {
     return this.plans.cancel(id, body.reason, user?.id);
   }
 }

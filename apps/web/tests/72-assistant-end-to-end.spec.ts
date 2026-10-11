@@ -51,7 +51,7 @@ const codeOf = (r: ToolResult) => r.structuredContent?.error?.code;
 const EXPECTED_TOOLS = [
   // read
   'find_suppliers', 'find_products', 'list_cycles', 'get_cycle', 'get_stock',
-  'list_sales', 'get_customer', 'list_payments', 'get_dashboard', 'get_fx_rates',
+  'list_sales', 'get_customer', 'list_payments', 'list_receivables', 'get_dashboard', 'get_fx_rates',
   // receipt
   'match_receipt', 'create_purchase_order', 'create_supplier', 'create_product',
   // cycle (record_delivery added 2026-10-10, B4: §16 lets it record deliveries)

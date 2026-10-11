@@ -111,6 +111,7 @@ is refused.
 | `list_sales` | sale orders, by date range or customer |
 | `get_customer` | a customer's balance, open orders and payment plans |
 | `list_payments` | payments, by date range or customer |
+| `list_receivables` | who owes what, largest balance first, with overdue and the oldest unpaid day (added 2026-10-11, I1) |
 | `get_dashboard` | the dashboard figures |
 | `get_fx_rates` | the stored rates to EGP |
 

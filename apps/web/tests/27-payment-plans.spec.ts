@@ -6,14 +6,14 @@
  *  amounts were agreed on whatever dates. Progress is cumulative: what
  *  matters on any day is whether the shop has paid what it promised by then.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder } from './support/fixtures';
 
 const API = 'http://localhost:3001/api/v1';
 
-async function auth(request: any) {
+async function auth(request: any, email = 'partner.a@motoparts.com') {
   const res = await request.post(`${API}/auth/login`, {
-    data: { email: 'partner.a@motoparts.com', password: 'password123' },
+    data: { email, password: 'password123' },
   });
   return { Authorization: `Bearer ${(await res.json()).data.accessToken}` };
 }
@@ -232,8 +232,51 @@ test.describe('Instalment plans', () => {
     expect(Number(summary.totalOverdueEgp)).toBeGreaterThanOrEqual(2500);
     expect(summary.plans.some((p: any) => p.customer.id === customer.id)).toBeTruthy();
 
+    // Reading the summary tells nobody (§7, 2026-10-11): the daily check does,
+    // and it tells every partner, not whoever happened to look.
+    expect((await overdueNotes(request, h, customer.id)).length).toBe(0);
+
+    const run = await request.get(`${API}/jobs/overdue-payments`, { headers: { Authorization: `Bearer ${CRON}` } });
+    expect(run.status(), await run.text()).toBe(200);
+
     // Flag and notify is the whole of V1: nothing is blocked, nothing is charged.
-    const notes = (await (await request.get(`${API}/notifications`, { headers: h })).json()).data ?? [];
-    expect(notes.some((n: any) => n.eventType === 'PAYMENT_OVERDUE')).toBeTruthy();
+    for (const email of ['partner.a@motoparts.com', 'partner.b@motoparts.com', 'partner.c@motoparts.com']) {
+      const notes = await overdueNotes(request, await auth(request, email), customer.id);
+      expect([email, notes.length]).toEqual([email, 1]);
+      expect(notes[0].code).toBe('INSTALMENT_OVERDUE');
+      expect(notes[0].params.amount).toBe('2,500.00');
+    }
+  });
+
+  test('TC-PLAN-08: the daily check is shut without the scheduler’s secret', async ({ request }) => {
+    const attempts: Record<string, string>[] = [{}, { Authorization: 'Bearer not-the-secret' }, { Authorization: CRON }];
+    for (const headers of attempts) {
+      const res = await request.get(`${API}/jobs/overdue-payments`, { headers });
+      expect(res.status()).toBe(401);
+      expect((await res.json()).error.code).toBe('CRON_FORBIDDEN');
+    }
+    // A partner's own login is not the scheduler either.
+    const res = await request.get(`${API}/jobs/overdue-payments`, { headers: await auth(request) });
+    expect(res.status()).toBe(401);
   });
 });
+
+/**
+ * The scheduler's secret on a local API. `scripts/dev.sh` starts the API with
+ * this default, and so must anything else that runs these specs
+ * (docs/BUILD_LOG.md "How to run things here").
+ */
+const CRON = process.env.CRON_SECRET ?? 'local-cron-secret';
+
+/** This customer's overdue notifications in one partner's bell. */
+interface OverdueNote {
+  eventType: string;
+  code: string;
+  params: { amount: string };
+  payloadJson?: { customerId?: string };
+}
+async function overdueNotes(request: APIRequestContext, headers: Record<string, string>, customerId: string) {
+  const res = await request.get(`${API}/notifications?limit=100`, { headers });
+  const notes: OverdueNote[] = (await res.json()).data ?? [];
+  return notes.filter((n) => n.eventType === 'PAYMENT_OVERDUE' && n.payloadJson?.customerId === customerId);
+}

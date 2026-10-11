@@ -532,7 +532,7 @@
   },
   "tests/27-payment-plans.spec.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 7
+      "count": 6
     }
   },
   "tests/28-suppliers.spec.ts": {

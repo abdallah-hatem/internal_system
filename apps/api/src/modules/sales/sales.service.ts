@@ -1,5 +1,5 @@
 import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -16,6 +16,12 @@ import {
   walkInCustomer,
 } from '../../common/walk-in';
 import { PaymentsService } from '../payments/payments.service';
+import {
+  NotificationsService,
+  notifyLowStock,
+  type LowStockNotifier,
+} from '../notifications/notifications.service';
+import { crossedIntoLowStock, findLowStock } from '../../common/low-stock';
 import {
   centsToDecimalString,
   saleOrderTotals,
@@ -62,6 +68,11 @@ export class SalesService {
     private prisma: PrismaService,
     private audit: AuditService,
     private payments: PaymentsService,
+    /**
+     * A sale that takes a product into low stock says so (BUSINESS_LOGIC §3,
+     * 2026-10-11), through `notifyLowStock`, after the commit.
+     */
+    @Inject(NotificationsService) private notifications: LowStockNotifier,
   ) {}
 
   async findAll(pagination: {
@@ -254,6 +265,11 @@ export class SalesService {
       afterJson: outcome.order,
     });
     await this.audit.log(outcome.confirmed.audit);
+    await notifyLowStock(
+      this.prisma,
+      this.notifications,
+      outcome.confirmed.lowStock,
+    );
 
     return {
       data: { ...outcome.confirmed.data, customer: outcome.order.customer },
@@ -393,6 +409,11 @@ export class SalesService {
     });
     await this.audit.log(outcome.confirmed.audit);
     if (outcome.paid) await this.payments.logRecorded(outcome.paid, actorId);
+    await notifyLowStock(
+      this.prisma,
+      this.notifications,
+      outcome.confirmed.lowStock,
+    );
 
     return {
       data: {
@@ -597,6 +618,9 @@ export class SalesService {
     // cannot arrive until the transaction ends, and the transaction cannot
     // end until it returns. P2028 at exactly the ceiling, every time.
     await this.audit.log(outcome.audit);
+    // Likewise after the commit: an alert for stock that never left would
+    // send somebody to reorder what is still on the shelf.
+    await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
     return { data: outcome.data };
   }
 
@@ -630,8 +654,14 @@ export class SalesService {
 
     const allocations: unknown[] = [];
     let totalCogs = new Prisma.Decimal(0);
+    /** How much of each product this sale took, for the low-stock check. */
+    const sold = new Map<string, number>();
 
     for (const item of order.items) {
+      sold.set(
+        item.productId,
+        (sold.get(item.productId) ?? 0) + Number(item.quantity),
+      );
       // Quantities and costs stay in Decimal: this COGS is written to the
       // allocation and is what cycle profit is later calculated from, so a
       // float rounding drift here would quietly misstate every settlement.
@@ -711,6 +741,16 @@ export class SalesService {
       }
     }
 
+    // Low stock after this sale, by the one rule (common/low-stock.ts), read
+    // through `tx` so it sees the stock this sale just took. Only products
+    // the sale took *into* low stock: one already low stays quiet until it
+    // has been back above its minimum (BUSINESS_LOGIC §3, 2026-10-11). The
+    // alert itself is sent by the caller, after the commit.
+    const lowStock = crossedIntoLowStock(
+      await findLowStock(tx, [...sold.keys()]),
+      sold,
+    );
+
     // Update order status
     const updatedOrder = await tx.saleOrder.update({
       where: { id, version },
@@ -739,6 +779,7 @@ export class SalesService {
         beforeJson: { status: 'DRAFT' },
         afterJson: { status: 'CONFIRMED', cogs: Number(totalCogs) },
       },
+      lowStock,
       data: {
         ...updatedOrder,
         allocations,

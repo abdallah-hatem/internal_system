@@ -8,6 +8,7 @@ import {
 
 import type { Prisma } from '@prisma/client';
 import { notFound } from '../../common/api-error';
+import type { LowStockRow } from '../../common/low-stock';
 import {
   renderNotification,
   type NotificationCode,
@@ -99,6 +100,42 @@ export class NotificationsService {
       data: userIds.map((userId) => ({ userId, ...row })),
     });
   }
+}
+
+/** What saying stock is low needs from this service. */
+export type LowStockNotifier = Pick<
+  NotificationsService,
+  'createForMultipleUsers'
+>;
+
+/**
+ * Tell every active core partner that these products are low
+ * (BUSINESS_LOGIC §3). One sentence for all of them, as the receipt or sale
+ * that found them would say it. Raised after receiving stock and, since
+ * 2026-10-11, after a sale takes a product into low stock. The one place the
+ * alert is written, so the two cannot word it or address it differently.
+ *
+ * Call it after the commit, never inside a transaction: it reaches for the
+ * client's own connection (LEARNINGS: Deployment).
+ */
+export async function notifyLowStock(
+  db: Pick<Prisma.TransactionClient, 'user'>,
+  notifications: LowStockNotifier,
+  products: readonly LowStockRow[],
+): Promise<void> {
+  if (products.length === 0) return;
+  const partners = await db.user.findMany({
+    where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+    select: { id: true },
+  });
+  const userIds = partners.map((u) => u.id);
+  if (userIds.length === 0) return;
+  await notifications.createForMultipleUsers(userIds, {
+    eventType: 'LOW_STOCK_DETECTED',
+    code: 'LOW_STOCK_DETECTED',
+    params: { products: products.map((p) => p.productName).join(', ') },
+    payload: { products: [...products] },
+  });
 }
 
 /** Ids the event carries, for the link the reader's app builds. */

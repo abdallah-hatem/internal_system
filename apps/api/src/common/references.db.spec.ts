@@ -48,7 +48,9 @@ suite('reference numbers and dates against Postgres', () => {
       createForMultipleUsers: jest.fn(),
     } as unknown as NotificationsService;
     payments = new PaymentsService(db, audit);
-    sales = new SalesService(db, audit, payments);
+    sales = new SalesService(db, audit, payments, {
+      createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+    });
     purchases = new PurchasesService(db, audit, notifications);
     const user = await prisma.user.create({
       data: {

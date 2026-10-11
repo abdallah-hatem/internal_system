@@ -3,6 +3,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsService } from '../modules/analytics/analytics.service';
 import {
   countLowStock,
+  crossedIntoLowStock,
   findLowStock,
   isLowStock,
   type LowStockProduct,
@@ -212,5 +213,66 @@ describe('the dashboard Low stock count', () => {
       fakeDb([p('a', 'ACTIVE', null, [])]),
     ).getDashboardKPIs();
     expect(data.lowStockAlerts).toBe(0);
+  });
+});
+
+describe('crossedIntoLowStock — the alert after a sale (§3, 2026-10-11)', () => {
+  const row = (productId: string, currentStock: number, minStock = 10) => ({
+    productId,
+    productName: productId,
+    currentStock,
+    minStock,
+  });
+  const sold = (entries: Record<string, number>) =>
+    new Map(Object.entries(entries));
+
+  it('a sale that takes it from not low to low is alerted', () => {
+    // 12 on the shelf, minimum 10, 3 sold: 9 left.
+    expect(crossedIntoLowStock([row('a', 9)], sold({ a: 3 }))).toEqual([
+      row('a', 9),
+    ]);
+  });
+
+  it('from exactly at the minimum to one below is a crossing', () => {
+    expect(crossedIntoLowStock([row('a', 9)], sold({ a: 1 }))).toEqual([
+      row('a', 9),
+    ]);
+  });
+
+  it('already low before the sale: no second alert while it stays low', () => {
+    // 9 before (already low), 2 sold, 7 left.
+    expect(crossedIntoLowStock([row('a', 7)], sold({ a: 2 }))).toEqual([]);
+  });
+
+  it('selling the last unit of a product already low is not a new alert', () => {
+    expect(crossedIntoLowStock([row('a', 0)], sold({ a: 4 }))).toEqual([]);
+  });
+
+  it('only rows that are low after the sale can be alerted (the caller asks findLowStock)', () => {
+    // Not passed in → not low after (e.g. left exactly at the minimum).
+    expect(crossedIntoLowStock([], sold({ a: 2 }))).toEqual([]);
+  });
+
+  it('a low product this sale did not touch is not alerted', () => {
+    expect(crossedIntoLowStock([row('b', 3)], sold({ a: 2 }))).toEqual([]);
+  });
+
+  it('decimal quantities compare as numbers', () => {
+    expect(crossedIntoLowStock([row('a', 9.5)], new Map([['a', 0.5]]))).toEqual(
+      [row('a', 9.5)],
+    );
+    expect(
+      crossedIntoLowStock([row('a', 9.5)], new Map([['a', 0.25]])),
+    ).toEqual([]);
+    // 0.7 + 0.1 is 0.8 in thousandths; as floats it is 0.7999999999999999.
+    expect(
+      crossedIntoLowStock([row('a', 0.7, 0.8)], new Map([['a', 0.1]])),
+    ).toEqual([row('a', 0.7, 0.8)]);
+  });
+
+  it('two products, one crossing and one already low: only the crossing one', () => {
+    expect(
+      crossedIntoLowStock([row('a', 8), row('b', 2)], sold({ a: 5, b: 1 })),
+    ).toEqual([row('a', 8)]);
   });
 });

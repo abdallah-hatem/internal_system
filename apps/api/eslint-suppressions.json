@@ -512,31 +512,20 @@
       "count": 6
     }
   },
-  "src/modules/payment-plans/dto/payment-plan.dto.ts": {
-    "prettier/prettier": {
-      "count": 6
-    }
-  },
   "src/modules/payment-plans/payment-plans.controller.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 4
-    },
-    "prettier/prettier": {
-      "count": 4
+      "count": 2
     }
   },
   "src/modules/payment-plans/payment-plans.service.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 13
     }
   },
   "src/modules/payments/dto/payment.dto.ts": {
@@ -708,11 +697,6 @@
   "src/modules/portal/portal-signup.service.ts": {
     "prettier/prettier": {
       "count": 2
-    }
-  },
-  "src/modules/portal/portal.module.ts": {
-    "prettier/prettier": {
-      "count": 1
     }
   },
   "src/modules/products/products.controller.ts": {

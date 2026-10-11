@@ -26,6 +26,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { NotificationBell } from '@/components/layout/notification-bell';
+import { notificationHref } from '@/lib/notifications';
 
 beforeAll(() => {
   globalThis.ResizeObserver ??= class {
@@ -88,6 +89,22 @@ describe('notifications in the reader’s language', () => {
     expect(screen.getByText(wholeText('انتقلت الدورة CYC-2026-0007 إلى البيع'))).toBeTruthy();
   });
 
+  it('an overdue instalment says its due day as an Arabic date, not a reordered 08-10-2026', async () => {
+    await openBellInArabic([
+      {
+        ...NEW,
+        id: 'n-due',
+        eventType: 'PAYMENT_OVERDUE',
+        code: 'INSTALMENT_OVERDUE',
+        params: { customer: 'Heliopolis Bikes', dueOn: '2026-10-08', reference: 'PLAN-2026-0001', amount: '2,500.00' },
+        title: 'Heliopolis Bikes missed the instalment due 2026-10-08 on PLAN-2026-0001 — 2,500.00 EGP outstanding',
+      },
+    ]);
+    const line = await screen.findByText(/Heliopolis Bikes/);
+    expect(line.textContent).toContain('أكتوبر');
+    expect(line.textContent).not.toContain('2026-10-08');
+  });
+
   it('a code this build has never heard of falls back to the stored text, not to a key', async () => {
     await openBellInArabic([{ ...NEW, id: 'n-x', code: 'SOMETHING_NEW', title: 'Something new happened' }]);
     expect(await screen.findByText('Something new happened')).toBeTruthy();
@@ -115,5 +132,18 @@ describe('the locale files and the server catalogue agree', () => {
       const orphans = Object.keys(messages.notifications).filter((k) => isCode(k) && !codes.includes(k));
       expect(orphans).toEqual([]);
     }
+  });
+});
+
+describe('where a notification the API actually raises takes you', () => {
+  const href = (eventType: string, payloadJson: Record<string, unknown> = {}) =>
+    notificationHref({ ...NEW, eventType, payloadJson } as Parameters<typeof notificationHref>[0]);
+
+  it('an overdue instalment (eventType PAYMENT_OVERDUE) opens the payment plans', () => {
+    expect(href('PAYMENT_OVERDUE', { planId: 'p', instalmentId: 'i' })).toBe('/payment-plans');
+  });
+
+  it('low stock (eventType LOW_STOCK_DETECTED, after a receipt or a sale) opens the stock page', () => {
+    expect(href('LOW_STOCK_DETECTED', { products: [{ productId: 'x' }] })).toBe('/inventory');
   });
 });

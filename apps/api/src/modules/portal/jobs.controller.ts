@@ -2,6 +2,7 @@ import { Controller, Get, Headers, Logger } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 
 import { HoldsScheduler } from './holds.scheduler';
+import { PaymentPlansService } from '../payment-plans/payment-plans.service';
 import { Surface } from '../../common/surface';
 import { unauthorized } from '../../common/api-error';
 
@@ -28,7 +29,10 @@ import { unauthorized } from '../../common/api-error';
 export class JobsController {
   private readonly log = new Logger(JobsController.name);
 
-  constructor(private holds: HoldsScheduler) {}
+  constructor(
+    private holds: HoldsScheduler,
+    private plans: PaymentPlansService,
+  ) {}
 
   /**
    * GET, because that is what Vercel Cron sends.
@@ -38,17 +42,41 @@ export class JobsController {
    * sends notifications, and anyone who found the URL could fire it in a loop.
    * Vercel sends `Authorization: Bearer $CRON_SECRET` on every scheduled
    * request when that variable is set.
+   */
+  @Get('sweep-holds')
+  async sweepHolds(@Headers('authorization') authorization?: string) {
+    this.assertScheduled(authorization, 'the sweep');
+    await this.holds.sweep();
+    return { ok: true, ranAt: new Date().toISOString() };
+  }
+
+  /**
+   * The daily overdue check (BUSINESS_LOGIC §7, DECIDED 2026-10-11): every
+   * active core partner is told about each instalment that has fallen behind,
+   * once per instalment. Idempotent — a second call the same day, or the
+   * `@Cron` on a long-lived host running too, sends nothing new.
    *
+   * Unlike the sweep, a failure here is not swallowed: Vercel records the
+   * status of a cron request, and a 500 there is the only place a failed
+   * morning check would show.
+   */
+  @Get('overdue-payments')
+  async overduePayments(@Headers('authorization') authorization?: string) {
+    this.assertScheduled(authorization, 'the overdue check');
+    const result = await this.plans.notifyOverdue();
+    return { ok: true, ranAt: new Date().toISOString(), ...result };
+  }
+
+  /**
    * Refused when the secret is missing from the environment as well as when it
    * is wrong. A deployment that forgot to set it would otherwise leave the
    * endpoint open to everybody, which is the failure that looks like success.
    */
-  @Get('sweep-holds')
-  async sweepHolds(@Headers('authorization') authorization?: string) {
+  private assertScheduled(authorization: string | undefined, job: string) {
     const expected = process.env.CRON_SECRET;
 
     if (!expected) {
-      this.log.error('CRON_SECRET is not set; refusing to run the sweep');
+      this.log.error(`CRON_SECRET is not set; refusing to run ${job}`);
       throw unauthorized(
         'CRON_NOT_CONFIGURED',
         'This deployment has no CRON_SECRET, so scheduled jobs cannot be authenticated.',
@@ -58,8 +86,5 @@ export class JobsController {
     if (authorization !== `Bearer ${expected}`) {
       throw unauthorized('CRON_FORBIDDEN', 'This is not a scheduled request.');
     }
-
-    await this.holds.sweep();
-    return { ok: true, ranAt: new Date().toISOString() };
   }
 }

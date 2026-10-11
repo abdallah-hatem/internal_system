@@ -3,9 +3,10 @@ import { SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
 import { AuditModule } from '../audit/audit.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [AuditModule, PaymentsModule],
+  imports: [AuditModule, PaymentsModule, NotificationsModule],
   controllers: [SalesController],
   providers: [SalesService],
   exports: [SalesService],

@@ -88,7 +88,21 @@ export function resolveApiError(
     }
   }
 
-  return lookup(t, body.code, serverMessage, params);
+  const said = lookup(t, body.code, serverMessage, params);
+  // A calendar day ("2026-10-11") inside an Arabic sentence is reordered by
+  // the bidi algorithm into "11-10-2026" — a different-looking date (I1,
+  // 2026-10-11, seen on the date-range refusal). In an Arabic sentence each
+  // one is isolated as its own left-to-right run; English is left exactly as
+  // it was, invisible marks and all.
+  if (!/[\u0600-\u06FF]/.test(said)) return said;
+  let isolated = false;
+  for (const [name, value] of Object.entries(params)) {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      params[name] = `\u2066${value}\u2069`;
+      isolated = true;
+    }
+  }
+  return isolated ? lookup(t, body.code, serverMessage, params) : said;
 }
 
 /** A code's words, or the code itself — a missing label must not crash an error. */

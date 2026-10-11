@@ -459,6 +459,118 @@ test.describe('Quick create', () => {
     await expect(productDialog).toBeVisible();
   });
 
+  // ── Escape (I1, 2026-10-11) ─────────────────────────────────────────────
+  // The dialog ignored Escape: the one key everybody reaches for to back out
+  // did nothing, and the only ways out were the X, the scrim and Cancel. It
+  // now closes the way Cancel does — nothing saved, the form underneath as it
+  // was, nothing left behind for the next opening (CLAUDE.md §13).
+
+  test('TC-QC-13: Escape closes the dialog like Cancel — nothing saved, the outer form untouched, nothing inherited next time', async ({
+    page,
+    request,
+  }) => {
+    const { headers } = await apiCtx(request);
+    const countCategories = async () => {
+      const r = await (await request.get(`${API}/categories`, { headers })).json();
+      return (r.data?.items ?? r.data ?? []).length;
+    };
+    const before = await countCategories();
+
+    await login(page);
+    await page.locator('aside a[href="/en/products"]').click();
+    await expect(page).toHaveURL(/\/en\/products$/);
+    await page.getByRole('button', { name: /new product|create/i }).first().click();
+    const productName = `Esc ${Date.now()}`;
+    await page.locator('input[name="name"]').first().fill(productName);
+
+    await plus(page, 'category').first().click();
+    const dialog = dialogFor(page, 'category');
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await dialog.locator('input[name="name"]').fill('Never saved by Escape');
+    await dialog.locator('input[name="name"]').press('Escape');
+
+    await expect(dialog).toHaveCount(0);
+    // The product form is still open, still filled in, still uncategorised.
+    await expect(page.locator('input[name="name"]').first()).toHaveValue(productName);
+    await expect(page.locator('input[type="hidden"][name="category"]')).toHaveValue('');
+    expect(await countCategories()).toBe(before);
+
+    // Second time: the dialog opens empty, not on what was typed before Escape.
+    await plus(page, 'category').first().click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('input[name="name"]')).toHaveValue('');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('input[name="name"]').first()).toHaveValue(productName);
+  });
+
+  test('TC-QC-14: nested, Escape closes only the top dialog — one level per press, nothing saved', async ({
+    page,
+    request,
+  }) => {
+    const { headers } = await apiCtx(request);
+    const count = async (path: string) => {
+      const r = await (await request.get(`${API}/${path}?limit=200`, { headers })).json();
+      return (r.data?.items ?? r.data ?? []).length;
+    };
+    const [products, categories, orders] = [await count('products'), await count('categories'), await count('purchase-orders')];
+
+    await login(page);
+    await page.locator('aside a[href="/en/purchases"]').click();
+    await expect(page).toHaveURL(/\/en\/purchases$/);
+    await page.getByRole('button', { name: /new purchase|create/i }).first().click();
+    await page.getByRole('button', { name: /add item/i }).first().click();
+
+    await plus(page, 'product').first().click();
+    const productDialog = dialogFor(page, 'product');
+    await expect(productDialog).toBeVisible({ timeout: 10000 });
+    const productName = `Esc nested ${Date.now()}`;
+    await productDialog.locator('input[name="name"]').fill(productName);
+
+    await productDialog.locator('[data-quick-create="category"]').click();
+    const categoryDialog = dialogFor(page, 'category');
+    await expect(categoryDialog).toBeVisible({ timeout: 10000 });
+    await categoryDialog.locator('input[name="name"]').fill('Escaped category');
+
+    await page.keyboard.press('Escape');
+    await expect(categoryDialog).toHaveCount(0);
+    await expect(productDialog).toBeVisible();
+    await expect(productDialog.locator('input[name="name"]')).toHaveValue(productName);
+
+    await page.keyboard.press('Escape');
+    await expect(productDialog).toHaveCount(0);
+    // The purchase order form is still there, with its line.
+    await expect(page.getByRole('button', { name: /add item/i }).first()).toBeVisible();
+
+    expect([await count('products'), await count('categories'), await count('purchase-orders')]).toEqual([
+      products, categories, orders,
+    ]);
+  });
+
+  test('TC-QC-15: with a picker open inside the dialog, Escape closes the picker first, then the dialog', async ({
+    page,
+  }) => {
+    await login(page);
+    await page.locator('aside a[href="/en/purchases"]').click();
+    await expect(page).toHaveURL(/\/en\/purchases$/);
+    await page.getByRole('button', { name: /new purchase|create/i }).first().click();
+    await page.getByRole('button', { name: /add item/i }).first().click();
+
+    await plus(page, 'product').first().click();
+    const dialog = dialogFor(page, 'product');
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await dialog.getByRole('combobox').first().click();
+    const panel = page.locator('[data-slot="popover-content"]');
+    await expect(panel).toBeVisible({ timeout: 5000 });
+
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('TC-QC-08: a customer needs its type, and gets one', async ({
     page,
     request,

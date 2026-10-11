@@ -34,7 +34,15 @@ async function openNav(page: Page, name: string) {
   if ((await link().count()) === 0) {
     await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
   }
+  const href = await link().getAttribute('href');
   await link().click();
+  // Wait until the route has actually changed. The click only starts a client
+  // navigation; until it lands, the page on screen is still the one we left —
+  // and the dashboard's recent activity names the very shop a test has just
+  // made. TC-RP-06 flaked exactly so (I1, 2026-10-11): late in a full run the
+  // route change is slow, the next getByText found the shop's name on the
+  // dashboard, clicked that plain text, and the customer list arrived after.
+  if (href) await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 15000 });
 }
 
 async function openOrder(page: Page, orderNo: string, m: Messages = en) {
@@ -167,7 +175,8 @@ test.describe('The one payment form elsewhere', () => {
     });
     await login(page);
     await openNav(page, en.nav.customers);
-    await page.getByText(customer.displayName).first().click();
+    // The shop's own link in the list — a person clicks the name in the row.
+    await page.getByRole('main').getByRole('link', { name: customer.displayName, exact: true }).first().click();
     await expect(page.getByRole('heading', { name: customer.displayName })).toBeVisible();
 
     // The balance counts the two confirmed orders only.
