@@ -1572,7 +1572,6 @@
     "nothingOrdered": "Nothing has been ordered on this cycle yet",
     "legHeading": "Leg {leg}",
     "departedOn": "Departed {date}",
-    "notDeparted": "Not departed",
     "arrivedOn": "All arrived {date}",
     "product": "Product",
     "ordered": "Ordered",

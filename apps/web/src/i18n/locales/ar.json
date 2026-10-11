@@ -1572,7 +1572,6 @@
     "nothingOrdered": "لم يُطلب شيء في هذه الدورة بعد",
     "legHeading": "المرحلة {leg}",
     "departedOn": "غادرت في {date}",
-    "notDeparted": "لم تغادر",
     "arrivedOn": "وصل كل شيء في {date}",
     "product": "المنتج",
     "ordered": "المطلوب",

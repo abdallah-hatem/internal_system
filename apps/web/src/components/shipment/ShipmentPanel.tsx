@@ -360,9 +360,11 @@ function LegBlock({
             <span data-testid="leg-status" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
               {codeLabel('legStatus', leg.status)}
             </span>
-            <span data-testid="leg-departure">
-              {leg.departedOn ? t('departedOn', { date: formatDate(leg.departedOn) }) : t('notDeparted')}
-            </span>
+            {/* A leg that has not left is said once, by the badge — the date
+                slot only appears with a date in it. */}
+            {leg.departedOn && (
+              <span data-testid="leg-departure">{t('departedOn', { date: formatDate(leg.departedOn) })}</span>
+            )}
             {leg.arrivedOn && <span>{t('arrivedOn', { date: formatDate(leg.arrivedOn) })}</span>}
             {/* Who carries it and what it costs — the old Shipping card's columns (I3). */}
             {meta?.provider && (

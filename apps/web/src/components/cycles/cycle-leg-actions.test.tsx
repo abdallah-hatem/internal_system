@@ -237,6 +237,15 @@ describe('one place for the legs', () => {
     expect(within(leg1).getByTestId('leg-provider').textContent).toBe('Merchant');
     expect(within(leg2).getByTestId('leg-cost').textContent).toContain('1,250.00');
   });
+
+  it('a leg that has not left says "Not departed" once — the badge — and has no empty date slot', async () => {
+    wrap();
+    const leg1 = await legBlock('leg-1');
+    expect(within(leg1).getByTestId('leg-status').textContent).toBe(en.codes.legStatus.PENDING);
+    const said = within(leg1).queryAllByText(en.codes.legStatus.PENDING);
+    expect(said).toHaveLength(1);
+    expect(within(leg1).queryByTestId('leg-departure')).toBeNull();
+  });
 });
 
 describe('Record departure from the details page', () => {
