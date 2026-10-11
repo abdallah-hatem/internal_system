@@ -273,6 +273,7 @@
     "emptyTitle": "No import cycles yet",
     "emptyHint": "A cycle is one shipment: what was ordered, how it travelled, and what it sold for.",
     "statusUpdated": "Cycle status updated",
+    "statusFixSaved": "Recorded. Choose the status again to move the cycle on.",
     "transitionFailed": "The status could not be changed",
     "currentStatus": "Current status:",
     "profitNotYet": "No profit yet: nothing from this cycle has been received and sold.",

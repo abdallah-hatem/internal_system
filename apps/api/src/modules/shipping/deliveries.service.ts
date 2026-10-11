@@ -274,7 +274,7 @@ export class DeliveriesService {
       throw badRequest(
         'LEG_NOT_DEPARTED',
         `${where(leg)} has not departed. Record the departure date on that leg first.`,
-        { leg: where(leg) },
+        { leg: where(leg), legId: leg.id },
       );
     }
     const departed = businessDay(leg.departedOn);

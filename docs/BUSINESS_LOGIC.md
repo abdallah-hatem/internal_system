@@ -142,6 +142,19 @@ up. Guesses, open until confirmed (autonomous run, 2026-10-11):
 - The departure starts at Cairo's today and cannot be a later day, like a
   delivery.
 
+**DECIDED 2026-10-11 (owner, I3) — a refused status change offers its fix.**
+When Change status is refused because a leg has not left (`LEG_NOT_DEPARTED`)
+or has had nothing delivered (`LEG_NOT_ARRIVED`), the dialog shows the reason
+with a button that opens Record departure or Record delivery for the leg the
+server named; the refusal carries the leg's id (`params.legId`) beside its route
+for that. After a save the dialog comes back and the move can be tried again.
+Guesses, open until confirmed (autonomous run, 2026-10-11): a `LEG_NOT_ARRIVED`
+on a leg that has not even left offers the departure first, since a delivery
+on it would be refused; no fix is offered to a role that cannot take it, nor
+when the refusal names no leg. Every refusal of a status change is now shown
+inside the dialog rather than as a toast, so the reason sits beside the
+choices it refers to.
+
 ---
 
 ## 2. Landed cost

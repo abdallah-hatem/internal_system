@@ -762,6 +762,48 @@ describe('cycle transitions read deliveries', () => {
     ).resolves.toEqual(expect.objectContaining({ to: 'ARRIVED_EGYPT' }));
   });
 
+  // I3: the cycle page's Change status offers the fix for exactly the leg
+  // named, so the refusal carries its id beside the readable route.
+  it('LEG_NOT_DEPARTED and LEG_NOT_ARRIVED name the leg by id as well as by route', async () => {
+    const { cycle, items } = cycleWithOrder(db, {
+      status: 'PURCHASING',
+      originType: 'CHINA',
+    });
+    const leg1 = addLeg(db, cycle, 1, { departedOn: null });
+    addLeg(db, cycle, 2, { departedOn: null });
+    const notLeft = await refusal(
+      cycles.planTransition(cycle.id, 'IN_TRANSIT'),
+    );
+    expect(notLeft.code).toBe('LEG_NOT_DEPARTED');
+    expect(notLeft.params).toEqual({
+      leg: 'Guangzhou, CN → Dubai, UAE',
+      legId: leg1.id,
+    });
+
+    legRow(leg1.id).departedOn = new Date('2026-09-01T00:00:00Z');
+    legRow(leg1.id).status = 'IN_TRANSIT';
+    cycle.status = 'IN_TRANSIT';
+    const notArrived = await refusal(
+      cycles.planTransition(cycle.id, 'ARRIVED_UAE'),
+    );
+    expect(notArrived.code).toBe('LEG_NOT_ARRIVED');
+    expect(notArrived.params).toEqual({
+      leg: 'Guangzhou, CN → Dubai, UAE',
+      legId: leg1.id,
+    });
+    expect(items).toHaveLength(1);
+  });
+
+  it('A delivery on a leg that has not left names the leg by id too', async () => {
+    const { cycle, items } = cycleWithOrder(db, { status: 'PURCHASING' });
+    const leg = addLeg(db, cycle, 1, { departedOn: null });
+    const r = await refusal(deliver(leg, items[0], 5));
+    expect(r.params).toEqual({
+      leg: 'Dubai, UAE → Cairo, Egypt',
+      legId: leg.id,
+    });
+  });
+
   it("A UAE-direct cycle reaches Egypt on its one leg's first delivery", async () => {
     const { cycle, item, leg } = oneLeg('IN_TRANSIT');
     expect(
