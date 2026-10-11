@@ -32,20 +32,7 @@ import {
 type Db = Prisma.TransactionClient;
 import { expectedLegs, isCycleRoute } from '../../common/cycle-routes';
 import { assertCanParticipate } from './participant-eligibility';
-// Valid state transitions per the spec
-const VALID_TRANSITIONS: Record<string, string[]> = {
-  PLANNING: ['FUNDING', 'CANCELLED'],
-  FUNDING: ['PURCHASING', 'PLANNING', 'CANCELLED'],
-  PURCHASING: ['IN_TRANSIT', 'ARRIVED_UAE', 'CANCELLED'],
-  IN_TRANSIT: ['ARRIVED_UAE', 'ARRIVED_EGYPT'],
-  ARRIVED_UAE: ['IN_TRANSIT_TO_EGYPT'],
-  IN_TRANSIT_TO_EGYPT: ['ARRIVED_EGYPT'],
-  ARRIVED_EGYPT: ['VERIFICATION'],
-  VERIFICATION: ['SELLING', 'ARRIVED_EGYPT'],
-  SELLING: ['SETTLEMENT'],
-  SETTLEMENT: ['CLOSED', 'SELLING'],
-  CLOSED: [],
-};
+import { VALID_TRANSITIONS } from '../../common/cycle-transitions';
 
 /** Accept only the two participant kinds the business recognises. */
 function assertParticipantType(value: string): ParticipantType {

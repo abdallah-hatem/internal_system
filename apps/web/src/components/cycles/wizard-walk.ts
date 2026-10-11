@@ -19,8 +19,8 @@
  */
 
 /**
- * The statuses the wizard still has something to do for: the cycle list offers
- * "resume" for these, and the wizard opens on them. Past Arrived Egypt the
+ * The statuses the wizard still has something to do for: "Continue setup"
+ * (continue-setup.tsx) is offered for these, and the wizard opens on them. Past Arrived Egypt the
  * cycle is being received, sold or settled, which is the cycle page's work.
  */
 export const WIZARD_STATUSES = [

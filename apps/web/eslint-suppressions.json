@@ -67,13 +67,10 @@
   },
   "src/app/[locale]/cycles/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
+      "count": 4
     },
     "local/no-raw-colors": {
-      "count": 82
+      "count": 40
     },
     "react-hooks/set-state-in-effect": {
       "count": 1

@@ -34,6 +34,7 @@ import {
 import { useApiError } from '../../../../../lib/api-error';
 import { BackLink } from '../../../../../components/ui/back-link';
 import { ContinueSetupLink } from '@/components/cycles/continue-setup';
+import { CycleStatusButton } from '@/components/cycles/cycle-status-button';
 import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
@@ -209,8 +210,9 @@ export default function CycleDetailsPage() {
           <ContinueSetupLink
             cycleId={cycle.id}
             status={cycle.status}
-            className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 touch-manipulation"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-700 touch-manipulation"
           />
+          <CycleStatusButton cycleId={cycle.id} status={cycle.status} />
           <button
             type="button"
             onClick={() => router.push(`/${locale}/settlements`)}
