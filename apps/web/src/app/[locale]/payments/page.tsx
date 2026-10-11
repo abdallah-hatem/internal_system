@@ -24,8 +24,10 @@ import {
 } from '../../../components/payments/RecordPaymentDialog';
 import {
   Plus, Search, Eye, X, Loader2,
-  ArrowRightLeft, RotateCcw,
+  ArrowRightLeft, RotateCcw, Download,
 } from 'lucide-react';
+import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
+import { downloadCsv, datedFilename } from '@/lib/export-csv';
 
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
@@ -89,12 +91,25 @@ function PaymentsPageContent() {
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [viewingPayment, setViewingPayment] = useState<Payment | null>(null);
+  // Days the money was received, both included, filtered by the API (I1).
+  const [dates, setDates] = useState<DayRange>({ from: '', to: '' });
+  const dated = Boolean(dates.from || dates.to);
+  const clearFilters = () => { setSearch(''); setDates({ from: '', to: '' }); };
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, dates]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: payments, capped, isLoading } = useAllRecords(['payments'], '/payments');
+  // Every page of the range, not one: the CSV exports what the filter shows.
+  const {
+    items: payments,
+    capped,
+    isLoading,
+    error: listError,
+  } = useAllRecords(['payments', dates], '/payments', {
+    from: dates.from || undefined,
+    to: dates.to || undefined,
+  });
   const { items: orders } = useAllRecords(['sales'], '/sales/orders');
 
   const { data: paymentDetail } = useQuery({
@@ -156,6 +171,22 @@ function PaymentsPageContent() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  /**
+   * The rows the search and dates show — every page of them — as a
+   * spreadsheet. The amount goes out as a number so it can be summed; the
+   * day is the day received, the one the filter reads.
+   */
+  const exportCsv = () =>
+    downloadCsv(datedFilename('payments'), filtered, [
+      { header: t('receivedOn'), value: (p) => p.receivedOn?.slice(0, 10) ?? '' },
+      { header: t('customer'), value: (p) => p.customer?.displayName ?? '' },
+      { header: t('amount'), value: (p) => Number(p.amount) },
+      { header: t('currency'), value: (p) => p.currency },
+      { header: t('method'), value: (p) => codeLabel('paymentMethod', p.method) },
+      { header: t('reference'), value: (p) => p.reference ?? '' },
+      { header: t('status'), value: (p) => codeLabel('paymentStatus', p.status) },
+    ]);
+
   // ── Handlers ──────────────────────────────────────────────────────
   const handleAllocate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -180,25 +211,46 @@ function PaymentsPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          {t('create')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="payments-export"
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            {tc('export')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            {t('create')}
+          </button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
+      {/* Search + days received */}
+      <div className="space-y-3">
+        <div className="relative max-w-md">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder={t('search')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <DateRangeFilter idPrefix="payments" value={dates} onChange={setDates} />
+        {listError && (
+          <p role="alert" data-testid="payments-range-error" className="text-sm text-destructive">
+            {apiError(listError, tc('error'))}
+          </p>
+        )}
       </div>
 
       <ListCapNotice capped={capped} count={payments.length} />
@@ -232,8 +284,8 @@ function PaymentsPageContent() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8}>
-                      {search ? (
-                        <NoMatch onClear={() => setSearch('')} />
+                      {search || dated ? (
+                        <NoMatch filtered={dated} onClear={clearFilters} />
                       ) : (
                         <EmptyState
                           title={t('empty')}
@@ -304,8 +356,8 @@ function PaymentsPageContent() {
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">
-              {search ? (
-                <NoMatch onClear={() => setSearch('')} />
+              {search || dated ? (
+                <NoMatch filtered={dated} onClear={clearFilters} />
               ) : (
                 <EmptyState
                   title={t('empty')}
