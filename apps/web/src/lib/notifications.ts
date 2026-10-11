@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 
 import { api } from './api';
 import { useCodeLabel, type CodeKind } from './labels';
+import { useDateFormat } from './dates';
 
 /**
  * The notifications query, defined once.
@@ -161,13 +162,19 @@ export function useNotificationText(): (
 ) => string {
   const t = useTranslations('notifications');
   const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
   return useCallback(
     (n: Pick<Notification, 'code' | 'params' | 'title'>) => {
       if (!n.code || !t.has(n.code)) return n.title;
       const values: Record<string, string | number> = {};
       for (const [name, value] of Object.entries(n.params ?? {})) {
         const kind = CODE_PARAMS[name];
-        values[name] = kind && typeof value === 'string' ? codeLabel(kind, value) : value;
+        if (kind && typeof value === 'string') values[name] = codeLabel(kind, value);
+        // A calendar day ("2026-10-08", an instalment's due day) is said as the
+        // reader says dates. Left raw, the Arabic sentence reorders it to
+        // "08-10-2026" (I1, 2026-10-11).
+        else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) values[name] = formatDate(value);
+        else values[name] = value;
       }
       try {
         return t(n.code, values);
@@ -176,6 +183,6 @@ export function useNotificationText(): (
         return n.title;
       }
     },
-    [t, codeLabel],
+    [t, codeLabel, formatDate],
   );
 }

@@ -35,9 +35,11 @@ export function DateRangeFilter({
   const t = useTranslations('common');
 
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid={`${idPrefix}-date-range`}>
+    // Side by side on a phone too: two full-width rows of date for one filter
+    // pushed the list a screen down.
+    <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap" data-testid={`${idPrefix}-date-range`}>
       <DatePicker
-        className="w-full min-w-0 sm:w-44"
+        className="min-w-0 sm:w-44"
         name={`${idPrefix}From`}
         value={value.from}
         max={value.to || undefined}
@@ -45,7 +47,7 @@ export function DateRangeFilter({
         onChange={(from) => onChange({ ...value, from })}
       />
       <DatePicker
-        className="w-full min-w-0 sm:w-44"
+        className="min-w-0 sm:w-44"
         name={`${idPrefix}To`}
         value={value.to}
         min={value.from || undefined}
@@ -57,7 +59,7 @@ export function DateRangeFilter({
           type="button"
           data-testid={`${idPrefix}-dates-clear`}
           onClick={() => onChange({ from: '', to: '' })}
-          className="min-h-11 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0"
+          className="col-span-2 min-h-11 justify-self-start rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0"
         >
           {t('clearDates')}
         </button>

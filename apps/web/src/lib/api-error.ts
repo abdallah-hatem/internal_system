@@ -76,6 +76,15 @@ export function resolveApiError(
   if (typeof params.entity === 'string') {
     params.entity = lookup(t, `entity.${params.entity}`, params.entity);
   }
+  // A calendar day ("2026-10-11") inside an Arabic sentence is reordered by
+  // the bidi algorithm into "11-10-2026" — a different-looking date (I1,
+  // 2026-10-11, seen on the date-range refusal). Isolating it keeps it one
+  // left-to-right run; the marks are invisible, so English is unchanged.
+  for (const [name, value] of Object.entries(params)) {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      params[name] = `\u2066${value}\u2069`;
+    }
+  }
   const kinds = PARAM_KINDS[body.code];
   if (kinds && codeLabel) {
     for (const [name, kind] of Object.entries(kinds)) {

@@ -37,6 +37,16 @@ describe('refusal params that are codes', () => {
     expect(inEnglish('ENTRY_OWNED_ELSEWHERE', { owner: 'SUPPLIER_REFUND' })).toContain('Supplier refund');
   });
 
+  it('a calendar day in a param stays one left-to-right run in Arabic (not reordered to 11-10-2026)', () => {
+    const said = inArabic('DATE_RANGE_REVERSED', { from: '2026-10-11', to: '2026-10-06' });
+    expect(said).toContain('⁦2026-10-11⁩');
+    expect(said).toContain('⁦2026-10-06⁩');
+    // In English the marks are invisible and the words unchanged.
+    expect(inEnglish('DATE_RANGE_REVERSED', { from: '2026-10-11', to: '2026-10-06' }).replace(/[⁦⁩]/g, '')).toBe(
+      'The range starts on 2026-10-11, after it ends on 2026-10-06.',
+    );
+  });
+
   it('DATE_IN_FUTURE says which date in the reader\'s language', () => {
     const said = inArabic('DATE_IN_FUTURE', { label: 'PAYMENT_RECEIVED', day: '2026-10-11' });
     expect(said).toContain('تاريخ استلام الدفعة');

@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed).
+Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what).
 
 ---
 
@@ -437,7 +437,9 @@ partner added after an instalment fell behind is told on the next run. The
 notification names the shop, the plan, the instalment's due day and what is
 still owed on it (money covers the earliest instalment first, as above). Reading
 the overdue summary no longer notifies anyone. This replaces "at most one per
-plan per day". Guesses, open until confirmed:
+plan per day". **Confirmed by the owner 2026-10-11:** an alert fires once when an
+instalment first goes overdue, and again only when a further instalment is
+missed — no repeating daily reminder. Guesses, open until confirmed:
 - An instalment that is paid and then falls behind again (a payment reversed)
   is not told a second time.
 - Admin support can read plans but is not notified; the notification is for the
