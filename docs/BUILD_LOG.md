@@ -13,7 +13,7 @@ _(none)_
 _(none)_
 
 ## Next up
-- Improvement batch I1 (decided 2026-10-11, autonomous): overdue-payments daily cron notifying all partners; low-stock alert after a sale; assistant tool for who owes / overdue; date range + CSV on Sales and Payments; quick-create closes on Escape; fix flaky customer-row click (specs 57/79). Survey of the rest: build-log/notes/improvements-2026-10-11.md
+- Improvement batch I1 (decided 2026-10-11, autonomous): overdue-payments daily cron notifying all partners (owner 2026-10-11: one alert when an instalment first goes overdue, no repeating daily reminder for now); low-stock alert after a sale; assistant tool for who owes / overdue; date range + CSV on Sales and Payments; quick-create closes on Escape; fix flaky customer-row click (specs 57/79). Survey of the rest: build-log/notes/improvements-2026-10-11.md
 - Open from it: quick-create dialog ignores Escape; TC-RP-06/TC-VER-01 flake on customer row click.
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
 - Rotate the seeded `password123` on partner accounts.
