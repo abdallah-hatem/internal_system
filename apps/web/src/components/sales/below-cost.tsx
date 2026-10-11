@@ -22,7 +22,10 @@ const WARNING =
 /** An amount for a sentence: grouped, two places, the currency after, isolated LTR. */
 function useMoneyText() {
   const { formatMoney } = useNumberFormat();
-  return (value: string | number | null | undefined) => `⁦${formatMoney(value ?? 0)}⁩`;
+  // The space before the currency is a no-break one: a narrow line in Arabic
+  // broke "950.00 EGP" across two lines (seen at 390px, L4 audit).
+  return (value: string | number | null | undefined) =>
+    `\u2066${formatMoney(value ?? 0).replace(/ /g, '\u00a0')}\u2069`;
 }
 
 /** Under one line of a sale: what each costs, what it sells at, what the line loses. */
@@ -85,7 +88,8 @@ export function BelowCostSummary({
           line.belowCost ? (
             <li key={i} data-testid="below-cost-summary-line">
               {t('lineNamed', {
-                product: names[i] ?? '',
+                // A Latin name in an Arabic sentence is its own run, so the colon after it stays after it.
+                product: `\u2068${names[i] ?? ''}\u2069`,
                 cost: money(line.unitCostEgp),
                 price: money(line.unitPriceEgp),
                 loss: money(line.lossEgp),

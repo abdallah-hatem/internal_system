@@ -50,7 +50,7 @@ const result = (lines: PriceCheckLine[], total: string): PriceCheckResult => ({
   belowCostLines: lines.filter((l) => l.belowCost).length,
   totalLossEgp: total,
 });
-const plain = (el: HTMLElement | null) => (el?.textContent ?? '').replace(/[⁦-⁩]/g, '');
+const plain = (el: HTMLElement | null) => (el?.textContent ?? '').replace(/[⁦-⁩]/g, '').replace(/\u00a0/g, ' ');
 
 describe('BelowCostSummary — the draft’s confirm step', () => {
   it('the helmets: names the line, the cost, the price, the loss and the total, and says Confirm still works', () => {
@@ -84,8 +84,8 @@ describe('BelowCostSummary — the draft’s confirm step', () => {
     inLocale(<BelowCostSummary result={result([below()], '145500.00')} names={['خوذة']} />, 'ar');
     const box = screen.getByTestId('below-cost-summary');
     expect(box.textContent).toContain('أقل من التكلفة');
-    expect(box.textContent).toContain('⁦2,616.67 EGP⁩');
-    expect(box.textContent).toContain('⁦145,500.00 EGP⁩');
+    expect(box.textContent).toContain('\u20662,616.67\u00a0EGP\u2069');
+    expect(box.textContent).toContain('\u2066145,500.00\u00a0EGP\u2069');
   });
 });
 

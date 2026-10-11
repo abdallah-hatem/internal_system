@@ -30,7 +30,8 @@ import { login, openNav, type Locale, messages } from "./support/ui";
 type Headers = Record<string, string>;
 
 /** Strip the bidi isolates the sentence wraps each amount in. */
-const plain = (s: string | null) => (s ?? "").replace(/[⁦-⁩]/g, "");
+const plain = (s: string | null) =>
+  (s ?? "").replace(/[⁦-⁩]/g, "").replace(/\u00a0/g, " ");
 
 /** The words a reader sees in `loc`, isolates aside, once they include `text`. */
 const says = (loc: Locator, text: string) =>
@@ -327,7 +328,7 @@ test.describe("Selling below cost — the confirm step, approval and price list 
     page,
     request,
   }) => {
-    const { headers, mk, product, stamp } = await twoBatchProduct(
+    const { mk, product, stamp } = await twoBatchProduct(
       request,
       "BC05",
     );

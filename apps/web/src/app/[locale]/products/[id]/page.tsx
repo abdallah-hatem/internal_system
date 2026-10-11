@@ -253,7 +253,9 @@ export default function ProductDetailPage() {
         <StatCard
           icon={<DollarSign className="h-5 w-5" />}
           label={t('b2cPrice')}
-          value={activeB2C ? formatMoney(activeB2C.amount, activeB2C.currency) : '—'}
+          // Money, not a formatted string: a plain string in an RTL card read
+          // "EGP 1,300.00" (L4 audit), currency first.
+          value={activeB2C ? <Money value={activeB2C.amount} currency={activeB2C.currency} /> : '—'}
           iconBg="bg-primary-100 text-primary-600"
           valueColor="text-primary-600"
         />
@@ -619,7 +621,7 @@ function StatCard({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string | number;
+  value: React.ReactNode;
   iconBg: string;
   valueColor?: string;
 }) {

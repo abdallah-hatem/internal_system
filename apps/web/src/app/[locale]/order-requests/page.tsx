@@ -229,7 +229,8 @@ function RequestCard({
           const short = Number(line.qty) > Number(item.couldGive);
           return (
             <div key={item.productId} className="field-row flex flex-wrap gap-3 px-5 py-4">
-              <div className="min-w-0 flex-1">
+              {/* Its own row on a phone: beside two inputs it was squeezed to "...or 1877" (L4 audit, 390px). */}
+              <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
                 <p className="text-xs text-gray-500">
                   {item.sku} · {t('asked', { qty: item.qtyRequested })} ·{' '}

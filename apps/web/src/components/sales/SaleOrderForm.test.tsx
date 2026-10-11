@@ -642,7 +642,7 @@ describe('SaleOrderForm — selling below cost (L4, §4)', () => {
   const warningOn = (line: HTMLElement) => within(line).queryByTestId('below-cost-line');
   const total = () => screen.queryByTestId('below-cost-total');
   /** Money as the screen writes it, with the bidi isolates taken out. */
-  const text = (el: HTMLElement | null) => (el?.textContent ?? '').replace(/[\u2066-\u2069]/g, '');
+  const text = (el: HTMLElement | null) => (el?.textContent ?? '').replace(/[\u2066-\u2069]/g, '').replace(/\u00a0/g, ' ');
 
   it('a line priced below cost says so: each costs 2,000.00, selling at 1,800.00, a loss of 600.00 on 3', async () => {
     renderForm();
@@ -768,7 +768,8 @@ describe('SaleOrderForm — selling below cost (L4, §4)', () => {
       return w!;
     });
     expect(warning.textContent).toContain('أقل من التكلفة');
-    expect(warning.textContent).toContain('\u20662,000.00 EGP\u2069');
-    expect(total()!.textContent).toContain('\u2066200.00 EGP\u2069');
+    // One run, kept on one line: a no-break space before the currency.
+    expect(warning.textContent).toContain('\u20662,000.00\u00a0EGP\u2069');
+    expect(total()!.textContent).toContain('\u2066200.00\u00a0EGP\u2069');
   });
 });
