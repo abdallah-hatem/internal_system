@@ -109,6 +109,33 @@ export async function findLowStock(
   return low;
 }
 
+/**
+ * Which of the products a sale just touched it took **into** low stock — not
+ * low before the sale, low after it (BUSINESS_LOGIC §3, DECIDED 2026-10-11).
+ *
+ * `lowAfter` is `findLowStock` over the products sold, read after the stock
+ * left; `sold` is how much of each this sale took. Before the sale the shelf
+ * held `currentStock + sold`, and that was low exactly when it was below the
+ * minimum — so a product that was already low gives no second alert while it
+ * stays low. It is alerted again only after stock comes back above its
+ * minimum (a receipt, a return, a cancellation) and a sale takes it under once
+ * more. A product left exactly at its minimum is not low (the rule above), so
+ * it is not in `lowAfter` at all.
+ */
+export function crossedIntoLowStock(
+  lowAfter: readonly LowStockRow[],
+  sold: ReadonlyMap<string, number>,
+): LowStockRow[] {
+  return lowAfter.filter((row) => {
+    const qty = sold.get(row.productId);
+    if (!qty || qty <= 0) return false;
+    // In whole thousandths, as quantities are stored (NUMERIC(18,3)): 9.9 +
+    // 0.1 is 10, not 9.999999999999998.
+    const milli = (n: number) => Math.round(n * 1000);
+    return milli(row.currentStock) + milli(qty) >= milli(row.minStock);
+  });
+}
+
 /** The dashboard's Low stock figure. */
 export async function countLowStock(db: Db): Promise<number> {
   return (await findLowStock(db)).length;

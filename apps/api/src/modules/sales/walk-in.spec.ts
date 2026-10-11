@@ -36,7 +36,9 @@ const audit = {
 } as unknown as AuditService;
 
 function sales(prisma: PrismaService = untouchable) {
-  return new SalesService(prisma, audit, {} as PaymentsService);
+  return new SalesService(prisma, audit, {} as PaymentsService, {
+    createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+  });
 }
 
 const line = { productId: PISTON, quantity: 2, unitPrice: 450 };
@@ -180,6 +182,7 @@ describe('the walk-in record is reserved', () => {
           } as unknown as PrismaService,
           audit,
           {} as PaymentsService,
+          { createForMultipleUsers: () => Promise.resolve({ count: 0 }) },
         ).create(
           {
             customerId: WALK_IN_ID,

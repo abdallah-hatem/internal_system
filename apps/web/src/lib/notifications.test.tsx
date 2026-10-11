@@ -126,4 +126,8 @@ describe('where a notification the API actually raises takes you', () => {
   it('an overdue instalment (eventType PAYMENT_OVERDUE) opens the payment plans', () => {
     expect(href('PAYMENT_OVERDUE', { planId: 'p', instalmentId: 'i' })).toBe('/payment-plans');
   });
+
+  it('low stock (eventType LOW_STOCK_DETECTED, after a receipt or a sale) opens the stock page', () => {
+    expect(href('LOW_STOCK_DETECTED', { products: [{ productId: 'x' }] })).toBe('/inventory');
+  });
 });

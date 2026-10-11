@@ -402,6 +402,8 @@ export function registerSalesTools(
       dry,
       audit(),
       new PaymentsService(dry, audit()),
+      // A preview sells nothing, so it never says stock is low.
+      { createForMultipleUsers: () => Promise.resolve({ count: 0 }) },
     );
     return previewByRollback<SeenOrder>(() => service.create(body, actor, key));
   }

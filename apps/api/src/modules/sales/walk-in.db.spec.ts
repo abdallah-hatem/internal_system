@@ -43,7 +43,9 @@ suite('walk-in sales against Postgres', () => {
     prisma = new PrismaClient({ datasources: { db: { url } } });
     const db = prisma as unknown as PrismaService;
     const audit = { log: jest.fn() } as unknown as AuditService;
-    sales = new SalesService(db, audit, new PaymentsService(db, audit));
+    sales = new SalesService(db, audit, new PaymentsService(db, audit), {
+      createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+    });
     customers = new CustomersService(db, audit);
     returns = new ReturnsService(db, audit);
     analytics = new AnalyticsService(db);

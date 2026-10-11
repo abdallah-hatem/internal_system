@@ -215,6 +215,24 @@ after holds: a held unit is still on the shelf, and a minimum is a reorder point
 (L2, 2026-10-10). The alert raised on receiving uses the same rule. Defined once
 in `apps/api/src/common/low-stock.ts`, with one pinned web copy.
 
+**DECIDED 2026-10-11 (I1, autonomous run) — a sale that takes a product into low
+stock raises the alert too.** *Built 2026-10-11.* The low-stock alert used to be
+raised only on receiving, so the sale that actually emptied the shelf said
+nothing. Now every confirmed sale — a shop's order (in one step or confirmed
+from a draft), a walk-in sale, a sale the assistant records, an approved
+storefront request — raises the same alert to every active core partner when
+it takes a product from not low to low, by the one rule above (below the
+minimum; left exactly at the minimum is not low). **No repeat while it stays
+low:** a sale of a product that was already low raises nothing. It can alert
+again only once stock has been back at or above its minimum — a receipt, a
+cancelled sale, a return — and a sale takes it under once more. Sent after the
+sale is saved; a refused sale, a draft, or an assistant preview raises nothing.
+The brief for this asked for "to or below the minimum"; the decided rule of
+2026-10-10 (at the minimum is not low) was kept, so the alert, the dashboard
+and the inventory page cannot disagree. Guess, open until confirmed: receiving
+stock still alerts whenever the product is low after the receipt, even if it
+was already low before (unchanged from 2026-10-10).
+
 ---
 
 ## 4. Sales
@@ -585,9 +603,10 @@ in one action.
 **V1 is in-app only**, as the BRD scopes. Email and WhatsApp are deliberately
 out.
 
-Raised on: low stock, a shipment arriving, a cycle created or changing state, a
-purchase order created, a partner added to a cycle, and a payment plan falling
-behind.
+Raised on: low stock (after a receipt, and since 2026-10-11 after a sale that
+takes a product into low stock — §3), a shipment arriving, a cycle created or
+changing state, a purchase order created, a partner added to a cycle, and an
+instalment falling behind (checked daily since 2026-10-11 — §7).
 
 ---
 

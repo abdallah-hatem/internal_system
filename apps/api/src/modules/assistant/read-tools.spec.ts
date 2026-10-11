@@ -186,7 +186,12 @@ function harness(db: Db) {
         {} as CyclesService,
       ),
     ],
-    [SalesService, new SalesService(p, audit, new PaymentsService(p, audit))],
+    [
+      SalesService,
+      new SalesService(p, audit, new PaymentsService(p, audit), {
+        createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+      }),
+    ],
     [CustomersService, new CustomersService(p, audit)],
     [PaymentsService, new PaymentsService(p, audit)],
     [PaymentPlansService, new PaymentPlansService(p, audit, notifications)],

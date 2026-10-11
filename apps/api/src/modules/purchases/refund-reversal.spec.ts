@@ -76,7 +76,9 @@ beforeEach(() => {
   purchases = new PurchasesService(prisma, audit, notifications);
   settlements = new SettlementsService(prisma, audit);
   analytics = new AnalyticsService(prisma);
-  sales = new SalesService(prisma, audit, new PaymentsService(prisma, audit));
+  sales = new SalesService(prisma, audit, new PaymentsService(prisma, audit), {
+    createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+  });
   ledger = new LedgerService(prisma, audit);
 });
 

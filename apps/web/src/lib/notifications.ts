@@ -106,6 +106,11 @@ export function notificationHref(notification: Notification): string | null {
     case 'LOW_STOCK':
       return payload.productId ? `/products/${payload.productId}` : '/inventory';
 
+    // What the API raises, after a receipt or a sale (§3): the stock page,
+    // which marks every low product. LOW_STOCK above was never raised.
+    case 'LOW_STOCK_DETECTED':
+      return '/inventory';
+
     case 'SALE_CREATED':
     case 'SALE_CONFIRMED':
       return '/sales';

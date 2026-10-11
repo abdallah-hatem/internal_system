@@ -17,7 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, stockedProduct, owedOrder } from './support/fixtures';
+import { apiCtx, giveStock, stockedProduct, owedOrder } from './support/fixtures';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -586,6 +586,16 @@ test.describe('An overdue instalment is told once, to every partner (§7 — 202
     expect(notes.map((n: any) => n.params.amount).sort()).toEqual(['2,000.00', '3,000.00']);
   });
 
+  test('TC-INV-22b: reading the overdue summary tells nobody', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const count = async () =>
+      ((await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data ?? [])
+        .filter((n: any) => n.eventType === 'PAYMENT_OVERDUE').length;
+    const before = await count();
+    for (let i = 0; i < 3; i++) await request.get(`${API}/payment-plans/overdue`, { headers });
+    expect(await count()).toBe(before);
+  });
+
   test('TC-INV-22: an investor is not told about shops’ debts', async ({ request }) => {
     // Customer data is the office's (roles, 2026-10-10): the check names only core partners.
     const login = await request.post(`${API}/auth/login`, {
@@ -595,5 +605,70 @@ test.describe('An overdue instalment is told once, to every partner (§7 — 202
     await request.get(`${API}/jobs/overdue-payments`, { headers: { Authorization: `Bearer ${CRON}` } });
     const notes = (await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data ?? [];
     expect(notes.filter((n: any) => n.eventType === 'PAYMENT_OVERDUE')).toEqual([]);
+  });
+});
+
+test.describe('A sale that takes stock under its minimum says so, once (§3 — 2026-10-11)', () => {
+  /** Low-stock alerts naming this product in partner A's bell. */
+  async function lowAlerts(request: APIRequestContext, headers: any, productId: string) {
+    const notes = (await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data ?? [];
+    return notes.filter(
+      (n: any) => n.eventType === 'LOW_STOCK_DETECTED' && n.payloadJson?.products?.some((p: any) => p.productId === productId),
+    );
+  }
+  /** A product with a minimum of 10 and 12 really received — not low yet. */
+  async function twelveOverTen(request: APIRequestContext, label: string) {
+    const { headers, mk } = await apiCtx(request);
+    const product = await mk('products', { name: `${label} ${Date.now()}`, minStock: 10 });
+    await giveStock(request, headers, mk, product.id, `${label}-${Date.now()}`, 12);
+    return { headers, mk, product };
+  }
+  const shopSale = (customerId: string, productId: string, quantity: number) => ({
+    customerId, channel: 'B2B', currency: 'EGP', confirm: true,
+    items: [{ productId, quantity, unitPrice: 100, discount: 0 }],
+  });
+
+  test('TC-INV-23: a sale crossing the minimum alerts once; more sales while low stay quiet', async ({ request }) => {
+    const { headers, mk, product } = await twelveOverTen(request, 'Inv Low');
+    const customer = await mk('customers', { displayName: `Inv Low Shop ${Date.now()}`, type: 'B2B' });
+    expect(await lowAlerts(request, headers, product.id), 'receiving 12 over a minimum of 10 is not low').toEqual([]);
+
+    await mk('sales/orders', shopSale(customer.id, product.id, 2)); // 10 left: at the minimum, not low
+    expect(await lowAlerts(request, headers, product.id)).toEqual([]);
+
+    await mk('sales/orders', shopSale(customer.id, product.id, 1)); // 9: crossed
+    await mk('sales/orders', shopSale(customer.id, product.id, 4)); // 5: still low
+    await mk('sales/orders', shopSale(customer.id, product.id, 5)); // 0: still low
+
+    const alerts = await lowAlerts(request, headers, product.id);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].payloadJson.products.find((p: any) => p.productId === product.id)).toMatchObject({
+      currentStock: 9, minStock: 10,
+    });
+  });
+
+  test('TC-INV-24: a walk-in sale crossing the minimum alerts too; a refused one does not', async ({ request }) => {
+    const { headers, mk, product } = await twelveOverTen(request, 'Inv Low Walk-in');
+    const walkIn = (quantity: number) => ({
+      walkIn: true, currency: 'EGP', items: [{ productId: product.id, quantity, unitPrice: 450, discount: 0 }],
+    });
+
+    const tooMany = await attempt(request, headers, 'sales/orders', walkIn(13));
+    expect(tooMany.status, tooMany.message).toBe(400);
+    expect(await lowAlerts(request, headers, product.id)).toEqual([]);
+
+    await mk('sales/orders', walkIn(4)); // 8: crossed
+    expect(await lowAlerts(request, headers, product.id)).toHaveLength(1);
+  });
+
+  test('TC-INV-25: back above the minimum and down again is a new alert', async ({ request }) => {
+    const { headers, mk, product } = await twelveOverTen(request, 'Inv Low Again');
+    const customer = await mk('customers', { displayName: `Inv Again Shop ${Date.now()}`, type: 'B2B' });
+    const draft = await mk('sales/orders', { ...shopSale(customer.id, product.id, 5), confirm: false });
+    await mk(`sales/orders/${draft.id}/confirm`, { version: draft.version }); // 7: crossed
+    await mk(`sales/orders/${draft.id}/cancel`, {}); // 12 again: not low
+    await mk('sales/orders', shopSale(customer.id, product.id, 3)); // 9: crossed again
+
+    expect(await lowAlerts(request, headers, product.id)).toHaveLength(2);
   });
 });

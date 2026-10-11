@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import {
+  NotificationsService,
+  notifyLowStock,
+} from '../notifications/notifications.service';
 import { Prisma } from '@prisma/client';
 import { CostingService, lineEventCost } from '../costing/costing.service';
 import { CyclesService } from '../cycles/cycles.service';
@@ -490,22 +493,7 @@ export class InventoryService {
       },
     });
 
-    if (lowStockProducts.length > 0) {
-      const corePartners = await this.prisma.user.findMany({
-        where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
-      });
-      const userIds = corePartners.map((u) => u.id);
-      if (userIds.length > 0) {
-        await this.notifications.createForMultipleUsers(userIds, {
-          eventType: 'LOW_STOCK_DETECTED',
-          code: 'LOW_STOCK_DETECTED',
-          params: {
-            products: lowStockProducts.map((p) => p.productName).join(', '),
-          },
-          payload: { products: lowStockProducts },
-        });
-      }
-    }
+    await notifyLowStock(this.prisma, this.notifications, lowStockProducts);
 
     return { data: batches };
   }
