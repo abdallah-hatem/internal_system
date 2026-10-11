@@ -304,6 +304,27 @@ Guesses made while building it, open until confirmed:
 - The dashboard's customer count leaves the walk-in record out; its sales
   count in revenue as any sale does.
 - A payment method on a sale that is not a walk-in is refused, not ignored.
+
+**Built 2026-10-11 (I2) — a confirmed sale prints as an invoice / delivery note.**
+From the order, *Invoice* opens a page in the reader's language and direction
+with a *Print* button (the browser's print onto A4; no menu, buttons or chrome on
+the paper). It shows the business name, "Sales invoice / Delivery note", the order
+number and date, the shop (name, phone), every line (product and SKU, quantity,
+unit price, discount, line total), subtotal, discounts, order total, what has been
+paid on this order and what it still owes, and "Received by / Delivered by" lines
+to sign. A draft and a cancelled order have no invoice (`INVOICE_DRAFT`,
+`INVOICE_CANCELLED`) and offer no button. Guesses, open until confirmed (2026-10-11):
+- **The shop's balance on the invoice is its balance at the moment of this sale**:
+  "balance before this sale", "this invoice", "balance after this sale" — the
+  running balance from the shop's statement (§7b) right after this sale's row, so
+  a reprint next month shows the same figures. "Paid" and "still owed" on the order
+  are as of printing. The alternative — today's balance — changes every reprint.
+- What returns took off the order is shown as "Returns credited", so total − paid −
+  returns = still owed on paper; a fully returned order says so and owes nothing.
+- The business name printed is "MotoParts"; no address, tax number or logo is
+  printed — none is on file. A walk-in sale prints "Walk-in customer", "paid in
+  full on the spot", and no account box.
+- The invoice number is the order number; there is no separate invoice sequence.
 ---
 
 ## 5. Returns

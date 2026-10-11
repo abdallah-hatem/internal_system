@@ -462,7 +462,39 @@
     "sellAndTakePayment": "بيع وتحصيل المبلغ",
     "walkInPaidBy": "مدفوع بالكامل الآن · {method}",
     "walkInSold": "تم البيع والتحصيل",
-    "walkInNoBalance": "مدفوع في الحال"
+    "walkInNoBalance": "مدفوع في الحال",
+    "invoice": {
+      "open": "الفاتورة",
+      "title": "فاتورة بيع / إذن تسليم",
+      "number": "رقم الفاتورة",
+      "date": "التاريخ",
+      "billTo": "العميل",
+      "walkIn": "عميل عابر",
+      "phone": "الهاتف",
+      "line": "#",
+      "product": "الصنف",
+      "quantity": "الكمية",
+      "unitPrice": "سعر الوحدة",
+      "discount": "الخصم",
+      "lineTotal": "الإجمالي",
+      "subtotal": "المجموع",
+      "discountTotal": "الخصومات",
+      "total": "إجمالي الطلب",
+      "paid": "المدفوع على هذا الطلب",
+      "owes": "المتبقي على هذا الطلب",
+      "account": "حساب العميل",
+      "balanceBefore": "الرصيد قبل هذا البيع",
+      "thisInvoice": "قيمة هذه الفاتورة",
+      "balanceAfter": "الرصيد بعد هذا البيع",
+      "paidInFull": "دُفع بالكامل عند البيع.",
+      "receivedBy": "المستلم",
+      "deliveredBy": "المسلِّم",
+      "back": "العودة إلى المبيعات",
+      "notAvailable": "لا توجد فاتورة لهذا الطلب",
+      "printedOn": "طُبعت في {date}",
+      "credited": "مرتجعات مخصومة",
+      "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه."
+    }
   },
   "customers": {
     "title": "العملاء",
@@ -1199,7 +1231,9 @@
     "DELIVERY_REQUIRED": "هناك {deliveries} تسليمات من {product} بانتظار الاستلام. اختر التسليمة التي جاءت فيها البضاعة.",
     "RECEIVED_EXCEEDS_DELIVERED": "لا يمكن استلام {received} من {product}: المتبقي بانتظار الاستلام من هذه التسليمة {available} فقط.",
     "SHIPMENT_NOT_ACCOUNTED": "لا يمكن تسوية الدورة {cycle} بعد: لا تزال {onTheWay} وحدة في الطريق و{waiting} وصلت ولم تُستلم، في {lines} بند. استلمها أو سجّلها كمفقودة أولًا.",
-    "WALK_IN_NO_STATEMENT": "المشتري العابر ليس له حساب، لذا لا يوجد كشف حساب."
+    "WALK_IN_NO_STATEMENT": "المشتري العابر ليس له حساب، لذا لا يوجد كشف حساب.",
+    "INVOICE_DRAFT": "الطلب {order} مسودة، لذا ليس له فاتورة بعد. أكّده أولًا.",
+    "INVOICE_CANCELLED": "الطلب {order} أُلغي، لذا ليس له فاتورة."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

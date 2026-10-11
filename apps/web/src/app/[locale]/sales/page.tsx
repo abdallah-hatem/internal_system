@@ -30,8 +30,9 @@ import {
 import {
   Plus, Search, X, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
-  Undo2, ShoppingCart, Wallet,
+  Undo2, ShoppingCart, Wallet, FileText,
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   RecordPaymentDialog,
   canTakePayment,
@@ -773,6 +774,18 @@ function SalesPageContent() {
 
             {/* Actions */}
             <div className="flex flex-wrap justify-end gap-3 pt-2 border-t border-gray-100">
+              {/* A confirmed sale has an invoice / delivery note; a draft is
+                  not a sale yet and a cancelled order never happened (§4). */}
+              {detail.status !== 'DRAFT' && detail.status !== 'CANCELLED' && (
+                <Link
+                  href={`/${locale}/sales/${detail.id}/invoice`}
+                  data-testid="order-invoice"
+                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-muted"
+                >
+                  <FileText className="h-4 w-4" />
+                  {t('invoice.open')}
+                </Link>
+              )}
               {canTakePayment(detail) && (
                 <button
                   type="button"
