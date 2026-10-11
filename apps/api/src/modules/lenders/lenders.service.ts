@@ -395,6 +395,15 @@ export class LendersService {
           { lender: lender.name, reference: order.reference },
         );
       }
+      // An order with no lines bought nothing, so nobody paid for it. The API
+      // no longer makes one (PO_NEEDS_ITEM); drafts from before that may exist.
+      if (order.items.length === 0) {
+        throw badRequest(
+          'FINANCING_ORDER_EMPTY',
+          `${order.reference} has no lines, so there is nothing a friend could have paid for.`,
+          { reference: order.reference },
+        );
+      }
       const total = order.items.reduce((s, i) => s.add(i.lineTotal), D(0));
       const financed = order.lenderFinancings.reduce(
         (s, f) => s.add(f.amount),

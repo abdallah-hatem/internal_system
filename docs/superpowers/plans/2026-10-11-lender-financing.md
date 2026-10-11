@@ -44,7 +44,7 @@ Edge cases:
 - [ ] Reversing a repayment on a settled/closed cycle → `CYCLE_SETTLED`   (wrong context)
 - [ ] Removing a financing with a standing repayment → `FINANCING_HAS_REPAYMENTS`; removing twice → `FINANCING_REMOVED`   (second time)
 - [ ] Repaying lender A's debt "with lender B": a repayment is against a financing id, so the lender is the financing's; a plan id/financing id from another lender is just not found   (wrong owner)
-- [ ] Plan: instalments total more than owed → `LENDER_PLAN_EXCEEDS_OWED`; a second active plan → `LENDER_PLAN_EXISTS`; nothing owed → `NOTHING_TO_SCHEDULE`
+- [ ] Plan: instalments total more than owed → `LENDER_PLAN_EXCEEDS_OWED`; a second active plan → `LENDER_PLAN_EXISTS`; nothing owed → `LENDER_NOTHING_OWED`
 - [ ] Every write: TEMP_INVESTOR → `ROLE_NOT_ALLOWED`; portal token → `WRONG_SURFACE`; CORE_PARTNER works   (rule 12, both directions)
 - [ ] Ledger rows written in the same transaction; audit after commit; no service call inside `$transaction`
 

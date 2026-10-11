@@ -18,6 +18,7 @@
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
+import { psqlStdin } from './support/database';
 
 /**
  * Where the flows run. Defaults to the local API; `API_BASE` points the same
@@ -1187,5 +1188,172 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
       expect(mine[0].code).toBe('LENDER_INSTALMENT_OVERDUE');
       expect(mine[0].params.amount).toBe('10,000.00');
     }
+  });
+});
+
+// ─── §18 edge cases named one by one (L1 review, 2026-10-11) ────────────
+
+test.describe('A friend\'s loan: the cases the review asked to see refused (§18 — L1)', () => {
+  test('TC-INV-37: financing an order that has no lines is refused', async ({ request }) => {
+    const { headers, mk, lender } = await friendCycle(request, 'Inv L1 Empty');
+    const stamp = Date.now();
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'AED' });
+    const supplier = await mk('suppliers', { name: `Inv L1 Empty Sup ${stamp}`, country: 'AE' });
+    // The API will not make one (PO_NEEDS_ITEM), but drafts with no lines
+    // exist from before that rule (§15) — built here as such a row.
+    const empty = { id: crypto.randomUUID() };
+    psqlStdin(`
+      INSERT INTO purchase_orders (id, cycle_id, supplier_id, reference, currency, fx_rate_to_egp, ordered_on, status, updated_at)
+      VALUES ('${empty.id}', '${cycle.id}', '${supplier.id}', 'PO-EMPTY-${stamp}', 'AED', 13, CURRENT_DATE - 1, 'DRAFT', now());`);
+    const res = await request.post(`${API}/purchases/${empty.id}/financings`, { headers, data: { lenderId: lender.id, amount: 100 } });
+    expect(res.status()).toBe(400);
+    expect(await codeOf(res)).toBe('FINANCING_ORDER_EMPTY');
+  });
+
+  test('TC-INV-38: a repayment from an account that is not an active EGP account is refused (ACCOUNT_NOT_USABLE)', async ({ request }) => {
+    const { headers, mk, po, lender } = await friendCycle(request, 'Inv L1 Acct');
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    // No endpoint creates accounts (one cash, one bank, seeded); these two are
+    // the shapes a later accounts screen could produce.
+    const usd = '00000000-0000-4000-8000-0000000000d1';
+    const closed = '00000000-0000-4000-8000-0000000000d2';
+    psqlStdin(`
+      INSERT INTO money_accounts (id, name, account_type, currency, active, updated_at)
+      VALUES ('${usd}', 'Dollar box', 'CASH', 'USD', true, now()),
+             ('${closed}', 'Closed bank', 'BANK', 'EGP', false, now())
+      ON CONFLICT (id) DO NOTHING;`);
+    for (const accountId of [usd, closed]) {
+      const res = await request.post(`${API}/lender-financings/${f.id}/repayments`, {
+        headers, data: { amountEgp: 1300, rateToEgp: 13, accountId },
+      });
+      expect([accountId, res.status()]).toEqual([accountId, 400]);
+      expect(await codeOf(res)).toBe('ACCOUNT_NOT_USABLE');
+    }
+    const owed = (await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financings[0].owed;
+    expect(owed).toBe('1000.00');
+  });
+
+  test('TC-INV-39: repaying a financing that was removed is refused', async ({ request }) => {
+    const { headers, mk, po, lender, account } = await friendCycle(request, 'Inv L1 Removed');
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    await mk(`lender-financings/${f.id}/remove`, { reason: 'recorded on the wrong order' });
+    const res = await request.post(`${API}/lender-financings/${f.id}/repayments`, {
+      headers, data: { amountEgp: 1300, rateToEgp: 13, accountId: account.id },
+    });
+    expect(res.status()).toBe(400);
+    expect(await codeOf(res)).toBe('FINANCING_REMOVED');
+    const rows: any[] = (await (await request.get(`${API}/ledger?category=lender_repayment&limit=200`, { headers })).json()).data;
+    expect(rows.filter((r) => r.relatedId && r.reason?.includes(lender.name))).toEqual([]);
+  });
+
+  test('TC-INV-40: reversing a repayment with a blank reason is refused', async ({ request }) => {
+    const { headers, mk, po, lender, account } = await friendCycle(request, 'Inv L1 Reason');
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    const view = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 1300, rateToEgp: 13 });
+    for (const reason of ['', '   ']) {
+      const res = await request.post(`${API}/lender-repayments/${view.repayments[0].id}/reverse`, { headers, data: { reason } });
+      expect([JSON.stringify(reason), res.status()]).toEqual([JSON.stringify(reason), 400]);
+    }
+    const after = (await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financings[0];
+    expect(after.owed).toBe('900.00');
+    expect(after.repayments[0].reversedAt).toBeNull();
+  });
+
+  test('TC-INV-41: a plan when nothing is owed is refused (LENDER_NOTHING_OWED)', async ({ request }) => {
+    const { headers, mk, po, lender, account } = await friendCycle(request, 'Inv L1 Nothing');
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 13000, rateToEgp: 13 });
+    const res = await request.post(`${API}/lender-financings/${f.id}/plan`, {
+      headers, data: { instalments: [{ dueOn: dayFromNow(10), amount: 1 }] },
+    });
+    expect(res.status()).toBe(400);
+    expect(await codeOf(res)).toBe('LENDER_NOTHING_OWED');
+  });
+
+  test('TC-INV-42: every write on a friend\'s loan refuses an investor (ROLE_NOT_ALLOWED) and a portal token (WRONG_SURFACE); a partner still may', async ({ request }) => {
+    const { mk, po, lender, account } = await friendCycle(request, 'Inv L1 Roles');
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    const repaid = await mk(`lender-financings/${f.id}/repayments`, { accountId: account.id, amountEgp: 1300, rateToEgp: 13 });
+    const planned = await mk(`lender-financings/${f.id}/plan`, { instalments: [{ dueOn: dayFromNow(10), amount: 100 }] });
+    const writes: [string, Record<string, unknown>][] = [
+      ['lenders', { name: 'Not allowed' }],
+      [`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1 }],
+      [`lender-financings/${f.id}/repayments`, { amountEgp: 13, rateToEgp: 13, accountId: account.id }],
+      [`lender-financings/${f.id}/remove`, { reason: 'not mine to remove' }],
+      [`lender-repayments/${repaid.repayments[0].id}/reverse`, { reason: 'not mine to reverse' }],
+      [`lender-financings/${f.id}/plan`, { instalments: [{ dueOn: dayFromNow(5), amount: 1 }] }],
+      [`lender-plans/${planned.plan.id}/cancel`, { reason: 'not mine to cancel' }],
+    ];
+    const callers = await refusedCallers(request, 'l1roles');
+    expect(callers.map((c) => c.code).sort()).toEqual(['ROLE_NOT_ALLOWED', 'WRONG_SURFACE']);
+    for (const caller of callers) {
+      for (const [path, data] of writes) {
+        const res = await request.post(`${API}/${path}`, { headers: caller.headers, data });
+        expect([caller.who, path, res.status()]).toEqual([caller.who, path, 403]);
+        expect([caller.who, path, await codeOf(res)]).toEqual([caller.who, path, caller.code]);
+      }
+    }
+    // Nothing moved, and the partner can still do each of them.
+    await mk(`lender-plans/${planned.plan.id}/cancel`, { reason: 'agreed a new one' });
+    await mk(`lender-repayments/${repaid.repayments[0].id}/reverse`, { reason: 'wrong day' });
+    await mk(`lender-financings/${f.id}/plan`, { instalments: [{ dueOn: dayFromNow(5), amount: 1 }] });
+    const gone = await mk(`lender-financings/${f.id}/remove`, { reason: 'recorded twice' });
+    expect(gone.removedAt).not.toBeNull();
+  });
+
+  test('TC-INV-43: wrong owner — another friend\'s financing, or a plan id where a financing id belongs, is not found on these routes', async ({ request }) => {
+    const { headers, mk, po, lender, account, stamp } = await friendCycle(request, 'Inv L1 Owner');
+    const other = await mk('lenders', { name: `Inv L1 Owner Other ${stamp}` });
+    const mine = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+    const theirs = await mk(`purchases/${po.id}/financings`, { lenderId: other.id, amount: 500 });
+    const planned = await mk(`lender-financings/${theirs.id}/plan`, { instalments: [{ dueOn: dayFromNow(10), amount: 100 }] });
+
+    // A lender's page lists only what he paid: his friend's financing is not his.
+    const page = (await (await request.get(`${API}/lenders/${lender.id}`, { headers })).json()).data;
+    expect(page.financings.map((f: any) => f.id)).toEqual([mine.id]);
+    // Every route is keyed by the financing (or plan, or repayment) itself, so
+    // the lender is whoever that record names. An id of one kind used where
+    // another belongs — a plan id on a financing route, a financing id on a
+    // plan or repayment route — is not found, never quietly matched.
+    const crossed: [string, Record<string, unknown>][] = [
+      [`lender-financings/${planned.plan.id}/repayments`, { amountEgp: 13, rateToEgp: 13, accountId: account.id }],
+      [`lender-financings/${planned.plan.id}/plan`, { instalments: [{ dueOn: dayFromNow(5), amount: 1 }] }],
+      [`lender-financings/${planned.plan.id}/remove`, { reason: 'crossed ids' }],
+      [`lender-plans/${theirs.id}/cancel`, { reason: 'crossed ids' }],
+      [`lender-plans/${mine.id}/cancel`, { reason: 'crossed ids' }],
+      [`lender-repayments/${mine.id}/reverse`, { reason: 'crossed ids' }],
+    ];
+    for (const [path, data] of crossed) {
+      const res = await request.post(`${API}/${path}`, { headers, data });
+      expect([path, res.status()]).toEqual([path, 404]);
+      expect(await codeOf(res)).toBe('NOT_FOUND');
+    }
+    const quote = await request.get(`${API}/lender-financings/${planned.plan.id}/quote?rateToEgp=13`, { headers });
+    expect(quote.status()).toBe(404);
+    // Their plan is untouched by any of it.
+    const still = (await (await request.get(`${API}/lenders/${other.id}`, { headers })).json()).data.financings[0];
+    expect(still.plan.id).toBe(planned.plan.id);
+  });
+
+  test('TC-INV-44: owed to lenders in a currency with no current rate is shown in that currency, left out of the pounds, and says so', async ({ request }) => {
+    const { headers, mk, lender } = await friendCycle(request, 'Inv L1 NoRate');
+    const before = (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data.owedToLenders;
+    // A currency no rate has ever been entered for.
+    const cycle = await mk('cycles', { originType: 'CHINA', currency: 'HKD' });
+    const supplier = await mk('suppliers', { name: `Inv L1 HK ${Date.now()}`, country: 'HK' });
+    const product = await mk('products', { name: `Inv L1 HK part ${Date.now()}`, minStock: 0 });
+    const po = await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'HKD', fxRateToEgp: 6.2, orderedOn: dayFromNow(-1),
+      items: [{ productId: product.id, orderedQty: 10, unitPrice: 100 }],
+    });
+    await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
+
+    const owed = (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data.owedToLenders;
+    const hkd = owed.lines.find((l: any) => l.currency === 'HKD');
+    expect(before.lines.find((l: any) => l.currency === 'HKD')).toBeUndefined();
+    expect(hkd).toEqual({ currency: 'HKD', owed: '1000.00', rateToEgp: null, owedEgp: null });
+    expect(owed.missingRate).toBe(true);
+    // Not counted as zero pounds, and not counted at the order's rate either.
+    expect(Number(owed.totalEgp)).toBeCloseTo(Number(before.totalEgp), 2);
   });
 });
