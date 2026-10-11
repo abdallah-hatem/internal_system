@@ -102,6 +102,9 @@ function batch(id: string, verificationStatus: string, createdAt: string) {
   return {
     id,
     verificationStatus,
+    // Stock this cycle received itself; a batch moved in from another cycle
+    // (§8, L5) points at its source and is no receipt.
+    transferredFromBatchId: null as string | null,
     receivedQty: 40,
     createdAt: at(createdAt),
     cycleId: 'cy1',
@@ -173,6 +176,19 @@ describe('Recent activity — what it lists', () => {
     expect(items.map((i) => [i.kind, i.id, i.quantity])).toEqual([
       ['RECEIPT', 'in', 40],
     ]);
+  });
+
+  it('leftovers moved in from another cycle are not a receipt (L5)', async () => {
+    const items = await feed({
+      batches: [
+        {
+          ...batch('moved', 'VERIFIED', '2026-10-05T00:00:00Z'),
+          transferredFromBatchId: 'in',
+        },
+        batch('in', 'VERIFIED', '2026-10-03T00:00:00Z'),
+      ],
+    });
+    expect(items.map((i) => i.id)).toEqual(['in']);
   });
 
   it('merges every source newest first', async () => {

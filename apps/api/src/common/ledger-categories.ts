@@ -31,6 +31,11 @@ import { Prisma } from '@prisma/client';
  *   the exchange difference, which is not a ledger row and is read from the
  *   repayments (`common/lender-debt.ts`) by settlement, cycle profit and the
  *   dashboard alike.
+ * - `cycle_transfer` (§8, L5) is leftover stock moving from one cycle to
+ *   another at its landed cost: the giving cycle recovers the cost (INFLOW),
+ *   the receiving cycle takes it on (OUTFLOW). The goods were already paid for
+ *   once, so neither side is income or an expense — and no money moved at all,
+ *   which is why it is in NOT_CASH_CATEGORIES too.
  */
 export const CAPITALISED_CATEGORIES = [
   'purchase',
@@ -39,7 +44,39 @@ export const CAPITALISED_CATEGORIES = [
   'contribution',
   'lender_financing',
   'lender_repayment',
+  'cycle_transfer',
 ] as const;
+
+/** Leftover stock moved between cycles at its cost (§8, L5). */
+export const TRANSFER_CATEGORY = 'cycle_transfer';
+
+/**
+ * Ledger rows that record no money moving: the business's cash is the same
+ * before and after. Only a transfer between cycles today — one cycle's
+ * inventory became another's, and the pair nets to zero across the business.
+ *
+ * The dashboard's cash in, cash out and cash on hand leave these out, through
+ * `common/cash-position.ts` (rule 11). Counting them would inflate both totals
+ * by every transfer while "cash on hand" stayed put — a till that saw
+ * thousands come and go and nothing happen.
+ */
+export const NOT_CASH_CATEGORIES = [TRANSFER_CATEGORY] as const;
+
+/**
+ * What transfers added to a cycle's cost, signed: an OUTFLOW (stock taken on)
+ * adds, an INFLOW (stock handed on, cost recovered) subtracts; any other row is
+ * zero. Analytics' cycle `investment` reads it so a cycle that handed its
+ * leftovers on shows the cost it kept, and the one that took them shows it too.
+ */
+export function transferNetEgp(
+  rows: { direction: string; category: string; amount: Prisma.Decimal.Value }[],
+): Prisma.Decimal {
+  return rows.reduce((s, t) => {
+    if (t.category !== TRANSFER_CATEGORY) return s;
+    const amount = new Prisma.Decimal(t.amount);
+    return t.direction === 'OUTFLOW' ? s.add(amount) : s.sub(amount);
+  }, new Prisma.Decimal(0));
+}
 
 /** A friend's loan, in and out (§18). Also inside CAPITALISED_CATEGORIES. */
 export const LENDER_CATEGORIES = [

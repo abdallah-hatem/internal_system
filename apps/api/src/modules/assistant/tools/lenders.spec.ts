@@ -107,6 +107,10 @@ class FakeDb {
   >;
   /** Every interactive transaction opened, rolled back or not. */
   transactions = 0;
+  /** No leftovers moved between cycles in these worlds (§8, L5). */
+  stockTransferLine = {
+    aggregate: () => Promise.resolve({ _sum: { costEgp: null } }),
+  };
 
   constructor() {
     for (const t of TABLES) {

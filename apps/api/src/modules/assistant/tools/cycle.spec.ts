@@ -133,6 +133,11 @@ function fakePrisma() {
     lenderRepayment: {
       aggregate: () => Promise.resolve({ _sum: { exchangeDiffEgp: null } }),
     },
+    // No leftovers moved between cycles in these worlds (§8, L5).
+    stockTransfer: { count: () => Promise.resolve(0) },
+    stockTransferLine: {
+      aggregate: () => Promise.resolve({ _sum: { costEgp: null } }),
+    },
     user: {
       findMany: ({ where }: Row) =>
         Promise.resolve(db.users.filter((u) => matches(u, where))),

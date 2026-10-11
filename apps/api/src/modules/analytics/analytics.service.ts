@@ -7,7 +7,10 @@ import {
   isCostRecoveryCategory,
   isLenderCategory,
   netRecoveredEgp,
+  TRANSFER_CATEGORY,
+  transferNetEgp,
 } from '../../common/ledger-categories';
+import { cashPosition } from '../../common/cash-position';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { owedToLenders } from '../../common/lenders-owed';
@@ -153,12 +156,11 @@ export class AnalyticsService {
       .sub(exchangeDiff);
 
     // Cash actually paid out, reported separately from accounting profit
-    // (BRD 11).
-    const cashOutAgg = await this.prisma.financialTransaction.aggregate({
-      where: { direction: 'OUTFLOW' },
-      _sum: { amount: true },
-    });
-    const cashOut = D(cashOutAgg._sum.amount);
+    // (BRD 11). Read with cash in and cash on hand below, through the one
+    // definition of which ledger rows are cash: leftover stock moved between
+    // cycles (§8, L5) moves none (common/cash-position.ts, rule 11).
+    const cash = await cashPosition(this.prisma);
+    const cashOut = cash.cashOut;
 
     const totalRevenue = money(revenue);
     const totalCogs = money(cogs);
@@ -232,14 +234,7 @@ export class AnalyticsService {
      * on one side and forgotten on the other is exactly how the number drifted
      * last time.
      */
-    const flows = await this.prisma.financialTransaction.groupBy({
-      by: ['direction'],
-      _sum: { amount: true },
-    });
-    const flowOf = (d: string) =>
-      D(flows.find((f) => f.direction === d)?._sum.amount ?? 0);
-    const cashIn = flowOf('INFLOW');
-    const cashOnHand = cashIn.sub(flowOf('OUTFLOW'));
+    const { cashIn, cashOnHand } = cash;
 
     return {
       data: {
@@ -530,9 +525,14 @@ export class AnalyticsService {
             // A friend's loan moving is not what the goods cost: the goods are
             // in `purchase` already, and repaying him would count them twice.
             // What the loan really cost is the exchange difference (§18).
-            !isLenderCategory(t.category),
+            !isLenderCategory(t.category) &&
+            // Leftovers moved between cycles (§8, L5): netted, signed, below.
+            t.category !== TRANSFER_CATEGORY,
         )
         .reduce((sum, t) => sum.add(D(t.amount)), D(0))
+        // Stock taken on from another cycle is part of what this cycle cost;
+        // stock handed on is cost recovered. Signed, so both cycles agree.
+        .add(transferNetEgp(cycle.financialTransactions))
         .sub(supplierRefunds)
         .add(exchangeByCycle.get(cycle.id) ?? D(0));
 
@@ -625,7 +625,9 @@ export class AnalyticsService {
         },
       }),
       this.prisma.inventoryBatch.findMany({
-        where: { verificationStatus: 'VERIFIED' },
+        // Leftovers moved in from another cycle (§8, L5) were received once,
+        // by the cycle that bought them — not a receipt again.
+        where: { verificationStatus: 'VERIFIED', transferredFromBatchId: null },
         orderBy: { createdAt: 'desc' },
         take,
         select: {
