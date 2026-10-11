@@ -61,17 +61,30 @@ export interface CostCheck {
   totalLossCents: number;
 }
 
+// BigInt() rather than literals with an n suffix: the web app type-checks
+// this file from its tests with an older target, which refuses that syntax.
+const ZERO = BigInt(0);
+const TWO = BigInt(2);
+const HUNDRED = BigInt(100);
+const THOUSAND = BigInt(1000);
+/** Ten-millionths (qty thousandths x cost ten-thousandths) in a cent. */
+const PER_CENT_OF_COST = BigInt(100_000);
+
 function roundHalfAway(x: bigint, divisor: bigint): bigint {
-  const negative = x < 0n;
+  const negative = x < ZERO;
   const abs = negative ? -x : x;
-  const q = (abs + divisor / 2n) / divisor;
+  const q = (abs + divisor / TWO) / divisor;
   return negative ? -q : q;
 }
 
 /** A decimal as an integer at `places`, half away from zero; null when not a finite number. */
-function scaled(value: unknown, places: number): bigint | null {
+function scaled(
+  value: number | string | { toString(): string } | null | undefined,
+  places: number,
+): bigint | null {
+  // A Prisma Decimal prints itself exactly; Number() of the object would not.
   const n = Number(
-    typeof value === 'object' && value !== null ? String(value) : value,
+    typeof value === 'object' && value !== null ? value.toString() : value,
   );
   if (!Number.isFinite(n)) return null;
   // toFixed first, as sale-totals does: 1.255 × 1000 is 1254.9999… in binary.
@@ -81,7 +94,7 @@ function scaled(value: unknown, places: number): bigint | null {
 
 /** Cents of qty (thousandths) × unit cost (ten-thousandths): 1e-7 → 1e-2. */
 function costOf(qtyMilli: bigint, costTenThousandths: bigint): bigint {
-  return roundHalfAway(qtyMilli * costTenThousandths, 100_000n);
+  return roundHalfAway(qtyMilli * costTenThousandths, PER_CENT_OF_COST);
 }
 
 export function priceAgainstCost(
@@ -96,10 +109,10 @@ export function priceAgainstCost(
     if (!rows) {
       rows = (layersByProduct.get(productId) ?? [])
         .map((l) => ({
-          qty: scaled(l.qty, 3) ?? 0n,
-          cost: scaled(l.unitCostEgp, 4) ?? 0n,
+          qty: scaled(l.qty, 3) ?? ZERO,
+          cost: scaled(l.unitCostEgp, 4) ?? ZERO,
         }))
-        .filter((l) => l.qty > 0n);
+        .filter((l) => l.qty > ZERO);
       left.set(productId, rows);
     }
     return rows;
@@ -119,22 +132,22 @@ export function priceAgainstCost(
     });
 
     const qtyMilli = scaled(line.quantity, 3);
-    if (!line.productId || qtyMilli === null || qtyMilli <= 0n) {
+    if (!line.productId || qtyMilli === null || qtyMilli <= ZERO) {
       return uncosted('INCOMPLETE');
     }
 
     const rows = shelf(line.productId);
-    const onShelf = rows.reduce((s, r) => s + r.qty, 0n);
+    const onShelf = rows.reduce((s, r) => s + r.qty, ZERO);
     // Not drawn at all when it cannot be met: confirming would roll the whole
     // sale back, so these units were never taken from anyone after it.
     if (onShelf < qtyMilli) return uncosted('NO_STOCK');
 
     let wanted = qtyMilli;
-    let cost = 0n;
+    let cost = ZERO;
     for (const row of rows) {
-      if (wanted === 0n) break;
+      if (wanted === ZERO) break;
       const take = row.qty < wanted ? row.qty : wanted;
-      if (take === 0n) continue;
+      if (take === ZERO) continue;
       cost += costOf(take, row.cost);
       row.qty -= take;
       wanted -= take;
@@ -163,15 +176,15 @@ export function priceAgainstCost(
  */
 export function unitFigure(cents: number, quantity: number | string): string {
   const qtyMilli = scaled(quantity, 3);
-  if (qtyMilli === null || qtyMilli === 0n) return '0.00';
-  const perUnit = roundHalfAway(BigInt(cents) * 1000n, qtyMilli);
+  if (qtyMilli === null || qtyMilli === ZERO) return '0.00';
+  const perUnit = roundHalfAway(BigInt(cents) * THOUSAND, qtyMilli);
   return centsText(perUnit);
 }
 
 /** Cents as "1234.50". */
 export function centsText(cents: number | bigint): string {
   const c = BigInt(cents);
-  const sign = c < 0n ? '-' : '';
-  const abs = c < 0n ? -c : c;
-  return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`;
+  const sign = c < ZERO ? '-' : '';
+  const abs = c < ZERO ? -c : c;
+  return `${sign}${abs / HUNDRED}.${String(abs % HUNDRED).padStart(2, '0')}`;
 }

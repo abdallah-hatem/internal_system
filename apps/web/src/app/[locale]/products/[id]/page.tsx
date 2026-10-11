@@ -22,6 +22,8 @@ import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useNumberFormat } from '@/lib/numbers';
+import { usePriceCheck } from '@/lib/price-check';
+import { BelowCostPrice } from '@/components/sales/below-cost';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -718,6 +720,16 @@ function PriceRow({
   const changed = value !== '' && Number(value) !== Number(current?.amount ?? NaN);
   const valid = value !== '' && Number(value) > 0;
 
+  // Below cost (§4, 2026-10-11): the price against the oldest batch on the
+  // shelf — what one unit sold at it would draw under FIFO, so the same
+  // check as a sale of one. Only for whoever may set the price; a warning,
+  // and Save still works.
+  const priceCheck = usePriceCheck(
+    [{ productId, quantity: 1, unitPrice: valid ? value : 0 }],
+    current?.currency ?? 'EGP',
+    { enabled: maySet && valid },
+  );
+
   return (
     <div className="rounded-lg bg-gray-50 px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
@@ -750,6 +762,7 @@ function PriceRow({
         </button>
       </div>
       )}
+      {maySet && <BelowCostPrice check={priceCheck?.lines[0]} />}
     </div>
   );
 }

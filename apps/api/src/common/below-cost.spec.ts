@@ -1,8 +1,4 @@
-import {
-  type CostLayer,
-  priceAgainstCost,
-  unitFigure,
-} from './below-cost';
+import { type CostLayer, priceAgainstCost, unitFigure } from './below-cost';
 
 /**
  * Selling below cost (BUSINESS_LOGIC §4, DECIDED 2026-10-11 by the owner): a
@@ -37,23 +33,43 @@ describe('priceAgainstCost — one line, one batch', () => {
       [{ productId: 'pad', quantity: 10, unitPrice: 150 }],
       layers({ pad: [{ qty: 40, unitCostEgp: 120 }] }),
     );
-    expect(r.lines[0]).toMatchObject({ costed: true, belowCost: false, lossCents: 0 });
+    expect(r.lines[0]).toMatchObject({
+      costed: true,
+      belowCost: false,
+      lossCents: 0,
+    });
     expect(r.totalLossCents).toBe(0);
   });
 });
 
 describe('priceAgainstCost — a line spanning two batches (TC-INV-30: 2 at 900, then 1 at 1,100)', () => {
   const shelf = () =>
-    layers({ p: [{ qty: 2, unitCostEgp: 900 }, { qty: 5, unitCostEgp: 1100 }] });
+    layers({
+      p: [
+        { qty: 2, unitCostEgp: 900 },
+        { qty: 5, unitCostEgp: 1100 },
+      ],
+    });
 
   it('3 at 950: the three units cost 2,900 together, so the line loses 50', () => {
-    const r = priceAgainstCost([{ productId: 'p', quantity: 3, unitPrice: 950 }], shelf());
-    expect(r.lines[0]).toMatchObject({ costCents: 290_000, netCents: 285_000, lossCents: 5_000, belowCost: true });
+    const r = priceAgainstCost(
+      [{ productId: 'p', quantity: 3, unitPrice: 950 }],
+      shelf(),
+    );
+    expect(r.lines[0]).toMatchObject({
+      costCents: 290_000,
+      netCents: 285_000,
+      lossCents: 5_000,
+      belowCost: true,
+    });
     expect(unitFigure(r.lines[0].costCents, 3)).toBe('966.67');
   });
 
   it('3 at 1,000 is above the weighted cost, though below the newer batch — no warning', () => {
-    const r = priceAgainstCost([{ productId: 'p', quantity: 3, unitPrice: 1000 }], shelf());
+    const r = priceAgainstCost(
+      [{ productId: 'p', quantity: 3, unitPrice: 1000 }],
+      shelf(),
+    );
     expect(r.lines[0]).toMatchObject({ costCents: 290_000, belowCost: false });
   });
 
@@ -76,14 +92,22 @@ describe('priceAgainstCost — a line spanning two batches (TC-INV-30: 2 at 900,
 describe('priceAgainstCost — the discount counts', () => {
   it('10 at 130 is above a 120 cost; a 150 line discount takes it to 1,150 against 1,200', () => {
     const shelf = layers({ pad: [{ qty: 40, unitCostEgp: 120 }] });
-    const without = priceAgainstCost([{ productId: 'pad', quantity: 10, unitPrice: 130 }], shelf);
+    const without = priceAgainstCost(
+      [{ productId: 'pad', quantity: 10, unitPrice: 130 }],
+      shelf,
+    );
     expect(without.lines[0].belowCost).toBe(false);
 
     const discounted = priceAgainstCost(
       [{ productId: 'pad', quantity: 10, unitPrice: 130, discount: 150 }],
       shelf,
     );
-    expect(discounted.lines[0]).toMatchObject({ netCents: 115_000, costCents: 120_000, lossCents: 5_000, belowCost: true });
+    expect(discounted.lines[0]).toMatchObject({
+      netCents: 115_000,
+      costCents: 120_000,
+      lossCents: 5_000,
+      belowCost: true,
+    });
     expect(unitFigure(discounted.lines[0].netCents, 10)).toBe('115.00');
   });
 });
@@ -94,14 +118,30 @@ describe('priceAgainstCost — exactly at cost, and rounding at the edge', () =>
       [{ productId: 'pad', quantity: 10, unitPrice: 120 }],
       layers({ pad: [{ qty: 40, unitCostEgp: '120.0000' }] }),
     );
-    expect(r.lines[0]).toMatchObject({ costCents: 120_000, netCents: 120_000, belowCost: false, lossCents: 0 });
+    expect(r.lines[0]).toMatchObject({
+      costCents: 120_000,
+      netCents: 120_000,
+      belowCost: false,
+      lossCents: 0,
+    });
   });
 
   it('the weighted cost shown as 966.67: selling 3 at 966.67 (2,900.01) is not a warning; at 966.66 (2,899.98) it is, by 0.02', () => {
-    const shelf = layers({ p: [{ qty: 2, unitCostEgp: 900 }, { qty: 5, unitCostEgp: 1100 }] });
-    const at = priceAgainstCost([{ productId: 'p', quantity: 3, unitPrice: 966.67 }], shelf);
+    const shelf = layers({
+      p: [
+        { qty: 2, unitCostEgp: 900 },
+        { qty: 5, unitCostEgp: 1100 },
+      ],
+    });
+    const at = priceAgainstCost(
+      [{ productId: 'p', quantity: 3, unitPrice: 966.67 }],
+      shelf,
+    );
     expect(at.lines[0].belowCost).toBe(false);
-    const under = priceAgainstCost([{ productId: 'p', quantity: 3, unitPrice: 966.66 }], shelf);
+    const under = priceAgainstCost(
+      [{ productId: 'p', quantity: 3, unitPrice: 966.66 }],
+      shelf,
+    );
     expect(under.lines[0]).toMatchObject({ belowCost: true, lossCents: 2 });
   });
 
@@ -127,9 +167,18 @@ describe('priceAgainstCost — exactly at cost, and rounding at the edge', () =>
     // sum (0.010) would say 0.01. The sale's COGS is the per-allocation sum.
     const r = priceAgainstCost(
       [{ productId: 'x', quantity: 2, unitPrice: 0.01 }],
-      layers({ x: [{ qty: 1, unitCostEgp: '0.0050' }, { qty: 1, unitCostEgp: '0.0050' }] }),
+      layers({
+        x: [
+          { qty: 1, unitCostEgp: '0.0050' },
+          { qty: 1, unitCostEgp: '0.0050' },
+        ],
+      }),
     );
-    expect(r.lines[0]).toMatchObject({ costCents: 2, netCents: 2, belowCost: false });
+    expect(r.lines[0]).toMatchObject({
+      costCents: 2,
+      netCents: 2,
+      belowCost: false,
+    });
   });
 
   it('a large line does not lose precision (100,000 × 2,616.6667)', () => {
@@ -148,7 +197,12 @@ describe('priceAgainstCost — nothing to compare against is no warning', () => 
       [{ productId: 'chain', quantity: 1, unitPrice: 1 }],
       layers({}),
     );
-    expect(r.lines[0]).toMatchObject({ costed: false, belowCost: false, lossCents: 0, reason: 'NO_STOCK' });
+    expect(r.lines[0]).toMatchObject({
+      costed: false,
+      belowCost: false,
+      lossCents: 0,
+      reason: 'NO_STOCK',
+    });
     expect(r.totalLossCents).toBe(0);
   });
 
@@ -157,7 +211,11 @@ describe('priceAgainstCost — nothing to compare against is no warning', () => 
       [{ productId: 'pad', quantity: 41, unitPrice: 1 }],
       layers({ pad: [{ qty: 40, unitCostEgp: 120 }] }),
     );
-    expect(r.lines[0]).toMatchObject({ costed: false, belowCost: false, reason: 'NO_STOCK' });
+    expect(r.lines[0]).toMatchObject({
+      costed: false,
+      belowCost: false,
+      reason: 'NO_STOCK',
+    });
   });
 
   it('a line still being typed (no product, zero or negative quantity, no price) is not costed and draws nothing', () => {
@@ -173,8 +231,16 @@ describe('priceAgainstCost — nothing to compare against is no warning', () => 
       ],
       shelf,
     );
-    expect(r.lines.slice(0, 4).every((l) => !l.costed && !l.belowCost && l.reason === 'INCOMPLETE')).toBe(true);
-    expect(r.lines[4]).toMatchObject({ costed: true, belowCost: true, lossCents: 2_000 });
+    expect(
+      r.lines
+        .slice(0, 4)
+        .every((l) => !l.costed && !l.belowCost && l.reason === 'INCOMPLETE'),
+    ).toBe(true);
+    expect(r.lines[4]).toMatchObject({
+      costed: true,
+      belowCost: true,
+      lossCents: 2_000,
+    });
   });
 
   it('a free line (price 0) on stock that cost something is below cost — a gift is still a loss', () => {
@@ -196,7 +262,10 @@ describe('priceAgainstCost — nothing to compare against is no warning', () => 
   it('the shelf it is given is not changed (a second check sees the same stock)', () => {
     const shelf = layers({ pad: [{ qty: 2, unitCostEgp: 120 }] });
     priceAgainstCost([{ productId: 'pad', quantity: 2, unitPrice: 1 }], shelf);
-    const again = priceAgainstCost([{ productId: 'pad', quantity: 2, unitPrice: 1 }], shelf);
+    const again = priceAgainstCost(
+      [{ productId: 'pad', quantity: 2, unitPrice: 1 }],
+      shelf,
+    );
     expect(again.lines[0].costed).toBe(true);
   });
 });

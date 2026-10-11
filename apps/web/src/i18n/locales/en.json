@@ -1811,5 +1811,14 @@
     "cancelPlanHint": "The schedule stops counting; repayments and what is owed do not change.",
     "rateFor": "Rate ({currency} → EGP)",
     "poundsEgp": "Pounds paid (EGP)"
+  },
+  "priceCheck": {
+    "BELOW_COST": "Below cost: each costs {cost}, you’re selling at {price}, a loss of {loss} on this line.",
+    "BELOW_COST_TOTAL": "Selling below cost: a loss of {loss} on this order.",
+    "BELOW_COST_PRICE": "Below cost: the oldest stock on the shelf cost {cost} each, so every unit sold at this price loses {loss}.",
+    "summaryTitle": "Part of this sale is below cost",
+    "lineNamed": "{product}: each costs {cost}, selling at {price}, a loss of {loss}.",
+    "confirmHint": "You can still confirm it. This is a warning, not a refusal.",
+    "unknown": "Part of this sale may be below cost."
   }
 }

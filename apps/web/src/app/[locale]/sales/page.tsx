@@ -20,6 +20,8 @@ import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { useCodeLabel } from '../../../lib/labels';
+import { usePriceCheck } from '@/lib/price-check';
+import { BelowCostSummary } from '@/components/sales/below-cost';
 import {
   SaleOrderForm,
   type SavedOrder,
@@ -776,6 +778,10 @@ function SalesPageContent() {
               )}
             </div>
 
+            {/* Below cost (§4, 2026-10-11): the confirm step says it again,
+                and Confirm still goes through. */}
+            {detail.status === 'DRAFT' && <DraftBelowCost order={detail} />}
+
             {/* Actions */}
             <div className="flex flex-wrap justify-end gap-3 pt-2 border-t border-gray-100">
               {/* A confirmed sale has an invoice / delivery note; a draft is
@@ -1042,6 +1048,22 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain min-h-0">{children}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A draft about to be confirmed, checked against what its goods cost now —
+ * the stock may have moved since it was written. A warning above Confirm,
+ * never in its way.
+ */
+function DraftBelowCost({ order }: { order: { currency: string; items?: SaleOrderItem[] } }) {
+  const items = order.items ?? [];
+  const result = usePriceCheck(items, order.currency);
+  return (
+    <BelowCostSummary
+      result={result}
+      names={items.map((i) => i.product?.name ?? '')}
+    />
   );
 }
 

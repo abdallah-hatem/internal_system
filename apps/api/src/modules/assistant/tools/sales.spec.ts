@@ -916,7 +916,9 @@ describe('record_sale — selling below cost (§4, §16, 2026-10-11)', () => {
     expect(r.text).toContain(
       'Below cost: each costs 120.00, selling at 100.00, a loss of 500.00 on this line',
     );
-    expect(r.text).toContain('Selling below cost loses 500.00 EGP on this sale');
+    expect(r.text).toContain(
+      'Selling below cost loses 500.00 EGP on this sale',
+    );
   });
 
   it('the line discount counts: 10 at 125 is above cost; less 100 it is 1,150 against 1,200 → a loss of 50.00', async () => {
