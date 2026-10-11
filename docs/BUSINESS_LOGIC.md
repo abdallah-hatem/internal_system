@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-11 (walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-11 (§18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -1240,3 +1240,37 @@ Open — each changes the design, so each needs an answer first:
 | **Price per channel** — OPEN | Whether a product can have a different price on Amazon than at the counter. |
 | **Returns through Amazon** — OPEN | Whether §5 applies unchanged when the buyer returns to Amazon rather than to us. |
 | **What a listing needs** — OPEN | Amazon asks for barcodes, images and weights that most products do not have yet. |
+
+---
+
+## 18. A purchase paid by a friend, repaid in pounds  — DECIDED 2026-10-11 (owner), details OPEN
+
+**What happens in the business (owner, 2026-10-11).** Sometimes a friend pays a
+supplier for us — the whole order, say 30,000 AED. We then pay him back in
+Egyptian pounds over a few months (three, for example). Each repayment is worth
+whatever the dirhams are worth **on the day we pay him**: what we owe him is
+30,000 AED, not a fixed number of pounds.
+
+**The guesses below are the code's current answer. Each is OPEN until the owner
+confirms it.**
+
+| Rule | Guess | Why |
+|---|---|---|
+| Who the friend is | A **lender**: a new kind of contact — not a partner, not a customer, not a supplier. He shares in no profit. | He is owed money; he does not own any of the cycle. |
+| What he can pay for | All or part of one purchase order, in that order's currency. Never more than the order's total. | The example is a supplier order in dirhams. Shipping legs paid by a friend can be added later. |
+| What we owe | The amount he paid, **in his currency** (e.g. 30,000 AED), until it reaches zero. | The owner's rule: each payment is worth the rate on that day. |
+| A repayment | We pay pounds on a date, at that day's rate (prefilled from the current rate, editable). It clears pounds ÷ rate of the debt. The money leaves one of our money accounts. | — |
+| Paying too much | Refused: a repayment cannot clear more than is still owed. The last one shows exactly how many pounds settle it at the rate entered. | Rule 1 of the working rules: too much is refused. |
+| A plan | Optional: a number of instalments and their due dates (e.g. 10,000 AED a month for three months). An instalment past its due date alerts the partners once, like a customer's (§7). | Same habit as customer plans. |
+| What the goods cost | **Unchanged**: the order's lines cost what they cost at the order's own rate, and the batches are costed from that as always (§2). Nothing is re-priced when a repayment happens. | A sale's cost is never changed after the fact (§3). |
+| The rate moving | The pounds actually paid minus the debt valued at the order's rate is an **exchange difference**: a cost to the cycle when the dirham rose, a gain when it fell. It counts in that cycle's profit and in the dashboard's. It is not an operating expense and does not re-price stock. | It is a real cost of that cycle's purchase. |
+| Cash | No cash leaves when the friend pays the supplier. Cash leaves on each repayment, for the pounds actually paid. | Cash flow follows the money (§9). |
+| Settling the cycle | **A cycle cannot be settled while it still owes a lender.** The settlement screen says how much is left and to whom. | Profit is not known until the exchange difference is. Partners would otherwise split money that still has to go to the friend. |
+| Partners' capital | The amount the friend paid (at the order's rate) counts toward funding the cycle, so "Split equally" asks the partners for the rest only. | Partners did not put up that part. |
+| Who can do it | Core partners. Others see it, read-only, where they can already see the cycle. | Money-moving rule (working rules §12). |
+| A mistake | A repayment is reversed, never deleted or edited — with a reason, once only. The friend's payment can be removed only while nothing has been repaid. | Financial history is never rewritten (§9). |
+
+**Where it shows**
+- The purchase order and the cycle page: "Paid by <friend> — 30,000 AED; 18,000 AED still owed".
+- A lender's own page: everything he paid for, every repayment with its rate, and what is still owed.
+- The dashboard: what we owe lenders, in their currency and in pounds at today's rate.
