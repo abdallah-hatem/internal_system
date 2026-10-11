@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L2 live in production 2026-10-11 (`ceca8b9`, three deploys READY, smoke ok) · live test of the four lender tools waits for the owner to toggle the connector (my session still holds the old 20-tool list)
+Current stage: L3 built on its branch, awaiting merge · L2 live in production 2026-10-11 (`ceca8b9`, three deploys READY, smoke ok) · live test of the four lender tools waits for the owner to toggle the connector (my session still holds the old 20-tool list)
 
 ## Waiting on the user
 _(none)_
@@ -13,6 +13,17 @@ _(none)_
 _(none)_
 
 ## Next up
+- L3 built 2026-10-11 on `feature/l3-status-follows-shipping` (not merged, not pushed), three commits:
+  (1) owner decision — recording a departure or a delivery moves the cycle on by itself through each step's own
+  checks (§1; `CyclesService.followShipment`; every entry point incl. the assistant's previews; office toast
+  "… — cycle is now X"); (2) owner decision — a friend's repayment asks no money account (§18; migration
+  `20261011230000_lender_repayment_account_optional` — run `scripts/ship-prod.sh migrate` before the deploy;
+  stored accounts, the production test data's Business Bank Account included, are kept); (3) typed amounts and
+  quantities start-aligned in every input (one unlayered rule in globals.css; screens in `.ui-audit/l3/`).
+  Full e2e green (5 groups; TC-LIST-07 failed once in group 5 and passed alone 3/3 and in a full group-5 rerun),
+  api jest, web unit, lint, typecheck, check-data zero. Owner to confirm the §1 L3 guesses (only a changed
+  departure is news; the status dialog closes when its fix moved the cycle; receiving says "cycle is now Selling").
+  Existing cycles behind their shipment are not moved until their next departure or delivery.
 - TEST DATA IN PRODUCTION (owner asked 2026-10-11, remove when he says): CYC-2026-0001 (UAE direct, In transit to Egypt),
   PO-2026-0001 (TEST Al Noor Trading; TEST Full face helmet ×100 @200 AED, TEST Brake pad set ×200 @50 AED; rate 13),
   lender TEST Mahmoud paid 30,000 AED; repayments 100,000 EGP @13.3 (20 Sep) and 150,000 EGP @13.85 (5 Oct), both from
@@ -26,7 +37,7 @@ _(none)_
   (2) assistant tools `list_lenders`, `get_lender`, `record_lender_financing`, `record_lender_repayment` (§16, §18;
   unit `tools/lenders.spec.ts`, e2e spec 99); (3) the I3 "Not departed" twice nit. No migration. Full e2e green
   (5 groups), api jest, web unit, lint, typecheck, check-data zero. Owner to confirm the §16 lender-tool guesses
-  (today's rate when unsaid, ask for the account when several, ask which order, currency checked not converted)
+  (today's rate when unsaid, ask which order, currency checked not converted; the account question was dropped by the owner in L3)
   and the §8 residual guess (residual to the last participant with a share). After merging, toggle the assistant
   connector off/on to see the new tools.
 - L1 merged into master 2026-10-11 (alignment review: money rules ALIGNED; 8 missing edge-case tests + 4 doc gaps fixed in a04608e) — from `feature/l1-lender-financing` (§18, spec/plan `docs/superpowers/{specs,plans}/2026-10-11-lender-financing.md`):
