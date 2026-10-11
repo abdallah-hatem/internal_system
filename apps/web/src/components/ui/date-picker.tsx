@@ -439,7 +439,9 @@ export function DatePicker({
               invalid && !open && 'border-destructive ring-2 ring-destructive/20',
             )}
           >
-            <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+            {/* Not on a phone once a day is chosen: two pickers side by side
+                there had "11 أكتوبر 2026" cut to "11 أكتوبر 6…" (I2). */}
+            <CalendarDays className={cn('h-4 w-4 shrink-0 text-muted-foreground', selected && 'hidden sm:block')} />
             <span className={cn('flex-1 truncate', selected ? 'text-foreground' : 'text-muted-foreground')}>
               {selected ? formatDate(current) : (placeholder ?? t('pickDate'))}
             </span>

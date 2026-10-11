@@ -554,7 +554,7 @@
         "SALE": "بيع {order}",
         "PAYMENT": "دفعة",
         "RETURN": "مرتجع {reference}",
-        "REVERSAL": "إلغاء دفعة"
+        "REVERSAL": "عكس دفعة"
       },
       "onOrders": "على {orders}",
       "unapplied": "{amount} غير مخصّص لأي طلب",
