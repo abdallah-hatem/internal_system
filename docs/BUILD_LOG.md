@@ -14,6 +14,7 @@ _(none)_
 
 ## Next up
 - I1 shipped 2026-10-11. Owner: toggle the assistant connector off/on to see `list_receivables`.
+- I3 (owner 2026-10-11): record a leg's departure and its deliveries from the cycle details page (reuse RecordDeliveryDialog / the shipments page's departure form, no second definition); a LEG_NOT_DEPARTED / LEG_NOT_ARRIVED refusal in Change status offers that action in place. After this the wizard is only for setting a cycle up.
 - From I1: the dashboard's recent activity names a shop as plain text — not a link to it (a person clicking it gets
   nothing). A list's spinner replaces the table each time its date range changes (keep the previous rows instead?).
 - Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
