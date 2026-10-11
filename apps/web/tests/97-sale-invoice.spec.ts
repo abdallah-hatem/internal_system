@@ -185,3 +185,48 @@ test.describe('Sale invoice / delivery note (§4, 2026-10-11)', () => {
     expect((await request.get(`${API}/sales/orders/SO-1/invoice`, { headers })).status()).toBe(404);
   });
 });
+
+test.describe('The shop’s phone reads left to right in Arabic, on screen and on paper (I3 follow-up)', () => {
+  /** Where the phone's first and second characters are drawn: "+" must sit left of the "2". */
+  const plusIsFirst = (page: Page) =>
+    page.getByTestId('invoice-phone').evaluate((el) => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node: Text | null = null;
+      while (walker.nextNode()) {
+        const n = walker.currentNode as Text;
+        if ((n.textContent ?? '').startsWith('+')) {
+          node = n;
+          break;
+        }
+      }
+      if (!node) return { found: false, plusLeft: 0, nextLeft: 0 };
+      const at = (i: number) => {
+        const r = document.createRange();
+        r.setStart(node!, i);
+        r.setEnd(node!, i + 1);
+        return r.getBoundingClientRect().left;
+      };
+      return { found: true, plusLeft: at(0), nextLeft: at(1) };
+    });
+
+  test('TC-IV-PHONE: the "+" of the phone is drawn before its digits, not after, on an Arabic invoice — screen and print', async ({ page, request }) => {
+    const { order } = await invoiced(request, 'IVPH');
+    await login(page, 'ar');
+    await openInvoice(page, order.orderNo, 'ar');
+    for (const media of ['screen', 'print'] as const) {
+      await page.emulateMedia({ media });
+      const r = await plusIsFirst(page);
+      expect(r.found, media).toBe(true);
+      expect(r.plusLeft, `${media}: "+" at ${r.plusLeft}, the next digit at ${r.nextLeft}`).toBeLessThan(r.nextLeft);
+    }
+  });
+
+  test('TC-IV-SHOT: the Arabic invoice as a real A4 PDF (I3_SHOTS=1)', async ({ page, request }) => {
+    test.skip(process.env.I3_SHOTS !== '1', 'screenshots only on request');
+    const { order } = await invoiced(request, 'IVSHOT');
+    await login(page, 'ar');
+    await openInvoice(page, order.orderNo, 'ar');
+    await page.emulateMedia({ media: 'print' });
+    await page.pdf({ path: '../../.ui-audit/i3/invoice-print-ar.pdf', preferCSSPageSize: true, printBackground: true });
+  });
+});

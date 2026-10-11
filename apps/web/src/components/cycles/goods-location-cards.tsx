@@ -22,6 +22,18 @@ const LOOK: Record<Place, { icon: LucideIcon; color: string }> = {
   lost: { icon: PackageX, color: 'bg-rose-500' },
 };
 
+/**
+ * Columns per number of cards, so no row is left half empty: four in one row;
+ * five in a row from 1024px; six in two rows of three, then one row from
+ * 1280px; seven in a row from 1280px. Written out whole for Tailwind.
+ */
+const GRID: Record<number, string> = {
+  4: 'sm:grid-cols-4',
+  5: 'sm:grid-cols-3 lg:grid-cols-5',
+  6: 'sm:grid-cols-3 xl:grid-cols-6',
+  7: 'sm:grid-cols-4 xl:grid-cols-7',
+};
+
 /** The places a cycle of this route shows, in the order the goods travel. Lost only when something was. */
 export function placesFor(direct: boolean, totals: GoodsBuckets): Place[] {
   const places: Place[] = direct
@@ -59,7 +71,7 @@ export function GoodsLocationCards({
   return (
     <section data-testid="goods-location" aria-label={t('title')} className="space-y-3">
       <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
+      <div data-testid="location-cards" className={`grid grid-cols-2 gap-3 ${GRID[places.length] ?? GRID[6]}`}>
         {places.map((place) => {
           const { icon: Icon, color } = LOOK[place];
           return (
@@ -76,8 +88,12 @@ export function GoodsLocationCards({
                     </p>
                   )}
                 </div>
-                <div className={`${color} hidden shrink-0 rounded-lg p-2.5 sm:block`} aria-hidden="true">
-                  <Icon className="size-5 text-primary-foreground" />
+                {/* In a row of six or seven there is no room for the badge beside the label. */}
+                <div
+                  className={`${color} hidden shrink-0 rounded-lg p-2 sm:block ${places.length >= 6 ? 'xl:hidden' : ''}`}
+                  aria-hidden="true"
+                >
+                  <Icon className="size-4 text-primary-foreground" />
                 </div>
               </div>
             </div>
@@ -100,8 +116,9 @@ export function GoodsLocationCards({
           <tbody className="divide-y divide-border">
             {located.products.map((p) => (
               <tr key={p.productId} data-testid="location-row" data-product={p.productName}>
-                <td className="max-w-56 px-4 py-2 font-medium text-foreground">
-                  <LatinText truncate>{p.productName}</LatinText>
+                {/* Wraps rather than truncates: at 1024px eight columns left the name three letters. */}
+                <td className="min-w-40 break-words px-4 py-2 font-medium text-foreground">
+                  <LatinText>{p.productName}</LatinText>
                 </td>
                 <td data-place="ordered" className="px-3 py-2 text-end tabular-nums text-foreground">{fmt(p.ordered)}</td>
                 {places.map((place) => (
