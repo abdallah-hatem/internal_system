@@ -209,7 +209,7 @@ export function RecordRepaymentDialog({
             onChange={(e) => setTypedRate(e.target.value.replace(/[^\d.]/g, ''))}
             {...selectOnFocus}
             dir="ltr"
-            className="w-full rounded-lg border border-border px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <p className="mt-1 text-xs text-muted-foreground">{t('rateHint')}</p>
         </div>
@@ -227,7 +227,7 @@ export function RecordRepaymentDialog({
               value={amount}
               onChange={setAmount}
               placeholder="0.00"
-              className="w-full min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <button
               type="button"
@@ -373,7 +373,7 @@ export function PlanDialog({ financing, onClose }: { financing: FinancingView; o
                   value={r.amount}
                   onChange={(v) => setRows((xs) => xs.map((x) => (x.key === r.key ? { ...x, amount: v } : x)))}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-border px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </FieldLabel>
             </div>

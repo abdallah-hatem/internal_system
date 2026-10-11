@@ -208,6 +208,24 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/*
+ * Amounts and quantities typed into a field sit at the start, like every other
+ * field: left in English, right in Arabic (owner, 2026-10-11 — Record payment's
+ * "90,000.00" sat at the right edge in English). Only inputs: figures in tables
+ * and summaries stay end-aligned.
+ *
+ * One rule for every numeric input — MoneyInput, the quantity fields, plain
+ * number fields — written outside any @layer so it outranks a utility class: a
+ * `text-end` added to the next field cannot drift it back.
+ */
+input:is([inputmode="decimal"], [inputmode="numeric"], [type="number"]) {
+  text-align: start;
+}
+/* A number field kept left-to-right for its digits still starts on the right in Arabic. */
+[dir="rtl"] input[dir="ltr"]:is([inputmode="decimal"], [inputmode="numeric"], [type="number"]) {
+  text-align: right;
+}
+
 /* Toast animation */
 @keyframes toast-slide-in {
   from {
