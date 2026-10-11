@@ -999,6 +999,16 @@ read by settlement, the cycle's profit and the dashboard alike (rule 11):
 - **Reversing an entry charged to a closed or cancelled cycle is refused** — its
   profit was settled and paid on the figure as it stood.
 
+**FIXED 2026-10-12 — a sale return is not an expense.** A return already comes
+off Revenue (the dashboard subtracts its refund from the realised orders), but
+its two ledger rows — the sale undone (`revenue` going out) and, for a cash
+refund, the cash handed back (`refund` going out) — were also counted in the
+dashboard's Expenses, so a 300 cash refund took 900 off net profit. Sales
+categories (`SALE_CATEGORIES`) are now outside operating expenses through the
+one definition. Settlement and the cycle profitability were not affected: a
+return's rows carry no cycle. Cash on hand still counts both rows as money out
+— see Still open.
+
 Guesses made while building it (2026-10-11, open until confirmed):
 
 - **Foreign money is stored in pounds.** `amount` is the pounds figure (amount ×
@@ -1192,6 +1202,7 @@ mistakes it for an agreement.
 | Payment account and reconciliation workflow | One cash account, no reconciliation. `MoneyAccount` exists for more later. |
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
+| How a sale return shows in cash on hand | A return writes the sale undone (`revenue` out) and, for a cash refund, the cash handed back (`refund` out). Cash on hand counts both, so a 300 cash refund lowers it by 600 and a credit return lowers it by 300 though no cash moved. Profit is right since 2026-10-12; the cash reading is not changed yet. Raised 2026-10-12 (L6). |
 | Where the cash for lost goods shows in the ledger | Nowhere. Goods are booked into the ledger when they are received, so units lost on the way never appear in it, though they were paid for. Raised 2026-10-10. |
 | Whether stock is held for an order request | §3 says reservations are not in use and reserved quantity is zero; §12 says an order request holds its stock for 48 hours. The two predate 2026-10-10 and disagree. Raised by the 2026-10-10 release review. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |

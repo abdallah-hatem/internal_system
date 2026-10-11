@@ -152,14 +152,31 @@ export function netRecoveredEgp(
 }
 
 /**
+ * Ledger rows that belong to sales, which profit reads from the orders and
+ * returns themselves, never from the ledger (§4, §5, §9).
+ *
+ * - `revenue` is a customer's payment coming in, and a return's sale undone
+ *   going out (SALE_RETURN).
+ * - `refund` is the cash handed back for a return (REFUND_PAID).
+ *
+ * A return already comes off Revenue — the dashboard subtracts its
+ * `refundEgp` from the realised orders — so its two money-out rows counted as
+ * expenses as well took a 300 cash refund off net profit three times over
+ * (found and fixed 2026-10-12, L6 phase 2).
+ */
+export const SALE_CATEGORIES = ['revenue', 'refund'] as const;
+
+/**
  * Categories that are not operating expenses: capitalised, recoveries (whose
- * reversals are netted against them through `recoveredEgp`), and other income
- * (netted through `otherIncomeEgp` — undoing income is not an expense).
+ * reversals are netted against them through `recoveredEgp`), other income
+ * (netted through `otherIncomeEgp` — undoing income is not an expense), and
+ * sales (read from the orders and returns, `SALE_CATEGORIES`).
  */
 export const NOT_OPERATING_EXPENSE = [
   ...CAPITALISED_CATEGORIES,
   ...COST_RECOVERY_CATEGORIES,
   ...OTHER_INCOME_CATEGORIES,
+  ...SALE_CATEGORIES,
 ] as const;
 
 type LedgerRow = {
