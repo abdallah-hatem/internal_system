@@ -926,6 +926,13 @@ model FinancialTransaction {
   relatedId    String?              @map("related_id") @db.Uuid
   reversalOfId String?              @map("reversal_of_id") @db.Uuid
   reason       String?
+  /// The Cairo day the money moved, for a manual entry (§9, L6). Null on rows
+  /// written before it existed and on rows a flow writes, which read createdAt.
+  occurredOn       DateTime?        @map("occurred_on") @db.Date
+  /// What was actually paid, when it was not pounds: `amount` is always the
+  /// pounds figure the settlement and the dashboard sum (§9, L6).
+  originalAmount   Decimal?         @map("original_amount") @db.Decimal(18, 2)
+  originalCurrency String?          @map("original_currency")
   createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz()
   createdBy    String?              @map("created_by") @db.Uuid
 

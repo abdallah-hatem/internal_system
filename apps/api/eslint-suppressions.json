@@ -434,17 +434,12 @@
       "count": 7
     }
   },
-  "src/modules/ledger/dto/ledger.dto.ts": {
-    "prettier/prettier": {
-      "count": 1
-    }
-  },
   "src/modules/ledger/ledger.controller.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
