@@ -377,7 +377,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- Running costs taken from payouts (§8, L7 2026-10-12). A cost is charged
   -- once in total: what stands against it never exceeds it, net of any
   -- reversal; a charge stands only on a paid settlement and only on a cost
-  -- with no cycle; and what a settlement's lines say was taken is what its
+  -- with no cycle; and what the lines of a settlement say was taken is what its
   -- charges say.
   UNION ALL SELECT 22, 'running cost charged more than it cost',
          count(*) FROM (

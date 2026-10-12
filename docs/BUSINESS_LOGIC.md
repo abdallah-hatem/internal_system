@@ -929,7 +929,7 @@ Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OP
 | The dialog's default | Every product starts at all of it on the shelf; a number typed is never overwritten. | The usual case is moving everything. |
 
 **DECIDED 2026-10-11 (owner) — general running costs are the three core partners', equally, and come out of
-their payouts.** *Built 2026-10-12 (L7), phase 1: API, screens, unit and component tests; the browser e2e is phase 2.* An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by
+their payouts.** *Built 2026-10-12 (L7): API, screens, unit, component and browser tests (99-running-costs, 34 TC-INV-59..64, 79 TC-RP-10).* An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by
 the active core partners; temporary investors never share it. It does **not** change any cycle's profit — that stays
 the shipment's own. Instead, when a settlement is paid out, each core partner's third of the running costs recorded
 since they were last charged is taken from his payout, on its own line. Each cost is charged once and records which
@@ -937,7 +937,7 @@ payout took it; what a payout cannot cover carries to the next one; reversing th
 back to waiting. They live on the Partners page as **Running costs**: what was spent, what has been taken from
 payouts, what is still waiting.
 
-**DECIDED 2026-10-11 (owner) — a payout explains itself.** *Built 2026-10-12 (L7), phase 1, as above.* The settlement screen (before approving),
+**DECIDED 2026-10-11 (owner) — a payout explains itself.** *Built 2026-10-12 (L7), as above.* The settlement screen (before approving),
 and each partner's payout history, break the money down line by line: revenue; cost of the goods sold; each cycle
 cost by kind (extra freight, customs, goods lost on the way, exchange difference on repaying friends, other charges
 to the cycle); the investor's fee; the cycle's profit and this partner's share; capital back; his share of running
