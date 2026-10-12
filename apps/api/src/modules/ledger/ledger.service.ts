@@ -253,6 +253,30 @@ export class LedgerService {
       }
     }
 
+    // A running cost already taken from a partner's payout (§8, L7): he was
+    // paid less for it. Undoing it now would leave that money taken for a
+    // cost that no longer exists. Reverse the settlement first; that puts the
+    // charge back to waiting, and then the cost can go.
+    if (!original.cycleId) {
+      const taken = await this.prisma.runningCostCharge.findMany({
+        where: { costEntryId: id, releasedAt: null },
+        select: {
+          settlement: { select: { cycle: { select: { code: true } } } },
+        },
+      });
+      if (taken.length > 0) {
+        const cycles = [
+          ...new Set(taken.map((t) => t.settlement.cycle.code)),
+        ].join(', ');
+        throw badRequest(
+          'RUNNING_COST_CHARGED',
+          `This running cost was already taken from a payout (${cycles}). ` +
+            'Reverse that settlement first, then this entry.',
+          { cycles },
+        );
+      }
+    }
+
     const reversal = await this.prisma.financialTransaction.create({
       data: {
         type: original.type,

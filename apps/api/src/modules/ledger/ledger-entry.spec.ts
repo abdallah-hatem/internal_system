@@ -469,4 +469,38 @@ describe('the second time: reversing a manual entry', () => {
       expect(created).toHaveLength(0);
     },
   );
+
+  // L7 (§8): a running cost a partner's payout already took cannot simply
+  // vanish — he was paid less for it.
+  const runningCost = (standing: { code: string }[]) => {
+    const made = reversible(null);
+    const prisma = (
+      made.ledger as unknown as { prisma: Record<string, unknown> }
+    ).prisma;
+    prisma.runningCostCharge = {
+      findMany: jest
+        .fn()
+        .mockResolvedValue(
+          standing.map((c) => ({ settlement: { cycle: { code: c.code } } })),
+        ),
+    };
+    return made;
+  };
+
+  it('a running cost already taken from a payout is refused, naming the settlement’s cycle', async () => {
+    const { ledger, created } = runningCost([
+      { code: 'CYC-2026-007' },
+      { code: 'CYC-2026-007' },
+    ]);
+    const r = await refusal(ledger.reverse('tx-rent', 'wrong month', 'u-1'));
+    expect(r.code).toBe('RUNNING_COST_CHARGED');
+    expect(r.params).toEqual({ cycles: 'CYC-2026-007' });
+    expect(created).toHaveLength(0);
+  });
+
+  it('a running cost nobody has been charged for yet reverses as any entry does', async () => {
+    const { ledger, created } = runningCost([]);
+    await ledger.reverse('tx-rent', 'wrong month', 'u-1');
+    expect(created).toHaveLength(1);
+  });
 });

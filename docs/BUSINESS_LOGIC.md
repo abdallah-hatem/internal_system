@@ -858,7 +858,7 @@ Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OP
 | The dialog's default | Every product starts at all of it on the shelf; a number typed is never overwritten. | The usual case is moving everything. |
 
 **DECIDED 2026-10-11 (owner) — general running costs are the three core partners', equally, and come out of
-their payouts.** *Planned, L7.* An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by
+their payouts.** *Built 2026-10-12 (L7), phase 1: API, screens, unit and component tests; the browser e2e is phase 2.* An expense recorded with no cycle (rent, salaries, utilities…) is shared equally by
 the active core partners; temporary investors never share it. It does **not** change any cycle's profit — that stays
 the shipment's own. Instead, when a settlement is paid out, each core partner's third of the running costs recorded
 since they were last charged is taken from his payout, on its own line. Each cost is charged once and records which
@@ -866,11 +866,30 @@ payout took it; what a payout cannot cover carries to the next one; reversing th
 back to waiting. They live on the Partners page as **Running costs**: what was spent, what has been taken from
 payouts, what is still waiting.
 
-**DECIDED 2026-10-11 (owner) — a payout explains itself.** *Planned, L7.* The settlement screen (before approving),
+**DECIDED 2026-10-11 (owner) — a payout explains itself.** *Built 2026-10-12 (L7), phase 1, as above.* The settlement screen (before approving),
 and each partner's payout history, break the money down line by line: revenue; cost of the goods sold; each cycle
 cost by kind (extra freight, customs, goods lost on the way, exchange difference on repaying friends, other charges
 to the cycle); the investor's fee; the cycle's profit and this partner's share; capital back; his share of running
 costs; what he was paid. No lump "expenses" line.
+
+Settled while building it (L7, autonomous run 2026-10-12) — **guesses, each OPEN until the owner confirms**:
+
+| Question | Guess built | Why |
+|---|---|---|
+| What a running cost is | An operating expense through the one definition (`operatingExpenseEgp`) recorded with **no cycle**, that is not itself a reversal; counted net of its reversal, so a reversed cost owes nothing. An old free-text expense with no cycle counts too. A cost charged to a cycle is that cycle's, inside its profit — never a running cost. | One definition (rule 11); §9 already says an entry with no cycle is a general cost. |
+| Who shares it | Every **active** core partner (partner record active, login a core partner and active) at the moment of each payout — all of them, whether or not he is on the cycle being paid. His share comes out of the next payout **he** receives, from whichever cycle; a partner not on the cycle being paid waits for his own. A temporary investor never shares, and nor does a core partner's own money put in as an investor on a cycle — only his core-partner line is charged. | The owner's rule; the recommended reading for a cycle that has only two of the three. |
+| His share, and the odd piastre | Each cost is split on its own: every share rounded **down** to the piastre, the residual to the core partner who **joined last** (partner record oldest first, then id), so 100 is 33.33 / 33.33 / 33.34. The Partners page names him. | Working rules §10: rounding must never decide silently; mirrors "Split equally", where the last partner absorbs the residual. |
+| Which costs, in what order | Every running cost recorded by the time Mark paid is pressed and not yet charged to him, whatever day it was spent, **oldest first** (the day spent — `occurred_on`, else the Cairo day entered — then id). | "Since they were last charged" read as "not yet charged". |
+| What caps it | His payout on that settlement: capital back + his profit share + any investors' fee he receives. **Capital counts**, so running costs can come out of capital handed back. A payout of nothing, or a loss, takes nothing; the rest waits. | "Capped at what his payout can cover"; a payout is capital and profit together (§8). |
+| Charged once | A row per (cost, settlement, partner, amount) — `running_cost_charges`. What stands against a cost never exceeds it; check-data 22–22.3 watch for it. Two payouts at the same moment take turns (an advisory lock), and the second click on one Mark paid is refused. | The recommended shape. |
+| On the settlement | One `RUNNING_COSTS` line per charged partner, negative; what he is paid is the sum of the payable lines. | So the settlement's own lines say what he received. |
+| In the ledger | The payout row (`settlement`) carries the cash actually handed over — net of his share. Beside it, a `running_cost_share` row (INFLOW, the settlement's cycle, pointing at the settlement) records the deduction. That category is in `CAPITALISED_CATEGORIES` and `NOT_CASH_CATEGORIES` (`common/ledger-categories.ts`): not income, not an expense — the cost was an expense the day it was recorded — and not cash. It cannot be typed by hand, and cannot be reversed on its own. | Cash and the partners' records agree; nothing counted twice. |
+| Reversing the settlement | Mirrors the payout rows and the `running_cost_share` rows, and marks its charges released (`released_at`) — the rows stay. Those costs are waiting again and the next payout takes them. | §8: reversing puts its running costs back to waiting; §9: history is never rewritten. |
+| Reversing a cost already taken from a payout | Refused (`RUNNING_COST_CHARGED`, naming the cycle) until the settlement that took it is reversed. | He was paid less for it; like a cost on a closed cycle (§9). |
+| Before it is paid | Draft and approved settlements show what paying **today** would take, through the very plan Mark paid runs, marked "If paid today". Two approved settlements can both show the same waiting costs; whichever is paid first takes them. | The settlement screen explains the payout before approving (§8). |
+| When the core partners change | Each payout splits among the partners active **then**, less what each already paid towards that cost, and never beyond what the cost has left. A partner who leaves owes nothing more; his unpaid part of an old cost is not moved onto the others — it waits. **OPEN**, worth asking. | No rule given; never make someone pay more than his third silently. |
+| The Partners page | A **Running costs** section with a period picker (this month, this quarter — the default, in Cairo — last quarter, this year, all time): spent by category, taken from payouts, still waiting, each core partner's share / taken / waiting, the partner who takes the odd piastre, and what waits in all across every period. A period is the days the costs were **spent**; "taken" counts what payouts have taken of those costs, whenever. The totals row's new **Running costs** is what payouts have taken from the core partners so far, all time. | §8. |
+| A payout explains itself | Calculating a settlement keeps its costs line by line (`settlements.cost_breakdown`), from the same rows the projection subtracts, adding up to its expenses exactly: each cycle-charged category (extra freight, customs, any other), goods lost on the way, the exchange difference on repaying friends, refunds and other income as gains. The settlement card drops the lump "Expenses"; under the participants each one's lines read: share of the cycle profit (%), investor's fee taken or received, capital back, share of running costs (period), paid. The Partners page lists each person's payouts with the same lines, read from the same settlement. Leftovers moved out are a note beside the figures (at cost: no profit, no loss), read live. A settlement calculated before this has no itemised costs and says so in one line until recalculated. | §8: no lump "expenses" line; every figure from the settlement's own projection. |
 
 **Reversing a settlement writes balancing entries and reopens the cycle.** It
 never rewrites history. A reason is required.
@@ -1008,8 +1027,9 @@ refund, the cash handed back (`refund` going out) — were also counted in the
 dashboard's Expenses, so a 300 cash refund took 900 off net profit. Sales
 categories (`SALE_CATEGORIES`) are now outside operating expenses through the
 one definition. Settlement and the cycle profitability were not affected: a
-return's rows carry no cycle. Cash on hand still counts both rows as money out
-— see Still open.
+return's rows carry no cycle.
+
+**FIXED 2026-10-12 (L7) — cash on hand counts only cash handed back.** The sale undone (`SALE_RETURN`) moves no money, so cash on hand, cash in and cash out leave it out (`NOT_CASH_TYPES`, through `common/cash-position.ts`); the cash refund (`REFUND_PAID`) is still cash out. A 300 cash refund lowers cash by 300, a credit-note return by nothing. By type, not category: `revenue` is also a customer's payment coming in, which is cash.
 
 Guesses made while building it (2026-10-11, open until confirmed):
 
@@ -1204,7 +1224,7 @@ mistakes it for an agreement.
 | Payment account and reconciliation workflow | One cash account, no reconciliation. `MoneyAccount` exists for more later. |
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
-| How a sale return shows in cash on hand | A return writes the sale undone (`revenue` out) and, for a cash refund, the cash handed back (`refund` out). Cash on hand counts both, so a 300 cash refund lowers it by 600 and a credit return lowers it by 300 though no cash moved. Profit is right since 2026-10-12; the cash reading is not changed yet. Raised 2026-10-12 (L6). |
+| A cycle's "investment" on Analytics after running costs | Analytics sums a cycle's money out as its investment, and that has always included the settlement payout rows. Since L7 a payout row is the cash handed over, net of the partners' running costs, so a paid cycle's investment reads lower by their share. Raised 2026-10-12 (L7); whether payouts belong in "investment" at all is the question. |
 | Where the cash for lost goods shows in the ledger | Nowhere. Goods are booked into the ledger when they are received, so units lost on the way never appear in it, though they were paid for. Raised 2026-10-10. |
 | Whether stock is held for an order request | §3 says reservations are not in use and reserved quantity is zero; §12 says an order request holds its stock for 48 hours. The two predate 2026-10-10 and disagree. Raised by the 2026-10-10 release review. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |

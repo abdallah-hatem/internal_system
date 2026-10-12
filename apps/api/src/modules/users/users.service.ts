@@ -17,7 +17,9 @@ export class UsersService {
     private settlements: SettlementsService,
   ) {}
 
-  async findAll(pagination: PaginationDto & { role?: string; status?: string }) {
+  async findAll(
+    pagination: PaginationDto & { role?: string; status?: string },
+  ) {
     const { cursor, limit: rawLimit = 20, role, status } = pagination;
     const limit = pageSize(rawLimit);
     const where: any = {};
@@ -89,18 +91,49 @@ export class UsersService {
       where: { settlement: { status: 'PAID' } },
       select: { participantId: true, component: true, amount: true },
     });
-    const byParticipant = new Map<string, { returned: Prisma.Decimal; profit: Prisma.Decimal }>();
+    const byParticipant = new Map<
+      string,
+      { returned: Prisma.Decimal; profit: Prisma.Decimal }
+    >();
     for (const line of lines) {
       const entry = byParticipant.get(line.participantId) ?? {
         returned: new Prisma.Decimal(0),
         profit: new Prisma.Decimal(0),
       };
-      if (line.component === 'CAPITAL_RETURN') entry.returned = entry.returned.add(line.amount);
-      if (line.component === 'PROFIT_SHARE') entry.profit = entry.profit.add(line.amount);
+      if (line.component === 'CAPITAL_RETURN')
+        entry.returned = entry.returned.add(line.amount);
+      if (line.component === 'PROFIT_SHARE')
+        entry.profit = entry.profit.add(line.amount);
       byParticipant.set(line.participantId, entry);
     }
 
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+
+    /**
+     * Each payout, explained line by line (§8 "a payout explains itself",
+     * L7): the very breakdown the settlement screen shows, read from the
+     * settlement's own figures — never worked out again here.
+     */
+    const paidSettlements = await this.prisma.settlement.findMany({
+      where: { status: 'PAID' },
+      orderBy: [{ paidAt: 'desc' }, { id: 'desc' }],
+      include: {
+        cycle: { select: { id: true, code: true } },
+        lines: { include: { participant: true } },
+      },
+    });
+    const breakdowns = await this.settlements.breakdownsFor(paidSettlements);
+
+    // What running costs each core partner's payouts have taken (§8, L7).
+    const charges = await this.prisma.runningCostCharge.groupBy({
+      by: ['partnerUserId'],
+      where: { releasedAt: null },
+      _sum: { amount: true },
+    });
+    const runningCostsOf = (userId: string) =>
+      new Prisma.Decimal(
+        charges.find((c) => c.partnerUserId === userId)?._sum.amount ?? 0,
+      );
 
     /**
      * What an open cycle has earned so far, split the way it will be settled.
@@ -128,7 +161,9 @@ export class UsersService {
     ];
     const accrued = new Map<string, Prisma.Decimal>();
     for (const cycleId of openCycleIds) {
-      const projected = await this.settlements.project(cycleId).catch(() => null);
+      const projected = await this.settlements
+        .project(cycleId)
+        .catch(() => null);
       if (!projected) continue;
       for (const line of projected.distribution.lines) {
         // netProfit, not grossProfit: an investor's fee has already moved to
@@ -142,7 +177,10 @@ export class UsersService {
       // put money into a cycle as an investor — the demo data does exactly
       // that — and picking by role dropped that participation entirely: the
       // cycle was missing from their list and its capital from their totals.
-      const entries = [...user.cyclePartnerEntries, ...user.cycleInvestorEntries];
+      const entries = [
+        ...user.cyclePartnerEntries,
+        ...user.cycleInvestorEntries,
+      ];
 
       let contributed = new Prisma.Decimal(0);
       let returned = new Prisma.Decimal(0);
@@ -202,6 +240,23 @@ export class UsersService {
 
       const cycles = [...byCycle.values()];
 
+      const mine = new Set(entries.map((e) => e.id));
+      const payouts = paidSettlements.flatMap((s) => {
+        const b = breakdowns.get(s.id);
+        const lines = b?.participants.filter((p) => mine.has(p.participantId));
+        if (!b || !lines?.length) return [];
+        const { participants: _all, ...cycleLines } = b;
+        return [
+          {
+            settlementId: s.id,
+            cycleId: s.cycle.id,
+            cycleCode: s.cycle.code,
+            paidAt: s.paidAt,
+            breakdown: { ...cycleLines, participants: lines },
+          },
+        ];
+      });
+
       return {
         id: user.id,
         email: user.email,
@@ -215,6 +270,9 @@ export class UsersService {
         profitShareEgp: money(profitShare),
         accruedProfitEgp: money(accruedProfit),
         atRiskEgp: money(contributed.sub(returned)),
+        /** Running costs his payouts have taken (§8, L7). Zero for an investor. */
+        runningCostsEgp: money(runningCostsOf(user.id)),
+        payouts,
         cycles: cycles
           .map((c) => ({
             id: c.id,
@@ -241,8 +299,15 @@ export class UsersService {
     return { data: result };
   }
 
-  async create(data: { email: string; password: string; role: string; displayName?: string }) {
-    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+  async create(data: {
+    email: string;
+    password: string;
+    role: string;
+    displayName?: string;
+  }) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
     if (existing) throw conflict('EMAIL_TAKEN', 'Email already exists');
 
     const passwordHash = await bcrypt.hash(data.password, 12);
@@ -251,7 +316,9 @@ export class UsersService {
         email: data.email,
         passwordHash,
         role: data.role as any,
-        partner: data.displayName ? { create: { displayName: data.displayName } } : undefined,
+        partner: data.displayName
+          ? { create: { displayName: data.displayName } }
+          : undefined,
       },
       include: { partner: true },
     });
@@ -259,8 +326,19 @@ export class UsersService {
     return { data: result };
   }
 
-  async update(id: string, data: { email?: string; role?: string; status?: string; displayName?: string }) {
-    const user = await this.prisma.user.findUnique({ where: { id }, include: { partner: true } });
+  async update(
+    id: string,
+    data: {
+      email?: string;
+      role?: string;
+      status?: string;
+      displayName?: string;
+    },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { partner: true },
+    });
     if (!user) throw notFound('user');
 
     const updated = await this.prisma.user.update({
@@ -269,7 +347,9 @@ export class UsersService {
         email: data.email,
         role: data.role as any,
         status: data.status as any,
-        partner: data.displayName ? { update: { displayName: data.displayName } } : undefined,
+        partner: data.displayName
+          ? { update: { displayName: data.displayName } }
+          : undefined,
       },
       include: { partner: true },
     });

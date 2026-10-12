@@ -41,6 +41,96 @@ import {
 import { isUuid } from '../../common/uuid';
 import { settlementWarnings } from './settlement-warnings';
 import { unsoldStock } from '../../common/unsold-stock';
+import { assertDayRange, businessDay, businessToday } from '../../common/dates';
+import { RUNNING_COST_SHARE_CATEGORY } from '../../common/ledger-categories';
+import {
+  buildPayoutBreakdown,
+  cycleCostLines,
+  type PayoutBreakdown,
+} from '../../common/payout-breakdown';
+import {
+  loadRunningCosts,
+  periodOf,
+  planRunningCostCharges,
+  summariseRunningCosts,
+  thisQuarter,
+  type PlannedCharge,
+} from '../../common/running-costs';
+import { cycleTransfersOutEgp } from '../../common/stock-transfers';
+
+/**
+ * What a participant is actually handed: capital back, their profit share
+ * (already net of any fee charged to them), any fee they receive, and — since
+ * L7 — less the running costs his payout took (RUNNING_COSTS, negative).
+ *
+ * The INVESTOR_FEE line is a memo of what was deducted — the deduction is
+ * already inside that participant's PROFIT_SHARE. Counting it again makes the
+ * payouts disagree with both the settlement screen and settlement-math, and
+ * the total stops reconciling to capital plus profit.
+ */
+const PAYABLE_COMPONENTS = [
+  'CAPITAL_RETURN',
+  'PROFIT_SHARE',
+  'INVESTOR_FEE_RECEIVED',
+  'RUNNING_COSTS',
+];
+
+/**
+ * One payout at a time takes running costs (§8, L7): two settlements paid at
+ * the same moment would each read the same costs as waiting and charge them
+ * twice. A transaction-scoped advisory lock — released on commit or rollback.
+ */
+const RUNNING_COSTS_LOCK = 7_000_000_007;
+
+/** Sum the payable lines per participant. */
+function payableByParticipant(
+  lines: {
+    participantId: string;
+    component: string;
+    amount: Prisma.Decimal.Value;
+  }[],
+): Map<string, Prisma.Decimal> {
+  const payouts = new Map<string, Prisma.Decimal>();
+  for (const line of lines) {
+    if (!PAYABLE_COMPONENTS.includes(line.component)) continue;
+    payouts.set(
+      line.participantId,
+      (payouts.get(line.participantId) ?? new Prisma.Decimal(0)).add(
+        new Prisma.Decimal(line.amount),
+      ),
+    );
+  }
+  return payouts;
+}
+
+/**
+ * Each core partner's payout on a settlement, by user — what his share of the
+ * running costs may take from (§8, L7). A temporary investor is not in it, so
+ * is never charged; nor is a core partner's own money put in as an investor.
+ */
+function corePartnerPayouts(
+  lines: {
+    participantId: string;
+    component: string;
+    amount: Prisma.Decimal.Value;
+    participant: { participantType: string; partnerUserId: string | null };
+  }[],
+) {
+  const payouts = payableByParticipant(lines);
+  const capacities = new Map<string, Prisma.Decimal>();
+  const participantOf = new Map<string, string>();
+  for (const l of lines) {
+    const userId = l.participant.partnerUserId;
+    if (l.participant.participantType !== 'CORE_PARTNER' || !userId) continue;
+    if (participantOf.has(userId)) continue;
+    participantOf.set(userId, l.participantId);
+    capacities.set(
+      userId,
+      payouts.get(l.participantId) ?? new Prisma.Decimal(0),
+    );
+  }
+  return { capacities, participantOf };
+}
 /** Sale states whose stock has genuinely left the business. */
 const REALISED_ORDER_STATUSES = [
   'CONFIRMED',
@@ -142,7 +232,11 @@ export class SettlementsService {
     });
 
     const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
+    const page = hasMore ? items.slice(0, limit) : items;
+    // Each payout laid out line by line (§8, L7) — an investor's only for the
+    // lines he may see, which are the only ones loaded.
+    const breakdowns = await this.breakdownsFor(page);
+    const data = page.map((s) => ({ ...s, breakdown: breakdowns.get(s.id) }));
     return {
       data,
       meta: {
@@ -194,7 +288,10 @@ export class SettlementsService {
       settlement.cycleId,
       'settlement',
     );
-    return { data: settlement };
+    const breakdowns = await this.breakdownsFor([settlement]);
+    return {
+      data: { ...settlement, breakdown: breakdowns.get(settlement.id) },
+    };
   }
 
   /**
@@ -329,6 +426,16 @@ export class SettlementsService {
       .add(losses)
       .add(exchangeDiff);
 
+    // The same figures, line by line, so the payout can explain itself (§8,
+    // L7). From these very rows — they add up to `expenses` exactly.
+    const costLines = cycleCostLines({
+      expenseRows: expenseTxns,
+      recoveryRows: recoveryTxns,
+      otherIncomeRows: otherIncomeTxns,
+      lossesEgp: losses,
+      exchangeDifferenceEgp: exchangeDiff,
+    });
+
     const pnl = summarizeCyclePnl({
       allocations: allocationInputs,
       expenses,
@@ -374,6 +481,7 @@ export class SettlementsService {
       participants,
       lossesEgp: losses,
       exchangeDifferenceEgp: exchangeDiff,
+      costLines,
       hasAllocations: allocationInputs.length > 0,
     };
   }
@@ -414,6 +522,8 @@ export class SettlementsService {
         lossesEgp: projected.lossesEgp.toFixed(2),
         /** Repaying friends at a moved rate (§18), already inside expensesEgp. */
         exchangeDifferenceEgp: projected.exchangeDifferenceEgp.toFixed(2),
+        /** expensesEgp line by line (§8, L7); the lines sum to it. */
+        costs: projected.costLines,
         grossProfitEgp: projected.pnl.grossProfit.toFixed(2),
         unsoldValueEgp: projected.pnl.unsoldValue.toFixed(2),
         fullySold: projected.pnl.fullySold,
@@ -517,6 +627,11 @@ export class SettlementsService {
           unsoldValueEgp: pnl.unsoldValue,
           unitsSold: pnl.unitsSold,
           unitsRemaining: pnl.unitsRemaining,
+          // Kept with the figures, so an approved or paid settlement explains
+          // itself exactly as it was agreed (§8, L7).
+          costBreakdown: {
+            costs: projected.costLines,
+          } as unknown as Prisma.InputJsonValue,
         },
       });
 
@@ -593,6 +708,7 @@ export class SettlementsService {
         lossesEgp: projected.lossesEgp.toFixed(2),
         /** Repaying friends at a moved rate (§18), already inside expensesEgp. */
         exchangeDifferenceEgp: projected.exchangeDifferenceEgp.toFixed(2),
+        costs: projected.costLines,
         grossProfitEgp: pnl.grossProfit.toFixed(2),
         unsoldValueEgp: pnl.unsoldValue.toFixed(2),
         unitsSold: pnl.unitsSold.toFixed(3),
@@ -722,34 +838,102 @@ export class SettlementsService {
       );
     }
 
-    // What each participant actually receives: capital back, their profit share
-    // (already net of any fee charged to them), and any fee they receive.
-    //
-    // The INVESTOR_FEE line is a memo of what was deducted — the deduction is
-    // already inside that participant's PROFIT_SHARE. Counting it again here
-    // makes the payouts disagree with both the settlement screen and
-    // settlement-math, and the total stops reconciling to capital plus profit.
-    const PAYABLE_COMPONENTS = [
-      'CAPITAL_RETURN',
-      'PROFIT_SHARE',
-      'INVESTOR_FEE_RECEIVED',
-    ];
-
+    const charged: PlannedCharge[] = [];
     const payouts = new Map<string, Prisma.Decimal>();
-    for (const line of settlement.lines) {
-      if (!PAYABLE_COMPONENTS.includes(line.component)) continue;
-      const key = line.participantId;
-      payouts.set(
-        key,
-        (payouts.get(key) ?? new Prisma.Decimal(0)).add(
-          new Prisma.Decimal(line.amount),
-        ),
-      );
-    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      for (const [participantId, amount] of payouts) {
-        if (amount.isZero()) continue;
+      // One payout at a time takes running costs, and this one is still
+      // payable once it holds the lock (a second click waits, then refuses).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${RUNNING_COSTS_LOCK})`;
+      const fresh = await tx.settlement.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+      if (fresh?.status !== 'APPROVED') {
+        throw badRequest(
+          'ONLY_APPROVED_PAYABLE',
+          'Only APPROVED settlements can be marked as paid',
+        );
+      }
+
+      // --- His share of the running costs (§8, owner 2026-10-11; L7) -------
+      // Each core partner on this cycle: his equal share of the general
+      // running costs still waiting, oldest first, as far as this payout
+      // covers. The cycle's profit is not touched — it comes off his payout.
+      const state = await loadRunningCosts(tx);
+      const { capacities, participantOf } = corePartnerPayouts(
+        settlement.lines,
+      );
+      const plan = planRunningCostCharges({ ...state, capacities });
+      const costDay = new Map(state.costs.map((c) => [c.id, c.day]));
+      const takenBy = new Map<string, Prisma.Decimal>();
+      for (const c of plan) {
+        takenBy.set(
+          c.partnerUserId,
+          (takenBy.get(c.partnerUserId) ?? new Prisma.Decimal(0)).add(c.amount),
+        );
+      }
+
+      for (const [userId, total] of takenBy) {
+        const participantId = participantOf.get(userId)!;
+        const mine = plan.filter((c) => c.partnerUserId === userId);
+        const period = periodOf(mine.map((c) => costDay.get(c.costEntryId)!));
+        for (const c of mine) {
+          await tx.runningCostCharge.create({
+            data: {
+              costEntryId: c.costEntryId,
+              settlementId: settlement.id,
+              participantId,
+              partnerUserId: userId,
+              amount: c.amount,
+            },
+          });
+          charged.push(c);
+        }
+        // On the settlement, beside his capital and profit: what he is paid
+        // is the sum of its payable lines (PAYABLE_COMPONENTS).
+        await tx.settlementLine.create({
+          data: {
+            settlementId: settlement.id,
+            participantId,
+            component: 'RUNNING_COSTS',
+            amount: total.neg(),
+          },
+        });
+        // In the ledger: the deduction, so the payout row below (the cash
+        // actually handed over) and his record agree. Not cash, not an
+        // expense — the cost was an expense when it was recorded
+        // (`running_cost_share`, ledger-categories.ts).
+        await tx.financialTransaction.create({
+          data: {
+            type: 'RUNNING_COST_CHARGE',
+            category: RUNNING_COST_SHARE_CATEGORY,
+            direction: 'INFLOW',
+            amount: total,
+            currency: 'EGP',
+            cycleId: settlement.cycleId,
+            relatedType: 'SETTLEMENT',
+            relatedId: settlement.id,
+            reason:
+              `Settlement of ${settlement.cycle.code}: share of running costs ` +
+              `${period ? `${period.from} – ${period.to} ` : ''}taken from the partner's payout`,
+            createdBy: actorId,
+          },
+        });
+      }
+
+      // --- What each participant is handed ---------------------------------
+      const userOf = new Map(
+        [...participantOf.entries()].map(([userId, pid]) => [pid, userId]),
+      );
+      for (const [participantId, amount] of payableByParticipant(
+        settlement.lines,
+      )) {
+        const userId = userOf.get(participantId);
+        const taken = userId ? takenBy.get(userId) : undefined;
+        const net = taken ? amount.sub(taken) : amount;
+        payouts.set(participantId, net);
+        if (net.isZero()) continue;
         const participant = settlement.lines.find(
           (l) => l.participantId === participantId,
         )?.participant;
@@ -759,15 +943,16 @@ export class SettlementsService {
             type: 'SETTLEMENT_PAYOUT',
             category: 'settlement',
             // A negative net would be the participant owing the business.
-            direction: amount.gt(0) ? 'OUTFLOW' : 'INFLOW',
-            amount: amount.abs().toDecimalPlaces(2),
+            direction: net.gt(0) ? 'OUTFLOW' : 'INFLOW',
+            amount: net.abs().toDecimalPlaces(2),
             currency: 'EGP',
             cycleId: settlement.cycleId,
             relatedType: 'SETTLEMENT',
             relatedId: settlement.id,
             reason:
               `Settlement of ${settlement.cycle.code}: capital and profit paid to ` +
-              `${participant?.participantType === 'TEMP_INVESTOR' ? 'investor' : 'partner'}`,
+              `${participant?.participantType === 'TEMP_INVESTOR' ? 'investor' : 'partner'}` +
+              (taken ? ', less his share of running costs' : ''),
             createdBy: actorId,
           },
         });
@@ -799,6 +984,11 @@ export class SettlementsService {
           amount: amount.toFixed(2),
         })),
         acceptedRemainingStock: opts.acceptRemainingStock ?? false,
+        runningCostsCharged: charged.map((c) => ({
+          costEntryId: c.costEntryId,
+          partnerUserId: c.partnerUserId,
+          amount: c.amount.toFixed(2),
+        })),
       },
     });
 
@@ -831,11 +1021,12 @@ export class SettlementsService {
       );
     }
 
+    // The payouts, and the running-cost deductions taken from them (L7).
     const paid = await this.prisma.financialTransaction.findMany({
       where: {
         relatedType: 'SETTLEMENT',
         relatedId: settlement.id,
-        type: 'SETTLEMENT_PAYOUT',
+        type: { in: ['SETTLEMENT_PAYOUT', 'RUNNING_COST_CHARGE'] },
       },
     });
 
@@ -843,8 +1034,11 @@ export class SettlementsService {
       for (const original of paid) {
         await tx.financialTransaction.create({
           data: {
-            type: 'SETTLEMENT_REVERSAL',
-            category: 'settlement',
+            type:
+              original.type === 'RUNNING_COST_CHARGE'
+                ? 'RUNNING_COST_CHARGE_REVERSAL'
+                : 'SETTLEMENT_REVERSAL',
+            category: original.category,
             // Mirror the original so the pair nets to zero.
             direction: original.direction === 'OUTFLOW' ? 'INFLOW' : 'OUTFLOW',
             amount: original.amount,
@@ -857,6 +1051,13 @@ export class SettlementsService {
           },
         });
       }
+
+      // The running costs its payouts took are waiting again (§8, L7). The
+      // rows stay, marked released: history is not rewritten.
+      await tx.runningCostCharge.updateMany({
+        where: { settlementId: settlement.id, releasedAt: null },
+        data: { releasedAt: new Date() },
+      });
 
       // A reversed settlement means the cycle is trading again.
       await tx.importCycle.update({
@@ -881,5 +1082,165 @@ export class SettlementsService {
     });
 
     return { data: updated };
+  }
+
+  /**
+   * Each settlement laid out line by line (§8 "a payout explains itself",
+   * L7), from its own stored figures and lines — nothing recomputed beside it.
+   *
+   * Running costs: a paid settlement shows the charges its payouts took (a
+   * reversed one, the charges it put back); a draft or approved one shows what
+   * paying it now would take, through the very plan Mark paid runs.
+   */
+  async breakdownsFor<
+    S extends {
+      id: string;
+      cycleId: string;
+      status: string;
+      revenueEgp: Prisma.Decimal | null;
+      cogsEgp: Prisma.Decimal | null;
+      expensesEgp: Prisma.Decimal | null;
+      grossProfitEgp: Prisma.Decimal | null;
+      costBreakdown: Prisma.JsonValue | null;
+      lines: {
+        participantId: string;
+        component: string;
+        amount: Prisma.Decimal;
+        participant: { participantType: string; partnerUserId: string | null };
+      }[];
+    },
+  >(settlements: S[]): Promise<Map<string, PayoutBreakdown>> {
+    const out = new Map<string, PayoutBreakdown>();
+    if (settlements.length === 0) return out;
+
+    const settledIds = settlements
+      .filter((s) => s.status === 'PAID' || s.status === 'REVERSED')
+      .map((s) => s.id);
+    const taken = settledIds.length
+      ? await this.prisma.runningCostCharge.findMany({
+          where: { settlementId: { in: settledIds } },
+          select: {
+            settlementId: true,
+            participantId: true,
+            amount: true,
+            releasedAt: true,
+            costEntry: { select: { occurredOn: true, createdAt: true } },
+          },
+        })
+      : [];
+
+    const open = settlements.filter(
+      (s) => s.status === 'DRAFT' || s.status === 'APPROVED',
+    );
+    const state = open.length ? await loadRunningCosts(this.prisma) : null;
+
+    const leftovers = new Map<string, Prisma.Decimal>();
+    for (const cycleId of new Set(settlements.map((s) => s.cycleId))) {
+      leftovers.set(cycleId, await cycleTransfersOutEgp(this.prisma, cycleId));
+    }
+
+    for (const s of settlements) {
+      const running = new Map<
+        string,
+        { amountEgp: Prisma.Decimal; from: string | null; to: string | null }
+      >();
+      const add = (
+        participantId: string,
+        amount: Prisma.Decimal,
+        day: string,
+      ) => {
+        const prev = running.get(participantId);
+        const days = [day, prev?.from, prev?.to].filter(
+          (d): d is string => !!d,
+        );
+        const period = periodOf(days);
+        running.set(participantId, {
+          amountEgp: (prev?.amountEgp ?? new Prisma.Decimal(0)).add(amount),
+          from: period?.from ?? null,
+          to: period?.to ?? null,
+        });
+      };
+
+      if (state) {
+        const { capacities, participantOf } = corePartnerPayouts(s.lines);
+        const dayOf = new Map(state.costs.map((c) => [c.id, c.day]));
+        for (const c of planRunningCostCharges({ ...state, capacities })) {
+          add(
+            participantOf.get(c.partnerUserId)!,
+            c.amount,
+            dayOf.get(c.costEntryId)!,
+          );
+        }
+      }
+      for (const c of taken) {
+        if (c.settlementId !== s.id) continue;
+        // Paid: what stands. Reversed: what was put back.
+        if ((s.status === 'PAID') !== (c.releasedAt === null)) continue;
+        add(
+          c.participantId,
+          new Prisma.Decimal(c.amount),
+          c.costEntry.occurredOn
+            ? c.costEntry.occurredOn.toISOString().slice(0, 10)
+            : businessDay(c.costEntry.createdAt),
+        );
+      }
+
+      out.set(
+        s.id,
+        buildPayoutBreakdown({
+          settlement: s,
+          lines: s.lines,
+          runningCosts: running,
+          leftoversMovedEgp: leftovers.get(s.cycleId) ?? new Prisma.Decimal(0),
+        }),
+      );
+    }
+    return out;
+  }
+
+  /**
+   * The Partners page's Running costs section (§8, L7): for a period, what
+   * was spent by category, what payouts have taken of it, what is still
+   * waiting, and each core partner's share. The period is the days the costs
+   * were spent, both ends included; this quarter, in Cairo, when none is given.
+   */
+  async runningCosts(query: { from?: string; to?: string }) {
+    const { from, to } =
+      query.from || query.to
+        ? { from: query.from, to: query.to }
+        : thisQuarter(businessToday());
+    assertDayRange(from, to);
+
+    const state = await loadRunningCosts(this.prisma);
+    const costs = state.costs.filter(
+      (c) => (!from || c.day >= from) && (!to || c.day <= to),
+    );
+    const summary = summariseRunningCosts({ ...state, costs });
+    const all = summariseRunningCosts(state);
+    const money = (v: Prisma.Decimal) => v.toFixed(2);
+
+    return {
+      data: {
+        from: from ?? null,
+        to: to ?? null,
+        spentEgp: money(summary.spentEgp),
+        chargedEgp: money(summary.chargedEgp),
+        waitingEgp: money(summary.waitingEgp),
+        /** Everything still waiting, whatever the period: what the next payouts will take. */
+        waitingAllTimeEgp: money(all.waitingEgp),
+        byCategory: summary.byCategory.map((c) => ({
+          category: c.category,
+          spentEgp: money(c.spentEgp),
+        })),
+        partners: summary.partners.map((p) => ({
+          userId: p.userId,
+          name: p.name,
+          shareEgp: money(p.shareEgp),
+          chargedEgp: money(p.chargedEgp),
+          waitingEgp: money(p.waitingEgp),
+          takesResidual: p.takesResidual,
+        })),
+      },
+    };
   }
 }

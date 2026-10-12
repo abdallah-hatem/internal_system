@@ -44,6 +44,13 @@ export * from './manual-ledger-categories';
  *   the receiving cycle takes it on (OUTFLOW). The goods were already paid for
  *   once, so neither side is income or an expense — and no money moved at all,
  *   which is why it is in NOT_CASH_CATEGORIES too.
+ * - `running_cost_share` (§8, L7) records a core partner's share of the
+ *   general running costs being taken from his payout. The cost itself was an
+ *   operating expense the day it was recorded; counting the deduction as well
+ *   would charge the rent twice — or, read as money in, cancel it. It is the
+ *   partners bearing the cost, not the business earning or spending, and the
+ *   payout row already carries the cash actually handed over, so it is not
+ *   cash either (NOT_CASH_CATEGORIES).
  */
 export const CAPITALISED_CATEGORIES = [
   'purchase',
@@ -53,7 +60,11 @@ export const CAPITALISED_CATEGORIES = [
   'lender_financing',
   'lender_repayment',
   'cycle_transfer',
+  'running_cost_share',
 ] as const;
+
+/** A partner's share of running costs taken from his payout (§8, L7). */
+export const RUNNING_COST_SHARE_CATEGORY = 'running_cost_share';
 
 /** Leftover stock moved between cycles at its cost (§8, L5). */
 export const TRANSFER_CATEGORY = 'cycle_transfer';
@@ -68,7 +79,23 @@ export const TRANSFER_CATEGORY = 'cycle_transfer';
  * by every transfer while "cash on hand" stayed put — a till that saw
  * thousands come and go and nothing happen.
  */
-export const NOT_CASH_CATEGORIES = [TRANSFER_CATEGORY] as const;
+export const NOT_CASH_CATEGORIES = [
+  TRANSFER_CATEGORY,
+  RUNNING_COST_SHARE_CATEGORY,
+] as const;
+
+/**
+ * Ledger row types that record no money moving, whatever their category.
+ *
+ * `SALE_RETURN` is a return's sale undone: revenue going back out (`revenue`,
+ * OUTFLOW). It says the sale is smaller; it is not cash leaving. The cash
+ * handed back for a cash refund is its own row (`REFUND_PAID`, `refund`) and
+ * stays cash. Counting both took a 300 cash refund off cash on hand twice
+ * (600), and a credit-note return — no cash at all — took 300 (Still open,
+ * raised by L6; fixed L7 2026-10-12). By type, not category: `revenue` is
+ * also a customer's payment coming in, which is cash.
+ */
+export const NOT_CASH_TYPES = ['SALE_RETURN'] as const;
 
 /**
  * What transfers added to a cycle's cost, signed: an OUTFLOW (stock taken on)

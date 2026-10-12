@@ -329,6 +329,36 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
        OR (t.type = 'OTHER_INCOME' AND t.direction <> 'INFLOW')
        OR t.amount <= 0
        OR t.occurred_on > (now() AT TIME ZONE 'Africa/Cairo')::date)
+  -- Running costs taken from payouts (§8, L7 2026-10-12). A cost is charged
+  -- once in total: what stands against it never exceeds it, net of any
+  -- reversal; a charge stands only on a paid settlement and only on a cost
+  -- with no cycle; and what a settlement's lines say was taken is what its
+  -- charges say.
+  UNION ALL SELECT 22, 'running cost charged more than it cost',
+         count(*) FROM (
+           SELECT c.cost_entry_id
+             FROM running_cost_charges c
+             JOIN financial_transactions f ON f.id = c.cost_entry_id
+            WHERE c.released_at IS NULL
+            GROUP BY c.cost_entry_id, f.amount
+           HAVING sum(c.amount) > f.amount - coalesce((
+             SELECT sum(r.amount) FROM financial_transactions r
+              WHERE r.reversal_of_id = c.cost_entry_id), 0)
+         ) over_charged
+  UNION ALL SELECT 22.1, 'running-cost charge standing on a settlement that is not paid',
+         count(*) FROM running_cost_charges c JOIN settlements s ON s.id = c.settlement_id
+   WHERE c.released_at IS NULL AND s.status <> 'PAID'
+  UNION ALL SELECT 22.2, 'running-cost charge against a cost charged to a cycle',
+         count(*) FROM running_cost_charges c
+         JOIN financial_transactions f ON f.id = c.cost_entry_id
+   WHERE f.cycle_id IS NOT NULL
+  UNION ALL SELECT 22.3, 'settlement running-cost lines disagree with its charges',
+         count(*) FROM settlements s
+   WHERE s.status = 'PAID'
+     AND coalesce((SELECT -sum(l.amount) FROM settlement_lines l
+                   WHERE l.settlement_id = s.id AND l.component = 'RUNNING_COSTS'), 0)
+      <> coalesce((SELECT sum(c.amount) FROM running_cost_charges c
+                   WHERE c.settlement_id = s.id AND c.released_at IS NULL), 0)
 SQL
 )
 

@@ -1,11 +1,13 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; cash in EGP must not become a float
 import { Prisma } from '@prisma/client';
-import { NOT_CASH_CATEGORIES } from './ledger-categories';
+import { NOT_CASH_CATEGORIES, NOT_CASH_TYPES } from './ledger-categories';
 
 /**
  * Money actually in hand: everything in, less everything out — leaving out the
- * ledger rows that record no money moving (`NOT_CASH_CATEGORIES`: a transfer
- * of leftover stock between cycles, §8 L5).
+ * ledger rows that record no money moving: `NOT_CASH_CATEGORIES` (a transfer
+ * of leftover stock between cycles, §8 L5; a partner's share of running costs
+ * taken from his payout, §8 L7) and `NOT_CASH_TYPES` (a return's sale undone —
+ * only the cash actually handed back is cash out, L7).
  *
  * One reading, so the dashboard's cash in, cash out and cash on hand cannot
  * disagree about which rows are cash (rule 11). Both directions in one pass:
@@ -20,7 +22,10 @@ export async function cashPosition(db: {
 }) {
   const flows = await db.financialTransaction.groupBy({
     by: ['direction'],
-    where: { category: { notIn: [...NOT_CASH_CATEGORIES] } },
+    where: {
+      category: { notIn: [...NOT_CASH_CATEGORIES] },
+      type: { notIn: [...NOT_CASH_TYPES] },
+    },
     _sum: { amount: true },
   });
   const flowOf = (d: string) =>
