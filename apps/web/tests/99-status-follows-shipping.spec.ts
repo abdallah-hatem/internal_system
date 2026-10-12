@@ -188,20 +188,19 @@ test.describe('L3 — the API: what each record proves, and what it never does',
     expect(now.purchaseOrders.map((p) => p.status)).toEqual(['CONFIRMED']);
   });
 
-  test('TC-L3-06: a step whose own check refuses stops the walk there — the record still saves, and the response says why', async ({ request }) => {
-    // China: leg 1 left, nothing delivered in the UAE yet; then leg 2 is
-    // recorded as departed. In transit to Egypt would need Arrived UAE first,
-    // and Arrived UAE needs a leg-1 delivery.
+  test('TC-L3-06: leg 2 marked as left before anything reached Dubai is refused (L8) — nothing saved, the cycle stays', async ({ request }) => {
+    // Before L8 this departure saved and the walk stopped at Arrived UAE
+    // (LEG_NOT_ARRIVED). Since goods leave in parts, nothing can leave Dubai
+    // before leg 1 has delivered it there, so the record itself is refused.
+    // A walk stopped by a step's own check, with the record still saved, is
+    // pinned in apps/api status-follows-shipping.spec.ts (PO_HAS_NO_ITEMS).
     const { headers, cycle, legs } = await cycleWithLegs(request, 'CHINA', { status: ['FUNDING', 'PURCHASING'] });
     await depart(request, headers, legs[0].id, daysAgo(20));
     const r = await depart(request, headers, legs[1].id, daysAgo(10));
-    expect(r.ok(), await r.text()).toBeTruthy();
-    const body = await r.json();
-    expect(body.data.departedOn).toBeTruthy();
-    expect(body.cycleStatus).toMatchObject({
-      from: 'IN_TRANSIT', to: 'IN_TRANSIT', moved: false,
-      stoppedAt: { status: 'ARRIVED_UAE', code: 'LEG_NOT_ARRIVED' },
-    });
+    expect(r.status()).toBe(400);
+    expect((await r.json()).error.code).toBe('DEPARTURE_NOTHING_WAITING');
+    const legsNow = (await (await request.get(`${API}/cycles/${cycle.id}/shipping-legs`, { headers })).json()).data;
+    expect(legsNow.find((l: { id: string }) => l.id === legs[1].id).departedOn).toBeNull();
     expect((await cycleNow(request, headers, cycle.id)).status).toBe('IN_TRANSIT');
   });
 

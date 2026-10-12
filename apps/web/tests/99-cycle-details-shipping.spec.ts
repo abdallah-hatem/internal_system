@@ -148,7 +148,9 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
     // second Shipping card repeating them with its own Record delivery.
     await expect(page.getByTestId('shipment-leg')).toHaveCount(2);
     await expect(page.getByTestId('shipping-card')).toHaveCount(0);
-    await expect(page.getByTestId('record-departure')).toHaveCount(2);
+    // Only leg 1 has goods waiting to leave: nothing has reached Dubai for
+    // leg 2 yet (L8), so it offers no departure.
+    await expect(page.getByTestId('record-departure')).toHaveCount(1);
     await expect(leg(page, legs[0].id).getByTestId('record-departure')).toHaveCount(1);
     // Not departed: departure offered, delivery not.
     await expect(leg(page, legs[0].id).getByTestId('record-delivery')).toHaveCount(0);

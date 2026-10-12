@@ -15,7 +15,7 @@
  *  its goods have not reached.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, today, API } from './support/fixtures';
+import { apiCtx, API } from './support/fixtures';
 
 async function legStatuses(request: APIRequestContext, headers: any, cycleId: string) {
   const res = await request.get(`${API}/cycles/${cycleId}/shipping-legs`, { headers });
@@ -34,7 +34,7 @@ async function chinaCycle(request: APIRequestContext) {
   const cycle = await mk('cycles', { originType: 'CHINA', currency: 'USD' });
 
   await mk(`cycles/${cycle.id}/purchases`, {
-    supplierId: supplier.id, currency: 'USD', fxRateToEgp: 50.86, orderedOn: today(),
+    supplierId: supplier.id, currency: 'USD', fxRateToEgp: 50.86, orderedOn: '2026-07-20',
     items: [{ productId: product.id, orderedQty: 50, unitPrice: 4 }],
   });
   const first = await mk(`cycles/${cycle.id}/shipping-legs`, {

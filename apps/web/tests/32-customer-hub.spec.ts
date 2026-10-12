@@ -59,8 +59,6 @@ async function shopOwingTwoOrders(request: APIRequestContext) {
   const product = await mk('products', { name: `Hub Part ${stamp}`, minStock: 0 });
   const supplier = await mk('suppliers', { name: `Hub Sup ${stamp}`, country: 'AE' });
 
-  const today = new Date();
-  const iso = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
   const ago = (n: number) => {
     const d = new Date();
     d.setDate(d.getDate() - n);
@@ -70,7 +68,7 @@ async function shopOwingTwoOrders(request: APIRequestContext) {
   // Stock, via the only route that creates any.
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${cycle.id}/purchases`, {
-    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: iso,
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: ago(30),
     items: [{ productId: product.id, orderedQty: 100, unitPrice: 10 }],
   });
   await mk(`cycles/${cycle.id}/shipping-legs`, {

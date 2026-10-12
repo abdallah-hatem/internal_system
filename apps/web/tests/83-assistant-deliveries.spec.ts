@@ -22,7 +22,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
-import { API, EMAIL, PASSWORD, apiCtx, daysAgo, today, type Mk } from './support/fixtures';
+import { API, EMAIL, PASSWORD, apiCtx, daysAgo, type Mk } from './support/fixtures';
 import { ROOT, codeFor, redeem } from './support/oauth-flow';
 
 const MCP = `${ROOT}/mcp`;
@@ -347,7 +347,7 @@ test('TC-MCP-DEL-20: add_shipping_leg with an arrival date → the preview lists
     supplierId: supplier.id,
     currency: 'EGP',
     fxRateToEgp: 1,
-    orderedOn: today(),
+    orderedOn: daysAgo(60),
     items: [{ productId: product.id, orderedQty: 40, unitPrice: 25 }],
   });
   const leg1 = await mk(`cycles/${cycle.id}/shipping-legs`, {
@@ -419,4 +419,62 @@ test('TC-MCP-DEL-31: an mcp token on the REST delivery endpoints → 403 WRONG_S
   const shipment = await shipmentOf(request, headers, cycle.id);
   expect(shipment.legs[0].deliveries).toHaveLength(0);
   expect(shipment.legs[0].lost).toBe(0);
+});
+
+// ─── record_departure (L8, 2026-10-12) ───────────────────────────────────
+
+test.describe('record_departure — goods leave in parts', () => {
+  async function waitingCycle(request: APIRequestContext) {
+    const { headers, mk } = await apiCtx(request);
+    const tag = stamp();
+    const product = await mk('products', { name: `Dep ${tag} Part`, minStock: 0 });
+    const supplier = await mk('suppliers', { name: `Dep ${tag} Supplier`, country: 'AE' });
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
+      items: [{ productId: product.id, orderedQty: 40, unitPrice: 25 }],
+    });
+    const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1,
+    });
+    const item = (await cycleOf(request, headers, cycle.id)).purchaseOrders[0].items[0];
+    return { headers, cycle, leg, item };
+  }
+
+  test('TC-MCP-DEP-01: the preview writes nothing and says what leaves, what stays and where the cycle lands; the yes writes exactly that', async ({ request }) => {
+    const { headers, cycle, leg, item } = await waitingCycle(request);
+    const args = { legId: leg.id, departedOn: daysAgo(5), lines: [{ purchaseOrderItemId: item.id, qty: 25 }] };
+    const shown = await preview('record_departure', args);
+    expect(text(shown)).toContain('25 leave; 15 will still wait at Dubai, UAE');
+    expect(text(shown)).toContain('IN_TRANSIT_TO_EGYPT');
+    expect((await shipmentOf(request, headers, cycle.id)).legs[0].departures).toEqual([]);
+
+    const done = await commitWith('record_departure', args, shown);
+    expect(done.isError, text(done)).toBeFalsy();
+    const s = await shipmentOf(request, headers, cycle.id);
+    expect(s.legs[0].departures).toHaveLength(1);
+    expect(s.legs[0].status).toBe('PARTLY_DEPARTED');
+    expect((await cycleOf(request, headers, cycle.id)).status).toBe('IN_TRANSIT_TO_EGYPT');
+  });
+
+  test('TC-MCP-DEP-02: the yes for other quantities, or after the office recorded a departure, is refused and writes nothing', async ({ request }) => {
+    const { headers, cycle, leg, item } = await waitingCycle(request);
+    const args = { legId: leg.id, departedOn: daysAgo(5), lines: [{ purchaseOrderItemId: item.id, qty: 20 }] };
+    const shown = await preview('record_departure', args);
+    const other = await commitWith('record_departure', { ...args, lines: [{ purchaseOrderItemId: item.id, qty: 21 }] }, shown);
+    expect(other.isError).toBe(true);
+    const office = await request.post(`${API}/shipping/legs/${leg.id}/departures`, {
+      headers, data: { departedOn: daysAgo(6), lines: [{ purchaseOrderItemId: item.id, qty: 5 }] },
+    });
+    expect(office.ok(), await office.text()).toBeTruthy();
+    const late = await commitWith('record_departure', args, shown);
+    expect(codeOf(late)).toBe('PREVIEW_CHANGED');
+    expect((await shipmentOf(request, headers, cycle.id)).legs[0].departures).toHaveLength(1);
+  });
+
+  test('TC-MCP-DEP-03: more than waits, or before the order, is refused in the preview with the office code', async ({ request }) => {
+    const { leg, item } = await waitingCycle(request);
+    expect(codeOf(await call('record_departure', { legId: leg.id, departedOn: daysAgo(5), lines: [{ purchaseOrderItemId: item.id, qty: 41 }] }))).toBe('DEPARTURE_EXCEEDS_WAITING');
+    expect(codeOf(await call('record_departure', { legId: leg.id, departedOn: daysAgo(61), lines: [{ purchaseOrderItemId: item.id, qty: 1 }] }))).toBe('DEPARTURE_BEFORE_ORDER');
+  });
 });

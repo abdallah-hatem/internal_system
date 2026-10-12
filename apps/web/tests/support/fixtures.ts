@@ -13,6 +13,22 @@ import { expect, APIRequestContext, APIResponse } from '@playwright/test';
 
 /** Local by default; `API_BASE` aims the same fixtures at the deployed API. */
 export const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
+
+/**
+ * Everything waiting at a leg's origin leaves on `day` (L8, 2026-10-12): POST
+ * …/departures with no lines. A later leg can only depart once the leg before
+ * it has delivered — nothing leaves Dubai before it is there.
+ */
+export async function departAllWaiting(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  legId: string,
+  day: string,
+) {
+  const res = await request.post(`${API}/shipping/legs/${legId}/departures`, { headers, data: { departedOn: day } });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return res.json();
+}
 export const EMAIL = 'partner.a@motoparts.com';
 export const PASSWORD = 'password123';
 /** The seeded shop owner, who signs in at the portal door. */
@@ -180,7 +196,7 @@ export async function giveStock(
   const supplier = await mk('suppliers', { name: `${label} Supplier`, country: 'AE' });
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${cycle.id}/purchases`, {
-    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
     items: [{ productId, orderedQty: qty, unitPrice }],
   });
   // The departure and arrival dates are the point: a cycle cannot pass a stage
@@ -221,7 +237,7 @@ export async function stockedProduct(
 
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${cycle.id}/purchases`, {
-    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
     items: [{ productId: product.id, orderedQty: qty, unitPrice: 10 }],
   });
   // The departure and arrival dates are the point: a cycle cannot pass a stage

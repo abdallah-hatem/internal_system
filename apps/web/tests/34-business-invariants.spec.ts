@@ -69,7 +69,7 @@ async function ctx(request: APIRequestContext) {
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
     await mk(`cycles/${cycle.id}/purchases`, {
       supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1,
-      orderedOn: dayFromNow(0),
+      orderedOn: dayFromNow(-30),
       items: [{ productId: product.id, orderedQty: qty, unitPrice: 10 }],
     });
     await mk(`cycles/${cycle.id}/shipping-legs`, {
@@ -829,7 +829,7 @@ test.describe('One sale across two cycles: FIFO, each batch at its own cost (§3
     });
     expect(funded.ok(), await funded.text()).toBeTruthy();
     await mk(`cycles/${cycle.id}/purchases`, {
-      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgoIso(30),
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgoIso(arrivedDaysAgo + 20),
       items: [{ productId, orderedQty: qty, unitPrice: unit }],
     });
     // Free freight, so a unit lands at exactly what it cost.
@@ -1713,5 +1713,117 @@ test.describe('A manual ledger entry can’t lie (L6, §9)', () => {
     expect(d('totalCogs')).toBe(-200);
     expect(d('totalExpenses')).toBe(0);
     expect(d('netProfit')).toBe(-200);
+  });
+});
+
+// ─── L8: goods leave in parts (owner, 2026-10-12) ───────────────────────
+// Every rule the departures agreed gets a test here (CLAUDE.md §1): what can
+// leave, when it can, what can come after it, and that every unit is still
+// in exactly one place.
+
+test.describe('Goods that leave in parts', () => {
+  const ago = (n: number) => dayFromNow(-n);
+
+  /** A China cycle, 40 ordered 60 days ago, both legs recorded, nothing departed. */
+  async function china(request: APIRequestContext) {
+    const { headers, mk } = await apiCtx(request);
+    const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const product = await mk('products', { name: `InvL8 ${stamp} Part`, minStock: 0 });
+    const supplier = await mk('suppliers', { name: `InvL8 ${stamp} Sup`, country: 'CN' });
+    const cycle = await mk('cycles', { originType: 'CHINA', currency: 'EGP' });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: ago(60),
+      items: [{ productId: product.id, orderedQty: 40, unitPrice: 100 }],
+    });
+    const legs = [
+      await mk(`cycles/${cycle.id}/shipping-legs`, { sequence: 1, origin: 'Guangzhou, CN', destination: 'Dubai, UAE', costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1 }),
+      await mk(`cycles/${cycle.id}/shipping-legs`, { sequence: 2, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1 }),
+    ];
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const item = (full.data ?? full).purchaseOrders[0].items[0];
+    const call = async (path: string, data: unknown) => {
+      const res = await request.post(`${API}/${path}`, { headers, data });
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status(), code: body?.error?.code, body };
+    };
+    const lines = (qty: number) => [{ purchaseOrderItemId: item.id, qty }];
+    const depart = (legIdx: number, day: string, qty?: number) =>
+      call(`shipping/legs/${legs[legIdx].id}/departures`, { departedOn: day, ...(qty === undefined ? {} : { lines: lines(qty) }) });
+    const deliver = (legIdx: number, day: string, qty: number) =>
+      call(`shipping/legs/${legs[legIdx].id}/deliveries`, { arrivedOn: day, lines: lines(qty) });
+    const lose = (legIdx: number, qty: number) => call(`shipping/legs/${legs[legIdx].id}/losses`, { lines: lines(qty) });
+    const shipment = async () => {
+      const r = await (await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers })).json();
+      return r.data ?? r;
+    };
+    return { headers, mk, cycle, legs, item, depart, deliver, lose, shipment };
+  }
+
+  test('TC-INV-L8-01: a leg never sends on more than entered it — on leg 1 more than was ordered, on leg 2 more than leg 1 delivered', async ({ request }) => {
+    const w = await china(request);
+    expect((await w.depart(0, ago(30), 41)).code).toBe('DEPARTURE_EXCEEDS_WAITING');
+    expect((await w.depart(0, ago(30), 40)).status).toBeLessThan(300);
+    expect((await w.depart(0, ago(29), 1)).code).toBe('DEPARTURE_EXCEEDS_WAITING');
+    await w.deliver(0, ago(20), 25);
+    expect((await w.depart(1, ago(18), 26)).code).toBe('DEPARTURE_EXCEEDS_WAITING');
+    expect((await w.depart(1, ago(18), 25)).status).toBeLessThan(300);
+    const s = await w.shipment();
+    for (const leg of s.legs) {
+      for (const l of leg.lines) expect(l.departed, `leg ${leg.sequence}`).toBeLessThanOrEqual(l.entered);
+    }
+  });
+
+  test('TC-INV-L8-02: only what left arrives or is lost — delivered plus lost never exceeds what left', async ({ request }) => {
+    const w = await china(request);
+    expect((await w.deliver(0, ago(20), 1)).code).toBe('LEG_NOT_DEPARTED');
+    expect((await w.lose(0, 1)).code).toBe('LOSS_EXCEEDS_IN_TRANSIT');
+    await w.depart(0, ago(30), 10);
+    expect((await w.deliver(0, ago(20), 11)).code).toBe('DELIVERY_EXCEEDS_IN_TRANSIT');
+    await w.deliver(0, ago(20), 7);
+    expect((await w.lose(0, 4)).code).toBe('LOSS_EXCEEDS_IN_TRANSIT');
+    await w.lose(0, 3);
+    const leg1 = (await w.shipment()).legs[0].lines[0];
+    expect(leg1.delivered + leg1.lost).toBeLessThanOrEqual(leg1.departed);
+    expect(leg1.atOrigin).toBe(30);
+  });
+
+  test('TC-INV-L8-03: nothing leaves before it could be there — before the order, or before leg 1 brought it to Dubai — nor arrives before it left', async ({ request }) => {
+    const w = await china(request);
+    expect((await w.depart(0, ago(61), 5)).code).toBe('DEPARTURE_BEFORE_ORDER');
+    await w.depart(0, ago(40), 10);
+    await w.depart(0, ago(20), 30);
+    // On day 30-ago only the first 10 had left.
+    expect((await w.deliver(0, ago(30), 11)).code).toBe('DELIVERY_BEFORE_GOODS_LEFT');
+    await w.deliver(0, ago(30), 10);
+    expect((await w.depart(1, ago(31), 1)).code).toBe('DEPARTURE_BEFORE_ARRIVAL');
+    expect((await w.depart(1, ago(30), 10)).status).toBeLessThan(300);
+  });
+
+  test('TC-INV-L8-04: nothing departs, and nothing is undone, on a cycle that is cancelled', async ({ request }) => {
+    const w = await china(request);
+    await w.mk(`cycles/${w.cycle.id}/transition`, { status: 'CANCELLED' });
+    expect((await w.depart(0, ago(10), 1)).code).toBe('CYCLE_CLOSED');
+    expect((await w.shipment()).legs.flatMap((l: any) => l.departures)).toEqual([]);
+  });
+
+  test('TC-INV-L8-05: whatever happened in whatever order, every unit is in exactly one place and the places add up to what was ordered', async ({ request }) => {
+    const w = await china(request);
+    await w.depart(0, ago(40), 25);
+    await w.deliver(0, ago(30), 20);
+    await w.lose(0, 2);
+    await w.depart(0, ago(29), 10);
+    await w.depart(1, ago(25), 12);
+    await w.deliver(1, ago(10), 9);
+    await w.lose(1, 1);
+    const s = await w.shipment();
+    const t = s.totals;
+    expect(t.atOrigin + t.onTheWay + t.waiting + t.received + t.lost).toBe(t.ordered);
+    expect(t.ordered).toBe(40);
+    // Per leg: entered = waiting at origin + on the way + delivered + lost (the last leg's
+    // delivered is waiting or received), never a unit short or spare.
+    for (const leg of s.legs) {
+      const l = leg.lines[0];
+      expect(l.atOrigin + l.onTheWay + l.delivered + l.lost, `leg ${leg.sequence}`).toBe(l.entered);
+    }
   });
 });

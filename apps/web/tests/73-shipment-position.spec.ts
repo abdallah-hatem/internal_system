@@ -96,7 +96,7 @@ test.describe('GET /cycles/:id/shipment', () => {
     expect(res.status()).toBe(401);
   });
 
-  test('TC-SHIP-05: as a core partner → the position: 40 ordered, all on the way on the one leg', async ({
+  test('TC-SHIP-05: as a core partner → the position: 40 ordered, all still waiting at the leg’s origin (it has not left — L8)', async ({
     request,
   }) => {
     // The other direction of the role check: a guard that refuses everybody
@@ -107,7 +107,8 @@ test.describe('GET /cycles/:id/shipment', () => {
     const { data } = await res.json();
     expect(data.cycleId).toBe(cycle.id);
     expect(data.accounted).toBe(false);
-    expect(data.totals).toEqual({ ordered: 40, received: 0, lost: 0, onTheWay: 40, waiting: 0 });
+    // Nothing has left, so nothing is on the way: it all waits in Dubai (L8).
+    expect(data.totals).toEqual({ ordered: 40, received: 0, lost: 0, atOrigin: 40, onTheWay: 0, waiting: 0 });
     expect(data.lines).toHaveLength(1);
     expect(data.lines[0].productId).toBe(product.id);
     expect(data.legs).toHaveLength(1);
@@ -116,7 +117,9 @@ test.describe('GET /cycles/:id/shipment', () => {
       isLast: true,
       status: 'PENDING',
       entered: 40,
-      onTheWay: 40,
+      atOrigin: 40,
+      onTheWay: 0,
+      departures: [],
       deliveries: [],
     });
   });

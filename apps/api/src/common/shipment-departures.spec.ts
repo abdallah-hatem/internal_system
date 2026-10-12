@@ -368,6 +368,146 @@ describe('L8 — the backfill reading old legs', () => {
   });
 });
 
+describe('L8 — the backfill on the shapes production holds (CYC-2026-0001..0003)', () => {
+  /** A stored cycle as it was before L8, the migration's rule applied, then read. */
+  function migrated(input: {
+    lines: { id: string; orderedQty: number }[];
+    legs: { id: string; sequence: number; departedOn: string | null }[];
+    deliveries: PositionDeliveryInput[];
+    batches: {
+      sourcePoItemId: string;
+      sourceDeliveryLineId: string;
+      receivedQty: number;
+    }[];
+  }) {
+    const departures = planDepartureBackfill({
+      legs: input.legs,
+      lines: input.lines,
+      deliveries: input.deliveries,
+      departures: [],
+    }).map((d, i) => ({ id: `bf${i}`, ...d }));
+    return {
+      departures,
+      position: shipmentPosition({
+        lines: input.lines,
+        legs: input.legs,
+        departures,
+        deliveries: input.deliveries,
+        losses: [],
+        batches: input.batches,
+      }),
+    };
+  }
+
+  it('UAE-direct: a leg departed, delivered in full, received and partly sold → one departure of everything, nothing waits or travels, the line is accounted', () => {
+    const d = delivery(L1, '2026-08-20', { [A]: 40, [B]: 10 });
+    const { departures, position } = migrated({
+      lines: [
+        { id: A, orderedQty: 40 },
+        { id: B, orderedQty: 10 },
+      ],
+      legs: [{ id: L1, sequence: 1, departedOn: '2026-08-14T00:00:00.000Z' }],
+      deliveries: [d],
+      batches: [
+        {
+          sourcePoItemId: A,
+          sourceDeliveryLineId: d.lines[0].id,
+          receivedQty: 40,
+        },
+        {
+          sourcePoItemId: B,
+          sourceDeliveryLineId: d.lines[1].id,
+          receivedQty: 10,
+        },
+      ],
+    });
+    expect(departures).toEqual([
+      {
+        id: 'bf0',
+        legId: L1,
+        departedOn: '2026-08-14',
+        lines: [
+          { purchaseOrderItemId: A, qty: '40.000' },
+          { purchaseOrderItemId: B, qty: '10.000' },
+        ],
+      },
+    ]);
+    const leg = position.legs[0];
+    expect(leg.status).toBe('ARRIVED');
+    expect(leg.departedOn).toBe('2026-08-14');
+    expect(leg.departures[0].inUse).toBe(true);
+    expect(position.totals).toEqual({
+      ordered: 50,
+      received: 50,
+      lost: 0,
+      atOrigin: 0,
+      onTheWay: 0,
+      waiting: 0,
+    });
+    expect(position.accounted).toBe(true);
+  });
+
+  it('China: both legs departed and delivered in full (the demo cycle CYC-2026-0001) → leg 2 carries what leg 1 delivered; nothing reads as waiting in Dubai', () => {
+    const d1 = delivery(L1, '2026-07-20', { [A]: 300 });
+    const d2 = delivery(L2, '2026-08-01', { [A]: 300 });
+    const { departures, position } = migrated({
+      lines: [{ id: A, orderedQty: 300 }],
+      legs: [
+        { id: L1, sequence: 1, departedOn: '2026-07-05T00:00:00.000Z' },
+        { id: L2, sequence: 2, departedOn: '2026-07-22T00:00:00.000Z' },
+      ],
+      deliveries: [d1, d2],
+      batches: [
+        {
+          sourcePoItemId: A,
+          sourceDeliveryLineId: d2.lines[0].id,
+          receivedQty: 300,
+        },
+      ],
+    });
+    expect(departures.map((d) => [d.legId, d.departedOn, d.lines])).toEqual([
+      [L1, '2026-07-05', [{ purchaseOrderItemId: A, qty: '300.000' }]],
+      [L2, '2026-07-22', [{ purchaseOrderItemId: A, qty: '300.000' }]],
+    ]);
+    expect(
+      position.legs.map((l) => [l.status, l.atOrigin, l.onTheWay]),
+    ).toEqual([
+      ['ARRIVED', 0, 0],
+      ['ARRIVED', 0, 0],
+    ]);
+    expect(position.accounted).toBe(true);
+  });
+
+  it('a cycle still in transit with a partial delivery keeps the same "on the way" it had before L8', () => {
+    const d = delivery(L1, '2026-10-01', { [A]: 15 });
+    const before = shipmentPosition({
+      // How the position read it before: a dated leg, everything entered on the way.
+      lines: [{ id: A, orderedQty: 40 }],
+      legs: [{ id: L1, sequence: 1 }],
+      departures: [
+        {
+          id: 'old',
+          legId: L1,
+          departedOn: '2026-09-20',
+          lines: [{ purchaseOrderItemId: A, qty: 40 }],
+        },
+      ],
+      deliveries: [d],
+      losses: [],
+      batches: [],
+    });
+    const { position } = migrated({
+      lines: [{ id: A, orderedQty: 40 }],
+      legs: [{ id: L1, sequence: 1, departedOn: '2026-09-20T09:30:00.000Z' }],
+      deliveries: [d],
+      batches: [],
+    });
+    expect(position.legs[0].onTheWay).toBe(25);
+    expect(position.legs[0].atOrigin).toBe(0);
+    expect(position.legs[0].status).toBe(before.legs[0].status);
+  });
+});
+
 describe('L8 — every unit is in exactly one place, whatever happened', () => {
   // A small seeded generator, so a failure names its seed and can be replayed.
   function rng(seed: number) {
