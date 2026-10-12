@@ -60,6 +60,33 @@ async function receivePayment(opts: {
  * demo reset continues the sequence (00003) instead of starting a second one.
  */
 /**
+ * One departure on a leg carrying every line in full, dated `departedOn` —
+ * what the L8 migration gives a leg that had a departure date (BUSINESS_LOGIC
+ * §1, 2026-10-12). A leg's goods can only arrive once they have left.
+ */
+async function departInFull(
+  legId: string,
+  departedOn: string,
+  lines: { id: string; orderedQty: Prisma.Decimal }[],
+  actorId: string,
+) {
+  await prisma.shipmentDeparture.create({
+    data: {
+      legId,
+      departedOn: new Date(`${departedOn}T00:00:00Z`),
+      createdBy: actorId,
+      note: 'Demo: the whole order in one departure',
+      lines: {
+        create: lines.map((l) => ({
+          purchaseOrderItemId: l.id,
+          qty: l.orderedQty,
+        })),
+      },
+    },
+  });
+}
+
+/**
  * One delivery on a leg bringing every line in full, dated `arrivedOn` — the
  * shape B1's backfill gives a dated leg (BUSINESS_LOGIC §1, 2026-10-10). Stock
  * exists only by being received from a last-leg delivery (§3), so the demo's
@@ -807,7 +834,9 @@ async function main() {
         amountEgp: D(9600),
       },
     });
+    await departInFull(chinaLeg.id, '2026-07-05', po.items, partnerA.id);
     await deliverInFull(chinaLeg.id, '2026-07-20', po.items, partnerA.id);
+    await departInFull(egyptLeg.id, '2026-07-22', po.items, partnerA.id);
     const cairoLines = await deliverInFull(
       egyptLeg.id,
       '2026-08-01',
@@ -1005,6 +1034,7 @@ async function main() {
       include: { items: true },
     });
 
+    await departInFull(uaeLeg.id, '2026-08-14', uaePo.items, partnerA.id);
     const uaeLines = await deliverInFull(
       uaeLeg.id,
       '2026-08-20',

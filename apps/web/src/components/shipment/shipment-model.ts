@@ -53,9 +53,23 @@ export interface ShipmentDelivery {
   lines: ShipmentDeliveryLine[];
 }
 
+/** One departure on a leg (L8, 2026-10-12): the day it left and what it carried. */
+export interface ShipmentDeparture {
+  id: string;
+  departedOn: string;
+  lines: { purchaseOrderItemId: string; qty: number; accountedFor?: number }[];
+  /** The server's answer to "can this be undone?" — the panel offers Undo only when true. */
+  undoable?: boolean;
+  undoBlockedBy?: 'used' | 'status' | null;
+}
+
 export interface ShipmentLegLine {
   purchaseOrderItemId: string;
   entered: number;
+  /** Left the leg's origin (L8); absent from a server before L8. */
+  departed?: number;
+  /** Entered and not yet left: waiting at the leg's origin (L8). */
+  atOrigin?: number;
   delivered: number;
   lost: number;
   onTheWay: number;
@@ -70,6 +84,8 @@ export interface ShipmentLeg {
   status: string;
   arrivedOn: string | null;
   entered: number;
+  departed?: number;
+  atOrigin?: number;
   delivered: number;
   lost: number;
   onTheWay: number;
@@ -79,6 +95,7 @@ export interface ShipmentLeg {
   destination?: string;
   departedOn?: string | null;
   lines: ShipmentLegLine[];
+  departures?: ShipmentDeparture[];
   deliveries: ShipmentDelivery[];
   losses?: ShipmentLoss[];
 }
@@ -90,6 +107,7 @@ export interface ShipmentLine {
   ordered: number;
   received: number;
   lost: number;
+  atOrigin?: number;
   onTheWay: number;
   waiting: number;
   accounted: boolean;
@@ -100,9 +118,11 @@ export interface Shipment {
   code: string;
   status: string;
   accounted: boolean;
-  totals: { ordered: number; received: number; lost: number; onTheWay: number; waiting: number };
+  totals: { ordered: number; received: number; lost: number; atOrigin?: number; onTheWay: number; waiting: number };
   lines: ShipmentLine[];
   legs: ShipmentLeg[];
+  /** What a leg added after the last recorded one would find waiting at its origin (L8). */
+  nextLeg?: { purchaseOrderItemId: string; waiting: number }[];
 }
 
 export const num = (v: unknown): number => {
@@ -142,6 +162,38 @@ export function fieldValue(
   if (Object.prototype.hasOwnProperty.call(typed, id)) return typed[id];
   const start = prefill[id];
   return start ? String(start) : '';
+}
+
+/** Per order line, what waits at a leg's origin — the Record departure prefill (L8). */
+export function atOriginByLine(leg: ShipmentLeg): Record<string, number> {
+  return Object.fromEntries(leg.lines.map((l) => [l.purchaseOrderItemId, num(l.atOrigin)]));
+}
+
+/** Per order line, what a new leg would find waiting — the Shipments page's create-form prefill (L8). */
+export function nextLegWaitingByLine(shipment: Pick<Shipment, 'nextLeg'> | undefined): Record<string, number> {
+  return Object.fromEntries((shipment?.nextLeg ?? []).map((l) => [l.purchaseOrderItemId, num(l.waiting)]));
+}
+
+/** A leg with goods still waiting to leave its origin (L8). */
+export const hasWaitingToLeave = (leg: ShipmentLeg) => milli(leg.atOrigin) > 0;
+
+/**
+ * The quantities a departure form sends: every row read through what was
+ * typed (a typed number is never replaced by a refetch), zeros left out. A
+ * text that is not a number is returned as `invalid` for the form to name.
+ */
+export function departureLinesFrom(
+  typed: Record<string, string>,
+  prefill: Record<string, number>,
+  rowIds: string[],
+): { lines: { purchaseOrderItemId: string; qty: number }[]; invalid: string | null } {
+  const lines: { purchaseOrderItemId: string; qty: number }[] = [];
+  for (const id of rowIds) {
+    const qty = parseQty(fieldValue(typed, prefill, id));
+    if (qty === null) return { lines: [], invalid: id };
+    if (qty !== 0) lines.push({ purchaseOrderItemId: id, qty });
+  }
+  return { lines, invalid: null };
 }
 
 /** Per order line, what a leg still has on the way — the Record delivery prefill. */
@@ -236,13 +288,14 @@ export function lossRecovery(loss: ShipmentLoss) {
 }
 
 /**
- * The share of what entered a leg that is no longer on the way — delivered or
+ * The share of what entered a leg that is neither waiting to leave nor on the way — delivered or
  * marked lost — as 0..100, for the row's progress bar.
  */
 export function legLineProgress(line: ShipmentLegLine): number {
   const entered = milli(line.entered);
   if (entered === 0) return 0;
-  return Math.round(((entered - milli(line.onTheWay)) / entered) * 100);
+  // Goods still waiting at the origin have not got anywhere either (L8).
+  return Math.round(((entered - milli(line.onTheWay) - milli(line.atOrigin)) / entered) * 100);
 }
 
 /** A typed quantity as a number, or null when it is not one. Empty reads as zero. */

@@ -168,10 +168,11 @@ test.describe('Assistant read tools', () => {
     const token = await assistantToken(request);
     const { tools } = await rpc(request, token, 'tools/list', {});
 
-    // record_delivery added 2026-10-10 (B4): §16 lets the assistant record deliveries.
+    // record_delivery added 2026-10-10 (B4): §16 lets the assistant record deliveries;
+    // record_departure 2026-10-12 (L8): goods leave in parts too.
     const intake = new Set([
       'create_supplier', 'create_product', 'create_purchase_order',
-      'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_delivery', 'verify_stock',
+      'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_departure', 'record_delivery', 'verify_stock',
       // record_sale added 2026-10-11 (W3): the owner asked the assistant to record sales (§16).
       'record_sale',
     ]);

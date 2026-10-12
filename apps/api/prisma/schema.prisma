@@ -378,6 +378,7 @@ model PurchaseOrderItem {
   /// One per receipt. Used to be one per order line (`@unique`); a line now
   /// arrives in several deliveries, each received as its own batch (§3).
   inventoryBatches InventoryBatch[]
+  departureLines   ShipmentDepartureLine[]
   deliveryLines    ShipmentDeliveryLine[]
   losses           ShipmentLoss[]
 
@@ -565,10 +566,12 @@ model ShippingLeg {
   provider           String?
   providerId         String?           @map("provider_id") @db.Uuid
   trackingRef        String?           @map("tracking_ref")
-  /// PENDING · IN_TRANSIT · PARTLY_ARRIVED · ARRIVED (LEG_STATUSES in
-  /// common/shipment-position.ts). A reading of the dates and deliveries,
-  /// never a value anyone sets (§1).
+  /// PENDING · PARTLY_DEPARTED · IN_TRANSIT · PARTLY_ARRIVED · ARRIVED
+  /// (LEG_STATUSES in common/shipment-position.ts). A reading of the
+  /// departures and deliveries, never a value anyone sets (§1).
   status             String            @default("PENDING")
+  /// The day of the leg's first departure (L8, 2026-10-12): a reading of
+  /// `departures`, written by `syncLegStatuses`, never set by hand.
   departedOn         DateTime?         @map("departed_on") @db.Timestamptz()
   arrivedOn          DateTime?         @map("arrived_on") @db.Timestamptz()
   // Costing basis: shipping is usually charged per piece, sometimes by weight.
@@ -586,6 +589,7 @@ model ShippingLeg {
 
   cycle          ImportCycle        @relation(fields: [cycleId], references: [id])
   providerRecord Provider?          @relation(fields: [providerId], references: [id])
+  departures     ShipmentDeparture[]
   deliveries     ShipmentDelivery[]
   losses         ShipmentLoss[]
 
@@ -593,8 +597,45 @@ model ShippingLeg {
   @@map("shipping_legs")
 }
 
+/// Goods leaving a leg's origin on one day (BUSINESS_LOGIC §1, L8 —
+/// 2026-10-12). A supplier may ship part of an order now and the rest later,
+/// and Dubai may forward only part of what arrived, so a leg has any number of
+/// these, as it has deliveries. A leg's `departedOn` and `status` are read
+/// from them through `shipmentPosition`, never set by hand.
+model ShipmentDeparture {
+  id         String   @id @default(uuid()) @db.Uuid
+  legId      String   @map("leg_id") @db.Uuid
+  /// The calendar day it left, in Cairo.
+  departedOn DateTime @map("departed_on") @db.Date
+  note       String?
+  createdBy  String?  @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  leg   ShippingLeg             @relation(fields: [legId], references: [id])
+  lines ShipmentDepartureLine[]
+
+  @@index([legId])
+  @@map("shipment_departures")
+}
+
+/// How many of one ordered product left on a departure. The same order line
+/// appears at most once per departure.
+model ShipmentDepartureLine {
+  id                  String  @id @default(uuid()) @db.Uuid
+  departureId         String  @map("departure_id") @db.Uuid
+  purchaseOrderItemId String  @map("purchase_order_item_id") @db.Uuid
+  qty                 Decimal @db.Decimal(18, 3)
+
+  departure         ShipmentDeparture @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+
+  @@unique([departureId, purchaseOrderItemId])
+  @@index([purchaseOrderItemId])
+  @@map("shipment_departure_lines")
+}
+
 /// One arrival of goods at the end of a leg (BUSINESS_LOGIC §1, 2026-10-10).
-/// A leg's goods leave together and arrive in pieces, weeks apart, so a leg
+/// A leg's goods arrive in pieces, weeks apart, so a leg
 /// has any number of these. A leg's `status` and `arrivedOn` are read from
 /// them through `shipmentPosition`, never set by hand.
 model ShipmentDelivery {

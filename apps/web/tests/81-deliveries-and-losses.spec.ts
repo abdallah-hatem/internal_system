@@ -52,10 +52,11 @@ async function departedCycle(
             costBasis: 'FLAT', amount: 400, currency: 'EGP', fxRateToEgp: 1,
             ...when(20),
           }),
+          // Leg 2 is recorded, not departed: nothing can leave Dubai before
+          // leg 1 has delivered it there (L8). `departLeg2` sends it on.
           await mk(`cycles/${cycle.id}/shipping-legs`, {
             sequence: 2, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
             costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
-            ...when(10),
           }),
         ]
       : [
@@ -71,6 +72,13 @@ async function departedCycle(
 }
 
 const lines = (item: { id: string }, qty: number) => [{ purchaseOrderItemId: item.id, qty }];
+
+/** Everything that has reached Dubai leaves on leg 2 (L8: POST …/departures, no lines = all waiting). */
+async function departLeg2(request: APIRequestContext, headers: Headers, leg2: { id: string }, day = daysAgo(10)) {
+  const res = await request.post(`${API}/shipping/legs/${leg2.id}/departures`, { headers, data: { departedOn: day } });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return res.json();
+}
 
 async function post(request: APIRequestContext, headers: Headers, path: string, data: unknown) {
   const res = await request.post(`${API}/${path}`, { headers, data });
@@ -127,6 +135,7 @@ test.describe('POST /shipping/legs/:id/deliveries', () => {
   test('TC-DL-03: Leg 2 delivery larger than leg 1 has delivered so far → refused', async ({ request }) => {
     const { headers, legs, item } = await departedCycle(request, 'CHINA');
     expect((await deliver(request, headers, legs[0].id, item, 30, daysAgo(12))).status).toBeLessThan(300);
+    await departLeg2(request, headers, legs[1]);
     const r = await deliver(request, headers, legs[1].id, item, 31, daysAgo(5));
     expect(r.code).toBe('DELIVERY_EXCEEDS_IN_TRANSIT');
     expect(r.params.onTheWay).toBe(30);
@@ -148,7 +157,7 @@ test.describe('POST /shipping/legs/:id/deliveries', () => {
     const { headers, mk, product, po } = await departedCycle(request);
     const c = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
     await mk(`cycles/${c.id}/purchases`, {
-      supplierId: po.supplierId, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+      supplierId: po.supplierId, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
       items: [{ productId: product.id, orderedQty: 5, unitPrice: 10 }],
     });
     const undated = await mk(`cycles/${c.id}/shipping-legs`, {
@@ -278,6 +287,7 @@ test.describe('Deleting a delivery', () => {
     const { headers, legs, item } = await departedCycle(request, 'CHINA');
     const first = await deliver(request, headers, legs[0].id, item, 20, daysAgo(15));
     await deliver(request, headers, legs[0].id, item, 20, daysAgo(12));
+    await departLeg2(request, headers, legs[1]);
     await deliver(request, headers, legs[1].id, item, 30, daysAgo(5));
     const res = await request.delete(`${API}/shipping/deliveries/${first.body.data.id}`, { headers });
     expect(res.status()).toBe(400);
@@ -387,19 +397,20 @@ test.describe('The old leg form and the cycle gates', () => {
     for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
-    // Leg 2 left too, but the walk (L3) stopped at In transit: Arrived UAE
-    // needs a leg-1 delivery, and the gate said so.
+    // Arrived UAE needs a leg-1 delivery, and the gate says so.
     const early = await post(request, headers, `cycles/${cycle.id}/transition`, { status: 'ARRIVED_UAE' });
     expect(early.code).toBe('LEG_NOT_ARRIVED');
-    // The first delivery of 15/40 passes that gate by itself, and on.
+    // The first delivery of 15/40 passes that gate by itself — and no
+    // further: nothing has left Dubai yet (L8).
     const d = await deliver(request, headers, legs[0].id, item, 15, daysAgo(15));
     expect(d.status, JSON.stringify(d.body)).toBeLessThan(300);
-    expect(d.body.cycleStatus).toMatchObject({ from: 'IN_TRANSIT', steps: ['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT'] });
+    expect(d.body.cycleStatus).toMatchObject({ from: 'IN_TRANSIT', steps: ['ARRIVED_UAE'] });
   });
 
   test('TC-DL-51: Cycle → ARRIVED_EGYPT with the last leg partly arrived → allowed', async ({ request }) => {
     const { headers, mk, cycle, legs, item } = await departedCycle(request, 'CHINA');
     await deliver(request, headers, legs[0].id, item, 30, daysAgo(15));
+    await departLeg2(request, headers, legs[1]);
     for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }

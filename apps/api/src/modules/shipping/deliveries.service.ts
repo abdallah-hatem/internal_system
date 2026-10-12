@@ -17,15 +17,22 @@ import {
   syncLegStatuses,
   type LoadedShipment,
 } from '../../common/shipment-load';
+import {
+  departureDay,
+  departureLines,
+  departureUndoBlock,
+} from './departure-rules';
 
 /**
  * Deliveries and losses on a shipping leg (BUSINESS_LOGIC §1, §2, §9 —
  * 2026-10-10).
  *
- * Goods leave in one shipment and arrive in pieces, weeks apart. A delivery
- * records one of those pieces; a loss records goods a partner has decided are
- * not coming. Both move units out of "on the way", and both are checked
- * against `shipmentPosition` — never against a sum worked out here (rule 11).
+ * Goods leave in departures and arrive in deliveries, each in pieces, weeks
+ * apart (L8, 2026-10-12). A departure moves units from waiting at a leg's
+ * origin to on the way; a delivery records goods reaching the leg's end; a
+ * loss records goods a partner has decided are not coming. A delivery and a
+ * loss can only take what has LEFT. All are checked against
+ * `shipmentPosition` — never against a sum worked out here (rule 11).
  *
  * Every write takes the cycle's row lock first (`lockCycle`) and only then
  * reads the position it checks against, so two writes sent at once cannot
@@ -207,6 +214,190 @@ export class DeliveriesService {
     return leg;
   }
 
+  // ─── Departures (L8) ───────────────────────────────────────────────────
+
+  /**
+   * POST /shipping/legs/:id/departures — goods leaving the leg's origin on one
+   * day. `lines` left out means everything waiting there that could have left
+   * by that day.
+   *
+   * The leg's first departure moves the cycle on (§1, L3) exactly as a single
+   * departure date did; a later departure moves nothing.
+   */
+  async recordDeparture(
+    legId: string,
+    body: { departedOn: string; lines?: ShipmentLineInput[]; note?: string },
+    actorId: string,
+  ) {
+    const lines = body.lines === undefined ? undefined : checkLines(body.lines);
+    const day = departureDay(body.departedOn);
+    const leg = await this.legCycle(legId);
+
+    const { departure, changed, followed } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockCycle(tx, leg.cycleId);
+        const { departure, first } = await this.departIn(
+          tx,
+          leg.cycleId,
+          legId,
+          day,
+          lines,
+          actorId,
+          body.note,
+        );
+        const changed = await syncLegStatuses(tx, leg.cycleId);
+        // Only the first departure is news to the cycle's status (L8).
+        const followed = first
+          ? await this.followShipment(tx, leg.cycleId)
+          : null;
+        await this.audit.log(
+          {
+            actorUserId: actorId,
+            action: 'CREATE',
+            entityType: 'ShipmentDeparture',
+            entityId: departure.id,
+            afterJson: departure,
+          },
+          tx,
+        );
+        return { departure, changed, followed };
+      },
+    );
+
+    if (followed) await this.announceFollow(followed, actorId);
+    await this.notifyArrivals(leg.cycleId, changed);
+    return { data: departure, cycleStatus: followed?.cycleStatus ?? null };
+  }
+
+  /**
+   * Every check a departure makes, then the departure. Caller holds the lock.
+   * `first` says whether the leg had no departure before this one.
+   */
+  async departIn(
+    tx: Tx,
+    cycleId: string,
+    legId: string,
+    day: string,
+    lines: ShipmentLineInput[] | undefined,
+    actorId: string,
+    note?: string,
+  ) {
+    const loaded = await loadShipment(tx, cycleId);
+    if (!loaded) throw notFound('cycle');
+    const { cycle, position } = loaded;
+    assertOpen(cycle);
+    const legRow = cycle.shippingLegs.find((l) => l.id === legId);
+    if (!legRow) throw notFound('shippingLeg');
+    const toWrite = departureLines(cycle, position, legId, day, lines);
+    const departure = await tx.shipmentDeparture.create({
+      data: {
+        legId,
+        departedOn: new Date(`${day}T00:00:00Z`),
+        note: note ?? null,
+        createdBy: actorId,
+        lines: {
+          create: toWrite.map((l) => ({
+            purchaseOrderItemId: l.purchaseOrderItemId,
+            qty: l.qty,
+          })),
+        },
+      },
+      include: { lines: true },
+    });
+    return { departure, first: legRow.departures.length === 0 };
+  }
+
+  /**
+   * Move a departure to another day — the Shipments page's edit form and the
+   * wizard correcting a leg's only departure. Its goods are checked again as
+   * if it were being recorded on that day. Caller holds the lock and checks
+   * that no delivery is dated before the new day.
+   */
+  async moveDepartureIn(
+    tx: Tx,
+    cycleId: string,
+    legId: string,
+    departureId: string,
+    day: string,
+  ) {
+    const loaded = await loadShipment(tx, cycleId);
+    if (!loaded) throw notFound('cycle');
+    const { cycle, position } = loaded;
+    assertOpen(cycle);
+    const legPos = position.legs.find((l) => l.legId === legId);
+    const own = legPos?.departures.find((d) => d.id === departureId);
+    if (!own) throw notFound('shipmentDeparture');
+    departureLines(
+      cycle,
+      position,
+      legId,
+      day,
+      own.lines.map((l) => ({
+        purchaseOrderItemId: l.purchaseOrderItemId,
+        qty: l.qty,
+      })),
+      departureId,
+    );
+    return tx.shipmentDeparture.update({
+      where: { id: departureId },
+      data: { departedOn: new Date(`${day}T00:00:00Z`) },
+    });
+  }
+
+  /**
+   * DELETE /shipping/departures/:id — a departure recorded by mistake. Refused
+   * with DEPARTURE_IN_USE while anything depends on it (`departureUndoBlock`):
+   * goods from it were delivered or marked lost, or the cycle's status says
+   * the leg has left and this is its only departure. Never moves the cycle.
+   */
+  async deleteDeparture(id: string, actorId: string) {
+    if (!isUuid(id)) throw notFound('shipmentDeparture');
+    const found = await this.prisma.shipmentDeparture.findUnique({
+      where: { id },
+      select: { id: true, leg: { select: { cycleId: true } } },
+    });
+    if (!found) throw notFound('shipmentDeparture');
+    const cycleId = found.leg.cycleId;
+
+    const changed = await this.prisma.$transaction(async (tx) => {
+      await lockCycle(tx, cycleId);
+      const loaded = await loadShipment(tx, cycleId);
+      if (!loaded) throw notFound('cycle');
+      const { cycle, position } = loaded;
+      assertOpen(cycle);
+      const leg = cycle.shippingLegs.find((l) =>
+        l.departures.some((d) => d.id === id),
+      );
+      // Undone by someone else between the read and the lock.
+      if (!leg) throw notFound('shipmentDeparture');
+      const departure = leg.departures.find((d) => d.id === id)!;
+
+      const block = departureUndoBlock(cycle, position, id);
+      if (block) {
+        throw badRequest('DEPARTURE_IN_USE', block.english, {
+          why: block.why,
+        });
+      }
+
+      await tx.shipmentDeparture.delete({ where: { id } });
+      const changed = await syncLegStatuses(tx, cycleId);
+      await this.audit.log(
+        {
+          actorUserId: actorId,
+          action: 'DELETE',
+          entityType: 'ShipmentDeparture',
+          entityId: id,
+          beforeJson: departure,
+        },
+        tx,
+      );
+      return changed;
+    });
+
+    await this.notifyArrivals(cycleId, changed);
+    return { data: { id, deleted: true } };
+  }
+
   // ─── Deliveries ────────────────────────────────────────────────────────
 
   /** POST /shipping/legs/:id/deliveries */
@@ -297,14 +488,15 @@ export class DeliveriesService {
     assertOpen(cycle);
 
     // Goods cannot arrive from a journey that has not started (§1).
-    if (!leg.departedOn) {
+    const legPos = position.legs.find((l) => l.legId === legId)!;
+    if (!legPos.departedOn) {
       throw badRequest(
         'LEG_NOT_DEPARTED',
         `${where(leg)} has not departed. Record the departure date on that leg first.`,
         { leg: where(leg), legId: leg.id },
       );
     }
-    const departed = businessDay(leg.departedOn);
+    const departed = legPos.departedOn;
     if (day < departed) {
       throw badRequest(
         'DELIVERY_BEFORE_DEPARTURE',
@@ -315,7 +507,6 @@ export class DeliveriesService {
 
     assertHasOrderLines(cycle);
     const names = orderLines(cycle);
-    const legPos = position.legs.find((l) => l.legId === legId)!;
     for (const line of lines) {
       // An order line of another cycle is "no such line" here, not a 500 from
       // a foreign key, and never a delivery onto someone else's order.
@@ -331,6 +522,30 @@ export class DeliveriesService {
           {
             line: names.get(line.purchaseOrderItemId)!,
             onTheWay,
+            asked: Number(line.qty),
+          },
+        );
+      }
+      // L8: on day D a delivery can only bring what had left by D.
+      const lp = legPos.lines.find(
+        (l) => l.purchaseOrderItemId === line.purchaseOrderItemId,
+      )!;
+      const leftBy = legPos.departures
+        .filter((d) => d.departedOn <= day)
+        .flatMap((d) => d.lines)
+        .filter((l) => l.purchaseOrderItemId === line.purchaseOrderItemId)
+        .reduce((s, l) => s + milli(l.qty), 0);
+      const free = leftBy - milli(lp.departed) + milli(lp.onTheWay);
+      if (milli(line.qty) > free) {
+        const name = names.get(line.purchaseOrderItemId)!;
+        throw badRequest(
+          'DELIVERY_BEFORE_GOODS_LEFT',
+          `Only ${Math.max(0, free) / 1000} of ${name} had left ${where(leg)} by ${day}, so a delivery of ${line.qty} that day cannot be recorded.`,
+          {
+            day,
+            leg: where(leg),
+            line: name,
+            available: Math.max(0, free) / 1000,
             asked: Number(line.qty),
           },
         );
@@ -415,6 +630,8 @@ export class DeliveriesService {
         lp.lines.some(
           (ll) =>
             milli(ll.delivered) + milli(ll.lost) > milli(ll.entered) ||
+            // L8: a later leg sent on goods this delivery brought.
+            milli(ll.departed) > milli(ll.entered) ||
             (ll.received !== null &&
               milli(ll.received) + milli(ll.lost) > milli(ll.entered)),
         ),

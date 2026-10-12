@@ -37,24 +37,32 @@ vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
 
-const leg = (legId: string, sequence: number, departedOn: string | null, onTheWay: number) => ({
-  legId,
-  sequence,
-  isLast: sequence === 2,
-  status: departedOn ? 'IN_TRANSIT' : 'PENDING',
-  arrivedOn: null,
-  entered: onTheWay,
-  delivered: 0,
-  lost: 0,
-  onTheWay,
-  received: sequence === 2 ? 0 : null,
-  waiting: sequence === 2 ? 0 : null,
-  departedOn,
-  origin: sequence === 1 ? 'Guangzhou, China' : 'Dubai, UAE',
-  destination: sequence === 1 ? 'Dubai, UAE' : 'Cairo, Egypt',
-  lines: [{ purchaseOrderItemId: 'poi-1', entered: onTheWay, delivered: 0, lost: 0, onTheWay, received: null, waiting: null }],
-  deliveries: [],
-});
+/** A leg as the server reads it since L8: what has not left waits at its origin. */
+const leg = (legId: string, sequence: number, departedOn: string | null, entered: number) => {
+  const atOrigin = departedOn ? 0 : entered;
+  const onTheWay = entered - atOrigin;
+  return {
+    legId,
+    sequence,
+    isLast: sequence === 2,
+    status: departedOn ? 'IN_TRANSIT' : 'PENDING',
+    arrivedOn: null,
+    entered,
+    departed: onTheWay,
+    atOrigin,
+    delivered: 0,
+    lost: 0,
+    onTheWay,
+    received: sequence === 2 ? 0 : null,
+    waiting: sequence === 2 ? 0 : null,
+    departedOn,
+    origin: sequence === 1 ? 'Guangzhou, China' : 'Dubai, UAE',
+    destination: sequence === 1 ? 'Dubai, UAE' : 'Cairo, Egypt',
+    lines: [{ purchaseOrderItemId: 'poi-1', entered, departed: onTheWay, atOrigin, delivered: 0, lost: 0, onTheWay, received: null, waiting: null }],
+    departures: [],
+    deliveries: [],
+  };
+};
 
 vi.mock('@/lib/api', () => {
   const write = (method: string) => (url: string, body?: unknown) => {
@@ -167,8 +175,12 @@ describe('a LEG_NOT_DEPARTED refusal offers Record departure for that leg', () =
     fireEvent.click(within(departure).getByRole('button', { name: en.shipment.recordDeparture }));
     const back = await screen.findByTestId('change-status-dialog');
     expect(shipmentDialog('record-departure')).toBeNull();
-    expect(state.writes.filter((w) => w.method === 'put')).toEqual([
-      { method: 'put', url: '/shipping/legs/leg-1', body: { departedOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) } },
+    expect(state.writes.filter((w) => w.url.includes('/departures'))).toEqual([
+      {
+        method: 'post',
+        url: '/shipping/legs/leg-1/departures',
+        body: { departedOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), lines: [{ purchaseOrderItemId: 'poi-1', qty: 40 }] },
+      },
     ]);
     // The old refusal is gone and the reader is told to try again.
     expect(within(back).queryByTestId('status-refusal')).toBeNull();

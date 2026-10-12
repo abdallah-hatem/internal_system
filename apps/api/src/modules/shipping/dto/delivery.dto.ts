@@ -47,6 +47,28 @@ export class CreateDeliveryDto {
   note?: string;
 }
 
+/**
+ * POST /shipping/legs/:id/departures (L8, 2026-10-12). `lines` left out means
+ * everything waiting at the leg's origin that could have left by that day.
+ */
+export class CreateDepartureDto {
+  /** The day it left, YYYY-MM-DD in Cairo. Not in the future. */
+  @IsDateString()
+  departedOn: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ShipmentLineDto)
+  lines?: ShipmentLineDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 /** POST /shipping/legs/:id/losses */
 export class CreateLossDto {
   @IsArray()

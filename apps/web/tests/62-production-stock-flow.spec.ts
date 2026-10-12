@@ -102,7 +102,7 @@ test.describe('Stock through the deployed app', () => {
 
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'AED' });
     await mk(`cycles/${cycle.id}/purchases`, {
-      supplierId: supplier.id, currency: 'AED', fxRateToEgp: 13.85, orderedOn: today(),
+      supplierId: supplier.id, currency: 'AED', fxRateToEgp: 13.85, orderedOn: daysAgo(60),
       items: [{ productId: product.id, orderedQty: 20, unitPrice: 100, discount: 0 }],
     });
     await mk(`cycles/${cycle.id}/shipping-legs`, {

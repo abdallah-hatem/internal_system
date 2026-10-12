@@ -17,7 +17,7 @@
  *  the assistant wrote — so "committed" means the office app can see it.
  */
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { API, apiCtx, daysAgo, today, type Mk } from './support/fixtures';
+import { API, apiCtx, daysAgo, type Mk } from './support/fixtures';
 import { assistantToken } from './support/assistant-token';
 
 const MCP = `${API.replace(/\/api\/v1\/?$/, '')}/mcp`;
@@ -102,7 +102,7 @@ async function purchasingCycle(mk: Mk, opts: { qty?: number; unitPrice?: number 
     supplierId: supplier.id,
     currency: 'EGP',
     fxRateToEgp: 1,
-    orderedOn: today(),
+    orderedOn: daysAgo(60),
     items: [{ productId: product.id, orderedQty: opts.qty ?? 40, unitPrice: opts.unitPrice ?? 25 }],
   });
   return { cycle, product, supplier, po };
@@ -191,6 +191,14 @@ test.describe('transition_cycle', () => {
     const cycle = await mk('cycles', { originType: 'CHINA', currency: 'EGP' });
     await mk(`cycles/${cycle.id}/transition`, { status: 'FUNDING' });
     await mk(`cycles/${cycle.id}/transition`, { status: 'PURCHASING' });
+    // Something ordered, so something can leave (L8).
+    const tag = `${Date.now()}`;
+    const supplier = await mk('suppliers', { name: `Cyc11 ${tag} Supplier`, country: 'CN' });
+    const product = await mk('products', { name: `Cyc11 ${tag} Part`, minStock: 0 });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
+      items: [{ productId: product.id, orderedQty: 5, unitPrice: 10 }],
+    });
     // Leg 1 left China and nobody has dated its arrival in the UAE.
     await confirm(request, 'add_shipping_leg', {
       cycleId: cycle.id,

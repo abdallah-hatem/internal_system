@@ -48,25 +48,36 @@ const LEG_ROWS = () => [
   { id: 'leg-2', sequence: 2, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', provider: 'Aramex', departedOn: '2026-09-10', status: 'IN_TRANSIT', amountEgp: '1250' },
 ];
 
-const legPosition = (legId: string, sequence: number, departedOn: string | null, onTheWay: number, isLast: boolean) => ({
-  legId,
-  sequence,
-  isLast,
-  status: departedOn ? 'IN_TRANSIT' : 'PENDING',
-  arrivedOn: null,
-  entered: onTheWay,
-  delivered: 0,
-  lost: 0,
-  onTheWay,
-  received: isLast ? 0 : null,
-  waiting: isLast ? 0 : null,
-  departedOn,
-  origin: sequence === 1 ? 'Guangzhou, China' : 'Dubai, UAE',
-  destination: sequence === 1 ? 'Dubai, UAE' : 'Cairo, Egypt',
-  lines: [{ purchaseOrderItemId: 'poi-1', entered: onTheWay, delivered: 0, lost: 0, onTheWay, received: isLast ? 0 : null, waiting: isLast ? 0 : null }],
-  deliveries: [],
-  losses: [],
-});
+/**
+ * A leg as the server reads it since L8 (2026-10-12): goods that entered and
+ * have not left wait at its origin (`atOrigin`); only what left is on the way.
+ */
+const legPosition = (legId: string, sequence: number, departedOn: string | null, entered: number, isLast: boolean) => {
+  const atOrigin = departedOn ? 0 : entered;
+  const onTheWay = entered - atOrigin;
+  return {
+    legId,
+    sequence,
+    isLast,
+    status: departedOn ? 'IN_TRANSIT' : 'PENDING',
+    arrivedOn: null,
+    entered,
+    departed: onTheWay,
+    atOrigin,
+    delivered: 0,
+    lost: 0,
+    onTheWay,
+    received: isLast ? 0 : null,
+    waiting: isLast ? 0 : null,
+    departedOn,
+    origin: sequence === 1 ? 'Guangzhou, China' : 'Dubai, UAE',
+    destination: sequence === 1 ? 'Dubai, UAE' : 'Cairo, Egypt',
+    lines: [{ purchaseOrderItemId: 'poi-1', entered, departed: onTheWay, atOrigin, delivered: 0, lost: 0, onTheWay, received: isLast ? 0 : null, waiting: isLast ? 0 : null }],
+    departures: departedOn ? [{ id: `dep-${legId}`, departedOn, lines: [{ purchaseOrderItemId: 'poi-1', qty: entered }], undoable: false, undoBlockedBy: 'status' }] : [],
+    deliveries: [],
+    losses: [],
+  };
+};
 
 const shipment = () => ({
   cycleId: 'c-1',
@@ -249,7 +260,7 @@ describe('one place for the legs', () => {
 });
 
 describe('Record departure from the details page', () => {
-  it('sends the date to the leg and refetches the cycle and its shipment', async () => {
+  it('sends the date and what left, per product, and refetches the cycle and its shipment', async () => {
     wrap();
     const leg1 = await legBlock('leg-1');
     fireEvent.click(within(leg1).getByTestId('record-departure'));
@@ -265,7 +276,11 @@ describe('Record departure from the details page', () => {
 
     await waitFor(() => expect(dialog('record-departure')).toBeNull());
     expect(state.writes).toEqual([
-      { method: 'put', url: '/shipping/legs/leg-1', body: { departedOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) } },
+      {
+        method: 'post',
+        url: '/shipping/legs/leg-1/departures',
+        body: { departedOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), lines: [{ purchaseOrderItemId: 'poi-1', qty: 40 }] },
+      },
     ]);
     await waitFor(() => {
       expect(state.gets.filter((u) => u === '/cycles/c-1/shipment').length).toBeGreaterThan(shipmentGets);

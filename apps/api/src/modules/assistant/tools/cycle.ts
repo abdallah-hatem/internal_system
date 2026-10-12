@@ -6,10 +6,6 @@ import { notFound } from '../../../common/api-error';
 import { CYCLE_ROUTES, expectedLegs } from '../../../common/cycle-routes';
 import { formatMoney, formatQty } from '../../../common/money';
 import { loadShipment } from '../../../common/shipment-load';
-import {
-  shipmentPosition,
-  type PositionDeliveryInput,
-} from '../../../common/shipment-position';
 import { isUuid } from '../../../common/uuid';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
@@ -24,7 +20,7 @@ import { writeTool, type AssistantContext } from '../tool-kit';
 
 /**
  * The cycle tools: create_cycle, add_shipping_leg, transition_cycle,
- * record_delivery, verify_stock. Each changes something, so each is a
+ * record_departure (L8), record_delivery, verify_stock. Each changes something, so each is a
  * `writeTool`. There is no tool for marking goods lost: that books a loss, and
  * a partner decides it on a screen in the office app (BUSINESS_LOGIC §16).
  *
@@ -196,7 +192,26 @@ export function registerCycleTools(
       .describe("Defaults to the route's usual place."),
     provider: z.string().optional(),
     trackingRef: z.string().optional(),
-    departedOn: day.optional(),
+    departedOn: day
+      .optional()
+      .describe(
+        "The leg's first departure. Not in the future, not before the goods could be at its origin.",
+      ),
+    departureLines: z
+      .array(
+        z.object({
+          purchaseOrderItemId: z.string(),
+          qty: z
+            .number()
+            .describe(
+              'How many of it left. More than zero, at most what waits.',
+            ),
+        }),
+      )
+      .optional()
+      .describe(
+        'Only when part of what waits left on departedOn: one line per product that left. Left out: everything waiting left.',
+      ),
     arrivedOn: day
       .optional()
       .describe('Needs departedOn. Neither date may be in the future.'),
@@ -235,41 +250,50 @@ export function registerCycleTools(
     {
       title: 'Add a shipping leg',
       description:
-        "Record one leg of a cycle's shipment: its route, departure date and cost. An arrival date means everything still on the way on that leg arrived that day: it is recorded as one delivery of all of it. When the goods came in pieces, leave arrivedOn out and record each piece with record_delivery.",
+        "Record one leg of a cycle's shipment: its route, departure date and cost. A departure date means the leg's first departure: by default everything waiting at its origin on that day left (for the first leg, what was ordered; for a later leg, what the leg before delivered by then); when only part left, name it per product in departureLines and record the rest later with record_departure. An arrival date means everything that left arrived that day: it is recorded as one delivery of all of it. When the goods came in pieces, leave arrivedOn out and record each piece with record_delivery.",
       inputSchema: legShape,
     },
     {
       async preview({ cycleId: id, ...leg }) {
         const { cycle, leg: planned } = await shipping().planLeg(id, leg);
         const native = planned.amount ? formatMoney(planned.amount) : '0.00';
-        const arrival = leg.arrivedOn
-          ? await arrivalDelivery(id, planned)
-          : null;
-        const status = arrival?.status ?? planned.status;
-        // What the leg does to the cycle's status (§1, L3), from the same
-        // write rolled back: a departure or an arrival moves it on.
-        const move =
+        // What the leg leaves, delivers and does to the cycle's status (§1,
+        // L3, L8), all from the same write rolled back.
+        const seen =
           leg.departedOn || leg.arrivedOn
-            ? await dryRunStatus(id, (dry) =>
+            ? await dryRunNewLeg(id, planned.sequence, (dry) =>
                 dryShipping(dry).createLeg(id, leg, ctx.user.id),
               )
             : null;
-        const deliveryLines = arrival
-          ? arrival.lines.length > 0
+        const status = seen?.leg?.status ?? planned.status;
+        const departs = seen?.departs ?? [];
+        const delivers = seen?.delivers ?? [];
+        const departureLines = leg.departedOn
+          ? [
+              `It left on ${leg.departedOn}:`,
+              ...departs.map(
+                (l) =>
+                  `- ${l.product}: ${l.qty} left${l.stillWaiting !== '0' ? `; ${l.stillWaiting} still waiting at ${planned.origin}` : ''}`,
+              ),
+            ]
+          : [];
+        const deliveryLines = leg.arrivedOn
+          ? delivers.length > 0
             ? [
                 `The arrival on ${leg.arrivedOn} is recorded as one delivery of everything on the way on this leg:`,
-                ...arrival.lines.map((l) => `- ${l.product}: ${l.qty}`),
+                ...delivers.map((l) => `- ${l.product}: ${l.qty}`),
               ]
             : [
-                `Nothing is on the way on this leg yet, so the arrival on ${leg.arrivedOn} delivers nothing.`,
+                `Nothing is on the way on this leg, so the arrival on ${leg.arrivedOn} delivers nothing.`,
               ]
           : [];
         return {
           summary: [
             `Add leg ${planned.sequence} to ${cycle.code}: ${route(planned.origin, planned.destination)}.`,
-            `Status ${status}${planned.departedOn ? `, departed ${leg.departedOn}` : ''}.`,
+            `Status ${status}.`,
+            ...departureLines,
             ...deliveryLines,
-            ...(move ? statusLines(cycle.code, move) : []),
+            ...(seen ? statusLines(cycle.code, seen.move) : []),
             `Cost (${planned.costBasis}): ${native} ${planned.currency}` +
               (planned.currency === 'EGP'
                 ? '.'
@@ -280,21 +304,23 @@ export function registerCycleTools(
             ...planned,
             status,
             amountEgp: planned.amountEgp.toFixed(2),
-            delivers: arrival?.lines ?? [],
-            cycleStatus: move,
+            departs,
+            delivers,
+            cycleStatus: seen?.move ?? null,
           },
         };
       },
-      // The units the arrival delivers: if the leg before delivered more
-      // after the preview, the same arrival date would deliver goods the
+      // What leaves and what the arrival delivers: if the leg before
+      // delivered more after the preview, the same dates would move goods the
       // partner was never shown. And the status it moves the cycle to, with
       // the orders that confirms: the cycle may have moved in between.
       binds: (preview) => {
         const shown = preview.data as {
+          departs: unknown;
           delivers: unknown;
           cycleStatus: unknown;
         };
-        return [shown.delivers, shown.cycleStatus ?? null];
+        return [shown.departs, shown.delivers, shown.cycleStatus ?? null];
       },
       async commit({ cycleId: id, ...leg }) {
         const { data, cycleStatus } = await shipping().createLeg(
@@ -314,81 +340,235 @@ export function registerCycleTools(
   );
 
   /**
-   * What a new leg's arrival date will deliver: everything on the way on it
-   * (§1, 2026-10-10) — for leg 1 what was ordered, for a later leg what the
-   * leg before delivered, less losses. Read from `shipmentPosition` with the
-   * leg added, the same reading `createLeg` delivers by; nothing written.
+   * A new leg written and rolled back: what its first departure carried,
+   * what its arrival delivered, its status, and where the cycle landed — read
+   * from the shipment as `createLeg` left it, so the preview cannot disagree
+   * with the commit (rule 11).
    */
-  async function arrivalDelivery(
+  async function dryRunNewLeg(
     cycleId: string,
-    planned: {
-      sequence: number;
-      origin: string;
-      destination: string;
-      departedOn?: Date;
-      arrivedOn?: Date;
-    },
+    sequence: number,
+    write: (dry: PrismaService) => Promise<unknown>,
   ) {
-    const loaded = await loadShipment(prisma(), cycleId);
-    if (!loaded) throw notFound('cycle');
-    const { cycle } = loaded;
-    const NEW = 'the-new-leg';
-    const legs = [
-      ...cycle.shippingLegs,
-      {
-        id: NEW,
-        sequence: planned.sequence,
-        departedOn: planned.departedOn ?? null,
-      },
-    ];
-    const lines = cycle.purchaseOrders.flatMap((po) =>
-      po.items.map((i) => ({
-        id: i.id,
-        orderedQty: i.orderedQty,
-        productName: i.product.name,
-      })),
-    );
-    const positionWith = (arrival: PositionDeliveryInput[]) =>
-      shipmentPosition({
-        lines,
-        legs,
-        deliveries: [
-          ...cycle.shippingLegs.flatMap((l) => l.deliveries),
-          ...arrival,
-        ],
-        losses: cycle.shippingLegs.flatMap((l) => l.losses),
-        batches: cycle.inventoryBatches,
-      }).legs.find((l) => l.legId === NEW)!;
-
-    const onTheWay = positionWith([]).lines.filter((l) => l.onTheWay > 0);
-    const after = positionWith(
-      onTheWay.length
-        ? [
-            {
-              id: 'the-arrival',
-              legId: NEW,
-              arrivedOn: planned.arrivedOn!,
-              lines: onTheWay.map((l) => ({
-                id: `the-arrival-${l.purchaseOrderItemId}`,
-                purchaseOrderItemId: l.purchaseOrderItemId,
-                qty: l.onTheWay,
-              })),
-            },
-          ]
-        : [],
-    );
-
-    const names = new Map(lines.map((l) => [l.id, l.productName]));
+    const before = await cycleBefore(cycleId);
+    const dry = rollingBack(prisma(), async (tx) => ({
+      loaded: await loadShipment(tx, cycleId),
+      after: await cycleAfter(tx, cycleId, before),
+    }));
+    const seen = await previewByRollback<{
+      loaded: Awaited<ReturnType<typeof loadShipment>>;
+      after: Awaited<ReturnType<typeof cycleAfter>>;
+    }>(() => write(dry));
+    const position = seen.loaded!.position;
+    const leg = position.legs.find((l) => l.sequence === sequence);
+    const name = (poi: string) =>
+      position.lines.find((l) => l.purchaseOrderItemId === poi)?.productName ??
+      poi;
+    const departure = leg?.departures[0];
+    const delivery = leg?.deliveries[0];
     return {
-      status: after.status,
-      lines: onTheWay.map((l) => ({
+      leg,
+      move: seen.after,
+      departs: (departure?.lines ?? []).map((l) => ({
         purchaseOrderItemId: l.purchaseOrderItemId,
-        product: names.get(l.purchaseOrderItemId)!,
-        qty: formatQty(l.onTheWay),
+        product: name(l.purchaseOrderItemId),
+        qty: formatQty(l.qty),
+        stillWaiting: formatQty(
+          leg!.lines.find(
+            (x) => x.purchaseOrderItemId === l.purchaseOrderItemId,
+          )?.atOrigin ?? 0,
+        ),
+      })),
+      delivers: (delivery?.lines ?? []).map((l) => ({
+        purchaseOrderItemId: l.purchaseOrderItemId,
+        product: name(l.purchaseOrderItemId),
+        qty: formatQty(l.qty),
       })),
     };
   }
 
+  // ─── record_departure ───────────────────────────────────────────────────
+  writeTool(
+    server,
+    ctx,
+    'record_departure',
+    {
+      title: 'Record a departure on a shipping leg',
+      description:
+        "Record goods leaving the start of a shipping leg that has already been added: the day they left and how many of each ordered product went. Goods can leave in parts — a supplier ships part of an order now and the rest later, or Dubai forwards only part of what arrived — so record each part as it leaves. A leg can only send what is waiting at its origin: for the first leg what was ordered, for a later leg what the leg before it delivered, less what already left (get_cycle shows, per leg and product, what waits and what is on the way). Leave lines out to send everything waiting that could have left by that day. The leg's first departure moves the cycle's status on by itself; a later one moves nothing.",
+      inputSchema: {
+        legId: z
+          .string()
+          .describe('The shipping leg (get_cycle lists each leg with its id).'),
+        departedOn: day.describe(
+          'The day the goods left. Not in the future; not before they were ordered (first leg) or before the leg before delivered them (a later leg).',
+        ),
+        lines: z
+          .array(
+            z.object({
+              purchaseOrderItemId: z
+                .string()
+                .describe(
+                  'The purchase order line (get_cycle lists them, with what is waiting).',
+                ),
+              qty: z
+                .number()
+                .describe(
+                  'How many of it left. More than zero, at most what waits at the leg’s origin.',
+                ),
+            }),
+          )
+          .optional()
+          .describe(
+            'One line per product that left, each product once. Left out: everything waiting.',
+          ),
+        note: z.string().max(500).optional(),
+      },
+    },
+    {
+      async preview(input) {
+        const seen = await dryRunOnLeg(input.legId, (dry) =>
+          dryDeliveries(dry).recordDeparture(
+            input.legId,
+            {
+              departedOn: input.departedOn,
+              lines: input.lines,
+              note: input.note,
+            },
+            ctx.user.id,
+          ),
+        );
+        const leg = seen.position.legs.find((l) => l.legId === input.legId)!;
+        const legRow = seen.cycle.shippingLegs.find(
+          (l) => l.id === input.legId,
+        )!;
+        // The departure just written is the one not there before.
+        const departure = leg.departures.find(
+          (d) => !seen.departureIdsBefore.includes(d.id),
+        )!;
+        const name = (poi: string) =>
+          seen.position.lines.find((l) => l.purchaseOrderItemId === poi)
+            ?.productName ?? poi;
+        const lines = departure.lines.map((l) => {
+          const after = leg.lines.find(
+            (x) => x.purchaseOrderItemId === l.purchaseOrderItemId,
+          )!;
+          return {
+            purchaseOrderItemId: l.purchaseOrderItemId,
+            product: name(l.purchaseOrderItemId),
+            qty: formatQty(l.qty),
+            stillWaiting: formatQty(after.atOrigin),
+            onTheWayAfter: formatQty(after.onTheWay),
+          };
+        });
+        const first = seen.departureIdsBefore.length === 0;
+        const where = route(legRow.origin, legRow.destination);
+        return {
+          summary: [
+            `Record a departure on ${seen.cycle.code}, leg ${leg.sequence} (${where}), left ${input.departedOn}:`,
+            ...lines.map(
+              (l) =>
+                `- ${l.product}: ${l.qty} leave; ${l.stillWaiting} will still wait at ${legRow.origin}, ${l.onTheWayAfter} will be on the way.`,
+            ),
+            `Afterwards the leg reads ${leg.status}.`,
+            ...(first
+              ? statusLines(seen.cycle.code, seen.move)
+              : [
+                  `This is not the leg's first departure, so ${seen.cycle.code} stays ${seen.move.from ?? seen.move.to}.`,
+                ]),
+          ].join('\n'),
+          data: {
+            cycle: seen.cycle.code,
+            legId: input.legId,
+            leg: leg.sequence,
+            route: where,
+            departedOn: input.departedOn,
+            lines,
+            legStatusAfter: leg.status,
+            cycleStatus: seen.move,
+          },
+        };
+      },
+      // What leaves and what the partner was told would still wait: a
+      // delivery into Dubai or another departure in between changes what
+      // "everything" means. And the status move (§1, L3).
+      binds: (preview) => {
+        const shown = preview.data as {
+          lines: {
+            purchaseOrderItemId: string;
+            qty: string;
+            stillWaiting: string;
+          }[];
+          cycleStatus: unknown;
+        };
+        return [
+          shown.lines.map((l) => [
+            l.purchaseOrderItemId,
+            l.qty,
+            l.stillWaiting,
+          ]),
+          shown.cycleStatus,
+        ];
+      },
+      async commit({ legId, ...body }) {
+        const { data, cycleStatus } = await deliveries().recordDeparture(
+          legId,
+          body,
+          ctx.user.id,
+        );
+        return {
+          summary: [
+            `Recorded the departure of ${body.departedOn}: ${data.lines.length} product${data.lines.length === 1 ? '' : 's'}.`,
+            ...committedStatusLines(cycleStatus),
+          ].join('\n'),
+          data: {
+            cycleStatus,
+            departureId: data.id,
+            legId: data.legId,
+            departedOn: body.departedOn,
+            lines: data.lines.map((l) => ({
+              purchaseOrderItemId: l.purchaseOrderItemId,
+              qty: l.qty.toString(),
+            })),
+          },
+        };
+      },
+    },
+  );
+
+  /**
+   * A write on an existing leg, rolled back: the shipment as it would then
+   * stand, the departures the leg had before, and where the cycle landed.
+   */
+  async function dryRunOnLeg(
+    legId: string,
+    write: (dry: PrismaService) => Promise<unknown>,
+  ) {
+    const legCycle = isUuid(legId)
+      ? await prisma().shippingLeg.findUnique({
+          where: { id: legId },
+          select: { cycleId: true },
+        })
+      : null;
+    if (!legCycle) throw notFound('shippingLeg');
+    const before = await cycleBefore(legCycle.cycleId);
+    const departureIdsBefore = (
+      await prisma().shipmentDeparture.findMany({
+        where: { legId },
+        select: { id: true },
+      })
+    ).map((d) => d.id);
+    const dry = rollingBack(prisma(), async (tx) => ({
+      loaded: await loadShipment(tx, legCycle.cycleId),
+      after: await cycleAfter(tx, legCycle.cycleId, before),
+    }));
+    const seen = await previewByRollback<{
+      loaded: Awaited<ReturnType<typeof loadShipment>>;
+      after: Awaited<ReturnType<typeof cycleAfter>>;
+    }>(() => write(dry));
+    const { cycle, position } = seen.loaded!;
+    return { cycle, position, move: seen.after, departureIdsBefore };
+  }
   // ─── transition_cycle ───────────────────────────────────────────────────
   writeTool(
     server,
@@ -696,18 +876,6 @@ export function registerCycleTools(
       to: cycle?.status ?? null,
       ordersConfirmed: confirmed.map((o) => o.reference),
     };
-  }
-
-  /** The rolled-back write's effect on the cycle's status. */
-  async function dryRunStatus(
-    cycleId: string,
-    write: (dry: PrismaService) => Promise<unknown>,
-  ) {
-    const before = await cycleBefore(cycleId);
-    const dry = rollingBack(prisma(), (tx) => cycleAfter(tx, cycleId, before));
-    return previewByRollback<Awaited<ReturnType<typeof cycleAfter>>>(() =>
-      write(dry),
-    );
   }
 
   /** The preview's sentence about the status. */

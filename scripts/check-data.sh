@@ -171,6 +171,51 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE r.reversed_at IS NOT NULL
      AND NOT EXISTS (SELECT 1 FROM financial_transactions v
                       WHERE v.reversal_of_id = f.id)
+  -- Goods leave in departures (L8, 2026-10-12). A leg can only send on what
+  -- entered it: the order, for the first leg; what the leg before delivered,
+  -- for a later one. (No apostrophes in these comments: bash 3.2.)
+  UNION ALL SELECT 12.91, 'a leg sent off more of a product than entered it',
+         count(*) FROM (
+           WITH legs AS (
+             SELECT l.id,
+                    lag(l.id) OVER (PARTITION BY l.cycle_id ORDER BY l.sequence) AS prev_id
+               FROM shipping_legs l
+           ), departed AS (
+             SELECT d.leg_id, dl.purchase_order_item_id AS item_id, sum(dl.qty) AS qty
+               FROM shipment_departure_lines dl JOIN shipment_departures d ON d.id = dl.departure_id
+              GROUP BY d.leg_id, dl.purchase_order_item_id
+           )
+           SELECT 1 FROM departed p
+             JOIN legs g ON g.id = p.leg_id
+             JOIN purchase_order_items poi ON poi.id = p.item_id
+            WHERE p.qty > CASE
+                    WHEN g.prev_id IS NULL THEN poi.ordered_qty
+                    ELSE coalesce((SELECT sum(dl.qty) FROM shipment_delivery_lines dl
+                                     JOIN shipment_deliveries d ON d.id = dl.delivery_id
+                                    WHERE d.leg_id = g.prev_id
+                                      AND dl.purchase_order_item_id = p.item_id), 0)
+                  END
+         ) over_departed
+  -- Only what left can arrive or be lost on the way. Legs with no departure
+  -- row at all are the B1 backfill (an arrival date and no departure date)
+  -- and are left out: they predate departures.
+  UNION ALL SELECT 12.92, 'a leg delivered more of a product than left on it',
+         count(*) FROM (
+           SELECT 1 FROM shipment_deliveries d
+             JOIN shipment_delivery_lines dl ON dl.delivery_id = d.id
+            WHERE EXISTS (SELECT 1 FROM shipment_departures x WHERE x.leg_id = d.leg_id)
+            GROUP BY d.leg_id, dl.purchase_order_item_id
+           HAVING sum(dl.qty) > coalesce((SELECT sum(xl.qty) FROM shipment_departure_lines xl
+                                            JOIN shipment_departures x ON x.id = xl.departure_id
+                                           WHERE x.leg_id = d.leg_id
+                                             AND xl.purchase_order_item_id = dl.purchase_order_item_id), 0)
+         ) over_arrived
+  -- The departure date on a leg is a reading of its first departure, written
+  -- by every change; a leg whose date disagrees was written some other way.
+  UNION ALL SELECT 12.93, 'a leg whose departure date is not its first departure',
+         count(*) FROM shipping_legs l
+   WHERE (l.departed_on AT TIME ZONE 'Africa/Cairo')::date
+         IS DISTINCT FROM (SELECT min(d.departed_on) FROM shipment_departures d WHERE d.leg_id = l.id)
   UNION ALL SELECT 13,'payment attached to no order at all',
          count(*) FROM payments p
    WHERE p.status='RECORDED'

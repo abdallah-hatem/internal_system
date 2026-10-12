@@ -15,6 +15,7 @@ import { ShippingService } from './shipping.service';
 import { ShippingController } from './shipping.controller';
 import {
   addLeg,
+  departAll,
   cycleWithOrder,
   D,
   emptyStore,
@@ -111,13 +112,20 @@ function oneLeg(status = 'IN_TRANSIT') {
   return { cycle, item: items[0], leg };
 }
 
-/** A China cycle: 40 pads, leg 1 China→UAE and leg 2 UAE→Egypt, both departed. */
+/**
+ * A China cycle: 40 pads, leg 1 China→UAE departed, leg 2 UAE→Egypt recorded.
+ * Nothing can leave Dubai before it reaches Dubai (L8), so leg 2 departs —
+ * `departLeg2` — only once leg 1 has delivered something.
+ */
 function twoLegs(status = 'IN_TRANSIT_TO_EGYPT') {
   const { cycle, items } = cycleWithOrder(db, { status, originType: 'CHINA' });
   const leg1 = addLeg(db, cycle, 1, { departedOn: '2026-09-01' });
-  const leg2 = addLeg(db, cycle, 2, { departedOn: '2026-09-10' });
+  const leg2 = addLeg(db, cycle, 2, { departedOn: null });
   return { cycle, item: items[0], leg1, leg2 };
 }
+
+/** Everything that has reached Dubai leaves on leg 2, on the 10th. */
+const departLeg2 = (leg2: Row) => departAll(db, leg2, '2026-09-10');
 
 // ─── Deliveries ──────────────────────────────────────────────────────────
 
@@ -155,6 +163,7 @@ describe('POST /shipping/legs/:id/deliveries', () => {
   it('Leg 2 delivery larger than leg 1 has delivered so far → refused', async () => {
     const { item, leg1, leg2 } = twoLegs();
     await deliver(leg1, item, 30, '2026-09-08');
+    departLeg2(leg2);
     const r = await refusal(deliver(leg2, item, 31, '2026-09-20'));
     expect(r.code).toBe('DELIVERY_EXCEEDS_IN_TRANSIT');
     expect(r.params?.onTheWay).toBe(30);
@@ -286,11 +295,16 @@ describe('POST /shipping/legs/:id/deliveries', () => {
     }
   });
 
-  it('A delivery on a cycle with no order lines → VALIDATION_FAILED (nothing can be delivered)', async () => {
+  it('A cycle with no order lines: nothing can leave (DEPARTURE_NOTHING_WAITING), so nothing can be delivered (LEG_NOT_DEPARTED)', async () => {
     const { cycle } = cycleWithOrder(db, { lines: [] });
     const leg = addLeg(db, cycle, 1);
+    const left = await refusal(
+      deliveries.recordDeparture(leg.id, { departedOn: '2026-09-01' }, ACTOR),
+    );
+    expect(left.code).toBe('DEPARTURE_NOTHING_WAITING');
     const r = await refusal(deliver(leg, { id: randomUUID() }, 1));
-    expect(r.code).toBe('VALIDATION_FAILED');
+    expect(r.code).toBe('LEG_NOT_DEPARTED');
+    expect(db.departures).toHaveLength(0);
   });
 
   it('A delivery dated today at 00:37 Cairo → accepted; dated tomorrow in Cairo → refused', async () => {
@@ -470,6 +484,7 @@ describe('DELETE /shipping/deliveries/:id', () => {
     const { cycle, item, leg1, leg2 } = twoLegs();
     const { data: first } = await deliver(leg1, item, 20, '2026-09-05');
     await deliver(leg1, item, 20, '2026-09-08');
+    departLeg2(leg2);
     await deliver(leg2, item, 30, '2026-09-20');
 
     // Without the first leg-1 delivery, leg 2 would have delivered 30 of 20.
@@ -743,16 +758,17 @@ describe('cycle transitions read deliveries', () => {
     expect(none.code).toBe('LEG_NOT_ARRIVED');
 
     // L3: the delivery itself walks the cycle through this same gate — and
-    // on, since this fixture's leg 2 has already left.
+    // no further: nothing has left Dubai yet (L8).
     await deliver(leg1, item, 15, '2026-09-08');
     expect(db.cycles.find((c) => c.id === cycle.id)!.status).toBe(
-      'IN_TRANSIT_TO_EGYPT',
+      'ARRIVED_UAE',
     );
   });
 
   it('Cycle → ARRIVED_EGYPT with the last leg partly arrived → allowed', async () => {
     const { cycle, item, leg1, leg2 } = twoLegs('IN_TRANSIT_TO_EGYPT');
     await deliver(leg1, item, 30, '2026-09-08');
+    departLeg2(leg2);
     const early = await refusal(
       cycles.planTransition(cycle.id, 'ARRIVED_EGYPT'),
     );
@@ -881,6 +897,7 @@ describe('roles', () => {
 it('the guards read shipmentPosition, so their numbers are its numbers', async () => {
   const { cycle, item, leg1, leg2 } = twoLegs();
   await deliver(leg1, item, 30, '2026-09-08');
+  departLeg2(leg2);
   await lose(leg1, item, 4);
   await deliver(leg2, item, 10, '2026-09-20');
   const loaded = (await loadShipment(fakePrisma(db), cycle.id))!;
@@ -891,6 +908,7 @@ it('the guards read shipmentPosition, so their numbers are its numbers', async (
       sequence: l.sequence,
       departedOn: l.departedOn,
     })),
+    departures: db.departures as never,
     deliveries: db.deliveries as never,
     losses: db.losses as never,
     batches: [],

@@ -31,6 +31,8 @@ export interface Store {
   orders: Row[];
   items: Row[];
   products: Row[];
+  /** L8: departures, each with its lines inline, as deliveries are. */
+  departures: Row[];
   deliveries: Row[];
   losses: Row[];
   batches: Row[];
@@ -63,6 +65,7 @@ export function emptyStore(): Store {
     orders: [],
     items: [],
     products: [],
+    departures: [],
     deliveries: [],
     losses: [],
     batches: [],
@@ -127,6 +130,7 @@ export function fakePrisma(db: Store) {
     ...c,
     shippingLegs: legsOf(c.id).map((l) => ({
       ...l,
+      departures: departuresOf(l.id),
       deliveries: db.deliveries.filter((d) => d.legId === l.id),
       losses: db.losses.filter((x) => x.legId === l.id),
     })),
@@ -143,6 +147,17 @@ export function fakePrisma(db: Store) {
       })),
     inventoryBatches: db.batches.filter((b) => b.cycleId === c.id),
   });
+
+  // In the order they left, then the order they were recorded — the select
+  // `loadShipment` sends.
+  const departuresOf = (legId: string) =>
+    db.departures
+      .filter((d) => d.legId === legId)
+      .sort(
+        (a, b) =>
+          a.departedOn.getTime() - b.departedOn.getTime() ||
+          a.createdAt.getTime() - b.createdAt.getTime(),
+      );
 
   const after = async <T>(v: T): Promise<T> => {
     await tick();
@@ -797,6 +812,46 @@ export function fakePrisma(db: Store) {
         return after(l);
       },
     },
+    shipmentDeparture: {
+      create: ({ data }: Row) => {
+        const id = randomUUID();
+        const row = {
+          id,
+          legId: data.legId,
+          departedOn: data.departedOn,
+          note: data.note,
+          createdBy: data.createdBy,
+          createdAt: new Date(Date.now() + db.departures.length),
+          lines: data.lines.create.map((l: Row) => ({
+            id: randomUUID(),
+            departureId: id,
+            purchaseOrderItemId: l.purchaseOrderItemId,
+            qty: D(l.qty),
+          })),
+        };
+        db.departures.push(row);
+        return after(row);
+      },
+      findUnique: ({ where }: Row) => {
+        const d = db.departures.find((x) => x.id === where.id);
+        if (!d) return after(null);
+        const leg = db.legs.find((l) => l.id === d.legId)!;
+        return after({ ...d, leg: { cycleId: leg.cycleId } });
+      },
+      findMany: ({ where }: Row) =>
+        after(departuresOf(where.legId).map((d) => ({ id: d.id }))),
+      update: ({ where, data }: Row) => {
+        const d = db.departures.find((x) => x.id === where.id)!;
+        for (const [k, v] of Object.entries(data))
+          if (v !== undefined) d[k] = v;
+        return after(d);
+      },
+      delete: ({ where }: Row) => {
+        const i = db.departures.findIndex((x) => x.id === where.id);
+        const [row] = db.departures.splice(i, 1);
+        return after(row);
+      },
+    },
     shipmentDelivery: {
       create: ({ data }: Row) => {
         const id = randomUUID();
@@ -1059,6 +1114,8 @@ export function cycleWithOrder(
     supplierId: supplier.id,
     reference: `PO-2026-${String(codes).padStart(4, '0')}`,
     fxRateToEgp: D(1),
+    /** The day it was ordered; a test that dates a departure against it sets one. */
+    orderedOn: null as Date | null,
   };
   db.orders.push(po);
   const items = (opts.lines ?? [['Brake pad', 40, 100]]).map(
@@ -1081,7 +1138,67 @@ export function cycleWithOrder(
   return { cycle, items, po, supplier };
 }
 
-/** A FLAT leg costing `amountEgp`, departed on `departedOn` (or not at all). */
+/**
+ * A departure of everything waiting at the leg's origin on `day` — what the
+ * office app's Record departure starts at (L8). Leg 1 carries what was
+ * ordered; a later leg what the leg before it has delivered, less what already
+ * left on it. Writes nothing when nothing waits.
+ */
+export function departAll(db: Store, leg: Row, day: string) {
+  const cycleLegs = db.legs
+    .filter((l) => l.cycleId === leg.cycleId)
+    .sort((a, b) => a.sequence - b.sequence);
+  const previous = cycleLegs[cycleLegs.indexOf(leg) - 1];
+  const orderIds = new Set(
+    db.orders.filter((o) => o.cycleId === leg.cycleId).map((o) => o.id),
+  );
+  const entered = new Map<string, Prisma.Decimal>();
+  if (!previous) {
+    for (const i of db.items.filter((x) => orderIds.has(x.purchaseOrderId)))
+      entered.set(i.id, D(i.orderedQty));
+  } else {
+    for (const d of db.deliveries.filter((x) => x.legId === previous.id))
+      for (const l of d.lines)
+        entered.set(
+          l.purchaseOrderItemId,
+          (entered.get(l.purchaseOrderItemId) ?? D(0)).add(l.qty),
+        );
+  }
+  for (const d of db.departures.filter((x) => x.legId === leg.id))
+    for (const l of d.lines)
+      entered.set(
+        l.purchaseOrderItemId,
+        (entered.get(l.purchaseOrderItemId) ?? D(0)).sub(l.qty),
+      );
+  const lines = [...entered].filter(([, q]) => q.gt(0));
+  if (lines.length === 0) return null;
+  const id = randomUUID();
+  const row = {
+    id,
+    legId: leg.id,
+    departedOn: new Date(`${day}T00:00:00Z`),
+    note: null,
+    createdBy: null,
+    createdAt: new Date(Date.now() + db.departures.length),
+    lines: lines.map(([purchaseOrderItemId, qty]) => ({
+      id: randomUUID(),
+      departureId: id,
+      purchaseOrderItemId,
+      qty,
+    })),
+  };
+  db.departures.push(row);
+  if (!leg.departedOn) leg.departedOn = row.departedOn;
+  return row;
+}
+
+/**
+ * A FLAT leg costing `amountEgp`, departed on `departedOn` (or not at all).
+ * A departed leg gets one departure of everything waiting at its origin then
+ * (`departAll`) — on a later leg, only what the leg before has delivered by
+ * now. A later leg added "departed" before anything reached its origin has no
+ * departure: depart it with `departAll` once the goods are there.
+ */
 export function addLeg(
   db: Store,
   cycle: Row,
@@ -1119,6 +1236,13 @@ export function addLeg(
     amountEgp: D(opts.amountEgp ?? 400),
   };
   db.legs.push(leg);
+  if (opts.departedOn !== null) {
+    const departed = departAll(db, leg, opts.departedOn ?? '2026-09-01');
+    if (!departed) {
+      leg.departedOn = null;
+      leg.status = 'PENDING';
+    }
+  }
   return leg;
 }
 

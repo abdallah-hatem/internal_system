@@ -345,15 +345,24 @@ describe('never backward, never a finished cycle', () => {
     expect(statusOf(c)).toBe('ARRIVED_EGYPT');
   });
 
-  it('a leg added departed to a cycle in settlement leaves it in settlement', async () => {
+  it('a leg added departed to a cycle in settlement is refused (L8: no departure there); added without one, it leaves the cycle in settlement', async () => {
     const { cycle: c } = cycle('SETTLEMENT', 'UAE_DIRECT');
+    const refused = await refusal(
+      shipping.createLeg(
+        c.id,
+        { sequence: 1, departedOn: '2026-09-01', costBasis: 'FLAT', amount: 0 },
+        ACTOR,
+      ),
+    );
+    expect(refused.code).toBe('CYCLE_SETTLING');
+    expect(db.legs).toHaveLength(0);
     const r = await shipping.createLeg(
       c.id,
-      { sequence: 1, departedOn: '2026-09-01', costBasis: 'FLAT', amount: 0 },
+      { sequence: 1, costBasis: 'FLAT', amount: 0 },
       ACTOR,
     );
     expect(statusOf(c)).toBe('SETTLEMENT');
-    expect(r.cycleStatus).toMatchObject({ moved: false });
+    expect(r.cycleStatus).toBeNull();
     expect(transitionsLogged()).toBe(0);
   });
 

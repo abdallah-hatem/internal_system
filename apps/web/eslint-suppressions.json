@@ -269,18 +269,15 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 41
+      "count": 36
     }
   },
   "src/app/[locale]/shipments/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 12
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
+      "count": 1
     },
     "local/no-raw-colors": {
-      "count": 61
+      "count": 45
     },
     "react-hooks/set-state-in-effect": {
       "count": 1

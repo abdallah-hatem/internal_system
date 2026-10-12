@@ -93,7 +93,7 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
   const { addToast } = useToast();
   const queryClient = useQueryClient();
   const allowed = useCan('cycle.transition');
-  const may = { depart: useCan('shippingLeg.edit'), deliver: useCan('shipment.recordDelivery') };
+  const may = { depart: useCan('shipment.recordDeparture'), deliver: useCan('shipment.recordDelivery') };
   const [open, setOpen] = useState(false);
   const [refusal, setRefusal] = useState<StatusRefusal | null>(null);
   // The fix dialog open over the page, for one leg. While it is, the status
@@ -274,6 +274,7 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
       {fixing?.kind === 'departure' && fixingLeg && (
         <RecordDepartureDialog
           leg={fixingLeg}
+          productNames={productNames}
           onSaved={(res) => endFix(true, res)}
           onClose={() => endFix(false)}
         />

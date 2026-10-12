@@ -174,6 +174,7 @@ const snapshot = () =>
   JSON.stringify({
     cycles: db.cycles,
     legs: db.legs,
+    departures: db.departures,
     deliveries: db.deliveries,
     losses: db.losses,
     batches: db.batches,
@@ -381,11 +382,11 @@ describe('record_delivery', () => {
     }
 
     // A leg that has not left, and a cycle being settled.
-    leg.departedOn = null;
+    const departures = db.departures.splice(0);
     expect(
       codeOf(await call('record_delivery', deliveryArgs(leg, item, 5))),
     ).toBe('LEG_NOT_DEPARTED');
-    leg.departedOn = new Date('2026-09-01T00:00:00Z');
+    db.departures.push(...departures);
     cycle.status = 'SETTLEMENT';
     expect(
       codeOf(await call('record_delivery', deliveryArgs(leg, item, 5))),
@@ -648,19 +649,210 @@ describe('add_shipping_leg', () => {
     expect(snapshot()).toBe(before);
   });
 
-  it('add_shipping_leg with an arrival date and nothing on the way → says it delivers nothing', async () => {
-    // Leg 1 has delivered nothing yet, so nothing has entered leg 2.
+  it('add_shipping_leg departing leg 2 before anything reached Dubai → DEPARTURE_NOTHING_WAITING, nothing written (L8)', async () => {
+    // Leg 1 has delivered nothing yet, so nothing waits at leg 2's origin.
+    // Before L8 this previewed "delivers nothing" and saved a departed leg.
     const { cycle } = chinaInTransit();
-    const shown = await preview('add_shipping_leg', {
+    const before = snapshot();
+    const r = await call('add_shipping_leg', {
       cycleId: cycle.id,
       sequence: 2,
       departedOn: '2026-09-10',
       arrivedOn: '2026-09-25',
       amount: 300,
     });
-    expect(textOf(shown)).toContain('delivers nothing');
-    expect(structured(shown).data.delivers).toEqual([]);
-    expect(structured(shown).data.status).toBe('IN_TRANSIT');
+    expect(codeOf(r)).toBe('DEPARTURE_NOTHING_WAITING');
+    expect(snapshot()).toBe(before);
+  });
+});
+
+// ─── record_departure (L8) ───────────────────────────────────────────────
+
+describe('record_departure — goods leave in parts (L8)', () => {
+  /** A UAE-direct cycle in purchasing, its 40 pads still with the supplier. */
+  function notLeft(status = 'PURCHASING') {
+    const { cycle, items } = cycleWithOrder(db, { status });
+    const leg = addLeg(db, cycle, 1, { departedOn: null });
+    return { cycle, item: items[0], leg };
+  }
+  const departArgs = (
+    leg: Row,
+    item: Row | null,
+    qty: number,
+    day = '2026-09-05',
+  ) => ({
+    legId: leg.id,
+    departedOn: day,
+    ...(item ? { lines: [{ purchaseOrderItemId: item.id, qty }] } : {}),
+  });
+
+  it('the preview writes nothing and says what leaves, what stays, and where the cycle lands; the confirm writes exactly that', async () => {
+    const { cycle, item, leg } = notLeft();
+    const before = snapshot();
+    const shown = await preview('record_departure', departArgs(leg, item, 25));
+    expect(snapshot()).toBe(before);
+    expect(textOf(shown)).toContain(
+      'Brake pad: 25 leave; 15 will still wait at Dubai, UAE, 25 will be on the way.',
+    );
+    expect(textOf(shown)).toContain(
+      'Afterwards the leg reads PARTLY_DEPARTED.',
+    );
+    expect(textOf(shown)).toContain(
+      `This moves ${cycle.code} from PURCHASING to IN_TRANSIT_TO_EGYPT`,
+    );
+    expect(structured(shown).data.cycleStatus).toMatchObject({
+      from: 'PURCHASING',
+      to: 'IN_TRANSIT_TO_EGYPT',
+    });
+
+    const commit = await commitWith(
+      'record_departure',
+      departArgs(leg, item, 25),
+      shown,
+    );
+    expect(commit.isError).toBeFalsy();
+    expect(db.departures).toHaveLength(1);
+    expect(db.departures[0].lines[0].qty.toString()).toBe('25');
+    expect(cycle.status).toBe('IN_TRANSIT_TO_EGYPT');
+  });
+
+  it('a later departure: the preview says the cycle does not move, and it does not', async () => {
+    const { cycle, item, leg } = notLeft();
+    await deliveries.recordDeparture(
+      leg.id,
+      {
+        departedOn: '2026-09-02',
+        lines: [{ purchaseOrderItemId: item.id, qty: 25 }],
+      },
+      partner.id,
+    );
+    cycle.status = 'PURCHASING'; // kept back by hand
+    const shown = await preview(
+      'record_departure',
+      departArgs(leg, item, 15, '2026-09-06'),
+    );
+    expect(textOf(shown)).toContain(
+      `not the leg's first departure, so ${cycle.code} stays PURCHASING`,
+    );
+    await commitWith(
+      'record_departure',
+      departArgs(leg, item, 15, '2026-09-06'),
+      shown,
+    );
+    expect(cycle.status).toBe('PURCHASING');
+    expect(db.departures).toHaveLength(2);
+  });
+
+  it('no lines → everything waiting leaves', async () => {
+    const { item, leg } = notLeft();
+    const shown = await preview('record_departure', departArgs(leg, null, 0));
+    expect(structured(shown).data.lines).toEqual([
+      expect.objectContaining({
+        purchaseOrderItemId: item.id,
+        qty: '40',
+        stillWaiting: '0',
+      }),
+    ]);
+  });
+
+  it('binding: a departure recorded in the office between the preview and the yes → PREVIEW_CHANGED, nothing more written', async () => {
+    // The leg has left already, so the status move is the same either way:
+    // only what still waits differs, and that alone must refuse.
+    const { item, leg } = notLeft('IN_TRANSIT_TO_EGYPT');
+    await deliveries.recordDeparture(
+      leg.id,
+      {
+        departedOn: '2026-09-01',
+        lines: [{ purchaseOrderItemId: item.id, qty: 5 }],
+      },
+      partner.id,
+    );
+    const shown = await preview('record_departure', departArgs(leg, item, 20));
+    await deliveries.recordDeparture(
+      leg.id,
+      {
+        departedOn: '2026-09-04',
+        lines: [{ purchaseOrderItemId: item.id, qty: 10 }],
+      },
+      partner.id,
+    );
+    const before = snapshot();
+    const commit = await commitWith(
+      'record_departure',
+      departArgs(leg, item, 20),
+      shown,
+    );
+    expect(codeOf(commit)).toBe('PREVIEW_CHANGED');
+    expect(snapshot()).toBe(before);
+  });
+
+  it('binding: a different quantity than previewed → refused', async () => {
+    const { item, leg } = notLeft();
+    const shown = await preview('record_departure', departArgs(leg, item, 20));
+    const commit = await commitWith(
+      'record_departure',
+      departArgs(leg, item, 21),
+      shown,
+    );
+    expect(commit.isError).toBe(true);
+    expect(db.departures).toHaveLength(0);
+  });
+
+  it("the service's refusals reach the preview, coded: too many, zero, the future, a frozen cycle, an unknown leg", async () => {
+    const { cycle, item, leg } = notLeft();
+    const before = snapshot();
+    expect(
+      codeOf(await call('record_departure', departArgs(leg, item, 41))),
+    ).toBe('DEPARTURE_EXCEEDS_WAITING');
+    expect(
+      codeOf(await call('record_departure', departArgs(leg, item, 0))),
+    ).toBe('QTY_NOT_POSITIVE');
+    expect(
+      codeOf(
+        await call('record_departure', departArgs(leg, item, 5, '2026-10-11')),
+      ),
+    ).toBe('DATE_IN_FUTURE');
+    expect(
+      codeOf(
+        await call('record_departure', {
+          ...departArgs(leg, item, 5),
+          legId: randomUUID(),
+        }),
+      ),
+    ).toBe('NOT_FOUND');
+    expect(
+      codeOf(
+        await call('record_departure', {
+          ...departArgs(leg, item, 5),
+          legId: 'nope',
+        }),
+      ),
+    ).toBe('NOT_FOUND');
+    cycle.status = 'SETTLEMENT';
+    expect(
+      codeOf(await call('record_departure', departArgs(leg, item, 5))),
+    ).toBe('CYCLE_SETTLING');
+    cycle.status = 'PURCHASING';
+    expect(snapshot()).toBe(before);
+  });
+
+  it('add_shipping_leg with departureLines: only those leave, and the preview says what still waits', async () => {
+    const { cycle, items } = cycleWithOrder(db, { status: 'PURCHASING' });
+    const args = {
+      cycleId: cycle.id,
+      sequence: 1,
+      departedOn: '2026-09-05',
+      departureLines: [{ purchaseOrderItemId: items[0].id, qty: 30 }],
+      amount: 300,
+    };
+    const shown = await preview('add_shipping_leg', args);
+    expect(textOf(shown)).toContain(
+      'Brake pad: 30 left; 10 still waiting at Dubai, UAE',
+    );
+    expect(structured(shown).data.status).toBe('PARTLY_DEPARTED');
+    await commitWith('add_shipping_leg', args, shown);
+    expect(db.departures).toHaveLength(1);
+    expect(db.legs[0].status).toBe('PARTLY_DEPARTED');
   });
 });
 

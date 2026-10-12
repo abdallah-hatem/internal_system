@@ -282,6 +282,34 @@ test.describe('A cycle opens its page; Continue setup resumes the wizard', () =>
   });
 });
 
+test.describe('The wizard stops when the goods leave (owner, 2026-10-12)', () => {
+  test('TC-NAV-05: a cycle past Purchasing offers no Continue setup, and the wizard\'s address lands on its page', async ({ page, request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const { planning } = await cycles(request);
+    // A UAE-direct cycle arrives in the UAE with nothing asked of its leg:
+    // the shortest honest way past Purchasing.
+    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE']) {
+      await mk(`cycles/${planning.id}/transition`, { status });
+    }
+    expect(await statusOf(request, headers, planning.id)).toBe('ARRIVED_UAE');
+
+    await login(page);
+    await openCycles(page);
+    const row = rowOf(page, planning.code);
+    await expect(row).toBeVisible();
+    await expect(row.getByTestId('continue-setup')).toHaveCount(0);
+    await row.locator('td').first().click();
+    await expect(page).toHaveURL(new RegExp(`/cycles/${planning.id}/details$`), { timeout: 15000 });
+    await expect(page.getByTestId('cycle-status')).toBeVisible();
+    await expect(page.getByTestId('continue-setup')).toHaveCount(0);
+
+    // Typed by hand, the wizard sends it to its page and offers nothing to finish.
+    await page.goto(`${BASE}/en/cycles/${planning.id}`);
+    await expect(page).toHaveURL(new RegExp(`/cycles/${planning.id}/details$`), { timeout: 15000 });
+    await expect(page.getByRole('button', { name: /^finish$/i })).toHaveCount(0);
+  });
+});
+
 // ─── 3. Change status, on the details page ──────────────────────────────
 
 test.describe('Change status lives on the cycle\'s page', () => {

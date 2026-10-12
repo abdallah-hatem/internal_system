@@ -20,7 +20,7 @@
  *  round trip they would have covered is TC-RT-03 in 29-edit-round-trip.
  */
 import { test, expect, Page } from '@playwright/test';
-import { apiCtx, daysAgo, today } from './support/fixtures';
+import { apiCtx, daysAgo } from './support/fixtures';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
@@ -46,7 +46,7 @@ async function cycleWithDatedLeg(request: any, label: string) {
   const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
 
   await mk(`cycles/${cycle.id}/purchases`, {
-    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
     items: [{ productId: product.id, orderedQty: 5, unitPrice: 100 }],
   });
   await mk(`cycles/${cycle.id}/shipping-legs`, {
