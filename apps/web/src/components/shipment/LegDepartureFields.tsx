@@ -65,12 +65,15 @@ export function LegDepartureFields({
   cycleId,
   label,
   defaultDepartedOn,
+  linkToCycle = true,
 }: {
   state: ReturnType<typeof useLegDeparture>;
   cycleId?: string;
   label: string;
   /** The leg's first departure, on the edit form. */
   defaultDepartedOn?: string | null;
+  /** False on the cycle's own page, where a link to it goes nowhere new. */
+  linkToCycle?: boolean;
 }) {
   const t = useTranslations('shipments');
   const left = (state.leg?.departures ?? []).length > 0;
@@ -86,7 +89,7 @@ export function LegDepartureFields({
       {left ? (
         <p className="text-xs text-muted-foreground">
           {t('departuresOnCyclePage')}{' '}
-          {cycleId && (
+          {cycleId && linkToCycle && (
             <Link href={`/cycles/${cycleId}/details`} className="cursor-pointer font-medium text-primary hover:underline">
               {t('openShipmentPanel')}
             </Link>

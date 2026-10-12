@@ -1677,7 +1677,7 @@
   },
   "shipment": {
     "title": "Shipment",
-    "totals": "Ordered {ordered} · received {received} · waiting {waiting} · lost {lost} · on the way {onTheWay}",
+    "totals": "Ordered {ordered} · received {received} · waiting {waiting} · lost {lost} · not left {atOrigin} · on the way {onTheWay}",
     "loadFailed": "The shipment could not be loaded.",
     "noLegs": "No shipping legs yet",
     "noLegsHint": "Add the legs on the Shipments page; deliveries are recorded here once a leg has departed.",

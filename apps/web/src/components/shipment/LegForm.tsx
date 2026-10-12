@@ -299,7 +299,16 @@ export function LegCreateForm({
  * can still change (§2); once anything of the cycle was received or lost, the
  * form says why and where a late charge goes instead, and sends no cost.
  */
-export function LegEditForm({ leg, onDone }: { leg: LegRow; onDone: () => void }) {
+export function LegEditForm({
+  leg,
+  onDone,
+  onCyclePage = false,
+}: {
+  leg: LegRow;
+  onDone: () => void;
+  /** Rendered on the cycle's own page: no links pointing back at it. */
+  onCyclePage?: boolean;
+}) {
   const t = useTranslations('shipments');
   const tShipment = useTranslations('shipment');
   const tc = useTranslations('common');
@@ -353,23 +362,30 @@ export function LegEditForm({ leg, onDone }: { leg: LegRow; onDone: () => void }
       }}
       className="space-y-4"
     >
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* The same fields Record departure renders on the cycle page (I3, L8): one definition. */}
-        <LegDepartureFields state={departure} cycleId={leg.cycleId} label={t('departedOn')} defaultDepartedOn={leg.departedOn ?? null} />
-        <div>
-          <p className="mb-1 block text-sm font-medium text-foreground">{t('arrivedOn')}</p>
-          <p data-testid="leg-arrival" className="px-3 py-2 text-sm text-muted-foreground">
-            {codeLabel('legStatus', leg.status)}
-            {leg.arrivedOn ? ` · ${formatDate(leg.arrivedOn)}` : ''}
-          </p>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {t('arrivalsAreDeliveries')}{' '}
-        <Link href={`/cycles/${leg.cycleId}/details`} data-testid="leg-open-cycle" className="cursor-pointer font-medium text-primary hover:underline">
-          {t('openShipmentPanel')}
-        </Link>
+      {/* The leg's status, read from what was recorded — not a date. */}
+      <p data-testid="leg-arrival" className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">{t('status')}</span>
+        {' · '}
+        {codeLabel('legStatus', leg.status)}
+        {leg.arrivedOn ? ` · ${formatDate(leg.arrivedOn)}` : ''}
       </p>
+      {/* The same fields Record departure renders on the cycle page (I3, L8):
+          one definition, the full width so a product's name has room. */}
+      <LegDepartureFields
+        state={departure}
+        cycleId={leg.cycleId}
+        label={t('departedOn')}
+        defaultDepartedOn={leg.departedOn ?? null}
+        linkToCycle={!onCyclePage}
+      />
+      {!onCyclePage && (
+        <p className="text-xs text-muted-foreground">
+          {t('arrivalsAreDeliveries')}{' '}
+          <Link href={`/cycles/${leg.cycleId}/details`} data-testid="leg-open-cycle" className="cursor-pointer font-medium text-primary hover:underline">
+            {t('openShipmentPanel')}
+          </Link>
+        </p>
+      )}
 
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>

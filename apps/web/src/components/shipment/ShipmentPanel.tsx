@@ -227,6 +227,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
             received: shipment.totals.received,
             waiting: shipment.totals.waiting,
             lost: shipment.totals.lost,
+            atOrigin: shipment.totals.atOrigin ?? 0,
             onTheWay: shipment.totals.onTheWay,
           })}
         </p>
@@ -298,7 +299,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
         };
         return (
           <LegFormModal title={t('editLegTitle', { leg: position.sequence })} onClose={close} testId="edit-leg">
-            <LegEditForm leg={leg} onDone={close} />
+            <LegEditForm leg={leg} onDone={close} onCyclePage />
           </LegFormModal>
         );
       })()}

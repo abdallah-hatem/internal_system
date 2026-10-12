@@ -1677,7 +1677,7 @@
   },
   "shipment": {
     "title": "الشحنة",
-    "totals": "المطلوب {ordered} · المستلم {received} · بانتظار الاستلام {waiting} · المفقود {lost} · في الطريق {onTheWay}",
+    "totals": "المطلوب {ordered} · المستلم {received} · بانتظار الاستلام {waiting} · المفقود {lost} · لم يغادر {atOrigin} · في الطريق {onTheWay}",
     "loadFailed": "تعذّر تحميل الشحنة.",
     "noLegs": "لا توجد مراحل شحن بعد",
     "noLegsHint": "أضف المراحل من صفحة الشحنات، وتُسجَّل التسليمات هنا بعد مغادرة المرحلة.",
