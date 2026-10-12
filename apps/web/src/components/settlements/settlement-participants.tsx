@@ -47,7 +47,15 @@ const nameOf = (l: SettlementLine) =>
   null;
 
 /** Group the lines by participant so each person reads as one row. */
-export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
+/**
+ * `projected`: before a settlement is paid it has no RUNNING_COSTS line yet;
+ * what paying today would take comes from its breakdown (participantId →
+ * amount, negative), so the table and the breakdown under it agree (L7).
+ */
+export function participantRows(
+  lines: SettlementLine[],
+  projected: Record<string, number> = {},
+): ParticipantRow[] {
   const byParticipant = new Map<string, SettlementLine[]>();
   for (const l of lines) {
     const k = l.participant?.id ?? l.id;
@@ -65,7 +73,8 @@ export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
     const feeCharged = pick('INVESTOR_FEE');
     const feeReceived = pick('INVESTOR_FEE_RECEIVED');
     // Running costs come out of a core partner's payout (§8, L7).
-    const runningCosts = pick('RUNNING_COSTS');
+    const hasLine = group.some((l) => l.component === 'RUNNING_COSTS');
+    const runningCosts = hasLine ? pick('RUNNING_COSTS') : (projected[key] ?? 0);
     return {
       key,
       name: nameOf(group[0]),
@@ -86,12 +95,15 @@ const feeTone = (fee: number) =>
 export function SettlementParticipants({
   lines,
   cycleCode,
+  projectedRunningCosts,
 }: {
   lines: SettlementLine[];
   cycleCode?: string;
+  /** Before it is paid: what paying today would take, per participant (L7). */
+  projectedRunningCosts?: Record<string, number>;
 }) {
   const t = useTranslations('settlementsPage');
-  const rows = participantRows(lines);
+  const rows = participantRows(lines, projectedRunningCosts);
   const name = (r: ParticipantRow) => r.name ?? t('unknownParticipant');
   const feeTitle = (r: ParticipantRow) =>
     r.feeCharged < 0 ? t('feeAlreadyDeducted') : undefined;

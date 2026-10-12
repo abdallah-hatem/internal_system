@@ -61,7 +61,7 @@ describe('a partner’s payout history', () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     const lines = within(item).getByTestId('breakdown-p-a');
-    expect(lines.textContent).toContain(
+    expect(lines.textContent?.replace(/[\u2066\u2069]/g, '')).toContain(
       en.settlementsPage.runningCostsPeriod.replace('{from}', '2026-09-01').replace('{to}', '2026-09-20'),
     );
     expect(within(item).getByText('Abdallah')).toBeTruthy();

@@ -63,6 +63,16 @@ describe('participantRows', () => {
     expect(p2.payout).toBe(50000 + 20000);
   });
 
+  it('before it is paid, what paying today would take comes off the payout shown — the table agrees with the breakdown', () => {
+    const [p1, p2] = participantRows(LINES, { p1: -10000 });
+    expect(p1.runningCosts).toBe(-10000);
+    expect(p1.payout).toBe(100000 + 45000 + 2500 - 10000);
+    expect(p2.payout).toBe(50000 + 20000);
+    // Once paid, the settlement's own line wins over any projection.
+    const [paid] = participantRows([...LINES, line('9', 'p1', 'RUNNING_COSTS', -4000, partner)], { p1: -10000 });
+    expect(paid.runningCosts).toBe(-4000);
+  });
+
   it('a participant with no name or email has none, and no lines means no rows', () => {
     expect(participantRows(LINES)[2].name).toBeNull();
     expect(participantRows([])).toEqual([]);

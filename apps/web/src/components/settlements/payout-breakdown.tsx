@@ -52,6 +52,11 @@ export interface PayoutBreakdown {
 }
 
 const num = (v: string | number) => Number(v);
+/**
+ * A date inside a translated sentence, kept left-to-right: in Arabic the bidi
+ * algorithm otherwise splits "(2026-10-12)" into "(2026-" and "12-10)".
+ */
+const ltr = (day: string) => `\u2066${day}\u2069`;
 
 function Line({
   label,
@@ -185,7 +190,9 @@ export function PayoutBreakdownView({
                   <Line
                     label={
                       p.runningCostsFrom && p.runningCostsTo
-                        ? t('runningCostsPeriod', { from: p.runningCostsFrom, to: p.runningCostsTo })
+                        ? p.runningCostsFrom === p.runningCostsTo
+                          ? t('runningCostsDay', { day: ltr(p.runningCostsFrom) })
+                          : t('runningCostsPeriod', { from: ltr(p.runningCostsFrom), to: ltr(p.runningCostsTo) })
                         : t('runningCostsLine')
                     }
                     amount={running}

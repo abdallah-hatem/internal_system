@@ -1091,7 +1091,8 @@
     "runningCostsProjected": "If paid today",
     "runningCostsReleased": "Put back to waiting when this settlement was reversed",
     "paidToHim": "Paid",
-    "wouldBePaid": "To be paid"
+    "wouldBePaid": "To be paid",
+    "runningCostsDay": "Share of running costs ({day})"
   },
   "paymentPlans": {
     "title": "Payment Plans",

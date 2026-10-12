@@ -428,7 +428,17 @@ function SettlementCard({
       )}
 
       {/* Participants */}
-      <SettlementParticipants lines={s.lines ?? []} cycleCode={s.cycle?.code} />
+      <SettlementParticipants
+        lines={s.lines ?? []}
+        cycleCode={s.cycle?.code}
+        projectedRunningCosts={
+          s.status === 'DRAFT' || s.status === 'APPROVED'
+            ? Object.fromEntries(
+                (s.breakdown?.participants ?? []).map((p) => [p.participantId, Number(p.runningCostsEgp)]),
+              )
+            : undefined
+        }
+      />
 
       {/* Line by line, before approving, approved and paid (§8, L7). */}
       {s.breakdown && (

@@ -80,7 +80,8 @@ const amounts = (root: HTMLElement) =>
 const total = (root: HTMLElement) =>
   Number(root.querySelector<HTMLElement>('[data-total]')!.dataset.amount);
 const labels = (root: HTMLElement) =>
-  [...root.querySelectorAll<HTMLElement>('[data-line] [data-label]')].map((l) => l.textContent);
+  // Dates in a label are wrapped in LRI…PDI so Arabic keeps them whole; strip them to compare.
+  [...root.querySelectorAll<HTMLElement>('[data-line] [data-label]')].map((l) => l.textContent?.replace(/[\u2066\u2069]/g, '') ?? null);
 const cents = (n: number) => Math.round(n * 100);
 
 describe('the cycle’s lines', () => {
@@ -155,7 +156,26 @@ describe('each participant’s lines', () => {
   });
 });
 
+describe('the running-costs line', () => {
+  it('costs all spent on one day name that day once, not "d – d"', () => {
+    renderIn('en', {
+      ...BREAKDOWN,
+      participants: [{ ...BREAKDOWN.participants[0], runningCostsFrom: '2026-10-12', runningCostsTo: '2026-10-12' }],
+    });
+    expect(labels(screen.getByTestId('breakdown-p-a'))[3]).toBe(
+      en.settlementsPage.runningCostsDay.replace('{day}', '2026-10-12'),
+    );
+  });
+});
+
 describe('both languages, logical sides only', () => {
+  it('Arabic: a date in a line is isolated left-to-right, so "(2026-07-01 – 2026-09-30)" is not split', () => {
+    renderIn('ar');
+    const label = screen.getByTestId('breakdown-p-a').querySelectorAll('[data-line] [data-label]')[3].textContent!;
+    expect(label).toContain('\u20662026-07-01\u2069');
+    expect(label).toContain('\u20662026-09-30\u2069');
+  });
+
   it('Arabic: every line in Arabic, amounts kept left-to-right', () => {
     renderIn('ar');
     const a = screen.getByTestId('breakdown-p-a');

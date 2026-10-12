@@ -107,6 +107,12 @@ describe('the Running costs section', () => {
     expect(rows).toHaveLength(4);
     expect(rows[3].textContent).toContain('Mahmoud');
     expect(rows[3].textContent).toContain('10,033.34');
+    // On a phone the same figures are a card per partner, each labelled; the table is for wider screens.
+    const cards = screen.getByTestId('running-costs-partner-cards');
+    expect(cards.className).toContain('sm:hidden');
+    expect(within(cards).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(cards).getAllByRole('listitem')[2].querySelectorAll('dt')).toHaveLength(3);
+    expect(screen.getByTestId('running-costs-partners').parentElement!.className).toContain('hidden');
   });
 
   it('says who takes the odd piastre, by name — never silently', async () => {
@@ -143,5 +149,7 @@ describe('the Running costs section', () => {
     expect(section.textContent).toContain(ar.partners.runningCostsTitle);
     expect(section.textContent).toContain(ar.partners.waiting);
     expect(section.textContent).not.toMatch(/Spent|Still waiting|His share/);
+    // The amount inside the Arabic sentence stays one left-to-right run (§11).
+    expect(screen.getByTestId('running-costs-all-waiting').textContent).toMatch(/\u2066[^\u2069]*13,033\.34[^\u2069]*\u2069/);
   });
 });

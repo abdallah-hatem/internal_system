@@ -249,15 +249,18 @@ function Total({
   hint?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
+      {/* The icon sits beside the label, not the figure: with five tiles in a
+          row the figure needs the tile's whole width to stay on one line. */}
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className={`text-xl font-bold mt-1 ${tone}`}>{value}</p>
-          {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
-        </div>
+        <p className="text-sm text-gray-500">{label}</p>
         <Icon className={`h-5 w-5 shrink-0 ${tone}`} />
       </div>
+      {/* Money is a left-to-right run in both languages (§11): "EGP 6,000.00" otherwise. */}
+      <p className={`text-xl font-bold mt-1 whitespace-nowrap tabular-nums ${tone}`}>
+        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{value}</span>
+      </p>
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
     </div>
   );
 }
@@ -267,7 +270,7 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
   const { formatMoney: egp } = useNumberFormat();
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+    <div data-testid="partner-card" data-email={person.email} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
       {/* Who */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">

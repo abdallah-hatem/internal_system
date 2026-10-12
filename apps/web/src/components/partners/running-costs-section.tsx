@@ -145,23 +145,44 @@ export function RunningCostsSection() {
                   ))}
                 </dl>
               </div>
-              <div className="overflow-x-auto">
+              {/* Phone: a card per partner, every amount labelled — four columns of
+                  money do not fit 390px (UI review, L7). */}
+              <ul data-testid="running-costs-partner-cards" className="divide-y divide-border text-sm sm:hidden">
+                {data.partners.map((p) => (
+                  <li key={p.userId} className="py-2">
+                    <p className="font-medium text-foreground"><bdi>{p.name ?? '—'}</bdi></p>
+                    <dl className="mt-1 grid grid-cols-3 gap-2">
+                      {[
+                        [t('share'), p.shareEgp],
+                        [t('taken'), p.chargedEgp],
+                        [t('waiting'), p.waitingEgp],
+                      ].map(([label, value]) => (
+                        <div key={label} className="min-w-0">
+                          <dt className="text-[11px] text-muted-foreground">{label}</dt>
+                          <dd className="whitespace-nowrap text-xs tabular-nums text-foreground"><Money value={value} /></dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-x-auto sm:block">
                 <table data-testid="running-costs-partners" className="w-full text-sm">
                   <thead className="text-xs text-muted-foreground">
                     <tr>
                       <th scope="col" className="py-1.5 text-start font-medium">{t('name')}</th>
-                      <th scope="col" className="py-1.5 text-end font-medium">{t('share')}</th>
-                      <th scope="col" className="py-1.5 text-end font-medium">{t('taken')}</th>
-                      <th scope="col" className="py-1.5 text-end font-medium">{t('waiting')}</th>
+                      <th scope="col" className="py-1.5 ps-3 text-end font-medium">{t('share')}</th>
+                      <th scope="col" className="py-1.5 ps-3 text-end font-medium">{t('taken')}</th>
+                      <th scope="col" className="py-1.5 ps-3 text-end font-medium">{t('waiting')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {data.partners.map((p) => (
                       <tr key={p.userId}>
                         <td className="py-1.5 text-foreground"><bdi>{p.name ?? '—'}</bdi></td>
-                        <td className="whitespace-nowrap py-1.5 text-end tabular-nums"><Money value={p.shareEgp} /></td>
-                        <td className="whitespace-nowrap py-1.5 text-end tabular-nums text-muted-foreground"><Money value={p.chargedEgp} /></td>
-                        <td className="whitespace-nowrap py-1.5 text-end tabular-nums text-foreground"><Money value={p.waitingEgp} /></td>
+                        <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums"><Money value={p.shareEgp} /></td>
+                        <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums text-muted-foreground"><Money value={p.chargedEgp} /></td>
+                        <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums text-foreground"><Money value={p.waitingEgp} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -176,7 +197,8 @@ export function RunningCostsSection() {
             </p>
           )}
           <p data-testid="running-costs-all-waiting" className="text-xs text-muted-foreground">
-            {t('waitingAllTime', { amount: formatMoney(data.waitingAllTimeEgp) })}
+            {/* Isolated left-to-right inside the sentence, as <Money> does (§11). */}
+            {t('waitingAllTime', { amount: `\u2066${formatMoney(data.waitingAllTimeEgp)}\u2069` })}
           </p>
         </div>
       )}

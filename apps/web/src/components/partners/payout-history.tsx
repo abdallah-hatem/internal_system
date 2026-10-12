@@ -50,7 +50,7 @@ export function PayoutHistory({ payouts, name }: { payouts: PartnerPayout[]; nam
               className="flex w-full items-center justify-between gap-3 px-3 py-2 text-start"
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span dir="ltr" className="font-mono text-primary">{p.cycleCode}</span>
+                <span dir="ltr" className="whitespace-nowrap font-mono text-primary">{p.cycleCode}</span>
                 {p.paidAt && (
                   <span className="text-muted-foreground">{t('paidOn', { date: formatDate(p.paidAt) })}</span>
                 )}

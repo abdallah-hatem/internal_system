@@ -925,7 +925,8 @@
     "runningCostsProjected": "لو دُفعت اليوم",
     "runningCostsReleased": "أُعيدت إلى الانتظار عند عكس هذه التسوية",
     "paidToHim": "المدفوع",
-    "wouldBePaid": "المستحق"
+    "wouldBePaid": "المستحق",
+    "runningCostsDay": "حصته من المصروفات العامة ({day})"
   },
   "providers": {
     "title": "شركات الشحن",
