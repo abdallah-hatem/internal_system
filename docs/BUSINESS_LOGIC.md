@@ -78,13 +78,13 @@ have any number of departures.
   data keeps its meaning.
 
 Guesses made while building L8, open until confirmed (autonomous run, 2026-10-12):
-- **The backfill is SQL in the migration** (`20261012120000_shipment_departures`), so there is one model: every leg
+- **The backfill is SQL in the migration** (`20261012140000_shipment_departures`), so there is one model: every leg
   with a departure date gets one departure on that day (its Cairo day) carrying what had entered it when the
   migration ran — the order, for the first leg; what the leg before delivered, for a later leg (a later leg whose
-  leg before had delivered nothing gets a departure with no lines, so it still reads as left). Goods that reached
-  Dubai *after* leg 2's date were "on the way" before; they now read as **in the UAE**, waiting for a departure to
-  be recorded — which is where they physically were (the I3 guess below said the system could not tell; now it
-  can). The rule is also written as `planDepartureBackfill` (unit-tested) for the fixtures and the demo seed.
+  leg before had delivered nothing gets a departure with no lines, so it still reads as left). Goods already delivered
+  in Dubai when the migration ran stay "on the way" on leg 2 even if delivered after leg 2's date, exactly as
+  before; only goods delivered in Dubai *after* the migration wait **in the UAE** until a departure carries them
+  (the I3 guess below said the system could not tell; from now on it can). The rule is also written as `planDepartureBackfill` (unit-tested) for the fixtures and the demo seed.
 - **When the goods could have left.** The first leg: not before the day the product's order was placed. A later
   leg, on day D: only what the leg before had delivered by D, less what already left on this leg
   (`DEPARTURE_BEFORE_ORDER`, `DEPARTURE_BEFORE_ARRIVAL`). A departure date with no quantities (the old forms, the

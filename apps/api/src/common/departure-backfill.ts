@@ -6,7 +6,7 @@ import type { Qty } from './shipment-position';
  *
  * Before L8 a leg had one departure date and no lines: "everything that
  * entered it left on that day". The migration
- * `20261012120000_shipment_departures` turns each such leg into one departure
+ * `20261012140000_shipment_departures` turns each such leg into one departure
  * row on that day (its Cairo calendar day), carrying everything that had
  * entered the leg — what was ordered, for the cycle's first leg; what the leg
  * before it delivered, for a later leg. That SQL is the one that runs; this is
