@@ -52,6 +52,27 @@ describe('participantRows', () => {
     expect(p2.fee).toBe(-2500);
   });
 
+  it('his share of the running costs comes off his payout (L7), and only his', () => {
+    const [p1, p2] = participantRows([
+      ...LINES,
+      line('8', 'p1', 'RUNNING_COSTS', -10000, partner),
+    ]);
+    expect(p1.runningCosts).toBe(-10000);
+    expect(p1.payout).toBe(100000 + 45000 + 2500 - 10000);
+    expect(p2.runningCosts).toBe(0);
+    expect(p2.payout).toBe(50000 + 20000);
+  });
+
+  it('before it is paid, what paying today would take comes off the payout shown — the table agrees with the breakdown', () => {
+    const [p1, p2] = participantRows(LINES, { p1: -10000 });
+    expect(p1.runningCosts).toBe(-10000);
+    expect(p1.payout).toBe(100000 + 45000 + 2500 - 10000);
+    expect(p2.payout).toBe(50000 + 20000);
+    // Once paid, the settlement's own line wins over any projection.
+    const [paid] = participantRows([...LINES, line('9', 'p1', 'RUNNING_COSTS', -4000, partner)], { p1: -10000 });
+    expect(paid.runningCosts).toBe(-4000);
+  });
+
   it('a participant with no name or email has none, and no lines means no rows', () => {
     expect(participantRows(LINES)[2].name).toBeNull();
     expect(participantRows([])).toEqual([]);
@@ -59,7 +80,7 @@ describe('participantRows', () => {
 });
 
 describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
-  it('gives each participant a card with all four amounts labelled, Fee included', () => {
+  it('gives each participant a card with every amount labelled, Fee and running costs included', () => {
     renderIn('ar');
     const cards = within(screen.getByTestId('settlement-participants-cards')).getAllByRole('listitem');
     expect(cards).toHaveLength(3);
@@ -68,6 +89,7 @@ describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
       ar.settlementsPage.capital,
       ar.settlementsPage.netProfit,
       ar.settlementsPage.fee,
+      ar.settlementsPage.runningCosts,
       ar.settlementsPage.payout,
     ]);
     // Amount and currency stay on one line.

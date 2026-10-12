@@ -13,6 +13,7 @@ import { businessToday } from '../../common/dates';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import { CreateLedgerEntryDto } from './dto/ledger.dto';
 import { checkManualEntry } from './manual-entry';
+import { fixRunningCostShares } from '../../common/running-costs';
 
 @Injectable()
 export class LedgerService {
@@ -145,6 +146,13 @@ export class LedgerService {
       },
     });
 
+    // A running cost (an expense with no cycle, §8 L7): its shares are fixed
+    // now, over the core partners of its own day — whoever joins or leaves
+    // later, they never move.
+    if (!cycleId && entry.direction === 'OUTFLOW') {
+      await fixRunningCostShares(this.prisma);
+    }
+
     // After the write, never inside a transaction (LEARNINGS: deployment).
     await this.audit.log({
       actorUserId: userId,
@@ -249,6 +257,30 @@ export class LedgerService {
           'LEDGER_CYCLE_NOT_OPEN',
           `Cycle ${cycle.code} is ${cycle.status.toLowerCase()}, so nothing more can be charged to it.`,
           { cycle: cycle.code, status: cycle.status },
+        );
+      }
+    }
+
+    // A running cost already taken from a partner's payout (§8, L7): he was
+    // paid less for it. Undoing it now would leave that money taken for a
+    // cost that no longer exists. Reverse the settlement first; that puts the
+    // charge back to waiting, and then the cost can go.
+    if (!original.cycleId) {
+      const taken = await this.prisma.runningCostCharge.findMany({
+        where: { costEntryId: id, releasedAt: null },
+        select: {
+          settlement: { select: { cycle: { select: { code: true } } } },
+        },
+      });
+      if (taken.length > 0) {
+        const cycles = [
+          ...new Set(taken.map((t) => t.settlement.cycle.code)),
+        ].join(', ');
+        throw badRequest(
+          'RUNNING_COST_CHARGED',
+          `This running cost was already taken from a payout (${cycles}). ` +
+            'Reverse that settlement first, then this entry.',
+          { cycles },
         );
       }
     }

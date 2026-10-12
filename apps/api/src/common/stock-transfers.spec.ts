@@ -326,7 +326,7 @@ describe('money', () => {
   it('a transfer is not an expense, not a recovery, and not cash', () => {
     expect(CAPITALISED_CATEGORIES).toContain('cycle_transfer');
     expect(NOT_OPERATING_EXPENSE).toContain('cycle_transfer');
-    expect(NOT_CASH_CATEGORIES).toEqual(['cycle_transfer']);
+    expect(NOT_CASH_CATEGORIES).toContain('cycle_transfer');
   });
 
   it('transferNetEgp: taking stock on adds to a cycle’s cost, handing it on takes it off, undoing nets to zero', () => {

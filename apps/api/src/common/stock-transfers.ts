@@ -320,3 +320,25 @@ export async function cycleTransfersInEgp(
   });
   return D(_sum.costEgp);
 }
+
+/**
+ * The cost of the leftovers moved OUT of `cycleId` by transfers that stand.
+ * Shown on the cycle's payout breakdown (§8 "a payout explains itself", L7):
+ * moved at cost, they make no profit and no loss for the giving cycle, so the
+ * line is a note beside the figures, never a cost inside them.
+ */
+export async function cycleTransfersOutEgp(
+  db: {
+    stockTransferLine: Pick<
+      Prisma.TransactionClient['stockTransferLine'],
+      'aggregate'
+    >;
+  },
+  cycleId: string,
+): Promise<Prisma.Decimal> {
+  const { _sum } = await db.stockTransferLine.aggregate({
+    where: { transfer: { fromCycleId: cycleId, status: 'ACTIVE' } },
+    _sum: { costEgp: true },
+  });
+  return D(_sum.costEgp);
+}

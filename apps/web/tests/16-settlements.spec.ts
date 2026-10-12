@@ -109,7 +109,7 @@ test.describe('Settlements', () => {
     await expect(page.getByRole('columnheader', { name: /payout/i }).first()).toBeVisible();
   });
 
-  test('TC-SET-05: Payout equals capital plus net profit plus fee received', async ({ page }) => {
+  test('TC-SET-05: Payout equals capital plus net profit plus fee received, less his share of running costs', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settlements`);
     await pickCycle(page, 'CYC-DEMO-001');
@@ -122,16 +122,19 @@ test.describe('Settlements', () => {
 
     for (let i = 0; i < n; i++) {
       const cells = rows.nth(i).locator('td');
-      if ((await cells.count()) < 5) continue;
+      if ((await cells.count()) < 6) continue;
       const capital = money(await cells.nth(1).textContent());
       const profit = money(await cells.nth(2).textContent());
       const feeText = (await cells.nth(3).textContent()) ?? '';
       const fee = feeText.includes('—') ? 0 : money(feeText);
-      const payout = money(await cells.nth(4).textContent());
+      // L7: a core partner's share of the running costs comes off his payout.
+      const runningText = (await cells.nth(4).textContent()) ?? '';
+      const running = runningText.includes('—') ? 0 : money(runningText);
+      const payout = money(await cells.nth(5).textContent());
 
       // A negative fee is the investor's own deduction, already inside the
       // net profit; only a received fee adds to the payout.
-      const expected = capital + profit + (fee > 0 ? fee : 0);
+      const expected = capital + profit + (fee > 0 ? fee : 0) + running;
       expect(Math.abs(payout - expected)).toBeLessThan(0.02);
     }
   });

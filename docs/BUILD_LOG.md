@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L8 live 2026-10-12 (`b8da00b`; production backed up first to .backups/prod-20261012-040507.sql, migration 20261012140000 with backfill applied, CYC-2026-0001/0003 verified unchanged through get_cycle, smoke ok) · L7 phase 2 running — last batch
+Current stage: L8 live 2026-10-12 (`b8da00b`; production backed up first to .backups/prod-20261012-040507.sql, migration 20261012140000 with backfill applied, CYC-2026-0001/0003 verified unchanged through get_cycle, smoke ok) · L7 phase 2 done on its branch, waiting to ship
 
 ## Waiting on the user
 _(none)_
@@ -36,7 +36,20 @@ _(none)_
   `.ui-audit/l6/`. Owner to confirm the §9 guesses (foreign amounts stored in pounds + original_*, income "Other"
   as its own key, other income into net profit without a tile, a cycle in SETTLEMENT still takes a late cost, the
   date filter still reads entry time). Open (§Still open): cash on hand counts a return's two rows as cash out.
-- L7 queued (owner said build, 2026-10-11): running costs come out of the core partners' payouts + a payout that explains itself line by line (§8). Starts once L5 (leftovers) and L6 (ledger form) are merged — all three touch settlement.
+- L7 built 2026-10-12 on `feature/l7-running-costs-payouts` (master d02d301 merged in; not merged back, not pushed):
+  running costs come out of the core partners' payouts and a payout explains itself line by line (§8). A cost with
+  no cycle is split equally among the active core partners (rounded down, the odd piastre to the partner who joined
+  last, named on the Partners page); Mark paid takes each partner's waiting share, oldest first, up to his payout,
+  the rest carries; `running_cost_charges` records it, reversing the settlement releases it, a charged cost cannot be
+  reversed (`RUNNING_COST_CHARGED`). The payout row is the cash handed over; a `running_cost_share` row (not cash, not
+  an expense) records the deduction. Settlements keep their costs line by line (`cost_breakdown`); the card drops the
+  lump "Expenses"; the Partners page gains Running costs (period picker) and each payout's breakdown. Cash on hand no
+  longer counts a return's sale undone. One Escape helper for every dialog with pickers (RecordPaymentDialog lost its
+  form). Migration `20261012150000_running_cost_charges` (additive; sorts after 20261012140000) — run
+  `scripts/ship-prod.sh migrate` before the deploy. New: e2e 99-running-costs (TC-RC-01..03), 34 TC-INV-59..64,
+  79 TC-RP-10, all failing against master's code and passing after; check-data 22–22.3. Screens in `.ui-audit/l7/`.
+  Owner to confirm the L7 guesses in §8 (who shares, capital counts toward the cap, the partner who leaves). Open
+  (§Still open): Analytics' cycle "investment" counts settlement payouts.
 - L3 building: status follows departures/deliveries (owner 2026-10-11); no money account on a friend's repayment
   (owner); amount inputs start-aligned app-wide (owner screenshot).
 - L4 phase 1 building (no DB, beside L3): below-cost warning wherever a selling price is set — sale form, walk-in,

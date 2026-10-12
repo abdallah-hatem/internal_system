@@ -1,7 +1,8 @@
 'use client';
 import { LatinText } from '@/components/ui/latin-text';
 
-import { useEffect, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useEscapeToClose } from '@/lib/use-escape-to-close';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
@@ -49,13 +50,9 @@ export function ShipmentDialog({
 }) {
   const tc = useTranslations('common');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [busy, onClose]);
+  // Escape closes it — not while a picker or calendar inside it is open, and
+  // not mid-save (lib/use-escape-to-close, shared by every dialog with pickers).
+  useEscapeToClose(onClose, !!busy);
 
   if (typeof document === 'undefined') return null;
 

@@ -10,7 +10,11 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SettlementsService } from './settlements.service';
-import { MarkSettlementPaidDto, ReverseSettlementDto } from './dto/settlement.dto';
+import {
+  MarkSettlementPaidDto,
+  ReverseSettlementDto,
+  RunningCostsQueryDto,
+} from './dto/settlement.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
@@ -52,10 +56,24 @@ export class SettlementsController {
   @Get('preview/:cycleId')
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR')
   @ApiOperation({
-    summary: "A cycle's profit as it stands, and how it would split, without writing anything",
+    summary:
+      "A cycle's profit as it stands, and how it would split, without writing anything",
   })
   preview(@Param('cycleId') cycleId: string, @CurrentUser() user: Viewer) {
     return this.settlementsService.preview(cycleId, user);
+  }
+
+  // The business's general running costs and each core partner's share
+  // (§8, L7). Not a temporary investor's: he never shares them, and they are
+  // the whole business's figures, not one of his cycles'. Before ':id'.
+  @Get('running-costs')
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary:
+      'Running costs for a period: spent by category, taken from payouts, still waiting, and each core partner’s share',
+  })
+  runningCosts(@Query() query: RunningCostsQueryDto) {
+    return this.settlementsService.runningCosts(query);
   }
 
   @Get(':id')
@@ -74,7 +92,9 @@ export class SettlementsController {
 
   @Post(':id/approve')
   @Roles('CORE_PARTNER')
-  @ApiOperation({ summary: 'Approve a settlement and move the cycle to SETTLEMENT' })
+  @ApiOperation({
+    summary: 'Approve a settlement and move the cycle to SETTLEMENT',
+  })
   approve(@Param('id') id: string, @CurrentUser() user: any) {
     return this.settlementsService.approve(id, user?.id);
   }
@@ -98,7 +118,9 @@ export class SettlementsController {
 
   @Post(':id/reverse')
   @Roles('CORE_PARTNER')
-  @ApiOperation({ summary: 'Reverse a settlement with balancing ledger entries' })
+  @ApiOperation({
+    summary: 'Reverse a settlement with balancing ledger entries',
+  })
   reverse(
     @Param('id') id: string,
     @Body() body: ReverseSettlementDto,

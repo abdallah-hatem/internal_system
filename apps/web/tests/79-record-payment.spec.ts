@@ -246,3 +246,23 @@ test.describe('At the API', () => {
     expect((await negative.json()).error.code).toBe('DISCOUNT_NEGATIVE');
   });
 });
+
+// L7 (found by L6): Escape inside an open picker closed the whole payment form.
+test.describe('Escape in the payment form (L7)', () => {
+  test('TC-RP-10: Escape inside the open method picker closes the picker and keeps the form and what was typed; the next Escape closes the form', async ({ page, request }) => {
+    const { newer } = await shopOwingTwo(request, 'RP10');
+    await login(page);
+    await openOrder(page, newer.orderNo);
+    await page.getByTestId('order-record-payment').click();
+    await expect(dialog(page)).toBeVisible();
+    await amountField(page).fill('250');
+    await dialog(page).getByRole('combobox').first().click();
+    await expect(page.getByRole('option').first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('option')).toHaveCount(0);
+    await expect(dialog(page)).toBeVisible();
+    await expect(amountField(page)).toHaveValue(/250/);
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+  });
+});

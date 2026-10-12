@@ -32,6 +32,8 @@ export interface ParticipantRow {
   share: number;
   feeCharged: number;
   fee: number;
+  /** His share of the running costs taken from this payout (L7), negative. */
+  runningCosts: number;
   payout: number;
 }
 
@@ -45,7 +47,15 @@ const nameOf = (l: SettlementLine) =>
   null;
 
 /** Group the lines by participant so each person reads as one row. */
-export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
+/**
+ * `projected`: before a settlement is paid it has no RUNNING_COSTS line yet;
+ * what paying today would take comes from its breakdown (participantId →
+ * amount, negative), so the table and the breakdown under it agree (L7).
+ */
+export function participantRows(
+  lines: SettlementLine[],
+  projected: Record<string, number> = {},
+): ParticipantRow[] {
   const byParticipant = new Map<string, SettlementLine[]>();
   for (const l of lines) {
     const k = l.participant?.id ?? l.id;
@@ -62,6 +72,9 @@ export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
     const share = pick('PROFIT_SHARE');
     const feeCharged = pick('INVESTOR_FEE');
     const feeReceived = pick('INVESTOR_FEE_RECEIVED');
+    // Running costs come out of a core partner's payout (§8, L7).
+    const hasLine = group.some((l) => l.component === 'RUNNING_COSTS');
+    const runningCosts = hasLine ? pick('RUNNING_COSTS') : (projected[key] ?? 0);
     return {
       key,
       name: nameOf(group[0]),
@@ -70,7 +83,8 @@ export function participantRows(lines: SettlementLine[]): ParticipantRow[] {
       share,
       feeCharged,
       fee: feeCharged + feeReceived,
-      payout: capital + share + feeReceived,
+      runningCosts,
+      payout: capital + share + feeReceived + runningCosts,
     };
   });
 }
@@ -81,17 +95,22 @@ const feeTone = (fee: number) =>
 export function SettlementParticipants({
   lines,
   cycleCode,
+  projectedRunningCosts,
 }: {
   lines: SettlementLine[];
   cycleCode?: string;
+  /** Before it is paid: what paying today would take, per participant (L7). */
+  projectedRunningCosts?: Record<string, number>;
 }) {
   const t = useTranslations('settlementsPage');
-  const rows = participantRows(lines);
+  const rows = participantRows(lines, projectedRunningCosts);
   const name = (r: ParticipantRow) => r.name ?? t('unknownParticipant');
   const feeTitle = (r: ParticipantRow) =>
     r.feeCharged < 0 ? t('feeAlreadyDeducted') : undefined;
   const fee = (r: ParticipantRow) =>
     r.fee === 0 ? '—' : <Money value={r.fee} />;
+  const running = (r: ParticipantRow) =>
+    r.runningCosts === 0 ? '—' : <Money value={r.runningCosts} />;
 
   return (
     <>
@@ -125,6 +144,10 @@ export function SettlementParticipants({
                 </dd>
               </div>
               <div className="min-w-0">
+                <dt className="text-xs text-muted-foreground">{t('runningCosts')}</dt>
+                <dd className="whitespace-nowrap tabular-nums text-muted-foreground">{running(r)}</dd>
+              </div>
+              <div className="min-w-0">
                 <dt className="text-xs text-muted-foreground">{t('payout')}</dt>
                 <dd className="whitespace-nowrap tabular-nums font-semibold text-foreground"><Money value={r.payout} /></dd>
               </div>
@@ -145,6 +168,7 @@ export function SettlementParticipants({
               <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('capital')}</th>
               <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('netProfit')}</th>
               <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('fee')}</th>
+              <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('runningCosts')}</th>
               <th scope="col" className="text-end px-5 py-2 font-medium whitespace-nowrap">{t('payout')}</th>
             </tr>
           </thead>
@@ -167,6 +191,9 @@ export function SettlementParticipants({
                 </td>
                 <td className={`px-4 py-3 text-end tabular-nums whitespace-nowrap ${feeTone(r.fee)}`} title={feeTitle(r)}>
                   {fee(r)}
+                </td>
+                <td className="px-4 py-3 text-end text-muted-foreground tabular-nums whitespace-nowrap">
+                  {running(r)}
                 </td>
                 <td className="px-5 py-3 text-end font-semibold text-foreground tabular-nums whitespace-nowrap">
                   <Money value={r.payout} />

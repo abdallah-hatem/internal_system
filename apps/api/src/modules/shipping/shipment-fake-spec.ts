@@ -174,7 +174,12 @@ export function fakePrisma(db: Store) {
     (where.cycleId === undefined || t.cycleId === where.cycleId) &&
     (where.relatedType === undefined || t.relatedType === where.relatedType) &&
     (where.relatedId === undefined || t.relatedId === where.relatedId) &&
-    (where.type === undefined || t.type === where.type) &&
+    (where.type === undefined ||
+      (typeof where.type === 'string'
+        ? t.type === where.type
+        : (where.type.in === undefined || where.type.in.includes(t.type)) &&
+          (where.type.notIn === undefined ||
+            !where.type.notIn.includes(t.type)))) &&
     (where.reversalOfId === undefined ||
       (where.reversalOfId === null
         ? t.reversalOfId == null
@@ -652,6 +657,18 @@ export function fakePrisma(db: Store) {
         ),
     },
     user: { findMany: () => after([]) },
+    // No core partner records and no running costs in these worlds: paying
+    // out charges nothing (§8, L7 — its own suite is running-costs.flow.spec).
+    partner: { findMany: () => after([]) },
+    runningCostShare: {
+      findMany: () => after([]),
+      createMany: () => after({ count: 0 }),
+    },
+    runningCostCharge: {
+      findMany: () => after([]),
+      create: ({ data }: Row) => after({ id: randomUUID(), ...data }),
+      updateMany: () => after({ count: 0 }),
+    },
     customer: {
       findUnique: ({ where }: Row) =>
         after(db.customers.find((c) => c.id === where.id) ?? null),
@@ -1061,6 +1078,9 @@ export function fakePrisma(db: Store) {
     let snapshot: Store | null = null;
     const tx: Row = {
       ...prisma,
+      // Paying out takes an advisory lock for running costs (§8, L7); one
+      // payout at a time in these worlds anyway.
+      $executeRaw: () => after(1),
       $queryRaw: async (_sql: TemplateStringsArray, cycleId: string) => {
         while (locks.has(cycleId)) await locks.get(cycleId);
         let release!: () => void;

@@ -203,7 +203,10 @@ test.describe('The settlement’s unsold-stock refusal offers the move', () => {
     // Paid out: capital 4,000 and 1,000 profit — and no write-off anywhere.
     const ledger: any[] = (await (await request.get(`${API}/ledger?cycleId=${a.id}&limit=200`, { headers })).json()).data;
     const payout = ledger.filter((r) => r.category === 'settlement').reduce((s, r) => s + Number(r.amount), 0);
-    expect(payout).toBe(5000);
+    // L7: the partner's share of any running costs waiting comes off what he
+    // is handed, recorded beside it; together they are still 5,000.
+    const share = ledger.filter((r) => r.category === 'running_cost_share').reduce((s, r) => s + Number(r.amount), 0);
+    expect(Math.round((payout + share) * 100) / 100).toBe(5000);
     const pair = ledger.filter((r) => r.category === 'cycle_transfer');
     expect(pair.map((r) => [r.direction, Number(r.amount)])).toEqual([['INFLOW', 3000]]);
     // Paid out: the move is permanent.

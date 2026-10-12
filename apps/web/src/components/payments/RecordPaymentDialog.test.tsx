@@ -203,6 +203,38 @@ describe('RecordPaymentDialog opened from a customer', () => {
   });
 });
 
+/**
+ * L7 (found by L6): Escape inside an open picker closed the whole payment
+ * form — the method list, the date — and everything typed in it was lost.
+ * The dialog listened on the document, after Radix had already taken the
+ * picker out of the page, so it could not tell the key was the picker's.
+ */
+describe('Escape', () => {
+  it('inside the open method picker closes the picker, not the form', async () => {
+    const { onClose } = renderDialog({ order: ORDER });
+    typeInto(amountInput(), '500');
+    fireEvent.click(screen.getByRole('combobox'));
+    await screen.findAllByRole('option');
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(amountInput().value).toBe('500');
+  });
+
+  it('with nothing open closes the form', () => {
+    const { onClose } = renderDialog({ order: ORDER });
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('while the payment is being saved, nothing closes', () => {
+    const { onClose } = renderDialog({ order: ORDER });
+    fireEvent.click(save());
+    expect(post).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 describe('one form for recording a payment (rule 11)', () => {
   const read = (rel: string) =>
     readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');

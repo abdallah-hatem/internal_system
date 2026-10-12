@@ -38,6 +38,10 @@ model User {
   notifications         Notification[]
   cyclePartnerEntries   CycleParticipant[]     @relation("CyclePartnerUser")
   cycleInvestorEntries  CycleParticipant[]     @relation("CycleInvestorUser")
+  /// What this core partner's payouts were charged for running costs (§8, L7).
+  runningCostCharges    RunningCostCharge[]
+  /// His fixed share of each running cost of his time (§8, L7).
+  runningCostShares     RunningCostShare[]
   saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
   payments              Payment[]              @relation("CreatedPaymentUser")
   productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
@@ -321,10 +325,11 @@ model CycleParticipant {
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int             @default(1)
 
-  cycle           ImportCycle      @relation(fields: [cycleId], references: [id])
-  partner         User?            @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
-  investor        User?            @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
-  settlementLines SettlementLine[]
+  cycle              ImportCycle         @relation(fields: [cycleId], references: [id])
+  partner            User?               @relation("CyclePartnerUser", fields: [partnerUserId], references: [id])
+  investor           User?               @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
+  settlementLines    SettlementLine[]
+  runningCostCharges RunningCostCharge[]
 
   // A person joins a cycle once. Without this a double-add silently dilutes
   // every other participant's profit share.
@@ -373,8 +378,8 @@ model PurchaseOrderItem {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  purchaseOrder    PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
-  product          Product                @relation(fields: [productId], references: [id])
+  purchaseOrder    PurchaseOrder           @relation(fields: [purchaseOrderId], references: [id])
+  product          Product                 @relation(fields: [productId], references: [id])
   /// One per receipt. Used to be one per order line (`@unique`); a line now
   /// arrives in several deliveries, each received as its own batch (§3).
   inventoryBatches InventoryBatch[]
@@ -587,8 +592,8 @@ model ShippingLeg {
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
   version            Int               @default(1)
 
-  cycle          ImportCycle        @relation(fields: [cycleId], references: [id])
-  providerRecord Provider?          @relation(fields: [providerId], references: [id])
+  cycle          ImportCycle         @relation(fields: [cycleId], references: [id])
+  providerRecord Provider?           @relation(fields: [providerId], references: [id])
   departures     ShipmentDeparture[]
   deliveries     ShipmentDelivery[]
   losses         ShipmentLoss[]
@@ -1031,34 +1036,38 @@ enum TransactionDirection {
 }
 
 model FinancialTransaction {
-  id           String               @id @default(uuid()) @db.Uuid
-  type         String
-  category     String
-  direction    TransactionDirection
-  amount       Decimal              @db.Decimal(18, 2)
-  currency     String
-  fxRateToEgp  Decimal?             @map("fx_rate_to_egp") @db.Decimal(18, 4)
-  accountId    String?              @map("account_id") @db.Uuid
-  cycleId      String?              @map("cycle_id") @db.Uuid
-  relatedType  String?              @map("related_type")
-  relatedId    String?              @map("related_id") @db.Uuid
-  reversalOfId String?              @map("reversal_of_id") @db.Uuid
-  reason       String?
+  id               String               @id @default(uuid()) @db.Uuid
+  type             String
+  category         String
+  direction        TransactionDirection
+  amount           Decimal              @db.Decimal(18, 2)
+  currency         String
+  fxRateToEgp      Decimal?             @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  accountId        String?              @map("account_id") @db.Uuid
+  cycleId          String?              @map("cycle_id") @db.Uuid
+  relatedType      String?              @map("related_type")
+  relatedId        String?              @map("related_id") @db.Uuid
+  reversalOfId     String?              @map("reversal_of_id") @db.Uuid
+  reason           String?
   /// The Cairo day the money moved, for a manual entry (§9, L6). Null on rows
   /// written before it existed and on rows a flow writes, which read createdAt.
-  occurredOn       DateTime?        @map("occurred_on") @db.Date
+  occurredOn       DateTime?            @map("occurred_on") @db.Date
   /// What was actually paid, when it was not pounds: `amount` is always the
   /// pounds figure the settlement and the dashboard sum (§9, L6).
-  originalAmount   Decimal?         @map("original_amount") @db.Decimal(18, 2)
-  originalCurrency String?          @map("original_currency")
-  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz()
-  createdBy    String?              @map("created_by") @db.Uuid
+  originalAmount   Decimal?             @map("original_amount") @db.Decimal(18, 2)
+  originalCurrency String?              @map("original_currency")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy        String?              @map("created_by") @db.Uuid
 
-  cycle          ImportCycle?    @relation(fields: [cycleId], references: [id])
-  actor          User?           @relation(fields: [createdBy], references: [id])
-  account        MoneyAccount?   @relation(fields: [accountId], references: [id])
+  cycle              ImportCycle?        @relation(fields: [cycleId], references: [id])
+  actor              User?               @relation(fields: [createdBy], references: [id])
+  account            MoneyAccount?       @relation(fields: [accountId], references: [id])
   /// The supplier refund this row undid, when it is a refund's reversal.
-  reversedRefund SupplierRefund? @relation("SupplierRefundReversal")
+  reversedRefund     SupplierRefund?     @relation("SupplierRefundReversal")
+  /// A general running cost: which payouts took it, and how much (§8, L7).
+  runningCostCharges RunningCostCharge[]
+  /// Who owes it, fixed once over the core partners of its day (§8, L7).
+  runningCostShares  RunningCostShare[]
 
   @@map("financial_transactions")
 }
@@ -1240,6 +1249,9 @@ model Settlement {
   unsoldValueEgp Decimal?         @map("unsold_value_egp") @db.Decimal(18, 2)
   unitsSold      Decimal?         @map("units_sold") @db.Decimal(18, 3)
   unitsRemaining Decimal?         @map("units_remaining") @db.Decimal(18, 3)
+  /// The cycle's costs line by line as calculated, summing to expensesEgp
+  /// (§8 "a payout explains itself", L7). Null on settlements calculated before.
+  costBreakdown  Json?            @map("cost_breakdown")
   calculatedAt   DateTime?        @map("calculated_at") @db.Timestamptz()
   approvedAt     DateTime?        @map("approved_at") @db.Timestamptz()
   paidAt         DateTime?        @map("paid_at") @db.Timestamptz()
@@ -1247,10 +1259,62 @@ model Settlement {
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
   version        Int              @default(1)
 
-  cycle ImportCycle      @relation(fields: [cycleId], references: [id])
-  lines SettlementLine[]
+  cycle              ImportCycle         @relation(fields: [cycleId], references: [id])
+  lines              SettlementLine[]
+  /// Running costs this settlement's payouts took (§8, L7).
+  runningCostCharges RunningCostCharge[]
 
   @@map("settlements")
+}
+
+/// One core partner's payout taking part of one general running cost (§8, owner
+/// 2026-10-11; built L7). Written when a settlement is marked paid; a cost is
+/// charged once in total across the rows that stand. Reversing the settlement
+/// releases them (`releasedAt`) -- the row stays, history is not rewritten --
+/// and the cost is waiting again.
+model RunningCostCharge {
+  id            String    @id @default(uuid()) @db.Uuid
+  /// The ledger row of the cost: an operating expense with no cycle.
+  costEntryId   String    @map("cost_entry_id") @db.Uuid
+  settlementId  String    @map("settlement_id") @db.Uuid
+  /// The partner's line on the settlement whose payout took it.
+  participantId String    @map("participant_id") @db.Uuid
+  /// The core partner, across cycles: his share follows him, not the cycle.
+  partnerUserId String    @map("partner_user_id") @db.Uuid
+  amount        Decimal   @db.Decimal(18, 2)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  /// Set when the settlement is reversed: the charge no longer stands.
+  releasedAt    DateTime? @map("released_at") @db.Timestamptz()
+
+  costEntry   FinancialTransaction @relation(fields: [costEntryId], references: [id])
+  settlement  Settlement           @relation(fields: [settlementId], references: [id])
+  participant CycleParticipant     @relation(fields: [participantId], references: [id])
+  partner     User                 @relation(fields: [partnerUserId], references: [id])
+
+  @@unique([costEntryId, settlementId, partnerUserId])
+  @@index([partnerUserId])
+  @@index([settlementId])
+  @@map("running_cost_charges")
+}
+
+/// Each core partner's share of one running cost, fixed once over the core
+/// partners active on the cost's own day (§8, L7; alignment review
+/// 2026-10-12). It never changes afterwards: a partner who leaves keeps owing
+/// his, and one who joins later owes nothing of it. Rounded down to the
+/// piastre, the residual on the partner of that day who joined last.
+model RunningCostShare {
+  id            String   @id @default(uuid()) @db.Uuid
+  costEntryId   String   @map("cost_entry_id") @db.Uuid
+  partnerUserId String   @map("partner_user_id") @db.Uuid
+  amount        Decimal  @db.Decimal(18, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  costEntry FinancialTransaction @relation(fields: [costEntryId], references: [id])
+  partner   User                 @relation(fields: [partnerUserId], references: [id])
+
+  @@unique([costEntryId, partnerUserId])
+  @@index([partnerUserId])
+  @@map("running_cost_shares")
 }
 
 model SettlementLine {

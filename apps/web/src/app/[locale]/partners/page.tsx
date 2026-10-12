@@ -7,7 +7,9 @@ import { api } from '../../../lib/api';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download } from 'lucide-react';
+import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from 'lucide-react';
+import { RunningCostsSection } from '@/components/partners/running-costs-section';
+import { PayoutHistory, type PartnerPayout } from '@/components/partners/payout-history';
 import { EmptyState } from '@/components/ui/empty-state';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
@@ -36,6 +38,10 @@ interface Participation {
   profitShareEgp: number;
   accruedProfitEgp: number;
   atRiskEgp: number;
+  /** Running costs his payouts have taken (§8, L7). */
+  runningCostsEgp?: number;
+  /** Each payout, line by line (§8, L7). */
+  payouts?: PartnerPayout[];
   cycles: PartnerCycle[];
 }
 
@@ -89,8 +95,9 @@ export default function PartnersPage() {
       profit: acc.profit + p.profitShareEgp,
       accrued: acc.accrued + p.accruedProfitEgp,
       atRisk: acc.atRisk + p.atRiskEgp,
+      runningCosts: acc.runningCosts + (p.runningCostsEgp ?? 0),
     }),
-    { contributed: 0, profit: 0, accrued: 0, atRisk: 0 },
+    { contributed: 0, profit: 0, accrued: 0, atRisk: 0, runningCosts: 0 },
   );
 
   // ── Render ────────────────────────────────────────────────────────
@@ -154,7 +161,7 @@ export default function PartnersPage() {
               is worth stating once rather than making it a mental sum of the
               cards below. */}
           {corePartners.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
               <Total label={t('capitalIn')} value={egp(totals.contributed)} icon={Wallet} tone="text-emerald-600" />
               <Total label={t('profitEarned')} value={egp(totals.profit)} icon={TrendingUp} tone="text-blue-600" />
               <Total
@@ -171,8 +178,18 @@ export default function PartnersPage() {
                 tone={totals.atRisk > 0 ? 'text-amber-600' : 'text-gray-400'}
                 hint={t('atRiskHint')}
               />
+              <Total
+                label={t('runningCosts')}
+                value={egp(totals.runningCosts)}
+                icon={Receipt}
+                tone={totals.runningCosts > 0 ? 'text-foreground' : 'text-muted-foreground'}
+                hint={t('runningCostsHint')}
+              />
             </div>
           )}
+
+          {/* The business's general costs, and each core partner's share (§8, L7). */}
+          {corePartners.length > 0 && <RunningCostsSection />}
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('partners')}</h2>
@@ -232,15 +249,18 @@ function Total({
   hint?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
+      {/* The icon sits beside the label, not the figure: with five tiles in a
+          row the figure needs the tile's whole width to stay on one line. */}
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className={`text-xl font-bold mt-1 ${tone}`}>{value}</p>
-          {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
-        </div>
+        <p className="text-sm text-gray-500">{label}</p>
         <Icon className={`h-5 w-5 shrink-0 ${tone}`} />
       </div>
+      {/* Money is a left-to-right run in both languages (§11): "EGP 6,000.00" otherwise. */}
+      <p className={`text-xl font-bold mt-1 whitespace-nowrap tabular-nums ${tone}`}>
+        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{value}</span>
+      </p>
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
     </div>
   );
 }
@@ -250,7 +270,7 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
   const { formatMoney: egp } = useNumberFormat();
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+    <div data-testid="partner-card" data-email={person.email} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
       {/* Who */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -329,6 +349,12 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Each payout, able to explain itself (§8, L7). */}
+      <div className="border-t border-border pt-3 mt-3">
+        <p className="mb-2 text-sm text-muted-foreground">{t('payoutHistory')}</p>
+        <PayoutHistory payouts={person.payouts ?? []} name={person.displayName ?? person.email} />
       </div>
     </div>
   );
