@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: idle 2026-10-12 — L1–L8 all live in production (last deploy `39c8d28` + test-infra `ec81303`); isolated e2e per agent on master (`scripts/agent-env.sh`, `scripts/agent-servers.sh`); all dev stopped, Docker quit.
+Current stage: idle 2026-10-12 — production wiped again at the owner's request (2:30 PM): kept the three core-partner logins, partner rows, assistant connection, money accounts, FX rates; backup .backups/prod-20261012-142856.sql; smoke ok. Worktrees cleaned (47 removed). All dev stopped, Docker quit.
 
 ## Waiting on the user
 _(none)_
