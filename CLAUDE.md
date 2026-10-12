@@ -116,6 +116,14 @@ not a licence to run tests while someone is entering real records: a failed run
 once left the seeded state behind and the next run snapshotted *that* over the
 only copy, and a morning's data entry was lost for good. Ask first.
 
+An agent does not use that database at all. `eval "$(scripts/agent-env.sh <name>)"`
+gives it `motorcycle_parts_<name>` and its own ports, `scripts/agent-servers.sh
+<name> start` runs its stack there, and globalSetup then snapshots and reseeds
+only the database `DATABASE_URL` names. Several agents run e2e side by side this
+way without waiting for each other. Drop it when done (`--drop`). The harness
+refuses any database that is not the local container's, so a `DATABASE_URL` left
+pointing at production stops the run instead of emptying it.
+
 ## 7. Check the data, not only the code
 
 Guards stop new bad records; they do nothing about what is already stored.

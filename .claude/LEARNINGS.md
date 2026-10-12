@@ -203,6 +203,18 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   the API sent, scope to `main`. Found from the failure's trace snapshot, not by guessing.
   — 2026-10-11
 
+## Parallel agents and the test database
+
+- One database and fixed ports serialise every agent behind a lock: a night of parallel work became hours of waiting
+  for `/tmp/motoparts-e2e.lock`. Each agent gets its own: `eval "$(scripts/agent-env.sh <name>)"` (database copied from
+  `motorcycle_parts_template` in about a second, ports 31N1–31N3), `scripts/agent-servers.sh <name> start|stop`, and
+  `--drop` at the end. Addresses live in one module, `apps/web/tests/support/env.ts`; a spec that writes
+  `localhost:3001` again silently aims at the developer's API from inside someone else's environment. `grep -rn
+  "localhost:300" apps/web/tests` must list only that file. — 2026-10-12
+- One stack per checkout. `next dev` locks the app's `.next`, and Nest's watch builds into `dist`, both inside the
+  worktree, so a second agent needs a second worktree, not a second port. Stop servers by the process groups the
+  script recorded, never by a machine-wide pattern: that kills every other agent's stack. — 2026-10-12
+
 ## Running a suite against another suite
 
 - Run the combination, not the parts. Two Playwright projects in one config share a database:

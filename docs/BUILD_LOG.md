@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L7 live 2026-10-12 (`39c8d28`; production backed up to .backups/prod-20261012-103836.sql; migrations 20261012150000 + 20261012160000 applied; three deploys READY, smoke ok; alignment CONFLICT on a leaving partner's share fixed in 8dda01a before shipping) · all owner-requested batches L1–L8 shipped · infra: isolated e2e per agent in progress
+Current stage: L7 live 2026-10-12 (`39c8d28`; production backed up to .backups/prod-20261012-103836.sql; migrations 20261012150000 + 20261012160000 applied; three deploys READY, smoke ok; alignment CONFLICT on a leaving partner's share fixed in 8dda01a before shipping) · all owner-requested batches L1–L8 shipped · infra: isolated e2e per agent built 2026-10-12 (`scripts/agent-env.sh`)
 
 ## Waiting on the user
 _(none)_
@@ -13,7 +13,14 @@ _(none)_
 _(none)_
 
 ## Next up
-- Infra (owner 2026-10-12, after L7 lands): isolated e2e per agent — every spec and the Playwright config take the API/web/storefront URLs and DATABASE_URL from env (no hard-coded localhost:300x); `scripts/agent-db.sh <name>` makes a database from a migrated template and prints the env + a port block; globalSetup snapshots/restores that database only. Then per task: touched specs + affected groups; the full suite once before each deploy. (Skill updated: abdallah-skills 1.46.0.)
+- Infra (owner 2026-10-12, after L7 lands): isolated e2e per agent — DONE on `chore/isolated-e2e`: every spec and
+  the Playwright config read addresses from `tests/support/env.ts`; `scripts/agent-env.sh <name>` (the planned
+  `agent-db.sh`) makes the database from a migrated template and prints the env + port block;
+  `scripts/agent-servers.sh` starts/stops that agent's stack; globalSetup snapshots/restores that database only. See
+  "How to run things here". Proven 2026-10-12: agents a and b in two worktrees ran group `(2[0-9]|3[0-4])-` at the
+  same time, 163 passed / 2 skipped each, 178 s each; a plain run of 01-auth with nothing set: 14 passed, default DB
+  snapshot/restored, check-data zero. Per task from now on: touched specs + affected groups in the agent's own environment; the
+  full suite once before each deploy. (Skill updated: abdallah-skills 1.46.0.)
 - Owner asleep 2026-10-12: finish L6, L8, L7 unattended (ship each when green; `Bash(scripts/ship-prod.sh:*)` is allowed now), then stop all dev, quit Docker, end the Amphetamine session.
 - L8 built 2026-10-12 on `feature/l8-departures-in-parts` (master 431c4d2 merged in; not merged back, not pushed):
   goods leave in parts (§1) — a departure per day with per-product lines, Undo where nothing depends on it, only
@@ -123,6 +130,29 @@ _(none)_
 - Postgres runs in Docker: `open -a Docker`, then `docker compose up -d postgres`. Quit both afterwards.
 - Port 3000 may belong to another project. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003
   CRON_SECRET=local-cron-secret npm run start:dev` (specs 27/34 call the daily overdue job with that secret); web `cd apps/web && npm run dev -- -p 3003`; storefront `PORT=3002` (specs 54/59).
+- **Parallel agents get their own environment (2026-10-12)** — no queueing for one database or fixed ports. Each
+  agent works in its own worktree (`.next` and `dist` are per checkout; one stack per checkout) and:
+  ```
+  (cd apps/api && npm ci) && (cd apps/web && npm ci) && (cd apps/storefront && npm ci)   # fresh worktree only
+  eval "$(scripts/agent-env.sh <name>)"        # database motorcycle_parts_<name> + slot N; exports below
+  scripts/agent-servers.sh <name> start         # API 31N1, storefront 31N2, office 31N3; PIDs in .agent-servers/<name>/
+  cd apps/web && npx playwright test '<pattern>' --project=chromium
+  scripts/agent-servers.sh <name> stop && scripts/agent-env.sh <name> --drop    # when finished
+  ```
+  `agent-env.sh` exports `DATABASE_URL`, `API_BASE`, `WEB_URL`, `STORE_URL`, `PORT`/`API_PORT`/`WEB_PORT`/`STORE_PORT`,
+  `WEB_ORIGIN`, `STORE_ORIGIN`, `NEXT_PUBLIC_API_URL`, `CRON_SECRET`. The database is copied from
+  `motorcycle_parts_template` (migrated, reference seed; rebuilt automatically when migrations/schema/seed change),
+  about a second. globalSetup snapshots, reseeds and restores only that database. Each shell call starts fresh, so
+  prefix every command that needs the env with the `eval` line. `scripts/agent-env.sh --list` shows who holds which
+  slot. Stop only your own servers (`agent-servers.sh <name> stop`), never `pkill -f next-server`.
+  Lines for a subagent's brief:
+  > Give yourself an isolated e2e environment: pick a short name (e.g. your task id, `[a-z0-9_]`). In your worktree run
+  > `npm ci` in apps/api, apps/web, apps/storefront; then `eval "$(scripts/agent-env.sh <name>)"` before every command
+  > that runs servers or specs, `scripts/agent-servers.sh <name> start`, and run specs from apps/web as usual. Never
+  > use ports 3000–3003 or the `motorcycle_parts` database. When done: `scripts/agent-servers.sh <name> stop` and
+  > `scripts/agent-env.sh <name> --drop`.
+- With nothing set, the suite is as before: API 3001, office 3000, storefront 3002, database `motorcycle_parts`
+  (`apps/web/tests/support/env.ts` is the only file in the tests that names an address).
 - Specs: `WEB_URL=http://localhost:3003 npx playwright test '<pattern>' --project=chromium`, in 4 groups:
   `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`, `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`, `tests/(8[0-9]|9[0-9])-` (the fifth group: 80–94 were missing from "full" runs until 2026-10-11).
 - Production: `scripts/ship-prod.sh status|migrate|env|stranded|smoke`. Pushing `master` deploys all three
