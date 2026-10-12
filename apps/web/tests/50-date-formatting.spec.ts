@@ -21,8 +21,8 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { apiCtx, daysAgo } from './support/fixtures';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 

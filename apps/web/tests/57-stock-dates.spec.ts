@@ -1,8 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
 import { API, EMAIL, PASSWORD, apiCtx, stockedProduct, daysAgo } from './support/fixtures';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 /**
  * When stock arrived, and when it was booked in.

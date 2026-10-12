@@ -20,8 +20,8 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { API, apiCtx, EMAIL, PASSWORD, daysAgo, aCorePartnerUser } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const INVESTOR_EMAIL = 'investor@motoparts.com';
 
 /** Every write the shipment panel can offer, by test id. */

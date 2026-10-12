@@ -14,8 +14,7 @@
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder, EMAIL, PASSWORD } from './support/fixtures';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 async function login(page: Page) {
   await page.goto(`${BASE}/en/login`);

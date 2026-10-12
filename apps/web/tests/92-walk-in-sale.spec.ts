@@ -16,8 +16,7 @@ import { test, expect, type Page, type APIRequestContext, type Locator } from '@
 import { API, EMAIL, PASSWORD, apiCtx, refusedCallers, stockedProduct, today } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 const walkIn = (productId: string, quantity: number, extra: Record<string, unknown> = {}) => ({
   walkIn: true,

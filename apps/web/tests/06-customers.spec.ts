@@ -5,8 +5,8 @@
  *  Tests: list customers, create, view detail, edit
  */
 import { test, expect } from '@playwright/test';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 

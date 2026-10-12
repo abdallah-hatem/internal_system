@@ -25,8 +25,8 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder, today, EMAIL, PASSWORD } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 /** One more than the old default page of 20, with room for rows made in parallel. */
 const PAST_20 = 25;
 /** One past the 200 the suppliers and customers pages used to ask for. */

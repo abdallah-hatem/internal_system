@@ -8,15 +8,43 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { DATABASE_URL, DB_CONTAINER as CONTAINER, DB_IS_LOCAL, DB_NAME as DB, DEFAULT_DB_NAME } from './env';
 
-const CONTAINER = 'motorcycle_parts_db';
-const DB = 'motorcycle_parts';
-const SNAPSHOT = '/tmp/motoparts-pretest-snapshot.sql';
+/**
+ * Everything below works on ONE database: the one `DATABASE_URL` names
+ * (`motorcycle_parts` when unset). An agent with its own database from
+ * `scripts/agent-env.sh` gets its own snapshot, archive tag and lock, so its
+ * run cannot restore or block anybody else's. The default database keeps the
+ * file names it always had, so a snapshot an older run left behind is still
+ * found and put back.
+ */
+const SUFFIX = DB === DEFAULT_DB_NAME ? '' : `-${DB}`;
+const SNAPSHOT = `/tmp/motoparts-pretest-snapshot${SUFFIX}.sql`;
 /** Kept alongside the live snapshot so a bad run is recoverable by hand. */
 const ARCHIVE_DIR = '/tmp/motoparts-snapshots';
 const BIG = 256 * 1024 * 1024;
 /** Held for the whole of a run that snapshots the local database. */
-const LOCK = '/tmp/motoparts-e2e.lock';
+const LOCK = `/tmp/motoparts-e2e${SUFFIX}.lock`;
+
+/**
+ * The harness truncates and reseeds whatever database it is pointed at, so it
+ * refuses anything that is not the local container's. A `DATABASE_URL` left
+ * pointing at Neon from a production session must stop the run, not empty
+ * production. The name must also look like one of ours.
+ */
+export function assertLocalDatabase(): void {
+  if (!DB_IS_LOCAL) {
+    throw new Error(
+      `DATABASE_URL points at ${new URL(DATABASE_URL).host}, not the local container. ` +
+        'The e2e harness truncates the database it is given; it only ever touches a local one.',
+    );
+  }
+  // The template is what every agent's database is copied from; reseeding it
+  // with the demo data would hand that to every agent created afterwards.
+  if (!/^motorcycle_parts(_[a-z0-9_]+)?$/.test(DB) || DB === `${DEFAULT_DB_NAME}_template`) {
+    throw new Error(`DATABASE_URL names "${DB}", which is not a database the e2e harness may reset.`);
+  }
+}
 
 function alive(pid: number): boolean {
   try {
@@ -45,8 +73,9 @@ export function acquireRunLock(): void {
     const holder = Number(readFileSync(LOCK, 'utf8').trim());
     if (holder && holder !== process.pid && alive(holder)) {
       throw new Error(
-        `Another Playwright run (pid ${holder}) is using the local database. ` +
-          'Wait for it to finish — two runs at once restore each other\'s snapshots.',
+        `Another Playwright run (pid ${holder}) is using the database ${DB}. ` +
+          'Wait for it to finish — two runs at once restore each other\'s snapshots — ' +
+          'or give this run its own: eval "$(scripts/agent-env.sh <name>)".',
       );
     }
   }
@@ -63,7 +92,7 @@ export function releaseRunLock(): void {
 function archive(tag: string) {
   mkdirSync(ARCHIVE_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const dest = `${ARCHIVE_DIR}/${stamp}-${tag}.sql`;
+  const dest = `${ARCHIVE_DIR}/${stamp}-${tag}${SUFFIX}.sql`;
   copyFileSync(SNAPSHOT, dest);
   return dest;
 }
@@ -71,7 +100,7 @@ function archive(tag: string) {
 /** Playwright runs from apps/web; the seed script lives in apps/api. */
 const API_DIR = path.resolve(process.cwd(), '../api');
 
-/** Runs SQL against the local test database. Exported for tests that must age a row. */
+/** Runs SQL against this run's database. Exported for tests that must age a row. */
 export function psqlStdin(sql: string) {
   execFileSync(
     'docker',
@@ -150,8 +179,12 @@ export function resetToSeed(): void {
     END $$;
   `);
 
+  // Named explicitly rather than left to apps/api/.env: the seed must land in
+  // the database that was just truncated, which is this run's, not whichever
+  // one the API's .env happens to name (and a fresh worktree has no .env).
   execFileSync('npx', ['prisma', 'db', 'seed'], {
     cwd: API_DIR,
+    env: { ...process.env, DATABASE_URL },
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
     stdio: ['pipe', 'pipe', 'pipe'],

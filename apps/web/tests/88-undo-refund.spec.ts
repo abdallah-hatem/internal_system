@@ -19,8 +19,8 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { API, EMAIL, PASSWORD, apiCtx, daysAgo, today, refusedCallers } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 type Headers = Record<string, string>;
 
 /**

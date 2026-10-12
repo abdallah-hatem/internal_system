@@ -14,9 +14,7 @@
  *  and the file would look correct either way.
  */
 import { test, expect, devices } from '@playwright/test';
-
-const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
-const STORE = process.env.STOREFRONT_BASE ?? 'http://localhost:3002';
+import { WEB, STORE } from './support/env';
 
 /** Every font-size, in px, of the controls a person can focus on this page. */
 function sizes() {

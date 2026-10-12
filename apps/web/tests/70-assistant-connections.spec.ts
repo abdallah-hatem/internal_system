@@ -21,8 +21,8 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { createHash, randomBytes, randomUUID } from 'crypto';
 
 import { API, apiCtx } from './support/fixtures';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 /** OAuth lives at the host's root, outside `api/v1`, where clients look. */
 const ROOT = API.replace(/\/api\/v1\/?$/, '');
 const CONNECTIONS = `${API}/auth/assistant-connections`;

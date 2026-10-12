@@ -6,14 +6,8 @@
  *  and per-weight charging, and shipping reaching landed unit cost.
  */
 import { test, expect, Page } from '@playwright/test';
+import { WEB as BASE, API } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
-/**
- * Where the flows run. Defaults to the local API; `API_BASE` points the same
- * suite at the deployed one, which is the only way these flows get exercised
- * against a compiled bundle, a serverless host and Neon.
- */
-const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 

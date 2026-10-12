@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 /**
  * Every clickable thing shows a hand.

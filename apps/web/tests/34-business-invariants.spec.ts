@@ -21,13 +21,8 @@ import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedO
 import { psqlStdin } from './support/database';
 import { leftoverWorld } from './support/leftovers';
 import { approved, cents, recordCost, runningCosts, settlement, settlementRows, soldOutCycle, usersByEmail, waitingFor } from './support/running-costs';
+import { API } from './support/env';
 
-/**
- * Where the flows run. Defaults to the local API; `API_BASE` points the same
- * suite at the deployed one, which is the only way these flows get exercised
- * against a compiled bundle, a serverless host and Neon.
- */
-const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 

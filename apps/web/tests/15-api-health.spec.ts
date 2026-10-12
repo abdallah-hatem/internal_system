@@ -5,13 +5,8 @@
  *  Tests: API endpoints respond correctly, auth flow, CRUD via API
  */
 import { test, expect } from '@playwright/test';
+import { API } from './support/env';
 
-/**
- * Where the flows run. Defaults to the local API; `API_BASE` points the same
- * suite at the deployed one, which is the only way these flows get exercised
- * against a compiled bundle, a serverless host and Neon.
- */
-const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 

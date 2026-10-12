@@ -18,8 +18,7 @@
  */
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder, API, EMAIL, PASSWORD } from './support/fixtures';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 type Headers = Record<string, string>;
 

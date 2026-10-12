@@ -5,9 +5,8 @@
  *  Tests: view audit logs, filters, entity types, actions
  */
 import { test, expect } from '@playwright/test';
+import { WEB as BASE, API } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
-const API = 'http://localhost:3001/api/v1';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 /** Seeded in prisma/seed.ts — the audit test updates this one rather than creating rows. */

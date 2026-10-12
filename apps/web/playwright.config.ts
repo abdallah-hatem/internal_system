@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { API_IS_LOCAL, STORE, WEB } from './tests/support/env';
 
 /** True when the suite is aimed at a deployed API rather than localhost. */
-const REMOTE = Boolean(process.env.API_BASE) && !/localhost|127\.0\.0\.1/.test(process.env.API_BASE!);
+const REMOTE = !API_IS_LOCAL;
 
 /**
  * The production specs (56, 60, 61, 62) talk to the live system by hard-coded
@@ -37,17 +38,18 @@ export default defineConfig({
   ...(REMOTE ? { timeout: 240_000, expect: { timeout: 60_000 } } : {}),
 
   use: {
-    baseURL: process.env.WEB_URL ?? 'http://localhost:3000',
+    baseURL: WEB,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: REMOTE ? 90_000 : 15_000,
     navigationTimeout: 30_000,
   },
 
-  // Two apps, one harness. The storefront is a separate origin on 3002, so it
-  // needs its own baseURL — but it must NOT get its own config: `globalSetup`
-  // snapshots the developer's database, and two Playwright runs against the
-  // same database is the one thing `CLAUDE.md` rule 6 exists to stop. A second
+  // Two apps, one harness. The storefront is a separate origin (`STORE_URL`,
+  // 3002 by default), so it needs its own baseURL — but it must NOT get its
+  // own config: `globalSetup` snapshots the run's database, and two Playwright
+  // runs against the same database is the one thing `CLAUDE.md` rule 6 exists
+  // to stop (give each agent its own: `scripts/agent-env.sh`). A second
   // project shares this file's globalSetup, its single worker and its
   // sequential ordering, so the store is tested with the office rather than
   // beside it.
@@ -85,7 +87,7 @@ export default defineConfig({
       // A phone, because that is what this app is. The bottom bar, the sheets
       // and the two-column grid are all sized for one, and a 1280px window
       // tests a layout nobody uses.
-      use: { ...devices['Pixel 7'], baseURL: 'http://localhost:3002' },
+      use: { ...devices['Pixel 7'], baseURL: STORE },
     },
   ],
 });

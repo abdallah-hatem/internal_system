@@ -6,9 +6,7 @@
  *  unauthenticated visitor out of the internal application.
  */
 import { test, expect, Page } from '@playwright/test';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
-const API = 'http://localhost:3001/api/v1';
+import { WEB as BASE, API } from './support/env';
 
 const VALID_EMAIL = 'partner.a@motoparts.com';
 const VALID_PASSWORD = 'password123';

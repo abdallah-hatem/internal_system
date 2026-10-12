@@ -20,6 +20,7 @@ import { execFileSync } from 'child_process';
 import path from 'path';
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { psqlStdin } from './support/database';
+import { DB_CONTAINER, DB_NAME } from './support/env';
 import { API, apiCtx, PASSWORD, refusedCallers } from './support/fixtures';
 import { leftoverWorld } from './support/leftovers';
 import { BASE, login, messages, type Locale } from './support/ui';
@@ -290,7 +291,10 @@ test.describe('In Arabic', () => {
 function checkData(): Map<string, number> {
   let out: string;
   try {
-    out = execFileSync('bash', [path.resolve(process.cwd(), '../../scripts/check-data.sh')], { encoding: 'utf8' });
+    out = execFileSync('bash', [path.resolve(process.cwd(), '../../scripts/check-data.sh')], {
+      encoding: 'utf8',
+      env: { ...process.env, DB: DB_NAME, CONTAINER: DB_CONTAINER },
+    });
   } catch (e) {
     // It exits 1 when any count is not zero; the table is still the answer.
     out = String((e as { stdout?: string }).stdout ?? '');

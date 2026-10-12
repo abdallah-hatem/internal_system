@@ -18,8 +18,8 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 import { API, EMAIL, PASSWORD, apiCtx, daysAgo } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 type Messages = typeof en;
 
 async function login(page: Page, locale: 'en' | 'ar' = 'en') {

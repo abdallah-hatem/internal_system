@@ -20,8 +20,7 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
 import { apiCtx, API, EMAIL, PASSWORD, daysAgo, stockedProduct } from './support/fixtures';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 async function login(page: Page, locale = 'en') {
   await page.goto(`${BASE}/${locale}/login`);

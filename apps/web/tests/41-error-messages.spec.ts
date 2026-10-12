@@ -24,8 +24,8 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { apiCtx, API } from './support/fixtures';
 import { resolveApiError } from '../src/lib/api-error';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
 

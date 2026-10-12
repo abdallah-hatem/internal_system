@@ -10,9 +10,10 @@
  * Laborious to set up is a fact about the domain, not a reason to fake it.
  */
 import { expect, APIRequestContext, APIResponse } from '@playwright/test';
+import { API } from './env';
 
-/** Local by default; `API_BASE` aims the same fixtures at the deployed API. */
-export const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
+/** Local by default; `API_BASE` aims the same fixtures at the deployed API (support/env.ts). */
+export { API };
 
 /**
  * Everything waiting at a leg's origin leaves on `day` (L8, 2026-10-12): POST

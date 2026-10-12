@@ -1,4 +1,5 @@
-import { acquireRunLock, snapshot, resetToSeed } from './database';
+import { acquireRunLock, assertLocalDatabase, snapshot, resetToSeed } from './database';
+import { API_IS_LOCAL, DB_NAME } from './env';
 
 /**
  * Is this run only about the deployed system?
@@ -31,8 +32,7 @@ function productionOnly(): boolean {
  * morning's data entry to prepare a database nothing was going to read.
  */
 function aimedElsewhere(): boolean {
-  const base = process.env.API_BASE;
-  return Boolean(base) && !/localhost|127\.0\.0\.1/.test(base!);
+  return !API_IS_LOCAL;
 }
 
 /**
@@ -49,9 +49,13 @@ export default async function globalSetup() {
     return;
   }
 
+  // Only the database DATABASE_URL names (`motorcycle_parts` when unset), and
+  // only if it is the local container's. Checked before the lock, so a run
+  // aimed at the wrong place stops having touched nothing.
+  assertLocalDatabase();
   acquireRunLock();
   const bytes = snapshot();
-  console.log(`  [db] snapshot taken (${(bytes / 1024).toFixed(0)} KB) — restored after the run`);
+  console.log(`  [db] ${DB_NAME}: snapshot taken (${(bytes / 1024).toFixed(0)} KB) — restored after the run`);
   resetToSeed();
-  console.log('  [db] reset to the seeded state');
+  console.log(`  [db] ${DB_NAME}: reset to the seeded state`);
 }

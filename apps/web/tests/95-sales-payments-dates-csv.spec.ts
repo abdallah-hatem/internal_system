@@ -17,8 +17,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { API, apiCtx, EMAIL, PASSWORD, owedOrder, stockedProduct } from './support/fixtures';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 /** A calendar day `n` days from today, local, YYYY-MM-DD. */
 function day(n: number) {

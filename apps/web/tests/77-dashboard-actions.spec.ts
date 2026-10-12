@@ -13,8 +13,8 @@
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { apiCtx, giveStock, owedOrder, stockedProduct, EMAIL, PASSWORD, API } from './support/fixtures';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const PHONE = { width: 390, height: 844 };
 
 async function login(page: Page, email = EMAIL, password = PASSWORD) {

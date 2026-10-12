@@ -8,13 +8,7 @@
  *  cycle is closed on, and a return could push a batch above what arrived.
  */
 import { test, expect } from '@playwright/test';
-
-/**
- * Where the flows run. Defaults to the local API; `API_BASE` points the same
- * suite at the deployed one, which is the only way these flows get exercised
- * against a compiled bundle, a serverless host and Neon.
- */
-const API = process.env.API_BASE ?? 'http://localhost:3001/api/v1';
+import { API } from './support/env';
 
 async function auth(request: any) {
   const res = await request.post(`${API}/auth/login`, {

@@ -8,10 +8,11 @@
 import { readFileSync } from 'fs';
 import { expect, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './fixtures';
+import { WEB as BASE } from './env';
 import en from '../../src/i18n/locales/en.json';
 import ar from '../../src/i18n/locales/ar.json';
 
-export const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+export { BASE };
 export type Locale = 'en' | 'ar';
 export const messages = (locale: Locale) => (locale === 'en' ? en : ar);
 

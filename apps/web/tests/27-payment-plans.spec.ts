@@ -8,8 +8,7 @@
  */
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder } from './support/fixtures';
-
-const API = 'http://localhost:3001/api/v1';
+import { API } from './support/env';
 
 async function auth(request: any, email = 'partner.a@motoparts.com') {
   const res = await request.post(`${API}/auth/login`, {

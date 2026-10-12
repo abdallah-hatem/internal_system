@@ -24,8 +24,8 @@ import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { API, apiCtx, PASSWORD, EMAIL, aCorePartnerUser } from './support/fixtures';
 import { measureFieldRows, worst } from './support/row-alignment';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const INVESTOR_EMAIL = 'investor@motoparts.com';
 const MSG = { en, ar } as const;
 

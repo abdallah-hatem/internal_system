@@ -12,8 +12,8 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './support/fixtures';
+import { WEB as BASE } from './support/env';
 
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 800 };
 

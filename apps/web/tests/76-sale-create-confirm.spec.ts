@@ -17,8 +17,7 @@ import { test, expect, type Page, type APIRequestContext, type Locator } from '@
 import { API, EMAIL, PASSWORD, apiCtx, stockedProduct } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
-
-const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
+import { WEB as BASE } from './support/env';
 
 type Messages = typeof en;
 
