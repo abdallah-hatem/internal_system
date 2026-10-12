@@ -7,7 +7,9 @@ import { api } from '../../../lib/api';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download } from 'lucide-react';
+import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from 'lucide-react';
+import { RunningCostsSection } from '@/components/partners/running-costs-section';
+import { PayoutHistory, type PartnerPayout } from '@/components/partners/payout-history';
 import { EmptyState } from '@/components/ui/empty-state';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
@@ -36,6 +38,10 @@ interface Participation {
   profitShareEgp: number;
   accruedProfitEgp: number;
   atRiskEgp: number;
+  /** Running costs his payouts have taken (§8, L7). */
+  runningCostsEgp?: number;
+  /** Each payout, line by line (§8, L7). */
+  payouts?: PartnerPayout[];
   cycles: PartnerCycle[];
 }
 
@@ -89,8 +95,9 @@ export default function PartnersPage() {
       profit: acc.profit + p.profitShareEgp,
       accrued: acc.accrued + p.accruedProfitEgp,
       atRisk: acc.atRisk + p.atRiskEgp,
+      runningCosts: acc.runningCosts + (p.runningCostsEgp ?? 0),
     }),
-    { contributed: 0, profit: 0, accrued: 0, atRisk: 0 },
+    { contributed: 0, profit: 0, accrued: 0, atRisk: 0, runningCosts: 0 },
   );
 
   // ── Render ────────────────────────────────────────────────────────
@@ -154,7 +161,7 @@ export default function PartnersPage() {
               is worth stating once rather than making it a mental sum of the
               cards below. */}
           {corePartners.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
               <Total label={t('capitalIn')} value={egp(totals.contributed)} icon={Wallet} tone="text-emerald-600" />
               <Total label={t('profitEarned')} value={egp(totals.profit)} icon={TrendingUp} tone="text-blue-600" />
               <Total
@@ -171,8 +178,18 @@ export default function PartnersPage() {
                 tone={totals.atRisk > 0 ? 'text-amber-600' : 'text-gray-400'}
                 hint={t('atRiskHint')}
               />
+              <Total
+                label={t('runningCosts')}
+                value={egp(totals.runningCosts)}
+                icon={Receipt}
+                tone={totals.runningCosts > 0 ? 'text-foreground' : 'text-muted-foreground'}
+                hint={t('runningCostsHint')}
+              />
             </div>
           )}
+
+          {/* The business's general costs, and each core partner's share (§8, L7). */}
+          {corePartners.length > 0 && <RunningCostsSection />}
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('partners')}</h2>
@@ -329,6 +346,12 @@ function PartnerCard({ person, t }: { person: Participation; t: any }) {
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Each payout, able to explain itself (§8, L7). */}
+      <div className="border-t border-border pt-3 mt-3">
+        <p className="mb-2 text-sm text-muted-foreground">{t('payoutHistory')}</p>
+        <PayoutHistory payouts={person.payouts ?? []} name={person.displayName ?? person.email} />
       </div>
     </div>
   );

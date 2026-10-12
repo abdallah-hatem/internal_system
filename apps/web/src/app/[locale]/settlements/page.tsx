@@ -21,7 +21,12 @@ import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { SettlementWarnings, type SettlementWarning } from '@/components/settlements/settlement-warnings';
-import { SettlementParticipants, type SettlementLine } from '@/components/settlements/settlement-participants';
+import {
+  SettlementParticipants,
+  participantRows,
+  type SettlementLine,
+} from '@/components/settlements/settlement-participants';
+import { PayoutBreakdownView, type PayoutBreakdown } from '@/components/settlements/payout-breakdown';
 import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
 import { UnsoldStockPrompt } from '@/components/settlements/unsold-stock-prompt';
 // ─── Types ────────────────────────────────────────────────────────────
@@ -38,6 +43,8 @@ interface Settlement {
   unitsRemaining?: string | null;
   calculatedAt?: string | null;
   lines: SettlementLine[];
+  /** The payout line by line, from the settlement's own figures (§8, L7). */
+  breakdown?: PayoutBreakdown;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -393,11 +400,11 @@ function SettlementCard({
         </div>
       </div>
 
-      {/* P&L strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 border-b border-gray-100">
+      {/* P&L strip. No lump "Expenses": the costs are itemised in the
+          breakdown below (§8 "a payout explains itself", L7). */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 border-b border-gray-100">
         <Metric label={t('revenue')} value={s.revenueEgp} />
         <Metric label={t('cogs')} value={s.cogsEgp} />
-        <Metric label={t('expenses')} value={s.expensesEgp} />
         <Metric
           label={t('profit')}
           value={s.grossProfitEgp}
@@ -422,6 +429,19 @@ function SettlementCard({
 
       {/* Participants */}
       <SettlementParticipants lines={s.lines ?? []} cycleCode={s.cycle?.code} />
+
+      {/* Line by line, before approving, approved and paid (§8, L7). */}
+      {s.breakdown && (
+        <div className="border-t border-border">
+          <PayoutBreakdownView
+            breakdown={s.breakdown}
+            status={s.status}
+            names={Object.fromEntries(
+              participantRows(s.lines ?? []).map((r) => [r.key, r.name ?? '']),
+            )}
+          />
+        </div>
+      )}
 
       <p className="px-5 py-2 text-[11px] text-gray-400 border-t border-gray-100">
         {t('footnote')}

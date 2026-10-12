@@ -1,7 +1,8 @@
 'use client';
 import { useAllRecords } from '@/lib/list-all';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useEscapeToClose } from '@/lib/use-escape-to-close';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
@@ -139,13 +140,10 @@ function RecordPaymentForm({
   // re-render, and two clicks inside one frame both get through that.
   const submitting = useRef(false);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !submitting.current) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes the form — not while the method or date picker is open
+  // (that Escape is the picker's; it used to close the whole form and lose it),
+  // and not mid-save. The shared definition (lib/use-escape-to-close).
+  useEscapeToClose(onClose, () => submitting.current);
 
   // A picker only when nobody said whose payment this is.
   const { items: customers } = useAllRecords<PaymentCustomer>(['customers'], '/customers', undefined, {

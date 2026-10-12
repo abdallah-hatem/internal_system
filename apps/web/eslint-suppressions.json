@@ -269,7 +269,7 @@
       "count": 3
     },
     "local/no-raw-colors": {
-      "count": 41
+      "count": 36
     }
   },
   "src/app/[locale]/shipments/page.tsx": {

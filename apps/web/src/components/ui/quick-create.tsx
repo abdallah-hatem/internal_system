@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { useApiError } from '../../lib/api-error';
 import { FormActions } from './fields';
 import { ENTITY_FORMS, type EntityName } from '../entities/entity-forms';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { useEscapeToClose } from '@/lib/use-escape-to-close';
 
 /**
  * Create the thing a picker is missing, without leaving the form.
@@ -175,61 +176,6 @@ function QuickCreateModal({
     </div>,
     document.body,
   );
-}
-
-/**
- * The quick-create dialogs open right now, innermost last.
- *
- * Escape closes one dialog — the top one. Each open dialog listens, and only
- * the one at the end of this list acts; the rest let the key go by.
- */
-const openDialogs: symbol[] = [];
-
-/**
- * Escape closes the dialog, through the same `onClose` Cancel and the X use
- * (I1, 2026-10-11; CLAUDE.md §13: every close path clears the same way, so the
- * next opening inherits nothing).
- *
- * Three things it must not do, and how it avoids each:
- *
- * - **Close the form underneath.** The page form, or a dialog of its own that
- *   also closes on Escape, would lose everything typed into it. The listener
- *   is on `window` in the capture phase — the first stop for any key — and
- *   stops the event there, so nothing below ever hears it.
- * - **Close two levels at once.** Nested dialogs all listen; only the
- *   innermost (the last in `openDialogs`) acts.
- * - **Close the dialog when a picker inside it is open.** Escape then belongs
- *   to the picker (Radix closes its popover on it); the dialog waits for the
- *   next press.
- *
- * While the create is in flight the key is swallowed and nothing closes:
- * closing then would hand back a record to a field that is no longer there.
- */
-function useEscapeToClose(onClose: () => void, busy: boolean) {
-  const latest = useRef({ onClose, busy });
-  useEffect(() => {
-    latest.current = { onClose, busy };
-  });
-
-  useEffect(() => {
-    const me = Symbol('quick-create');
-    openDialogs.push(me);
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.isComposing) return;
-      if (openDialogs[openDialogs.length - 1] !== me) return;
-      if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (!latest.current.busy) latest.current.onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => {
-      window.removeEventListener('keydown', onKey, true);
-      const at = openDialogs.indexOf(me);
-      if (at >= 0) openDialogs.splice(at, 1);
-    };
-  }, []);
 }
 
 /**

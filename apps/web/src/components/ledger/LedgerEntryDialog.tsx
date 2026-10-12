@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEscapeToClose } from '@/lib/use-escape-to-close';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
@@ -92,19 +93,9 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
     if (refusal) refusalRef.current?.scrollIntoView?.({ block: 'nearest' });
   }, [refusal]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || submitting.current) return;
-      // Escape inside an open picker or calendar closes that, not the form —
-      // closing the form would throw away everything typed in it.
-      if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
-      onClose();
-    };
-    // On the window, capturing: ahead of Radix's own Escape handler on the
-    // document, which closes the picker and takes it out of the page first.
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  // Escape closes the form — never while a picker inside it is open, and
+  // never mid-save. One definition for every dialog (lib/use-escape-to-close).
+  useEscapeToClose(onClose, () => submitting.current);
 
   const { items: cycles } = useAllRecords<CycleRow>(['cycles'], '/cycles');
   const cycleOptions = useMemo(
