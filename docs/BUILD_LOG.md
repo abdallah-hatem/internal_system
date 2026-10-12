@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L7 live 2026-10-12 (`39c8d28`; production backed up to .backups/prod-20261012-103836.sql; migrations 20261012150000 + 20261012160000 applied; three deploys READY, smoke ok; alignment CONFLICT on a leaving partner's share fixed in 8dda01a before shipping) · all owner-requested batches L1–L8 shipped · infra: isolated e2e per agent built 2026-10-12 (`scripts/agent-env.sh`)
+Current stage: idle 2026-10-12 — L1–L8 all live in production (last deploy `39c8d28` + test-infra `ec81303`); isolated e2e per agent on master (`scripts/agent-env.sh`, `scripts/agent-servers.sh`); all dev stopped, Docker quit.
 
 ## Waiting on the user
 _(none)_
@@ -21,7 +21,7 @@ _(none)_
   same time, 163 passed / 2 skipped each, 178 s each; a plain run of 01-auth with nothing set: 14 passed, default DB
   snapshot/restored, check-data zero. Per task from now on: touched specs + affected groups in the agent's own environment; the
   full suite once before each deploy. (Skill updated: abdallah-skills 1.46.0.)
-- Owner asleep 2026-10-12: finish L6, L8, L7 unattended (ship each when green; `Bash(scripts/ship-prod.sh:*)` is allowed now), then stop all dev, quit Docker, end the Amphetamine session.
+- Done 2026-10-12: L6, L8, L7 shipped unattended; dev stopped, Docker quit, Amphetamine ended.
 - L8 built 2026-10-12 on `feature/l8-departures-in-parts` (master 431c4d2 merged in; not merged back, not pushed):
   goods leave in parts (§1) — a departure per day with per-product lines, Undo where nothing depends on it, only
   what left can arrive or be lost, PARTLY_DEPARTED, goods cards split waiting-at-origin from on-the-way, the
