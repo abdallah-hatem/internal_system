@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { businessDay } from './dates';
 import { shipmentPosition, type ShipmentPosition } from './shipment-position';
 
 /**
@@ -28,6 +29,19 @@ const SHIPMENT_SELECT = {
       departedOn: true,
       arrivedOn: true,
       status: true,
+      departures: {
+        orderBy: [{ departedOn: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          legId: true,
+          departedOn: true,
+          note: true,
+          createdAt: true,
+          lines: {
+            select: { id: true, purchaseOrderItemId: true, qty: true },
+          },
+        },
+      },
       deliveries: {
         select: {
           id: true,
@@ -55,6 +69,7 @@ const SHIPMENT_SELECT = {
   },
   purchaseOrders: {
     select: {
+      orderedOn: true,
       items: {
         select: {
           id: true,
@@ -104,6 +119,7 @@ export function positionOf(cycle: LoadedShipment): ShipmentPosition {
       })),
     ),
     legs,
+    departures: legs.flatMap((l) => l.departures),
     deliveries: legs.flatMap((l) => l.deliveries),
     losses: legs.flatMap((l) => l.losses),
     batches: cycle.inventoryBatches,
@@ -130,6 +146,15 @@ export async function lockCycle(db: Pick<Db, '$queryRaw'>, cycleId: string) {
 
 const REACHED_UAE = [
   'ARRIVED_UAE',
+  'IN_TRANSIT_TO_EGYPT',
+  'ARRIVED_EGYPT',
+  'VERIFICATION',
+  'SELLING',
+  'SETTLEMENT',
+  'CLOSED',
+];
+const IN_TRANSIT_OR_BEYOND = ['IN_TRANSIT', ...REACHED_UAE];
+const TO_EGYPT_OR_BEYOND = [
   'IN_TRANSIT_TO_EGYPT',
   'ARRIVED_EGYPT',
   'VERIFICATION',
@@ -167,16 +192,38 @@ export function legsThatMustHaveDelivered(
   return need;
 }
 
+/**
+ * Which legs a cycle at `status` must have had a departure on — the other half
+ * of §1's table: a China cycle in transit (or further) needs leg 1 to have
+ * left; any cycle in transit to Egypt or further needs its last leg to have
+ * left. Undoing a leg's only departure reads this (L8), as deleting a
+ * delivery reads `legsThatMustHaveDelivered`.
+ */
+export function legsThatMustHaveDeparted(
+  originType: string,
+  status: string,
+): ('first' | 'last')[] {
+  const need: ('first' | 'last')[] = [];
+  if (originType !== 'UAE_DIRECT' && IN_TRANSIT_OR_BEYOND.includes(status)) {
+    need.push('first');
+  }
+  if (TO_EGYPT_OR_BEYOND.includes(status)) need.push('last');
+  return need;
+}
+
 /** A calendar day as the timestamp column stores it: UTC midnight of that day. */
 const asDate = (day: string) => new Date(`${day}T00:00:00Z`);
 
 /**
- * Write each leg's `status` and `arrivedOn` as the position reads them.
+ * Write each leg's `status`, `departedOn` and `arrivedOn` as the position
+ * reads them.
  *
- * They are stored so lists can show them without loading every delivery, but
- * nobody sets them: every writer calls this after its change, inside its
- * transaction, so the stored reading can never disagree with the deliveries
- * (§1). Returns the legs whose status changed, for notifications.
+ * They are stored so lists can show them without loading every departure and
+ * delivery, but nobody sets them: every writer calls this after its change,
+ * inside its transaction, so the stored reading can never disagree with the
+ * departures and deliveries (§1, L8). `departedOn` is the first departure's
+ * day; a stored time on the same Cairo day is left as it is. Returns the legs
+ * whose status changed, for notifications.
  */
 export async function syncLegStatuses(
   db: Pick<Db, 'importCycle' | 'shippingLeg'>,
@@ -190,10 +237,18 @@ export async function syncLegStatuses(
     const arrivedOn = p.arrivedOn ? asDate(p.arrivedOn) : null;
     const sameArrival =
       (leg.arrivedOn?.getTime() ?? null) === (arrivedOn?.getTime() ?? null);
-    if (leg.status === p.status && sameArrival) continue;
+    const sameDeparture =
+      (leg.departedOn ? businessDay(leg.departedOn) : null) === p.departedOn;
+    if (leg.status === p.status && sameArrival && sameDeparture) continue;
     await db.shippingLeg.update({
       where: { id: leg.id },
-      data: { status: p.status, arrivedOn },
+      data: {
+        status: p.status,
+        arrivedOn,
+        ...(sameDeparture
+          ? {}
+          : { departedOn: p.departedOn ? asDate(p.departedOn) : null }),
+      },
     });
     if (leg.status !== p.status) {
       changed.push({ legId: leg.id, from: leg.status, to: p.status });

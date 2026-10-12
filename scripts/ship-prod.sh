@@ -2,6 +2,8 @@
 # The production half of a release, one step at a time, in the order they
 # must happen — the schema before the code that reads it:
 #
+#   scripts/ship-prod.sh backup            pg_dump of production into .backups/ (before a
+#                                          migration that rewrites data; needs Docker)
 #   scripts/ship-prod.sh status            migrations production has not had
 #   scripts/ship-prod.sh migrate           apply them
 #   scripts/ship-prod.sh backfill          deliveries for shipments recorded before
@@ -87,6 +89,17 @@ case "$step" in
         if (left.length) process.exitCode = 1;
       })().finally(() => db.$disconnect());
     '
+    ;;
+
+  backup)
+    # pg_dump runs in a container so the client matches Neon's server (18).
+    prod_env
+    docker info >/dev/null 2>&1 || { echo "  Docker is not running."; exit 1; }
+    mkdir -p "$ROOT/.backups"
+    out="$ROOT/.backups/prod-$(date +%Y%m%d-%H%M%S).sql"
+    docker run --rm postgres:18-alpine pg_dump "$DATABASE_URL" --no-owner >"$out" 2>/dev/null
+    grep -q "PostgreSQL database dump complete" "$out" || { echo "  Backup incomplete: $out"; exit 1; }
+    echo "  Backed up to ${out#$ROOT/} ($(du -h "$out" | cut -f1))"
     ;;
 
   smoke)

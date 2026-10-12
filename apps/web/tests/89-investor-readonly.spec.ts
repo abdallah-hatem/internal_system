@@ -18,7 +18,7 @@
  *  Not run at the time of writing (R1b was told not to run Playwright).
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { API, apiCtx, EMAIL, PASSWORD, daysAgo, today, aCorePartnerUser } from './support/fixtures';
+import { API, apiCtx, EMAIL, PASSWORD, daysAgo, aCorePartnerUser } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
@@ -64,7 +64,7 @@ async function theInvestorsCycles(request: APIRequestContext) {
   ];
   const buy = async (cycleId: string, departed: boolean) => {
     await mk(`cycles/${cycleId}/purchases`, {
-      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
       items: [{ productId: product.id, orderedQty: 50, unitPrice: 20 }],
     });
     await mk(`cycles/${cycleId}/shipping-legs`, {

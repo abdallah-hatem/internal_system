@@ -14,7 +14,11 @@ import {
   lockCycle,
   syncLegStatuses,
 } from '../../common/shipment-load';
-import { assertOpen, DeliveriesService } from './deliveries.service';
+import {
+  assertOpen,
+  checkLines,
+  DeliveriesService,
+} from './deliveries.service';
 import { AuditService } from '../audit/audit.service';
 import {
   PaginationDto,
@@ -76,6 +80,11 @@ export interface NewLeg {
   providerId?: string;
   trackingRef?: string;
   departedOn?: string;
+  /**
+   * What left on `departedOn`, per order line (L8). Left out: everything
+   * waiting at the leg's origin that could have left by that day.
+   */
+  departureLines?: { purchaseOrderItemId: string; qty: number }[];
   arrivedOn?: string;
   costBasis?: ShippingCostBasis;
   ratePerUnit?: number;
@@ -248,23 +257,45 @@ export class ShippingService {
   }
 
   /**
-   * Create a leg. An arrival date given with it means "everything that
-   * entered this leg arrived that day": the leg is created departed, and the
-   * arrival is recorded as one delivery of what is on the way (§1, 2026-10-10)
-   * — the fixtures, the old wizard and the assistant still send it this way.
+   * Create a leg. A departure date given with it records the leg's first
+   * departure (L8): of `departureLines`, or of everything waiting at its
+   * origin. An arrival date means "everything that left arrived that day": it
+   * is recorded as one delivery of what is on the way (§1, 2026-10-10) — the
+   * fixtures, the old wizard and the assistant still send it this way.
    */
   async createLeg(cycleId: string, data: NewLeg, actorId: string) {
     const plan = await this.planLeg(cycleId, data);
-    // Status and arrival are readings of the deliveries, written by
-    // `syncLegStatuses`, never taken from the plan's dates.
-    const { arrivedOn: _arrivedOn, ...row } = plan.leg;
+    if (data.departureLines !== undefined && !data.departedOn) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'Departure lines need a departure date.',
+        { fields: 'departedOn' },
+      );
+    }
+    const departureLines =
+      data.departureLines === undefined
+        ? undefined
+        : checkLines(data.departureLines);
+    // Status, departure and arrival are readings of the departures and
+    // deliveries, written by `syncLegStatuses`, never taken from the plan.
+    const { arrivedOn: _arrivedOn, departedOn: _departedOn, ...row } = plan.leg;
 
     const { leg, changed, followed } = await this.prisma.$transaction(
       async (tx) => {
         await lockCycle(tx, cycleId);
         const created = await tx.shippingLeg.create({
-          data: { ...row, status: legStatusFromDates(data.departedOn, null) },
+          data: { ...row, departedOn: null, status: 'PENDING' },
         });
+        if (data.departedOn) {
+          await this.deliveries.departIn(
+            tx,
+            cycleId,
+            created.id,
+            businessDay(data.departedOn),
+            departureLines,
+            actorId,
+          );
+        }
         if (data.arrivedOn) {
           await this.deliveries.deliverRemainderIn(
             tx,
@@ -320,7 +351,8 @@ export class ShippingService {
       origin?: string;
       destination?: string;
       status?: string;
-      departedOn?: string;
+      departedOn?: string | null;
+      departureLines?: { purchaseOrderItemId: string; qty: number }[];
       arrivedOn?: string | null;
       amount?: number;
       provider?: string;
@@ -385,19 +417,38 @@ export class ShippingService {
           );
         }
 
+        const legRow = loaded.cycle.shippingLegs.find((l) => l.id === id)!;
+        let departure: { day: string; replaces: string | null } | null = null;
         if (data.departedOn) {
           const departed = businessDay(data.departedOn);
           // No departure is recorded on a cycle cancelled, being settled or
           // closed (§1). Only a change counts: the Shipments page's edit form
           // sends the leg's departure back with every save, unchanged.
-          const before = existing.departedOn
-            ? businessDay(existing.departedOn)
-            : null;
+          const before =
+            loaded.position.legs.find((l) => l.legId === id)?.departedOn ??
+            null;
           if (departed !== before) {
             assertOpen(loaded.cycle);
             shipmentNews = true;
+            // L8: a leg with no departure gets its first; a leg with one
+            // has that one moved to the new day (checked again from
+            // scratch); a leg with several is corrected on the cycle page,
+            // by undoing a departure and recording it again.
+            if (legRow.departures.length > 1) {
+              throw badRequest(
+                'LEG_HAS_SEVERAL_DEPARTURES',
+                `${existing.origin} → ${existing.destination} left in ${legRow.departures.length} departures, so its departure date cannot be changed here. Undo the departure that is wrong on the cycle's page and record it again.`,
+                {
+                  leg: `${existing.origin} → ${existing.destination}`,
+                  departures: legRow.departures.length,
+                },
+              );
+            }
+            departure = {
+              day: departed,
+              replaces: legRow.departures[0]?.id ?? null,
+            };
           }
-          const legRow = loaded.cycle.shippingLegs.find((l) => l.id === id);
           const earliest = (legRow?.deliveries ?? [])
             .map((d) => businessDay(d.arrivedOn))
             .sort()[0];
@@ -419,13 +470,33 @@ export class ShippingService {
           data: {
             origin: data.origin,
             destination: data.destination,
-            departedOn: data.departedOn ? new Date(data.departedOn) : undefined,
             provider: data.provider,
             providerId: data.providerId,
             trackingRef: data.trackingRef,
             ...costFields,
           },
         });
+
+        if (departure?.replaces) {
+          await this.deliveries.moveDepartureIn(
+            tx,
+            existing.cycleId,
+            id,
+            departure.replaces,
+            departure.day,
+          );
+        } else if (departure) {
+          await this.deliveries.departIn(
+            tx,
+            existing.cycleId,
+            id,
+            departure.day,
+            data.departureLines === undefined
+              ? undefined
+              : checkLines(data.departureLines),
+            actorId,
+          );
+        }
 
         if (data.arrivedOn) {
           const delivered = await this.deliveries.deliverRemainderIn(

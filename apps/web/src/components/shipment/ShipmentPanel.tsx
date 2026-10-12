@@ -4,7 +4,9 @@ import { LatinText } from '@/components/ui/latin-text';
 import { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin } from 'lucide-react';
+import { PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Pencil } from 'lucide-react';
+import { nextLegToAdd } from '@/components/cycles/leg-plan';
+import { LegCreateForm, LegEditForm, LegFormModal, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -28,6 +30,7 @@ import { UndoRefundDialog } from './UndoRefundDialog';
 import {
   FROZEN_STATUSES,
   RECEIVING_STATUSES,
+  hasWaitingToLeave,
   isWaiting,
   legLineProgress,
   losableByLine,
@@ -43,13 +46,14 @@ export interface PanelCycle {
   id: string;
   status: string;
   originType: string;
-  shippingLegs?: {
+  /** The leg rows `GET /cycles/:id` returns — the edit form starts from them. */
+  shippingLegs?: (Partial<LegRow> & {
     id: string;
     providerId?: string | null;
     provider?: string | null;
     /** The leg's cost in EGP, shown in its header. */
     amountEgp?: number | string | null;
-  }[];
+  })[];
   purchaseOrders?: {
     supplierId?: string | null;
     supplier?: { id: string; name: string } | null;
@@ -59,7 +63,10 @@ export interface PanelCycle {
 
 /** Which dialog is open. One value, so every way of closing clears all of it. */
 type Open =
+  | { kind: 'addLeg' }
+  | { kind: 'editLeg'; legId: string }
   | { kind: 'departure'; legId: string }
+  | { kind: 'undoDeparture'; departureId: string }
   | { kind: 'delivery'; legId: string }
   | { kind: 'lost'; legId: string }
   | { kind: 'receive'; legId: string; deliveryId: string }
@@ -79,9 +86,12 @@ type ShipmentPermissions = ReturnType<typeof useShipmentPermissions>;
 function useShipmentPermissions() {
   return {
     transition: useCan('cycle.transition'),
-    // PUT /shipping/legs/:id — the departure date, as the Shipments page sets it (I3).
-    recordDeparture: useCan('shippingLeg.edit'),
+    // POST /shipping/legs/:id/departures and DELETE /shipping/departures/:id (L8).
+    recordDeparture: useCan('shipment.recordDeparture'),
+    undoDeparture: useCan('shipment.undoDeparture'),
     createLeg: useCan('shippingLeg.create'),
+    // PUT /shipping/legs/:id — the Shipments page's edit form, here too.
+    editLeg: useCan('shippingLeg.edit'),
     recordDelivery: useCan('shipment.recordDelivery'),
     deleteDelivery: useCan('shipment.deleteDelivery'),
     markLost: useCan('shipment.markLost'),
@@ -112,7 +122,6 @@ export function useShipment(cycleId: string | undefined) {
  */
 export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
   const t = useTranslations('shipment');
-  const tCycles = useTranslations('cycles');
   const apiError = useApiError();
   const toast = useToast();
   const refresh = useRefreshShipment();
@@ -141,6 +150,11 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
 
   const status = shipment.status ?? cycle.status;
   const frozen = FROZEN_STATUSES.includes(status);
+  // The route's first leg not recorded yet — a China cycle's Dubai → Egypt
+  // leg, added once leg 1 has left, or any leg never added. The same create
+  // form as the Shipments page (§13), for this cycle.
+  const nextLeg = nextLegToAdd(cycle.originType, (shipment.legs ?? []).map((l) => l.sequence));
+  const canAddLeg = may.createLeg && !frozen && !!nextLeg;
   const canReceive = RECEIVING_STATUSES.includes(status);
   const legs = shipment.legs ?? [];
   const legById = (id: string) => legs.find((l) => l.legId === id);
@@ -197,12 +211,23 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           <Truck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           {t('title')}
         </h2>
+        {canAddLeg && legs.length > 0 && (
+          <button
+            type="button"
+            data-testid="add-next-leg"
+            onClick={() => setOpen({ kind: 'addLeg' })}
+            className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted sm:min-h-0"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" /> {t('addLeg', { leg: nextLeg!.sequence })}
+          </button>
+        )}
         <p data-testid="shipment-totals" className="text-xs text-muted-foreground">
           {t('totals', {
             ordered: shipment.totals.ordered,
             received: shipment.totals.received,
             waiting: shipment.totals.waiting,
             lost: shipment.totals.lost,
+            atOrigin: shipment.totals.atOrigin ?? 0,
             onTheWay: shipment.totals.onTheWay,
           })}
         </p>
@@ -229,8 +254,8 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           title={t('noLegs')}
           description={t('noLegsHint')}
           icon={Truck}
-          // The details page's old Shipping card offered this way to add one.
-          action={may.createLeg && !frozen ? { label: tCycles('goToShipments'), href: '/shipments' } : undefined}
+          // Added here, with the same form as the Shipments page (§13).
+          action={canAddLeg ? { label: t('addLeg', { leg: nextLeg!.sequence }), onClick: () => setOpen({ kind: 'addLeg' }) } : undefined}
         />
       ) : shipment.lines.length === 0 ? (
         <EmptyState title={t('nothingOrdered')} icon={Truck} />
@@ -253,8 +278,45 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
       )}
 
       {/* Dialogs portal to <body>; the ids are looked up again so they always show the latest figures. */}
+      {open?.kind === 'addLeg' && nextLeg && (
+        <LegFormModal title={t('addLeg', { leg: nextLeg.sequence })} onClose={close} testId="add-leg">
+          <LegCreateForm fixedCycleId={cycle.id} defaults={nextLeg} onDone={close} />
+        </LegFormModal>
+      )}
+      {open?.kind === 'editLeg' && (() => {
+        const row = cycle.shippingLegs?.find((l) => l.id === open.legId);
+        const position = legById(open.legId);
+        if (!row || !position) return null;
+        const leg: LegRow = {
+          ...row,
+          cycleId: cycle.id,
+          sequence: position.sequence,
+          origin: position.origin ?? row.origin ?? '',
+          destination: position.destination ?? row.destination ?? '',
+          status: position.status,
+          departedOn: position.departedOn ?? null,
+          arrivedOn: position.arrivedOn,
+        };
+        return (
+          <LegFormModal title={t('editLegTitle', { leg: position.sequence })} onClose={close} testId="edit-leg">
+            <LegEditForm leg={leg} onDone={close} onCyclePage />
+          </LegFormModal>
+        );
+      })()}
       {open?.kind === 'departure' && legById(open.legId) && (
-        <RecordDepartureDialog leg={legById(open.legId)!} onClose={close} />
+        <RecordDepartureDialog leg={legById(open.legId)!} productNames={productNames} onClose={close} />
+      )}
+      {open?.kind === 'undoDeparture' && (
+        <ConfirmActionDialog
+          testId="undo-departure"
+          title={t('undoDepartureTitle')}
+          message={t('undoDepartureConfirm')}
+          confirmLabel={t('undoDeparture')}
+          successMessage={t('departureUndone')}
+          failMessage={t('undoDepartureFailed')}
+          action={() => api.delete(`/shipping/departures/${open.departureId}`)}
+          onClose={close}
+        />
       )}
       {open?.kind === 'delivery' && legById(open.legId) && (
         <RecordDeliveryDialog leg={legById(open.legId)!} productNames={productNames} onClose={close} />
@@ -360,6 +422,13 @@ function LegBlock({
             <span data-testid="leg-status" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
               {codeLabel('legStatus', leg.status)}
             </span>
+            {/* Partly arrived and partly departed at once: the status says
+                the furthest thing that happened, this says the rest (L8). */}
+            {leg.status === 'PARTLY_ARRIVED' && hasWaitingToLeave(leg) && (
+              <span data-testid="leg-partly-departed" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                {t('partlyDeparted')}
+              </span>
+            )}
             {/* A leg that has not left is said once, by the badge — the date
                 slot only appears with a date in it. */}
             {leg.departedOn && (
@@ -381,9 +450,10 @@ function LegBlock({
         </div>
         {!frozen && (
           <div className="flex flex-wrap gap-2">
-            {/* A leg that has not left: its departure, from here (I3). Once it
-                has, a delivery; never both. */}
-            {may.recordDeparture && !leg.departedOn && leg.status === 'PENDING' && (
+            {/* While anything waits at the leg's origin, another departure
+                (L8); while anything is on the way, a delivery. Both at once
+                when goods left in parts. */}
+            {may.recordDeparture && hasWaitingToLeave(leg) && (
               <button
                 type="button"
                 data-testid="record-departure"
@@ -393,7 +463,7 @@ function LegBlock({
                 <Send className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" /> {t('recordDeparture')}
               </button>
             )}
-            {may.recordDelivery && leg.onTheWay > 0 && leg.departedOn && (
+            {may.recordDelivery && leg.onTheWay > 0 && (
               <button
                 type="button"
                 data-testid="record-delivery"
@@ -401,6 +471,16 @@ function LegBlock({
                 className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:min-h-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" /> {t('recordDelivery')}
+              </button>
+            )}
+            {may.editLeg && (
+              <button
+                type="button"
+                data-testid="edit-leg"
+                onClick={() => onOpen({ kind: 'editLeg', legId: leg.legId })}
+                className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted sm:min-h-0"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" /> {t('editLeg')}
               </button>
             )}
             {may.markLost && losable && (
@@ -424,6 +504,7 @@ function LegBlock({
             <tr className="border-b border-border text-xs text-muted-foreground">
               <th className="py-2 text-start font-medium">{t('product')}</th>
               <th className="py-2 text-end font-medium">{t('ordered')}</th>
+              <th className="py-2 text-end font-medium">{t('atOriginCol')}</th>
               <th className="py-2 text-end font-medium">{t('delivered')}</th>
               <th className="py-2 text-end font-medium">{t('receivedCol')}</th>
               <th className="py-2 text-end font-medium">{t('waiting')}</th>
@@ -443,6 +524,7 @@ function LegBlock({
                   <LatinText truncate>{productNames[line.purchaseOrderItemId]}</LatinText>
                 </td>
                 <Cell id="line-ordered" value={ordered.get(line.purchaseOrderItemId) ?? 0} />
+                <Cell id="line-at-origin" value={num(line.atOrigin)} />
                 <Cell id="line-delivered" value={line.delivered} />
                 <Cell id="line-received" value={line.received} />
                 <Cell id="line-waiting" value={line.waiting} />
@@ -467,6 +549,7 @@ function LegBlock({
             <p className="break-words text-sm font-medium text-foreground">{productNames[line.purchaseOrderItemId]}</p>
             <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
               <Stat id="line-ordered" label={t('ordered')} value={ordered.get(line.purchaseOrderItemId) ?? 0} />
+              <Stat id="line-at-origin" label={t('atOriginCol')} value={num(line.atOrigin)} />
               <Stat id="line-delivered" label={t('delivered')} value={line.delivered} />
               <Stat id="line-on-the-way" label={t('onTheWay')} value={line.onTheWay} />
               {leg.isLast && <Stat id="line-received" label={t('receivedCol')} value={line.received} />}
@@ -477,6 +560,45 @@ function LegBlock({
           </li>
         ))}
       </ul>
+
+      {/* Departures (L8): each day goods left, with Undo where the server allows it. */}
+      <div>
+        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('departures')}</h4>
+        {(leg.departures ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('noDepartures')}</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {(leg.departures ?? []).map((d) => (
+              <li key={d.id} data-testid="shipment-departure" className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground">{formatDate(d.departedOn)}</p>
+                  <ul data-testid="departure-summary" className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    {d.lines.map((l) => (
+                      <li key={l.purchaseOrderItemId}>
+                        {t.rich('departureLine', {
+                          product: productNames[l.purchaseOrderItemId] ?? '—',
+                          qty: l.qty,
+                          name: (chunks) => <LatinText>{chunks}</LatinText>,
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {may.undoDeparture && !frozen && d.undoable && (
+                  <button
+                    type="button"
+                    data-testid="undo-departure"
+                    onClick={() => onOpen({ kind: 'undoDeparture', departureId: d.id })}
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-0"
+                  >
+                    <Undo2 className="h-4 w-4" aria-hidden="true" /> {t('undoDeparture')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Deliveries */}
       <div>

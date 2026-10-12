@@ -20,6 +20,8 @@ export const ACTION_ROLES = {
   'cycle.addParticipant': PARTNERS, //    POST /cycles/:id/participants
   'cycle.editParticipant': PARTNERS, //   PUT  /cycles/participants/:id (contributions)
   // Shipment panel — ShippingController, PurchasesController
+  'shipment.recordDeparture': PARTNERS, // POST  /shipping/legs/:id/departures (L8)
+  'shipment.undoDeparture': PARTNERS, //  DELETE /shipping/departures/:id (L8)
   'shipment.recordDelivery': PARTNERS, // POST   /shipping/legs/:id/deliveries
   'shipment.deleteDelivery': PARTNERS, // DELETE /shipping/deliveries/:id
   'shipment.markLost': PARTNERS, //       POST   /shipping/legs/:id/losses

@@ -18,7 +18,7 @@
  *  business works that way; skipping one has to be refused, not tolerated.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, daysAgo, today, Mk } from './support/fixtures';
+import { apiCtx, API, daysAgo, Mk } from './support/fixtures';
 
 /** Every status a UAE-direct cycle passes through, in order. */
 const UAE_ROUTE = [
@@ -74,7 +74,7 @@ async function buyAndLand(
     supplierId: supplier.id,
     currency: 'EGP',
     fxRateToEgp: fx,
-    orderedOn: today(),
+    orderedOn: daysAgo(60),
     items: [{ productId: product.id, orderedQty: qty, unitPrice: unitCost }],
   });
 
@@ -368,7 +368,7 @@ test.describe('A cycle taken out of order', () => {
     const product = await mk('products', { name: `Late Part ${tag}`, minStock: 0 });
 
     await mk(`cycles/${cycle.id}/purchases`, {
-      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
       items: [{ productId: product.id, orderedQty: 10, unitPrice: 5 }],
     });
     // A leg with no dates at all: nothing has left yet.

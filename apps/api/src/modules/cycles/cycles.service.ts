@@ -25,6 +25,7 @@ import {
   assertLendersRepaid,
 } from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
+import { departureUndoBlock } from '../shipping/departure-rules';
 import {
   assertInScope,
   cyclesVisibleTo,
@@ -224,6 +225,16 @@ export class CyclesService {
             origin: leg.origin,
             destination: leg.destination,
             departedOn: leg.departedOn,
+            // Whether each departure can be undone, and why not (L8): the
+            // panel offers Undo only where the server would accept it.
+            departures: p.departures.map((d) => {
+              const block = departureUndoBlock(cycle, position, d.id);
+              return {
+                ...d,
+                undoable: !block,
+                undoBlockedBy: block?.why ?? null,
+              };
+            }),
             losses: losses.filter((x) => x.legId === p.legId),
           };
         }),

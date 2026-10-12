@@ -17,7 +17,7 @@
  *  page accounted for the gap.
  */
 import { test, expect, Page } from '@playwright/test';
-import { apiCtx, API, daysAgo, today } from './support/fixtures';
+import { apiCtx, API, daysAgo } from './support/fixtures';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 const EMAIL = 'partner.a@motoparts.com';
@@ -50,7 +50,7 @@ test.describe('Shipping legs and their provider', () => {
 
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
     await mk(`cycles/${cycle.id}/purchases`, {
-      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
       items: [{ productId: product.id, orderedQty: 5, unitPrice: 10 }],
     });
 
@@ -85,8 +85,9 @@ test.describe('Shipping legs and their provider', () => {
     await mk(`cycles/${cycle.id}/shipping-legs`, {
       sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
       providerId: provider.id, provider: provider.name,
+      // No dates: this cycle ordered nothing, and nothing can leave that was
+      // never ordered (L8). The link is what this test is about.
       costBasis: 'FLAT', amount: 100, currency: 'EGP', fxRateToEgp: 1,
-      departedOn: daysAgo(10), arrivedOn: daysAgo(2),
     });
 
     const detail = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();

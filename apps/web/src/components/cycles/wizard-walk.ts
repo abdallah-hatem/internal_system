@@ -20,18 +20,14 @@
 
 /**
  * The statuses the wizard still has something to do for: "Continue setup"
- * (continue-setup.tsx) is offered for these, and the wizard opens on them. Past Arrived Egypt the
- * cycle is being received, sold or settled, which is the cycle page's work.
+ * (continue-setup.tsx) is offered for these, and the wizard opens on them.
+ *
+ * DECIDED 2026-10-12 (owner): the wizard is for setting a cycle up, and it
+ * stops when the goods leave. From In transit on, departures, deliveries,
+ * another leg and its cost are recorded on the cycle page (BUSINESS_LOGIC §1),
+ * and a resumed wizard sends the cycle there.
  */
-export const WIZARD_STATUSES = [
-  'PLANNING',
-  'FUNDING',
-  'PURCHASING',
-  'IN_TRANSIT',
-  'ARRIVED_UAE',
-  'IN_TRANSIT_TO_EGYPT',
-  'ARRIVED_EGYPT',
-];
+export const WIZARD_STATUSES = ['PLANNING', 'FUNDING', 'PURCHASING'];
 
 export interface WalkLeg {
   sequence: number;

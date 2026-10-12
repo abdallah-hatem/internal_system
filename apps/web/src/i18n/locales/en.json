@@ -363,7 +363,14 @@
     "emptyHint": "Each leg of a cycle's journey, with its carrier, dates and cost.",
     "route": "Route",
     "basisPerPiece": "{rate} × {qty} pcs",
-    "basisPerWeight": "{rate} × {qty} kg"
+    "basisPerWeight": "{rate} × {qty} kg",
+    "firstDeparture": "Departure",
+    "firstDepartureHint": "Leave the date empty if the goods have not left yet.",
+    "departuresRecorded": "Departures",
+    "departuresOnCyclePage": "Later departures, and undoing one, are on the cycle page.",
+    "departurePickCycle": "Choose the cycle to see what is waiting to leave.",
+    "costLocked": "The cost of this leg is fixed: goods of this cycle have already been received or marked lost, so a changed cost would price the next delivery differently from the last. Record a late or corrected charge as a cycle expense instead.",
+    "costLockedLedger": "Open the ledger"
   },
   "inventory": {
     "title": "Inventory",
@@ -1159,7 +1166,8 @@
       "lenderFinancing": "Friend's payment",
       "lenderRepayment": "Repayment",
       "lenderPlan": "Repayment plan",
-      "moneyAccount": "Money account"
+      "moneyAccount": "Money account",
+      "shipmentDeparture": "Departure"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -1343,6 +1351,13 @@
     "LENDER_PLAN_EXISTS": "This already has an active plan. Cancel it before agreeing another.",
     "LENDER_PLAN_EXCEEDS_OWED": "The instalments total {total} {currency} but only {owed} is owed.",
     "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for.",
+    "DEPARTURE_EXCEEDS_WAITING": "Only {waiting} of {line} are waiting to leave, so a departure of {asked} cannot be recorded.",
+    "DEPARTURE_BEFORE_ORDER": "{line} was ordered on {orderedOn}, so it cannot have left on {day}.",
+    "DEPARTURE_BEFORE_ARRIVAL": "Only {available} of {line} had reached the start of {leg} and not left by {day}, so {asked} cannot have left that day.",
+    "DEPARTURE_NOTHING_WAITING": "Nothing is waiting to leave {leg}.",
+    "DEPARTURE_IN_USE": "This departure cannot be undone: goods from it were delivered or marked lost, or the cycle has moved on because of it.",
+    "DELIVERY_BEFORE_GOODS_LEFT": "Only {available} of {line} had left on {leg} by {day}, so a delivery of {asked} that day cannot be recorded.",
+    "LEG_HAS_SEVERAL_DEPARTURES": "{leg} left in {departures} departures, so its date cannot be changed here. Undo the wrong departure on the cycle page and record it again.",
     "LEDGER_CATEGORY_NOT_MANUAL": "“{category}” is not a category a manual entry can use. Choose one from the list.",
     "LEDGER_CATEGORY_WRONG_KIND": "{category} is not {kind}.",
     "LEDGER_DIRECTION_MISMATCH": "This is {kind}, so it cannot be recorded as {direction}.",
@@ -1493,7 +1508,8 @@
       "PENDING": "Not departed",
       "IN_TRANSIT": "In transit",
       "PARTLY_ARRIVED": "Partly arrived",
-      "ARRIVED": "Arrived"
+      "ARRIVED": "Arrived",
+      "PARTLY_DEPARTED": "Partly departed"
     },
     "role": {
       "CORE_PARTNER": "Core partner",
@@ -1708,7 +1724,7 @@
   },
   "shipment": {
     "title": "Shipment",
-    "totals": "Ordered {ordered} · received {received} · waiting {waiting} · lost {lost} · on the way {onTheWay}",
+    "totals": "Ordered {ordered} · received {received} · waiting {waiting} · lost {lost} · not left {atOrigin} · on the way {onTheWay}",
     "loadFailed": "The shipment could not be loaded.",
     "noLegs": "No shipping legs yet",
     "noLegsHint": "Add the legs on the Shipments page; deliveries are recorded here once a leg has departed.",
@@ -1831,7 +1847,25 @@
     "undoRefundReasonRequired": "Give a reason for undoing this refund.",
     "undoRefundFailed": "The refund could not be undone.",
     "refundUndone": "Refund undone",
-    "refundUndoneBadge": "Undone"
+    "refundUndoneBadge": "Undone",
+    "departureQtyPerProduct": "Quantity that left, per product",
+    "waitingCount": "{count} waiting to leave",
+    "nothingWaitingToLeave": "Nothing is waiting to leave on this leg.",
+    "departures": "Departures",
+    "noDepartures": "Nothing has left on this leg yet.",
+    "departureLine": "<name>{product}</name>: {qty}",
+    "undoDeparture": "Undo departure",
+    "undoDepartureTitle": "Undo this departure?",
+    "undoDepartureConfirm": "The goods it carried will read as still waiting to leave. This cannot be done once any of them were delivered or marked lost.",
+    "departureUndone": "Departure undone",
+    "undoDepartureFailed": "The departure could not be undone.",
+    "partlyDeparted": "Partly departed",
+    "atOriginCol": "Not left",
+    "departedCol": "Left",
+    "departureHintParts": "Each product starts at everything still waiting. Lower a number if only part left; the rest stays waiting.",
+    "addLeg": "Add leg {leg}",
+    "editLeg": "Edit leg",
+    "editLegTitle": "Edit leg {leg}"
   },
   "shippingCost": {
     "title": "Shipment cost",

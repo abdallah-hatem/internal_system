@@ -1,11 +1,24 @@
 import {
-  IsOptional, IsString, IsInt, IsNumber, IsEnum, Min, IsUUID, IsDateString,
+  IsOptional,
+  IsString,
+  IsInt,
+  IsNumber,
+  IsEnum,
+  Min,
+  IsUUID,
+  IsDateString,
+  IsArray,
+  ArrayMinSize,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ShippingCostBasis } from '@prisma/client';
+import { ShipmentLineDto } from './delivery.dto';
 
 export class CreateShippingLegDto {
-  @IsInt() @Min(1) @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   sequence: number;
 
   @IsString()
@@ -14,42 +27,72 @@ export class CreateShippingLegDto {
   @IsString()
   destination: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   provider?: string;
 
-  @IsOptional() @IsUUID('all')
+  @IsOptional()
+  @IsUUID('all')
   providerId?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   trackingRef?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional()
+  @IsDateString()
   departedOn?: string;
 
-  @IsOptional() @IsDateString()
+  /** What left on `departedOn`, per order line (L8). Left out: everything waiting. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ShipmentLineDto)
+  departureLines?: ShipmentLineDto[];
+
+  @IsOptional()
+  @IsDateString()
   arrivedOn?: string;
 
-  @IsOptional() @IsEnum(ShippingCostBasis)
+  @IsOptional()
+  @IsEnum(ShippingCostBasis)
   costBasis?: ShippingCostBasis;
 
   /** Cost per piece, or per kilogram for a weight-charged leg. */
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   ratePerUnit?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   chargeablePieces?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   chargeableWeightKg?: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   currency?: string;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   fxRateToEgp?: number;
 
   /** Only used for a flat leg; rate-based legs derive their own total. */
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   amount?: number;
 }
 
@@ -58,48 +101,81 @@ export class UpdateShippingLegDto {
   // and is uniquely constrained, so it is not a thing an edit may change.
   // Origin and destination are editable in the form, and leaving them out of
   // this DTO meant a correction to either was silently dropped.
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   origin?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   destination?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   status?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional()
+  @IsDateString()
   departedOn?: string;
 
-  @IsOptional() @IsDateString()
+  /** The leg's first departure, per order line (L8); only on a leg that has not left. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ShipmentLineDto)
+  departureLines?: ShipmentLineDto[];
+
+  @IsOptional()
+  @IsDateString()
   arrivedOn?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   provider?: string;
 
-  @IsOptional() @IsUUID('all')
+  @IsOptional()
+  @IsUUID('all')
   providerId?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   trackingRef?: string;
 
-  @IsOptional() @IsEnum(ShippingCostBasis)
+  @IsOptional()
+  @IsEnum(ShippingCostBasis)
   costBasis?: ShippingCostBasis;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   ratePerUnit?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   chargeablePieces?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   chargeableWeightKg?: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   currency?: string;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   fxRateToEgp?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
   amount?: number;
 }

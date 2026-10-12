@@ -224,11 +224,13 @@ test.describe('Editing a saved record round-trips', () => {
       )
       .toBe('2026-08-11');
 
-    // Come back to it the way the owner did: fresh load, same cycle.
-    await openShippingStep(page, cycleId);
-    await expect(
-      page.locator('input[type="hidden"][name="leg1_departedOn"]'),
-    ).toHaveValue('2026-08-11');
+    // Come back to it the way the owner did: fresh load, same cycle. The
+    // goods have left, so the cycle is past setting up and the wizard sends
+    // it to its own page (owner, 2026-10-12) — where the saved date is read
+    // back in the leg's header.
+    await page.goto(`${BASE}/en/cycles/${cycleId}`);
+    await expect(page).toHaveURL(new RegExp(`/cycles/${cycleId}/details$`), { timeout: 15000 });
+    await expect(page.getByTestId('leg-departure')).toHaveText(/Aug 11, 2026/, { timeout: 15000 });
   });
 
   test('TC-RT-04: an edit to origin or destination is accepted, not dropped', async ({

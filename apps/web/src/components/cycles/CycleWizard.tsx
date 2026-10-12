@@ -18,6 +18,7 @@ import { Money } from '../ui/money';
 import { businessToday, useDateFormat } from '../../lib/dates';
 import { useCodeLabel } from '../../lib/labels';
 import { statusesToWalk, WIZARD_STATUSES } from './wizard-walk';
+import { expectedLegsOf } from './leg-plan';
 import { statusMoveOf, useAnnounceStatusMove, type CycleStatusMove } from '../shipment/status-move';
 import {
   useCycleWizardDraft,
@@ -638,13 +639,11 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   // A China cycle moves in two legs (China->UAE, then UAE->Egypt); a UAE-direct
   // cycle has only the UAE->Egypt leg. Each leg carries its own cost.
-  const legPlan =
-    originType === 'UAE_DIRECT'
-      ? [{ sequence: 1, label: t('legUaeToEgypt'), origin: 'Dubai, UAE', destination: 'Cairo, Egypt' }]
-      : [
-          { sequence: 1, label: t('legChinaToUae'), origin: 'Guangzhou, CN', destination: 'Dubai, UAE' },
-          { sequence: 2, label: t('legUaeToEgypt'), origin: 'Dubai, UAE', destination: 'Cairo, Egypt' },
-        ];
+  // The places are the route's, written once (`leg-plan.ts`).
+  const legPlan = expectedLegsOf(originType).map((l) => ({
+    ...l,
+    label: l.destination.includes('Egypt') ? t('legUaeToEgypt') : t('legChinaToUae'),
+  }));
 
   // What the cycle actually bought, used to prefill each leg's piece count:
   // every saved order's lines, or the lines being typed before there is one.

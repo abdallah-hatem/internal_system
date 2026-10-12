@@ -72,6 +72,7 @@ function positionAfter(c: BackfillCycle, plan: BackfillPlan) {
   return shipmentPosition({
     lines: done.items.map((i) => ({ id: i.id, orderedQty: i.orderedQty })),
     legs: done.legs.map((l) => ({ id: l.id, sequence: l.sequence })),
+    departures: [],
     deliveries: plan.deliveries,
     losses: done.losses.map((l) => ({
       ...l,
@@ -206,6 +207,7 @@ describe('planShipmentBackfill', () => {
       ordered: 20,
       received: 18,
       lost: 2,
+      atOrigin: 0,
       onTheWay: 0,
       waiting: 0,
     });

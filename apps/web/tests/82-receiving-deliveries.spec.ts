@@ -22,7 +22,7 @@
  *    the clock.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, daysAgo } from './support/fixtures';
+import { apiCtx, API, daysAgo, departAllWaiting } from './support/fixtures';
 
 type Headers = Record<string, string>;
 
@@ -67,9 +67,9 @@ async function departedCycle(
             departedOn: daysAgo(20),
           }),
           await mk(`cycles/${cycle.id}/shipping-legs`, {
+            // Departs once leg 1 has delivered (L8): `departAllWaiting`.
             sequence: 2, origin: 'Dubai, UAE', destination: 'Cairo, Egypt',
             costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
-            departedOn: daysAgo(12),
           }),
         ]
       : [
@@ -207,6 +207,7 @@ test.describe('POST /receipts/verify', () => {
   test('TC-RCV-08: Receive a leg-1 (UAE) delivery into stock → NOT_LAST_LEG_DELIVERY', async ({ request }) => {
     const { headers, mk, cycle, legs, item } = await departedCycle(request, 'CHINA');
     const uae = await deliver(request, headers, legs[0].id, item, 40, daysAgo(15));
+    await departAllWaiting(request, headers, legs[1].id, daysAgo(12));
     await deliver(request, headers, legs[1].id, item, 40, daysAgo(5));
     await toArrivedEgypt(mk, cycle, 'CHINA');
     expect((await receive(request, headers, cycle.id, uae, 40)).code).toBe('NOT_LAST_LEG_DELIVERY');
@@ -303,6 +304,7 @@ test.describe('around receiving', () => {
   test('TC-RCV-22: Inventory shows each batch’s own Arrived date; two deliveries → two dates; never leg 1’s date', async ({ request }) => {
     const { headers, mk, cycle, legs, item, product } = await departedCycle(request, 'CHINA');
     await deliver(request, headers, legs[0].id, item, 40, daysAgo(15));
+    await departAllWaiting(request, headers, legs[1].id, daysAgo(12));
     const first = await deliver(request, headers, legs[1].id, item, 15, daysAgo(8));
     await toArrivedEgypt(mk, cycle, 'CHINA');
     await receive(request, headers, cycle.id, first, 15);

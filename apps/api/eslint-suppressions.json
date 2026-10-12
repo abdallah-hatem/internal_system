@@ -820,9 +820,6 @@
   "src/modules/shipping/dto/shipping-leg.dto.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 29
     }
   },
   "src/modules/shipping/shipping.controller.ts": {

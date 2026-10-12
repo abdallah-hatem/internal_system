@@ -584,8 +584,9 @@ describe('who can pay', () => {
       originType: 'CHINA',
     });
     const leg1 = addLeg(db, cycle, 1, { departedOn: '2026-09-01' });
-    const leg2 = addLeg(db, cycle, 2, { departedOn: '2026-09-10' });
     await deliver(leg1, items[0], 40);
+    // Leg 2 leaves Dubai once the goods are there (L8).
+    const leg2 = addLeg(db, cycle, 2, { departedOn: '2026-09-25' });
     const loss = await lose(leg2, items[0], 5);
     const p1 = db.providers.find((p) => p.id === leg1.providerId)!;
     const p2 = db.providers.find((p) => p.id === leg2.providerId)!;

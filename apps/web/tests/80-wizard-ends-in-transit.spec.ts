@@ -19,7 +19,7 @@
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
-import { apiCtx, API, EMAIL, PASSWORD, daysAgo, today, stockedProduct } from './support/fixtures';
+import { apiCtx, API, EMAIL, PASSWORD, daysAgo, stockedProduct } from './support/fixtures';
 
 const BASE = process.env.WEB_URL ?? 'http://localhost:3000';
 
@@ -95,7 +95,7 @@ async function orderedChinaCycle(request: APIRequestContext, label: string) {
   const provider = await mk('providers', { name: `${label} Freight` });
   const cycle = await mk('cycles', { originType: 'CHINA', currency: 'USD' });
   await mk(`cycles/${cycle.id}/purchases`, {
-    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
     items: [{ productId: product.id, orderedQty: 40, unitPrice: 100 }],
   });
   for (const sequence of [1, 2]) {
@@ -254,7 +254,7 @@ test.describe('The wizard ends at ordered / in transit', () => {
     const supplier = await mk('suppliers', { name: `Leave Supplier ${stamp}`, country: 'AE' });
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'AED' });
     await mk(`cycles/${cycle.id}/purchases`, {
-      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
       items: [{ productId: product.id, orderedQty: 10, unitPrice: 50 }],
     });
 
@@ -282,7 +282,7 @@ test.describe('The wizard ends at ordered / in transit', () => {
     const { mk } = await apiCtx(request);
     const second = await mk('products', { name: `Second Part ${Date.now()}`, minStock: 0 });
     const po2 = await mk(`cycles/${cycle.id}/purchases`, {
-      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: today(),
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(60),
       items: [{ productId: second.id, orderedQty: 5, unitPrice: 20 }],
     });
 

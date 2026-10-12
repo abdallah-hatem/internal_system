@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { shipmentPosition } from '../../../../api/src/common/shipment-position';
+import { planDepartureBackfill } from '../../../../api/src/common/departure-backfill';
 import type { Shipment } from '@/components/shipment/shipment-model';
-import { LOCATION_PLACES, locateGoods, type GoodsBuckets, type LocationBatch, type LocationTransfer } from './goods-location';
+import { LOCATION_PLACES, legLinePlaces, locateGoods, type GoodsBuckets, type LocationBatch, type LocationTransfer } from './goods-location';
 
 /**
  * The where-the-goods-are cards (I3, layout A). Each scenario is built the way
@@ -17,8 +18,14 @@ interface Scenario {
   direct?: boolean;
   /** Per order line, how many were ordered. */
   ordered: Array<[typeof PAD, number]>;
-  /** Each leg's departure, in sequence order; null = not left. Omit for "no legs yet". */
+  /**
+   * Each leg's departure, in sequence order; null = not left. Omit for "no
+   * legs yet". A dated leg with no `departures` of its own sent everything
+   * that had entered it, as the L8 migration reads a leg dated before L8.
+   */
   legs?: Array<string | null>;
+  /** L8: departures in parts — on which leg, what left, and when. */
+  departures?: Array<{ leg: number; line: typeof PAD; qty: number; day?: string }>;
   deliveries?: Array<{ leg: number; line: typeof PAD; qty: number; id?: string }>;
   losses?: Array<{ leg: number; line: typeof PAD; qty: number }>;
   /** Batches received from the last leg: received, and what is left on the shelf. */
@@ -30,24 +37,10 @@ interface Scenario {
 }
 
 function scenario(s: Scenario) {
-  const legs = (s.legs ?? []).map((departedOn, i) => ({ id: `leg-${i + 1}`, sequence: i + 1, departedOn }));
-  let n = 0;
-  const deliveries = (s.deliveries ?? []).map((d) => ({
-    id: `d-${++n}`,
-    legId: `leg-${d.leg}`,
-    arrivedOn: '2026-09-20',
-    lines: [{ id: `dl-${n}`, purchaseOrderItemId: d.line.poi, qty: d.qty }],
-  }));
-  const position = shipmentPosition({
-    lines: s.ordered.map(([line, qty]) => ({ id: line.poi, orderedQty: qty, productId: line.productId, productName: line.productName })),
-    legs,
-    deliveries,
-    losses: (s.losses ?? []).map((l) => ({ legId: `leg-${l.leg}`, purchaseOrderItemId: l.line.poi, qty: l.qty })),
-    batches: (s.batches ?? []).map((b) => ({ sourcePoItemId: b.line.poi, receivedQty: b.received })),
-  });
+  const { position, legs } = build(s);
   const shipment = {
     lines: position.lines,
-    legs: position.legs.map((p) => ({ ...p, departedOn: legs.find((l) => l.id === p.legId)?.departedOn ?? null })),
+    legs: position.legs.map((p) => ({ ...p, departedOn: p.departedOn ?? legs.find((l) => l.id === p.legId)?.departedOn ?? null })),
   } as unknown as Pick<Shipment, 'lines' | 'legs'>;
   const batches: LocationBatch[] = (s.batches ?? []).map((b, i) => ({
     id: `batch-${i + 1}`,
@@ -62,6 +55,42 @@ function scenario(s: Scenario) {
     batches: [...batches, ...extra],
     transfers: s.transfers,
   });
+}
+
+/** The server's position of a scenario — what the next legal move is read from. */
+const positionOf = (s: Scenario) => build(s).position;
+
+function build(s: Scenario) {
+  const legs = (s.legs ?? []).map((departedOn, i) => ({ id: `leg-${i + 1}`, sequence: i + 1, departedOn }));
+  let n = 0;
+  const deliveries = (s.deliveries ?? []).map((d) => ({
+    id: `d-${++n}`,
+    legId: `leg-${d.leg}`,
+    arrivedOn: '2026-09-20',
+    lines: [{ id: `dl-${n}`, purchaseOrderItemId: d.line.poi, qty: d.qty }],
+  }));
+  const lines = s.ordered.map(([line, qty]) => ({ id: line.poi, orderedQty: qty, productId: line.productId, productName: line.productName }));
+  const explicit = (s.departures ?? []).map((d) => ({
+    id: `dep-${++n}`,
+    legId: `leg-${d.leg}`,
+    departedOn: d.day ?? '2026-09-05',
+    lines: [{ purchaseOrderItemId: d.line.poi, qty: d.qty }],
+  }));
+  const backfilled = planDepartureBackfill({
+    legs,
+    lines,
+    deliveries,
+    departures: explicit,
+  }).map((d) => ({ id: `dep-${++n}`, ...d }));
+  const position = shipmentPosition({
+    lines,
+    legs,
+    departures: [...explicit, ...backfilled],
+    deliveries,
+    losses: (s.losses ?? []).map((l) => ({ legId: `leg-${l.leg}`, purchaseOrderItemId: l.line.poi, qty: l.qty })),
+    batches: (s.batches ?? []).map((b) => ({ sourcePoItemId: b.line.poi, receivedQty: b.received })),
+  });
+  return { position, legs };
 }
 
 const expectPlaces = (actual: GoodsBuckets, expected: Partial<GoodsBuckets>) => {
@@ -276,6 +305,134 @@ describe('the places always add up to what was ordered', () => {
       }
       expect(placesSum(r.totals), `run ${run}`).toBe(r.totals.ordered);
       expect(r.totals.ordered).toBe(ordered.reduce((s, [, q]) => s + q, 0));
+    }
+  });
+});
+
+describe('L8 — goods leave in parts: waiting at origin is apart from on the way', () => {
+  it('China leg 1: 25 of 40 left → 15 still in China, 25 on the way to the UAE', () => {
+    const r = scenario({
+      ordered: [[PAD, 40]],
+      legs: [null, null],
+      departures: [{ leg: 1, line: PAD, qty: 25 }],
+    });
+    expectPlaces(r.totals, { ordered: 40, inChina: 15, toUae: 25 });
+  });
+
+  it('China leg 2: 30 reached Dubai, 20 left, 12 of those reached Egypt → 10 in China·UAE split as they are', () => {
+    const r = scenario({
+      ordered: [[PAD, 40]],
+      legs: [null, null],
+      departures: [
+        { leg: 1, line: PAD, qty: 40, day: '2026-09-01' },
+        { leg: 2, line: PAD, qty: 20, day: '2026-09-22' },
+      ],
+      deliveries: [
+        { leg: 1, line: PAD, qty: 30 },
+        { leg: 2, line: PAD, qty: 12 },
+      ],
+    });
+    // 10 still on the way to Dubai; 30 reached it, 10 never left again; 20
+    // left, 12 of those reached Egypt.
+    expectPlaces(r.totals, { ordered: 40, toUae: 10, inUae: 10, toEgypt: 8, inEgypt: 12, notCheckedIn: 12 });
+  });
+
+  it('goods reaching Dubai after leg 2 left stay in the UAE until they leave themselves', () => {
+    const r = scenario({
+      ordered: [[PAD, 40]],
+      legs: [null, null],
+      departures: [
+        { leg: 1, line: PAD, qty: 40 },
+        { leg: 2, line: PAD, qty: 15 },
+      ],
+      deliveries: [
+        { leg: 1, line: PAD, qty: 15 },
+        { leg: 1, line: PAD, qty: 25 },
+      ],
+    });
+    expectPlaces(r.totals, { ordered: 40, inUae: 25, toEgypt: 15 });
+  });
+
+  it('UAE-direct: 10 of 40 left → 30 in the UAE, 10 on the way to Egypt', () => {
+    const r = scenario({
+      direct: true,
+      ordered: [[PAD, 40]],
+      legs: [null],
+      departures: [{ leg: 1, line: PAD, qty: 10 }],
+    });
+    expectPlaces(r.totals, { ordered: 40, inUae: 30, toEgypt: 10 });
+  });
+
+  it('per product: one product left, the other did not', () => {
+    const r = scenario({
+      ordered: [[PAD, 40], [CHAIN, 10]],
+      legs: [null, null],
+      departures: [{ leg: 1, line: PAD, qty: 40 }],
+    });
+    expectPlaces(r.products.find((p) => p.productId === 'p-pad')!, { ordered: 40, toUae: 40 });
+    expectPlaces(r.products.find((p) => p.productId === 'p-chain')!, { ordered: 10, inChina: 10 });
+  });
+
+  it('a server from before L8 (no atOrigin): a departed leg reads as everything on the way, as it did', () => {
+    expect(legLinePlaces({ departedOn: '2026-09-01', status: 'IN_TRANSIT' }, { onTheWay: 40 }, true)).toEqual({
+      inChina: 0,
+      toUae: 40000, // milli-units
+    });
+    expect(legLinePlaces({ departedOn: null, status: 'PENDING' }, { onTheWay: 40 }, false)).toEqual({
+      inUae: 40000,
+      toEgypt: 0,
+    });
+  });
+
+  it('over 2,000 random cycles made of legal moves — departures in parts included — every place adds up to what was ordered', () => {
+    let seed = 20261012;
+    const rnd = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      // The high bits: an LCG's low bits repeat with a short period.
+      return n <= 0 ? 0 : Math.floor((seed / 2147483648) * n);
+    };
+    for (let run = 0; run < 2000; run++) {
+      const direct = rnd(3) === 0;
+      const legCount = direct ? 1 : 1 + rnd(2);
+      const ordered: Array<[typeof PAD, number]> = [[PAD, 1 + rnd(60)], ...(rnd(2) ? [[CHAIN, 1 + rnd(30)] as [typeof PAD, number]] : [])];
+      const s: Scenario = { direct, ordered, legs: Array(legCount).fill(null), departures: [], deliveries: [], losses: [], batches: [] };
+      // Each step reads where the goods are through the server, and only
+      // makes a move the server would accept from there.
+      for (let step = 0; step < 14; step++) {
+        const legNo = 1 + rnd(legCount);
+        const [line] = ordered[rnd(ordered.length)];
+        const pos = positionOf(s);
+        const leg = pos.legs.find((l) => l.sequence === legNo)!;
+        const l = leg.lines.find((x) => x.purchaseOrderItemId === line.poi)!;
+        const move = rnd(4);
+        if (move === 0 && l.atOrigin > 0) s.departures!.push({ leg: legNo, line, qty: 1 + rnd(l.atOrigin) });
+        else if (move === 1 && l.onTheWay > 0) s.deliveries!.push({ leg: legNo, line, qty: 1 + rnd(l.onTheWay) });
+        else if (move === 2 && l.onTheWay + (l.waiting ?? 0) > 0) s.losses!.push({ leg: legNo, line, qty: 1 + rnd(l.onTheWay + (l.waiting ?? 0)) });
+        else if (move === 3 && leg.isLast && (l.waiting ?? 0) > 0) {
+          const received = 1 + rnd(l.waiting ?? 0);
+          s.batches!.push({ line, received, remaining: rnd(received + 1) });
+        }
+      }
+      const r = scenario(s);
+      const pos = positionOf(s);
+      for (const p of r.products) {
+        expect(placesSum(p), `run ${run}, ${p.productName}`).toBe(p.ordered);
+        for (const k of LOCATION_PLACES) expect(p[k], `run ${run} ${k}`).toBeGreaterThanOrEqual(0);
+        if (direct) expect(p.inChina + p.toUae, `run ${run}`).toBe(0);
+        // Each place is the server's own figure for it, not a remainder:
+        // China holds exactly what has not left leg 1's origin.
+        const poi = ordered.find(([line]) => line.productId === p.productId)![0].poi;
+        const line = (seq: number) => pos.legs.find((l) => l.sequence === seq)?.lines.find((x) => x.purchaseOrderItemId === poi);
+        if (!direct) {
+          expect(p.inChina, `run ${run} inChina`).toBe(line(1)!.atOrigin);
+          expect(p.toUae, `run ${run} toUae`).toBe(line(1)!.onTheWay);
+        }
+        if (legCount === 2 || direct) {
+          const last = line(legCount)!;
+          expect(p.toEgypt, `run ${run} toEgypt`).toBe(last.onTheWay);
+        }
+      }
+      expect(placesSum(r.totals), `run ${run}`).toBe(r.totals.ordered);
     }
   });
 });

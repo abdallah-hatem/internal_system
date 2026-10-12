@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L6 merged 2026-10-12 (alignment: code matches §9; doc gained the reversal-date line) — shipping · L8 phase 2 next · L7 phase 1 next
+Current stage: L8 live 2026-10-12 (`b8da00b`; production backed up first to .backups/prod-20261012-040507.sql, migration 20261012140000 with backfill applied, CYC-2026-0001/0003 verified unchanged through get_cycle, smoke ok) · L7 phase 2 running — last batch
 
 ## Waiting on the user
 _(none)_
@@ -14,7 +14,16 @@ _(none)_
 
 ## Next up
 - Owner asleep 2026-10-12: finish L6, L8, L7 unattended (ship each when green; `Bash(scripts/ship-prod.sh:*)` is allowed now), then stop all dev, quit Docker, end the Amphetamine session.
-- L8 phase 1 building: departures in parts (owner 2026-10-12) + wizard only through Purchasing + Add next leg / edit leg cost on the cycle page. Phase 2 after L5.
+- L8 built 2026-10-12 on `feature/l8-departures-in-parts` (master 431c4d2 merged in; not merged back, not pushed):
+  goods leave in parts (§1) — a departure per day with per-product lines, Undo where nothing depends on it, only
+  what left can arrive or be lost, PARTLY_DEPARTED, goods cards split waiting-at-origin from on-the-way, the
+  assistant's `record_departure`; the wizard stops at Purchasing; Add next leg / Edit leg (cost while unlocked) on
+  the cycle page through the Shipments page's own forms. Migration `20261012140000_shipment_departures` (sorts after
+  20261012130000) carries the SQL backfill — run `scripts/ship-prod.sh migrate` before the deploy; rehearsed by
+  `scripts/rehearse-departures-backfill.sh` (demo seed → departures removed → backfill twice → identical rows,
+  check-data zero). E2E fixtures now order before they ship and send leg 2 only after a leg-1 delivery. Full e2e
+  green (5 groups: 199, 152, 144, 230, 266 passed), api jest 1362, web unit 552+101, lint, typecheck, check-data
+  zero (new checks 12.91–12.93). Screens in `.ui-audit/l8/`. Owner to confirm the L8 guesses in §1.
 - L6 built 2026-10-12 on `feature/l6-ledger-entry` (master 6d03bc5 merged in; not merged back, not pushed): a manual
   ledger entry can't lie (§9) — "Record money in or out" with kind cards, the one category list, cycle picker, date;
   every refusal server-side with a code. Migration renamed `20261012130000_ledger_entry_date` so it applies after
