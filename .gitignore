@@ -42,3 +42,6 @@ apps/api/uploads/
 
 # Test logins for every environment. Never committed — the repo is public.
 *.local.md
+
+# Per-agent server state (PIDs, logs) from scripts/agent-servers.sh
+.agent-servers/
