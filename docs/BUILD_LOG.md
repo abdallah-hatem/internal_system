@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: L8 live 2026-10-12 (`b8da00b`; production backed up first to .backups/prod-20261012-040507.sql, migration 20261012140000 with backfill applied, CYC-2026-0001/0003 verified unchanged through get_cycle, smoke ok) · L7 phase 2 done on its branch, waiting to ship
+Current stage: L7 live 2026-10-12 (`39c8d28`; production backed up to .backups/prod-20261012-103836.sql; migrations 20261012150000 + 20261012160000 applied; three deploys READY, smoke ok; alignment CONFLICT on a leaving partner's share fixed in 8dda01a before shipping) · all owner-requested batches L1–L8 shipped · infra: isolated e2e per agent in progress
 
 ## Waiting on the user
 _(none)_
