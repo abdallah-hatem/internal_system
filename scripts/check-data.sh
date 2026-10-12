@@ -397,6 +397,25 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM running_cost_charges c
          JOIN financial_transactions f ON f.id = c.cost_entry_id
    WHERE f.cycle_id IS NOT NULL
+  -- Fixed shares (review 2026-10-12): they add up to the cost, and nobody is
+  -- charged more of a cost than his own fixed share.
+  UNION ALL SELECT 22.4, 'running cost whose fixed shares do not add up to it',
+         count(*) FROM (
+           SELECT x.cost_entry_id FROM running_cost_shares x
+             JOIN financial_transactions f ON f.id = x.cost_entry_id
+            GROUP BY x.cost_entry_id, f.amount
+           HAVING sum(x.amount) <> f.amount
+         ) uneven
+  UNION ALL SELECT 22.5, 'partner charged more of a running cost than his fixed share',
+         count(*) FROM (
+           SELECT c.cost_entry_id, c.partner_user_id
+             FROM running_cost_charges c
+             LEFT JOIN running_cost_shares x
+               ON x.cost_entry_id = c.cost_entry_id AND x.partner_user_id = c.partner_user_id
+            WHERE c.released_at IS NULL
+            GROUP BY c.cost_entry_id, c.partner_user_id, x.amount
+           HAVING sum(c.amount) > coalesce(x.amount, 0)
+         ) over_share
   UNION ALL SELECT 22.3, 'settlement running-cost lines disagree with its charges',
          count(*) FROM settlements s
    WHERE s.status = 'PAID'

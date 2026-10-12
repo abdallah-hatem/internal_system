@@ -2,6 +2,7 @@
 import { Prisma } from '@prisma/client';
 import {
   isRunningCostEntry,
+  sharersOn,
   planRunningCostCharges,
   runningCostsFromRows,
   splitEqually,
@@ -34,7 +35,15 @@ const cost = (
   amount: number,
   day = '2026-10-01',
   category = 'rent',
-): RunningCost => ({ id, amount: D(amount), day, category });
+  // Shares fixed over the three partners, as recording the cost fixes them.
+  sharers: RunningCostPartner[] = PARTNERS,
+): RunningCost => ({
+  id,
+  amount: D(amount),
+  day,
+  category,
+  shares: splitEqually(D(amount), sharers),
+});
 
 const charge = (
   costEntryId: string,
@@ -262,7 +271,7 @@ describe('which ledger rows are running costs — the one definition (rule 11)',
 
   it('runningCostsFromRows nets a reversal against its cost, so a reversed cost owes nothing', () => {
     const at = new Date('2026-10-05T10:00:00Z');
-    const costs = runningCostsFromRows([
+    const { costs } = runningCostsFromRows([
       { ...row({ id: 'rent' }), occurredOn: null, createdAt: at },
       {
         ...row({ id: 'tea', category: 'utilities', amount: D(500) }),
@@ -331,5 +340,107 @@ describe('summariseRunningCosts — the Partners page section', () => {
     });
     expect(summary.spentEgp.toFixed(2)).toBe('0.00');
     expect(summary.partners).toHaveLength(3);
+  });
+});
+
+describe('a cost’s shares are fixed on its own day (review, 2026-10-12)', () => {
+  const joined: RunningCostPartner[] = [
+    { userId: 'u-a', name: 'Abdallah', joinedOn: '2026-01-01' },
+    { userId: 'u-o', name: 'Omar', joinedOn: '2026-01-01' },
+    { userId: 'u-d', name: 'Dina', joinedOn: '2026-10-01' },
+  ];
+
+  it('who shares a cost: the partners who had joined by its day — never one who joined later', () => {
+    expect(sharersOn('2026-09-15', joined).map((p) => p.userId)).toEqual([
+      'u-a',
+      'u-o',
+    ]);
+    expect(sharersOn('2026-10-01', joined).map((p) => p.userId)).toEqual([
+      'u-a',
+      'u-o',
+      'u-d',
+    ]);
+  });
+
+  it('a cost from before any partner was entered is shared by all of them, not left owed by nobody', () => {
+    expect(sharersOn('2025-12-31', joined)).toHaveLength(3);
+  });
+
+  it('a partner who left is not charged, and nobody takes his share — it stays on the cost, waiting', () => {
+    const rent = cost('rent', 300);
+    // Mahmoud has left: he is not among the partners who can be charged.
+    const plan = planRunningCostCharges({
+      costs: [rent],
+      partners: PARTNERS.slice(0, 2),
+      charges: [],
+      capacities: new Map([
+        ['u-a', D(10000)],
+        ['u-o', D(10000)],
+        ['u-m', D(10000)],
+      ]),
+    });
+    expect(plan.map((p) => [p.partnerUserId, p.amount.toFixed(2)])).toEqual([
+      ['u-a', '100.00'],
+      ['u-o', '100.00'],
+    ]);
+  });
+
+  it('runningCostsFromRows uses the stored shares, and only works out (and reports) those of a cost that has none', () => {
+    const at = new Date('2026-09-01T10:00:00Z');
+    const r = (id: string) => ({
+      id,
+      direction: 'OUTFLOW',
+      category: 'rent',
+      amount: D(300),
+      cycleId: null,
+      reversalOfId: null,
+      occurredOn: null,
+      createdAt: at,
+    });
+    const stored = new Map([
+      [
+        'old',
+        new Map([
+          ['u-a', D(150)],
+          ['u-o', D(150)],
+        ]),
+      ],
+    ]);
+    const { costs, unfixed } = runningCostsFromRows(
+      [r('old'), r('new')],
+      joined,
+      stored,
+    );
+    const old = costs.find((c) => c.id === 'old')!;
+    expect(
+      [...old.shares.entries()].map(([k, v]) => [k, v.toFixed(2)]),
+    ).toEqual([
+      ['u-a', '150.00'],
+      ['u-o', '150.00'],
+    ]);
+    // The new one: split over the two who were there on 1 September; Dina owes nothing.
+    expect(
+      unfixed.map((u) => [u.costEntryId, u.partnerUserId, u.amount.toFixed(2)]),
+    ).toEqual([
+      ['new', 'u-a', '150.00'],
+      ['new', 'u-o', '150.00'],
+    ]);
+  });
+
+  it('the Partners page lists a partner who left while he still owes, with his own share waiting', () => {
+    const rent = cost('rent', 300);
+    const summary = summariseRunningCosts({
+      costs: [rent],
+      partners: PARTNERS.slice(0, 2),
+      people: PARTNERS,
+      charges: [charge('rent', 'u-a', 100), charge('rent', 'u-o', 100)],
+    });
+    const m = summary.partners.find((p) => p.userId === 'u-m')!;
+    expect([m.shareEgp.toFixed(2), m.waitingEgp.toFixed(2), m.active]).toEqual([
+      '100.00',
+      '100.00',
+      false,
+    ]);
+    expect(summary.waitingEgp.toFixed(2)).toBe('100.00');
   });
 });

@@ -660,6 +660,10 @@ export function fakePrisma(db: Store) {
     // No core partner records and no running costs in these worlds: paying
     // out charges nothing (§8, L7 — its own suite is running-costs.flow.spec).
     partner: { findMany: () => after([]) },
+    runningCostShare: {
+      findMany: () => after([]),
+      createMany: () => after({ count: 0 }),
+    },
     runningCostCharge: {
       findMany: () => after([]),
       create: ({ data }: Row) => after({ id: randomUUID(), ...data }),

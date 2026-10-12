@@ -115,6 +115,22 @@ describe('the Running costs section', () => {
     expect(screen.getByTestId('running-costs-partners').parentElement!.className).toContain('hidden');
   });
 
+  it('a partner who left still shows, his share still waiting, marked as no longer a partner', async () => {
+    reply = {
+      ...SUMMARY,
+      partners: [
+        ...SUMMARY.partners.slice(0, 2),
+        { ...SUMMARY.partners[2], active: false, takesResidual: false },
+      ],
+    };
+    renderIn();
+    const rows = within(await screen.findByTestId('running-costs-partners')).getAllByRole('row');
+    expect(rows[3].textContent).toContain('Mahmoud');
+    expect(rows[3].textContent).toContain(en.partners.leftPartner);
+    expect(rows[3].textContent).toContain('10,033.34');
+    expect(rows[1].textContent).not.toContain(en.partners.leftPartner);
+  });
+
   it('says who takes the odd piastre, by name — never silently', async () => {
     renderIn();
     expect((await screen.findByTestId('running-costs-residual')).textContent).toBe(

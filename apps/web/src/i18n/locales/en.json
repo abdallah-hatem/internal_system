@@ -768,7 +768,8 @@
     "payoutHistory": "Payouts",
     "noPayouts": "Nothing paid out yet",
     "paidOn": "Paid {date}",
-    "showBreakdown": "How this was worked out"
+    "showBreakdown": "How this was worked out",
+    "leftPartner": "no longer a partner — still owes his share"
   },
   "analytics": {
     "title": "Analytics & Reports",

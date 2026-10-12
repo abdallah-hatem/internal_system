@@ -13,6 +13,7 @@ import { businessToday } from '../../common/dates';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import { CreateLedgerEntryDto } from './dto/ledger.dto';
 import { checkManualEntry } from './manual-entry';
+import { fixRunningCostShares } from '../../common/running-costs';
 
 @Injectable()
 export class LedgerService {
@@ -144,6 +145,13 @@ export class LedgerService {
         account: { select: { id: true, name: true } },
       },
     });
+
+    // A running cost (an expense with no cycle, §8 L7): its shares are fixed
+    // now, over the core partners of its own day — whoever joins or leaves
+    // later, they never move.
+    if (!cycleId && entry.direction === 'OUTFLOW') {
+      await fixRunningCostShares(this.prisma);
+    }
 
     // After the write, never inside a transaction (LEARNINGS: deployment).
     await this.audit.log({

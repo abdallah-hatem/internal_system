@@ -1987,3 +1987,144 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
     expect(await cash()).toBe(c1);
   });
 });
+
+// ─── L7 alignment review (2026-10-12): a cost's shares are fixed on its own day,
+// and the guards the review asked to see named.
+
+test.describe('A running cost’s shares are fixed on its own day (L7 review, §8)', () => {
+  const pay = async (request: APIRequestContext, headers: any, id: string) => {
+    const res = await request.post(`${API}/settlements/${id}/pay`, { headers, data: {} });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  };
+  const setStatus = async (request: APIRequestContext, headers: any, id: string, status: string) => {
+    const res = await request.put(`${API}/users/${id}`, { headers, data: { status } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  };
+  const shareOf = (rc: any, userId: string) => Number(rc.partners.find((p: any) => p.userId === userId)?.shareEgp ?? 0);
+  /** The seeded partners have been partners since January, as the real three have. */
+  const partnersSinceJanuary = () =>
+    psqlStdin(`UPDATE partners SET created_at = '2026-01-01T08:00:00Z' WHERE user_id IN (SELECT id FROM users WHERE email IN ('partner.a@motoparts.com','partner.b@motoparts.com','partner.c@motoparts.com'));`);
+
+  test('TC-INV-65: C leaves with his share unpaid — A and B are never charged more than their own share, and C’s stays waiting, shown as his', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const [a, b, c] = ['a', 'b', 'c'].map((x) => user(`partner.${x}@motoparts.com`));
+    const before = await runningCosts(request, headers);
+    await recordCost(request, headers, { amount: 900 });
+    const after = await runningCosts(request, headers);
+    const owed = (u: any) => shareOf(after, u.id) - shareOf(before, u.id);
+    expect(cents(owed(c)), 'C owes a share of it').toBeGreaterThan(0);
+
+    // The three funded a cycle together; C leaves before it is paid out.
+    const w = await soldOutCycle(request, 'Inv L7 Leaves', [[a.id, 'CORE_PARTNER', 50000], [b.id, 'CORE_PARTNER', 50000], [c.id, 'CORE_PARTNER', 50000]]);
+    const id = await approved(w.mk, w.cycle.id);
+    await setStatus(request, headers, c.id, 'SUSPENDED');
+    try {
+      const waitingA = waitingFor(after, a.id);
+      const waitingB = waitingFor(after, b.id);
+      await pay(request, headers, id);
+      const s = await settlement(request, headers, id);
+      const lineOf = (uid: string) => s.breakdown.participants.find((p: any) => s.lines.find((l: any) => l.participantId === p.participantId)?.participant?.partnerUserId === uid);
+      // Each takes exactly what he himself owed — not a penny of C's.
+      expect(cents(lineOf(a.id).runningCostsEgp)).toBe(-cents(waitingA));
+      expect(cents(lineOf(b.id).runningCostsEgp)).toBe(-cents(waitingB));
+      expect(lineOf(c.id).runningCostsStatus, 'C, no longer a partner, is not charged').toBe('none');
+      const now = await runningCosts(request, headers);
+      const cRow = now.partners.find((p) => p.userId === c.id) as any;
+      expect(cRow, 'C still listed while he owes').toBeTruthy();
+      expect(cRow.active).toBe(false);
+      expect(cents(cRow.waitingEgp)).toBeGreaterThanOrEqual(cents(owed(c)));
+      expect(cents(shareOf(now, a.id))).toBe(cents(shareOf(after, a.id)));
+    } finally {
+      await setStatus(request, headers, c.id, 'ACTIVE');
+    }
+  });
+
+  test('TC-INV-66: D joins after the cost’s day — he is never charged for it; a cost on his watch is his too', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    partnersSinceJanuary();
+    const stamp = `${Date.now()}`;
+    const email = `inv66-partner-${stamp}@motoparts.com`;
+    const made = await request.post(`${API}/auth/register`, { headers, data: { email, password: PASSWORD, displayName: `Partner D ${stamp}`, role: 'CORE_PARTNER' } });
+    expect(made.ok(), await made.text()).toBeTruthy();
+    const user = await usersByEmail(request, headers);
+    const d = user(email);
+    await recordCost(request, headers, { amount: 1200, occurredOn: dayFromNow(-2) });
+    expect(shareOf(await runningCosts(request, headers, { from: dayFromNow(-2), to: dayFromNow(-2) }), d.id)).toBe(0);
+    const w = await soldOutCycle(request, 'Inv L7 Joins', [[d.id, 'CORE_PARTNER', 50000]]);
+    const id = await approved(w.mk, w.cycle.id);
+    await pay(request, headers, id);
+    const s = await settlement(request, headers, id);
+    expect(s.breakdown.participants[0].runningCostsStatus, 'D is charged nothing of a cost before his day').toBe('none');
+    // A cost on his watch is his too.
+    await recordCost(request, headers, { amount: 400, category: 'utilities' });
+    expect(shareOf(await runningCosts(request, headers, { from: dayFromNow(0), to: dayFromNow(0) }), d.id)).toBeGreaterThan(0);
+    // He leaves again, so later tests share among the seeded three.
+    await setStatus(request, headers, d.id, 'INACTIVE');
+  });
+
+  test('TC-INV-67: a core partner who is also an investor on the cycle — only his core-partner line is charged', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const a = user('partner.a@motoparts.com');
+    await recordCost(request, headers, { amount: 600 });
+    const w = await soldOutCycle(request, 'Inv L7 Both', [[a.id, 'CORE_PARTNER', 20000], [a.id, 'TEMP_INVESTOR', 30000, 0]]);
+    const id = await approved(w.mk, w.cycle.id);
+    await pay(request, headers, id);
+    const s = await settlement(request, headers, id);
+    const byType = (t: string) => s.breakdown.participants.find((p: any) => p.type === t);
+    expect(byType('CORE_PARTNER').runningCostsStatus).toBe('charged');
+    expect(byType('TEMP_INVESTOR').runningCostsStatus).toBe('none');
+    expect(s.lines.filter((l: any) => l.component === 'RUNNING_COSTS').map((l: any) => l.participant.participantType)).toEqual(['CORE_PARTNER']);
+  });
+
+  test('TC-INV-68: a running_cost_share is never typed by hand, and one cannot be reversed on its own', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const a = user('partner.a@motoparts.com');
+    for (const kind of ['EXPENSE', 'OTHER_INCOME']) {
+      const r = await request.post(`${API}/ledger`, { headers, data: { kind, category: 'running_cost_share', amount: 100, currency: 'EGP' } });
+      expect(r.status(), kind).toBe(400);
+      expect((await r.json()).error.code, kind).toBe('LEDGER_CATEGORY_NOT_MANUAL');
+    }
+    await recordCost(request, headers, { amount: 300 });
+    const w = await soldOutCycle(request, 'Inv L7 Memo', [[a.id, 'CORE_PARTNER', 20000]]);
+    const id = await approved(w.mk, w.cycle.id);
+    await pay(request, headers, id);
+    const memo = (await settlementRows(request, headers, id)).find((r) => r.category === 'running_cost_share');
+    expect(memo).toBeTruthy();
+    const rev = await request.post(`${API}/ledger/${memo.id}/reverse`, { headers, data: { reason: 'undo it alone' } });
+    expect(rev.status()).toBe(400);
+    expect((await rev.json()).error.code).toBe('ENTRY_OWNED_ELSEWHERE');
+  });
+
+  test('TC-INV-69: Mark paid and reversal — refused to an investor and to the office with a code, done by a core partner', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const a = user('partner.a@motoparts.com');
+    const stamp = `${Date.now()}`;
+    const email = `inv69-office-${stamp}@motoparts.com`;
+    const made = await request.post(`${API}/auth/register`, { headers, data: { email, password: PASSWORD, displayName: `Office ${stamp}`, role: 'ADMIN_SUPPORT' } });
+    expect(made.ok(), await made.text()).toBeTruthy();
+    const office = { Authorization: `Bearer ${(await (await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } })).json()).data.accessToken}` };
+    const callers = [{ who: 'ADMIN_SUPPORT', headers: office, code: 'ROLE_NOT_ALLOWED' }, ...(await refusedCallers(request, 'inv69'))];
+    const w = await soldOutCycle(request, 'Inv L7 Who', [[a.id, 'CORE_PARTNER', 20000]]);
+    const id = await approved(w.mk, w.cycle.id);
+    for (const caller of callers) {
+      const r = await request.post(`${API}/settlements/${id}/pay`, { headers: caller.headers, data: {} });
+      expect(r.status(), `pay: ${caller.who}`).toBe(403);
+      expect((await r.json()).error.code, `pay: ${caller.who}`).toBe(caller.code);
+    }
+    expect((await settlement(request, headers, id)).status).toBe('APPROVED');
+    await pay(request, headers, id);
+    for (const caller of callers) {
+      const r = await request.post(`${API}/settlements/${id}/reverse`, { headers: caller.headers, data: { reason: 'not mine to undo' } });
+      expect(r.status(), `reverse: ${caller.who}`).toBe(403);
+      expect((await r.json()).error.code, `reverse: ${caller.who}`).toBe(caller.code);
+    }
+    expect((await settlement(request, headers, id)).status).toBe('PAID');
+    const ok = await request.post(`${API}/settlements/${id}/reverse`, { headers, data: { reason: 'the partner undoes it' } });
+    expect(ok.ok(), await ok.text()).toBeTruthy();
+    expect((await settlement(request, headers, id)).status).toBe('REVERSED');
+  });
+});

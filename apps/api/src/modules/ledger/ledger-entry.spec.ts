@@ -54,7 +54,49 @@ function setup() {
         created.push(data);
         return Promise.resolve({ id: 'tx-new', ...data });
       }),
+      // What fixing a running cost's shares reads (§8, L7): the cost just made.
+      findMany: jest.fn(({ where }: { where: { cycleId?: unknown } }) =>
+        Promise.resolve(
+          where.cycleId === null
+            ? created
+                .filter((d) => !d.cycleId && d.direction === 'OUTFLOW')
+                .map((d) => ({
+                  ...d,
+                  id: 'tx-new',
+                  cycleId: null,
+                  reversalOfId: null,
+                  createdAt: new Date('2026-10-10T23:30:00Z'),
+                }))
+            : [],
+        ),
+      ),
     },
+    // Three core partners; the third joined after 1 October.
+    partner: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          userId: 'p-1',
+          displayName: 'A',
+          createdAt: new Date('2026-01-01T08:00:00Z'),
+        },
+        {
+          userId: 'p-2',
+          displayName: 'B',
+          createdAt: new Date('2026-01-02T08:00:00Z'),
+        },
+        {
+          userId: 'p-3',
+          displayName: 'C',
+          createdAt: new Date('2026-10-05T08:00:00Z'),
+        },
+      ]),
+    },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    runningCostShare: {
+      findMany: jest.fn().mockResolvedValue([]),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    runningCostCharge: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const ledger = new LedgerService(prisma as never, audit as never);
@@ -252,6 +294,76 @@ describe('the category list decides what can be recorded', () => {
       expect(r.code).toBe('VALIDATION_FAILED');
     }
     expect(created).toHaveLength(0);
+  });
+});
+
+describe('a partner’s running-cost share is the payout’s, never typed (§8, L7)', () => {
+  it.each([
+    ['as an expense', expense({ category: 'running_cost_share' })],
+    ['as income', income({ category: 'running_cost_share' })],
+  ])(
+    'typing a running_cost_share entry %s is refused, nothing written',
+    async (_how, body) => {
+      const { ledger, created } = setup();
+      const r = await refusal(ledger.create(body, 'u-1'));
+      expect(r.code).toBe('LEDGER_CATEGORY_NOT_MANUAL');
+      expect(created).toHaveLength(0);
+    },
+  );
+
+  it('reversing one on its own is refused — it belongs to its settlement', async () => {
+    const { ledger, prisma, created } = setup();
+    Object.assign(prisma.financialTransaction, {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'tx-share',
+        type: 'RUNNING_COST_CHARGE',
+        category: 'running_cost_share',
+        direction: 'INFLOW',
+        amount: 1000,
+        currency: 'EGP',
+        cycleId: CYCLE_ID,
+        relatedType: 'SETTLEMENT',
+        relatedId: 's-1',
+        reversalOfId: null,
+      }),
+      findFirst: jest.fn().mockResolvedValue(null),
+    });
+    const r = await refusal(
+      ledger.reverse('tx-share', 'typed by mistake', 'u-1'),
+    );
+    expect(r.code).toBe('ENTRY_OWNED_ELSEWHERE');
+    expect(created).toHaveLength(0);
+  });
+});
+
+describe('recording a running cost fixes its shares (§8, L7 review 2026-10-12)', () => {
+  it('rent with no cycle: shared by the partners who were partners on its day, stored once', async () => {
+    const { ledger, prisma } = setup();
+    await ledger.create(
+      expense({ amount: 1500, occurredOn: '2026-10-01' }),
+      'u-1',
+    );
+    const calls = prisma.runningCostShare.createMany.mock.calls as unknown[][];
+    const call = calls[0][0] as {
+      data: { partnerUserId: string; amount: { toFixed(n: number): string } }[];
+    };
+    // C joined on 5 October: he owes nothing of rent spent on the 1st.
+    expect(
+      call.data.map((d) => [d.partnerUserId, d.amount.toFixed(2)]),
+    ).toEqual([
+      ['p-1', '750.00'],
+      ['p-2', '750.00'],
+    ]);
+  });
+
+  it('a cost charged to a cycle, or income, fixes no running-cost shares', async () => {
+    const { ledger, prisma } = setup();
+    await ledger.create(
+      expense({ category: 'extra_freight', cycleId: CYCLE_ID }),
+      'u-1',
+    );
+    await ledger.create(income(), 'u-1');
+    expect(prisma.runningCostShare.createMany).not.toHaveBeenCalled();
   });
 });
 

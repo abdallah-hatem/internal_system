@@ -49,6 +49,7 @@ import {
   type PayoutBreakdown,
 } from '../../common/payout-breakdown';
 import {
+  fixRunningCostShares,
   loadRunningCosts,
   periodOf,
   planRunningCostCharges,
@@ -860,7 +861,9 @@ export class SettlementsService {
       // Each core partner on this cycle: his equal share of the general
       // running costs still waiting, oldest first, as far as this payout
       // covers. The cycle's profit is not touched — it comes off his payout.
-      const state = await loadRunningCosts(tx);
+      // Shares fixed first: any cost seen for the first time gets its shares
+      // stored now, over the partners of its own day (§8, review 2026-10-12).
+      const state = await fixRunningCostShares(tx);
       const { capacities, participantOf } = corePartnerPayouts(
         settlement.lines,
       );
@@ -1239,6 +1242,7 @@ export class SettlementsService {
           chargedEgp: money(p.chargedEgp),
           waitingEgp: money(p.waitingEgp),
           takesResidual: p.takesResidual,
+          active: p.active,
         })),
       },
     };

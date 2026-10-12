@@ -4,7 +4,10 @@ import { HttpException } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; the rows here are built by hand
 import { Prisma } from '@prisma/client';
 import { SettlementsService } from './settlements.service';
+import { SettlementsController } from './settlements.controller';
+import { ROLES_KEY } from '../../common/guards/roles.guard';
 import { cashPosition } from '../../common/cash-position';
+import { fixRunningCostShares } from '../../common/running-costs';
 
 /**
  * L7 — general running costs come out of the core partners' payouts, and a
@@ -30,6 +33,8 @@ interface Store {
   settlements: Row[];
   lines: Row[];
   charges: Row[];
+  /** Each running cost's shares, fixed once (§8, L7 review). */
+  shares: Row[];
 }
 
 function inOrNot(value: unknown, cond: any): boolean {
@@ -103,8 +108,12 @@ function fakePrisma(db: Store) {
               u?.status === where.user.status
             );
           })
-          .sort((a, b) => a.createdAt - b.createdAt)
-          .map((p) => ({ userId: p.userId, displayName: p.displayName }));
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+          .map((p) => ({
+            userId: p.userId,
+            displayName: p.displayName,
+            createdAt: p.createdAt,
+          }));
       },
     },
     importCycle: {
@@ -162,6 +171,37 @@ function fakePrisma(db: Store) {
         db.ledger.push(row);
         return row;
       },
+    },
+    runningCostShare: {
+      findMany: async ({ where }: Row) => {
+        await wait();
+        return db.shares.filter((x) =>
+          inOrNot(x.costEntryId, where?.costEntryId),
+        );
+      },
+      createMany: async ({ data }: Row) => {
+        for (const d of data) {
+          if (
+            db.shares.some(
+              (x) =>
+                x.costEntryId === d.costEntryId &&
+                x.partnerUserId === d.partnerUserId,
+            )
+          )
+            continue;
+          db.shares.push({ id: randomUUID(), ...d, amount: D(d.amount) });
+        }
+        return { count: data.length };
+      },
+    },
+    user: {
+      findMany: async ({ where }: Row) =>
+        db.partners
+          .filter((p) => inOrNot(p.userId, where?.id))
+          .map((p) => ({
+            id: p.userId,
+            partner: { displayName: p.displayName },
+          })),
     },
     runningCostCharge: {
       findMany: async ({ where }: Row) => {
@@ -269,7 +309,8 @@ beforeEach(() => {
       userId,
       displayName: names[userId],
       active: true,
-      createdAt: i,
+      // Joined on 1, 2 and 3 January 2026.
+      createdAt: new Date(Date.UTC(2026, 0, 1 + i, 8)),
     })),
     cycles: [],
     participants: [],
@@ -278,6 +319,7 @@ beforeEach(() => {
     settlements: [],
     lines: [],
     charges: [],
+    shares: [],
   };
   prisma = fakePrisma(db);
   service = new SettlementsService(
@@ -671,5 +713,187 @@ describe('the Partners page section', () => {
     await expect(
       service.runningCosts({ from: '2026-09-30', to: '2026-07-01' }),
     ).rejects.toMatchObject({ response: { code: 'DATE_RANGE_REVERSED' } });
+  });
+});
+
+// ─── The alignment review (2026-10-12): a cost's shares are fixed once ──────
+// Over the core partners active on the cost's own day; a partner's share of it
+// never changes afterwards. Nobody silently pays a share that is not his.
+
+/** A core partner joining (or a record that stands for one) on `day`. */
+function joins(userId: string, name: string, day: string) {
+  db.users.push({ id: userId, role: 'CORE_PARTNER', status: 'ACTIVE' });
+  db.partners.push({
+    userId,
+    displayName: name,
+    active: true,
+    createdAt: new Date(`${day}T08:00:00Z`),
+  });
+}
+
+describe('a cost’s shares are fixed on its own day (review, 2026-10-12)', () => {
+  it('C leaves with his share unpaid: A and B are never charged more than a third each, and C’s third stays waiting — as his', async () => {
+    expense('rent', 300, '2026-09-01');
+    // A is paid first: his third.
+    await settle(cycle('CYC-1', [['u-a', 5000]], 10000, 8000));
+    expect(chargedTo('u-a')).toBe('100.00');
+    // Mahmoud leaves before anyone takes his third.
+    db.partners.find((p) => p.userId === 'u-m')!.active = false;
+    await settle(
+      cycle(
+        'CYC-2',
+        [
+          ['u-a', 5000],
+          ['u-o', 5000],
+        ],
+        20000,
+        16000,
+      ),
+    );
+    expect(chargedTo('u-a')).toBe('100.00');
+    expect(chargedTo('u-o')).toBe('100.00');
+    expect(chargedTo('u-m')).toBe('0.00');
+    const { data } = await service.runningCosts({
+      from: '2026-09-01',
+      to: '2026-09-30',
+    });
+    expect(data.waitingEgp).toBe('100.00');
+    // His part, still waiting, shown as his.
+    expect(data.partners.find((p) => p.userId === 'u-m')?.waitingEgp).toBe(
+      '100.00',
+    );
+  });
+
+  it('D joins after the cost’s day: he is never charged for it, and the three who were there still owe a third each', async () => {
+    expense('rent', 300, '2026-09-01');
+    joins('u-d', 'Dina', '2026-10-01');
+    await settle(
+      cycle(
+        'CYC-D',
+        [
+          ['u-d', 5000],
+          ['u-a', 5000],
+        ],
+        20000,
+        16000,
+      ),
+    );
+    expect(chargedTo('u-d')).toBe('0.00');
+    expect(chargedTo('u-a')).toBe('100.00');
+    // A cost on D's watch is his too.
+    expense('utilities', 400, '2026-10-05');
+    await settle(cycle('CYC-D2', [['u-d', 5000]], 20000, 16000));
+    expect(chargedTo('u-d')).toBe('100.00');
+  });
+
+  it('the shares are written once and never move, whoever joins or leaves later', async () => {
+    const rent = expense('rent', 100, '2026-09-01');
+    await settle(cycle('CYC-F', [['u-a', 5000]], 10000, 8000));
+    const fixed = () =>
+      db.shares
+        .filter((x) => x.costEntryId === rent.id)
+        .map((x) => [x.partnerUserId, x.amount.toFixed(2)])
+        .sort();
+    expect(fixed()).toEqual([
+      ['u-a', '33.33'],
+      ['u-m', '33.34'],
+      ['u-o', '33.33'],
+    ]);
+    joins('u-d', 'Dina', '2026-10-01');
+    db.partners.find((p) => p.userId === 'u-o')!.active = false;
+    await settle(
+      cycle(
+        'CYC-G',
+        [
+          ['u-d', 5000],
+          ['u-m', 5000],
+        ],
+        10000,
+        8000,
+      ),
+    );
+    expect(fixed()).toEqual([
+      ['u-a', '33.33'],
+      ['u-m', '33.34'],
+      ['u-o', '33.33'],
+    ]);
+    expect(chargedTo('u-m')).toBe('33.34');
+  });
+});
+
+describe('who the loader lets be charged (review, 2026-10-12)', () => {
+  it.each([
+    ['partner record deactivated', (p: Row, _u: Row) => (p.active = false)],
+    ['login suspended', (_p: Row, u: Row) => (u.status = 'SUSPENDED')],
+    ['login inactive', (_p: Row, u: Row) => (u.status = 'INACTIVE')],
+  ])(
+    'a core partner — %s — is never charged; his share waits',
+    async (_why, off) => {
+      expense('rent', 300, '2026-09-01');
+      // Recorded while he was a partner: the ledger fixes the shares then.
+      await fixRunningCostShares(prisma);
+      off(
+        db.partners.find((p) => p.userId === 'u-o')!,
+        db.users.find((u) => u.id === 'u-o')!,
+      );
+      await settle(
+        cycle(
+          'CYC-L',
+          [
+            ['u-o', 5000],
+            ['u-a', 5000],
+          ],
+          20000,
+          16000,
+        ),
+      );
+      expect(chargedTo('u-o')).toBe('0.00');
+      expect(chargedTo('u-a')).toBe('100.00');
+    },
+  );
+
+  it('a core partner who is also an investor on the cycle: only his core-partner line is charged', async () => {
+    expense('rent', 300, '2026-09-01');
+    const c = cycle('CYC-B', [['u-a', 5000]], 20000, 16000);
+    // Abdallah also puts 5,000 in as an investor (fee 0).
+    db.participants.push({
+      id: 'CYC-B-u-a-inv',
+      cycleId: c.id,
+      participantType: 'TEMP_INVESTOR',
+      partnerUserId: null,
+      investorUserId: 'u-a',
+      contributionAmount: D(5000),
+      customProfitPct: null,
+      investorFeePct: null,
+      createdAt: 9,
+    });
+    const id = await settle(c);
+    const running = db.lines.filter(
+      (l) => l.settlementId === id && l.component === 'RUNNING_COSTS',
+    );
+    expect(running.map((l) => [l.participantId, l.amount.toFixed(2)])).toEqual([
+      ['CYC-B-u-a', '-100.00'],
+    ]);
+    expect(db.charges.every((ch) => ch.participantId === 'CYC-B-u-a')).toBe(
+      true,
+    );
+  });
+});
+
+describe('who may pay out or reverse (review, 2026-10-12)', () => {
+  const roles = (name: 'markPaid' | 'reverse' | 'runningCosts') =>
+    Reflect.getMetadata(
+      ROLES_KEY,
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- read for its decorator metadata, never called
+      SettlementsController.prototype[name],
+    ) as string[];
+
+  it('Mark paid and reversal are a core partner’s alone — not the office, not an investor', () => {
+    expect(roles('markPaid')).toEqual(['CORE_PARTNER']);
+    expect(roles('reverse')).toEqual(['CORE_PARTNER']);
+  });
+
+  it('the running costs are read by the partners and the office, never an investor', () => {
+    expect(roles('runningCosts')).toEqual(['CORE_PARTNER', 'ADMIN_SUPPORT']);
   });
 });

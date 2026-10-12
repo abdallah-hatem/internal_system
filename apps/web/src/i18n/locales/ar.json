@@ -768,7 +768,8 @@
     "payoutHistory": "التوزيعات",
     "noPayouts": "لم يُصرف شيء بعد",
     "paidOn": "صُرف في {date}",
-    "showBreakdown": "كيف حُسب هذا"
+    "showBreakdown": "كيف حُسب هذا",
+    "leftPartner": "لم يعد شريكًا — ما زالت حصته مستحقة"
   },
   "analytics": {
     "title": "التحليلات والتقارير",

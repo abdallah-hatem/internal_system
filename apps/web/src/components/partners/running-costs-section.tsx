@@ -38,6 +38,8 @@ export interface RunningCostsSummary {
     chargedEgp: string;
     waitingEgp: string;
     takesResidual: boolean;
+    /** False for a partner who left and still owes his fixed share (§8, review 2026-10-12). */
+    active?: boolean;
   }[];
 }
 
@@ -150,7 +152,10 @@ export function RunningCostsSection() {
               <ul data-testid="running-costs-partner-cards" className="divide-y divide-border text-sm sm:hidden">
                 {data.partners.map((p) => (
                   <li key={p.userId} className="py-2">
-                    <p className="font-medium text-foreground"><bdi>{p.name ?? '—'}</bdi></p>
+                    <p className="font-medium text-foreground">
+                      <bdi>{p.name ?? '—'}</bdi>
+                      {p.active === false && <Left label={t('leftPartner')} />}
+                    </p>
                     <dl className="mt-1 grid grid-cols-3 gap-2">
                       {[
                         [t('share'), p.shareEgp],
@@ -179,7 +184,10 @@ export function RunningCostsSection() {
                   <tbody className="divide-y divide-border">
                     {data.partners.map((p) => (
                       <tr key={p.userId}>
-                        <td className="py-1.5 text-foreground"><bdi>{p.name ?? '—'}</bdi></td>
+                        <td className="py-1.5 text-foreground">
+                          <bdi>{p.name ?? '—'}</bdi>
+                          {p.active === false && <Left label={t('leftPartner')} />}
+                        </td>
                         <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums"><Money value={p.shareEgp} /></td>
                         <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums text-muted-foreground"><Money value={p.chargedEgp} /></td>
                         <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums text-foreground"><Money value={p.waitingEgp} /></td>
@@ -203,6 +211,15 @@ export function RunningCostsSection() {
         </div>
       )}
     </section>
+  );
+}
+
+/** A partner who left keeps owing his share; it is still his (§8). */
+function Left({ label }: { label: string }) {
+  return (
+    <span data-testid="running-costs-left" className="ms-2 text-[11px] font-normal text-muted-foreground">
+      {label}
+    </span>
   );
 }
 
