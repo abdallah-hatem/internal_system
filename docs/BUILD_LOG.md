@@ -13,6 +13,7 @@ _(none)_
 _(none)_
 
 ## Next up
+- Infra (owner 2026-10-12, after L7 lands): isolated e2e per agent — every spec and the Playwright config take the API/web/storefront URLs and DATABASE_URL from env (no hard-coded localhost:300x); `scripts/agent-db.sh <name>` makes a database from a migrated template and prints the env + a port block; globalSetup snapshots/restores that database only. Then per task: touched specs + affected groups; the full suite once before each deploy. (Skill updated: abdallah-skills 1.46.0.)
 - Owner asleep 2026-10-12: finish L6, L8, L7 unattended (ship each when green; `Bash(scripts/ship-prod.sh:*)` is allowed now), then stop all dev, quit Docker, end the Amphetamine session.
 - L8 built 2026-10-12 on `feature/l8-departures-in-parts` (master 431c4d2 merged in; not merged back, not pushed):
   goods leave in parts (§1) — a departure per day with per-product lines, Undo where nothing depends on it, only
