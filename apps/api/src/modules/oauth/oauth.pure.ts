@@ -40,6 +40,15 @@ export const MAX_STATE_LENGTH = 1000;
  */
 const CLAUDE_HOSTS = new Set(['claude.ai', 'claude.com']);
 
+/**
+ * ChatGPT's connector callbacks (owner, 2026-10-13). Not the whole host: only
+ * the legacy fixed callback and the per-connector one with a plain id — any
+ * other chatgpt.com path could be a page that leaks the code.
+ */
+const CHATGPT_HOST = 'chatgpt.com';
+const CHATGPT_LEGACY_PATH = '/connector_platform_oauth_redirect';
+const CHATGPT_CALLBACK_PATH = /^\/connector\/oauth\/[A-Za-z0-9_-]{1,200}$/;
+
 /** Claude Desktop and Claude Code receive the code on this machine. */
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -65,6 +74,14 @@ export function isAllowedRedirectUri(uri: string): boolean {
   }
   if (url.protocol === 'https:' && CLAUDE_HOSTS.has(url.hostname)) {
     return url.port === '';
+  }
+  if (url.protocol === 'https:' && url.hostname === CHATGPT_HOST) {
+    return (
+      url.port === '' &&
+      url.search === '' &&
+      (url.pathname === CHATGPT_LEGACY_PATH ||
+        CHATGPT_CALLBACK_PATH.test(url.pathname))
+    );
   }
   if (
     (url.protocol === 'http:' || url.protocol === 'https:') &&

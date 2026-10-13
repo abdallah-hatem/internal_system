@@ -11,6 +11,43 @@ import {
 import { isOpenOAuthPath } from '../../common/api-prefix';
 import { publicBaseUrl } from '../../common/public-base-url';
 
+describe('isAllowedRedirectUri — ChatGPT, at its two exact callbacks only (owner, 2026-10-13)', () => {
+  it.each([
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+    'https://chatgpt.com/connector/oauth/abc123_XYZ-9',
+  ])('allows %s', (uri) => {
+    expect(isAllowedRedirectUri(uri)).toBe(true);
+  });
+
+  it.each([
+    ['another path on chatgpt.com', 'https://chatgpt.com/cb'],
+    ['the root', 'https://chatgpt.com/'],
+    [
+      'a deeper path under the callback',
+      'https://chatgpt.com/connector/oauth/abc/extra',
+    ],
+    ['an empty callback id', 'https://chatgpt.com/connector/oauth/'],
+    [
+      'odd characters in the id',
+      'https://chatgpt.com/connector/oauth/a%2F..%2Fb',
+    ],
+    [
+      'a query string',
+      'https://chatgpt.com/connector_platform_oauth_redirect?next=evil',
+    ],
+    ['plain http', 'http://chatgpt.com/connector_platform_oauth_redirect'],
+    ['a port', 'https://chatgpt.com:8443/connector_platform_oauth_redirect'],
+    ['a subdomain', 'https://x.chatgpt.com/connector_platform_oauth_redirect'],
+    [
+      'a lookalike',
+      'https://chatgpt.com.evil.example/connector_platform_oauth_redirect',
+    ],
+    ['openai.com', 'https://openai.com/connector_platform_oauth_redirect'],
+  ])('refuses %s', (_why, uri) => {
+    expect(isAllowedRedirectUri(uri)).toBe(false);
+  });
+});
+
 describe('isAllowedRedirectUri — only Claude may receive a code', () => {
   it.each([
     'https://claude.ai/api/mcp/auth_callback',

@@ -1490,6 +1490,12 @@ Partners can talk to the system through Claude (claude.ai, the phone app, Claude
 Desktop), connected to it as an MCP server. Spec:
 `docs/specs/2026-09-19-mcp-assistant.md`.
 
+**DECIDED 2026-10-13 (owner) — ChatGPT may connect too.** Sign-in returns a code only to Claude's own sites
+(claude.ai, claude.com), to apps on the partner's own machine (localhost), and to ChatGPT's two connector callbacks
+on chatgpt.com — `/connector_platform_oauth_redirect` and `/connector/oauth/<id>` — never anywhere else on that
+site. Every other web service is refused: registration is open, so this list is what keeps a partner's sign-in from
+being sent to someone else's site. Adding another AI means adding its exact callback here, not opening a domain.
+
 **Who.** Core partners only. A temporary investor or a shop owner is refused when
 signing in. Signing in uses the partner's own login. Each Claude app a partner
 connects — the phone, a laptop — signs in once, is remembered, and appears in
