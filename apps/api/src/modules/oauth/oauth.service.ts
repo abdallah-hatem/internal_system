@@ -161,7 +161,7 @@ export class OAuthService {
       if (typeof uri !== 'string' || !isAllowedRedirectUri(uri)) {
         throw protocolError(
           'invalid_redirect_uri',
-          'Only Claude’s own callbacks can be registered.',
+          'Only Claude’s and ChatGPT’s own callbacks, or this machine, can be registered.',
         );
       }
     }
