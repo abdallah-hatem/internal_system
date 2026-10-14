@@ -269,3 +269,9 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - A deploy-wait loop that requires the deploy to be "under N minutes old" can miss a deploy that finished before
   the loop started, and then polls for ten minutes. Compare the deploy's commit or creation time with the push
   time instead, or just check status once after the push. — 2026-10-15
+
+## Loading states
+
+- A list or detail screen loading its data shows a skeleton that traces its rows (building-frontends
+  ui-patterns "Skeletons"), never `<Loader2/> Loading...`. 28 office screens and 9 storefront components still had the
+  spinner on 2026-10-15 and the owner had to ask. Spinners stay only inside buttons that are saving. — 2026-10-15
