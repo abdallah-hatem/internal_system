@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: 2026-10-14 — production reset by the owner with scripts/prod-reset-partners.sh: all data gone, logins replaced by abdallah@ / shady@ / fares@ (core partners); settings kept. ChatGPT may connect (§16). In flight: product deactivate, logout (both in isolated agent environments). Money accounts removed (owner 2026-10-14) on `chore/remove-money-accounts`.
+Current stage: 2026-10-14 — live: logout (`5dfb585`), money accounts removed (`cf7f345`, migration 20261014120000 applied after a Neon blip), white search fields (`2cc9305`), ChatGPT may connect. In flight: product deactivate (owner: inactive sells what's left, can't be bought).
 
 ## Waiting on the user
 _(none)_

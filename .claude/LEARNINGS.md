@@ -33,6 +33,11 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   even when part of the order was still at the supplier or in Dubai. The owner: "sometimes thats not the case as I
   said before, we can receive in batches". — 2026-10-12
 
+- Never chain `ship-prod.sh migrate | tail -1 && git push`. The pipe's exit code is tail's, so a failed migration
+  (Neon dropped the connection: P1001) still let the push deploy code ahead of its schema. Run migrate on its own,
+  then `ship-prod.sh status` must print "Database schema is up to date!" before the push. It was harmless that time
+  only because the migration dropped unused columns. — 2026-10-14
+
 ## New apps in this product family
 
 - Copy the conventions, do not re-derive them. The storefront was scaffolded fresh and so
