@@ -63,6 +63,8 @@ const EXPECTED_TOOLS = [
   'record_payment',
   // lenders (added 2026-10-11, L2: a friend who paid a supplier, repaid in pounds, §16 §18)
   'list_lenders', 'get_lender', 'record_lender_financing', 'record_lender_repayment',
+  // categories (added 2026-10-15: the owner asked the assistant to create categories, §16)
+  'list_categories', 'create_category',
 ];
 
 /** The intake path, receipt to sellable stock — the only things it may change (§16). */
@@ -72,6 +74,7 @@ const WRITE_TOOLS = [
   'record_sale',
   'record_payment',
   'record_lender_financing', 'record_lender_repayment',
+  'create_category',
 ];
 
 /**

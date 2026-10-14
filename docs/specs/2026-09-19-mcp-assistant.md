@@ -119,6 +119,8 @@ is refused.
 
 **Cycles** — `create_cycle`, `add_shipping_leg`, `transition_cycle`, `verify_stock`
 
+**Categories** (added 2026-10-15, owner; BUSINESS_LOGIC §16) — `list_categories` (read), `create_category`
+
 Every write tool: `readOnlyHint: false`, `destructiveHint: false`, so Claude clients ask before
 running it as well.
 
