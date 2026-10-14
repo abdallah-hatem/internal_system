@@ -11,7 +11,7 @@ import { FormAlert, PasswordField, SubmitButton, TextField } from './fields';
 import {
   collect,
   emailError,
-  passwordError,
+  newPasswordError,
   shopNameError,
   PASSWORD_MIN,
   type FieldErrors,
@@ -50,7 +50,7 @@ export function SignUpForm() {
     const found = collect({
       shopName: shopNameError(shopName, t),
       email: emailError(email, t),
-      password: passwordError(password, t),
+      password: newPasswordError(password, t),
     });
     setErrors(found);
     if (Object.keys(found).length) return;

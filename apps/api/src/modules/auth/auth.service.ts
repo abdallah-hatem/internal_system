@@ -8,6 +8,7 @@ import { RegisterDto } from './dto/register.dto';
 import { PortalLoginDto } from './dto/portal-login.dto';
 
 import { badRequest, conflict, unauthorized } from '../../common/api-error';
+import { assertStrongPassword } from '../../common/assert-password';
 @Injectable()
 export class AuthService {
   constructor(
@@ -162,6 +163,7 @@ export class AuthService {
       where: { email: dto.email },
     });
     if (existing) throw conflict('EMAIL_TAKEN', 'Email already registered');
+    assertStrongPassword(dto.password);
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
@@ -222,22 +224,42 @@ export class AuthService {
     return { data: result };
   }
 
+  /**
+   * A signed-in person changing their own password (2026-10-14).
+   *
+   * Order: the rule first, because it needs nothing stored and says the same
+   * whoever asks; then the current password, which proves it is them; then
+   * "not the same as now", which only means anything once the current one is
+   * known to be right. Nothing is written unless all three pass.
+   *
+   * The session is kept. Tokens are stateless and carry no password, so the
+   * one that made this request goes on working until it expires — the person
+   * who just proved they know both passwords is not sent back to the login.
+   */
   async changePassword(
     userId: string,
-    oldPassword: string,
+    currentPassword: string,
     newPassword: string,
   ) {
+    assertStrongPassword(newPassword);
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw unauthorized('INVALID_CREDENTIALS', 'User not found');
 
     const isPasswordValid = await bcrypt.compare(
-      oldPassword,
+      currentPassword,
       user.passwordHash,
     );
     if (!isPasswordValid)
       throw badRequest(
         'WRONG_CURRENT_PASSWORD',
         'Current password is incorrect',
+      );
+
+    if (newPassword === currentPassword)
+      throw badRequest(
+        'PASSWORD_SAME_AS_CURRENT',
+        'The new password must be different from the current one.',
       );
 
     const passwordHash = await bcrypt.hash(newPassword, 12);

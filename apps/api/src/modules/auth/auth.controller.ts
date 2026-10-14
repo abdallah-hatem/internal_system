@@ -1,10 +1,19 @@
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PortalLoginDto } from './dto/portal-login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Surface } from '../../common/surface';
@@ -73,8 +82,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Change current user password' })
   async changePassword(
     @CurrentUser() user: any,
-    @Body() body: { oldPassword: string; newPassword: string },
+    @Body() dto: ChangePasswordDto,
   ) {
-    return this.authService.changePassword(user.id, body.oldPassword, body.newPassword);
+    // Whose password is the token's business, never the body's: there is no
+    // field naming a user, and the whitelist refuses one sent anyway.
+    return this.authService.changePassword(
+      user.id,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
 }

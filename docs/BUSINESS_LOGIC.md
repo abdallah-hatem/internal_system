@@ -1377,6 +1377,8 @@ no longer described the system.
   and the partner accounts open with the password from the seed data, which
   sits in the public repository. The assistant (§16) can write to the business
   through those same logins. Each partner changes theirs before relying on it.
+  (Until 2026-10-14 Settings → change password failed every time, so this
+  could not be done from the app; it can now — §20.)
 - **Backups have never been tested.** The database's host keeps a short window
   for restoring to an earlier moment. Its length depends on the plan and has not
   been checked, no restore has ever been tried, and no copy is kept anywhere
@@ -1855,3 +1857,25 @@ The owner, 2026-10-14: there was no way to log out. The header's avatar and name
 | Alerts on this browser | **GUESS:** the browser's push subscription is removed (API row deleted, then the browser unsubscribes) while the token is still there to authorise it. Best effort, given two seconds; it never keeps anyone signed in. The partner turns alerts on again from Settings after the next sign-in. | Subscriptions are stored per user, so without this the next person on the browser would keep receiving the last one's notifications. |
 | Where it lands | The login page of the language being read (`/{locale}/login`), replacing the history entry. Back shows nothing of the office: a signed-out shell draws nothing while it redirects, and a page restored from the back/forward cache re-reads storage. | It used to be hard-coded to `/en/login`. |
 | Another tab of the same browser | Signs out with it (the `storage` event): its cache is cleared and it goes to the login page. | One browser, one person. |
+
+## 20. Passwords  — DECIDED 2026-10-14 (owner hit "change my password" failing), details GUESSED
+
+The owner, 2026-10-14: changing the password in Settings never worked. The form sent `currentPassword` and the API
+read `oldPassword`, so every change failed with a server error, shown as a generic "error"; the form had already
+emptied itself before the answer came; a confirmation that did not match did nothing, silently; and nothing stopped
+a one-character password.
+
+| Question | Rule | Status |
+|---|---|---|
+| What a password must be | At least **8 characters, with at least one letter and one digit**. Letters and digits of any script count (Arabic included); spaces count as characters. No symbol or capital required. Refused as `PASSWORD_TOO_WEAK`. | **GUESS** (recommended option, taken without asking): long enough to stop the trivial, short enough that partners do not write it down. The demo seed's `password123` passes. |
+| Where it applies | Every place a password is **set**: change password, a partner creating a user (`/auth/register`, `/users`), a shop signing up on the storefront, and `scripts/prod-reset-partners.sh`. One definition, `apps/api/src/common/password-rule.ts`; the office form and storefront carry copies that say so, the office copy pinned by a unit test. | DECIDED |
+| Signing in with an older, weaker password | Still works. The rule applies the next time the password is set, not at the door. | **GUESS** — refusing would lock out anyone set up before the rule. |
+| New password equal to the current one | Refused, `PASSWORD_SAME_AS_CURRENT`. Only this one is compared; there is no history of older passwords. | DECIDED (owner's brief) |
+| Wrong current password | Refused, `WRONG_CURRENT_PASSWORD`, shown in the reader's language through `useApiError()` — checked in Arabic by 99-change-password TC-PW-03. Nothing is changed. | DECIDED |
+| Order of checks | The rule first (it needs nothing stored), then the current password, then "not the same". | DECIDED |
+| Does changing it sign you out? | **No — the session is kept**, on this device and any other. Tokens are stateless and carry no password, so every token already issued keeps working until it expires (`JWT_EXPIRATION`, default 24h). The person who just proved both passwords is not sent back to the login. | **GUESS** (recommended). Consequence: changing a password because a token or device was lost does **not** shut that device out. Same missing piece as §19 — a token version on the user would make "change password" also mean "sign out everywhere else". |
+| The form | Fields are kept after any refusal and cleared only on success. A confirmation that differs says *"The two new passwords don't match"* under it and sends nothing. The rule is shown as a hint under the new password; placeholders are valid examples (`YourCurrentPassword1`, `StrongPassword@123`). | DECIDED |
+| Unknown or missing fields | `VALIDATION_FAILED` (400), never a 500 — including the old `oldPassword` name, and any field naming a user: whose password it is comes from the token only. | DECIDED |
+
+Open: bcrypt reads only the first 72 bytes of a password, so two passwords that share those are the same password.
+The field allows 200 characters. Harmless at the lengths people type; recorded rather than enforced.

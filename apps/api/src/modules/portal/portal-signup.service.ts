@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { conflict } from '../../common/api-error';
+import { assertStrongPassword } from '../../common/assert-password';
 import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
@@ -38,6 +39,7 @@ export class PortalSignupService {
       // already discoverable through the login form either way.
       throw conflict('EMAIL_TAKEN', 'That email already has an account.');
     }
+    assertStrongPassword(data.password);
 
     const passwordHash = await bcrypt.hash(data.password, 12);
 

@@ -49,7 +49,11 @@ for p in "${people[@]}"; do
     read -r -s -p "Password for $email: " pw1; echo
     read -r -s -p "Again: " pw2; echo
     [[ "$pw1" == "$pw2" ]] || { echo "  They differ — again."; continue; }
+    # The API's password rule (apps/api/src/common/password-rule.ts, 2026-10-14),
+    # mirrored: this script writes hashes straight to the database and never
+    # passes through the service that enforces it.
     (( ${#pw1} >= 8 )) || { echo "  At least 8 characters — again."; continue; }
+    [[ "$pw1" =~ [[:alpha:]] && "$pw1" =~ [[:digit:]] ]] || { echo "  It needs a letter and a digit — again."; continue; }
     break
   done
   printf '%s\t%s\t%s\n' "$name" "$email" "$pw1" >>"$input"

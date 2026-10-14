@@ -13,6 +13,8 @@ import { PushAlerts } from '../../../components/settings/push-alerts';
 import { AssistantConnections } from '../../../components/settings/assistant-connections';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { useApiError } from '@/lib/api-error';
+import { PASSWORD_MIN_LENGTH, isStrongPassword } from '@/lib/password-rule';
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -29,33 +31,60 @@ export default function SettingsPage() {
     queryFn: () => api.get('/auth/profile').then((r) => r.data.data ?? r.data),
   });
 
-  // ── Change password mutation ───────────────────────────────────────
+  // ── Change password ────────────────────────────────────────────────
+  // Controlled, so a refusal leaves what was typed where it was (2026-10-14:
+  // the form used to reset the moment it was submitted, before the answer,
+  // and a wrong current password cost the reader all three fields).
+  const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  /** A field's own problem, said under it. Only the form's checks set these. */
+  const [pwErrors, setPwErrors] = useState<Partial<Record<keyof typeof pw, string>>>({});
+  const apiError = useApiError();
+  const te = useTranslations('errors');
+
   const passwordMutation = useMutation({
     mutationFn: (data: { currentPassword: string; newPassword: string }) =>
       api.post('/auth/change-password', data),
     onSuccess: () => {
+      // Only now. The session is kept: nothing is signed out by this.
+      setPw({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setPasswordSuccess(true);
       setTimeout(() => setPasswordSuccess(false), 3000);
       toast(t('passwordChanged'), 'success');
     },
   });
 
+  const editPw = (field: keyof typeof pw) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPw((prev) => ({ ...prev, [field]: value }));
+    setPwErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (passwordMutation.isError) passwordMutation.reset();
+  };
+
   // ── Handlers ──────────────────────────────────────────────────────
   const handlePasswordChange = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const newPass = fd.get('newPassword') as string;
-    const confirmPass = fd.get('confirmPassword') as string;
-
-    if (newPass !== confirmPass) return;
+    // The server applies the same rule and says it in the same words; this
+    // only saves the round trip.
+    const problems: typeof pwErrors = {};
+    if (!isStrongPassword(pw.newPassword)) {
+      problems.newPassword = te('PASSWORD_TOO_WEAK', { min: PASSWORD_MIN_LENGTH });
+    } else if (pw.newPassword === pw.currentPassword) {
+      problems.newPassword = te('PASSWORD_SAME_AS_CURRENT');
+    }
+    if (pw.confirmPassword !== pw.newPassword) {
+      problems.confirmPassword = t('passwordsDontMatch');
+    }
+    setPwErrors(problems);
+    if (Object.keys(problems).length > 0) {
+      const first = problems.newPassword ? 'newPassword' : 'confirmPassword';
+      document.getElementById(first)?.focus();
+      return;
+    }
 
     passwordMutation.mutate({
-      currentPassword: fd.get('currentPassword') as string,
-      newPassword: newPass,
+      currentPassword: pw.currentPassword,
+      newPassword: pw.newPassword,
     });
-
-    // Reset form
-    (e.target as HTMLFormElement).reset();
   };
 
   const switchLocale = (newLocale: string) => {
@@ -154,46 +183,49 @@ export default function SettingsPage() {
               {t('security')}
             </h2>
             <ValidatedForm onSubmit={handlePasswordChange} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('currentPassword')}</label>
-                <input
-                  type="password"
-                  name="currentPassword"
-                  required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('newPassword')}</label>
-                <input
-                  type="password"
-                  name="newPassword"
-                  required
-                  minLength={6}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirmPassword')}</label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  required
-                  minLength={6}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
+              <PasswordInput
+                id="currentPassword"
+                label={t('currentPassword')}
+                placeholder={t('currentPasswordPlaceholder')}
+                autoComplete="current-password"
+                value={pw.currentPassword}
+                onChange={editPw('currentPassword')}
+                error={pwErrors.currentPassword}
+              />
+              <PasswordInput
+                id="newPassword"
+                label={t('newPassword')}
+                placeholder={t('newPasswordPlaceholder')}
+                autoComplete="new-password"
+                value={pw.newPassword}
+                onChange={editPw('newPassword')}
+                error={pwErrors.newPassword}
+                hint={t('passwordRule', { min: PASSWORD_MIN_LENGTH })}
+              />
+              <PasswordInput
+                id="confirmPassword"
+                label={t('confirmPassword')}
+                placeholder={t('confirmPasswordPlaceholder')}
+                autoComplete="new-password"
+                value={pw.confirmPassword}
+                onChange={editPw('confirmPassword')}
+                error={pwErrors.confirmPassword}
+              />
 
               {passwordSuccess && (
                 <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">
                   <Check className="h-4 w-4" />
-                  {t('saved')}
+                  {t('passwordChanged')}
                 </div>
               )}
 
               {passwordMutation.isError && (
-                <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  {tc('error')}
+                <div
+                  role="alert"
+                  data-testid="password-refusal"
+                  className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"
+                >
+                  {apiError(passwordMutation.error, tc('error'))}
                 </div>
               )}
 
@@ -204,12 +236,58 @@ export default function SettingsPage() {
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
                 >
                   {passwordMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {t('save')}
+                  {t('changePassword')}
                 </button>
               </div>
             </ValidatedForm>
           </section>
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One password field: label, input, the rule under it, and its own error.
+ * The label is tied to the input, and the hint and error to both, so a screen
+ * reader says them and a test can find the field by its name.
+ */
+function PasswordInput({
+  id, label, placeholder, autoComplete, value, onChange, error, hint,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  autoComplete: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string;
+  hint?: string;
+}) {
+  const described = [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined;
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <input
+        id={id}
+        type="password"
+        name={id}
+        required
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={described}
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+          error ? 'border-red-400' : 'border-gray-200'
+        }`}
+      />
+      {hint && (
+        <p id={`${id}-hint`} className="mt-1 text-xs text-gray-500">{hint}</p>
+      )}
+      {error && (
+        <p id={`${id}-error`} data-testid={`${id}-error`} className="mt-1 text-xs text-red-600">{error}</p>
       )}
     </div>
   );
