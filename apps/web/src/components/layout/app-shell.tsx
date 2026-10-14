@@ -180,9 +180,11 @@ export function AppShell({
     <ToastProvider>
       <ToastBridge />
       <div data-app-frame className="flex h-dvh overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
-      {/* Mobile overlay */}
+      {/* Mobile overlay. Starts below the notch: iPhone Safari tints the status
+          bar from whatever fixed element touches the top edge, and kept it
+          dark after the drawer closed (owner, 2026-10-14). */}
       {sidebarOpen && (
-        <div data-print-hide className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div data-print-hide className="fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top)] bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar — never on paper (globals.css, print). */}
