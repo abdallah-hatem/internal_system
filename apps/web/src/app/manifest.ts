@@ -8,10 +8,9 @@ import type { MetadataRoute } from 'next';
  * job somebody does standing in a shop, not at a desk. `display: standalone`
  * removes the browser chrome once it is added to a home screen.
  *
- * `theme_color` is slate rather than the brand blue, matching the icon. The
- * storefront's blue is `#1d4ed8`, which is also this app's `primary-700` — two
- * tiles in the same blue would be genuinely hard to tell apart, and this is
- * the one a customer never sees.
+ * The icon is the S&F logo on black (owner, 2026-10-14), so the splash screen
+ * and status bar are black to match. Still far from the storefront's blue tile,
+ * so the two apps stay easy to tell apart on a home screen.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -20,8 +19,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Cycles, stock, sales and settlements.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#f9fafb',
-    theme_color: '#1e293b',
+    background_color: '#000000',
+    theme_color: '#000000',
     dir: 'auto',
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
