@@ -15,8 +15,11 @@ export interface CatalogueItem {
   id: string;
   sku: string;
   name: string;
+  /** Shown instead of `name` on /ar when present (§3, 2026-10-14). */
+  nameAr: string | null;
   description: string | null;
-  category: { id: string; name: string } | null;
+  descriptionAr: string | null;
+  category: { id: string; name: string; nameAr: string | null } | null;
   /** A decimal string the server already resolved for this viewer, or null. */
   price: string | null;
   currency: 'EGP';
@@ -40,6 +43,7 @@ export interface CataloguePage {
 export interface Category {
   id: string;
   name: string;
+  nameAr: string | null;
   parentId: string | null;
 }
 
@@ -47,8 +51,10 @@ export interface ProductDetail {
   id: string;
   sku: string;
   name: string;
+  nameAr: string | null;
   description: string | null;
-  category: { id: string; name: string } | null;
+  descriptionAr: string | null;
+  category: { id: string; name: string; nameAr: string | null } | null;
   price: string | null;
   currency: 'EGP';
   channel: PriceChannel;

@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
+import { localName } from '../../lib/localized-name';
 import { isZero, sameDecimal, trimQuantity } from './decimal';
 import { StatusPill, useDates } from './format';
 import { useRequest, useWithdrawRequest, type PortalRequest, type RequestItem } from './queries';
@@ -170,7 +171,7 @@ function ItemLines({ items }: { items: RequestItem[] }) {
         return (
           <li key={item.productId} className="flex items-start gap-3 p-4">
             <div className="min-w-0 flex-1 space-y-0.5">
-              <p className="text-sm font-medium text-gray-900">{item.name}</p>
+              <p className="text-sm font-medium text-gray-900">{localName(item, locale)}</p>
               <p className="font-mono text-xs text-gray-500">{item.sku}</p>
               <p className="text-xs text-gray-500">
                 {t('unitPrice')}{' '}

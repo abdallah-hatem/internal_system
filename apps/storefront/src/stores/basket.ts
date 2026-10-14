@@ -27,6 +27,11 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 export type BasketLine = {
   productId: string;
   name: string;
+  /**
+   * The Arabic name, when the product has one (§3, 2026-10-14). Optional: a
+   * basket saved before Arabic names existed has none and shows the English.
+   */
+  nameAr?: string | null;
   sku: string;
   /** Decimal string, exactly as the API sent it. Never a JavaScript number. */
   unitPrice: string;

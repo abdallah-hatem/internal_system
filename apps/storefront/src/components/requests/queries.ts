@@ -18,6 +18,8 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'DECLINED' | 'CANCELLED';
 export type RequestItem = {
   productId: string;
   name: string;
+  /** The Arabic name, null when none was entered (§3, 2026-10-14). */
+  nameAr?: string | null;
   sku: string;
   qtyRequested: string;
   qtyApproved: string | null;

@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { Link } from '../../i18n/navigation';
 import { useBasket, useBasketCount, useBasketHydrated } from '../../stores/basket';
 import { Money } from '../ui/money';
+import { localName } from '../../lib/localized-name';
 import { estimateTotal } from './decimal';
 import { QuantityStepper } from './quantity-stepper';
 import { useSubmitRequest } from './queries';
@@ -164,7 +165,7 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
                   {lines.map((line) => (
                     <li key={line.productId} className="flex items-start gap-3 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">{line.name}</p>
+                        <p className="truncate text-sm font-medium text-gray-900">{localName(line, locale)}</p>
                         <p className="font-mono text-xs text-gray-500">{line.sku}</p>
                         <Money
                           amount={line.unitPrice}
@@ -176,7 +177,7 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
                       <div className="flex flex-col items-end gap-1.5">
                         <QuantityStepper
                           quantity={line.quantity}
-                          label={line.name}
+                          label={localName(line, locale)}
                           onChange={(quantity) =>
                             quantity < 1
                               ? remove(line.productId)
