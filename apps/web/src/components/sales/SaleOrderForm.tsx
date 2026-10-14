@@ -461,7 +461,7 @@ export function SaleOrderForm({
                     <MoneyInput
                       placeholder={tph('money')}
                       data-field="unitPrice"
-                      value={line.unitPrice}
+                      value={line.unitPrice || ''}
                       onChange={(raw) =>
                         update(line.key, { unitPrice: Number(raw), priceTyped: true })
                       }
@@ -483,7 +483,7 @@ export function SaleOrderForm({
                     <MoneyInput
                       placeholder={tph('discount')}
                       data-field="discount"
-                      value={line.discount}
+                      value={line.discount || ''}
                       onChange={(raw) => update(line.key, { discount: Number(raw) })}
                       aria-invalid={discountTooLarge || undefined}
                       className={`${fieldClass} text-start ${

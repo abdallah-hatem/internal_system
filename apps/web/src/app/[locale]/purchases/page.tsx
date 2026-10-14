@@ -416,7 +416,7 @@ export default function PurchasesPage() {
                         <input
                           type="number"
                           placeholder={tph('quantity')}
-                          value={item.orderedQty}
+                          value={item.orderedQty || ''}
                           onChange={(e) => updateLineItem(idx, 'orderedQty', Number(e.target.value))}
                           {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -426,7 +426,7 @@ export default function PurchasesPage() {
                         <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>
                         <MoneyInput
                           placeholder={tph('money')}
-                          value={item.unitPrice}
+                          value={item.unitPrice || ''}
                           onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -435,7 +435,7 @@ export default function PurchasesPage() {
                         <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
                         <MoneyInput
                           placeholder={tph('discount')}
-                          value={item.discount}
+                          value={item.discount || ''}
                           onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
