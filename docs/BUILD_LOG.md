@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: idle 2026-10-15 — all live: Arabic names for categories and products (`c4b5222`, migration `20261014150000_arabic_names` applied to production), drawer overlay below the header so iPhone Safari's status bar stays light (`7bddd3f`, owner confirmed), password change fixed (`284b977`), S&F logo on the PWA, sidebar and login (`57cf287`, `985bc05`, `841d014`), every field has an example placeholder (`3b5a792`), production logins replaced by the owner's own script. Docker quit.
+Current stage: paused 2026-10-15 1:55 AM at the owner's request (reminder set for 11:40 AM). Live: Arabic names + spelling-tolerant Arabic search, the 8 categories in production, category collapse + product counts, white outline buttons, rename to S&F System, assistant list_categories/create_category, category names unique ignoring case. Paused: skeletons in place of loading spinners — WIP commit `c2179c3` on `feature/skeletons` (worktree `.claude/worktrees/agent-a7ef6100de3d901d4`; brief and measure scripts in its `.ui-audit/`); converted, NOT measured, e2e not run, storefront spec not written. To finish: own stack from that worktree, measure every screen en/ar 390/1440, fix, fail-before, screenshots, full lint/tests, merge, push. Docker quit.
 
 ## Waiting on the user
 _(none)_
