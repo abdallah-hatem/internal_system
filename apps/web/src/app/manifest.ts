@@ -14,8 +14,8 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'MotoParts Manager',
-    short_name: 'Manager',
+    name: 'S&F System',
+    short_name: 'S&F System',
     description: 'Cycles, stock, sales and settlements.',
     start_url: '/',
     display: 'standalone',

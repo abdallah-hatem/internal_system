@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "MotoParts Manager",
+    "appName": "S&F System",
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
@@ -50,7 +50,7 @@
     "selectPlaceholder": "Choose from the list",
     "noOptionsMatch": "No matches",
     "print": "Print",
-    "brand": "MotoParts",
+    "brand": "S&F",
     "searchList": "Type to filter the list"
   },
   "pagination": {
@@ -1472,13 +1472,13 @@
     "failed": "Alerts could not be turned on for this device.",
     "turnOn": "Turn on alerts",
     "turnOff": "Turn off alerts",
-    "installToGetAlerts": "To get alerts on this iPhone, add MotoParts Manager to your home screen first — Safari cannot send them otherwise.",
+    "installToGetAlerts": "To get alerts on this iPhone, add S&F System to your home screen first — Safari cannot send them otherwise.",
     "alertsBlockedTitle": "Alerts are blocked for this site. The browser will not ask again, so turn them on here:",
     "iosStep1": "Tap the Share button at the bottom of Safari",
     "iosStep2": "Scroll down and tap \"Add to Home Screen\"",
     "iosStep3": "Tap \"Add\", then close Safari",
-    "iosStep4": "Open MotoParts Manager from your home screen and come back to this page",
-    "installStep1": "Install MotoParts Manager from your browser menu — look for \"Install app\" or \"Add to Home screen\"",
+    "iosStep4": "Open S&F System from your home screen and come back to this page",
+    "installStep1": "Install S&F System from your browser menu — look for \"Install app\" or \"Add to Home screen\"",
     "installStep2": "Open it from your home screen and come back to this page",
     "blockedIosStep1": "Open Settings, then Apps, then Safari",
     "blockedIosStep2": "Tap Notifications and allow them for this site",
