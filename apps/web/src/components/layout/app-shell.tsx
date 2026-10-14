@@ -195,7 +195,7 @@ export function AppShell({
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <BrandMark size={32} />
-            <span className="font-bold text-gray-900 text-sm">MotoParts</span>
+            <span className="font-bold text-gray-900 text-sm">S&amp;F</span>
           </div>
           <button
             type="button"
