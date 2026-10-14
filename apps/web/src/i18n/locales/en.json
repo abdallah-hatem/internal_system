@@ -75,7 +75,9 @@
     "notifications": "Notifications",
     "auditLogs": "Audit Logs",
     "settings": "Settings",
-    "logout": "Logout",
+    "logout": "Log out",
+    "accountMenu": "Account menu",
+    "signingOut": "Signing out…",
     "settlements": "Settlements",
     "paymentPlans": "Payment Plans",
     "groups": {

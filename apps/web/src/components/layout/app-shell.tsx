@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { ToastProvider, ToastBridge } from '../ui/toast';
 import { NotificationBell } from './notification-bell';
+import { AccountMenu } from './account-menu';
 import {
   BadgePercent,
   BarChart3,
@@ -21,6 +22,7 @@ import {
   Globe,
   Handshake,
   LayoutDashboard,
+  LogOut,
   Menu,
   Package,
   PackageSearch,
@@ -45,7 +47,6 @@ import {
   systemForRole,
   type NavItem,
 } from './nav-model';
-import { useCodeLabel } from '@/lib/labels';
 
 type Icon = React.ComponentType<{ className?: string }>;
 
@@ -122,16 +123,12 @@ export function AppShell({
 }: {
   children: React.ReactNode;
 }) {
-  const codeLabel = useCodeLabel();
   const t = useTranslations('nav');
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isLoading } = useAuth();
-  const displayName = user?.partner?.displayName ?? user?.email ?? '';
-  const roleLabel = user?.role
-    ? codeLabel('role', user.role)
-    : '';
+  const { user, isLoading, logout } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   // One reading of the role for every surface, so the sidebar, "More" and the
@@ -172,6 +169,11 @@ export function AppShell({
       </ToastProvider>
     );
   }
+
+  // Signed out on a protected page: the redirect above is on its way. Draw
+  // nothing meanwhile — not the chrome, not the page — so a tab brought back
+  // by the back button after sign-out shows no one's screens.
+  if (!isLoading && !user) return null;
 
   return (
     <ToastProvider>
@@ -243,6 +245,22 @@ export function AppShell({
                 />
               ))}
             </div>
+            {/* The way out on a phone or tablet, where this drawer is "More".
+                On a wide screen the header's account menu holds it. */}
+            <button
+              type="button"
+              data-testid="drawer-logout"
+              disabled={signingOut}
+              onClick={() => {
+                if (signingOut) return;
+                setSigningOut(true);
+                void logout();
+              }}
+              className="lg:hidden mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-start text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-wait disabled:opacity-70"
+            >
+              <LogOut aria-hidden="true" className="h-[18px] w-[18px] flex-shrink-0 rtl:-scale-x-100" />
+              <span>{t('logout')}</span>
+            </button>
           </div>
         </nav>
       </aside>
@@ -294,18 +312,7 @@ export function AppShell({
 
             <NotificationBell />
 
-            <div className="flex items-center gap-2 ps-3 border-s border-gray-200">
-              {/* Was a hardcoded "A / Admin / Core Partner", so every partner
-                  saw the same name and could not tell whose session they were
-                  in — on a system where every action is attributed. */}
-              <div className="h-8 w-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold uppercase">
-                {(displayName || user?.email || '?').charAt(0)}
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{displayName || user?.email}</p>
-                <p className="text-xs text-gray-500">{roleLabel}</p>
-              </div>
-            </div>
+            <AccountMenu />
           </div>
         </header>
 
