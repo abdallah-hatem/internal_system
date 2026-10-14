@@ -12,6 +12,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
+import { CATEGORY_CREATE_ROLES } from './category-roles';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -116,7 +117,7 @@ export class CategoriesController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('CORE_PARTNER')
+  @Roles(...CATEGORY_CREATE_ROLES)
   @ApiOperation({ summary: 'Create a category (CORE_PARTNER only)' })
   createCategory(@Body() body: { name: string; nameAr?: string | null; parentId?: string }, @CurrentUser() user: any) {
     return this.productsService.createCategory(body, user.id);

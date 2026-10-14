@@ -65,7 +65,11 @@ const newProduct = z.object({
     .describe(
       'The model or part code printed on the receipt, if any. Left out, a SKU is generated.',
     ),
-  categoryId: id.optional(),
+  categoryId: id
+    .optional()
+    .describe(
+      'The category, by its id from list_categories. Leave out if the partner named none.',
+    ),
   description: z.string().trim().max(1000).optional(),
   // Only what the partner gave, in Arabic (§3, §16, owner 2026-10-14). Never
   // a translation the assistant made up: an Arabic name nobody wrote reads to

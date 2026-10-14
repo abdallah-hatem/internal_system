@@ -93,7 +93,7 @@ class PreviewRollback<T> {
  * Runs `work` in a transaction. A preview rolls it back and returns what it
  * would have made; a commit keeps it.
  */
-async function inTransaction<T>(
+export async function inTransaction<T>(
   prisma: PrismaService,
   mode: 'preview' | 'commit',
   work: (tx: Db) => Promise<T>,

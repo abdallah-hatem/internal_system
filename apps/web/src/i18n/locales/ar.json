@@ -1212,6 +1212,8 @@
     "CATEGORY_NAME_TAKEN": "توجد فئة بهذا الاسم بالفعل.",
     "CATEGORY_NAME_AR_TAKEN": "الاسم العربي {nameAr} مستخدم بالفعل للفئة {category}.",
     "CATEGORY_OWN_PARENT": "لا يمكن أن تكون الفئة أبًا لنفسها.",
+    "CATEGORY_PARENT_NOT_FOUND": "لا توجد فئة باسم «{parent}».",
+    "CATEGORY_PARENT_AMBIGUOUS": "«{parent}» قد تكون أكثر من فئة: {candidates}. اختر واحدة.",
     "CHINA_TWO_LEGS": "دورة الصين تُشحن على مرحلتين كحد أقصى: من الصين إلى الإمارات ثم من الإمارات إلى مصر.",
     "CUSTOMER_HAS_ACTIVE_PLAN": "لدى {customer} خطة سداد نشطة بالفعل ({reference}). ألغِها قبل الاتفاق على أخرى، وإلا طالبت خطتان بالدفعات نفسها.",
     "CUSTOMER_OWES_NOTHING": "لا يوجد مستحق على {customer}، فلا شيء ليُدفع.",

@@ -1210,6 +1210,8 @@ const INTAKE_WRITES = new Set([
   // L8, 2026-10-12: goods leave in parts too, and a later part is intake.
   'record_departure',
   'verify_stock',
+  // §16, 2026-10-15: the owner asked for categories, the catalogue beside create_product.
+  'create_category',
 ]);
 const OFFICE_ONLY =
   /sale|payment|instal|settle|return|refund|ledger|transaction|allocat|loss|lost/i;
@@ -1278,6 +1280,7 @@ describe('What the assistant offers', () => {
       'get_fx_rates',
       'list_lenders',
       'get_lender',
+      'list_categories',
     ];
     const byName = new Map(tools.map((t) => [t.name, t]));
     for (const name of reads) {

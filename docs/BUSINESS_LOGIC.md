@@ -1640,7 +1640,8 @@ still owed after a return). Reading it notifies nobody.
 **What it may change.** Only the intake path, from receipt to sellable stock:
 suppliers, products, purchase orders and their lines, cycles, shipping legs,
 cycle status, and verifying stock in — and, since 2026-10-11, recording a sale, recording a payment a shop
-made, and recording what a friend paid a supplier for us and our repayments to him (below). It cannot change,
+made, and recording what a friend paid a supplier for us and our repayments to him (below) — and, since
+2026-10-15, creating a product category (below). It cannot change,
 reverse or re-allocate sales or payments, nor touch instalments, settlements, returns or the ledger — those stay
 in the office app.
 This is enforced by the system, not by the assistant's good behaviour: its access
@@ -1822,8 +1823,41 @@ one matcher — an exact Arabic name is a match, a partial one only a candidate 
 and their candidates and lines carry both names. **The assistant never invents a
 translation:** `create_product` and a new product in `create_purchase_order` take
 `nameAr`/`descriptionAr` only when the partner wrote or said them, and leave them
-empty otherwise; the tool descriptions and the server instructions say so. There
-is no tool to create a category; an Arabic name for one is added in the office.
+empty otherwise; the tool descriptions and the server instructions say so. ~~There
+is no tool to create a category; an Arabic name for one is added in the office.~~ —
+superseded 2026-10-15, below.
+
+**Categories (DECIDED 2026-10-15, owner: "give the assistant create category").**
+Two tools:
+- `list_categories` (read) — every category: id, name, `nameAr` (null when none
+  was entered), the parent it sits under (`parentId`, `parent`, `parentAr`) and how
+  many products it holds, from the office's own category list. It is how the
+  assistant finds the `categoryId` `create_product` takes, and a parent.
+- `create_category` (write, the same two calls as every write) — `name`, `nameAr`
+  only when the partner gave it (never a translation), and an optional `parent` by
+  id or by English or Arabic name. It goes through `ProductsService.createCategory`,
+  the method the office's New Category form calls, so the rules are one definition:
+  a name already used (`CATEGORY_NAME_TAKEN`), an Arabic name already used ignoring
+  case (`CATEGORY_NAME_AR_TAKEN`), an Arabic name too long or not text, and the
+  audit row under the partner who signed in. Roles are the office endpoint's
+  (`products/category-roles.ts`: core partners). The parent is settled only by its
+  id or one category whose English or Arabic name is the same once case, spacing,
+  punctuation and Arabic spelling (§3: ة/ه, أ/ا, the vowel marks) are set aside.
+  Nothing matching is `CATEGORY_PARENT_NOT_FOUND` (naming the closest, if one is
+  close); two or more is `CATEGORY_PARENT_AMBIGUOUS`, listing them — never a guess.
+  The parent a name resolved to binds: if it means another category by the yes,
+  `PREVIEW_CHANGED`. Editing, moving or deleting a category stays in the office.
+
+Fixed in the shared method while building it (2026-10-15), so the office form gets
+them too: a blank name is refused (`VALIDATION_FAILED`) instead of stored as a
+category called nothing; the name is trimmed before the uniqueness check, so
+"Brakes " is "Brakes"; a parent id that is no category is `NOT_FOUND`, not a 500
+from the foreign key.
+
+Open (2026-10-15, a guess left as it was): the English name is unique exactly as
+typed, so "brakes" beside "Brakes" is allowed — the office's rule, kept as is, where
+a supplier's name is unique in any case. The owner decides whether categories should
+follow suppliers.
 
 
 ---

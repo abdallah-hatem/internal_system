@@ -175,6 +175,8 @@ test.describe('Assistant read tools', () => {
       'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_departure', 'record_delivery', 'verify_stock',
       // record_sale added 2026-10-11 (W3): the owner asked the assistant to record sales (§16).
       'record_sale',
+      // create_category added 2026-10-15: the owner asked the assistant to create categories (§16).
+      'create_category',
     ]);
     // record_payment added 2026-10-11 (I2): the owner approved the assistant recording a shop's payment (§16).
     const moneyIn = new Set(['record_payment']);
@@ -192,7 +194,7 @@ test.describe('Assistant read tools', () => {
         .map((t: any) => t.name),
     ).toEqual([]);
     expect(writes.map((t: any) => t.name)).toEqual(expect.arrayContaining(['record_sale', 'record_payment']));
-    for (const name of ['list_sales', 'list_payments', 'list_receivables', 'get_customer', 'get_dashboard', 'list_lenders', 'get_lender']) {
+    for (const name of ['list_sales', 'list_payments', 'list_receivables', 'get_customer', 'get_dashboard', 'list_lenders', 'get_lender', 'list_categories']) {
       expect(tools.find((t: any) => t.name === name)?.annotations?.readOnlyHint).toBe(true);
     }
   });
