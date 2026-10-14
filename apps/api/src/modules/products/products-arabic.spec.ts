@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment -- a hand-written Prisma fake: `where` clauses are evaluated generically */
 import type { HttpException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 
@@ -44,22 +45,22 @@ function matches(row: Row, where: any): boolean {
 function table(rows: Row[]) {
   return {
     rows,
-    findUnique: async ({ where }: any) =>
-      rows.find((r) => matches(r, where)) ?? null,
-    findFirst: async ({ where }: any = {}) =>
-      rows.find((r) => matches(r, where)) ?? null,
-    findMany: async ({ where }: any = {}) =>
-      rows.filter((r) => matches(r, where)),
-    create: async ({ data }: any) => {
+    findUnique: ({ where }: any) =>
+      Promise.resolve(rows.find((r) => matches(r, where)) ?? null),
+    findFirst: ({ where }: any = {}) =>
+      Promise.resolve(rows.find((r) => matches(r, where)) ?? null),
+    findMany: ({ where }: any = {}) =>
+      Promise.resolve(rows.filter((r) => matches(r, where))),
+    create: ({ data }: any) => {
       const row = { id: randomUUID(), ...data };
       rows.push(row);
-      return row;
+      return Promise.resolve(row);
     },
-    update: async ({ where, data }: any) => {
+    update: ({ where, data }: any) => {
       const row = rows.find((r) => matches(r, where))!;
       for (const [k, v] of Object.entries(data))
         if (v !== undefined) row[k] = v;
-      return row;
+      return Promise.resolve(row);
     },
   };
 }

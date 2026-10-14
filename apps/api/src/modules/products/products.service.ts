@@ -352,7 +352,11 @@ export class ProductsService {
     if (nameAr) await this.assertCategoryNameArFree(nameAr);
 
     const category = await this.prisma.category.create({
-      data: { name: data.name, nameAr: nameAr ?? null, parentId: data.parentId },
+      data: {
+        name: data.name,
+        nameAr: nameAr ?? null,
+        parentId: data.parentId,
+      },
     });
 
     await this.audit.log({

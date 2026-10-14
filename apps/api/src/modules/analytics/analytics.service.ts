@@ -708,7 +708,9 @@ export class AnalyticsService {
           receivedQty: true,
           createdAt: true,
           cycleId: true,
-          product: { select: { id: true, name: true, nameAr: true, sku: true } },
+          product: {
+            select: { id: true, name: true, nameAr: true, sku: true },
+          },
         },
       }),
     ]);

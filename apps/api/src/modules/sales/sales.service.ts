@@ -229,7 +229,9 @@ export class SalesService {
         },
         items: {
           orderBy: { createdAt: 'asc' },
-          include: { product: { select: { name: true, nameAr: true, sku: true } } },
+          include: {
+            product: { select: { name: true, nameAr: true, sku: true } },
+          },
         },
         paymentAllocations: {
           select: { amount: true, payment: { select: { status: true } } },

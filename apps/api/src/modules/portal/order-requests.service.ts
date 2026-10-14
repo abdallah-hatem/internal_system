@@ -25,6 +25,15 @@ import { PortalNotifier } from '../notifications/portal-notifier.service';
 /** Agreed 2026-08-30. Written down in docs/BUSINESS_LOGIC.md. */
 export const HOLD_HOURS = 48;
 
+/** One line of a request as `present` reads it. */
+interface PresentedItem {
+  productId: string;
+  product: { name: string; nameAr: string | null; sku: string };
+  qtyRequested: Prisma.Decimal;
+  qtyApproved: Prisma.Decimal | null;
+  unitPrice: Prisma.Decimal;
+}
+
 @Injectable()
 export class OrderRequestsService {
   constructor(
@@ -228,7 +237,11 @@ export class OrderRequestsService {
       where: { customerId },
       orderBy: { createdAt: 'desc' },
       include: {
-        items: { include: { product: { select: { name: true, nameAr: true, sku: true } } } },
+        items: {
+          include: {
+            product: { select: { name: true, nameAr: true, sku: true } },
+          },
+        },
         saleOrder: { select: { id: true, orderNo: true, total: true, status: true } },
       },
     });
@@ -251,7 +264,11 @@ export class OrderRequestsService {
     const row = await db.orderRequest.findFirst({
       where: { id, customerId },
       include: {
-        items: { include: { product: { select: { name: true, nameAr: true, sku: true } } } },
+        items: {
+          include: {
+            product: { select: { name: true, nameAr: true, sku: true } },
+          },
+        },
         saleOrder: { select: { id: true, orderNo: true, total: true, status: true } },
       },
     });
@@ -277,7 +294,7 @@ export class OrderRequestsService {
         expiresAt: r.holdExpiresAt,
         releasedAt: r.holdReleasedAt,
       },
-      items: r.items.map((i: any) => ({
+      items: r.items.map((i: PresentedItem) => ({
         productId: i.productId,
         name: i.product.name,
         nameAr: i.product.nameAr ?? null,

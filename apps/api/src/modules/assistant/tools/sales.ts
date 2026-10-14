@@ -242,7 +242,8 @@ export function resolveSale(
               text: `Line ${line} ("${l.product}") is not an exact match for a product on file. Which one was sold?`,
               options: options(
                 found,
-                (p) => `${p.name}${p.nameAr ? ` / ${p.nameAr}` : ''} (${p.sku})`,
+                (p) =>
+                  `${p.name}${p.nameAr ? ` / ${p.nameAr}` : ''} (${p.sku})`,
               ),
             },
       );

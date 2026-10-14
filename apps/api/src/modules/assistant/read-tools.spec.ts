@@ -847,7 +847,12 @@ describe('find_products', () => {
     const { assistant } = harness(d);
 
     const found = dataOf<
-      Array<{ sku: string; name: string; nameAr: string | null; categoryAr: string | null }>
+      Array<{
+        sku: string;
+        name: string;
+        nameAr: string | null;
+        categoryAr: string | null;
+      }>
     >(await call(assistant, 'find_products', { search: 'تيل' }));
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({
@@ -858,9 +863,9 @@ describe('find_products', () => {
     });
 
     // A product with no Arabic name says so with null, not with a guess.
-    const [chain] = dataOf<Array<{ nameAr: string | null; categoryAr: string | null }>>(
-      await call(assistant, 'find_products', { search: 'chain' }),
-    );
+    const [chain] = dataOf<
+      Array<{ nameAr: string | null; categoryAr: string | null }>
+    >(await call(assistant, 'find_products', { search: 'chain' }));
     expect(chain.nameAr).toBeNull();
     expect(chain.categoryAr).toBeNull();
   });

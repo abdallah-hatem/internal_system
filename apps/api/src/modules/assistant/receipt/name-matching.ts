@@ -293,8 +293,9 @@ export function matchByName<T extends Matchable>(
       // Never 1: 1 reads as "the same", and this is not.
       score: Math.min(
         Math.round(
-          Math.max(...namesOf(item).map((n) => nameScore(query.name, n, kind))) *
-            100,
+          Math.max(
+            ...namesOf(item).map((n) => nameScore(query.name, n, kind)),
+          ) * 100,
         ) / 100,
         0.99,
       ),

@@ -1070,7 +1070,9 @@ describe('create_product', () => {
 
     expect(r.s.error).toBeUndefined();
     expect(r.s.data).toMatchObject({ nameAr: 'تيل فرامل خلفي' });
-    const stored = db.tables.product.find((p) => p.name === 'Brake pads, rear')!;
+    const stored = db.tables.product.find(
+      (p) => p.name === 'Brake pads, rear',
+    )!;
     expect(stored.nameAr).toBe('تيل فرامل خلفي');
     expect(stored.descriptionAr).toBe('تيل خلفي لموتوسيكلات ١٥٠ سي سي');
   });
@@ -1087,14 +1089,18 @@ describe('create_product', () => {
   it('the tool tells the model not to translate', async () => {
     const { tools } = await client.listTools();
     const create = tools.find((t) => t.name === 'create_product')!;
-    const nameAr = (create.inputSchema.properties as Record<string, { description?: string }>)
-      .nameAr;
+    const nameAr = (
+      create.inputSchema.properties as Record<string, { description?: string }>
+    ).nameAr;
     expect(create.description).toMatch(/never a translation/i);
     expect(nameAr.description).toMatch(/never translate/i);
   });
 
   it('an Arabic name past 200 characters → refused before any preview', async () => {
-    const r = await call('create_product', { name: 'Pad', nameAr: 'ب'.repeat(201) });
+    const r = await call('create_product', {
+      name: 'Pad',
+      nameAr: 'ب'.repeat(201),
+    });
     expect(r.s.status).not.toBe('preview');
     expect(db.tables.product.find((p) => p.name === 'Pad')).toBeUndefined();
   });
@@ -1113,9 +1119,9 @@ describe('create_product', () => {
       }),
     );
     expect(r.s.error).toBeUndefined();
-    expect(db.tables.product.find((p) => p.name === 'Clutch cable')!.nameAr).toBe(
-      'سلك دبرياج',
-    );
+    expect(
+      db.tables.product.find((p) => p.name === 'Clutch cable')!.nameAr,
+    ).toBe('سلك دبرياج');
   });
 
   it('a category id that is no category → NOT_FOUND, not a 500', async () => {

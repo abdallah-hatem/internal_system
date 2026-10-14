@@ -11,8 +11,6 @@ import { badRequest } from './api-error';
  * `displayName` here, never `nameAr ?? name` inline.
  */
 
-export type Locale = 'en' | 'ar';
-
 /** As long as the English fields may be (the assistant's limits, §16). */
 export const NAME_AR_MAX = 200;
 export const DESCRIPTION_AR_MAX = 1000;
@@ -35,7 +33,7 @@ const present = (v: string | null | undefined): v is string =>
  * Arabic and there is one, otherwise the English. Never blank — a product with
  * no Arabic name is shown in English, not as an empty line.
  */
-export function displayName(record: Named, locale: Locale | string): string {
+export function displayName(record: Named, locale: string): string {
   return locale === 'ar' && present(record.nameAr)
     ? record.nameAr.trim()
     : record.name;
@@ -44,7 +42,7 @@ export function displayName(record: Named, locale: Locale | string): string {
 /** The same choice for a description. Null only when neither exists. */
 export function displayDescription(
   record: Described,
-  locale: Locale | string,
+  locale: string,
 ): string | null {
   if (locale === 'ar' && present(record.descriptionAr))
     return record.descriptionAr.trim();

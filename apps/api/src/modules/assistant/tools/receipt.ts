@@ -1,10 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-import {
-  DESCRIPTION_AR_MAX,
-  NAME_AR_MAX,
-} from '../../../common/arabic-names';
+import { DESCRIPTION_AR_MAX, NAME_AR_MAX } from '../../../common/arabic-names';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { ProductsService } from '../../products/products.service';
