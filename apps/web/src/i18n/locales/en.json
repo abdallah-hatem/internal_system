@@ -1212,6 +1212,8 @@
     "CATEGORY_NAME_TAKEN": "A category with this name already exists.",
     "CATEGORY_NAME_AR_TAKEN": "The Arabic name {nameAr} is already used by the category {category}.",
     "CATEGORY_OWN_PARENT": "A category cannot be its own parent.",
+    "CATEGORY_PARENT_NOT_FOUND": "No category is called “{parent}”.",
+    "CATEGORY_PARENT_AMBIGUOUS": "“{parent}” could be more than one category: {candidates}. Choose one.",
     "CHINA_TWO_LEGS": "A China cycle ships in at most two legs: China to UAE, then UAE to Egypt.",
     "CUSTOMER_HAS_ACTIVE_PLAN": "{customer} already has an active plan ({reference}). Cancel it before agreeing another, or two schedules will claim the same payments.",
     "CUSTOMER_OWES_NOTHING": "{customer} does not owe anything, so there is nothing to pay.",

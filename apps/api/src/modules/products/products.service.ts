@@ -326,8 +326,12 @@ export class ProductsService {
    * question the partial index `categories_name_ar_key` answers, asked first
    * so the refusal names itself instead of failing at the index.
    */
-  private async assertCategoryNameArFree(nameAr: string, exceptId?: string) {
-    const dup = await this.prisma.category.findFirst({
+  private async assertCategoryNameArFree(
+    nameAr: string,
+    exceptId?: string,
+    db: Db = this.prisma,
+  ) {
+    const dup = await db.category.findFirst({
       where: {
         nameAr: { equals: nameAr, mode: 'insensitive' },
         ...(exceptId ? { NOT: { id: exceptId } } : {}),
@@ -343,14 +347,30 @@ export class ProductsService {
     }
   }
 
+  /**
+   * The one way a category is made — the office's New Category form and the
+   * assistant's `create_category` (§16, 2026-10-15) both come here, so the
+   * name rules, the Arabic rules and the audit row are the same for both.
+   * `options.db` is the transaction to create it in: the assistant's preview
+   * runs this very code and rolls it back.
+   */
   async createCategory(
-    data: { name: string; nameAr?: string | null; parentId?: string },
+    data: { name: string; nameAr?: string | null; parentId?: string | null },
     actorId: string,
+    options: { db?: Db } = {},
   ) {
+    const db = options.db ?? this.prisma;
+    // A blank name was stored as a category called nothing (2026-10-15).
+    const name = typeof data.name === 'string' ? data.name.trim() : '';
+    if (!name) {
+      throw badRequest('VALIDATION_FAILED', 'A category needs a name.', {
+        fields: 'name',
+      });
+    }
     const nameAr = arabicText(data.nameAr, 'nameAr', NAME_AR_MAX);
     // Check uniqueness
-    const existing = await this.prisma.category.findUnique({
-      where: { name: data.name },
+    const existing = await db.category.findUnique({
+      where: { name },
     });
     if (existing) {
       throw conflict(
@@ -359,23 +379,39 @@ export class ProductsService {
       );
     }
 
-    if (nameAr) await this.assertCategoryNameArFree(nameAr);
+    if (nameAr) await this.assertCategoryNameArFree(nameAr, undefined, db);
 
-    const category = await this.prisma.category.create({
+    // A parent id that is no category failed at the foreign key, deep in
+    // Prisma, as "An unexpected error occurred" (CLAUDE.md §1).
+    const parentId = data.parentId || undefined;
+    if (parentId) {
+      const parent = isUuid(parentId)
+        ? await db.category.findUnique({
+            where: { id: parentId },
+            select: { id: true },
+          })
+        : null;
+      if (!parent) throw notFound('category');
+    }
+
+    const category = await db.category.create({
       data: {
-        name: data.name,
+        name,
         nameAr: nameAr ?? null,
-        parentId: data.parentId,
+        parentId,
       },
     });
 
-    await this.audit.log({
-      actorUserId: actorId,
-      action: 'CREATE',
-      entityType: 'Category',
-      entityId: category.id,
-      afterJson: category,
-    });
+    await this.audit.log(
+      {
+        actorUserId: actorId,
+        action: 'CREATE',
+        entityType: 'Category',
+        entityId: category.id,
+        afterJson: category,
+      },
+      db,
+    );
 
     return { data: category };
   }
