@@ -258,3 +258,14 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   by the notch changed nothing (it only matters in the home-screen app); starting the overlay below the header
   (`top-16`) fixed it. The iOS simulator's Safari never showed the tint, so it can't confirm a fix here: ship, and
   have the owner check on his phone. — 2026-10-14
+
+## Agent environments in the shell
+
+- Never pipe `eval "$(scripts/agent-env.sh <name>)"` into anything (`| tail`). A pipe runs the eval in a subshell, so
+  nothing is exported and the next Playwright run snapshots and reseeds the developer's `motorcycle_parts` instead.
+  It happened 2026-10-15; the snapshot restored it intact. Eval on its own, then refuse to run unless
+  `$DATABASE_URL` names the agent's database: `case "$DATABASE_URL" in *motorcycle_parts_<name>*) ;; *) exit 1;; esac`.
+  — 2026-10-15
+- A deploy-wait loop that requires the deploy to be "under N minutes old" can miss a deploy that finished before
+  the loop started, and then polls for ten minutes. Compare the deploy's commit or creation time with the push
+  time instead, or just check status once after the push. — 2026-10-15
