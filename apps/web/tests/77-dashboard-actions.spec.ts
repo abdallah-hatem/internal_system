@@ -19,8 +19,8 @@ const PHONE = { width: 390, height: 844 };
 
 async function login(page: Page, email = EMAIL, password = PASSWORD) {
   await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(email);
-  await page.getByPlaceholder('••••••••').fill(password);
+  await page.getByPlaceholder('name@company.com').fill(email);
+  await page.getByPlaceholder('StrongPassword@123').fill(password);
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }

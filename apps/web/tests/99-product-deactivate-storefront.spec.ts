@@ -60,7 +60,7 @@ test.describe('A switched-off product in the storefront', () => {
     await switchOff(request, offEmpty.headers, offEmpty.id);
 
     await page.goto('/en');
-    await page.getByPlaceholder('Search parts…').fill(label);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(label);
     await expect(page.locator(`[data-sku="${offWithStock.sku}"]`)).toBeVisible();
     await expect(page.locator(`[data-sku="${onEmpty.sku}"]`)).toBeVisible();
     await expect(page.locator(`[data-sku="${offEmpty.sku}"]`)).toHaveCount(0);
@@ -85,7 +85,7 @@ test.describe('A switched-off product in the storefront', () => {
     await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'المنتجات' })).toBeVisible();
 
-    await page.getByPlaceholder('ابحث عن قطعة…').fill(label);
+    await page.getByPlaceholder('ابحث بالاسم أو SKU أو الباركود').fill(label);
     await page.locator(`[data-sku="${mine.sku}"]`).click();
     await page.getByRole('button', { name: /أضف إلى الطلب/ }).click();
 

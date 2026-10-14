@@ -24,8 +24,8 @@ const TABS = ['Products', 'Customers', 'Sales', 'Import Cycles'];
 
 async function login(page: Page) {
   await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.getByRole('button', { name: /login/i }).click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
   await expect(page.getByRole('link', { name: 'Products', exact: true }).first()).toBeVisible({

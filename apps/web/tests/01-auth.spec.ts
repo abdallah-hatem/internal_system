@@ -11,8 +11,8 @@ import { WEB as BASE, API } from './support/env';
 const VALID_EMAIL = 'partner.a@motoparts.com';
 const VALID_PASSWORD = 'password123';
 
-const emailBox = (page: Page) => page.getByPlaceholder('partner.a@motoparts.com');
-const passwordBox = (page: Page) => page.getByPlaceholder('••••••••');
+const emailBox = (page: Page) => page.getByPlaceholder('name@company.com');
+const passwordBox = (page: Page) => page.getByPlaceholder('StrongPassword@123');
 const loginButton = (page: Page) => page.getByRole('button', { name: /login/i });
 
 async function submitLogin(page: Page, email: string, password: string) {

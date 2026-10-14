@@ -13,8 +13,8 @@ const PASSWORD = 'password123';
 
 async function login(page: Page) {
   await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.getByRole('button', { name: /login/i }).click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
@@ -169,7 +169,7 @@ test.describe('Shipment costing', () => {
     // The product picker is the line item's own searchable Select.
     // The line-item picker is controlled by value/onChange, so it has no name
     // to anchor on — locate it by the placeholder text on its trigger.
-    const productTrigger = page.locator('[role="combobox"]', { hasText: 'Select product' }).last();
+    const productTrigger = page.locator('[role="combobox"]', { hasText: 'Choose a product' }).last();
     await productTrigger.click();
     await page.getByRole('listbox').getByRole('option').first().click();
 

@@ -36,8 +36,8 @@ test.describe.configure({ timeout: 180_000 });
 
 async function login(page: Page) {
   await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }

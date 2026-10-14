@@ -132,8 +132,8 @@ async function listFor(request: APIRequestContext, who: Account) {
 
 async function login(page: Page, who: Account, locale: 'en' | 'ar' = 'en') {
   await page.goto(`${BASE}/${locale}/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(who.email);
-  await page.getByPlaceholder('••••••••').fill(who.password);
+  await page.getByPlaceholder('name@company.com').fill(who.email);
+  await page.getByPlaceholder('StrongPassword@123').fill(who.password);
   await page.getByRole('button').filter({ hasText: /.+/ }).last().click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
