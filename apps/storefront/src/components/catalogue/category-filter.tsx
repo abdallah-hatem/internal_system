@@ -63,7 +63,6 @@ export function CategoryFilter({
   onChange: (value: string) => void;
 }) {
   const t = useTranslations('catalogue');
-  const tc = useTranslations('common');
   const options = useMemo(() => ordered(categories), [categories]);
 
   return (
@@ -71,7 +70,7 @@ export function CategoryFilter({
       value={value}
       onChange={onChange}
       placeholder={t('allCategories')}
-      searchPlaceholder={tc('search')}
+      searchPlaceholder={t('searchCategories')}
       clearable
       className="w-full sm:w-56"
       options={options.map(({ category, depth }) => ({

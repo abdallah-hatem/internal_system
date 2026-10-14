@@ -211,7 +211,7 @@ export function Select({
               return haystack.includes(search.toLowerCase()) ? 1 : 0;
             }}
           >
-            {showSearch && <CommandInput placeholder={searchPlaceholder ?? t('search')} className="h-9" />}
+            {showSearch && <CommandInput placeholder={searchPlaceholder ?? t('searchList')} className="h-9" />}
             <CommandList>
               {showSearch && (
                 <CommandEmpty className="p-0">

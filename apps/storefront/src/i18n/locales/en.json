@@ -23,7 +23,7 @@
   },
   "catalogue": {
     "title": "Products",
-    "searchPlaceholder": "Search parts…",
+    "searchPlaceholder": "Search by name, SKU or barcode",
     "category": "Category",
     "allCategories": "All categories",
     "empty": "Nothing matches that search.",
@@ -41,7 +41,8 @@
     "showing": "Showing {shown} of {total}",
     "sku": "SKU {sku}",
     "addedToRequest": "Added to your request",
-    "askUsForAPrice": "Ask us for a price through an import request."
+    "askUsForAPrice": "Ask us for a price through an import request.",
+    "searchCategories": "Find a category by name"
   },
   "basket": {
     "title": "Your request",
@@ -356,5 +357,18 @@
         "confirm": "Tap “Install”. The icon appears on your home screen."
       }
     }
+  },
+  "placeholders": {
+    "email": "name@company.com",
+    "password": "StrongPassword@123",
+    "shopName": "Moto Center Nasr City",
+    "phone": "01012345678",
+    "productName": "Rear brake caliper, Honda CBR 150",
+    "fits": "CBR 150R, 2019 onwards",
+    "quantity": "12",
+    "link": "https://shop.example.com/brake-caliper",
+    "importNotes": "Need it in black — the original is chrome",
+    "basketNote": "Deliver to the Nasr City shop after 2 pm",
+    "basketQuantity": "12"
   }
 }

@@ -83,6 +83,7 @@ const PERIODS: { key: PeriodKey; label: string }[] = [
 
 export function RunningCostsSection() {
   const t = useTranslations('partners');
+  const tph = useTranslations('placeholders');
   const codeLabel = useCodeLabel();
   const { formatMoney } = useNumberFormat();
   const [period, setPeriod] = useState<PeriodKey>('quarter');
@@ -111,6 +112,7 @@ export function RunningCostsSection() {
             id="running-costs-period"
             className="w-44"
             value={period}
+            placeholder={tph('choosePeriod')}
             onChange={(v) => setPeriod((v || 'quarter') as PeriodKey)}
             options={PERIODS.map((p) => ({ value: p.key, label: t(p.label) }))}
           />

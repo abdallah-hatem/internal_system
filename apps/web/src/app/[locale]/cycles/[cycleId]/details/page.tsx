@@ -399,6 +399,7 @@ function AddParticipantForm({
   onSubmit: (body: any) => void;
 }) {
   const t = useTranslations('cycles');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const [type, setType] = useState('CORE_PARTNER');
 
@@ -427,6 +428,7 @@ function AddParticipantForm({
           <Select
             name="participantType"
             value={type}
+            placeholder={tph('chooseParticipantType')}
             onChange={setType}
             options={[
               { value: 'CORE_PARTNER', label: t('corePartner') },
@@ -439,8 +441,8 @@ function AddParticipantForm({
           <Select
             name="userId"
             required
-            placeholder={t('person')}
-            searchPlaceholder={tc('search')}
+            placeholder={tph('choosePerson')}
+            searchPlaceholder={tph('searchPeople')}
             /* Only people who can actually hold a share.
              *
              * This listed every user, including the storefront logins, and
@@ -470,7 +472,7 @@ function AddParticipantForm({
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">{t('contribution')}</label>
           <MoneyInput
-            name="contributionAmount" required placeholder="0.00"
+            name="contributionAmount" required placeholder={tph('money')}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
@@ -480,9 +482,10 @@ function AddParticipantForm({
           </label>
           <input
             name="customProfitPct" type="number" step="0.01" min="0" max="100"
-            placeholder={t('byContribution')} {...selectOnFocus}
+            placeholder={tph('percent')} {...selectOnFocus}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+          <p className="mt-1 text-[10px] text-muted-foreground">{t('byContributionHint')}</p>
         </div>
         {type === 'TEMP_INVESTOR' && (
           <div>
@@ -491,7 +494,7 @@ function AddParticipantForm({
             </label>
             <input
               name="investorFeePct" type="number" step="0.01" min="0" max="100"
-              placeholder="0" {...selectOnFocus}
+              placeholder={tph('percent')} {...selectOnFocus}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <p className="mt-1 text-[10px] text-gray-400">{t('feeFromProfit')}</p>

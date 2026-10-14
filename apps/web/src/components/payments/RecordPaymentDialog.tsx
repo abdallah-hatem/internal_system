@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
 import { businessToday } from '@/lib/dates';
+import { formatAmount } from '@/lib/numbers';
 import { Select } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { MoneyInput } from '@/components/ui/money-input';
@@ -118,6 +119,7 @@ function RecordPaymentForm({
   onRecorded?: () => void;
 }) {
   const t = useTranslations('payments');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const te = useTranslations('errors');
   const apiError = useApiError();
@@ -287,7 +289,7 @@ function RecordPaymentForm({
                     setRefusal(null);
                   }}
                   placeholder={t('selectCustomer')}
-                  searchPlaceholder={tc('search')}
+                  searchPlaceholder={tph('searchCustomers')}
                   options={customerOptions}
                 />
               </div>
@@ -322,7 +324,7 @@ function RecordPaymentForm({
                   setAmount(raw);
                   setRefusal(null);
                 }}
-                placeholder={owed > 0 ? owed.toFixed(2) : '0.00'}
+                placeholder={owed > 0 ? formatAmount(owed) : tph('money')}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
               />
             </div>
@@ -333,6 +335,7 @@ function RecordPaymentForm({
                 <Select
                   name="method"
                   value={method}
+                  placeholder={tph('choosePaymentMethod')}
                   onChange={setMethod}
                   options={PAYMENT_METHODS.map((m) => ({ value: m, label: codeLabel('paymentMethod', m) }))}
                 />

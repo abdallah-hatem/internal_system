@@ -23,7 +23,7 @@
   },
   "catalogue": {
     "title": "المنتجات",
-    "searchPlaceholder": "ابحث عن قطعة…",
+    "searchPlaceholder": "ابحث بالاسم أو SKU أو الباركود",
     "category": "الفئة",
     "allCategories": "كل الفئات",
     "empty": "لا توجد نتائج مطابقة.",
@@ -41,7 +41,8 @@
     "showing": "عرض {shown} من {total}",
     "sku": "كود {sku}",
     "addedToRequest": "أُضيف إلى طلبك",
-    "askUsForAPrice": "اطلب السعر عن طريق طلب استيراد."
+    "askUsForAPrice": "اطلب السعر عن طريق طلب استيراد.",
+    "searchCategories": "ابحث عن فئة بالاسم"
   },
   "basket": {
     "title": "طلبك",
@@ -356,5 +357,18 @@
         "confirm": "اضغط «تثبيت». ستظهر الأيقونة على شاشتك الرئيسية."
       }
     }
+  },
+  "placeholders": {
+    "email": "name@company.com",
+    "password": "StrongPassword@123",
+    "shopName": "موتو سنتر مدينة نصر",
+    "phone": "01012345678",
+    "productName": "كاليبر فرامل خلفي، هوندا CBR 150",
+    "fits": "CBR 150R، من 2019 فما بعد",
+    "quantity": "12",
+    "link": "https://shop.example.com/brake-caliper",
+    "importNotes": "أحتاجها باللون الأسود — الأصلية كروم",
+    "basketNote": "التوصيل لمحل مدينة نصر بعد الساعة 2 ظهرًا",
+    "basketQuantity": "12"
   }
 }

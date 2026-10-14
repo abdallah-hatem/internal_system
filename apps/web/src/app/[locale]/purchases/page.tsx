@@ -73,6 +73,7 @@ export default function PurchasesPage() {
   const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('purchases');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -332,8 +333,8 @@ export default function PurchasesPage() {
                 <Select
                   name="cycleId"
                   required
-                  placeholder={t('cycle')}
-                  searchPlaceholder={tc('search')}
+                  placeholder={tph('chooseCycle')}
+                  searchPlaceholder={tph('searchCycles')}
                   options={cycleList.map((c: any) => ({
                     value: c.id,
                     label: c.code,
@@ -352,8 +353,8 @@ export default function PurchasesPage() {
                   required
                   value={newSupplierId}
                   onChange={setNewSupplierId}
-                  placeholder={t('supplier')}
-                  searchPlaceholder={tc('search')}
+                  placeholder={tph('chooseSupplier')}
+                  searchPlaceholder={tph('searchSuppliers')}
                   options={supplierList.map((sup: any) => ({
                     value: sup.id,
                     label: sup.name,
@@ -400,8 +401,8 @@ export default function PurchasesPage() {
                           <Select
                             value={item.productId}
                             onChange={(v) => updateLineItem(idx, 'productId', v)}
-                            placeholder={t('product')}
-                            searchPlaceholder={tc('search')}
+                            placeholder={tph('chooseProduct')}
+                            searchPlaceholder={tph('searchProducts')}
                             options={productList.map((p: any) => ({
                               value: p.id,
                               label: p.name,
@@ -414,8 +415,8 @@ export default function PurchasesPage() {
                         <label className="block text-xs text-gray-500 mb-1">{t('orderedQty')}</label>
                         <input
                           type="number"
-                          placeholder="0"
-                          value={item.orderedQty}
+                          placeholder={tph('quantity')}
+                          value={item.orderedQty || ''}
                           onChange={(e) => updateLineItem(idx, 'orderedQty', Number(e.target.value))}
                           {...selectOnFocus}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -424,8 +425,8 @@ export default function PurchasesPage() {
                       <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">{t('unitPrice')}</label>
                         <MoneyInput
-                          placeholder="0.00"
-                          value={item.unitPrice}
+                          placeholder={tph('money')}
+                          value={item.unitPrice || ''}
                           onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -433,8 +434,8 @@ export default function PurchasesPage() {
                       <div className="min-w-0 flex-1 sm:w-20 sm:flex-none">
                         <label className="block text-xs text-gray-500 mb-1">{t('discount')}</label>
                         <MoneyInput
-                          placeholder="0.00"
-                          value={item.discount}
+                          placeholder={tph('discount')}
+                          value={item.discount || ''}
                           onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -586,9 +587,9 @@ export default function PurchasesPage() {
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 {t('amount')}<span className="ms-1 text-red-500">*</span>
               </label>
-              <MoneyInput name="amount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <MoneyInput name="amount" required placeholder={tph('money')} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
-            <TextareaField label={t('reason')} name="reason" />
+            <TextareaField label={t('reason')} name="reason" placeholder={tph('purchaseRefundReason')} />
             <InputField label={tc('date')} name="recordedOn" type="date" required />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowRefundModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>

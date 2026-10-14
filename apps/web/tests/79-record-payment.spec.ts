@@ -21,8 +21,8 @@ type Messages = typeof en;
 
 async function login(page: Page, locale: 'en' | 'ar' = 'en') {
   await page.goto(`${BASE}/${locale}/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   const m: Messages = locale === 'en' ? en : ar;
   await page.getByRole('button', { name: m.auth.login, exact: true }).click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });

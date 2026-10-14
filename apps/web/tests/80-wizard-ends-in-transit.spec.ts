@@ -24,8 +24,8 @@ import { WEB as BASE } from './support/env';
 
 async function login(page: Page, locale = 'en') {
   await page.goto(`${BASE}/${locale}/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 15000 });
 }
@@ -136,7 +136,7 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await expect(page.getByTestId('wizard-line-item')).toHaveCount(1);
     await choose(page, 'supplierId', `F1b Supplier ${stamp}`);
     await choose(page, 'currency', 'EGP');
-    await page.locator('[role="combobox"]', { hasText: 'Select product' }).first().click();
+    await page.locator('[role="combobox"]', { hasText: 'Choose a product' }).first().click();
     await page.getByRole('listbox').getByRole('option').filter({ hasText: `F1b Part ${stamp}` }).first().click();
     await page.locator('input[data-field="orderedQty"]').fill('40');
     await page.locator('input[data-field="unitPrice"]').fill('100');

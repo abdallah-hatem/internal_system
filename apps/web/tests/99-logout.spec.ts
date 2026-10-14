@@ -42,8 +42,8 @@ test.beforeEach(async ({ page }) => {
  * stuck, before submitting.
  */
 async function signIn(page: Page, email: string, locale: 'en' | 'ar' = 'en') {
-  const emailBox = page.getByPlaceholder('partner.a@motoparts.com');
-  const passwordBox = page.getByPlaceholder('••••••••');
+  const emailBox = page.getByPlaceholder('name@company.com');
+  const passwordBox = page.getByPlaceholder('StrongPassword@123');
   await expect
     .poll(
       async () => {
@@ -91,7 +91,7 @@ test.describe('Signing out', () => {
 
     await menu(page).getByRole('button', { name: 'Log out' }).click();
     await expect(page).toHaveURL(/\/en\/login$/);
-    await expect(page.getByPlaceholder('••••••••')).toBeVisible();
+    await expect(page.getByPlaceholder('StrongPassword@123')).toBeVisible();
     expect(await token(page)).toBeNull();
     expect(await page.evaluate(() => window.localStorage.getItem('user'))).toBeNull();
   });

@@ -113,7 +113,7 @@ function RequestCard({
 }) {
   const { formatDate } = useDateFormat();
   const t = useTranslations('importRequests');
-  const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const locale = useLocale();
 
   const [note, setNote] = useState('');
@@ -248,7 +248,7 @@ function RequestCard({
               value={productId}
               onChange={setProductId}
               placeholder={t('pickProduct')}
-              searchPlaceholder={tc('search')}
+              searchPlaceholder={tph('searchProducts')}
               clearable
               options={productList.map((p) => ({ value: p.id, label: p.name, hint: p.sku }))}
             />

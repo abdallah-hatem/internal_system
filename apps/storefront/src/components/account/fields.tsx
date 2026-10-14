@@ -30,6 +30,7 @@ export function TextField({
   autoComplete,
   inputMode,
   name,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -40,6 +41,8 @@ export function TextField({
   autoComplete?: string;
   inputMode?: 'text' | 'email' | 'tel';
   name?: string;
+  /** A valid example of the value, never the label again. */
+  placeholder: string;
 }) {
   const id = useId();
   const describedBy = [error ? `${id}-error` : null, hint ? `${id}-hint` : null]
@@ -59,6 +62,7 @@ export function TextField({
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
         inputMode={inputMode}
+        placeholder={placeholder}
         // `dir="auto"` and not the page direction: an email address and a phone
         // number are Latin text, and forcing them right-to-left puts the cursor
         // and the punctuation in the wrong place on an Arabic screen.
@@ -79,6 +83,7 @@ export function PasswordField({
   error,
   hint,
   autoComplete,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -86,6 +91,8 @@ export function PasswordField({
   error?: string;
   hint?: string;
   autoComplete: 'current-password' | 'new-password';
+  /** A password that meets the rule, so the rule is visible before typing. */
+  placeholder: string;
 }) {
   const t = useTranslations('auth');
   const id = useId();
@@ -120,6 +127,7 @@ export function PasswordField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}
+          placeholder={placeholder}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy || undefined}
           className={`${CONTROL} pe-12 ${error ? 'border-red-400' : 'border-gray-300'}`}

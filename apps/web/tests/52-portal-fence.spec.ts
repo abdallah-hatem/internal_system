@@ -162,8 +162,8 @@ test('TC-FENCE-08: a shop owner is turned away from the internal app, in words',
   // screen that never calls it, and that the refusal arrives as a sentence
   // rather than an empty toast.
   await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(SHOP_EMAIL);
-  await page.getByPlaceholder('••••••••').fill(SHOP_PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(SHOP_EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(SHOP_PASSWORD);
   await page.getByRole('button', { name: /login/i }).click();
 
   await expect(page.getByText(/sign in on the store/i)).toBeVisible({ timeout: 10000 });
@@ -178,8 +178,8 @@ test('TC-FENCE-09: and the refusal is in the reader\'s language', async ({ page 
   // `err.response.data.error.message` and had been missed when the other
   // thirty-six call sites were moved onto coded errors. CLAUDE.md rule 9.
   await page.goto(`${BASE}/ar/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(SHOP_EMAIL);
-  await page.getByPlaceholder('••••••••').fill(SHOP_PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(SHOP_EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(SHOP_PASSWORD);
   await page.getByRole('button', { name: /تسجيل الدخول/ }).click();
 
   await expect(page.getByText(/حسابات المحلات/)).toBeVisible({ timeout: 10000 });

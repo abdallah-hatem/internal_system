@@ -24,8 +24,8 @@ async function pick(page: any, name: string, label: string) {
 // Login helper
 async function login(page: any) {
   await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.getByRole('button', { name: /login/i }).click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }

@@ -74,6 +74,7 @@ export function DepartureQtyFields({
   onType: (id: string, value: string) => void;
 }) {
   const t = useTranslations('shipment');
+  const tph = useTranslations('placeholders');
   const rows = departureRowIds(waiting, typed);
   return (
     <div>
@@ -101,7 +102,7 @@ export function DepartureQtyFields({
                   autoComplete="off"
                   value={fieldValue(typed, waiting, id)}
                   onChange={(e) => onType(id, e.target.value)}
-                  placeholder="0"
+                  placeholder={tph('quantitySmall')}
                   className={qtyInputClass}
                 />
               </li>

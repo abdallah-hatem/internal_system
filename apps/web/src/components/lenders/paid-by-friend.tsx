@@ -121,6 +121,7 @@ function AddFinancingForm({
   onDone: () => void;
 }) {
   const t = useTranslations('lenders');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const { addToast } = useToast();
@@ -165,6 +166,7 @@ function AddFinancingForm({
             value={orderId}
             onChange={setOrderId}
             placeholder={t('pickOrder')}
+            searchPlaceholder={tph('searchOrders')}
             options={orders.map((o) => ({ value: o.id, label: o.reference, hint: o.currency }))}
           />
         </FieldLabel>
@@ -177,7 +179,7 @@ function AddFinancingForm({
             value={lenderId}
             onChange={setLenderId}
             placeholder={t('pickLender')}
-            searchPlaceholder={tc('search')}
+            searchPlaceholder={tph('searchLenders')}
             options={(lenders as { id: string; name: string }[]).map((l) => ({ value: l.id, label: l.name }))}
           />
         </FieldWithQuickCreate>
@@ -194,7 +196,7 @@ function AddFinancingForm({
             required
             value={amount}
             onChange={setAmount}
-            placeholder="0.00"
+            placeholder={tph('money')}
             className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>

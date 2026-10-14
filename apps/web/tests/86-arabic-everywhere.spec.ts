@@ -24,8 +24,8 @@ const ENGLISH_MONTH = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/;
 
 async function loginArabic(page: Page) {
   await page.goto(`${BASE}/ar/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.getByRole('button').filter({ hasText: /.+/ }).last().click();
   await expect(page).toHaveURL(/\/ar\/dashboard/, { timeout: 10000 });
 }

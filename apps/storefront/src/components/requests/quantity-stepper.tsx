@@ -29,6 +29,7 @@ export function QuantityStepper({
   label: string;
 }) {
   const t = useTranslations('basket');
+  const tph = useTranslations('placeholders');
   const [draft, setDraft] = useState(String(quantity));
 
   // Follows the store when the change came from somewhere else — the stepper
@@ -62,6 +63,7 @@ export function QuantityStepper({
         // `numeric` rather than `decimal`: the keypad the shop gets should be
         // the one that matches what this accepts.
         value={draft}
+        placeholder={tph('basketQuantity')}
         onChange={(e) => handleTyping(e.target.value)}
         onBlur={() => setDraft(String(quantity))}
         aria-label={`${t('quantity')} — ${label}`}

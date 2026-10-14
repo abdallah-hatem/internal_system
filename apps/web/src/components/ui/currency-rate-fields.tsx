@@ -38,6 +38,7 @@ export function CurrencyRateFields({
   required?: boolean;
 }) {
   const tw = useTranslations('wizard');
+  const tph = useTranslations('placeholders');
   const rates = useCurrencyRates();
   const [currency, setCurrency] = useState(defaultCurrency);
   const [rate, setRate] = useState(defaultRate != null ? String(defaultRate) : '');
@@ -66,6 +67,7 @@ export function CurrencyRateFields({
         <Select
           name={currencyName}
           value={currency}
+          placeholder={tph('chooseCurrency')}
           onChange={(v) => {
             setCurrency(v);
             // A rate for the previous currency is meaningless under the new
@@ -100,7 +102,7 @@ export function CurrencyRateFields({
               required={required}
               value={rate}
               onChange={(e) => setRate(e.target.value)}
-              placeholder={known != null ? String(known) : '0'}
+              placeholder={known != null ? String(known) : tph('fxRate')}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <p className="mt-1 text-xs text-gray-400">

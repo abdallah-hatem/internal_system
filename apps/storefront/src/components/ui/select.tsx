@@ -51,8 +51,8 @@ export function Select({
   value,
   defaultValue,
   onChange,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search…',
+  placeholder,
+  searchPlaceholder,
   emptyText = 'No matches',
   required,
   disabled,
@@ -65,8 +65,10 @@ export function Select({
   value?: string;
   defaultValue?: string;
   onChange?: (value: string) => void;
-  placeholder?: string;
-  searchPlaceholder?: string;
+  /** What it picks, e.g. "All categories" — from the locale files, never a generic "Select…". */
+  placeholder: string;
+  /** What its search box searches. */
+  searchPlaceholder: string;
   emptyText?: string;
   required?: boolean;
   disabled?: boolean;

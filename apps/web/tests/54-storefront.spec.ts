@@ -157,7 +157,7 @@ async function showProduct(page: Page, sku: string, term: string) {
   const card = page.locator(`[data-sku="${sku}"]`);
   if (await card.count()) return card;
 
-  const search = page.getByPlaceholder('Search parts…');
+  const search = page.getByPlaceholder('Search by name, SKU or barcode');
   await search.fill(term);
   await expect(card).toBeVisible({ timeout: 10_000 });
   return card;
@@ -270,7 +270,7 @@ test.describe('The shop window', () => {
     const before = await cards.count();
     expect(before, 'the catalogue rendered nothing to narrow').toBeGreaterThan(1);
 
-    await page.getByPlaceholder('Search parts…').fill(label);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(label);
 
     // Narrowed to exactly the one part, whatever else the catalogue holds.
     await expect(page.locator(`[data-sku="${mine.sku}"]`)).toBeVisible();
@@ -308,9 +308,9 @@ test.describe('The shop window', () => {
     // Searched rather than scrolled to. The office suite leaves dozens of
     // categories behind, and a row far down a scrolling popover is the same
     // page-one assumption as the one this test was rewritten to remove.
-    // `exact` because the catalogue's own box says "Search parts…", which a
-    // substring match would take instead.
-    await page.getByPlaceholder('Search', { exact: true }).fill(label);
+    // The picker's own search box, named for what it searches — distinct from
+    // the catalogue's box ("Search by name, SKU or barcode").
+    await page.getByPlaceholder('Find a category by name').fill(label);
     await page.getByRole('option', { name: `${label} Category` }).click();
 
     const cards = page.locator('[data-sku]');
@@ -325,7 +325,7 @@ test.describe('The shop window', () => {
     const empty = await aProduct(request, `${label}B`, { qty: 0 });
 
     await page.goto('/en');
-    await page.getByPlaceholder('Search parts…').fill(label);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(label);
 
     const stockedCard = page.locator(`[data-sku="${stocked.sku}"]`);
     const emptyCard = page.locator(`[data-sku="${empty.sku}"]`);
@@ -357,7 +357,7 @@ test.describe('Whose prices these are', () => {
     const mine = await aProduct(request, label, { b2c: 517, b2b: 411 });
 
     await page.goto('/en');
-    await page.getByPlaceholder('Search parts…').fill(label);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(label);
 
     await expect(page.locator('[data-price-context="anonymous"]')).toBeVisible();
     const card = page.locator(`[data-sku="${mine.sku}"]`);
@@ -385,14 +385,14 @@ test.describe('Whose prices these are', () => {
     const mine = await aProduct(request, label, { b2c: 517, b2b: 411 });
 
     await page.goto('/en');
-    await page.getByPlaceholder('Search parts…').fill(label);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(label);
     const card = page.locator(`[data-sku="${mine.sku}"]`);
     await expect(card).toContainText('517');
 
     await signIn(page, SHOP_EMAIL, SHOP_PASSWORD);
 
     await expect(page.locator('[data-price-context="trade"]')).toBeVisible();
-    await page.getByPlaceholder('Search parts…').fill(label);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(label);
     await expect(card, 'a verified shop was left reading retail prices').toContainText('411');
     await expect(card).not.toContainText('517');
 
@@ -467,7 +467,7 @@ test.describe('Asking for stock', () => {
     await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'المنتجات' })).toBeVisible();
 
-    await page.getByPlaceholder('ابحث عن قطعة…').fill(mine.name);
+    await page.getByPlaceholder('ابحث بالاسم أو SKU أو الباركود').fill(mine.name);
     await page.locator(`[data-sku="${mine.sku}"]`).click();
     await page.getByRole('button', { name: /أضف إلى الطلب/ }).click();
 
@@ -620,7 +620,7 @@ test.describe('A shop that has just signed up', () => {
     // The catalogue says why the prices are what they are, rather than showing
     // trade prices this account cannot buy at.
     await expect(page.locator('[data-price-context="unverified"]')).toBeVisible();
-    await page.getByPlaceholder('Search parts…').fill(mine.name);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(mine.name);
     await expect(page.locator(`[data-sku="${mine.sku}"]`)).toContainText('517');
 
     await tab(page, 'account').click();
@@ -745,7 +745,7 @@ test.describe('The language it opens in', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
     await expect(page.getByRole('heading', { name: 'المنتجات' })).toBeVisible();
-    await expect(page.getByPlaceholder('ابحث عن قطعة…')).toBeVisible();
+    await expect(page.getByPlaceholder('ابحث بالاسم أو SKU أو الباركود')).toBeVisible();
     // The grid first: a key path cannot be found on a screen that has not
     // rendered the line it lives on.
     await expect(page.locator('[data-sku]').first()).toBeVisible();
@@ -988,7 +988,7 @@ test.describe('The controls it is made of', () => {
     await expect(native, 'the category filter is a native select').toHaveCount(0);
     await page.keyboard.press('Escape');
 
-    await page.getByPlaceholder('ابحث عن قطعة…').fill(mine.name);
+    await page.getByPlaceholder('ابحث بالاسم أو SKU أو الباركود').fill(mine.name);
     await page.locator(`[data-sku="${mine.sku}"]`).click();
     await expect(page.getByRole('heading', { name: mine.name })).toBeVisible();
     await expect(native).toHaveCount(0);
@@ -1025,7 +1025,7 @@ test.describe('The controls it is made of', () => {
     expect(await arrowCursors(page), 'the open category picker').toEqual([]);
     await page.keyboard.press('Escape');
 
-    await page.getByPlaceholder('Search parts…').fill(mine.name);
+    await page.getByPlaceholder('Search by name, SKU or barcode').fill(mine.name);
     await page.locator(`[data-sku="${mine.sku}"]`).click();
     await expect(page.getByRole('button', { name: /Add to request/ })).toBeVisible();
     expect(await arrowCursors(page), 'the product page').toEqual([]);

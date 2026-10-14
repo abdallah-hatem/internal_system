@@ -51,6 +51,7 @@ export function MarkLostDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('shipment');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const toast = useToast();
@@ -200,7 +201,7 @@ export function MarkLostDialog({
                         setTyped((prev) => ({ ...prev, [id]: value }));
                         setRefusal(null);
                       }}
-                      placeholder="0"
+                      placeholder={tph('quantitySmall')}
                       className={qtyInputClass}
                     />
                   </li>

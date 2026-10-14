@@ -125,6 +125,7 @@ function RequestCard({
 }) {
   const { formatDate } = useDateFormat();
   const t = useTranslations('orderRequests');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
 
   /**
@@ -246,6 +247,7 @@ function RequestCard({
                   type="number"
                   min={0}
                   step="any"
+                  placeholder={tph('quantity')}
                   value={line.qty}
                   onChange={(e) =>
                     setLines((s) => ({
@@ -260,6 +262,7 @@ function RequestCard({
               <label className="w-32">
                 <span className="mb-1 block text-xs text-gray-500">{t('unitPrice')}</span>
                 <MoneyInput
+                  placeholder={tph('money')}
                   value={line.price}
                   onChange={(raw) =>
                     setLines((s) => ({

@@ -172,6 +172,7 @@ export function LegCreateForm({
 }) {
   const t = useTranslations('shipments');
   const tShipment = useTranslations('shipment');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const codeLabel = useCodeLabel();
   const apiError = useApiError();
@@ -236,8 +237,8 @@ export function LegCreateForm({
                 // Another cycle waits for other goods: start its quantities afresh.
                 departure.setTyped({});
               }}
-              placeholder={t('cycle')}
-              searchPlaceholder={tc('search')}
+              placeholder={tph('chooseCycle')}
+              searchPlaceholder={tph('searchCycles')}
               options={(cycles ?? []).map((c) => ({
                 value: c.id,
                 label: c.code,
@@ -253,14 +254,14 @@ export function LegCreateForm({
           name="sequence"
           type="number"
           required
-          placeholder="0"
+          placeholder={tph('legSequence')}
           defaultValue={defaults ? String(defaults.sequence) : undefined}
         />
       </div>
 
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <InputField label={t('origin')} name="origin" required defaultValue={defaults?.origin} />
-        <InputField label={t('destination')} name="destination" required defaultValue={defaults?.destination} />
+        <InputField label={t('origin')} name="origin" required defaultValue={defaults?.origin} placeholder={tph('origin')} />
+        <InputField label={t('destination')} name="destination" required defaultValue={defaults?.destination} placeholder={tph('destination')} />
       </div>
 
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -275,13 +276,13 @@ export function LegCreateForm({
               required
               value={providerId}
               onChange={setProviderId}
-              placeholder={t('provider')}
-              searchPlaceholder={tc('search')}
+              placeholder={tph('chooseProvider')}
+              searchPlaceholder={tph('searchProviders')}
               options={providers.options()}
             />
           </FieldWithQuickCreate>
         </div>
-        <InputField label={t('trackingRef')} name="trackingRef" />
+        <InputField label={t('trackingRef')} name="trackingRef" placeholder={tph('trackingRef')} />
       </div>
 
       <LegDepartureFields state={departure} cycleId={cycleId || undefined} label={t('firstDeparture')} />
@@ -311,6 +312,7 @@ export function LegEditForm({
 }) {
   const t = useTranslations('shipments');
   const tShipment = useTranslations('shipment');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
@@ -400,13 +402,13 @@ export function LegEditForm({
                 (leg.provider ? `name:${leg.provider}` : '')
               }
               onChange={setProviderId}
-              placeholder={t('provider')}
-              searchPlaceholder={tc('search')}
+              placeholder={tph('chooseProvider')}
+              searchPlaceholder={tph('searchProviders')}
               options={providers.options(leg.provider)}
             />
           </FieldWithQuickCreate>
         </div>
-        <InputField label={t('trackingRef')} name="trackingRef" defaultValue={leg.trackingRef ?? undefined} />
+        <InputField label={t('trackingRef')} name="trackingRef" defaultValue={leg.trackingRef ?? undefined} placeholder={tph('trackingRef')} />
       </div>
 
       {locked ? (

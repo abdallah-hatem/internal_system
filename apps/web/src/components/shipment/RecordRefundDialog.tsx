@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { businessToday } from '@/lib/dates';
+import { formatAmount } from '@/lib/numbers';
 import { DatePicker } from '@/components/ui/date-picker';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
@@ -46,6 +47,7 @@ export function RecordRefundDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('shipment');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const toast = useToast();
@@ -170,7 +172,7 @@ export function RecordRefundDialog({
             setAmount(raw);
             setRefusal(null);
           }}
-          placeholder={unrecovered > 0 ? unrecovered.toFixed(2) : '0.00'}
+          placeholder={unrecovered > 0 ? formatAmount(unrecovered) : tph('money')}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
         />
       </div>

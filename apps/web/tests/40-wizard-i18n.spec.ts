@@ -34,8 +34,8 @@ const usedKeys = [...component.matchAll(/\bt\(\s*'([^']+)'/g)].map((m) => m[1]);
 
 async function login(page: Page, locale: 'en' | 'ar') {
   await page.goto(`${BASE}/${locale}/login`);
-  await page.getByPlaceholder('partner.a@motoparts.com').fill(EMAIL);
-  await page.getByPlaceholder('••••••••').fill(PASSWORD);
+  await page.getByPlaceholder('name@company.com').fill(EMAIL);
+  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
   await page.getByRole('button').filter({ hasText: /.+/ }).last().click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
@@ -106,7 +106,7 @@ test.describe('Cycle wizard translations', () => {
       'Cycle Information',
       'Origin Type',
       'Save & Continue',
-      'Select origin type',
+      'Choose where it ships from',
     ]) {
       expect(body).not.toContain(english);
     }

@@ -118,6 +118,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   };
   const locale = useLocale();
   const t = useTranslations('wizard');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const toast = useToast();
   const announce = useAnnounceStatusMove();
@@ -1223,6 +1224,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   value={poSupplierId}
                   onChange={setPoSupplierId}
                   placeholder={t('selectSupplier')}
+                  searchPlaceholder={tph('searchSuppliers')}
                   options={supplierList.map((s: any) => ({
                     value: s.id,
                     label: s.name,
@@ -1266,7 +1268,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                   name="fxRateToEgp"
                   required
                   step="0.0001"
-                  placeholder="0"
+                  placeholder={tph('fxRate')}
                   value={poFxRate}
                   onChange={(e) => setPoFxRate(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -1337,6 +1339,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           onChange={(v) => updateLineItem(idx, 'productId', v)}
                           required
                           placeholder={t('selectProduct')}
+                          searchPlaceholder={tph('searchProducts')}
                           options={productList.map((p: any) => ({
                             value: p.id,
                             label: p.name,
@@ -1352,7 +1355,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         </label>
                         <input
                           type="number"
-                          placeholder="0"
+                          placeholder={tph('quantity')}
                           data-field="orderedQty"
                           value={item.orderedQty || ''}
                           onChange={(e) =>
@@ -1371,7 +1374,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         </label>
                         <MoneyInput
                           data-field="unitPrice"
-                          placeholder="0.00"
+                          placeholder={tph('money')}
                           value={item.unitPrice || ''}
                           onChange={(raw) => updateLineItem(idx, 'unitPrice', Number(raw))}
                           required
@@ -1385,7 +1388,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         </label>
                         <MoneyInput
                           data-field="discount"
-                          placeholder="0.00"
+                          placeholder={tph('discount')}
                           value={item.discount || ''}
                           onChange={(raw) => updateLineItem(idx, 'discount', Number(raw))}
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -1495,6 +1498,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         }
                         onChange={(v) => setLegProviderId(prefix, v)}
                         placeholder={t('selectShippingProvider')}
+                        searchPlaceholder={tph('searchProviders')}
                         options={providerOptions(existing?.provider)}
                       />
                       </FieldWithQuickCreate>
@@ -1508,7 +1512,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         type="text"
                         name={`${prefix}trackingRef`}
                         defaultValue={typedLeg(`${prefix}trackingRef`) ?? existing?.trackingRef ?? ''}
-                        placeholder={t('trackingNumber')}
+                        placeholder={tph('trackingRef')}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
@@ -1524,6 +1528,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         name={`${prefix}origin`}
                         required
                         defaultValue={typedLeg(`${prefix}origin`) ?? existing?.origin ?? leg.origin}
+                        placeholder={tph('origin')}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
@@ -1538,6 +1543,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         defaultValue={
                           typedLeg(`${prefix}destination`) ?? existing?.destination ?? leg.destination
                         }
+                        placeholder={tph('destination')}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
@@ -1643,7 +1649,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                       </span>
                       <MoneyInput
                         data-field={`contribution-${p.id}`}
-                        placeholder="0.00"
+                        placeholder={tph('money')}
                         value={contributions[p.id] ?? ''}
                         onChange={(raw) =>
                           setContributions((prev) => ({ ...prev, [p.id]: raw }))
@@ -1675,6 +1681,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           value={investorUserId}
                           onChange={setInvestorUserId}
                           placeholder={t('selectPerson')}
+                          searchPlaceholder={tph('searchPeople')}
                           options={addableUsers.map((u: any) => ({
                             value: u.id,
                             label: u.partner?.displayName ?? u.email,
@@ -1688,7 +1695,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         </label>
                         <MoneyInput
                           data-field="investor-amount"
-                          placeholder="0.00"
+                          placeholder={tph('money')}
                           value={investorAmount}
                           onChange={setInvestorAmount}
                           className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -1707,7 +1714,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           min="0"
                           max="100"
                           step="0.01"
-                          placeholder="0"
+                          placeholder={tph('percent')}
                           value={investorFee}
                           onChange={(e) => setInvestorFee(e.target.value)}
                           {...selectOnFocus}

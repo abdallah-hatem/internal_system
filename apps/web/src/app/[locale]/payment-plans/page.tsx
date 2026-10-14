@@ -87,6 +87,7 @@ export default function PaymentPlansPage() {
   const { formatDate } = useDateFormat();
   const apiError = useApiError();
   const t = useTranslations('paymentPlans');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -334,8 +335,8 @@ export default function PaymentPlansPage() {
                 <Select
                   value={customerId}
                   onChange={setCustomerId}
-                  placeholder={t('customer')}
-                  searchPlaceholder={tc('search')}
+                  placeholder={tph('chooseCustomer')}
+                  searchPlaceholder={tph('searchCustomers')}
                   options={(Array.isArray(customers) ? customers : []).map((c: any) => ({
                     value: c.id,
                     label: c.displayName,
@@ -373,7 +374,7 @@ export default function PaymentPlansPage() {
                         />
                       </div>
                       <MoneyInput
-                        placeholder="0.00"
+                        placeholder={tph('money')}
                         value={line.amount}
                         onChange={(raw) =>
                           setLines((l) => l.map((x, i) => (i === idx ? { ...x, amount: raw } : x)))

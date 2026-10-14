@@ -68,6 +68,7 @@ export function LedgerEntryDialog({
 
 function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecorded?: () => void }) {
   const t = useTranslations('ledger');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const te = useTranslations('errors');
   const apiError = useApiError();
@@ -259,7 +260,7 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
                   setRefusal(null);
                 }}
                 placeholder={t('chooseCategory')}
-                searchPlaceholder={tc('search')}
+                searchPlaceholder={tph('searchCategories')}
                 options={categoryOptions}
               />
             </div>
@@ -278,7 +279,7 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
                   setAmount(raw);
                   setRefusal(null);
                 }}
-                placeholder="0.00"
+                placeholder={tph('money')}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
               />
             </div>
@@ -326,7 +327,7 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
                   clearable
                   required={cycleRequired}
                   placeholder={cycleRequired ? t('chooseCycle') : t('noCycle')}
-                  searchPlaceholder={tc('search')}
+                  searchPlaceholder={tph('searchCycles')}
                   options={cycleOptions}
                 />
                 {cycleRequired && (

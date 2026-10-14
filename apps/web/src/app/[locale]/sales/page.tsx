@@ -118,6 +118,7 @@ function SalesPageContent() {
   const t = useTranslations('sales');
   const tc = useTranslations('common');
   const tp = useTranslations('payments');
+  const tph = useTranslations('placeholders');
   const { formatAmount } = useNumberFormat();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -960,7 +961,7 @@ function SalesPageContent() {
                       min="0"
                       max={Number(it.quantity)}
                       step="0.001"
-                      placeholder="0"
+                      placeholder={tph('quantitySmall')}
                       value={returnQty[it.id] ?? ''}
                       onChange={(e) => setReturnQty((q) => ({ ...q, [it.id]: e.target.value }))}
                       className="w-24 shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-start focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -992,6 +993,7 @@ function SalesPageContent() {
                   money (§4); the server refuses a credit note on one. */}
               <Select
                 name="refundMethod"
+                placeholder={tph('chooseRefundMethod')}
                 defaultValue={returningOrder.customer?.isWalkIn ? 'CASH' : 'CREDIT_NOTE'}
                 options={[
                   ...(returningOrder.customer?.isWalkIn
