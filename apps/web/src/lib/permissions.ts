@@ -39,6 +39,7 @@ export const ACTION_ROLES = {
   'product.create': PARTNERS, //          POST /products
   'product.edit': PARTNERS, //            PUT  /products/:id
   'product.setPrice': PARTNERS, //        POST /products/:id/prices
+  'product.setStatus': PARTNERS, //       PUT  /products/:id/status (§3, 2026-10-14)
   'product.addPhoto': PARTNERS, //        POST   /files/products/:productId
   'product.deletePhoto': PARTNERS, //     DELETE /files/:id
   'category.create': PARTNERS, //         POST   /categories

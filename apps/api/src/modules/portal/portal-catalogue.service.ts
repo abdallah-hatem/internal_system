@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { notFound } from '../../common/api-error';
 import { availableByProduct, stockBand } from '../../common/available-stock';
+import { SELLABLE } from '../../common/product-status';
 import { channelFor, priceOn, type PriceChannel } from './portal-pricing';
 
 /**
@@ -51,7 +52,11 @@ export class PortalCatalogueService {
     const channel = channelFor({ customer });
 
     const where: Prisma.ProductWhereInput = {
-      status: 'ACTIVE',
+      // Switched off, it stays in the shop window while stock remains and
+      // leaves once the shelf is empty (§3, §12, owner 2026-10-14).
+      // Under AND: the search below is an OR of its own, and spreading this
+      // one beside it would let the search replace it.
+      AND: [SELLABLE],
       ...(params.categoryId ? { categoryId: params.categoryId } : {}),
       ...(params.search
         ? {
@@ -138,9 +143,21 @@ export class PortalCatalogueService {
 
     // An inactive product is not found rather than forbidden. A shop has no
     // business learning that a SKU exists but has been withdrawn.
-    if (!product || product.status !== 'ACTIVE') throw notFound('product');
+    if (!product) throw notFound('product');
 
     const stock = await availableByProduct(this.prisma, [product.id]);
+    // Switched off and sold out, it is gone from the store (§3, 2026-10-14).
+    // Held units still count as on the shelf, as the list's SELLABLE does.
+    if (product.status !== 'ACTIVE') {
+      const onShelf = await this.prisma.inventoryBatch.count({
+        where: {
+          productId: product.id,
+          verificationStatus: 'VERIFIED',
+          saleableQty: { gt: 0 },
+        },
+      });
+      if (onShelf === 0) throw notFound('product');
+    }
 
     return {
       data: {

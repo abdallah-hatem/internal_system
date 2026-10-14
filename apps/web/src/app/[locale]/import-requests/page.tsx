@@ -1,5 +1,6 @@
 'use client';
 import { useAllRecords } from '@/lib/list-all';
+import { offeredOnly } from '@/lib/product-status';
 
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -148,7 +149,8 @@ function RequestCard({
   };
 
   const busy = answer.isPending;
-  const productList: any[] = Array.isArray(products) ? products : [];
+  // A shop cannot order a switched-off product, so it is no answer (§3, 2026-10-14).
+  const productList: any[] = Array.isArray(products) ? offeredOnly(products) : [];
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white">

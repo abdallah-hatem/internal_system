@@ -60,6 +60,21 @@ export class ProductsController {
     return this.productsService.update(id, body, user.id);
   }
 
+  @Put(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary:
+      'Deactivate or reactivate a product: { status: ACTIVE | INACTIVE } (CORE_PARTNER only)',
+  })
+  setStatus(
+    @Param('id') id: string,
+    @Body() body: { status?: unknown },
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.productsService.setStatus(id, body?.status, user.id);
+  }
+
   @Post(':id/prices')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')

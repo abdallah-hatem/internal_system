@@ -29,6 +29,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
+import { offeredOnly } from '@/lib/product-status';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 // ─── Types ────────────────────────────────────────────────────────────
@@ -138,7 +139,8 @@ export default function PurchasesPage() {
     ? cycles.filter((c: any) => ['PLANNING', 'FUNDING', 'PURCHASING'].includes(c.status))
     : [];
   const supplierList: any[] = Array.isArray(suppliers) ? suppliers : [];
-  const productList: any[] = Array.isArray(products) ? products : [];
+  // A switched-off product takes no new purchase-order line (§3, 2026-10-14).
+  const productList: any[] = Array.isArray(products) ? offeredOnly(products) : [];
 
   const filtered = purchaseList.filter((p) => {
     if (!search) return true;

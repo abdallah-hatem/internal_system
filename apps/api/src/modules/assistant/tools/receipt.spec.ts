@@ -861,6 +861,29 @@ describe('create_purchase_order', () => {
     expect(codeOf(negative)).toBe('QTY_NOT_POSITIVE');
   });
 
+  it('a line for a switched-off product → PRODUCT_INACTIVE, on a new order and when added to a draft; nothing written (§3, 2026-10-14)', async () => {
+    db.tables.product.find((p) => p.id === ids.brakePad)!.status = 'INACTIVE';
+    const before = businessCounts();
+
+    const fresh = await call(
+      'create_purchase_order',
+      order({ lines: [existingLine()] }),
+    );
+    const added = await call('create_purchase_order', {
+      addToOrderId: ids.draft,
+      supplier: { id: ids.supplier },
+      currency: 'CNY',
+      lines: [existingLine()],
+    });
+
+    expect(fresh.s.error).toMatchObject({
+      code: 'PRODUCT_INACTIVE',
+      params: { product: 'Brake pad' },
+    });
+    expect(codeOf(added)).toBe('PRODUCT_INACTIVE');
+    expect(businessCounts()).toEqual(before);
+  });
+
   it('a product, supplier or cycle id that belongs to nothing → a coded 404, never a 500', async () => {
     const product = await call(
       'create_purchase_order',
@@ -1076,6 +1099,16 @@ describe('match_receipt', () => {
     expect(r.s.data?.findings?.cycles.open.map((c) => c.code)).toEqual([
       'C-2026-01',
     ]);
+  });
+
+  it('a switched-off product is not matched, by its SKU or its name (§3, 2026-10-14)', async () => {
+    db.tables.product.find((p) => p.id === ids.brakePad)!.status = 'INACTIVE';
+
+    const r = await call('match_receipt', receipt);
+
+    const line = (r.s.data?.lines as Array<Record<string, unknown>>)[0];
+    expect(line.status).not.toBe('matched');
+    expect(JSON.stringify(line)).not.toContain(ids.brakePad);
   });
 
   it('flags an invoice already recorded, and writes nothing', async () => {

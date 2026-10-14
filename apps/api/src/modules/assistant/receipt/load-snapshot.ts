@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { OPEN_FOR_PURCHASING } from '../../purchases/purchase-rules';
+import { OFFERED } from '../../../common/product-status';
 import type { ReceiptSnapshot } from './receipt.types';
 
 type Db = Pick<
@@ -24,7 +25,10 @@ export async function loadReceiptSnapshot(db: Db): Promise<ReceiptSnapshot> {
         select: { id: true, name: true, country: true },
         orderBy: { name: 'asc' },
       }),
+      // A receipt's lines are new purchase-order lines, so a switched-off
+      // product is not matched (§3, 2026-10-14).
       db.product.findMany({
+        where: { ...OFFERED },
         select: { id: true, name: true, sku: true },
         orderBy: { name: 'asc' },
       }),

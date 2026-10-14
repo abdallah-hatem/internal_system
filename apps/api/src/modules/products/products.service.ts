@@ -13,6 +13,11 @@ import {
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { skuKey } from '../assistant/receipt/name-matching';
 import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
+import { isUuid } from '../../common/uuid';
+import {
+  parseProductStatus,
+  type ProductStatus,
+} from '../../common/product-status';
 
 type Db = Prisma.TransactionClient;
 
@@ -136,6 +141,10 @@ export class ProductsService {
     options: { sku?: string; db?: Db } = {},
   ) {
     const db = options.db ?? this.prisma;
+    // Only ACTIVE or INACTIVE is ever stored (§3, 2026-10-14); a new product
+    // with no status is on.
+    const status =
+      data.status === undefined ? 'ACTIVE' : parseProductStatus(data.status);
     // A category id that is no category failed at the foreign key, deep in
     // Prisma, as "An unexpected error occurred".
     if (data.categoryId) {
@@ -167,7 +176,7 @@ export class ProductsService {
         categoryId: data.categoryId,
         description: data.description,
         barcode: data.barcode,
-        status: (data.status as any) || 'ACTIVE',
+        status,
         minStock: data.minStock,
       },
       include: { category: true },
@@ -199,6 +208,9 @@ export class ProductsService {
     },
     actorId: string,
   ) {
+    // Checked before anything is read: a status nobody may store is refused
+    // whether or not the product exists.
+    if (data.status !== undefined) parseProductStatus(data.status);
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw notFound('product');
 
@@ -209,7 +221,7 @@ export class ProductsService {
         categoryId: data.categoryId,
         description: data.description,
         barcode: data.barcode,
-        status: data.status as any,
+        status: data.status,
         minStock: data.minStock,
       },
       include: { category: true },
@@ -222,6 +234,41 @@ export class ProductsService {
       entityId: id,
       beforeJson: existing,
       afterJson: updated,
+    });
+
+    return { data: updated };
+  }
+
+  /**
+   * Switch a product off, or back on (BUSINESS_LOGIC §3, DECIDED 2026-10-14).
+   * Products are never deleted: their orders, batches and settlements point at
+   * them. Off, it is offered for no new sale line, purchase-order line or
+   * storefront request line; nothing that exists is touched.
+   *
+   * Setting the status it already has changes nothing and records nothing — a
+   * double click is not two decisions.
+   */
+  async setStatus(id: string, status: unknown, actorId: string) {
+    const next: ProductStatus = parseProductStatus(status);
+    if (!isUuid(id)) throw notFound('product');
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) throw notFound('product');
+    if (existing.status === next) {
+      return { data: { ...existing } };
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { status: next },
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: next === 'INACTIVE' ? 'DEACTIVATE' : 'REACTIVATE',
+      entityType: 'Product',
+      entityId: id,
+      beforeJson: { status: existing.status },
+      afterJson: { status: next },
     });
 
     return { data: updated };

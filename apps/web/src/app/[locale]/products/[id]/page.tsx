@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useNumberFormat } from '@/lib/numbers';
 import { usePriceCheck } from '@/lib/price-check';
 import { BelowCostPrice } from '@/components/sales/below-cost';
+import { ProductStatusAction } from '@/components/products/product-status-action';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -218,14 +219,23 @@ export default function ProductDetailPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{productData.name}</h1>
           <span
+            data-testid="product-status"
             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
               isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
             }`}
           >
             {isActive ? t('active') : t('inactive')}
           </span>
+          <div className="sm:ms-auto">
+            <ProductStatusAction product={productData} look="button" />
+          </div>
         </div>
         <p className="font-mono text-sm text-gray-500">{productData.sku}</p>
+        {!isActive && (
+          <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
+            {t('inactiveNotice')}
+          </p>
+        )}
       </div>
 
       {/* ── Stat Cards ──────────────────────────────────────────────── */}

@@ -82,7 +82,7 @@ export class OrderRequestsService {
 
     const created = await this.prisma.$transaction(async (tx) => {
       const products = await tx.product.findMany({
-        where: { id: { in: productIds }, status: 'ACTIVE' },
+        where: { id: { in: productIds } },
         include: { prices: { select: { channel: true, amount: true, effectiveTo: true } } },
       });
       if (products.length !== productIds.length) {
@@ -90,6 +90,9 @@ export class OrderRequestsService {
         // key failing deep in Prisma as "an unexpected error occurred".
         throw notFound('product');
       }
+      // A switched-off product is still sold from the shelf (§3, owner
+      // 2026-10-14), so its status is not asked here: the stock check below
+      // refuses it once there is none, as for any product.
 
       const available = await availableByProduct(tx, productIds);
 

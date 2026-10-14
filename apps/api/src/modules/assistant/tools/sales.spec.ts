@@ -149,6 +149,13 @@ class FakeDb {
       if (key === 'OR')
         return (cond as Row[]).some((c) => this.matches(table, row, c));
       const rel = RELATIONS[table]?.[key];
+      if (rel && rel[2] === 'many' && 'some' in (cond as Row)) {
+        return this.tables[rel[0]].some(
+          (r) =>
+            r[rel[1]] === row.id &&
+            this.matches(rel[0], r, (cond as Row).some as Row),
+        );
+      }
       if (rel && rel[2] === 'one') {
         const other = this.tables[rel[0]].find((r) => r.id === row[rel[1]]);
         return !!other && this.matches(rel[0], other, cond as Row);
@@ -655,6 +662,45 @@ describe('record_sale — matching (the shared matcher)', () => {
       lines: [{ product: 'Honda CBR Brake Pad', qty: 1, unitPrice: 300 }],
     });
     expect(r.s.data?.questions?.[0].kind).toBe('CUSTOMER_UNKNOWN');
+  });
+
+  it('a switched-off product with stock is still matched and sold from the shelf (owner, §3, 2026-10-14)', async () => {
+    db.tables.product.find((p) => p.id === ids.pad)!.status = 'INACTIVE';
+
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'Honda CBR Brake Pad', qty: 2, unitPrice: 300 }],
+    });
+
+    expect(r.s.error).toBeUndefined();
+    expect(r.s.status).toBe('preview');
+    expect(r.s.confirmationToken).toBeDefined();
+  });
+
+  it('a switched-off product with nothing on the shelf is not matched — by name or by id; nothing written (§3, 2026-10-14)', async () => {
+    // The chain has a price and no stock.
+    db.tables.product.find((p) => p.id === ids.chain)!.status = 'INACTIVE';
+    const before = db.counts();
+
+    const byName = await call({
+      walkIn: true,
+      lines: [{ product: 'Drive chain 428', qty: 1, unitPrice: 900 }],
+    });
+    const byId = await call({
+      walkIn: true,
+      lines: [{ product: ids.chain, qty: 1, unitPrice: 900 }],
+    });
+
+    for (const r of [byName, byId]) {
+      expect(r.s.status).toBe('needs_answers');
+      expect(r.s.confirmationToken).toBeUndefined();
+      // Not offered as a candidate either (the question may echo what was said).
+      expect(r.s.data?.questions?.[0]).toMatchObject({
+        kind: 'LINE_UNKNOWN',
+        options: [],
+      });
+    }
+    expect(db.counts()).toEqual(before);
   });
 
   it('a product by id, and a customer by id, are matched', async () => {

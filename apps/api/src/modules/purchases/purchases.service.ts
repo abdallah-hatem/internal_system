@@ -23,6 +23,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
 import { isUuid } from '../../common/uuid';
+import { assertOffered } from '../../common/product-status';
 import {
   assertInScope,
   cycleIdWhere,
@@ -424,6 +425,8 @@ export class PurchasesService {
       where: { id: item.productId },
     });
     if (!product) throw notFound('product');
+    // Buying more of a switched-off product is a new line (§3, 2026-10-14).
+    assertOffered(product);
 
     if (!Number.isFinite(item.orderedQty) || item.orderedQty <= 0) {
       throw badRequest(
