@@ -368,9 +368,10 @@ export class ProductsService {
       });
     }
     const nameAr = arabicText(data.nameAr, 'nameAr', NAME_AR_MAX);
-    // Check uniqueness
-    const existing = await db.category.findUnique({
-      where: { name },
+    // Unique ignoring case: "brakes" beside "Brakes" is the same category
+    // typed twice (§3, 2026-10-15), as for supplier and Arabic names.
+    const existing = await db.category.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
     });
     if (existing) {
       throw conflict(
@@ -441,8 +442,12 @@ export class ProductsService {
 
     // Check name uniqueness if changing
     if (data.name && data.name !== existing.name) {
-      const dup = await this.prisma.category.findUnique({
-        where: { name: data.name },
+      // Ignoring case, and not itself: renaming "brakes" to "Brakes" is allowed.
+      const dup = await this.prisma.category.findFirst({
+        where: {
+          name: { equals: data.name.trim(), mode: 'insensitive' },
+          NOT: { id },
+        },
       });
       if (dup)
         throw conflict(

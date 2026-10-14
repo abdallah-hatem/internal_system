@@ -623,4 +623,31 @@ describe('ProductsService.createCategory — the office path', () => {
     }
     expect(stored('Orphan')).toBeUndefined();
   });
+
+  // §3, 2026-10-15: an English name is unique ignoring case.
+  it('a name differing only in case is refused → CATEGORY_NAME_TAKEN, by the office and the assistant', async () => {
+    for (const name of ['brakes', 'BRAKES', ' bRaKeS ']) {
+      expect(
+        await refusal(products.createCategory({ name }, partner.id)),
+      ).toMatchObject({ code: 'CATEGORY_NAME_TAKEN' });
+      expect(codeOf(await call('create_category', { name }))).toBe(
+        'CATEGORY_NAME_TAKEN',
+      );
+    }
+    expect(db.tables.category).toHaveLength(3);
+  });
+
+  it('renaming to another category\'s name in other case is refused; changing only its own case is allowed', async () => {
+    expect(
+      await refusal(
+        products.updateCategory(ids.tyres, { name: 'LIGHTING' }, partner.id),
+      ),
+    ).toMatchObject({ code: 'CATEGORY_NAME_TAKEN' });
+    expect(stored('Tyres')).toBeDefined();
+
+    await products.updateCategory(ids.brakes, { name: 'BRAKES' }, partner.id);
+    expect(db.tables.category.find((c) => c.id === ids.brakes)!.name).toBe(
+      'BRAKES',
+    );
+  });
 });

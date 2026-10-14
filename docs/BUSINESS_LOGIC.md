@@ -1854,10 +1854,12 @@ category called nothing; the name is trimmed before the uniqueness check, so
 "Brakes " is "Brakes"; a parent id that is no category is `NOT_FOUND`, not a 500
 from the foreign key.
 
-Open (2026-10-15, a guess left as it was): the English name is unique exactly as
-typed, so "brakes" beside "Brakes" is allowed — the office's rule, kept as is, where
-a supplier's name is unique in any case. The owner decides whether categories should
-follow suppliers.
+Decided (2026-10-15, **GUESS**, recommended option taken under the owner's standing
+"decide yourself"): a category's English name is unique **ignoring case**, like a
+supplier's name and a category's Arabic name, so "brakes" beside "Brakes" is refused
+as `CATEGORY_NAME_TAKEN`, by the office and the assistant alike. Renaming a category
+to its own name in other case is allowed. The database index stays exact-case; the
+service asks first.
 
 
 ---
