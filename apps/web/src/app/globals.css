@@ -83,6 +83,16 @@
     border-color: theme(colors.gray.200);
   }
 
+  /* Typing fields sit on white, not on the page's grey. The search bars had no
+     background of their own, so on the grey page they read as see-through and
+     at times all but invisible (owner, 2026-10-14). In the base layer on purpose:
+     a field that should blend in (the picker's own search box) says
+     `bg-transparent`, and a utility class beats this. */
+  input:is(:not([type]), [type="text"], [type="search"], [type="email"], [type="password"], [type="number"], [type="tel"], [type="url"]),
+  textarea {
+    background-color: var(--color-card);
+  }
+
   /* Buttons & interactive elements default to pointer cursor.
      `[role="option"]` and `[role="menuitem"]` are here because the Select and
      the menus are built from Radix and cmdk, which render div s carrying a role
