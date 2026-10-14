@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Power, PowerOff } from 'lucide-react';
 
@@ -34,7 +35,7 @@ export function ProductStatusAction({
   product,
   look,
 }: {
-  product: { id: string; name: string; status?: string | null };
+  product: { id: string; name: string; nameAr?: string | null; status?: string | null };
   look: 'button' | 'icon' | 'text';
 }) {
   const t = useTranslations('products');
@@ -46,6 +47,7 @@ export function ProductStatusAction({
   const [open, setOpen] = useState(false);
 
   const active = isOffered(product);
+  const shownName = localName(product, useLocale());
   const next = active ? 'INACTIVE' : 'ACTIVE';
   const label = active ? t('deactivate') : t('reactivate');
 
@@ -59,7 +61,7 @@ export function ProductStatusAction({
         queryClient.invalidateQueries({ queryKey: ['product', product.id] }),
       ]);
       setOpen(false);
-      toast(active ? t('deactivated', { name: product.name }) : t('reactivated', { name: product.name }), 'success');
+      toast(active ? t('deactivated', { name: shownName }) : t('reactivated', { name: shownName }), 'success');
     },
     onError: (error: unknown) => toast(apiError(error, t('statusChangeFailed')), 'error'),
   });
@@ -112,7 +114,7 @@ export function ProductStatusAction({
         <DialogContent className="sm:max-w-md" showCloseButton={false}>
           <DialogHeader className="text-start sm:text-start">
             <DialogTitle>
-              {active ? t('deactivateTitle', { name: product.name }) : t('reactivateTitle', { name: product.name })}
+              {active ? t('deactivateTitle', { name: shownName }) : t('reactivateTitle', { name: shownName })}
             </DialogTitle>
             <DialogDescription>{active ? t('deactivateBody') : t('reactivateBody')}</DialogDescription>
           </DialogHeader>

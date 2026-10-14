@@ -555,6 +555,7 @@ export class InventoryService {
         productTotals[batch.productId] = {
           productId: batch.productId,
           productName: batch.product.name,
+          productNameAr: batch.product.nameAr,
           totalStock: 0,
           reservedStock: 0,
           availableStock: 0,

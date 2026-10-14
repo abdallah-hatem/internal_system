@@ -5,7 +5,8 @@ import { Select } from '../../../components/ui/select';
 import { ProductLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName, otherName } from '@/lib/localized-name';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
@@ -69,6 +70,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PurchasesPage() {
+  const locale = useLocale();
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const apiError = useApiError();
@@ -405,8 +407,9 @@ export default function PurchasesPage() {
                             searchPlaceholder={tph('searchProducts')}
                             options={productList.map((p: any) => ({
                               value: p.id,
-                              label: p.name,
+                              label: localName(p, locale),
                               hint: p.sku,
+                              keywords: otherName(p, locale),
                             }))}
                           />
                         </FieldWithQuickCreate>
@@ -504,7 +507,7 @@ export default function PurchasesPage() {
                         <tr key={item.id}>
                           <td className="py-2">
                             <p className="font-medium text-gray-900">
-                              <ProductLink id={item.productId} name={item.product?.name} />
+                              <ProductLink id={item.productId} name={localName(item.product, locale)} />
                             </p>
                             <p className="text-xs text-gray-500">{item.product?.sku}</p>
                           </td>

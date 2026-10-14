@@ -1,7 +1,8 @@
 'use client';
 import { CustomerLink, ProductLink } from '@/components/ui/entity-link';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Banknote, PackageCheck, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -41,6 +42,7 @@ const KIND_ICON = { SALE: ShoppingCart, PAYMENT: Banknote, RECEIPT: PackageCheck
  * it out after clicking back here.
  */
 export function RecentActivity() {
+  const locale = useLocale();
   const t = useTranslations('dashboard');
   const ts = useTranslations('sales');
   const { formatDate } = useDateFormat();
@@ -118,7 +120,7 @@ export function RecentActivity() {
                         <CustomerLink truncate id={item.customer.id} name={item.customer.displayName} />
                       )
                     ) : item.product ? (
-                      <ProductLink truncate id={item.product.id} name={item.product.name} />
+                      <ProductLink truncate id={item.product.id} name={localName(item.product, locale)} />
                     ) : (
                       '—'
                     )}

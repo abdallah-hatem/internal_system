@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import { localName } from '@/lib/localized-name';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { FileX, Loader2, Printer } from 'lucide-react';
@@ -25,6 +26,8 @@ interface Invoice {
   lines: {
     id: string;
     product: string;
+    /** The Arabic name, null when none was entered (§3, 2026-10-14). */
+    productAr: string | null;
     sku: string;
     quantity: string;
     unitPrice: string;
@@ -172,7 +175,9 @@ export default function InvoicePage() {
                 <tr key={line.id} data-testid="invoice-line">
                   <td className="align-top tabular-nums text-muted-foreground">{formatNumber(i + 1)}</td>
                   <td className="align-top">
-                    <p className="font-medium text-foreground"><LatinText>{line.product}</LatinText></p>
+                    <p className="font-medium text-foreground" data-testid="invoice-line-product">
+                      <LatinText>{localName({ name: line.product, nameAr: line.productAr }, locale)}</LatinText>
+                    </p>
                     <p className="text-xs text-muted-foreground"><LatinText dir="ltr">{line.sku}</LatinText></p>
                     {/* On a phone, price and discount sit under the name. */}
                     <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden">

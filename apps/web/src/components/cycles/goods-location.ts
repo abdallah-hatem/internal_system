@@ -64,6 +64,7 @@ export interface FromCycle {
 export interface ProductLocation extends GoodsBuckets {
   productId: string;
   productName: string;
+  productNameAr?: string | null;
 }
 
 export interface GoodsLocation {
@@ -123,12 +124,12 @@ export function locateGoods(input: {
 
   // Per product, in milli-units, with the product's received total kept apart
   // until sold is known.
-  const byProduct = new Map<string, { name: string; b: GoodsBuckets; received: number }>();
+  const byProduct = new Map<string, { name: string; nameAr?: string | null; b: GoodsBuckets; received: number }>();
   const productOf = new Map<string, string>();
   for (const line of lines) {
     const key = line.productId ?? line.purchaseOrderItemId;
     productOf.set(line.purchaseOrderItemId, key);
-    if (!byProduct.has(key)) byProduct.set(key, { name: line.productName ?? '—', b: zero(), received: 0 });
+    if (!byProduct.has(key)) byProduct.set(key, { name: line.productName ?? '—', nameAr: line.productNameAr ?? null, b: zero(), received: 0 });
     byProduct.get(key)!.b.ordered += milli(line.ordered);
   }
 
@@ -195,7 +196,7 @@ export function locateGoods(input: {
     }
 
     for (const k of PLACES) totals[k] += p.b[k];
-    products.push({ productId, productName: p.name, ...toUnits(p.b) });
+    products.push({ productId, productName: p.name, productNameAr: p.nameAr ?? null, ...toUnits(p.b) });
   }
 
   // Moved in from other cycles: per cycle it came from, what is still here,

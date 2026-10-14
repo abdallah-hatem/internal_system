@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, Loader2, Plus, Send } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -109,9 +110,10 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
   // once a refusal names a leg.
   const { data: shipment } = useShipment(refusal?.legId || fixing ? cycleId : undefined);
   const legOf = (legId: string | undefined) => shipment?.legs?.find((l) => l.legId === legId);
+  const locale = useLocale();
   const productNames = useMemo(
-    () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, l.productName ?? '—'])),
-    [shipment],
+    () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, localName({ name: l.productName, nameAr: l.productNameAr }, locale) || '—'])),
+    [shipment, locale],
   );
 
   /** Every way into the dialog and out of it goes through these two (CLAUDE.md §13). */

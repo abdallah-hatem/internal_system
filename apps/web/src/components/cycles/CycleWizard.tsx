@@ -1,4 +1,5 @@
 'use client';
+import { localName, otherName } from '@/lib/localized-name';
 import { useAllRecords } from '@/lib/list-all';
 import { offeredOnly } from '@/lib/product-status';
 import { LeftoversReturnLink } from './leftovers-return-link';
@@ -1166,7 +1167,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                         className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm"
                       >
                         <bdi className="min-w-0 break-words text-foreground">
-                          {item.product?.name ?? '—'}
+                          {localName(item.product, locale) || '—'}
                         </bdi>
                         <span className="text-muted-foreground">
                           {t('orderLine', { qty: Number(item.orderedQty) })}{' '}
@@ -1342,8 +1343,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                           searchPlaceholder={tph('searchProducts')}
                           options={productList.map((p: any) => ({
                             value: p.id,
-                            label: p.name,
+                            label: localName(p, locale),
                             hint: p.sku,
+                            keywords: otherName(p, locale),
                           }))}
                         />
                         </FieldWithQuickCreate>

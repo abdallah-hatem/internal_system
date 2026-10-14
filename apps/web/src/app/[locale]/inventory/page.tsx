@@ -1,5 +1,6 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
+import { localName, matchesName } from '@/lib/localized-name';
 import { ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
@@ -24,6 +25,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 interface InventorySummary {
   productId: string;
   productName: string;
+  /** The Arabic name, null when none was entered (§3, 2026-10-14). */
+  productNameAr?: string | null;
   totalStock: number;
   reservedStock: number;
   availableStock: number;
@@ -97,10 +100,8 @@ function InventoryPageContent() {
   const filtered = inventoryList.filter((item) => {
     if (lowOnly && !isBelowMinStock(item)) return false;
     if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      item.productName?.toLowerCase().includes(q)
-    );
+    // Either language (§3, 2026-10-14).
+    return matchesName({ name: item.productName, nameAr: item.productNameAr }, search);
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -215,7 +216,7 @@ function InventoryPageContent() {
                             <div className="flex items-center gap-2">
                               <div>
                                 <p className="font-medium text-gray-900">
-                                  <ProductLink id={item.productId} name={item.productName} />
+                                  <ProductLink id={item.productId} name={localName({ name: item.productName, nameAr: item.productNameAr }, locale)} />
                                 </p>
                               </div>
                               {isLow && (
@@ -348,7 +349,7 @@ function InventoryPageContent() {
                     <div className="flex items-start justify-between">
                        <div>
                         <p className="font-medium text-gray-900">
-                          <ProductLink id={item.productId} name={item.productName} />
+                          <ProductLink id={item.productId} name={localName({ name: item.productName, nameAr: item.productNameAr }, locale)} />
                         </p>
                       </div>
                       {isLow && (

@@ -10,6 +10,7 @@ import { Money } from '../../../components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
 
 import { useTranslations, useLocale } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useDateFormat } from '../../../lib/dates';
@@ -661,7 +662,7 @@ function SalesPageContent() {
                         <tr key={item.id} className="[&>td]:px-2 [&>td:first-child]:ps-0 [&>td:last-child]:pe-0">
                           <td className="py-2">
                             <p className="font-medium text-gray-900">
-                              <ProductLink id={item.productId} name={item.product?.name} />
+                              <ProductLink id={item.productId} name={localName(item.product, locale)} />
                             </p>
                             <p className="text-xs text-muted-foreground whitespace-nowrap"><LatinText dir="ltr">{item.product?.sku}</LatinText></p>
                             <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
@@ -711,7 +712,7 @@ function SalesPageContent() {
                           <Package className="h-4 w-4 text-blue-500 shrink-0" />
                           <div className="min-w-0">
                             <p className="font-medium text-gray-900">
-                              <ProductLink truncate id={item.productId} name={item.product?.name} />
+                              <ProductLink truncate id={item.productId} name={localName(item.product, locale)} />
                             </p>
                             {/* Each piece stays whole, so a narrow card breaks
                                 between the batch and its cost, never inside
@@ -950,7 +951,7 @@ function SalesPageContent() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 truncate">
-                        <ProductLink id={it.productId} name={it.product?.name} />
+                        <ProductLink id={it.productId} name={localName(it.product, locale)} />
                       </p>
                       <p className="text-xs text-gray-500">
                         {t('quantity')}: {it.quantity} · <Money value={it.unitPrice} currency={returningOrder.currency} />
@@ -1061,10 +1062,11 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 function DraftBelowCost({ order }: { order: { currency: string; items?: SaleOrderItem[] } }) {
   const items = order.items ?? [];
   const result = usePriceCheck(items, order.currency);
+  const locale = useLocale();
   return (
     <BelowCostSummary
       result={result}
-      names={items.map((i) => i.product?.name ?? '')}
+      names={items.map((i) => localName(i.product, locale))}
     />
   );
 }

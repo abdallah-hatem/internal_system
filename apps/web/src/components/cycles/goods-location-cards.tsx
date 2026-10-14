@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRightLeft, Factory, PackageX, ShoppingBag, Ship, Store, Truck, Warehouse } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
@@ -71,6 +72,7 @@ export function GoodsLocationCards({
   transfers?: { out: LocationTransfer[]; in: LocationTransfer[] };
 }) {
   const t = useTranslations('goodsLocation');
+  const locale = useLocale();
   const { formatNumber } = useNumberFormat();
   const located = useMemo(
     () => locateGoods({ originType, shipment, batches, transfers }),
@@ -134,7 +136,7 @@ export function GoodsLocationCards({
                   <tr key={p.productId} data-testid="location-row" data-product={p.productName}>
                     {/* Wraps rather than truncates: at 1024px eight columns left the name three letters. */}
                     <td className="min-w-40 break-words px-4 py-2 font-medium text-foreground">
-                      <LatinText>{p.productName}</LatinText>
+                      <LatinText>{localName({ name: p.productName, nameAr: p.productNameAr }, locale)}</LatinText>
                     </td>
                     <td data-place="ordered" className="px-3 py-2 text-end tabular-nums text-foreground">{fmt(p.ordered)}</td>
                     {places.map((place) => (
@@ -156,7 +158,7 @@ export function GoodsLocationCards({
             {located.products.map((p) => (
               <li key={p.productId} data-testid="location-product-card" data-product={p.productName} className="rounded-lg border border-border bg-card p-3">
                 <p className="break-words text-sm font-medium text-foreground">
-                  <LatinText>{p.productName}</LatinText>
+                  <LatinText>{localName({ name: p.productName, nameAr: p.productNameAr }, locale)}</LatinText>
                 </p>
                 <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
                   <div>

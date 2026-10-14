@@ -22,6 +22,8 @@ export function TextareaField({
   placeholder,
   rows = 3,
   minLength,
+  maxLength,
+  dir,
 }: {
   label: string;
   name: string;
@@ -30,6 +32,9 @@ export function TextareaField({
   placeholder?: string;
   rows?: number;
   minLength?: number;
+  maxLength?: number;
+  /** `rtl` for prose written in Arabic whatever the page's language. */
+  dir?: 'rtl' | 'ltr';
 }) {
   return (
     <div>
@@ -44,6 +49,8 @@ export function TextareaField({
         placeholder={placeholder}
         rows={rows}
         minLength={minLength}
+        maxLength={maxLength}
+        dir={dir}
         className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary-500"
       />
     </div>

@@ -1,4 +1,5 @@
 'use client';
+import { localName, otherName } from '@/lib/localized-name';
 
 import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -409,7 +410,8 @@ export function SaleOrderForm({
                         const available = stockFor(p.id);
                         return {
                           value: p.id,
-                          label: p.name,
+                          label: localName(p, locale),
+                          keywords: otherName(p, locale),
                           // The count belongs where the product is chosen, not
                           // in an error after the order is built.
                           // Tag last, so a hint in either language still starts with the SKU

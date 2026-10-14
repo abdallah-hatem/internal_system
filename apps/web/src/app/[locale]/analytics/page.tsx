@@ -1,6 +1,7 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useEffect, useRef } from 'react';
 import { Money } from '../../../components/ui/money';
 import { useQuery } from '@tanstack/react-query';
@@ -45,6 +46,7 @@ interface CycleProfit {
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
+  const locale = useLocale();
   const codeLabel = useCodeLabel();
   const t = useTranslations('analytics');
   const tc = useTranslations('common');
@@ -175,7 +177,7 @@ export default function AnalyticsPage() {
                     <tbody className="divide-y divide-gray-100">
                       {productList.map((p) => (
                         <tr key={p.productId} className="hover:bg-gray-50">
-                          <td className="py-2.5 text-gray-900 font-medium">{p.name}</td>
+                          <td className="py-2.5 text-gray-900 font-medium">{localName(p, locale)}</td>
                           <td className="py-2.5 text-gray-500 font-mono text-xs">{p.sku}</td>
                           <td className="py-2.5 text-end text-gray-900">{formatNumber(p.totalQuantitySold)}</td>
                           <td className="py-2.5 text-end text-gray-900"><Money value={p.revenueEgp} /></td>

@@ -25,17 +25,20 @@ import { useNumberFormat } from '@/lib/numbers';
 import { usePriceCheck } from '@/lib/price-check';
 import { BelowCostPrice } from '@/components/sales/below-cost';
 import { ProductStatusAction } from '@/components/products/product-status-action';
+import { localDescription, localName } from '@/lib/localized-name';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
   sku: string;
   name: string;
+  nameAr?: string | null;
   description?: string;
+  descriptionAr?: string | null;
   barcode?: string;
   status?: string;
   minStock?: number;
   createdAt?: string;
-  category?: { id: string; name: string };
+  category?: { id: string; name: string; nameAr?: string | null };
   suppliers?: { supplier: { id: string; name: string } }[];
   prices?: PriceEntry[];
   compatibilities?: { motorcycleModel: { id: string; name: string } }[];
@@ -132,6 +135,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
+  const locale = String(params.locale ?? 'en');
 
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
 
@@ -217,7 +221,9 @@ export default function ProductDetailPage() {
       <div className="space-y-3">
         <BackLink onClick={() => router.back()} />
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">{productData.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900" data-testid="product-title">
+            {localName(productData, locale)}
+          </h1>
           <span
             data-testid="product-status"
             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -287,9 +293,13 @@ export default function ProductDetailPage() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <DetailItem label={t('sku')} value={productData.sku} mono />
+              {/* Both names as stored, whichever the title shows — so a partner
+                  on /en can see the Arabic is there, and on /ar the English. */}
+              <DetailItem label={t('name')} value={productData.name} />
+              <DetailItem label={t('nameAr')} value={productData.nameAr || '—'} />
               <DetailItem
                 label={t('category')}
-                value={productData.category?.name ?? '—'}
+                value={productData.category ? localName(productData.category, locale) : '—'}
               />
               <DetailItem
                 label={t('barcode')}
@@ -302,7 +312,12 @@ export default function ProductDetailPage() {
               />
               <DetailItem
                 label={t('description')}
-                value={productData.description ?? '—'}
+                value={productData.description || '—'}
+                full
+              />
+              <DetailItem
+                label={t('descriptionAr')}
+                value={productData.descriptionAr || '—'}
                 full
               />
               <DetailItem
