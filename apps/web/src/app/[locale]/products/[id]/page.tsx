@@ -296,7 +296,7 @@ export default function ProductDetailPage() {
               {/* Both names as stored, whichever the title shows — so a partner
                   on /en can see the Arabic is there, and on /ar the English. */}
               <DetailItem label={t('name')} value={productData.name} />
-              <DetailItem label={t('nameAr')} value={productData.nameAr || '—'} />
+              <DetailItem label={t('nameAr')} value={productData.nameAr || '—'} rtl />
               <DetailItem
                 label={t('category')}
                 value={productData.category ? localName(productData.category, locale) : '—'}
@@ -318,6 +318,7 @@ export default function ProductDetailPage() {
               <DetailItem
                 label={t('descriptionAr')}
                 value={productData.descriptionAr || '—'}
+                rtl
                 full
               />
               <DetailItem
@@ -670,16 +671,24 @@ function DetailItem({
   value,
   mono = false,
   full = false,
+  rtl = false,
 }: {
   label: string;
   value: string;
   mono?: boolean;
   full?: boolean;
+  /**
+   * Arabic text: ordered right to left even on /en, so "هوندا CBR 150" does
+   * not come out scrambled, while the cell stays aligned with its neighbours.
+   */
+  rtl?: boolean;
 }) {
   return (
     <div className={full ? 'col-span-2 md:col-span-3' : ''}>
       <span className="text-xs text-gray-500 block mb-0.5">{label}</span>
-      <p className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>{value}</p>
+      <p className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>
+        {rtl ? <bdi dir="rtl">{value}</bdi> : value}
+      </p>
     </div>
   );
 }
