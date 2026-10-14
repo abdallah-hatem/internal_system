@@ -8,7 +8,49 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { localDescription, localName, otherName } from '../src/lib/localized-name.ts';
+import { readFileSync } from 'node:fs';
+
+import {
+  arabicSearchKey,
+  localDescription,
+  localName,
+  otherName,
+  searchFinds,
+} from '../src/lib/localized-name.ts';
+
+/**
+ * The API's own table for the Arabic search rule (§3, owner 2026-10-15). The
+ * API's `arabicSearchKey` passes it in jest; this copy must pass it too, so
+ * the shop's search and the server's cannot drift.
+ */
+const cases = JSON.parse(
+  readFileSync(new URL('../../api/src/common/arabic-search-cases.json', import.meta.url), 'utf8'),
+);
+
+for (const [text, key] of cases.keys) {
+  test(`arabicSearchKey: ${JSON.stringify(text)} → ${JSON.stringify(key)}`, () => {
+    assert.equal(arabicSearchKey(text), key);
+  });
+}
+for (const [a, b] of cases.same) {
+  test(`search: ${a} finds ${b}, both ways`, () => {
+    assert.equal(searchFinds(a, b), true);
+    assert.equal(searchFinds(b, a), true);
+  });
+}
+for (const [a, b] of cases.different) {
+  test(`search: ${a} does NOT find ${b}`, () => {
+    assert.notEqual(arabicSearchKey(a), arabicSearchKey(b));
+  });
+}
+test('arabicSearchKey: nothing → empty', () => {
+  assert.equal(arabicSearchKey(null), '');
+  assert.equal(arabicSearchKey(undefined), '');
+});
+test('a category picker: "فرامل" finds "فَرامِل", and "حوندا" does not find "هوندا"', () => {
+  assert.equal(searchFinds('Brakes فَرامِل', 'فرامل'), true);
+  assert.equal(searchFinds('Honda هوندا', 'حوندا'), false);
+});
 
 const rows = [
   ['Arabic reader, Arabic present', { name: 'Brake pads', nameAr: 'تيل فرامل' }, 'ar', 'تيل فرامل'],

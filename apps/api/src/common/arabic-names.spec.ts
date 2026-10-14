@@ -1,12 +1,17 @@
 import type { HttpException } from '@nestjs/common';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
+  arabicSearchKey,
   arabicText,
   bilingualProductSearch,
   DESCRIPTION_AR_MAX,
   displayDescription,
   displayName,
   NAME_AR_MAX,
+  nameArSearchFor,
 } from './arabic-names';
+import { nameKey } from '../modules/assistant/receipt/name-matching';
 
 /** The code a refusal carries, or null when nothing was thrown. */
 function codeOf(fn: () => unknown): string | null {
@@ -125,15 +130,95 @@ describe('arabicText — what an Arabic field may hold', () => {
   });
 });
 
-describe('bilingualProductSearch — one search, both languages, and the SKU', () => {
-  it('asks for the English name, the Arabic name and the SKU, ignoring case', () => {
-    const fields = bilingualProductSearch('تيل').map((w) => Object.keys(w)[0]);
-    expect(fields.sort()).toEqual(['name', 'nameAr', 'sku']);
-    for (const clause of bilingualProductSearch('تيل')) {
-      expect(Object.values(clause)[0]).toEqual({
-        contains: 'تيل',
-        mode: 'insensitive',
-      });
+/** The table the office's and the storefront's copies are pinned to as well. */
+const cases = JSON.parse(
+  readFileSync(join(__dirname, 'arabic-search-cases.json'), 'utf8'),
+) as {
+  keys: [string, string][];
+  same: [string, string][];
+  different: [string, string][];
+};
+
+describe('arabicSearchKey — spelling differences an Arabic search forgives (§3, 2026-10-15)', () => {
+  it.each(cases.keys)('%j → %j', (text, key) => {
+    expect(arabicSearchKey(text)).toBe(key);
+  });
+
+  it.each(cases.same)('%s finds %s, and the other way round', (a, b) => {
+    expect(arabicSearchKey(a)).toBe(arabicSearchKey(b));
+    // Inside a longer name too — a search is "contains", not "equals".
+    expect(arabicSearchKey(`قطعة ${a} اصلية`)).toContain(arabicSearchKey(b));
+    expect(arabicSearchKey(`قطعة ${b} اصلية`)).toContain(arabicSearchKey(a));
+  });
+
+  it.each(cases.different)('%s does NOT find %s', (a, b) => {
+    expect(arabicSearchKey(a)).not.toBe(arabicSearchKey(b));
+  });
+
+  it('every rule in both directions: أ إ آ ↔ ا, ة ↔ ه, ى ↔ ي, marks and tatweel ↔ none', () => {
+    const k = arabicSearchKey;
+    expect(k('إطار')).toBe(k('اطار'));
+    expect(k('أطار')).toBe(k('اطار'));
+    expect(k('آلات')).toBe(k('الات'));
+    expect(k('خوذة')).toBe(k('خوذه'));
+    expect(k('هوندى')).toBe(k('هوندي'));
+    expect(k('فَرَامِلُ')).toBe(k('فرامل'));
+    expect(k('فـرامـل')).toBe(k('فرامل'));
+  });
+
+  it('nothing → empty, never a crash', () => {
+    expect(arabicSearchKey(null)).toBe('');
+    expect(arabicSearchKey(undefined)).toBe('');
+    expect(arabicSearchKey('')).toBe('');
+    expect(arabicSearchKey(' \t\n ')).toBe('');
+  });
+
+  it('English is lower-cased and nothing else — accents, digits and punctuation stay', () => {
+    expect(arabicSearchKey('Café Racer-2')).toBe('café racer-2');
+  });
+
+  it('agrees with the assistant on Arabic: its matcher folds the same pairs, and only those', () => {
+    // On Latin the matcher goes further (accents, punctuation) — that is
+    // matching a printed receipt, not a search box, and stays its own.
+    const arabic = ([a]: [string, string]) => /[\u0600-\u06FF]/.test(a);
+    for (const [a, b] of cases.same.filter(arabic)) {
+      expect(nameKey(a)).toBe(nameKey(b));
     }
+    for (const [a, b] of cases.different.filter(arabic)) {
+      expect(nameKey(a)).not.toBe(nameKey(b));
+    }
+  });
+});
+
+describe('nameArSearchFor — what is stored beside an Arabic name', () => {
+  it('not sent leaves it alone; cleared clears it; a name stores its key', () => {
+    expect(nameArSearchFor(undefined)).toBeUndefined();
+    expect(nameArSearchFor(null)).toBeNull();
+    expect(nameArSearchFor('خوذة')).toBe('خوذه');
+  });
+  it('a name that is nothing but marks stores no key, not an empty one', () => {
+    expect(nameArSearchFor('ـــ')).toBeNull();
+  });
+});
+
+describe('bilingualProductSearch — one search, both languages, and the SKU', () => {
+  it('asks for the English name and the SKU as typed, and the Arabic through its key', () => {
+    const where = bilingualProductSearch('خوذة');
+    const fields = where.map((w) => Object.keys(w)[0]);
+    expect(fields.sort()).toEqual(['name', 'nameArSearch', 'sku']);
+    expect(where).toContainEqual({
+      name: { contains: 'خوذة', mode: 'insensitive' },
+    });
+    expect(where).toContainEqual({
+      sku: { contains: 'خوذة', mode: 'insensitive' },
+    });
+    expect(where).toContainEqual({
+      nameArSearch: { contains: 'خوذه', mode: 'insensitive' },
+    });
+  });
+
+  it('a search that is nothing but marks does not match every Arabic name', () => {
+    const fields = bilingualProductSearch('ـ').map((w) => Object.keys(w)[0]);
+    expect(fields).not.toContain('nameArSearch');
   });
 });

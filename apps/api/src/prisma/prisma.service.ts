@@ -66,11 +66,21 @@ export function tunedDatabaseUrl(raw: string | undefined): string | undefined {
  */
 const NETWORKED_TRANSACTION = { timeout: 15_000, maxWait: 10_000 } as const;
 
+/**
+ * Columns no response may carry. `products.name_ar_search` is the Arabic
+ * name's search key (§3, 2026-10-15) — bookkeeping for `contains`, not a name
+ * anyone is shown. Omitted from every result, including a product included
+ * under a sale line or an audit row's snapshot, so no endpoint has to
+ * remember to strip it. A query that needs it selects it by name.
+ */
+export const HIDDEN_COLUMNS = { product: { nameArSearch: true } } as const;
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
     super({
       datasources: { db: { url: tunedDatabaseUrl(process.env.DATABASE_URL) } },
+      omit: HIDDEN_COLUMNS,
       ...(process.env.VERCEL ? { transactionOptions: NETWORKED_TRANSACTION } : {}),
     });
   }

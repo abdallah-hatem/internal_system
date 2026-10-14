@@ -110,6 +110,19 @@ export function psqlStdin(sql: string) {
 }
 
 /**
+ * Runs one query against this run's database and returns what it printed:
+ * unaligned, tuples only, one row per line. For a test that must ask the
+ * database itself — a SQL function, a backfill — not the API above it.
+ */
+export function psqlQuery(sql: string): string {
+  return execFileSync(
+    'docker',
+    ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', DB, '-q', '-At', '-v', 'ON_ERROR_STOP=1'],
+    { input: sql, encoding: 'utf8', maxBuffer: BIG, stdio: ['pipe', 'pipe', 'pipe'] },
+  ).replace(/\n$/, '');
+}
+
+/**
  * Capture the database exactly as the suite found it.
  *
  * The development database is also the test database, so a run must not cost

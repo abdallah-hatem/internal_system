@@ -19,6 +19,7 @@ import {
   bilingualProductSearch,
   DESCRIPTION_AR_MAX,
   NAME_AR_MAX,
+  nameArSearchFor,
 } from '../../common/arabic-names';
 import {
   parseProductStatus,
@@ -55,7 +56,7 @@ export class ProductsService {
     if (categoryId) where.categoryId = categoryId;
     if (status) where.status = status;
     // Either language, and the SKU (§3, owner 2026-10-14): "تيل" finds the
-    // brake pads whose Arabic name says so.
+    // brake pads whose Arabic name says so, and "خوذه" the "خوذة" (2026-10-15).
     if (search) where.OR = bilingualProductSearch(search);
 
     const items = await this.prisma.product.findMany({
@@ -187,6 +188,8 @@ export class ProductsService {
         sku,
         name: data.name,
         nameAr: nameAr ?? null,
+        // Written with the name, every time (§3, 2026-10-15): the search reads it.
+        nameArSearch: nameArSearchFor(nameAr ?? null),
         categoryId: data.categoryId,
         description: data.description,
         descriptionAr: descriptionAr ?? null,
@@ -243,6 +246,8 @@ export class ProductsService {
       data: {
         name: data.name,
         nameAr,
+        // Moves with the name: left alone when the name is, cleared with it.
+        nameArSearch: nameArSearchFor(nameAr),
         categoryId: data.categoryId,
         description: data.description,
         descriptionAr,

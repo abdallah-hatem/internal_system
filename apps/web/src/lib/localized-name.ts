@@ -54,20 +54,53 @@ export function otherName(record: Named | null | undefined, locale: string): str
   return other && other !== shown ? other : '';
 }
 
+
+/** Vowel marks, shadda, sukun, madda and hamza marks, superscript alef, tatweel. */
+const ARABIC_MARKS = /[\u064B-\u065F\u0670\u0640]/g;
+
+/**
+ * The Arabic search key (BUSINESS_LOGIC §3, owner 2026-10-15): أ إ آ read as
+ * ا, ؤ as و, ئ as ي, ة as ه, ى as ي; vowel marks, shadda, sukun and the
+ * tatweel dropped; case ignored; trimmed. Spelling only — Latin text is only
+ * lower-cased, so an English search behaves as it always has.
+ *
+ * A copy of `arabicSearchKey` in `apps/api/src/common/arabic-names.ts` (this
+ * app cannot import the API at build time). Both sides of every comparison go
+ * through it. The unit test runs this copy over the API's own case table,
+ * `apps/api/src/common/arabic-search-cases.json`.
+ */
+export function arabicSearchKey(text: string | null | undefined): string {
+  return (text ?? '')
+    .replace(ARABIC_MARKS, '')
+    .replace(/[\u0622\u0623\u0625]/g, '\u0627')
+    .replace(/\u0624/g, '\u0648')
+    .replace(/\u0626/g, '\u064a')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/\u0649/g, '\u064a')
+    .toLowerCase()
+    .trim();
+}
+
+/** Does `text` contain `search`, compared as a search compares (above)? */
+export function searchFinds(text: string | null | undefined, search: string): boolean {
+  return arabicSearchKey(text).includes(arabicSearchKey(search));
+}
+
 /**
  * Does a search typed in either language find this record? The English name,
- * the Arabic name and the SKU, ignoring case — the same three the API's
- * search reads (`bilingualProductSearch`), so a list filtered here and one
- * filtered by the server never disagree.
+ * the Arabic name and the SKU, ignoring case and Arabic spelling differences
+ * (2026-10-15) — the same three the API's search reads
+ * (`bilingualProductSearch`), so a list filtered here and one filtered by the
+ * server never disagree.
  */
 export function matchesName(
   record: Named & { sku?: string | null },
   search: string,
 ): boolean {
-  const term = search.trim().toLowerCase();
+  const term = arabicSearchKey(search);
   if (!term) return true;
   return [record.name, record.nameAr, record.sku].some(
-    (v) => typeof v === 'string' && v.toLowerCase().includes(term),
+    (v) => typeof v === 'string' && arabicSearchKey(v).includes(term),
   );
 }
 

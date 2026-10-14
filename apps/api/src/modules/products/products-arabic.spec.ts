@@ -202,6 +202,91 @@ describe('searching products finds either language and the SKU', () => {
   });
 });
 
+describe('an Arabic search forgives spelling (§3, owner 2026-10-15)', () => {
+  async function seeded() {
+    const s = setup();
+    await s.service.create({ name: 'Helmet', nameAr: 'خوذة هوندى' }, ACTOR);
+    await s.service.create({ name: 'Tyre', nameAr: 'إطار أمامي' }, ACTOR);
+    await s.service.create({ name: 'Mirror', nameAr: 'مِرْآةٌ جانبية' }, ACTOR);
+    await s.service.create({ name: 'Brake pads', nameAr: 'تيل فـرامل' }, ACTOR);
+    await s.service.create({ name: 'Chain kit' }, ACTOR);
+    return s;
+  }
+  const names = (r: { data: { name: string }[] }) => r.data.map((p) => p.name);
+  const find = async (search: string) =>
+    names(await (await seeded()).service.findAll({ search }));
+
+  it.each([
+    ['خوذه', 'Helmet'],
+    ['هوندي', 'Helmet'],
+    ['اطار', 'Tyre'],
+    ['أطار', 'Tyre'],
+    ['امامي', 'Tyre'],
+    ['مراة', 'Mirror'],
+    ['مرآه', 'Mirror'],
+    ['فرامل', 'Brake pads'],
+    ['تَيْل', 'Brake pads'],
+  ])('"%s" finds the %s', async (search, name) => {
+    expect(await find(search)).toEqual([name]);
+  });
+
+  it('a different word finds nothing — ه is not ح, ة is not ت', async () => {
+    expect(await find('حوندا')).toEqual([]);
+    expect(await find('خوذت')).toEqual([]);
+    expect(await find('زيت')).toEqual([]);
+  });
+
+  it('a search of nothing but marks finds nothing, not every Arabic name', async () => {
+    expect(await find('ـــ')).toEqual([]);
+  });
+
+  it('English is unchanged: case is ignored, nothing else', async () => {
+    expect(await find('HELMET')).toEqual(['Helmet']);
+    expect(await find('helmét')).toEqual([]);
+  });
+
+  it('the key is written with the name on create', async () => {
+    const { service, product } = setup();
+    const { data } = await service.create(
+      { name: 'Helmet', nameAr: ' خوذة ' },
+      ACTOR,
+    );
+    expect(product.rows.find((r) => r.id === data.id)!.nameArSearch).toBe(
+      'خوذه',
+    );
+    const { data: none } = await service.create({ name: 'Chain' }, ACTOR);
+    expect(product.rows.find((r) => r.id === none.id)!.nameArSearch).toBeNull();
+  });
+
+  it('editing the Arabic name moves the key; an edit that leaves it alone keeps it', async () => {
+    const { service, product } = setup();
+    const { data } = await service.create(
+      { name: 'Helmet', nameAr: 'خوذة' },
+      ACTOR,
+    );
+    const row = () => product.rows.find((r) => r.id === data.id)!;
+    await service.update(data.id, { nameAr: 'إطار' }, ACTOR);
+    expect(row().nameArSearch).toBe('اطار');
+    expect(names(await service.findAll({ search: 'اطار' }))).toEqual([
+      'Helmet',
+    ]);
+    expect(names(await service.findAll({ search: 'خوذه' }))).toEqual([]);
+    await service.update(data.id, { minStock: 3 }, ACTOR);
+    expect(row().nameArSearch).toBe('اطار');
+  });
+
+  it('clearing the Arabic name clears the key, and the old word stops finding it', async () => {
+    const { service, product } = setup();
+    const { data } = await service.create(
+      { name: 'Helmet', nameAr: 'خوذة' },
+      ACTOR,
+    );
+    await service.update(data.id, { nameAr: '' }, ACTOR);
+    expect(product.rows.find((r) => r.id === data.id)!.nameArSearch).toBeNull();
+    expect(names(await service.findAll({ search: 'خوذه' }))).toEqual([]);
+  });
+});
+
 describe("a category's Arabic name", () => {
   it('is stored trimmed; empty becomes null', async () => {
     const { service } = setup();

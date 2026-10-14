@@ -511,6 +511,34 @@ a reader on Arabic sees them. Migration `20261014150000_arabic_names` (additive,
 | How the assistant matches an Arabic name | The same matcher, against both names: an exact Arabic name (case, spacing, punctuation, short vowels and the tatweel ignored; أ إ آ read as ا, ة as ه, ى as ي) is a match; anything weaker is offered as a candidate, never taken. Its outputs carry both names (`nameAr`, `categoryAr`, `productAr`; null when none — never a guess). | **GUESS** (the folding) |
 | Screens that still show only the English | Stock transfers between cycles, the leftovers dialog, the import-request queue's own text, and the products named inside refusal messages (those are English params the client interpolates). | Recorded, not built — not in the brief's list of screens. |
 
+**Arabic search forgives spelling — DECIDED 2026-10-15 (owner), one detail GUESSED.** Every search over product
+and category names, in the office and the storefront, compares Arabic as people type it:
+
+- **ة counts as ه** (خوذه finds خوذة), **ى counts as ي** (هوندي finds هوندى), and **أ إ آ count as ا** (اطار finds
+  إطار).
+- **Vowel marks and the tatweel are ignored:** fatha, damma, kasra and their tanween, shadda, sukun (U+064B–U+0652),
+  the madda and hamza marks above and below (U+0653–U+065F), the superscript alef (U+0670) and the tatweel ـ
+  (U+0640). تَيْل فـرامل is found by تيل فرامل.
+- **Case is ignored, as before. Nothing else:** no synonyms, no typo forgiveness, no search by meaning. A different
+  letter is a different word — ه is not ح, ة is not ت, ء is not ا. English search is unchanged: case only, accents
+  and punctuation still count.
+- **Where:** the office's Products list and every picker (sale lines, purchase lines, categories, the `+` forms'
+  pickers, and every other searchable list built on the shared select), the Categories list, the Inventory list,
+  `GET /products?search=` (and so the assistant's `find_products`), the storefront catalogue search and its category
+  filter. The assistant's receipt and sale matching already folded the same way and now uses the same definition.
+- **How:** one definition, `arabicSearchKey` in `apps/api/src/common/arabic-names.ts`; the office and storefront
+  carry copies pinned to it by unit tests over `arabic-search-cases.json`. Prisma's `contains` cannot fold, so each
+  product stores the key of its Arabic name in `products.name_ar_search` (migration
+  `20261015100000_arabic_search_key`, additive; existing rows backfilled). It is written with every write of the
+  Arabic name, never shown, and left out of every API response. Postgres has the same rule as
+  `arabic_search_key()`; `scripts/check-data.sh` (check 23) counts any product whose stored key disagrees with it.
+
+| Question | What the code does | Status |
+|---|---|---|
+| أ / إ / آ as ا | **Folded.** The owner's list of 2026-10-15 named ة, ى and the marks; the alef line was very likely lost in copying — the assistant has folded the alef forms since 2026-10-14, and a search that found إطار in the assistant but not in the office would be the drift §11 warns about. | **GUESS** (kept; owner to confirm) |
+| ؤ and ئ | **Read as و and ي.** Unicode writes them as و and ي with a hamza *mark*, and the assistant's matcher has always folded them so (it decomposes text first); search follows it rather than the two disagreeing. So رييس finds رئيس. A standalone ء is a letter and is not folded. | **GUESS** (consistency with the assistant) |
+| Customer, supplier and other names | **Not folded in their own lists or the API** (`GET /customers?search=`, `GET /suppliers?search=`, the Customers, Suppliers, Payments and Sales list boxes): the brief is product and category names. A picker built on the shared select folds whatever it lists, customers included, because the select has one filter. | Recorded, not built |
+
 ---
 
 ## 4. Sales

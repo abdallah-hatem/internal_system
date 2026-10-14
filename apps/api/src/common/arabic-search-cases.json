@@ -1,0 +1,50 @@
+{
+  "_about": "The Arabic search rule (BUSINESS_LOGIC §3, owner 2026-10-15) as a table. arabicSearchKey in apps/api/src/common/arabic-names.ts must pass it, and so must the office's and the storefront's copies — each app's unit test reads this file, and 99-arabic-search runs 'keys' through Postgres's arabic_search_key(). 'keys': the text and the key it must give. 'same': two spellings that must find each other. 'different': two that must not.",
+  "keys": [
+    ["إطار", "اطار"],
+    ["أبيض", "ابيض"],
+    ["آلة", "اله"],
+    ["خوذة", "خوذه"],
+    ["هوندى", "هوندي"],
+    ["مِرْآةٌ", "مراه"],
+    ["فـــرامـل", "فرامل"],
+    ["تَيْلُ فَرَامِل", "تيل فرامل"],
+    ["زيّت", "زيت"],
+    ["هٰذا", "هذا"],
+    ["مسؤول", "مسوول"],
+    ["رئيس", "رييس"],
+    ["ماء", "ماء"],
+    ["تيل فرامل Honda CBR", "تيل فرامل honda cbr"],
+    ["BRAKE Pads", "brake pads"],
+    ["Café", "café"],
+    ["PRD-000012", "prd-000012"],
+    ["", ""],
+    ["   ", ""],
+    ["  خوذة  ", "خوذه"],
+    ["ًٌٍَُِّْـ", ""]
+  ],
+  "same": [
+    ["اطار", "إطار"],
+    ["اطار", "أطار"],
+    ["الة", "آلة"],
+    ["خوذه", "خوذة"],
+    ["هوندى", "هوندي"],
+    ["تيل فرامل", "تَيْلُ فَرَامِل"],
+    ["فرامل", "فـــرامـل"],
+    ["مِرْآةٌ", "مراه"],
+    ["رئيس", "رييس"],
+    ["مسؤول", "مسوول"],
+    ["خوذة هوندا", "خوذه هوندا"],
+    ["BRAKE", "brake"]
+  ],
+  "different": [
+    ["هلال", "حلال"],
+    ["خوذة", "خوذت"],
+    ["ماء", "ماا"],
+    ["علم", "الم"],
+    ["قلم", "كلم"],
+    ["زيت", "زوت"],
+    ["تيل", "زيت"],
+    ["Café", "Cafe"]
+  ]
+}

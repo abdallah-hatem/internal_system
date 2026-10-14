@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { searchFinds } from '@/lib/localized-name';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Command,
@@ -209,12 +210,12 @@ export function Select({
         >
           <Command
             ref={commandRef}
-            // Filter on the hint too, so an SKU or a cycle status finds its row.
+            // Filter on the hint too, so an SKU or a cycle status finds its row;
+            // Arabic spelling differences forgiven (§3, 2026-10-15).
             filter={(itemValue, search) => {
               const opt = options.find((o) => o.value === itemValue);
-              const haystack =
-                `${opt?.label ?? ''} ${opt?.hint ?? ''} ${opt?.keywords ?? ''}`.toLowerCase();
-              return haystack.includes(search.toLowerCase()) ? 1 : 0;
+              const haystack = `${opt?.label ?? ''} ${opt?.hint ?? ''} ${opt?.keywords ?? ''}`;
+              return searchFinds(haystack, search) ? 1 : 0;
             }}
           >
             {showSearch && <CommandInput placeholder={searchPlaceholder ?? t('searchList')} className="h-9" />}
