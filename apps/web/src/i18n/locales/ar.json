@@ -1015,6 +1015,8 @@
     "noData": "لا توجد فئات",
     "expandAll": "توسيع الكل",
     "collapseAll": "طي الكل",
+    "expand": "إظهار الفئات الفرعية",
+    "collapse": "إخفاء الفئات الفرعية",
     "confirmDelete": "هل أنت متأكد من حذف هذه الفئة؟",
     "deleteSuccess": "تم حذف الفئة",
     "createSuccess": "تم إنشاء الفئة",

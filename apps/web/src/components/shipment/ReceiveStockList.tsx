@@ -118,7 +118,7 @@ export function ReceiveStockList() {
                 ) : (
                   <Link
                     href={`/cycles/${row.cycleId}/details`}
-                    className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted sm:min-h-0"
+                    className="bg-background inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted sm:min-h-0"
                   >
                     {t('openCycle')}
                   </Link>

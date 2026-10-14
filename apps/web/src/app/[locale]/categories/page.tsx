@@ -84,7 +84,10 @@ export default function CategoriesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // Parents whose subcategories are hidden. Empty means everything shows,
+  // which is how the page opens. The arrows once only turned while every row
+  // stayed on screen (owner, 2026-10-15).
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => { setPage(1); }, [search]);
 
@@ -159,8 +162,28 @@ export default function CategoriesPage() {
   }, [tree, search, categoryList]);
 
   const flatFiltered = useMemo(() => flattenTree(filteredTree), [filteredTree]);
-  const totalPages = Math.ceil(flatFiltered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(flatFiltered, page), [flatFiltered, page]);
+  const parentIds = useMemo(
+    () => flatFiltered.filter((c) => (c.children?.length ?? 0) > 0).map((c) => c.id),
+    [flatFiltered],
+  );
+  // A row shows when no ancestor is collapsed. A search shows every match and
+  // the path to it, whatever was collapsed before.
+  const visible = useMemo(() => {
+    if (search || collapsedIds.size === 0) return flatFiltered;
+    const parentOf = new Map(flatFiltered.map((c) => [c.id, c.parentId]));
+    return flatFiltered.filter((c) => {
+      for (let up = c.parentId; up; up = parentOf.get(up) ?? null) {
+        if (collapsedIds.has(up)) return false;
+      }
+      return true;
+    });
+  }, [flatFiltered, collapsedIds, search]);
+  const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+  // Collapsing can leave the page past the end of a shorter list.
+  const shownPage = Math.min(page, Math.max(1, totalPages));
+  const paginated = useMemo(() => paginate(visible, shownPage), [visible, shownPage]);
+  const isOpen = (id: string) => !!search || !collapsedIds.has(id);
+  const allOpen = !!search || parentIds.every((id) => !collapsedIds.has(id));
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
@@ -177,7 +200,7 @@ export default function CategoriesPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────
   const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
+    setCollapsedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -204,11 +227,7 @@ export default function CategoriesPage() {
   };
 
   const toggleExpandAll = () => {
-    if (expandedIds.size === flatFiltered.length) {
-      setExpandedIds(new Set());
-    } else {
-      setExpandedIds(new Set(flatFiltered.map((c) => c.id)));
-    }
+    setCollapsedIds(allOpen ? new Set(parentIds) : new Set());
   };
 
   // ── Render ────────────────────────────────────────────────────────
@@ -242,12 +261,14 @@ export default function CategoriesPage() {
             className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        {flatFiltered.length > 0 && (
+        {parentIds.length > 0 && !search && (
           <button
+            type="button"
+            data-testid="toggle-all"
             onClick={toggleExpandAll}
-            className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors whitespace-nowrap"
+            className="bg-background px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors whitespace-nowrap"
           >
-            {expandedIds.size === flatFiltered.length ? t('collapseAll') : t('expandAll')}
+            {allOpen ? t('collapseAll') : t('expandAll')}
           </button>
         )}
       </div>
@@ -269,17 +290,21 @@ export default function CategoriesPage() {
               {paginated.map((cat) => (
                 <div
                   key={cat.id}
+                  data-testid="category-row"
                   className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition-colors"
                   style={categoryIndent(cat.depth)}
                 >
-                  {/* Expand/collapse toggle */}
-                  {cat._count && cat._count.children > 0 ? (
+                  {/* Expand/collapse toggle, from the tree so it follows the rows shown. */}
+                  {(cat.children?.length ?? 0) > 0 ? (
                     <button
                       type="button"
+                      data-testid="toggle-children"
+                      aria-expanded={isOpen(cat.id)}
+                      aria-label={isOpen(cat.id) ? t('collapse') : t('expand')}
                       onClick={() => toggleExpand(cat.id)}
                       className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer shrink-0"
                     >
-                      {expandedIds.has(cat.id) ? (
+                      {isOpen(cat.id) ? (
                         <ChevronDown className="h-4 w-4" />
                       ) : (
                         <ChevronRight className="h-4 w-4 rtl:rotate-180" />
@@ -350,7 +375,7 @@ export default function CategoriesPage() {
 
       {/* Pagination */}
       {!isLoading && flatFiltered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={flatFiltered.length} />
+        <Pagination page={shownPage} totalPages={totalPages} onPageChange={setPage} totalItems={visible.length} />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
