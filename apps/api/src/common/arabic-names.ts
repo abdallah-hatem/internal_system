@@ -82,16 +82,76 @@ export function arabicText(
   return trimmed;
 }
 
+/** Vowel marks, shadda, sukun, madda and hamza marks, superscript alef, tatweel. */
+const ARABIC_MARKS = /[\u064B-\u065F\u0670\u0640]/g;
+
+/**
+ * The Arabic search key (§3, owner 2026-10-15): the text as a search compares
+ * it, so that the spellings people type for one word find each other.
+ *
+ *   - أ إ آ  read as ا
+ *   - ة      reads as ه
+ *   - ى      reads as ي
+ *   - ؤ ئ    read as و ي — the hamza on them is a mark, as Unicode has it,
+ *            and the assistant's matcher has always read them so
+ *   - the vowel marks (U+064B–U+065F: fatha, damma, kasra, their tanween,
+ *     shadda, sukun, and the madda and hamza marks), the superscript alef
+ *     (U+0670) and the tatweel ـ (U+0640) are dropped
+ *   - case is ignored; surrounding space is trimmed
+ *
+ * Spelling only: no synonyms, no typo forgiveness, no meaning. Latin text
+ * passes through lower-cased and otherwise untouched, so an English search
+ * behaves as it always has.
+ *
+ * Defined once. The assistant's matcher folds Arabic through it; the stored
+ * `products.name_ar_search` holds it; Postgres has the same rule as
+ * `arabic_search_key()` (migration `20261015100000_arabic_search_key`) for the
+ * backfill and `scripts/check-data.sh`, and 99-arabic-search pins the two
+ * together. The office and the storefront carry copies, each pinned to this
+ * one by a unit test over `arabic-search-cases.json`.
+ */
+export function arabicSearchKey(text: string | null | undefined): string {
+  return (text ?? '')
+    .replace(ARABIC_MARKS, '')
+    .replace(/[\u0622\u0623\u0625]/g, '\u0627')
+    .replace(/\u0624/g, '\u0648')
+    .replace(/\u0626/g, '\u064a')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/\u0649/g, '\u064a')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * What `products.name_ar_search` holds for an Arabic name, in the shape the
+ * write takes: `undefined` leaves it alone (the name was not sent), `null`
+ * when there is no Arabic name — or nothing of it left to search.
+ */
+export function nameArSearchFor(
+  nameAr: string | null | undefined,
+): string | null | undefined {
+  if (nameAr === undefined) return undefined;
+  return arabicSearchKey(nameAr) || null;
+}
+
 /**
  * The `where` that matches a search typed in either language: the English
- * name, the Arabic name, and the SKU. One definition for the office lists and
- * pickers, the storefront catalogue and the assistant's `find_products`, so a
- * search that finds "تيل" in one place finds it in all of them.
+ * name as typed, the Arabic name through its search key, and the SKU. One
+ * definition for the office lists and pickers, the storefront catalogue and
+ * the assistant's `find_products`, so a search that finds "خوذه" in one place
+ * finds "خوذة" in all of them.
+ *
+ * Prisma's `contains` cannot fold, so the Arabic side reads the stored key
+ * (`nameArSearch`) against the key of the term. A term that is nothing but
+ * marks has no key and searches the English name and SKU only.
  */
 export function bilingualProductSearch(term: string) {
+  const key = arabicSearchKey(term);
   return [
     { name: { contains: term, mode: 'insensitive' as const } },
-    { nameAr: { contains: term, mode: 'insensitive' as const } },
+    ...(key
+      ? [{ nameArSearch: { contains: key, mode: 'insensitive' as const } }]
+      : []),
     { sku: { contains: term, mode: 'insensitive' as const } },
   ];
 }

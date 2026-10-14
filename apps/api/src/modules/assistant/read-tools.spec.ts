@@ -7,6 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
+import { arabicSearchKey } from '../../common/arabic-names';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import type { AuditService } from '../audit/audit.service';
@@ -840,8 +841,10 @@ describe('find_products', () => {
 
   it('find_products matches the Arabic name and returns both names (§3, 2026-10-14)', async () => {
     const d = db();
+    // As the products service stores it: the name and its search key.
     Object.assign(d.products[0], {
       nameAr: 'تيل فرامل أمامي',
+      nameArSearch: arabicSearchKey('تيل فرامل أمامي'),
       category: { name: 'Brakes', nameAr: 'فرامل' },
     });
     const { assistant } = harness(d);
@@ -861,6 +864,12 @@ describe('find_products', () => {
       nameAr: 'تيل فرامل أمامي',
       categoryAr: 'فرامل',
     });
+
+    // Spelled the other way — أ as ا, ي as ى — it is still found (2026-10-15).
+    const variant = dataOf<Array<{ sku: string }>>(
+      await call(assistant, 'find_products', { search: 'امامى' }),
+    );
+    expect(variant.map((p) => p.sku)).toEqual(['PRD-000012']);
 
     // A product with no Arabic name says so with null, not with a guess.
     const [chain] = dataOf<

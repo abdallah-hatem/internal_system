@@ -1,3 +1,5 @@
+import { arabicSearchKey } from '../../../common/arabic-names';
+
 /**
  * Name comparison — the one matcher for receipts (suppliers and products) and
  * for recording a sale (products and customers). Pure and deterministic;
@@ -22,19 +24,14 @@ export const SIMILARITY_THRESHOLD = 0.8;
 /**
  * Lower-case words of letters and digits, accents folded.
  *
- * Arabic is folded the way people type it (§3, 2026-10-14): short vowels and
- * the tatweel dropped, the alef forms (أ إ آ) read as a bare alef, ة as ه and
- * ى as ي — "خوذه" typed on a phone is still "خوذة".
+ * Arabic is folded the way people type it, by the one rule every search uses
+ * (`arabicSearchKey`, §3, 2026-10-14/15): short vowels and the tatweel
+ * dropped, the alef forms (أ إ آ) read as a bare alef, ة as ه and ى as ي —
+ * "خوذه" typed on a phone is still "خوذة". NFKD first, as before, so Latin
+ * accents and Arabic presentation forms fold too.
  */
 export function nameTokens(value: string | null | undefined): string[] {
-  return (value ?? '')
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
-    .replace(/[\u0622\u0623\u0625]/g, '\u0627')
-    .replace(/\u0629/g, '\u0647')
-    .replace(/\u0649/g, '\u064a')
-    .toLowerCase()
+  return arabicSearchKey((value ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, ''))
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 }

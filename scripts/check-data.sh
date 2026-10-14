@@ -423,6 +423,13 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
                    WHERE l.settlement_id = s.id AND l.component = 'RUNNING_COSTS'), 0)
       <> coalesce((SELECT sum(c.amount) FROM running_cost_charges c
                    WHERE c.settlement_id = s.id AND c.released_at IS NULL), 0)
+  -- An Arabic name is searched through its stored key (section 3, 2026-10-15).
+  -- The API writes the key with arabicSearchKey; arabic_search_key() is the
+  -- same rule in SQL. A row here was written by a path that forgot the key,
+  -- or the two definitions have drifted: either way search misses it.
+  UNION ALL SELECT 23, 'product whose Arabic search key is not its Arabic name',
+         count(*) FROM products
+   WHERE name_ar_search IS DISTINCT FROM NULLIF(arabic_search_key(name_ar), '')
 SQL
 )
 

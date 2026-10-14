@@ -124,6 +124,12 @@ model Product {
   // Optional Arabic name and description (BUSINESS_LOGIC §3, owner
   // 2026-10-14). Shown to an Arabic reader when present, the English otherwise.
   nameAr        String?  @map("name_ar")
+  // `arabicSearchKey(nameAr)` (common/arabic-names.ts, §3 2026-10-15): what a
+  // search compares, because `contains` cannot fold أ/ا, ة/ه, ى/ي or marks.
+  // Written beside nameAr on every write, never shown, omitted from every
+  // query result by PrismaService. Postgres's `arabic_search_key()` is the
+  // same rule for the backfill and check-data.
+  nameArSearch  String?  @map("name_ar_search")
   categoryId   String?  @map("category_id") @db.Uuid
   description  String?
   descriptionAr String? @map("description_ar")

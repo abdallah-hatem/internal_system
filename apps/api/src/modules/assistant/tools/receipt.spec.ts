@@ -1077,6 +1077,21 @@ describe('create_product', () => {
     expect(stored.descriptionAr).toBe('تيل خلفي لموتوسيكلات ١٥٠ سي سي');
   });
 
+  it('the Arabic search key is stored with it, so a search spelled another way finds it (§3, 2026-10-15)', async () => {
+    await confirmed('create_product', {
+      name: 'Helmet, open face',
+      nameAr: 'خوذة أمامية',
+    });
+    const stored = db.tables.product.find(
+      (p) => p.name === 'Helmet, open face',
+    )!;
+    expect(stored.nameArSearch).toBe('خوذه اماميه');
+
+    await confirmed('create_product', { name: 'Fuel cap' });
+    const none = db.tables.product.find((p) => p.name === 'Fuel cap')!;
+    expect(none.nameArSearch ?? null).toBeNull();
+  });
+
   it('no Arabic given → none stored; the assistant never fills one in', async () => {
     const r = await confirmed('create_product', { name: 'Throttle cable' });
 
@@ -1119,9 +1134,10 @@ describe('create_product', () => {
       }),
     );
     expect(r.s.error).toBeUndefined();
-    expect(
-      db.tables.product.find((p) => p.name === 'Clutch cable')!.nameAr,
-    ).toBe('سلك دبرياج');
+    const cable = db.tables.product.find((p) => p.name === 'Clutch cable')!;
+    expect(cable.nameAr).toBe('سلك دبرياج');
+    // …and its search key, written in the same create (§3, 2026-10-15).
+    expect(cable.nameArSearch).toBe('سلك دبرياج');
   });
 
   it('a category id that is no category → NOT_FOUND, not a 500', async () => {
