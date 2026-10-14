@@ -307,7 +307,10 @@ export class ProductsService {
       orderBy: { name: 'asc' },
       // The counts drive the list's "N products" badge, which read a
       // `_count` this query never sent (found 2026-10-15).
-      include: { children: true, _count: { select: { products: true, children: true } } },
+      include: {
+        children: true,
+        _count: { select: { products: true, children: true } },
+      },
     });
     return { data: categories };
   }
