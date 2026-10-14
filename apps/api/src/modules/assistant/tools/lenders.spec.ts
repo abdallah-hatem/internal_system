@@ -48,7 +48,6 @@ const TABLES = [
   'importCycle',
   'shippingLeg',
   'product',
-  'moneyAccount',
   'currencyRate',
   'financialTransaction',
   'auditLog',
@@ -68,7 +67,6 @@ const RELATIONS: Partial<
     plans: ['lenderPlan', 'financingId', 'many'],
   },
   lenderRepayment: {
-    account: ['moneyAccount', 'accountId', 'one'],
     financing: ['lenderFinancing', 'financingId', 'one'],
   },
   lenderPlan: { instalments: ['lenderPlanInstalment', 'planId', 'many'] },
@@ -315,8 +313,6 @@ let ids: {
   po5: string;
   po6: string;
   cycle: string;
-  cash: string;
-  bank: string;
   samiFinancing: string;
 };
 
@@ -411,14 +407,6 @@ function seed() {
     amount: D(6000),
   });
 
-  const account = (name: string, currency = 'EGP', active = true) =>
-    db.insert('moneyAccount', { name, currency, active, accountType: 'CASH' })
-      .id as string;
-  const cash = account('Cash Box');
-  const bank = account('Bank Misr');
-  account('Dirham Wallet', 'AED');
-  account('Old Safe', 'EGP', false);
-
   db.insert('currencyRate', { code: 'AED', rateToEgp: D(13.85) });
   db.insert('currencyRate', { code: 'CNY', rateToEgp: null });
 
@@ -430,8 +418,6 @@ function seed() {
     po5,
     po6,
     cycle,
-    cash,
-    bank,
     samiFinancing,
   };
 }
@@ -856,11 +842,10 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
       owedAfter: '26389.90',
     });
     const [r] = db.tables.lenderRepayment;
-    expect([
-      D(r.amountEgp).toFixed(2),
-      D(r.rateToEgp).toFixed(4),
-      r.accountId,
-    ]).toEqual(['50000.00', '13.8500', null]);
+    expect([D(r.amountEgp).toFixed(2), D(r.rateToEgp).toFixed(4)]).toEqual([
+      '50000.00',
+      '13.8500',
+    ]);
   });
 
   it("a rate the partner gives is used instead of today's", async () => {
@@ -893,9 +878,9 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
     ).toBe('0.00');
   });
 
-  // §18, owner 2026-10-11: a repayment does not ask which account the pounds
-  // left from — no other money flow records one.
-  it('no account is asked or stored, though several accounts in pounds exist; an account named anyway is not an argument', async () => {
+  // Owner 2026-10-14: "we don't need money accounts". Not asked, not stored,
+  // not shown: the preview, the stored repayment and get_lender name none.
+  it('money accounts are gone: no account in the preview, on the stored repayment or in get_lender', async () => {
     await mahmoudPaid();
     const asked = await repay({ lender: 'Mahmoud', amountEgp: 1000 });
     expect(asked.s.status).toBe('preview');
@@ -907,15 +892,13 @@ describe('record_lender_repayment — "paid Mahmoud 50,000 pounds today"', () =>
       confirmationToken: asked.s.confirmationToken,
     });
     const [r] = db.tables.lenderRepayment;
-    expect(r.accountId ?? null).toBeNull();
+    expect(Object.keys(r).filter((k) => /account/i.test(k))).toEqual([]);
 
-    // The tool has no such parameter: what the partner called an account is
-    // dropped, never matched to one.
-    const named = await repay({
-      lender: 'Mahmoud',
-      amountEgp: 1000,
-    });
-    expect(named.s.data).not.toHaveProperty('account');
+    const shown = (await call('get_lender', { lender: 'Mahmoud' })).s
+      .data as any;
+    const repayments = shown.financings.flatMap((f: any) => f.repayments);
+    expect(repayments).toHaveLength(1);
+    for (const each of repayments) expect(each).not.toHaveProperty('account');
   });
 
   it('more than is owed is refused with the settling figure; nothing written', async () => {

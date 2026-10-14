@@ -64,7 +64,7 @@ async function repay(page: Page, card: ReturnType<Page['getByTestId']>, rate: st
   await card.getByTestId('record-repayment').click();
   const dialog = page.getByTestId('record-repayment-dialog');
   await expect(dialog).toBeVisible();
-  // No money account is asked (§18, owner 2026-10-11).
+  // No account is asked: money accounts were removed (owner 2026-10-14).
   await expect(dialog.locator('[data-date-picker], input, [role="combobox"]').filter({ hasText: /account/i })).toHaveCount(0);
   await expect(dialog.getByText(/account/i)).toHaveCount(0);
   const rateField = dialog.locator('#repayment-rate');

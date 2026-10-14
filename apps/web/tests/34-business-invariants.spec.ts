@@ -1122,9 +1122,8 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     expect(net('lender_repayment')).toBeCloseTo(-237000, 2);
     // His money paying our supplier is in, once, at the order's rate.
     expect(net('lender_financing')).toBeCloseTo(390000, 2);
-    // No account is asked or stored (§18, owner 2026-10-11), as for every
-    // other money flow.
-    expect(rows.filter((r) => r.category === 'lender_repayment').every((r) => !r.account && !r.accountId)).toBeTruthy();
+    // No account on any row: money accounts were removed (owner 2026-10-14).
+    expect(rows.filter((r) => r.category === 'lender_repayment').every((r) => !('account' in r) && !('accountId' in r))).toBeTruthy();
   });
 
   test('TC-INV-34: the exchange difference is cycle profit — settlement, the cycle\'s figure and the dashboard agree, and it is not an operating expense', async ({ request }) => {
@@ -1241,31 +1240,35 @@ test.describe('A friend\'s loan: the cases the review asked to see refused (§18
     expect(await codeOf(res)).toBe('FINANCING_ORDER_EMPTY');
   });
 
-  // §18, owner 2026-10-11: a repayment does not ask which account the pounds
-  // left from — no other money flow records one. None is stored by default;
-  // an account a caller names anyway must still be a real, active EGP one.
-  test('TC-INV-38: no account is asked or stored for a repayment; one named anyway must be an active EGP account (ACCOUNT_NOT_USABLE)', async ({ request }) => {
+  // Owner 2026-10-14: "we don't need money accounts". The concept is gone, not
+  // hidden: no endpoint lists them, a repayment cannot carry one, and neither a
+  // repayment nor a ledger row has an account to show (§9, §18).
+  test('TC-INV-38: money accounts are gone — /ledger/accounts is 404 and a repayment naming an account is refused as an unknown field', async ({ request }) => {
     const { headers, mk, cycle, po, lender } = await friendCycle(request, 'Inv L1 Acct');
+    const listed = await request.get(`${API}/ledger/accounts`, { headers });
+    expect(listed.status()).toBe(404);
+    expect(await codeOf(listed)).toBe('NOT_FOUND');
+
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1000 });
     const plain = await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 130, rateToEgp: 13 });
-    expect(plain.repayments[0].account).toBeNull();
+    expect(plain.repayments[0]).not.toHaveProperty('account');
     const ledger: any[] = (await (await request.get(`${API}/ledger?cycleId=${cycle.id}&limit=200`, { headers })).json()).data;
-    expect(ledger.filter((r) => r.category === 'lender_repayment').map((r) => r.account ?? null)).toEqual([null]);
-    // No endpoint creates accounts (one cash, one bank, seeded); these two are
-    // the shapes a later accounts screen could produce.
-    const usd = '00000000-0000-4000-8000-0000000000d1';
-    const closed = '00000000-0000-4000-8000-0000000000d2';
-    psqlStdin(`
-      INSERT INTO money_accounts (id, name, account_type, currency, active, updated_at)
-      VALUES ('${usd}', 'Dollar box', 'CASH', 'USD', true, now()),
-             ('${closed}', 'Closed bank', 'BANK', 'EGP', false, now())
-      ON CONFLICT (id) DO NOTHING;`);
-    for (const accountId of [usd, closed]) {
+    for (const row of ledger) {
+      expect(row).not.toHaveProperty('account');
+      expect(row).not.toHaveProperty('accountId');
+    }
+
+    // Any id at all — a well-formed one, the nil one — is an unknown field now,
+    // refused before anything is written, never quietly dropped.
+    for (const accountId of ['00000000-0000-4000-8000-0000000000d1', '00000000-0000-0000-0000-000000000000']) {
       const res = await request.post(`${API}/lender-financings/${f.id}/repayments`, {
         headers, data: { amountEgp: 1300, rateToEgp: 13, accountId },
       });
       expect([accountId, res.status()]).toEqual([accountId, 400]);
-      expect(await codeOf(res)).toBe('ACCOUNT_NOT_USABLE');
+      const body = await res.json();
+      expect(body.error.code).toBe('VALIDATION_FAILED');
+      expect(body.error.params.fields).toBe('accountId');
+      expect(body.error.message).toMatch(/accountId should not exist/);
     }
     const owed = (await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financings[0].owed;
     expect(owed).toBe('990.00');
@@ -1522,9 +1525,9 @@ test.describe('Leftovers moved between cycles (L5, §8)', () => {
     const ledger = async (cycleId: string) =>
       ((await (await request.get(`${API}/ledger?cycleId=${cycleId}&limit=200`, { headers })).json()).data as any[])
         .filter((r) => r.category === 'cycle_transfer')
-        .map((r) => [r.direction, Number(r.amount), r.accountId ?? null]);
-    expect(await ledger(a.id)).toEqual([['INFLOW', 2000, null]]);
-    expect(await ledger(b.id)).toEqual([['OUTFLOW', 2000, null]]);
+        .map((r) => [r.direction, Number(r.amount), 'accountId' in r]);
+    expect(await ledger(a.id)).toEqual([['INFLOW', 2000, false]]);
+    expect(await ledger(b.id)).toEqual([['OUTFLOW', 2000, false]]);
     expect((await profitability(request, headers, a.id)).profit).toBe(1000);
   });
 

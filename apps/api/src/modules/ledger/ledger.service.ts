@@ -25,7 +25,6 @@ export class LedgerService {
   async findAll(
     query: PaginationDto & {
       cycleId?: string;
-      accountId?: string;
       type?: string;
       category?: string;
       direction?: string;
@@ -37,7 +36,6 @@ export class LedgerService {
       cursor,
       limit: rawLimit = 20,
       cycleId,
-      accountId,
       type,
       category,
       direction,
@@ -48,7 +46,6 @@ export class LedgerService {
 
     const where: any = {};
     if (cycleId) where.cycleId = cycleId;
-    if (accountId) where.accountId = accountId;
     if (type) where.type = type;
     if (category) where.category = category;
     if (direction) where.direction = direction;
@@ -64,7 +61,6 @@ export class LedgerService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         cycle: { select: { id: true, code: true } },
-        account: { select: { id: true, name: true } },
       },
     });
 
@@ -80,11 +76,13 @@ export class LedgerService {
   }
 
   async findOne(id: string) {
+    // Not an id at all — `GET /ledger/accounts`, removed 2026-10-14, lands
+    // here now: a 404, never Prisma's malformed-uuid 500.
+    if (!isUuid(id)) throw notFound('financialTransaction');
     const transaction = await this.prisma.financialTransaction.findUnique({
       where: { id },
       include: {
         cycle: { select: { id: true, code: true } },
-        account: { select: { id: true, name: true } },
       },
     });
     if (!transaction) throw notFound('financialTransaction');
@@ -142,7 +140,6 @@ export class LedgerService {
       },
       include: {
         cycle: { select: { id: true, code: true } },
-        account: { select: { id: true, name: true } },
       },
     });
 
@@ -170,16 +167,6 @@ export class LedgerService {
     });
 
     return { data: transaction };
-  }
-
-  /** Active money accounts, for the pickers that move money (§18). */
-  async accounts() {
-    const data = await this.prisma.moneyAccount.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, accountType: true, currency: true },
-    });
-    return { data };
   }
 
   /**
@@ -294,7 +281,6 @@ export class LedgerService {
         amount: original.amount,
         currency: original.currency,
         fxRateToEgp: original.fxRateToEgp,
-        accountId: original.accountId,
         cycleId: original.cycleId,
         relatedType: original.relatedType,
         relatedId: original.relatedId,
@@ -308,7 +294,6 @@ export class LedgerService {
       },
       include: {
         cycle: { select: { id: true, code: true } },
-        account: { select: { id: true, name: true } },
       },
     });
 

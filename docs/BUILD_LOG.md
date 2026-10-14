@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: 2026-10-14 — production reset by the owner with scripts/prod-reset-partners.sh: all data gone, logins replaced by abdallah@ / shady@ / fares@ (core partners); settings kept. ChatGPT may connect (§16). In flight: product deactivate, logout (both in isolated agent environments).
+Current stage: 2026-10-14 — production reset by the owner with scripts/prod-reset-partners.sh: all data gone, logins replaced by abdallah@ / shady@ / fares@ (core partners); settings kept. ChatGPT may connect (§16). In flight: product deactivate, logout (both in isolated agent environments). Money accounts removed (owner 2026-10-14) on `chore/remove-money-accounts`.
 
 ## Waiting on the user
 _(none)_
@@ -13,6 +13,21 @@ _(none)_
 _(none)_
 
 ## Next up
+- Money accounts removed 2026-10-14 on `chore/remove-money-accounts` (owner: "we don't need money accounts"; not
+  merged, not pushed). Migration `20261014120000_drop_money_accounts` (sorts after everything in production) drops
+  `money_accounts`, `reconciliation_entries` and the `account_id` columns on `financial_transactions` and
+  `lender_repayments`; it raises and changes nothing if any row still names an account (rehearsed: one ledger row
+  pointing at an account → P0001, tables intact). Run `scripts/ship-prod.sh migrate` before the deploy. Gone:
+  `GET /ledger/accounts` (now 404), the repayment DTO's account (an unknown field → `VALIDATION_FAILED`),
+  `ACCOUNT_NOT_USABLE` (en/ar), the ledger's Account column/line, the assistant's account on `get_lender`, the seeds'
+  two accounts, `money_accounts` in prod-reset-partners' KEEP list. `GET /ledger/:id` with a non-uuid is a 404, not
+  a 500. Tests: 34 TC-INV-38 rewritten, 99-ledger-entry TC-L6-08 new, assistant `tools/lenders.spec.ts` — each
+  failed against the old code first. Docs: BUSINESS_LOGIC §9 ("Money accounts — removed"), §16, §18, Still open;
+  CLAUDE.md §8. Green: api lint + typecheck + jest 1446; web lint + typecheck + unit 578 + 101; e2e (own env
+  `noacct`) group 20–34 + 10, 16, 41, 49, 64, 67, 72, 77–79, 95, 96, 98-lender, 99-assistant-lenders,
+  99-ledger-entry, 99-running-costs: 300 passed, 7 skipped, 2 failed only in the combined run (TC-CASH-01 sums
+  `/ledger?limit=500` against the dashboard; TC-L6-03 finds no core partner in the users list) — neither reads an
+  account, both pass alone (19/19 for their two specs); check-data zero; minimal/reference/demo seeds run.
 - Infra (owner 2026-10-12, after L7 lands): isolated e2e per agent — DONE on `chore/isolated-e2e`: every spec and
   the Playwright config read addresses from `tests/support/env.ts`; `scripts/agent-env.sh <name>` (the planned
   `agent-db.sh`) makes the database from a migrated template and prints the env + port block;

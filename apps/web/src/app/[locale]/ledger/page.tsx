@@ -34,7 +34,6 @@ interface LedgerEntry {
   amount: number;
   currency: string;
   fxRateToEgp?: number;
-  account?: { id: string; name: string };
   cycle?: { id: string; code: string };
   relatedType?: string;
   relatedId?: string;
@@ -306,14 +305,13 @@ export default function LedgerPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('category')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('direction')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('account')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('cycle')}</th>
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8}>{emptyList}</td></tr>
+                  <tr><td colSpan={7}>{emptyList}</td></tr>
                 ) : (
                   paginated.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
@@ -329,7 +327,6 @@ export default function LedgerPage() {
                       <td className="px-4 py-3 font-medium text-gray-900">
                         <Money value={entry.amount} currency={entry.currency} />
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{entry.account?.name ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{entry.cycle?.code ?? '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -387,7 +384,6 @@ export default function LedgerPage() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
                   <span>{formatDate(entryDate(entry))}</span>
-                   <span>{entry.account?.name ?? '—'}</span>
                 </div>
                 {reversible(entry) && (
                   <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
@@ -451,7 +447,6 @@ export default function LedgerPage() {
                 <Detail label={t('originalAmount')} value={<Money value={detail.originalAmount} currency={detail.originalCurrency} />} />
               )}
               <Detail label={t('fxRate')} value={detail.fxRateToEgp?.toString() ?? '—'} />
-              <Detail label={t('account')} value={detail.account?.name ?? '—'} />
               <Detail label={t('cycle')} value={detail.cycle?.code ?? '—'} />
               <Detail label={t('relatedTo')} value={detail.relatedType && detail.relatedId ? `${codeLabel('referenceType', detail.relatedType)} (${detail.relatedId})` : '—'} />
               <Detail label={t('reason')} value={detail.reason ?? '—'} />

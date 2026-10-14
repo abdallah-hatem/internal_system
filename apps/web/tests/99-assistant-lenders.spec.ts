@@ -149,7 +149,7 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000, paidOn: daysAgo(20) });
     const rate = await todaysAed(request, headers);
 
-    // No money account is asked or stored (§18, owner 2026-10-11).
+    // No account is asked, stored or shown: money accounts were removed (owner 2026-10-14).
     const args = { lender: lender.name, amountEgp: 50000 };
     const shown = await tool('record_lender_repayment', args);
     expect(shown.structuredContent?.status, text(shown)).toBe('preview');
@@ -181,7 +181,7 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     const after = (await (await request.get(`${API}/lenders/${lender.id}`, { headers })).json()).data.financings[0];
     expect(after.owed).toBe((30000 - cleared).toFixed(2));
     expect(after.repayments[0]).toMatchObject({ amountEgp: '50000.00', rateToEgp: rate.toFixed(4) });
-    expect(after.repayments[0].account).toBeNull();
+    expect(after.repayments[0]).not.toHaveProperty('account');
 
     // "Pay him off" at a rate he gives: the exact settling figure, owed ends at zero.
     const off = { lender: lender.name, payOff: true, rateToEgp: 13.5 };

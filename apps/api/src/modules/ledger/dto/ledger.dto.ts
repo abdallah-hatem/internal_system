@@ -25,7 +25,7 @@ export class ReverseTransactionDto {
  * API refuses it whoever calls (rule 3), with a code the web can say.
  *
  * Unknown properties are refused by the global pipe (`forbidNonWhitelisted`),
- * so `relatedType`, `accountId` or `reversalOfId` cannot ride along on a
+ * so `relatedType` or `reversalOfId` cannot ride along on a
  * hand-written row and make it look like one a flow wrote.
  */
 export class CreateLedgerEntryDto {

@@ -239,6 +239,28 @@ test.describe('Record money in or out (L6)', () => {
     );
     await expect(dialog(page).locator('#ledger-amount')).toHaveValue('300');
   });
+
+  // Owner 2026-10-14: "we don't need money accounts". Nothing on the ledger
+  // names one any more — not a column, not a line in an entry's detail.
+  test('TC-L6-08: the ledger shows no money account — no column, no line in the detail', async ({ page, request }) => {
+    const note = `L6-08 ${Date.now()}`;
+    const { headers } = await apiCtx(request);
+    const res = await request.post(`${API}/ledger`, { headers, data: { kind: 'EXPENSE', category: 'rent', amount: 250, currency: 'EGP', note } });
+    expect(res.status(), await res.text()).toBe(201);
+
+    await login(page);
+    await openLedger(page);
+    const row = await findRow(page, note);
+    await expect(row).toHaveCount(1);
+    const heads = await page.locator('table thead th').filter({ visible: true }).allInnerTexts();
+    expect(heads).toContain(en.ledger.cycle);
+    expect(heads.map((h) => h.trim())).not.toContain('Account');
+
+    await row.getByTitle(en.common.view).click();
+    const detail = page.locator('.fixed.inset-0').filter({ hasText: en.ledger.relatedTo });
+    await expect(detail.getByText(en.ledger.cycle, { exact: true })).toBeVisible();
+    await expect(detail.getByText('Account', { exact: true })).toHaveCount(0);
+  });
 });
 
 // ─── Review screenshots (L6_SHOTS=1) ─────────────────────────────────────

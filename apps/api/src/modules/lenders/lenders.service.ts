@@ -55,10 +55,7 @@ const FINANCING_INCLUDE = {
     select: { id: true, reference: true, orderedOn: true, currency: true },
   },
   cycle: { select: { id: true, code: true, status: true } },
-  repayments: {
-    orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }],
-    include: { account: { select: { id: true, name: true } } },
-  },
+  repayments: { orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }] },
   plans: {
     where: { status: 'ACTIVE' },
     include: { instalments: { orderBy: { sequence: 'asc' } } },
@@ -116,7 +113,6 @@ export class LendersService {
         cleared: m2(r.cleared),
         clearedAtOrderRateEgp: m2(r.clearedAtOrderRateEgp),
         exchangeDiffEgp: m2(r.exchangeDiffEgp),
-        account: r.account,
         note: r.note,
         reversedAt: r.reversedAt,
         reversalReason: r.reversalReason,
@@ -566,28 +562,12 @@ export class LendersService {
    * Pounds paid to him on a day at that day's rate (§18): clears pounds ÷ rate
    * of the debt (common/lender-math.ts).
    *
-   * No money account is asked for (§18, owner 2026-10-11): customer payments,
-   * purchases and the other money flows record none, and the owner said the
-   * step does not matter. One a caller does name is still checked and kept.
+   * No account of ours is named: the business keeps none (§18; money accounts
+   * removed by the owner 2026-10-14). A body that sends one is refused by the
+   * global pipe as an unknown field.
    */
   async repay(financingId: string, dto: CreateRepaymentDto, actorId: string) {
     const f = await this.findFinancing(this.prisma, financingId);
-    let accountId: string | null = null;
-    if (dto.accountId !== undefined && dto.accountId !== null) {
-      if (!isUuid(dto.accountId)) throw notFound('moneyAccount');
-      const account = await this.prisma.moneyAccount.findUnique({
-        where: { id: dto.accountId },
-      });
-      if (!account) throw notFound('moneyAccount');
-      if (!account.active || account.currency !== 'EGP') {
-        throw badRequest(
-          'ACCOUNT_NOT_USABLE',
-          `${account.name} is not an active account in EGP; a repayment leaves one in pounds.`,
-          { account: account.name },
-        );
-      }
-      accountId = account.id;
-    }
     assertNotFuture(dto.paidOn, 'LENDER_REPAID');
     const paidOn = asDay(dto.paidOn);
     if (dayOf(paidOn) < dayOf(f.paidOn)) {
@@ -634,7 +614,6 @@ export class LendersService {
           amount: amountEgp,
           currency: 'EGP',
           fxRateToEgp: dto.rateToEgp,
-          accountId,
           cycleId: now.cycleId,
           relatedType: 'LENDER_REPAYMENT',
           relatedId: id,
@@ -649,7 +628,6 @@ export class LendersService {
           id,
           financingId,
           paidOn,
-          accountId,
           amountEgp,
           rateToEgp: dto.rateToEgp,
           cleared: plan.cleared,
@@ -724,7 +702,6 @@ export class LendersService {
           amount: now.amountEgp,
           currency: 'EGP',
           fxRateToEgp: now.rateToEgp,
-          accountId: now.accountId,
           cycleId: now.financing.cycleId,
           relatedType: 'LENDER_REPAYMENT',
           relatedId: now.id,

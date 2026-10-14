@@ -1043,7 +1043,6 @@ model FinancialTransaction {
   amount           Decimal              @db.Decimal(18, 2)
   currency         String
   fxRateToEgp      Decimal?             @map("fx_rate_to_egp") @db.Decimal(18, 4)
-  accountId        String?              @map("account_id") @db.Uuid
   cycleId          String?              @map("cycle_id") @db.Uuid
   relatedType      String?              @map("related_type")
   relatedId        String?              @map("related_id") @db.Uuid
@@ -1061,7 +1060,6 @@ model FinancialTransaction {
 
   cycle              ImportCycle?        @relation(fields: [cycleId], references: [id])
   actor              User?               @relation(fields: [createdBy], references: [id])
-  account            MoneyAccount?       @relation(fields: [accountId], references: [id])
   /// The supplier refund this row undid, when it is a refund's reversal.
   reversedRefund     SupplierRefund?     @relation("SupplierRefundReversal")
   /// A general running cost: which payouts took it, and how much (§8, L7).
@@ -1070,34 +1068,6 @@ model FinancialTransaction {
   runningCostShares  RunningCostShare[]
 
   @@map("financial_transactions")
-}
-
-model MoneyAccount {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  accountType String   @map("account_type")
-  currency    String
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-
-  transactions          FinancialTransaction[]
-  reconciliationEntries ReconciliationEntry[]
-  lenderRepayments      LenderRepayment[]
-
-  @@map("money_accounts")
-}
-
-model ReconciliationEntry {
-  id           String    @id @default(uuid()) @db.Uuid
-  accountId    String    @map("account_id") @db.Uuid
-  status       String
-  reconciledOn DateTime? @map("reconciled_on") @db.Timestamptz()
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-
-  account MoneyAccount @relation(fields: [accountId], references: [id])
-
-  @@map("reconciliation_entries")
 }
 
 // ─── Lenders (BUSINESS_LOGIC §18) ─────────────────────────────────
@@ -1163,9 +1133,6 @@ model LenderRepayment {
   id                    String    @id @default(uuid()) @db.Uuid
   financingId           String    @map("financing_id") @db.Uuid
   paidOn                DateTime  @map("paid_on") @db.Date
-  /// Which money account it left from — not asked since 2026-10-11 (§18):
-  /// no other money flow records one. Kept on rows that already have it.
-  accountId             String?   @map("account_id") @db.Uuid
   /// Pounds actually paid.
   amountEgp             Decimal   @map("amount_egp") @db.Decimal(18, 2)
   /// That day's rate, as entered.
@@ -1187,7 +1154,6 @@ model LenderRepayment {
   reversalTransactionId String?   @unique @map("reversal_transaction_id") @db.Uuid
 
   financing LenderFinancing @relation(fields: [financingId], references: [id])
-  account   MoneyAccount?   @relation(fields: [accountId], references: [id])
 
   @@index([financingId])
   @@map("lender_repayments")

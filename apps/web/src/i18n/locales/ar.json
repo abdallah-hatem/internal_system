@@ -637,7 +637,6 @@
     "amount": "المبلغ",
     "currency": "العملة",
     "fxRate": "سعر الصرف إلى الجنيه",
-    "account": "الحساب",
     "cycle": "الدورة",
     "relatedTo": "مرتبط بـ",
     "reason": "السبب",
@@ -1170,7 +1169,6 @@
       "lenderFinancing": "ما دفعه الصديق",
       "lenderRepayment": "السداد",
       "lenderPlan": "خطة السداد",
-      "moneyAccount": "الحساب",
       "shipmentDeparture": "المغادرة"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
@@ -1345,7 +1343,6 @@
     "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed}.",
     "FINANCING_REMOVED": "تم حذف ما دفعه هذا الصديق.",
     "FINANCING_HAS_REPAYMENTS": "سُدِّد لـ {lender} على هذا؛ ألغِ تلك السدادات قبل حذفه.",
-    "ACCOUNT_NOT_USABLE": "{account} ليس حساباً نشطاً بالجنيه؛ السداد يخرج من حساب بالجنيه.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "دفع للمورد في {paidOn}؛ لا يمكن أن يسبق السداد هذا التاريخ.",
     "LENDER_REPAYMENT_ALREADY_REVERSED": "أُلغي هذا السداد من قبل. إلغاؤه مرة أخرى يحسبه مرتين.",
     "LENDER_CYCLE_SETTLED": "الدورة {cycle} مُسوّاة؛ ألغِ التسوية قبل التراجع عن سداد عليها.",

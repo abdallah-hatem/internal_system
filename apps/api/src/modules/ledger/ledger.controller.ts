@@ -37,7 +37,6 @@ export class LedgerController {
     @Query()
     query: PaginationDto & {
       cycleId?: string;
-      accountId?: string;
       type?: string;
       category?: string;
       direction?: string;
@@ -46,13 +45,6 @@ export class LedgerController {
     },
   ) {
     return this.ledgerService.findAll(query);
-  }
-
-  /** Where money is kept — what a lender repayment leaves from (§18). */
-  @Get('accounts')
-  @ApiOperation({ summary: 'Active money accounts' })
-  accounts() {
-    return this.ledgerService.accounts();
   }
 
   @Get(':id')
