@@ -408,7 +408,9 @@ export function SaleOrderForm({
                           label: p.name,
                           // The count belongs where the product is chosen, not
                           // in an error after the order is built.
-                          hint: `${isOffered(p) ? '' : `${t('inactiveTag')} · `}${p.sku} · ${formatNumber(available)} ${t('inStock')}`,
+                          // Tag last, so a hint in either language still starts with the SKU
+                          // and lines up with its neighbours (the Arabic tag first flipped the line).
+                          hint: `${p.sku} · ${formatNumber(available)} ${t('inStock')}${isOffered(p) ? '' : ` · ${t('inactiveTag')}`}`,
                           disabled: available <= 0,
                         };
                       })}
