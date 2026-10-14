@@ -47,6 +47,7 @@ import {
   systemForRole,
   type NavItem,
 } from './nav-model';
+import { BrandMark } from './brand-mark';
 
 type Icon = React.ComponentType<{ className?: string }>;
 
@@ -193,9 +194,7 @@ export function AppShell({
       `}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <div className="bg-primary-600 text-white p-1.5 rounded-lg">
-              <Package className="h-5 w-5" />
-            </div>
+            <BrandMark size={32} />
             <span className="font-bold text-gray-900 text-sm">MotoParts</span>
           </div>
           <button

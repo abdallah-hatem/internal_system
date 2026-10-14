@@ -4,7 +4,8 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../lib/auth-context';
 import { useRouter } from '../../../i18n/navigation';
 import { useApiError } from '../../../lib/api-error';
-import { Package, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { BrandMark } from '@/components/layout/brand-mark';
 import { useState } from 'react';
 import { ValidatedForm } from '@/components/ui/validated-form';
 
@@ -43,8 +44,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center h-14 w-14 bg-primary-600 text-white rounded-xl mb-4">
-              <Package className="h-7 w-7" />
+            <div className="inline-flex mb-4">
+              <BrandMark size={64} />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{t('loginTitle')}</h1>
             <p className="text-sm text-gray-500 mt-2">{t('loginSubtitle')}</p>
