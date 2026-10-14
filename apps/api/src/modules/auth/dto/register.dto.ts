@@ -1,11 +1,23 @@
-import { IsEmail, IsString, MinLength, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  MaxLength,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+} from 'class-validator';
+
+import { PASSWORD_MAX_LENGTH } from '../../../common/password-rule';
 
 export class RegisterDto {
   @IsEmail()
   email: string;
 
+  /** Strength is `assertStrongPassword`'s, checked in the service with its own code. */
   @IsString()
-  @MinLength(6)
+  @IsNotEmpty()
+  @MaxLength(PASSWORD_MAX_LENGTH)
   password: string;
 
   @IsString()

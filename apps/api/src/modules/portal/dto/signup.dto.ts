@@ -1,15 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+
+import { PASSWORD_MAX_LENGTH } from '../../../common/password-rule';
 
 export class PortalSignupDto {
   @ApiProperty({ example: 'ahmed@motocenter.example' })
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ example: 'a good password' })
+  /** Strength is the shared rule's (common/password-rule.ts), checked in the service with its own code. */
+  @ApiProperty({ example: 'StrongPassword@123' })
   @IsString()
-  @MinLength(8)
-  @MaxLength(200)
+  @IsNotEmpty()
+  @MaxLength(PASSWORD_MAX_LENGTH)
   password!: string;
 
   @ApiProperty({ example: 'Moto Center Nasr City' })

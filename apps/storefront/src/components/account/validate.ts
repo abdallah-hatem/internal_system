@@ -16,7 +16,7 @@
 /** `@IsEmail()` on PortalLoginDto and PortalSignupDto. */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** `@MinLength(8)` on both DTOs. */
+/** `@MinLength(8)` on PortalLoginDto; PASSWORD_MIN_LENGTH in the API's password rule for signup. */
 export const PASSWORD_MIN = 8;
 
 /** `@MinLength(2)` on PortalSignupDto.shopName. */
@@ -38,6 +38,19 @@ export function passwordError(value: string, t: Messages): string | undefined {
   // Length, not `trim().length`: a space is a character a password may contain
   // and trimming here would disagree with what the API counts.
   if (value.length < PASSWORD_MIN) return t('passwordTooShort');
+  return undefined;
+}
+
+/**
+ * A password being set, not one being typed at the door: the API's shared rule
+ * (`apps/api/src/common/password-rule.ts`, owner 2026-10-14) — at least
+ * PASSWORD_MIN characters with a letter and a digit, of any script. Sign-in
+ * keeps `passwordError`, so a password set before the rule still opens.
+ */
+export function newPasswordError(value: string, t: Messages): string | undefined {
+  const missing = passwordError(value, t);
+  if (missing) return value ? t('passwordTooWeak') : missing;
+  if (!/\p{L}/u.test(value) || !/\p{Nd}/u.test(value)) return t('passwordTooWeak');
   return undefined;
 }
 

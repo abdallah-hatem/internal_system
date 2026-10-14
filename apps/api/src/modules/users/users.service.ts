@@ -10,6 +10,7 @@ import {
 } from '../../common/dto/pagination.dto';
 
 import { conflict, notFound } from '../../common/api-error';
+import { assertStrongPassword } from '../../common/assert-password';
 @Injectable()
 export class UsersService {
   constructor(
@@ -309,6 +310,7 @@ export class UsersService {
       where: { email: data.email },
     });
     if (existing) throw conflict('EMAIL_TAKEN', 'Email already exists');
+    assertStrongPassword(data.password);
 
     const passwordHash = await bcrypt.hash(data.password, 12);
     const user = await this.prisma.user.create({
