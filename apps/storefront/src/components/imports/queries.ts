@@ -51,7 +51,7 @@ export type ImportRequest = {
   decisionNote: string | null;
   photos: ImportPhoto[];
   /** Set once the part is stocked, so "you asked for this" leads to buying it. */
-  product: { id: string; sku: string; name: string } | null;
+  product: { id: string; sku: string; name: string; nameAr?: string | null } | null;
   createdAt: string;
   decidedAt: string | null;
 };

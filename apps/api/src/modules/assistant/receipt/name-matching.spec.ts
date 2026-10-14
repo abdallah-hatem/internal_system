@@ -174,3 +174,70 @@ describe('the pieces', () => {
     expect(nameScore('Handlebar grips', 'Spark plug')).toBe(0);
   });
 });
+
+describe('matchByName — Arabic names (§3, owner 2026-10-14)', () => {
+  const bilingual = [
+    { id: 'p-pad', name: 'Brake pads', nameAr: 'تيل فرامل', sku: 'BP-1' },
+    {
+      id: 'p-helmet',
+      name: 'Full Face Helmet',
+      nameAr: 'خوذة كاملة',
+      sku: 'FFH-01',
+    },
+    { id: 'p-chain', name: 'Drive chain 428', nameAr: null, sku: 'DC-428' },
+  ];
+
+  it('the exact Arabic name → matched, the same as the English would be', () => {
+    const r = matchByName({ name: 'تيل فرامل' }, bilingual);
+    expect(r).toMatchObject({
+      status: 'matched',
+      match: { item: { id: 'p-pad' }, via: 'name', score: 1 },
+    });
+  });
+
+  it('the English name still matches a product that also has an Arabic one', () => {
+    const r = matchByName({ name: 'brake PADS' }, bilingual);
+    expect(r).toMatchObject({
+      status: 'matched',
+      match: { item: { id: 'p-pad' } },
+    });
+  });
+
+  it('typed the way people type: short vowels, ه for ة, alef without hamza → the same name', () => {
+    for (const typed of ['خُوذَة كاملة', 'خوذه كامله']) {
+      expect(matchByName({ name: typed }, bilingual)).toMatchObject({
+        status: 'matched',
+        match: { item: { id: 'p-helmet' } },
+      });
+    }
+    expect(
+      matchByName({ name: 'اداة' }, [
+        { id: 'x', name: 'Bracket', nameAr: 'أداة' },
+      ]),
+    ).toMatchObject({ status: 'matched', match: { item: { id: 'x' } } });
+  });
+
+  it('part of the Arabic name is a candidate to ask about, never a match', () => {
+    const r = matchByName({ name: 'تيل فرامل أمامي' }, bilingual);
+    expect(r.status).toBe('close');
+    expect(candidateIds(r)).toEqual(['p-pad']);
+  });
+
+  it('an Arabic word no product carries is unknown', () => {
+    expect(matchByName({ name: 'جنزير' }, bilingual).status).toBe('unknown');
+  });
+
+  it('two products sharing an Arabic name → several, never the first one found', () => {
+    const r = matchByName({ name: 'تيل فرامل' }, [
+      ...bilingual,
+      {
+        id: 'p-pad-2',
+        name: 'Brake pads, rear',
+        nameAr: 'تيل فرامل',
+        sku: 'BP-2',
+      },
+    ]);
+    expect(r.status).toBe('several');
+    expect(candidateIds(r).sort()).toEqual(['p-pad', 'p-pad-2']);
+  });
+});

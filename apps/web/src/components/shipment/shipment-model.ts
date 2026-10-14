@@ -104,6 +104,8 @@ export interface ShipmentLine {
   purchaseOrderItemId: string;
   productId?: string;
   productName?: string;
+  /** The Arabic name, when there is one (§3, 2026-10-14). */
+  productNameAr?: string | null;
   ordered: number;
   received: number;
   lost: number;

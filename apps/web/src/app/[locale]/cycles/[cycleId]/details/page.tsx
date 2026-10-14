@@ -21,6 +21,7 @@ import { useAllRecords } from '@/lib/list-all';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
+import { localName } from '@/lib/localized-name';
 import { useState } from 'react';
 import { api } from '../../../../../lib/api';
 import { Money } from '../../../../../components/ui/money';
@@ -373,7 +374,7 @@ export default function CycleDetailsPage() {
           <Rows>
             {batches.map((b) => (
               <Row key={b.id}>
-                <span className="text-sm">{b.product?.name ?? '—'}</span>
+                <span className="text-sm">{localName(b.product, locale) || '—'}</span>
                 <span className="text-xs text-gray-500">{t('received')} {num(b.receivedQty)}</span>
                 <span className="text-xs text-gray-500">{t('remaining')} {num(b.remainingQty)}</span>
                 <span className="text-sm"><Money value={num(b.landedUnitCostEgp)} /></span>

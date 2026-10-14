@@ -9,6 +9,7 @@ import {
   Package,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '../../lib/localized-name';
 import { useState } from 'react';
 
 import { Link } from '../../i18n/navigation';
@@ -245,6 +246,7 @@ function ReplyCard({ body }: { body: string }) {
 /** Asked for, found, and now on the shelf. */
 function StockedCard({ product }: { product: NonNullable<ImportRequest['product']> }) {
   const t = useTranslations('imports');
+  const locale = useLocale();
 
   return (
     <Link
@@ -252,7 +254,7 @@ function StockedCard({ product }: { product: NonNullable<ImportRequest['product'
       className="flex min-h-12 items-center gap-2 rounded-xl bg-green-50 p-4 text-sm font-medium text-green-900"
     >
       <Package className="h-5 w-5 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1">{t('nowStocked', { name: product.name })}</span>
+      <span className="min-w-0 flex-1">{t('nowStocked', { name: localName(product, locale) })}</span>
     </Link>
   );
 }

@@ -24,6 +24,8 @@ import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { ProductStatusAction } from '@/components/products/product-status-action';
+import { localName, matchesName } from '@/lib/localized-name';
+import { namedOption } from '@/components/entities/entity-forms';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -33,6 +35,8 @@ interface ProductRaw {
   id: string;
   sku: string;
   name: string;
+  nameAr?: string | null;
+  descriptionAr?: string | null;
   category?: any;
   categoryId?: string;
   description?: string;
@@ -45,8 +49,15 @@ interface ProductRaw {
 interface Product {
   id: string;
   sku: string;
+  /** The English name, as stored — what the edit form must be seeded with. */
   name: string;
+  nameAr?: string | null;
+  /** What this reader is shown (§3, 2026-10-14). */
+  displayName: string;
+  descriptionAr?: string | null;
   categoryName: string;
+  /** The category's name for this reader. */
+  categoryLabel: string;
   categoryId?: string;
   description?: string;
   barcode?: string;
@@ -143,7 +154,12 @@ export default function ProductsPage() {
     id: raw.id,
     sku: raw.sku,
     name: raw.name,
+    nameAr: raw.nameAr ?? null,
+    displayName: localName(raw, String(locale)),
+    descriptionAr: raw.descriptionAr ?? null,
     categoryName: typeof raw.category === 'object' ? raw.category?.name ?? '' : raw.category ?? '',
+    categoryLabel:
+      typeof raw.category === 'object' ? localName(raw.category, String(locale)) : raw.category ?? '',
     categoryId: raw.categoryId,
     description: raw.description,
     barcode: raw.barcode,
@@ -160,15 +176,13 @@ export default function ProductsPage() {
 
   // ── Derived data ──────────────────────────────────────────────────
   const productList: Product[] = Array.isArray(products) ? products.map(mapProduct) : [];
-  const categoryList: { id: string; name: string }[] = Array.isArray(categories)
-    ? categories.map((c: any) => ({ id: c.id, name: c.name ?? c.label ?? '' }))
+  const categoryList: { id: string; name: string; nameAr?: string | null }[] = Array.isArray(categories)
+    ? categories.map((c: any) => ({ id: c.id, name: c.name ?? c.label ?? '', nameAr: c.nameAr ?? null }))
     : [];
 
   const filtered = productList.filter((p) => {
-    const matchSearch =
-      !search ||
-      p.name?.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(search.toLowerCase());
+    // Either language, and the SKU (§3, 2026-10-14).
+    const matchSearch = matchesName(p, search);
     const matchCat = !categoryFilter || p.categoryName === categoryFilter;
     // Anything not ACTIVE counts as inactive, as on the server.
     const matchStatus =
@@ -207,6 +221,10 @@ export default function ProductsPage() {
     if (!editingProduct) return;
     const fd = new FormData(e.currentTarget);
     updateMutation.mutate({
+      // The Arabic fields come from the shared form's own mapping, so the edit
+      // sends exactly what the form shows — an untouched Arabic name goes back
+      // as it was, an emptied one goes back empty and is cleared.
+      ...(ENTITY_FORMS.product.toPayload(fd) as Partial<Product>),
       id: editingProduct.id,
       name: fd.get('name') as string,
       categoryId: fd.get('category') as string || undefined,
@@ -256,7 +274,8 @@ export default function ProductsPage() {
             clearable
             placeholder={tph('allCategories')}
             searchPlaceholder={tph('searchCategories')}
-            options={categoryList.map((cat) => ({ value: cat.name, label: cat.name }))}
+            // Filtered by the English name, which is unique; shown in the reader's.
+            options={categoryList.map((cat) => ({ ...namedOption(cat, String(locale)), value: cat.name }))}
           />
         </div>
         <div
@@ -317,12 +336,12 @@ export default function ProductsPage() {
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{product.sku}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">
-                        <ProductLink id={product.id} name={product.name} />
+                        <ProductLink id={product.id} name={product.displayName} />
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1 whitespace-nowrap bg-gray-100 rounded-full px-2.5 py-0.5 text-xs">
                           <Tag className="h-3 w-3" />
-                          {product.categoryName || '—'}
+                          {product.categoryLabel || '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
@@ -383,7 +402,7 @@ export default function ProductsPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900">
-                      <ProductLink id={product.id} name={product.name} />
+                      <ProductLink id={product.id} name={product.displayName} />
                     </p>
                     <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
                   </div>
@@ -392,7 +411,7 @@ export default function ProductsPage() {
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-600">
                     <Tag className="h-3 w-3" />
-                    {product.categoryName || '—'}
+                    {product.categoryLabel || '—'}
                   </span>
                 </div>
                 {/* Label above value, one column each, so the two prices never run together (UI #36). */}

@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName, otherName } from '../../lib/localized-name';
 
 import { Select } from '../ui/select';
 import type { Category } from './types';
@@ -63,6 +64,7 @@ export function CategoryFilter({
   onChange: (value: string) => void;
 }) {
   const t = useTranslations('catalogue');
+  const locale = useLocale();
   const options = useMemo(() => ordered(categories), [categories]);
 
   return (
@@ -77,7 +79,9 @@ export function CategoryFilter({
         value: category.id,
         // Non-breaking spaces: an ordinary one collapses in HTML and the
         // nesting would disappear.
-        label: '\u00a0\u00a0'.repeat(depth) + category.name,
+        label: '\u00a0\u00a0'.repeat(depth) + localName(category, locale),
+        // Found by either name: "brake" on /ar still finds فرامل.
+        keywords: otherName(category, locale),
       }))}
     />
   );

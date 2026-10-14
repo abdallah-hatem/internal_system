@@ -229,7 +229,9 @@ export class SalesService {
         },
         items: {
           orderBy: { createdAt: 'asc' },
-          include: { product: { select: { name: true, sku: true } } },
+          include: {
+            product: { select: { name: true, nameAr: true, sku: true } },
+          },
         },
         paymentAllocations: {
           select: { amount: true, payment: { select: { status: true } } },
@@ -317,6 +319,8 @@ export class SalesService {
           id: it.id,
           productId: it.productId,
           product: it.product.name,
+          // The Arabic, when there is one; the page picks (§3, 2026-10-14).
+          productAr: it.product.nameAr,
           sku: it.product.sku,
           quantity: new Prisma.Decimal(it.quantity).toString(),
           unitPrice: new Prisma.Decimal(it.unitPrice).toFixed(2),

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { Link } from '@/i18n/navigation';
 import { useShipment } from './ShipmentPanel';
 import { DepartedOnField, DepartureQtyFields, departureRowIds } from './RecordDepartureDialog';
@@ -25,9 +26,10 @@ export function useLegDeparture(cycleId: string | undefined, legId?: string) {
     () => (legId ? (leg ? atOriginByLine(leg) : {}) : nextLegWaitingByLine(shipment)),
     [legId, leg, shipment],
   );
+  const locale = useLocale();
   const productNames = useMemo(
-    () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, l.productName ?? '—'])),
-    [shipment],
+    () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, localName({ name: l.productName, nameAr: l.productNameAr }, locale) || '—'])),
+    [shipment, locale],
   );
   const [departedOn, setDepartedOn] = useState('');
   const [typed, setTyped] = useState<Record<string, string>>({});

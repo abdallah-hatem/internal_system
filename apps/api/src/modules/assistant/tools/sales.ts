@@ -108,6 +108,8 @@ type SaleInput = {
 interface CatalogueProduct {
   id: string;
   name: string;
+  /** Matched as well as the English name (§3, 2026-10-14). */
+  nameAr: string | null;
   sku: string;
   prices: { channel: string; amount: unknown; effectiveTo: Date | null }[];
 }
@@ -136,6 +138,8 @@ interface PlannedLine {
   line: number;
   productId: string;
   product: string;
+  /** The Arabic name, null when there is none. */
+  productAr: string | null;
   sku: string;
   qty: number;
   unitPrice: number;
@@ -236,7 +240,11 @@ export function resolveSale(
               kind: 'LINE_WHICH',
               line,
               text: `Line ${line} ("${l.product}") is not an exact match for a product on file. Which one was sold?`,
-              options: options(found, (p) => `${p.name} (${p.sku})`),
+              options: options(
+                found,
+                (p) =>
+                  `${p.name}${p.nameAr ? ` / ${p.nameAr}` : ''} (${p.sku})`,
+              ),
             },
       );
       return;
@@ -268,6 +276,7 @@ export function resolveSale(
       line,
       productId: product.id,
       product: product.name,
+      productAr: product.nameAr ?? null,
       sku: product.sku,
       qty: l.qty,
       unitPrice,
@@ -347,6 +356,7 @@ export function registerSalesTools(
         select: {
           id: true,
           name: true,
+          nameAr: true,
           sku: true,
           prices: {
             where: { effectiveTo: null },
@@ -444,6 +454,7 @@ export function registerSalesTools(
       line: l.line,
       productId: l.productId,
       product: l.product,
+      productAr: l.productAr,
       sku: l.sku,
       qty: String(l.qty),
       unitPrice: Number(l.unitPrice).toFixed(2),

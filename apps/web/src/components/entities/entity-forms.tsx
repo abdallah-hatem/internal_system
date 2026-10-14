@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { api } from '../../lib/api';
 import { Select } from '../ui/select';
 import { TextareaField } from '../ui/textarea-field';
 import { InputField, FieldLabel } from '../ui/fields';
 import { FieldWithQuickCreate } from '../ui/quick-create';
+import { localName, otherName } from '../../lib/localized-name';
 
 /**
  * What each record's create form is, in one place.
@@ -42,10 +43,34 @@ export interface EntityForm {
 
 const str = (fd: FormData, key: string) => (fd.get(key) as string) || undefined;
 
+/**
+ * An Arabic field as sent: what was typed, '' when it was emptied. Sent even
+ * when blank, so editing a record and clearing its Arabic name clears it — the
+ * API stores '' as null (BUSINESS_LOGIC §3, 2026-10-14).
+ */
+const arabic = (fd: FormData, key: string) => ((fd.get(key) as string | null) ?? '').trim();
+
+/** The API's limits (apps/api/src/common/arabic-names.ts). */
+const NAME_AR_MAX = 200;
+const DESCRIPTION_AR_MAX = 1000;
+
+/** A category or product as a picker option: its name for this reader, found by either. */
+export function namedOption(
+  record: { id: string; name: string; nameAr?: string | null },
+  locale: string,
+) {
+  return {
+    value: record.id,
+    label: localName(record, locale),
+    keywords: otherName(record, locale),
+  };
+}
+
 // ─── Category ─────────────────────────────────────────────────────────
 function CategoryFields({ record }: { record?: any }) {
   const t = useTranslations('categories');
   const tph = useTranslations('placeholders');
+  const locale = useLocale();
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then((r) => r.data.data ?? r.data),
@@ -55,6 +80,16 @@ function CategoryFields({ record }: { record?: any }) {
   return (
     <>
       <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('categoryName')} />
+      {/* Written in Arabic whatever the page's language, so it runs right to
+          left on /en too. */}
+      <InputField
+        label={t('nameAr')}
+        name="nameAr"
+        dir="rtl"
+        maxLength={NAME_AR_MAX}
+        defaultValue={record?.nameAr ?? undefined}
+        placeholder={tph('categoryNameAr')}
+      />
       <FieldLabel label={t('parentCategory')}>
         <Select
           name="parentId"
@@ -66,7 +101,7 @@ function CategoryFields({ record }: { record?: any }) {
             // A category cannot be its own parent, and only top-level ones
             // are offered — the API refuses deeper nesting anyway.
             .filter((c) => !c.parentId && c.id !== record?.id)
-            .map((c) => ({ value: c.id, label: c.name }))}
+            .map((c) => namedOption(c, locale))}
         />
       </FieldLabel>
     </>
@@ -129,6 +164,7 @@ function CustomerFields({ record }: { record?: any }) {
 function ProductFields({ record }: { record?: any }) {
   const t = useTranslations('products');
   const tph = useTranslations('placeholders');
+  const locale = useLocale();
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then((r) => r.data.data ?? r.data),
@@ -143,6 +179,14 @@ function ProductFields({ record }: { record?: any }) {
   return (
     <>
       <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('productName')} />
+      <InputField
+        label={t('nameAr')}
+        name="nameAr"
+        dir="rtl"
+        maxLength={NAME_AR_MAX}
+        defaultValue={record?.nameAr ?? undefined}
+        placeholder={tph('productNameAr')}
+      />
       <FieldLabel label={t('category')}>
         {/* The `+` is here even though this form is itself what a `+` opens.
             Leaving it out was an earlier decision of mine to avoid stacking
@@ -156,11 +200,19 @@ function ProductFields({ record }: { record?: any }) {
             onChange={setCategoryId}
             placeholder={tph('chooseCategory')}
             searchPlaceholder={tph('searchCategories')}
-            options={list.map((c) => ({ value: c.id, label: c.name }))}
+            options={list.map((c) => namedOption(c, locale))}
           />
         </FieldWithQuickCreate>
       </FieldLabel>
       <TextareaField label={t('description')} name="description" defaultValue={record?.description} placeholder={tph('productDescription')} />
+      <TextareaField
+        label={t('descriptionAr')}
+        name="descriptionAr"
+        dir="rtl"
+        maxLength={DESCRIPTION_AR_MAX}
+        defaultValue={record?.descriptionAr ?? undefined}
+        placeholder={tph('productDescriptionAr')}
+      />
       <InputField label={t('barcode')} name="barcode" defaultValue={record?.barcode} placeholder={tph('barcode')} />
       <InputField
         label={t('minStock')}
@@ -218,7 +270,11 @@ export const ENTITY_FORMS = {
     namespace: 'categories',
     titleKey: 'create',
     Fields: CategoryFields,
-    toPayload: (fd) => ({ name: fd.get('name'), parentId: str(fd, 'parentId') }),
+    toPayload: (fd) => ({
+      name: fd.get('name'),
+      nameAr: arabic(fd, 'nameAr'),
+      parentId: str(fd, 'parentId'),
+    }),
   },
   provider: {
     endpoint: '/providers',
@@ -255,8 +311,10 @@ export const ENTITY_FORMS = {
     Fields: ProductFields,
     toPayload: (fd) => ({
       name: fd.get('name'),
+      nameAr: arabic(fd, 'nameAr'),
       categoryId: str(fd, 'category'),
       description: str(fd, 'description'),
+      descriptionAr: arabic(fd, 'descriptionAr'),
       barcode: str(fd, 'barcode'),
       minStock: fd.get('minStock') ? Number(fd.get('minStock')) : undefined,
     }),

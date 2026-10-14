@@ -19,11 +19,21 @@
  */
 export const SIMILARITY_THRESHOLD = 0.8;
 
-/** Lower-case words of letters and digits, accents folded. */
+/**
+ * Lower-case words of letters and digits, accents folded.
+ *
+ * Arabic is folded the way people type it (§3, 2026-10-14): short vowels and
+ * the tatweel dropped, the alef forms (أ إ آ) read as a bare alef, ة as ه and
+ * ى as ي — "خوذه" typed on a phone is still "خوذة".
+ */
 export function nameTokens(value: string | null | undefined): string[] {
   return (value ?? '')
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[\u0622\u0623\u0625]/g, '\u0627')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/\u0649/g, '\u064a')
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
@@ -191,7 +201,17 @@ export type MatchVia = 'id' | 'sku' | 'name' | 'name-similar';
 export interface Matchable {
   id: string;
   name: string;
+  /**
+   * A second name the same thing goes by — a product's or category's Arabic
+   * name (§3, 2026-10-14). A query matches either; neither outranks the other.
+   */
+  nameAr?: string | null;
   sku?: string | null;
+}
+
+/** Every name an item answers to: the English, and the Arabic when there is one. */
+function namesOf(item: Matchable): string[] {
+  return item.nameAr ? [item.name, item.nameAr] : [item.name];
 }
 
 export interface Ranked<T> {
@@ -261,7 +281,7 @@ export function matchByName<T extends Matchable>(
 
   const exact = decide(
     items
-      .filter((i) => key(i.name) === wanted)
+      .filter((i) => namesOf(i).some((n) => key(n) === wanted))
       .map((item) => ({ item, via: 'name' as const, score: 1 })),
   );
   if (exact) return exact;
@@ -272,7 +292,11 @@ export function matchByName<T extends Matchable>(
       via: 'name-similar' as const,
       // Never 1: 1 reads as "the same", and this is not.
       score: Math.min(
-        Math.round(nameScore(query.name, item.name, kind) * 100) / 100,
+        Math.round(
+          Math.max(
+            ...namesOf(item).map((n) => nameScore(query.name, n, kind)),
+          ) * 100,
+        ) / 100,
         0.99,
       ),
     }))

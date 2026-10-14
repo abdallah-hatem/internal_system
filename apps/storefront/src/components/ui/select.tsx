@@ -22,6 +22,8 @@ export interface SelectOption {
   label: string;
   /** Second line, e.g. an SKU or a cycle's status. */
   hint?: string;
+  /** Matched by the search box but not shown — a name in the other language. */
+  keywords?: string;
   disabled?: boolean;
 }
 
@@ -202,7 +204,7 @@ export function Select({
             // Filter on the hint too, so an SKU or a cycle status finds its row.
             filter={(itemValue, search) => {
               const opt = options.find((o) => o.value === itemValue);
-              const haystack = `${opt?.label ?? ''} ${opt?.hint ?? ''}`.toLowerCase();
+              const haystack = `${opt?.label ?? ''} ${opt?.hint ?? ''} ${opt?.keywords ?? ''}`.toLowerCase();
               return haystack.includes(search.toLowerCase()) ? 1 : 0;
             }}
           >

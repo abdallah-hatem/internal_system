@@ -4,6 +4,7 @@ import { offeredOnly } from '@/lib/product-status';
 
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { localName, otherName } from '@/lib/localized-name';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Loader2, PackageSearch, Search, X } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -250,7 +251,7 @@ function RequestCard({
               placeholder={t('pickProduct')}
               searchPlaceholder={tph('searchProducts')}
               clearable
-              options={productList.map((p) => ({ value: p.id, label: p.name, hint: p.sku }))}
+              options={productList.map((p) => ({ value: p.id, label: localName(p, locale), hint: p.sku, keywords: otherName(p, locale) }))}
             />
           </div>
         )}

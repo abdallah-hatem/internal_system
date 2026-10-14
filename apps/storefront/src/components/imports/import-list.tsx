@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, Package } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '../../lib/localized-name';
 
 import { Link } from '../../i18n/navigation';
 import { useSession } from '../../lib/session';
@@ -167,6 +168,7 @@ function ImportRow({ request }: { request: ImportRequest }) {
 /** "You asked for this, and we stock it now" — straight to buying it. */
 function StockedLink({ product }: { product: NonNullable<ImportRequest['product']> }) {
   const t = useTranslations('imports');
+  const locale = useLocale();
 
   return (
     <Link
@@ -174,7 +176,7 @@ function StockedLink({ product }: { product: NonNullable<ImportRequest['product'
       className="flex min-h-12 items-center gap-2 border-t border-gray-100 bg-green-50/60 px-4 text-sm font-medium text-green-900"
     >
       <Package className="h-4 w-4 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{t('nowStocked', { name: product.name })}</span>
+      <span className="min-w-0 flex-1 truncate">{t('nowStocked', { name: localName(product, locale) })}</span>
     </Link>
   );
 }

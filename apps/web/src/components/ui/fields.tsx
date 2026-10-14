@@ -57,6 +57,8 @@ export function InputField({
   required,
   placeholder,
   optional,
+  dir,
+  maxLength,
 }: {
   label: string;
   name: string;
@@ -66,6 +68,9 @@ export function InputField({
   placeholder?: string;
   /** `false` hides the "(Optional)" hint a non-required field carries. */
   optional?: boolean;
+  /** `rtl` for a field written in Arabic whatever the page's language. */
+  dir?: 'rtl' | 'ltr';
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -91,6 +96,8 @@ export function InputField({
           defaultValue={defaultValue}
           required={required}
           placeholder={placeholder}
+          dir={dir}
+          maxLength={maxLength}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       )}

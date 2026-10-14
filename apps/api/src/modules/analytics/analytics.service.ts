@@ -59,7 +59,7 @@ export type RecentActivityItem = {
   quantity?: number;
   /** `isWalkIn`: the shared walk-in record (§4) — named, never linked, by the client. */
   customer?: { id: string; displayName: string; isWalkIn: boolean };
-  product?: { id: string; name: string; sku: string };
+  product?: { id: string; name: string; nameAr: string | null; sku: string };
   cycleId?: string;
 };
 
@@ -381,6 +381,7 @@ export class AnalyticsService {
       select: {
         id: true,
         name: true,
+        nameAr: true,
         sku: true,
         saleItems: {
           // Without this filter every draft counts, including abandoned ones,
@@ -431,6 +432,7 @@ export class AnalyticsService {
         return {
           productId: p.id,
           name: p.name,
+          nameAr: p.nameAr,
           sku: p.sku,
           totalQuantitySold: Number(units.toDecimalPlaces(3)),
           revenueEgp: money(revenue),
@@ -706,7 +708,9 @@ export class AnalyticsService {
           receivedQty: true,
           createdAt: true,
           cycleId: true,
-          product: { select: { id: true, name: true, sku: true } },
+          product: {
+            select: { id: true, name: true, nameAr: true, sku: true },
+          },
         },
       }),
     ]);

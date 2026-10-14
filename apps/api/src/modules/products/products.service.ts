@@ -15,6 +15,12 @@ import { skuKey } from '../assistant/receipt/name-matching';
 import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
 import {
+  arabicText,
+  bilingualProductSearch,
+  DESCRIPTION_AR_MAX,
+  NAME_AR_MAX,
+} from '../../common/arabic-names';
+import {
   parseProductStatus,
   type ProductStatus,
 } from '../../common/product-status';
@@ -48,12 +54,9 @@ export class ProductsService {
     const where: any = {};
     if (categoryId) where.categoryId = categoryId;
     if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    // Either language, and the SKU (§3, owner 2026-10-14): "تيل" finds the
+    // brake pads whose Arabic name says so.
+    if (search) where.OR = bilingualProductSearch(search);
 
     const items = await this.prisma.product.findMany({
       where,
@@ -131,8 +134,10 @@ export class ProductsService {
   async create(
     data: {
       name: string;
+      nameAr?: string | null;
       categoryId?: string;
       description?: string;
+      descriptionAr?: string | null;
       barcode?: string;
       status?: string;
       minStock?: number;
@@ -141,6 +146,14 @@ export class ProductsService {
     options: { sku?: string; db?: Db } = {},
   ) {
     const db = options.db ?? this.prisma;
+    // Checked before anything is read or numbered: an Arabic name that is too
+    // long is refused whatever else is wrong.
+    const nameAr = arabicText(data.nameAr, 'nameAr', NAME_AR_MAX);
+    const descriptionAr = arabicText(
+      data.descriptionAr,
+      'descriptionAr',
+      DESCRIPTION_AR_MAX,
+    );
     // Only ACTIVE or INACTIVE is ever stored (§3, 2026-10-14); a new product
     // with no status is on.
     const status =
@@ -173,8 +186,10 @@ export class ProductsService {
       data: {
         sku,
         name: data.name,
+        nameAr: nameAr ?? null,
         categoryId: data.categoryId,
         description: data.description,
+        descriptionAr: descriptionAr ?? null,
         barcode: data.barcode,
         status,
         minStock: data.minStock,
@@ -200,8 +215,10 @@ export class ProductsService {
     id: string,
     data: {
       name?: string;
+      nameAr?: string | null;
       categoryId?: string;
       description?: string;
+      descriptionAr?: string | null;
       barcode?: string;
       status?: string;
       minStock?: number;
@@ -211,6 +228,13 @@ export class ProductsService {
     // Checked before anything is read: a status nobody may store is refused
     // whether or not the product exists.
     if (data.status !== undefined) parseProductStatus(data.status);
+    // Not sent leaves the stored Arabic alone; sent empty clears it.
+    const nameAr = arabicText(data.nameAr, 'nameAr', NAME_AR_MAX);
+    const descriptionAr = arabicText(
+      data.descriptionAr,
+      'descriptionAr',
+      DESCRIPTION_AR_MAX,
+    );
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw notFound('product');
 
@@ -218,8 +242,10 @@ export class ProductsService {
       where: { id },
       data: {
         name: data.name,
+        nameAr,
         categoryId: data.categoryId,
         description: data.description,
+        descriptionAr,
         barcode: data.barcode,
         status: data.status,
         minStock: data.minStock,
@@ -284,10 +310,34 @@ export class ProductsService {
     return { data: categories };
   }
 
+  /**
+   * Refuses an Arabic category name another category already carries,
+   * ignoring case and surrounding space (§3, owner 2026-10-14) — the same
+   * question the partial index `categories_name_ar_key` answers, asked first
+   * so the refusal names itself instead of failing at the index.
+   */
+  private async assertCategoryNameArFree(nameAr: string, exceptId?: string) {
+    const dup = await this.prisma.category.findFirst({
+      where: {
+        nameAr: { equals: nameAr, mode: 'insensitive' },
+        ...(exceptId ? { NOT: { id: exceptId } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    if (dup) {
+      throw conflict(
+        'CATEGORY_NAME_AR_TAKEN',
+        `The Arabic name ${nameAr} is already used by the category ${dup.name}.`,
+        { nameAr, category: dup.name },
+      );
+    }
+  }
+
   async createCategory(
-    data: { name: string; parentId?: string },
+    data: { name: string; nameAr?: string | null; parentId?: string },
     actorId: string,
   ) {
+    const nameAr = arabicText(data.nameAr, 'nameAr', NAME_AR_MAX);
     // Check uniqueness
     const existing = await this.prisma.category.findUnique({
       where: { name: data.name },
@@ -299,7 +349,15 @@ export class ProductsService {
       );
     }
 
-    const category = await this.prisma.category.create({ data });
+    if (nameAr) await this.assertCategoryNameArFree(nameAr);
+
+    const category = await this.prisma.category.create({
+      data: {
+        name: data.name,
+        nameAr: nameAr ?? null,
+        parentId: data.parentId,
+      },
+    });
 
     await this.audit.log({
       actorUserId: actorId,
@@ -327,11 +385,13 @@ export class ProductsService {
 
   async updateCategory(
     id: string,
-    data: { name?: string; parentId?: string | null },
+    data: { name?: string; nameAr?: string | null; parentId?: string | null },
     actorId: string,
   ) {
+    const nameAr = arabicText(data.nameAr, 'nameAr', NAME_AR_MAX);
     const existing = await this.prisma.category.findUnique({ where: { id } });
     if (!existing) throw notFound('category');
+    if (nameAr) await this.assertCategoryNameArFree(nameAr, id);
 
     // Check name uniqueness if changing
     if (data.name && data.name !== existing.name) {
@@ -353,7 +413,10 @@ export class ProductsService {
       );
     }
 
-    const updated = await this.prisma.category.update({ where: { id }, data });
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: { name: data.name, nameAr, parentId: data.parentId },
+    });
 
     await this.audit.log({
       actorUserId: actorId,

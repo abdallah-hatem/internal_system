@@ -6,6 +6,7 @@ import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
 import { StockBadge } from '../ui/stock-badge';
 import { ProductImage } from './product-image';
+import { localName } from '../../lib/localized-name';
 import type { CatalogueItem } from './types';
 
 /**
@@ -19,6 +20,7 @@ import type { CatalogueItem } from './types';
 export function ProductCard({ item }: { item: CatalogueItem }) {
   const t = useTranslations('catalogue');
   const locale = useLocale();
+  const name = localName(item, locale);
 
   return (
     <li className="flex">
@@ -27,15 +29,15 @@ export function ProductCard({ item }: { item: CatalogueItem }) {
         data-sku={item.sku}
         className="flex flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white text-start shadow-sm transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
       >
-        <ProductImage src={item.image} alt={item.name} className="aspect-square w-full" />
+        <ProductImage src={item.image} alt={name} className="aspect-square w-full" />
 
         <div className="flex flex-1 flex-col gap-1 p-3">
           {item.category ? (
-            <p className="truncate text-xs text-gray-500">{item.category.name}</p>
+            <p className="truncate text-xs text-gray-500">{localName(item.category, locale)}</p>
           ) : null}
 
           <h3 className="line-clamp-2 text-sm leading-snug font-semibold text-gray-900">
-            {item.name}
+            {name}
           </h3>
 
           <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-2">

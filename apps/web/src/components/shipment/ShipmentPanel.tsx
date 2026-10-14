@@ -2,7 +2,8 @@
 import { LatinText } from '@/components/ui/latin-text';
 
 import { useMemo, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Pencil } from 'lucide-react';
 import { nextLegToAdd } from '@/components/cycles/leg-plan';
@@ -132,9 +133,10 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
   const walkingRef = useRef(false);
   const may = useShipmentPermissions();
 
+  const locale = useLocale();
   const productNames = useMemo(
-    () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, l.productName ?? '—'])),
-    [shipment],
+    () => Object.fromEntries((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, localName({ name: l.productName, nameAr: l.productNameAr }, locale) || '—'])),
+    [shipment, locale],
   );
   const ordered = useMemo(
     () => new Map((shipment?.lines ?? []).map((l) => [l.purchaseOrderItemId, l.ordered])),

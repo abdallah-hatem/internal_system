@@ -50,6 +50,9 @@ export interface NewSupplierInput {
 
 export interface NewProductInput {
   name: string;
+  /** Only an Arabic name the partner gave; never a translation (§16). */
+  nameAr?: string;
+  descriptionAr?: string;
   /** The code printed on the receipt, kept as the product's SKU. */
   sku?: string;
   categoryId?: string;
@@ -247,8 +250,10 @@ async function resolveProduct(
     const { data } = await s.products.create(
       {
         name: choice.new.name,
+        nameAr: choice.new.nameAr,
         categoryId: choice.new.categoryId,
         description: choice.new.description,
+        descriptionAr: choice.new.descriptionAr,
       },
       actorId,
       { sku: choice.new.sku, db: tx },
@@ -586,8 +591,10 @@ export async function productWrite(
     const { data } = await s.products.create(
       {
         name: input.name,
+        nameAr: input.nameAr,
         categoryId: input.categoryId,
         description: input.description,
+        descriptionAr: input.descriptionAr,
       },
       actorId,
       { sku: input.sku, db: tx },
@@ -596,13 +603,25 @@ export async function productWrite(
   });
   if (mode === 'commit') {
     return {
-      summary: `Created product ${created.name}, SKU ${created.sku}.`,
-      data: { id: created.id, name: created.name, sku: created.sku },
+      summary: `Created product ${created.name}${created.nameAr ? ` (${created.nameAr})` : ''}, SKU ${created.sku}.`,
+      data: {
+        id: created.id,
+        name: created.name,
+        nameAr: created.nameAr,
+        descriptionAr: created.descriptionAr,
+        sku: created.sku,
+      },
     };
   }
   const sku = input.sku?.trim() || null;
   return {
-    summary: `A new product: ${created.name}, SKU ${sku ?? 'generated when saved'}.`,
-    data: { id: null, name: created.name, sku },
+    summary: `A new product: ${created.name}${created.nameAr ? ` (${created.nameAr})` : ''}, SKU ${sku ?? 'generated when saved'}.`,
+    data: {
+      id: null,
+      name: created.name,
+      nameAr: created.nameAr,
+      descriptionAr: created.descriptionAr,
+      sku,
+    },
   };
 }

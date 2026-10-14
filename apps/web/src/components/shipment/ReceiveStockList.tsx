@@ -2,7 +2,8 @@
 import { useAllRecords } from '@/lib/list-all';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { localName } from '@/lib/localized-name';
 import { useQueries } from '@tanstack/react-query';
 import { PackageCheck } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -31,6 +32,7 @@ import {
  */
 export function ReceiveStockList() {
   const t = useTranslations('shipment');
+  const locale = useLocale();
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const [open, setOpen] = useState<{ cycleId: string; legId: string; deliveryId: string } | null>(null);
@@ -52,7 +54,7 @@ export function ReceiveStockList() {
   const rows = waitingDeliveries(loaded);
 
   const names = (s: Shipment | undefined) =>
-    Object.fromEntries((s?.lines ?? []).map((l) => [l.purchaseOrderItemId, l.productName ?? '—']));
+    Object.fromEntries((s?.lines ?? []).map((l) => [l.purchaseOrderItemId, localName({ name: l.productName, nameAr: l.productNameAr }, locale) || '—']));
 
   const openShipment = open ? loaded.find((s) => s.cycleId === open.cycleId) : undefined;
   const openLeg = openShipment?.legs.find((l) => l.legId === open?.legId);

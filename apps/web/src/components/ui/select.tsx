@@ -23,6 +23,11 @@ export interface SelectOption {
   label: string;
   /** Second line, e.g. an SKU or a cycle's status. */
   hint?: string;
+  /**
+   * More text the search box matches but nobody sees — a product's name in
+   * the other language, so "تيل" finds a row labelled "Brake pads" on /en.
+   */
+  keywords?: string;
   disabled?: boolean;
 }
 
@@ -207,7 +212,8 @@ export function Select({
             // Filter on the hint too, so an SKU or a cycle status finds its row.
             filter={(itemValue, search) => {
               const opt = options.find((o) => o.value === itemValue);
-              const haystack = `${opt?.label ?? ''} ${opt?.hint ?? ''}`.toLowerCase();
+              const haystack =
+                `${opt?.label ?? ''} ${opt?.hint ?? ''} ${opt?.keywords ?? ''}`.toLowerCase();
               return haystack.includes(search.toLowerCase()) ? 1 : 0;
             }}
           >

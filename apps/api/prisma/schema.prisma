@@ -101,6 +101,10 @@ model Supplier {
 model Category {
   id        String   @id @default(uuid()) @db.Uuid
   name      String   @unique
+  // Optional Arabic name (BUSINESS_LOGIC §3, owner 2026-10-14). Unique when
+  // present, ignoring case, through the partial index `categories_name_ar_key`
+  // on lower(name_ar), which Prisma cannot express.
+  nameAr    String?  @map("name_ar")
   parentId  String?  @map("parent_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
@@ -117,8 +121,12 @@ model Product {
   id           String   @id @default(uuid()) @db.Uuid
   sku          String   @unique
   name         String
+  // Optional Arabic name and description (BUSINESS_LOGIC §3, owner
+  // 2026-10-14). Shown to an Arabic reader when present, the English otherwise.
+  nameAr        String?  @map("name_ar")
   categoryId   String?  @map("category_id") @db.Uuid
   description  String?
+  descriptionAr String? @map("description_ar")
   barcode      String?
   status       String   @default("ACTIVE")
   minStock     Decimal? @map("min_stock") @db.Decimal(18, 3)

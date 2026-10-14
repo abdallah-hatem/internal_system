@@ -9,6 +9,7 @@ import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
 import { StockBadge } from '../ui/stock-badge';
 import { ProductImage } from './product-image';
+import { localDescription, localName } from '../../lib/localized-name';
 import { QueryError } from './query-error';
 import { isNotFound, useProduct } from './queries';
 import { useBasket } from '../../stores/basket';
@@ -90,7 +91,7 @@ export function ProductDetail({ sku }: { sku: string }) {
         <div>
           <ProductImage
             src={images[index] ?? null}
-            alt={data.name}
+            alt={localName(data, locale)}
             priority
             className="aspect-square w-full rounded-xl"
           />
@@ -103,7 +104,7 @@ export function ProductDetail({ sku }: { sku: string }) {
                     type="button"
                     onClick={() => setActive(position)}
                     aria-pressed={position === index}
-                    aria-label={`${data.name} ${position + 1}`}
+                    aria-label={`${localName(data, locale)} ${position + 1}`}
                     className={`block overflow-hidden rounded-lg border-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
                       position === index ? 'border-brand-600' : 'border-transparent'
                     }`}
@@ -117,9 +118,9 @@ export function ProductDetail({ sku }: { sku: string }) {
         </div>
 
         <div className="flex flex-col gap-3 text-start">
-          {data.category ? <p className="text-sm text-gray-500">{data.category.name}</p> : null}
+          {data.category ? <p className="text-sm text-gray-500">{localName(data.category, locale)}</p> : null}
 
-          <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>
+          <h1 className="text-xl font-bold text-gray-900">{localName(data, locale)}</h1>
 
           <p className="text-xs text-gray-400">{t('sku', { sku: data.sku })}</p>
 
@@ -140,9 +141,9 @@ export function ProductDetail({ sku }: { sku: string }) {
             <p className="text-sm font-medium text-brand-700">{t('tradePrices')}</p>
           ) : null}
 
-          {data.description ? (
+          {localDescription(data, locale) ? (
             <p className="text-sm leading-relaxed whitespace-pre-line text-gray-700">
-              {data.description}
+              {localDescription(data, locale)}
             </p>
           ) : null}
 
@@ -175,6 +176,7 @@ export function ProductDetail({ sku }: { sku: string }) {
               addToBasket({
                 productId: data.id,
                 name: data.name,
+                nameAr: data.nameAr,
                 sku: data.sku,
                 unitPrice: data.price!,
               });

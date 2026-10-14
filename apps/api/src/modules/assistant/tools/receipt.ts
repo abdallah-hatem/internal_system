@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
+import { DESCRIPTION_AR_MAX, NAME_AR_MAX } from '../../../common/arabic-names';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { ProductsService } from '../../products/products.service';
@@ -66,6 +67,25 @@ const newProduct = z.object({
     ),
   categoryId: id.optional(),
   description: z.string().trim().max(1000).optional(),
+  // Only what the partner gave, in Arabic (§3, §16, owner 2026-10-14). Never
+  // a translation the assistant made up: an Arabic name nobody wrote reads to
+  // a customer as the business's own words.
+  nameAr: z
+    .string()
+    .trim()
+    .max(NAME_AR_MAX)
+    .optional()
+    .describe(
+      'The Arabic name, ONLY if the partner wrote or said it. Never translate the English name yourself; leave it out and it stays empty.',
+    ),
+  descriptionAr: z
+    .string()
+    .trim()
+    .max(DESCRIPTION_AR_MAX)
+    .optional()
+    .describe(
+      'The Arabic description, ONLY if the partner gave it. Never translate; leave it out otherwise.',
+    ),
 });
 
 const extractionShape = {
@@ -229,7 +249,8 @@ export function registerReceiptTools(
       title: 'Create a product',
       description:
         'Adds a product, keeping the code printed on the receipt as its SKU. Refused when another product has ' +
-        'that SKU. Call without a confirmationToken to preview.',
+        'that SKU. nameAr and descriptionAr take an Arabic name and description only when the partner gave them — ' +
+        'never a translation of your own; left out, they stay empty. Call without a confirmationToken to preview.',
       inputSchema: newProduct.shape,
     },
     {

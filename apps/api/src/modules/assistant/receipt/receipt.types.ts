@@ -51,6 +51,8 @@ export interface SnapshotSupplier {
 export interface SnapshotProduct {
   id: string;
   name: string;
+  /** The Arabic name, when there is one; a receipt line may match either. */
+  nameAr?: string | null;
   sku: string | null;
 }
 
@@ -107,6 +109,8 @@ export interface SupplierCandidate {
 export interface ProductCandidate {
   id: string;
   name: string;
+  /** The Arabic name, null when there is none (§3, 2026-10-14). */
+  nameAr: string | null;
   sku: string | null;
   /** Only `sku` and `name` are ever a match; `name-similar` is only offered. */
   via: 'sku' | 'name' | 'name-similar';
