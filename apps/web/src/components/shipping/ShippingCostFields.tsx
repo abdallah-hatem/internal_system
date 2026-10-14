@@ -56,6 +56,7 @@ export function ShippingCostFields({
 }) {
   const t = useTranslations('shippingCost');
   const tw = useTranslations('wizard');
+  const tph = useTranslations('placeholders');
   const { formatMoney, formatNumber } = useNumberFormat();
   const codeLabel = useCodeLabel();
   const n = (field: string) => `${namePrefix}${field}`;
@@ -111,6 +112,7 @@ export function ShippingCostFields({
         <Select
           name={n('costBasis')}
           value={basis}
+          placeholder={tph('chooseCostBasis')}
           onChange={(v) => setBasis(v as CostBasis)}
           options={[
             { value: 'PER_PIECE', label: codeLabel('costBasis', 'PER_PIECE') },
@@ -129,7 +131,7 @@ export function ShippingCostFields({
             <MoneyInput
               required
               {...{ name: n('ratePerUnit') }} value={rate} onChange={setRate}
-              placeholder="0.00" className={`${input} text-start`}
+              placeholder={tph('money')} className={`${input} text-start`}
             />
           </div>
           <div>
@@ -139,7 +141,7 @@ export function ShippingCostFields({
             <input
               type="number" step="0.001" min="0" required
               {...{ name: n('chargeablePieces') }} value={pieces} onChange={(e) => setPieces(e.target.value)}
-              placeholder="0" className={input}
+              placeholder={tph('pieces')} className={input}
             />
             {orderedPieces ? (
               <p className="mt-1 text-xs text-gray-500">
@@ -172,7 +174,7 @@ export function ShippingCostFields({
             <MoneyInput
               required
               {...{ name: n('ratePerUnit') }} value={rate} onChange={setRate}
-              placeholder="0.00" className={`${input} text-start`}
+              placeholder={tph('money')} className={`${input} text-start`}
             />
           </div>
           <div>
@@ -182,7 +184,7 @@ export function ShippingCostFields({
             <input
               type="number" step="0.001" min="0" required
               {...{ name: n('chargeableWeightKg') }} value={weight} onChange={(e) => setWeight(e.target.value)}
-              placeholder="0.000" className={input}
+              placeholder={tph('weightKg')} className={input}
             />
           </div>
         </div>
@@ -196,7 +198,7 @@ export function ShippingCostFields({
           <MoneyInput
             required
             {...{ name: n('amount') }} value={amount} onChange={setAmount}
-            placeholder="0.00" className={`${input} text-start`}
+            placeholder={tph('money')} className={`${input} text-start`}
           />
         </div>
       )}
@@ -207,6 +209,7 @@ export function ShippingCostFields({
           <Select
             name={n('currency')}
             value={currency}
+            placeholder={tph('chooseCurrency')}
             onChange={(v) => {
               setCurrency(v);
               // Fill in the current rate. It stays editable: a leg should be
@@ -228,7 +231,7 @@ export function ShippingCostFields({
             <input
               type="number" step="0.0001" min="0" required
               {...{ name: n('fxRateToEgp') }} value={fx} onChange={(e) => setFx(e.target.value)}
-              className={input}
+              placeholder={rates[currency] != null ? String(rates[currency]) : tph('fxRate')} className={input}
             />
             <p className="mt-1 text-xs text-gray-400">
               {rates[currency] != null

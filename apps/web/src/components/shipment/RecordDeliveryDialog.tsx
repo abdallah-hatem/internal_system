@@ -44,6 +44,7 @@ export function RecordDeliveryDialog({
   onSaved?: (res: unknown) => void;
 }) {
   const t = useTranslations('shipment');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const announce = useAnnounceStatusMove();
@@ -158,7 +159,7 @@ export function RecordDeliveryDialog({
                       setTyped((prev) => ({ ...prev, [id]: value }));
                       setRefusal(null);
                     }}
-                    placeholder="0"
+                    placeholder={tph('quantitySmall')}
                     className={qtyInputClass}
                   />
                 </li>

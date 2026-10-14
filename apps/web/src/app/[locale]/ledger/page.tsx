@@ -96,6 +96,7 @@ export default function LedgerPage() {
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const t = useTranslations('ledger');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
 
   // `type` is a free-form column: fall back to the raw value rather than
@@ -255,7 +256,7 @@ export default function LedgerPage() {
           onChange={setTypeFilter}
           clearable
           placeholder={t('allTypes')}
-          searchPlaceholder={t('allTypes')}
+          searchPlaceholder={tph('searchTypes')}
           options={[...new Set(Object.values(TYPE_KEYS))].map((label) => ({
             value: label,
             label: t(label),
@@ -269,7 +270,7 @@ export default function LedgerPage() {
           onChange={setCategoryFilter}
           clearable
           placeholder={t('allCategories')}
-          searchPlaceholder={t('allCategories')}
+          searchPlaceholder={tph('searchCategories')}
           options={[
             ...MANUAL_CATEGORIES.map((c) => ({
               value: c,
@@ -416,7 +417,7 @@ export default function LedgerPage() {
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedEntry.amount} currency={selectedEntry.currency} /></span>
             </p>
-            <TextareaField label={t('reverseReason')} name="reason" required minLength={3} />
+            <TextareaField label={t('reverseReason')} name="reason" required minLength={3} placeholder={tph('reverseReason')} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowReverseModal(false); setSelectedEntry(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{t('reverse')}</button>

@@ -70,6 +70,7 @@ export function MoneyInput({
   defaultValue,
   onChange,
   className = '',
+  placeholder,
   ...rest
 }: {
   name?: string;
@@ -121,6 +122,7 @@ export function MoneyInput({
         type="text"
         inputMode="decimal"
         value={display}
+        placeholder={placeholder}
         onChange={(e) => {
           const typed = e.target.value;
           const caret = e.target.selectionStart ?? typed.length;

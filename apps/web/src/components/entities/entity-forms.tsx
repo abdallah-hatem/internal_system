@@ -45,7 +45,7 @@ const str = (fd: FormData, key: string) => (fd.get(key) as string) || undefined;
 // ─── Category ─────────────────────────────────────────────────────────
 function CategoryFields({ record }: { record?: any }) {
   const t = useTranslations('categories');
-  const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then((r) => r.data.data ?? r.data),
@@ -54,13 +54,13 @@ function CategoryFields({ record }: { record?: any }) {
 
   return (
     <>
-      <InputField label={t('name')} name="name" defaultValue={record?.name} required />
+      <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('categoryName')} />
       <FieldLabel label={t('parentCategory')}>
         <Select
           name="parentId"
           defaultValue={record?.parentId || ''}
           placeholder={t('noParent')}
-          searchPlaceholder={tc('search')}
+          searchPlaceholder={tph('searchCategories')}
           clearable
           options={list
             // A category cannot be its own parent, and only top-level ones
@@ -76,19 +76,21 @@ function CategoryFields({ record }: { record?: any }) {
 // ─── Provider ─────────────────────────────────────────────────────────
 function ProviderFields({ record }: { record?: any }) {
   const t = useTranslations('providers');
+  const tph = useTranslations('placeholders');
   return (
     <>
-      <InputField label={t('name')} name="name" defaultValue={record?.name} required />
+      <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('providerName')} />
       <InputField
         label={t('contactPerson')}
         name="contactPerson"
         defaultValue={record?.contactPerson}
+        placeholder={tph('contactPerson')}
       />
       <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone} />
-        <InputField label={t('email')} name="email" type="email" defaultValue={record?.email} />
+        <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone} placeholder={tph('phone')} />
+        <InputField label={t('email')} name="email" type="email" defaultValue={record?.email} placeholder={tph('email')} />
       </div>
-      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes} />
+      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes} placeholder={t('notesPlaceholder')} />
     </>
   );
 }
@@ -98,6 +100,7 @@ const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 function CustomerFields({ record }: { record?: any }) {
   const t = useTranslations('customers');
+  const tph = useTranslations('placeholders');
   return (
     <>
       <InputField
@@ -105,17 +108,19 @@ function CustomerFields({ record }: { record?: any }) {
         name="displayName"
         defaultValue={record?.displayName}
         required
+        placeholder={tph('customerName')}
       />
       <FieldLabel label={t('type')} required>
         <Select
           name="type"
           required
           defaultValue={record?.type ?? 'B2B'}
+          placeholder={tph('chooseCustomerType')}
           options={CUSTOMER_TYPES.map((v) => ({ value: v, label: t(v.toLowerCase()) }))}
         />
       </FieldLabel>
-      <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone} />
-      <InputField label={t('email')} name="email" type="email" defaultValue={record?.email} />
+      <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone} placeholder={tph('phone')} />
+      <InputField label={t('email')} name="email" type="email" defaultValue={record?.email} placeholder={tph('email')} />
     </>
   );
 }
@@ -123,7 +128,7 @@ function CustomerFields({ record }: { record?: any }) {
 // ─── Product ──────────────────────────────────────────────────────────
 function ProductFields({ record }: { record?: any }) {
   const t = useTranslations('products');
-  const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then((r) => r.data.data ?? r.data),
@@ -137,7 +142,7 @@ function ProductFields({ record }: { record?: any }) {
 
   return (
     <>
-      <InputField label={t('name')} name="name" defaultValue={record?.name} required />
+      <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('productName')} />
       <FieldLabel label={t('category')}>
         {/* The `+` is here even though this form is itself what a `+` opens.
             Leaving it out was an earlier decision of mine to avoid stacking
@@ -149,19 +154,19 @@ function ProductFields({ record }: { record?: any }) {
             name="category"
             value={categoryId}
             onChange={setCategoryId}
-            placeholder={t('category')}
-            searchPlaceholder={tc('search')}
+            placeholder={tph('chooseCategory')}
+            searchPlaceholder={tph('searchCategories')}
             options={list.map((c) => ({ value: c.id, label: c.name }))}
           />
         </FieldWithQuickCreate>
       </FieldLabel>
-      <TextareaField label={t('description')} name="description" defaultValue={record?.description} />
-      <InputField label={t('barcode')} name="barcode" defaultValue={record?.barcode} />
+      <TextareaField label={t('description')} name="description" defaultValue={record?.description} placeholder={tph('productDescription')} />
+      <InputField label={t('barcode')} name="barcode" defaultValue={record?.barcode} placeholder={tph('barcode')} />
       <InputField
         label={t('minStock')}
         name="minStock"
         type="number"
-        placeholder="0"
+        placeholder={tph('minStock')}
         defaultValue={record?.minStock}
       />
     </>
@@ -171,20 +176,21 @@ function ProductFields({ record }: { record?: any }) {
 // ─── Supplier ─────────────────────────────────────────────────────────
 function SupplierFields({ record }: { record?: any }) {
   const t = useTranslations('suppliers');
+  const tph = useTranslations('placeholders');
   const contact = record?.contactJson ?? {};
   return (
     <>
-      <InputField label={t('name')} name="name" defaultValue={record?.name} required />
-      <InputField label={t('country')} name="country" defaultValue={record?.country} required />
+      <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('supplierName')} />
+      <InputField label={t('country')} name="country" defaultValue={record?.country} required placeholder={tph('country')} />
       <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={t('phone')} name="phone" type="tel" defaultValue={contact.phone} />
-        <InputField label={t('email')} name="email" type="email" defaultValue={contact.email} />
+        <InputField label={t('phone')} name="phone" type="tel" defaultValue={contact.phone} placeholder={tph('supplierPhone')} />
+        <InputField label={t('email')} name="email" type="email" defaultValue={contact.email} placeholder={tph('email')} />
       </div>
       <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={t('wechat')} name="wechat" defaultValue={contact.wechat} />
-        <InputField label={t('whatsapp')} name="whatsapp" defaultValue={contact.whatsapp} />
+        <InputField label={t('wechat')} name="wechat" defaultValue={contact.wechat} placeholder={tph('wechat')} />
+        <InputField label={t('whatsapp')} name="whatsapp" defaultValue={contact.whatsapp} placeholder={tph('whatsapp')} />
       </div>
-      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes} />
+      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes} placeholder={tph('supplierNotes')} />
     </>
   );
 }
@@ -194,11 +200,12 @@ function SupplierFields({ record }: { record?: any }) {
 // the `+` beside a lender picker both render this.
 function LenderFields({ record }: { record?: { name?: string; phone?: string | null; notes?: string | null } }) {
   const t = useTranslations('lenders');
+  const tph = useTranslations('placeholders');
   return (
     <>
-      <InputField label={t('name')} name="name" defaultValue={record?.name} required />
-      <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone ?? undefined} />
-      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes ?? undefined} />
+      <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('lenderName')} />
+      <InputField label={t('phone')} name="phone" type="tel" defaultValue={record?.phone ?? undefined} placeholder={tph('phone')} />
+      <TextareaField label={t('notes')} name="notes" defaultValue={record?.notes ?? undefined} placeholder={tph('lenderNotes')} />
     </>
   );
 }

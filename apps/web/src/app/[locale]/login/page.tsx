@@ -10,6 +10,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 
 export default function LoginPage() {
   const t = useTranslations('auth');
+  const tph = useTranslations('placeholders');
   const apiError = useApiError();
   const { login } = useAuth();
   const router = useRouter();
@@ -64,7 +65,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="partner.a@motoparts.com"
+                placeholder={tph('email')}
                 required
               />
             </div>
@@ -76,7 +77,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="••••••••"
+                  placeholder={tph('password')}
                   required
                 />
                 <button

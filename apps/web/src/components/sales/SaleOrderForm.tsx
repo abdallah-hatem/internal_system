@@ -132,6 +132,7 @@ export function SaleOrderForm({
 }) {
   const codeLabel = useCodeLabel();
   const t = useTranslations('sales');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
   const locale = useLocale();
@@ -300,6 +301,7 @@ export function SaleOrderForm({
             <Select
               name="paymentMethod"
               value={method}
+              placeholder={tph('choosePaymentMethod')}
               onChange={setMethod}
               options={PAYMENT_METHODS.map((m) => ({ value: m, label: codeLabel('paymentMethod', m) }))}
             />
@@ -310,8 +312,8 @@ export function SaleOrderForm({
                 required
                 value={customerId}
                 onChange={(id) => onCustomerChange(id)}
-                placeholder={t('customer')}
-                searchPlaceholder={tc('search')}
+                placeholder={tph('chooseCustomer')}
+                searchPlaceholder={tph('searchCustomers')}
                 options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: codeLabel('customerType', c.type) }))}
               />
             </FieldWithQuickCreate>
@@ -322,6 +324,7 @@ export function SaleOrderForm({
           <Select
             name="channel"
             value={channel}
+            placeholder={tph('chooseChannel')}
             onChange={applyChannel}
             // A walk-in buys at retail; the server refuses anything else.
             disabled={walkIn}
@@ -336,6 +339,7 @@ export function SaleOrderForm({
           <Select
             name="currency"
             value={currency}
+            placeholder={tph('chooseCurrency')}
             onChange={setCurrency}
             options={['EGP', 'USD', 'AED'].map((c) => ({ value: c, label: c }))}
           />
@@ -395,8 +399,8 @@ export function SaleOrderForm({
                           ),
                         )
                       }
-                      placeholder={t('product')}
-                      searchPlaceholder={tc('search')}
+                      placeholder={tph('chooseProduct')}
+                      searchPlaceholder={tph('searchProducts')}
                       options={products
                         // Switched off, it is sold from the shelf until the
                         // shelf is empty, then it leaves (§3, owner 2026-10-14).
@@ -435,7 +439,7 @@ export function SaleOrderForm({
                     <label className="mb-1 block text-xs text-muted-foreground">{t('quantity')}</label>
                     <input
                       type="number"
-                      placeholder="0"
+                      placeholder={tph('quantitySmall')}
                       data-field="quantity"
                       value={line.quantity}
                       onChange={(e) => update(line.key, { quantity: Number(e.target.value) })}
@@ -455,7 +459,7 @@ export function SaleOrderForm({
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('unitPrice')}</label>
                     <MoneyInput
-                      placeholder="0.00"
+                      placeholder={tph('money')}
                       data-field="unitPrice"
                       value={line.unitPrice}
                       onChange={(raw) =>
@@ -477,7 +481,7 @@ export function SaleOrderForm({
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('discount')}</label>
                     <MoneyInput
-                      placeholder="0.00"
+                      placeholder={tph('discount')}
                       data-field="discount"
                       value={line.discount}
                       onChange={(raw) => update(line.key, { discount: Number(raw) })}

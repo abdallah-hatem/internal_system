@@ -66,6 +66,7 @@ function flattenTree(nodes: Category[], depth = 0): (Category & { depth: number;
 export default function CategoriesPage() {
   const apiError = useApiError();
   const t = useTranslations('categories');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -362,7 +363,7 @@ export default function CategoriesPage() {
       {editingCategory && (
         <Modal title={t('edit')} onClose={() => setEditingCategory(null)}>
           <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
-            <InputField label={t('name')} name="name" defaultValue={editingCategory.name} required />
+            <InputField label={t('name')} name="name" defaultValue={editingCategory.name} required placeholder={tph('categoryName')} />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('parentCategory')} <span className="text-gray-400 ms-1 text-xs font-normal">({tc('optional')})</span>
@@ -371,7 +372,7 @@ export default function CategoriesPage() {
                 name="parentId"
                 defaultValue={editingCategory.parentId || ''}
                 placeholder={t('noParent')}
-                searchPlaceholder={tc('search')}
+                searchPlaceholder={tph('searchCategories')}
                 clearable
                 options={categoryList.filter((c) => !c.parentId).map((c) => ({
                   value: c.id,

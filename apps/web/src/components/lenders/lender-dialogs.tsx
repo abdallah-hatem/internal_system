@@ -126,6 +126,7 @@ export function RecordRepaymentDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('lenders');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const { addToast } = useToast();
@@ -201,6 +202,7 @@ export function RecordRepaymentDialog({
             name="rateToEgp"
             inputMode="decimal"
             required
+            placeholder={tph('fxRate')}
             value={rate}
             onChange={(e) => setTypedRate(e.target.value.replace(/[^\d.]/g, ''))}
             {...selectOnFocus}
@@ -222,7 +224,7 @@ export function RecordRepaymentDialog({
               required
               value={amount}
               onChange={setAmount}
-              placeholder="0.00"
+              placeholder={tph('money')}
               className="w-full min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <button
@@ -317,6 +319,7 @@ export function ReasonDialog({
 /** Instalments in his currency, the customer-plan habit (§7, §18). */
 export function PlanDialog({ financing, onClose }: { financing: FinancingView; onClose: () => void }) {
   const t = useTranslations('lenders');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const { addToast } = useToast();
@@ -368,7 +371,7 @@ export function PlanDialog({ financing, onClose }: { financing: FinancingView; o
                   required
                   value={r.amount}
                   onChange={(v) => setRows((xs) => xs.map((x) => (x.key === r.key ? { ...x, amount: v } : x)))}
-                  placeholder="0.00"
+                  placeholder={tph('money')}
                   className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </FieldLabel>

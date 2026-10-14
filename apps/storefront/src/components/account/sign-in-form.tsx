@@ -21,6 +21,7 @@ import { collect, emailError, passwordError, type FieldErrors } from './validate
  */
 export function SignInForm() {
   const t = useTranslations('auth');
+  const tph = useTranslations('placeholders');
   const refusal = useRefusal();
   const router = useRouter();
 
@@ -70,6 +71,7 @@ export function SignInForm() {
         value={email}
         onChange={setEmail}
         error={errors.email}
+        placeholder={tph('email')}
       />
 
       <PasswordField
@@ -78,6 +80,7 @@ export function SignInForm() {
         value={password}
         onChange={setPassword}
         error={errors.password}
+        placeholder={tph('password')}
       />
 
       {signIn.isError ? <FormAlert message={refusal(signIn.error, t('loginFailed'))} /> : null}

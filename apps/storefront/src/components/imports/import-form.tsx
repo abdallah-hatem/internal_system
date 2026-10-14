@@ -110,6 +110,7 @@ export function AskForPart() {
 function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useTranslations('imports');
   const tCommon = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const refusal = useRefusal();
 
   const create = useCreateImport();
@@ -252,6 +253,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 error={problems.productName}
                 hint={t('productNameHint')}
                 maxLength={LIMITS.name}
+                placeholder={tph('productName')}
                 required
               />
 
@@ -261,6 +263,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 onChange={setFits}
                 hint={t('fitsHint')}
                 maxLength={LIMITS.fits}
+                placeholder={tph('fits')}
                 optional
               />
 
@@ -271,6 +274,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 error={problems.quantity}
                 inputMode="numeric"
                 maxLength={9}
+                placeholder={tph('quantity')}
                 optional
               />
 
@@ -282,6 +286,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 error={problems.link}
                 inputMode="url"
                 maxLength={LIMITS.link}
+                placeholder={tph('link')}
                 optional
               />
 
@@ -295,6 +300,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   maxLength={LIMITS.notes}
+                  placeholder={tph('importNotes')}
                   dir="auto"
                   className="w-full resize-none rounded-xl border border-gray-300 p-3 text-base text-start outline-none focus:border-brand-600"
                 />
@@ -394,6 +400,7 @@ function Field({
   required,
   inputMode,
   maxLength,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -405,6 +412,8 @@ function Field({
   required?: boolean;
   inputMode?: 'text' | 'numeric' | 'url';
   maxLength?: number;
+  /** A valid example of the answer, never the label again. */
+  placeholder: string;
 }) {
   const tCommon = useTranslations('common');
   // `useId`, not the label: a translated label carries spaces, and an id with a
@@ -429,6 +438,7 @@ function Field({
         onBlur={onBlur}
         inputMode={inputMode}
         maxLength={maxLength}
+        placeholder={placeholder}
         // `aria-required`, not `required`. The native attribute answers an empty
         // field with the browser's own bubble, written in the browser's UI
         // language — which on a phone set to English says "Please fill out this

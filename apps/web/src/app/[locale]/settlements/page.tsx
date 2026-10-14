@@ -64,6 +64,7 @@ export default function SettlementsPage() {
   const codeLabel = useCodeLabel();
   const apiError = useApiError();
   const t = useTranslations('settlementsPage');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -204,7 +205,7 @@ export default function SettlementsPage() {
             value={selectedCycle}
             onChange={setSelectedCycle}
             placeholder={t('selectCycle')}
-            searchPlaceholder={tc('search')}
+            searchPlaceholder={tph('searchCycles')}
             options={cycleList.map((c: any) => ({
               value: c.id,
               label: c.code,

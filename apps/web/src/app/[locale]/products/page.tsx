@@ -77,6 +77,7 @@ export default function ProductsPage() {
   const apiError = useApiError();
   const t = useTranslations('products');
   const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const queryClient = useQueryClient();
   const { toast } = useToast();
   // Reading products is everyone's; adding and changing them is a partner's (R1c).
@@ -253,8 +254,8 @@ export default function ProductsPage() {
             value={categoryFilter}
             onChange={setCategoryFilter}
             clearable
-            placeholder={`${t('category')} (${tc('filter')})`}
-            searchPlaceholder={t('category')}
+            placeholder={tph('allCategories')}
+            searchPlaceholder={tph('searchCategories')}
             options={categoryList.map((cat) => ({ value: cat.name, label: cat.name }))}
           />
         </div>

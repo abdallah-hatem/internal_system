@@ -198,6 +198,7 @@ function TransferList({
 /** Undo a move, with a reason (§9) — the server re-checks that nothing has happened to the units. */
 function UndoTransferDialog({ transfer, onClose }: { transfer: Transfer; onClose: () => void }) {
   const t = useTranslations('transfers');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const toast = useToast();
@@ -255,6 +256,7 @@ function UndoTransferDialog({ transfer, onClose }: { transfer: Transfer; onClose
           data-testid="undo-reason"
           type="text"
           maxLength={500}
+          placeholder={tph('undoTransferReason')}
           value={reason}
           onChange={(e) => {
             setReason(e.target.value);

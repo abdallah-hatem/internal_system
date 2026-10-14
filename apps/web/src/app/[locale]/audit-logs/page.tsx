@@ -51,6 +51,7 @@ export default function AuditLogsPage() {
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const t = useTranslations('auditLogs');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
 
   const [search, setSearch] = useState('');
@@ -131,7 +132,8 @@ export default function AuditLogsPage() {
           value={entityFilter}
           onChange={setEntityFilter}
           clearable
-          placeholder={t('filter')}
+          placeholder={tph('allRecordTypes')}
+          searchPlaceholder={tph('searchTypes')}
           options={ENTITY_TYPES.map((type) => ({ value: type, label: codeLabel('entityType', type) }))}
         />
       </div>

@@ -18,6 +18,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 export default function SettingsPage() {
   const codeLabel = useCodeLabel();
   const t = useTranslations('settings');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const { user } = useAuth();
   const { toast } = useToast();
@@ -94,6 +95,7 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={profileData?.partner?.displayName ?? profileData?.displayName ?? ''}
+                  placeholder={tph('personName')}
                   readOnly
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
                 />
@@ -103,6 +105,7 @@ export default function SettingsPage() {
                 <input
                   type="email"
                   value={profileData?.email ?? ''}
+                  placeholder={tph('email')}
                   readOnly
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
                 />
@@ -112,6 +115,7 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={profileData?.role ? codeLabel('role', profileData.role) : ''}
+                  placeholder={tph('role')}
                   readOnly
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
                 />

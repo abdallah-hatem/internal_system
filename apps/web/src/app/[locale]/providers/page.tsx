@@ -33,6 +33,7 @@ interface Provider {
 export default function ProvidersPage() {
   const apiError = useApiError();
   const t = useTranslations('providers');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -345,11 +346,11 @@ export default function ProvidersPage() {
       {editingProvider && (
         <Modal title={t('edit')} onClose={() => setEditingProvider(null)}>
           <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
-            <InputField label={t('name')} name="name" defaultValue={editingProvider.name} required />
-            <InputField label={t('contactPerson')} name="contactPerson" defaultValue={editingProvider.contactPerson} />
+            <InputField label={t('name')} name="name" defaultValue={editingProvider.name} required placeholder={tph('providerName')} />
+            <InputField label={t('contactPerson')} name="contactPerson" defaultValue={editingProvider.contactPerson} placeholder={tph('contactPerson')} />
             <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingProvider.phone} />
-              <InputField label={t('email')} name="email" type="email" defaultValue={editingProvider.email} />
+              <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingProvider.phone} placeholder={tph('phone')} />
+              <InputField label={t('email')} name="email" type="email" defaultValue={editingProvider.email} placeholder={tph('email')} />
             </div>
             <TextareaField label={t('notes')} name="notes" defaultValue={editingProvider.notes} placeholder={t('notesPlaceholder')} />
             <div className="flex justify-end gap-3 pt-2">

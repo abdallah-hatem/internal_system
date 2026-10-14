@@ -30,6 +30,7 @@ import { useRefusal } from './use-refusal';
 export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useTranslations('basket');
   const tCommon = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const locale = useLocale();
   const refusal = useRefusal();
 
@@ -207,6 +208,7 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
                     onChange={(e) => setNote(e.target.value)}
                     rows={3}
                     maxLength={1000}
+                    placeholder={tph('basketNote')}
                     className="mt-1 w-full resize-none rounded-lg border border-gray-300 p-2 text-sm text-start outline-none focus:border-brand-600"
                   />
                 </label>

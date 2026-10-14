@@ -31,6 +31,7 @@ import {
  */
 export function SignUpForm() {
   const t = useTranslations('auth');
+  const tph = useTranslations('placeholders');
   const tCommon = useTranslations('common');
   const refusal = useRefusal();
 
@@ -105,6 +106,7 @@ export function SignUpForm() {
         value={shopName}
         onChange={setShopName}
         error={errors.shopName}
+        placeholder={tph('shopName')}
       />
 
       <TextField
@@ -116,6 +118,7 @@ export function SignUpForm() {
         value={email}
         onChange={setEmail}
         error={errors.email}
+        placeholder={tph('email')}
       />
 
       <TextField
@@ -126,6 +129,7 @@ export function SignUpForm() {
         autoComplete="tel"
         value={phone}
         onChange={setPhone}
+        placeholder={tph('phone')}
       />
 
       <PasswordField
@@ -134,6 +138,7 @@ export function SignUpForm() {
         value={password}
         onChange={setPassword}
         error={errors.password}
+        placeholder={tph('password')}
         hint={t('passwordHint', { count: PASSWORD_MIN })}
       />
 

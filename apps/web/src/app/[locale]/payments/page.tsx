@@ -77,6 +77,7 @@ export default function PaymentsPage() {
 function PaymentsPageContent() {
   const apiError = useApiError();
   const t = useTranslations('payments');
+  const tph = useTranslations('placeholders');
   const { formatMoney } = useNumberFormat();
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
@@ -438,8 +439,8 @@ function PaymentsPageContent() {
               <Select
                 name="saleId"
                 required
-                placeholder={t('saleOrder')}
-                searchPlaceholder={tc('search')}
+                placeholder={tph('chooseSaleOrder')}
+                searchPlaceholder={tph('searchOrders')}
                 options={orderList
                   // This payer's orders only, and only ones still owing. The
                   // list was every order in the system by number, which made
@@ -461,7 +462,7 @@ function PaymentsPageContent() {
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 {t('allocateAmount')}<span className="ms-1 text-red-500">*</span>
               </label>
-              <MoneyInput name="allocateAmount" required placeholder="0.00" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <MoneyInput name="allocateAmount" required placeholder={tph('money')} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowAllocateModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
@@ -484,7 +485,7 @@ function PaymentsPageContent() {
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedPayment.amount} currency={selectedPayment.currency} /></span>
             </p>
-            <TextareaField label={t('reverseReason')} name="reason" required minLength={3} />
+            <TextareaField label={t('reverseReason')} name="reason" required minLength={3} placeholder={tph('reverseReason')} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowReverseModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button type="submit" disabled={reverseMutation.isPending} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2">

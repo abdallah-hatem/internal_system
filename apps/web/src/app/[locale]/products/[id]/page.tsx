@@ -695,6 +695,7 @@ function PriceRow({
 }) {
   const tc = useTranslations('common');
   const tp = useTranslations('products');
+  const tph = useTranslations('placeholders');
   const apiError = useApiError();
   const { addToast } = useToast();
   const queryClient = useQueryClient();
@@ -759,7 +760,7 @@ function PriceRow({
         <MoneyInput
           value={value}
           onChange={setValue}
-          placeholder="0.00"
+          placeholder={tph('money')}
           className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         <button

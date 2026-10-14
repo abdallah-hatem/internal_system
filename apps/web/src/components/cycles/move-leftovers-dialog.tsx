@@ -64,6 +64,7 @@ export function MoveLeftoversDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('transfers');
+  const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const apiError = useApiError();
   const codeLabel = useCodeLabel();
@@ -176,7 +177,7 @@ export function MoveLeftoversDialog({
                 setRefusal(null);
               }}
               placeholder={t('pickTarget')}
-              searchPlaceholder={tc('search')}
+              searchPlaceholder={tph('searchCycles')}
               emptyText={t('noTargets')}
               options={targets.map((c) => ({
                 value: c.id,
@@ -251,6 +252,7 @@ export function MoveLeftoversDialog({
                       type="text"
                       inputMode="decimal"
                       autoComplete="off"
+                      placeholder={tph('quantitySmall')}
                       value={fieldValue(typed, prefill, p.productId)}
                       onChange={(e) => {
                         const value = e.target.value;
