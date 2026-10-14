@@ -637,7 +637,7 @@ describe('ProductsService.createCategory — the office path', () => {
     expect(db.tables.category).toHaveLength(3);
   });
 
-  it('renaming to another category\'s name in other case is refused; changing only its own case is allowed', async () => {
+  it("renaming to another category's name in other case is refused; changing only its own case is allowed", async () => {
     expect(
       await refusal(
         products.updateCategory(ids.tyres, { name: 'LIGHTING' }, partner.id),
