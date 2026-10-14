@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account; §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -917,7 +917,7 @@ Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OP
 | Allowed targets | Any cycle that is not being settled, closed or cancelled — including one still in planning or on the way. Never the giving cycle. | Its partners fund them; a cycle settling has already counted its stock. |
 | "Not yet paid out" | The giving cycle is SELLING or SETTLEMENT and has no PAID settlement. | §8. |
 | The record's "why" | Required (500 characters at most), as for every undo. The date defaults to Cairo's today and cannot be later. | Records of things that happened (rule 1). |
-| Ledger | Two `cycle_transfer` rows, no money account: an INFLOW on the giving cycle (cost recovered), an OUTFLOW on the taking cycle (cost taken on), both pointing at the transfer (`relatedType` `STOCK_TRANSFER`), so neither can be reversed on its own (§9). `cycle_transfer` is in `CAPITALISED_CATEGORIES` and in a new `NOT_CASH_CATEGORIES` (`common/ledger-categories.ts`): not income, not an expense, and not cash — the dashboard's cash in, cash out and cash on hand leave it out through `common/cash-position.ts`. It cannot be typed by hand in the ledger (`LEDGER_CATEGORY_RESERVED`). | No money moved; the goods were paid for once. |
+| Ledger | Two `cycle_transfer` rows: an INFLOW on the giving cycle (cost recovered), an OUTFLOW on the taking cycle (cost taken on), both pointing at the transfer (`relatedType` `STOCK_TRANSFER`), so neither can be reversed on its own (§9). `cycle_transfer` is in `CAPITALISED_CATEGORIES` and in a new `NOT_CASH_CATEGORIES` (`common/ledger-categories.ts`): not income, not an expense, and not cash — the dashboard's cash in, cash out and cash on hand leave it out through `common/cash-position.ts`. It cannot be typed by hand in the ledger (`LEDGER_CATEGORY_RESERVED`). | No money moved; the goods were paid for once. |
 | The taking cycle's cost to fund | `CostingService.fundingFor`: landed cost + stock moved in (transfers that stand) − what friends paid. "Split equally" uses it. The giving cycle's cost to fund is unchanged: its partners did fund those goods and get that capital back at settlement. | §8: "its cost to fund rises by the same amount". |
 | Analytics' cycle "investment" | Nets transfers, signed: lower on the giving cycle, higher on the taking one. Profit is not touched on either side. | So the two cycles' figures agree with each other. |
 | Paying out after a move | Paying a settlement reads what the cycle holds **now**, not the figures from when it was calculated, so leftovers moved after approval leave nothing to write off. A move and its undo also refresh the unsold figures on either cycle's open (draft or approved) settlement; profit and payouts do not change. | Otherwise the "still holds N units" refusal would describe stock that has left. |
@@ -1005,7 +1005,7 @@ it.
 **Guess 2026-10-11 (L5, open until confirmed) — a transfer of leftovers between
 cycles is a ledger pair, not money.** Moving leftover stock to another cycle at
 its cost (§8) writes a `cycle_transfer` INFLOW on the giving cycle and the same
-OUTFLOW on the taking one, with no money account. They net to zero across the
+OUTFLOW on the taking one. They net to zero across the
 business and are left out of cash in, cash out and cash on hand
 (`NOT_CASH_CATEGORIES`, `common/cash-position.ts`), and out of every expense and
 profit figure (`CAPITALISED_CATEGORIES`). Undoing the move writes the mirror pair.
@@ -1056,7 +1056,7 @@ profit or a settlement. Now "Record money in or out":
   `LEDGER_TYPE_NOT_MANUAL`), an amount of zero or less, a foreign currency
   without a rate above zero, pounds at a rate other than 1, a day that is not a
   real calendar day or has not arrived in Cairo, and any field a flow sets
-  (`relatedType`, `accountId`, `reversalOfId` — refused as unknown fields).
+  (`relatedType`, `reversalOfId` — refused as unknown fields).
 - **Charge to a cycle** is optional; **extra freight requires one** — a late
   freight charge is a cost of that cycle's goods (§2). The cycle must exist (a
   404, never a 500, for an unknown id or a cycle code typed in its place) and
@@ -1121,6 +1121,20 @@ Guesses made while building it (2026-10-11, open until confirmed):
   `occurred_on`.
 
 ---
+
+**Money accounts — removed 2026-10-14 (DECIDED by the owner: "we don't need
+money accounts").** The ledger records what moved, how much, when and for which
+cycle — never which box or bank it moved through. The `money_accounts` and
+`reconciliation_entries` tables, and the account link on ledger rows and on a
+friend's repayments, were dropped (migration
+`20261014120000_drop_money_accounts`). Production's two accounts (Business Bank
+Account, Home Storage Room Cash) had already been deleted and nothing pointed at
+them; the migration refuses to run, changing nothing, if a ledger row, a
+repayment or a reconciliation entry still names one. `GET /ledger/accounts` is
+gone (a 404), the ledger shows no Account column or line, and a body that names
+an account — a repayment's included — is refused as an unknown field
+(`VALIDATION_FAILED`). No seed creates one. Spec 34 TC-INV-38, 99-ledger-entry
+TC-L6-08.
 
 ## 10. Notifications
 
@@ -1293,7 +1307,7 @@ mistakes it for an agreement.
 |---|---|
 | How partners split a temporary investor's fee | Recorded against a named recipient participant; the split itself is manual. BRD §19 assumes equal but does not lock it. |
 | Whether leftover stock can move from a closed cycle to general inventory | It cannot. Batches stay owned by their source cycle. |
-| Payment account and reconciliation workflow | One cash account, no reconciliation. `MoneyAccount` exists for more later. |
+| ~~Payment account and reconciliation workflow~~ | **DECIDED 2026-10-14 by the owner: none** — "we don't need money accounts". The accounts and the unused reconciliation table were removed (§9, "Money accounts — removed"). Kept here so the question is not raised again as open. |
 | Late penalties or interest on overdue balances | None. Overdue flags and notifies only. |
 | Whether a shop can pay a deposit before an order exists | It cannot — a payment above what is owed is refused. If prepayment is real here, it needs its own concept rather than a loosened rule. |
 | A cycle's "investment" on Analytics after running costs | Analytics sums a cycle's money out as its investment, and that has always included the settlement payout rows. Since L7 a payout row is the cash handed over, net of the partners' running costs, so a paid cycle's investment reads lower by their share. Raised 2026-10-12 (L7); whether payouts belong in "investment" at all is the question. |
@@ -1631,7 +1645,7 @@ admits only core partners). Four tools:
 - `record_lender_repayment` — "paid Mahmoud 50,000 pounds today", or "pay him off" (the
   service's own settling figure at the rate used). The preview shows the rate and where it
   came from, what it clears in his currency, what is still owed before and after, and the
-  exchange difference. It asks no money account (§18, DECIDED 2026-10-11).
+  exchange difference. It asks no money account (§18, DECIDED 2026-10-11; accounts removed altogether 2026-10-14, §9).
 What the preview showed binds (`PREVIEW_CHANGED`): another friend's payment on the order, or
 another repayment to him, between the preview and the yes. It does not remove a friend's
 payment, reverse a repayment, or agree or cancel a plan — those stay in the office app.
@@ -1640,7 +1654,8 @@ Guesses made while building it, open until confirmed (2026-10-11):
   prefills — and the preview says so; a currency with no rate there is asked, never guessed.
 - ~~The money account: the one the partner names; with several and none named, the assistant
   asks~~ — superseded 2026-10-11: no account is asked (§18, DECIDED by the owner). The tool
-  has no account parameter, and the confirmation binds no account.
+  has no account parameter, and the confirmation binds no account. Since 2026-10-14 there are no
+  money accounts at all (§9), and `get_lender` shows none on a repayment.
 - A friend owed on more than one order is asked which order the repayment is for; it is never
   split across orders.
 - A currency the partner states must be the order's; another is refused
@@ -1763,8 +1778,8 @@ confirms it.**
 | A repayment so small it clears 0.00 | Refused. | A payment that changes nothing is a slip. |
 | The exchange difference, exactly | Each repayment's pounds − what it cleared at the order's rate (to the piastre); the last one takes whatever keeps the total at the order's rate equal to what he paid at that rate. Over a repaid debt: pounds paid − his amount at the order's rate. | §2's residual habit. |
 | Where it is kept | On each repayment, not as a ledger row — the ledger shows the pounds leaving; settlement, cycle profit and the dashboard read the difference from the repayments through one function. | A loss is handled the same way (§9). |
-| Ledger | When he pays: money *in* (`lender_financing`) at the order's rate, no account — the goods are booked out at receipt as always, and this says whose money paid. Each repayment: money *out* (`lender_repayment`) for the pounds, with no account (below). Both are financing: not income, not an expense. | Keeps cash on hand true: we did not pay the supplier. |
-| Which account | **DECIDED 2026-10-11 by the owner: none is asked.** He said the step does not matter, and the code agrees: customer payments, purchases and the other money flows record no account (`financial_transactions.account_id` stays null for them), so a repayment was the only flow that asked. The office's Record repayment has no "From account" field and the lender page no account column; the assistant's `record_lender_repayment` asks none. A repayment and its ledger row store none. Rows already stored with one keep it (the production test data with Business Bank Account among them). The API still accepts an account a caller names, and then still refuses one that is not an active EGP account (`ACCOUNT_NOT_USABLE`). | The owner's rule; one flow behaving like the others. |
+| Ledger | When he pays: money *in* (`lender_financing`) at the order's rate — the goods are booked out at receipt as always, and this says whose money paid. Each repayment: money *out* (`lender_repayment`) for the pounds ("Which account" below). Both are financing: not income, not an expense. | Keeps cash on hand true: we did not pay the supplier. |
+| Which account | **DECIDED 2026-10-11 by the owner: none is asked; 2026-10-14: money accounts removed altogether.** On 2026-10-11 he said the step does not matter — customer payments, purchases and the other money flows never recorded an account, so a repayment was the only flow that asked. On 2026-10-14: "we don't need money accounts". There is no account to name: the office's Record repayment has no "From account" field, the lender page no account column, the assistant's `record_lender_repayment` no account parameter and `get_lender` no account on a repayment. A repayment body that names one is refused as an unknown field (`VALIDATION_FAILED`; the old `ACCOUNT_NOT_USABLE` refusal is gone with it). The stored links were dropped with the accounts (§9, "Money accounts — removed"). | The owner's rule; one flow behaving like the others. |
 | One friend, one order | A friend's payment for an order is recorded once; to change it, remove it (only while nothing is repaid) and record it again. Two friends may share one order, never above its total. | Doubles are the second-time bug. |
 | Which cycles | Not on a cycle in settlement, closed or cancelled. Cancelling a cycle whose order a friend paid for is refused until his payment is removed. An order with no lines (a draft from before PO_NEEDS_ITEM) takes no friend's payment. No guard stops a purchase line being cut below what friends paid — none is needed today, because a line cannot be edited once added; check-data 19.1 watches for it. | A cancelled cycle "never ordered anything" (§15). |
 | Dates | His payment and each repayment cannot be in the future; a repayment cannot be dated before he paid. A date left out is today in Cairo, as a payment's is (§7a). | Records of things that happened. |
@@ -1775,5 +1790,5 @@ confirms it.**
 | "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
 | "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
 | A cycle a friend paid for entirely | **DECIDED 2026-10-11 by the owner, built in L2:** its profit is split equally among the cycle's core partners; a temporary investor on it gets nothing; a custom split still overrides. "Entirely" means every contribution is zero and the friends' payments leave nothing to fund (`toFundEgp` zero). A cycle a friend paid for only partly, with no contributions, still refuses (§8). | The owner's rule. Partly paid still refuses: rounding must not pick who gets the money. |
-| Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; no money account is asked (DECIDED 2026-10-11, "Which account" above); a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
+| Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; no money account is asked (DECIDED 2026-10-11; accounts removed 2026-10-14, "Which account" above); a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
 | Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |

@@ -142,7 +142,7 @@ had left behind, which no test would ever have noticed.
 
 | Level | Contains |
 |---|---|
-| `db:reset:minimal` | partner logins, money accounts, FX rates |
+| `db:reset:minimal` | partner logins, FX rates (money accounts were removed by the owner 2026-10-14) |
 | `db:reset` (default) | the above plus two each of category, supplier, shipping provider, product and customer |
 | `db:reset:demo` | the full worked example with cycles, sales and settlements |
 

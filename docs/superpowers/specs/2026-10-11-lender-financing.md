@@ -1,5 +1,9 @@
 # Spec — a purchase paid by a friend, repaid in pounds (L1)
 
+> Superseded in part: money accounts were removed by the owner on 2026-10-14 (BUSINESS_LOGIC §9,
+> "Money accounts — removed"). The repayment's account, `GET /ledger/accounts` and
+> `ACCOUNT_NOT_USABLE` below are history, not the current system.
+
 BUSINESS_LOGIC §18 is the rule; this is how it is built. Every choice §18 does not
 already state is recorded in §18 as a guess (OPEN until the owner confirms).
 
