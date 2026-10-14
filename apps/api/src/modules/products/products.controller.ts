@@ -118,7 +118,7 @@ export class CategoriesController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Create a category (CORE_PARTNER only)' })
-  createCategory(@Body() body: { name: string; parentId?: string }, @CurrentUser() user: any) {
+  createCategory(@Body() body: { name: string; nameAr?: string | null; parentId?: string }, @CurrentUser() user: any) {
     return this.productsService.createCategory(body, user.id);
   }
 
@@ -126,7 +126,7 @@ export class CategoriesController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Update a category (CORE_PARTNER only)' })
-  updateCategory(@Param('id') id: string, @Body() body: { name?: string; parentId?: string | null }, @CurrentUser() user: any) {
+  updateCategory(@Param('id') id: string, @Body() body: { name?: string; nameAr?: string | null; parentId?: string | null }, @CurrentUser() user: any) {
     return this.productsService.updateCategory(id, body, user.id);
   }
 

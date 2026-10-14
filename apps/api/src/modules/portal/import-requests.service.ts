@@ -105,7 +105,7 @@ export class ImportRequestsService {
       orderBy: { createdAt: 'desc' },
       include: {
         photos: { where: { variant: 'CARD' }, select: { id: true, objectKey: true } },
-        product: { select: { id: true, sku: true, name: true } },
+        product: { select: { id: true, sku: true, name: true, nameAr: true } },
       },
     });
     return { data: rows.map((r) => this.present(r)) };
@@ -170,7 +170,7 @@ export class ImportRequestsService {
       include: {
         customer: { select: { id: true, displayName: true, verificationStatus: true } },
         photos: { where: { variant: 'CARD' }, select: { id: true, objectKey: true } },
-        product: { select: { id: true, sku: true, name: true } },
+        product: { select: { id: true, sku: true, name: true, nameAr: true } },
       },
     });
 
@@ -257,7 +257,7 @@ export class ImportRequestsService {
       where: { id, customerId },
       include: {
         photos: { where: { variant: 'CARD' }, select: { id: true, objectKey: true } },
-        product: { select: { id: true, sku: true, name: true } },
+        product: { select: { id: true, sku: true, name: true, nameAr: true } },
       },
     });
     if (!row) throw notFound('productRequest');

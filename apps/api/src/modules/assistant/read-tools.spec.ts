@@ -838,6 +838,33 @@ describe('find_products', () => {
     expect(pad.stock).toEqual({ total: 8, reserved: 1, available: 7 });
   });
 
+  it('find_products matches the Arabic name and returns both names (§3, 2026-10-14)', async () => {
+    const d = db();
+    Object.assign(d.products[0], {
+      nameAr: 'تيل فرامل أمامي',
+      category: { name: 'Brakes', nameAr: 'فرامل' },
+    });
+    const { assistant } = harness(d);
+
+    const found = dataOf<
+      Array<{ sku: string; name: string; nameAr: string | null; categoryAr: string | null }>
+    >(await call(assistant, 'find_products', { search: 'تيل' }));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      sku: 'PRD-000012',
+      name: 'Brake Pad Front',
+      nameAr: 'تيل فرامل أمامي',
+      categoryAr: 'فرامل',
+    });
+
+    // A product with no Arabic name says so with null, not with a guess.
+    const [chain] = dataOf<Array<{ nameAr: string | null; categoryAr: string | null }>>(
+      await call(assistant, 'find_products', { search: 'chain' }),
+    );
+    expect(chain.nameAr).toBeNull();
+    expect(chain.categoryAr).toBeNull();
+  });
+
   it('find_products with an empty or blank search → the first page, unfiltered', async () => {
     const { assistant, prisma } = harness(db());
 

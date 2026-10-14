@@ -703,6 +703,46 @@ describe('record_sale — matching (the shared matcher)', () => {
     expect(db.counts()).toEqual(before);
   });
 
+  it('a product named by its Arabic name is matched, and the preview gives both names (§3, 2026-10-14)', async () => {
+    db.tables.product.find((p) => p.id === ids.pad)!.nameAr = 'تيل فرامل هوندا';
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'تيل فرامل هوندا', qty: 2, unitPrice: 300 }],
+    });
+
+    expect(r.s.status).toBe('preview');
+    expect(r.s.data?.lines).toEqual([
+      expect.objectContaining({
+        productId: ids.pad,
+        product: 'Honda CBR Brake Pad',
+        productAr: 'تيل فرامل هوندا',
+      }),
+    ]);
+  });
+
+  it('part of an Arabic name is asked about, with both names in the choice — never taken', async () => {
+    db.tables.product.find((p) => p.id === ids.pad)!.nameAr = 'تيل فرامل هوندا';
+    const before = db.counts();
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'تيل فرامل هوندا أمامي', qty: 2, unitPrice: 300 }],
+    });
+
+    expect(r.s.status).toBe('needs_answers');
+    expect(r.s.data?.questions).toEqual([
+      expect.objectContaining({
+        id: 'LINE_WHICH:1',
+        options: [
+          expect.objectContaining({
+            value: ids.pad,
+            label: 'Honda CBR Brake Pad / تيل فرامل هوندا (HCB-BP)',
+          }),
+        ],
+      }),
+    ]);
+    expect(db.counts()).toEqual(before);
+  });
+
   it('a product by id, and a customer by id, are matched', async () => {
     const r = await call({
       customer: ids.shop,

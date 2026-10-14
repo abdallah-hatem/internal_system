@@ -59,6 +59,8 @@ export interface PositionLineInput {
   orderedQty: Qty;
   productId?: string;
   productName?: string;
+  /** The Arabic name, when there is one (§3, 2026-10-14). */
+  productNameAr?: string | null;
 }
 
 export interface PositionLegInput {
@@ -168,6 +170,7 @@ export interface LinePosition {
   purchaseOrderItemId: string;
   productId?: string;
   productName?: string;
+  productNameAr?: string | null;
   ordered: number;
   received: number;
   /** Every loss on every leg. */
@@ -439,6 +442,9 @@ export function shipmentPosition(
       ...(line.productId !== undefined ? { productId: line.productId } : {}),
       ...(line.productName !== undefined
         ? { productName: line.productName }
+        : {}),
+      ...(line.productNameAr !== undefined
+        ? { productNameAr: line.productNameAr }
         : {}),
       ordered: out(ordered),
       received: out(received),

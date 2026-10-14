@@ -29,7 +29,7 @@ export async function loadReceiptSnapshot(db: Db): Promise<ReceiptSnapshot> {
       // product is not matched (§3, 2026-10-14).
       db.product.findMany({
         where: { ...OFFERED },
-        select: { id: true, name: true, sku: true },
+        select: { id: true, name: true, nameAr: true, sku: true },
         orderBy: { name: 'asc' },
       }),
       db.importCycle.findMany({

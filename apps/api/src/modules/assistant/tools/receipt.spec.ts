@@ -1061,6 +1061,63 @@ describe('create_product', () => {
     expect(generated.s.data).toMatchObject({ sku: 'PRD-000008' });
   });
 
+  it('an Arabic name and description the partner gave are stored as given (§16, 2026-10-14)', async () => {
+    const r = await confirmed('create_product', {
+      name: 'Brake pads, rear',
+      nameAr: '  تيل فرامل خلفي ',
+      descriptionAr: 'تيل خلفي لموتوسيكلات ١٥٠ سي سي',
+    });
+
+    expect(r.s.error).toBeUndefined();
+    expect(r.s.data).toMatchObject({ nameAr: 'تيل فرامل خلفي' });
+    const stored = db.tables.product.find((p) => p.name === 'Brake pads, rear')!;
+    expect(stored.nameAr).toBe('تيل فرامل خلفي');
+    expect(stored.descriptionAr).toBe('تيل خلفي لموتوسيكلات ١٥٠ سي سي');
+  });
+
+  it('no Arabic given → none stored; the assistant never fills one in', async () => {
+    const r = await confirmed('create_product', { name: 'Throttle cable' });
+
+    expect(r.s.data).toMatchObject({ nameAr: null, descriptionAr: null });
+    const stored = db.tables.product.find((p) => p.name === 'Throttle cable')!;
+    expect(stored.nameAr ?? null).toBeNull();
+    expect(stored.descriptionAr ?? null).toBeNull();
+  });
+
+  it('the tool tells the model not to translate', async () => {
+    const { tools } = await client.listTools();
+    const create = tools.find((t) => t.name === 'create_product')!;
+    const nameAr = (create.inputSchema.properties as Record<string, { description?: string }>)
+      .nameAr;
+    expect(create.description).toMatch(/never a translation/i);
+    expect(nameAr.description).toMatch(/never translate/i);
+  });
+
+  it('an Arabic name past 200 characters → refused before any preview', async () => {
+    const r = await call('create_product', { name: 'Pad', nameAr: 'ب'.repeat(201) });
+    expect(r.s.status).not.toBe('preview');
+    expect(db.tables.product.find((p) => p.name === 'Pad')).toBeUndefined();
+  });
+
+  it('a new product inside create_purchase_order keeps an explicit Arabic name too', async () => {
+    const r = await confirmed(
+      'create_purchase_order',
+      order({
+        lines: [
+          {
+            product: { new: { name: 'Clutch cable', nameAr: 'سلك دبرياج' } },
+            quantity: 3,
+            unitPrice: 4,
+          },
+        ],
+      }),
+    );
+    expect(r.s.error).toBeUndefined();
+    expect(db.tables.product.find((p) => p.name === 'Clutch cable')!.nameAr).toBe(
+      'سلك دبرياج',
+    );
+  });
+
   it('a category id that is no category → NOT_FOUND, not a 500', async () => {
     const r = await call('create_product', {
       name: 'Pad',

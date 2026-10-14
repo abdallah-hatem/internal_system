@@ -179,13 +179,13 @@ export function registerReadTools(
     {
       title: 'Find products',
       description:
-        'Search products by name or SKU (case-insensitive, part of either is enough — "prd-00" finds PRD-000012). Returns id, SKU, name, status, category, the current B2B and B2C selling prices (null when none is set), and stock: total on hand, reserved, and available to sell. Use it to answer "do we have X", "what does X sell for", or to find a product id.',
+        'Search products by English name, Arabic name or SKU (case-insensitive, part of any is enough — "prd-00" finds PRD-000012, "تيل" finds a product whose Arabic name has it). Returns id, SKU, name and nameAr (the Arabic name, null when none was entered — never translate one yourself), status, category and categoryAr, the current B2B and B2C selling prices (null when none is set), and stock: total on hand, reserved, and available to sell. Use it to answer "do we have X", "what does X sell for", or to find a product id.',
       inputSchema: {
         search: z
           .string()
           .optional()
           .describe(
-            'Part of the product name or SKU. Leave out to list the newest products.',
+            'Part of the product name (English or Arabic) or SKU. Leave out to list the newest products.',
           ),
         limit: limitField,
       },
@@ -204,8 +204,10 @@ export function registerReadTools(
             id: p.id,
             sku: p.sku,
             name: p.name,
+            nameAr: p.nameAr ?? null,
             status: p.status,
             category: p.category?.name ?? null,
+            categoryAr: p.category?.nameAr ?? null,
             prices: {
               B2B: dec(priceOn(p.prices, 'B2B')),
               B2C: dec(priceOn(p.prices, 'B2C')),

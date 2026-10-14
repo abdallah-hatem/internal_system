@@ -516,6 +516,7 @@ function matchProduct(
   const candidate = (r: Ranked<SnapshotProduct>): ProductCandidate => ({
     id: r.item.id,
     name: r.item.name,
+    nameAr: r.item.nameAr ?? null,
     sku: r.item.sku,
     via:
       r.via === 'sku'

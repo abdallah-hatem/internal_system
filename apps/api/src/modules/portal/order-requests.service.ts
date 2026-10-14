@@ -228,7 +228,7 @@ export class OrderRequestsService {
       where: { customerId },
       orderBy: { createdAt: 'desc' },
       include: {
-        items: { include: { product: { select: { name: true, sku: true } } } },
+        items: { include: { product: { select: { name: true, nameAr: true, sku: true } } } },
         saleOrder: { select: { id: true, orderNo: true, total: true, status: true } },
       },
     });
@@ -251,7 +251,7 @@ export class OrderRequestsService {
     const row = await db.orderRequest.findFirst({
       where: { id, customerId },
       include: {
-        items: { include: { product: { select: { name: true, sku: true } } } },
+        items: { include: { product: { select: { name: true, nameAr: true, sku: true } } } },
         saleOrder: { select: { id: true, orderNo: true, total: true, status: true } },
       },
     });
@@ -280,6 +280,7 @@ export class OrderRequestsService {
       items: r.items.map((i: any) => ({
         productId: i.productId,
         name: i.product.name,
+        nameAr: i.product.nameAr ?? null,
         sku: i.product.sku,
         qtyRequested: i.qtyRequested.toString(),
         qtyApproved: i.qtyApproved?.toString() ?? null,

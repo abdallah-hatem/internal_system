@@ -6,6 +6,7 @@ import { notFound } from '../../common/api-error';
 import { availableByProduct, stockBand } from '../../common/available-stock';
 import { SELLABLE } from '../../common/product-status';
 import { channelFor, priceOn, type PriceChannel } from './portal-pricing';
+import { bilingualProductSearch } from '../../common/arabic-names';
 
 /**
  * What a shop can see of the catalogue.
@@ -20,8 +21,11 @@ export interface CatalogueItem {
   id: string;
   sku: string;
   name: string;
+  /** Shown instead of `name` to an Arabic reader when present (§3, 2026-10-14). */
+  nameAr: string | null;
   description: string | null;
-  category: { id: string; name: string } | null;
+  descriptionAr: string | null;
+  category: { id: string; name: string; nameAr: string | null } | null;
   price: string | null;
   currency: 'EGP';
   channel: PriceChannel;
@@ -60,9 +64,9 @@ export class PortalCatalogueService {
       ...(params.categoryId ? { categoryId: params.categoryId } : {}),
       ...(params.search
         ? {
+            // Either language, the SKU, and the barcode (§3, 2026-10-14).
             OR: [
-              { name: { contains: params.search, mode: 'insensitive' } },
-              { sku: { contains: params.search, mode: 'insensitive' } },
+              ...bilingualProductSearch(params.search),
               { barcode: { contains: params.search, mode: 'insensitive' } },
             ],
           }
@@ -77,7 +81,7 @@ export class PortalCatalogueService {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          category: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true, nameAr: true } },
           prices: { select: { channel: true, amount: true, effectiveTo: true } },
           fileAssets: {
             where: { variant: 'CARD' },
@@ -99,7 +103,9 @@ export class PortalCatalogueService {
       id: p.id,
       sku: p.sku,
       name: p.name,
+      nameAr: p.nameAr,
       description: p.description,
+      descriptionAr: p.descriptionAr,
       category: p.category,
       price: priceOn(p.prices, channel)?.toFixed(2) ?? null,
       currency: 'EGP',
@@ -130,7 +136,7 @@ export class PortalCatalogueService {
     const product = await this.prisma.product.findUnique({
       where: { sku },
       include: {
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, nameAr: true } },
         prices: { select: { channel: true, amount: true, effectiveTo: true } },
         compatibilities: { include: { motorcycleModel: true } },
         fileAssets: {
@@ -164,7 +170,9 @@ export class PortalCatalogueService {
         id: product.id,
         sku: product.sku,
         name: product.name,
+        nameAr: product.nameAr,
         description: product.description,
+        descriptionAr: product.descriptionAr,
         category: product.category,
         price: priceOn(product.prices, channel)?.toFixed(2) ?? null,
         currency: 'EGP',
@@ -183,7 +191,7 @@ export class PortalCatalogueService {
   async categories() {
     const rows = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, parentId: true },
+      select: { id: true, name: true, nameAr: true, parentId: true },
     });
     return { data: rows };
   }
