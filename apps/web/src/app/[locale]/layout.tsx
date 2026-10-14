@@ -60,6 +60,10 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // Said outright so Safari stops guessing the status-bar colour from the top
+  // of the page: it read the More drawer's dark overlay and kept the strip dark
+  // after the drawer closed (owner, 2026-10-14). White matches the top bar.
+  themeColor: '#ffffff',
 };
 
 export function generateStaticParams() {
