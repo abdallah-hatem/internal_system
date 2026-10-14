@@ -50,19 +50,23 @@ test.describe('Arabic search — the storefront', () => {
   test('TC-SARS-01: the catalogue search finds "خوذة هوندى أصلية" typed as "خوذه هوندي اصليه"; a different word shows no card', async ({ page, request }) => {
     const { tag, product } = await helmet(request);
 
+    // The count first: the unfiltered first page may already hold the card,
+    // and only a search that has run shows it alone. The search is debounced,
+    // so each step waits for a result the previous step could not show.
+    const results = page.locator('[data-sku]');
     await page.goto('/ar');
     await searchBox(page).fill(`خوذه هوندي اصليه ${tag}`);
-    await expect(card(page, product.sku)).toBeVisible();
-    await expect(page.locator('[data-sku]')).toHaveCount(1);
-
-    // Marks and the tatweel typed by the shop are ignored as well.
-    await searchBox(page).fill(`خُوذَة هـونـدى ${tag}`);
+    await expect(results).toHaveCount(1);
     await expect(card(page, product.sku)).toBeVisible();
 
     // Spelling, not guessing: ح is not ه.
     await searchBox(page).fill(`خوذه حوندي ${tag}`);
-    await expect(card(page, product.sku)).toHaveCount(0);
-    await expect(page.locator('[data-sku]')).toHaveCount(0);
+    await expect(results).toHaveCount(0);
+
+    // Marks and the tatweel typed by the shop are ignored as well.
+    await searchBox(page).fill(`خُوذَة هـونـدى أَصْلـية ${tag}`);
+    await expect(results).toHaveCount(1);
+    await expect(card(page, product.sku)).toBeVisible();
   });
 
   test('TC-SARS-02: the category filter finds "خُوذ" typed without its damma; a different letter does not', async ({ page, request }) => {
