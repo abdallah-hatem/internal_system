@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: idle 2026-10-14 — all live: product deactivate (`c0e19e7`; owner: an inactive product sells what's left, can't be bought), logout, money accounts removed, white search fields, ChatGPT may connect. Docker quit.
+Current stage: idle 2026-10-15 — all live: Arabic names for categories and products (`c4b5222`, migration `20261014150000_arabic_names` applied to production), drawer overlay below the header so iPhone Safari's status bar stays light (`7bddd3f`, owner confirmed), password change fixed (`284b977`), S&F logo on the PWA, sidebar and login (`57cf287`, `985bc05`, `841d014`), every field has an example placeholder (`3b5a792`), production logins replaced by the owner's own script. Docker quit.
 
 ## Waiting on the user
 _(none)_
