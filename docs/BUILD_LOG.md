@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: idle 2026-10-12 — production wiped again at the owner's request (2:30 PM): kept the three core-partner logins, partner rows, assistant connection, money accounts, FX rates; backups deleted at the owner's request (back up production only when he asks); smoke ok. Worktrees cleaned (47 removed). All dev stopped, Docker quit.
+Current stage: 2026-10-14 — production reset by the owner with scripts/prod-reset-partners.sh: all data gone, logins replaced by abdallah@ / shady@ / fares@ (core partners); settings kept. ChatGPT may connect (§16). In flight: product deactivate, logout (both in isolated agent environments).
 
 ## Waiting on the user
 _(none)_
