@@ -1,7 +1,20 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { localDescription, localName, matchesName, otherName } from './localized-name';
+import {
+  arabicSearchKey,
+  localDescription,
+  localName,
+  matchesName,
+  otherName,
+  searchFinds,
+} from './localized-name';
 // The server's own file — the rule this copy must agree with.
-import { displayDescription, displayName } from '../../../api/src/common/arabic-names';
+import {
+  arabicSearchKey as apiArabicSearchKey,
+  displayDescription,
+  displayName,
+} from '../../../api/src/common/arabic-names';
 
 /**
  * Which name a reader sees (BUSINESS_LOGIC §3, owner 2026-10-14), kept in two
@@ -83,5 +96,62 @@ describe('matchesName — a search in either language, and the SKU', () => {
   });
   it('surrounding space in the search is ignored', () => {
     expect(matchesName(pads, '  تيل ')).toBe(true);
+  });
+});
+
+/**
+ * Arabic search forgives spelling (§3, owner 2026-10-15). This copy runs over
+ * the API's own case table and against the API's own function, so the two
+ * cannot drift: change the rule there and this fails until it is changed here.
+ */
+describe('arabicSearchKey — the office copy of the search rule', () => {
+  const cases = JSON.parse(
+    readFileSync(resolve(__dirname, '../../../api/src/common/arabic-search-cases.json'), 'utf8'),
+  ) as { keys: [string, string][]; same: [string, string][]; different: [string, string][] };
+
+  it.each(cases.keys)('%j → %j', (text, key) => {
+    expect(arabicSearchKey(text)).toBe(key);
+  });
+  it.each(cases.keys)('agrees with the API on %j', (text) => {
+    expect(arabicSearchKey(text)).toBe(apiArabicSearchKey(text));
+  });
+  it.each(cases.same)('%s finds %s, both ways', (a, b) => {
+    expect(searchFinds(a, b)).toBe(true);
+    expect(searchFinds(b, a)).toBe(true);
+  });
+  it.each(cases.different)('%s does NOT find %s', (a, b) => {
+    expect(arabicSearchKey(a)).not.toBe(arabicSearchKey(b));
+  });
+  it('nothing → empty', () => {
+    expect(arabicSearchKey(null)).toBe('');
+    expect(arabicSearchKey(undefined)).toBe('');
+  });
+});
+
+describe('matchesName — Arabic spelled another way still finds the record (2026-10-15)', () => {
+  const helmet = { name: 'Helmet', nameAr: 'خوذة هوندى', sku: 'PRD-000020' };
+  const tyre = { name: 'Tyre', nameAr: 'إطار أمامي', sku: 'PRD-000021' };
+  const pads = { name: 'Brake pads', nameAr: 'تَيْل فـرامل', sku: 'PRD-000022' };
+
+  it.each([
+    [helmet, 'خوذه'],
+    [helmet, 'هوندي'],
+    [tyre, 'اطار'],
+    [tyre, 'امامى'],
+    [pads, 'تيل'],
+    [pads, 'فرامل'],
+  ])('%o is found by "%s"', (record, search) => {
+    expect(matchesName(record, search)).toBe(true);
+  });
+
+  it('a different word is not: ه is not ح, ة is not ت', () => {
+    expect(matchesName(helmet, 'حوندي')).toBe(false);
+    expect(matchesName(helmet, 'خوذت')).toBe(false);
+    expect(matchesName(tyre, 'زيت')).toBe(false);
+  });
+
+  it('English is as before — case ignored, accents not', () => {
+    expect(matchesName(helmet, 'HELMET')).toBe(true);
+    expect(matchesName(helmet, 'hélmet')).toBe(false);
   });
 });
