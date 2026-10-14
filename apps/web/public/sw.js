@@ -18,11 +18,11 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: 'MotoParts Manager', body: event.data.text() };
+    payload = { title: 'S&F System', body: event.data.text() };
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? 'MotoParts Manager', {
+    self.registration.showNotification(payload.title ?? 'S&F System', {
       body: payload.body ?? '',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge.png',

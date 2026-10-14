@@ -36,7 +36,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'MotoParts Manager',
+  title: 'S&F System',
   description: 'Motorcycle Parts & Accessories Business Management System',
   // Named explicitly rather than left to the app/favicon.ico convention: that
   // file was the Next.js scaffold's, so every tab and bookmark carried the
