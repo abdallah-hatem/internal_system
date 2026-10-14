@@ -415,7 +415,7 @@ function SalesPageContent() {
           data-testid="sales-export"
           onClick={exportCsv}
           disabled={filtered.length === 0}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
+          className="bg-background inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
         >
           <Download className="h-4 w-4" />
           {tc('export')}
@@ -792,7 +792,7 @@ function SalesPageContent() {
                 <Link
                   href={`/${locale}/sales/${detail.id}/invoice`}
                   data-testid="order-invoice"
-                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-muted"
+                  className="bg-background inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-muted"
                 >
                   <FileText className="h-4 w-4" />
                   {t('invoice.open')}

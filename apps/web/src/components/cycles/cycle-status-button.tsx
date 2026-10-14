@@ -188,7 +188,7 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
         type="button"
         data-testid="change-status"
         onClick={openStatus}
-        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted touch-manipulation"
+        className="bg-background inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted touch-manipulation"
       >
         <ArrowRightLeft className="h-4 w-4" aria-hidden="true" /> {t('transition')}
       </button>

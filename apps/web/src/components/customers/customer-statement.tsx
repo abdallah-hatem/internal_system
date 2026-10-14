@@ -182,7 +182,7 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
             data-testid="statement-export"
             onClick={exportCsv}
             disabled={!data}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
+            className="bg-background inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
           >
             <Download className="h-4 w-4" />
             {tc('export')}

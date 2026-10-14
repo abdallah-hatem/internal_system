@@ -1632,7 +1632,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     type="button"
                     onClick={splitEqually}
                     disabled={toFund <= 0}
-                    className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="bg-background shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     {t('splitEqually')}
                   </button>

@@ -222,7 +222,7 @@ function PaymentsPageContent() {
             data-testid="payments-export"
             onClick={exportCsv}
             disabled={filtered.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+            className="bg-background inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
             {tc('export')}
