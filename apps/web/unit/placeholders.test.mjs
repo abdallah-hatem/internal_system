@@ -36,11 +36,6 @@ const ROOT = process.env.PH_SCAN_ROOT ?? join(HERE, '../src');
  * branch that is reworking that form and sets their placeholders itself.
  * Remove these entries when that branch merges.
  */
-const PENDING_ELSEWHERE = new Set([
-  'app/[locale]/settings/page.tsx#currentPassword',
-  'app/[locale]/settings/page.tsx#newPassword',
-  'app/[locale]/settings/page.tsx#confirmPassword',
-]);
 
 const FIELD = /<(input|textarea|MoneyInput|Select|InputField|TextareaField|CommandInput)\b/g;
 const EXEMPT_TYPES = new Set(['hidden', 'checkbox', 'radio', 'file']);
@@ -113,7 +108,6 @@ test('every field a person types into or picks from has a placeholder', () => {
       if (exempt(f)) continue;
       scanned += 1;
       if (/\bplaceholder=/.test(f.tag)) continue;
-      if (f.name && PENDING_ELSEWHERE.has(`${rel}#${f.name}`)) continue;
       missing.push(`${rel}:${f.line} <${f.kind}${f.name ? ` name="${f.name}"` : ''}>`);
     }
   }

@@ -54,8 +54,8 @@ async function freshAccount(request: APIRequestContext) {
  * hydrates is thrown away (56-production). Fill, and check it stuck.
  */
 async function typeLogin(page: Page, email: string, password: string) {
-  const emailBox = page.getByPlaceholder('partner.a@motoparts.com');
-  const passwordBox = page.getByPlaceholder('••••••••');
+  const emailBox = page.getByPlaceholder('name@company.com');
+  const passwordBox = page.getByPlaceholder('StrongPassword@123');
   await expect
     .poll(
       async () => {
