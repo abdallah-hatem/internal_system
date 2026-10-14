@@ -350,29 +350,6 @@ async function main() {
   console.log(`   Partner B: ${partnerB.email} (password: password123)`);
   console.log(`   Partner C: ${partnerC.email} (password: password123)`);
 
-  // Create a money account
-  await prisma.moneyAccount.upsert({
-    where: { id: '00000000-0000-4000-8000-000000000020' },
-    update: {},
-    create: {
-      id: '00000000-0000-4000-8000-000000000020',
-      name: 'Home Storage Room Cash',
-      accountType: 'CASH',
-      currency: 'EGP',
-    },
-  });
-
-  await prisma.moneyAccount.upsert({
-    where: { id: '00000000-0000-4000-8000-000000000021' },
-    update: {},
-    create: {
-      id: '00000000-0000-4000-8000-000000000021',
-      name: 'Business Bank Account',
-      accountType: 'BANK',
-      currency: 'EGP',
-    },
-  });
-
   // Current FX rates. Reference data the forms depend on, so it belongs in
   // every seed — the test reset truncates every table, and without this the
   // rates would silently vanish for the length of a run.
@@ -537,9 +514,7 @@ async function main() {
   // want when the data is about to be real: invented rows are hard to tell
   // apart from genuine ones once the two are mixed together.
   if (process.env.SEED_MINIMAL === '1') {
-    console.log(
-      '✅ Minimal seed — partners and money accounts only, no demo data',
-    );
+    console.log('✅ Minimal seed — partners and FX rates only, no demo data');
     console.log('🎉 Seeding complete!');
     return;
   }
@@ -1139,7 +1114,6 @@ async function main() {
 
   console.log('✅ Created products, provider, customer and demo cycles');
 
-  console.log('✅ Created money accounts');
   console.log('🎉 Seeding complete!');
 }
 

@@ -3,8 +3,8 @@
 #
 #   scripts/prod-reset-partners.sh "Name <email>" "Name <email>" "Name <email>"
 #
-# Keeps: the migration history, the money accounts, the FX rates and the OAuth
-# client registrations (so Claude/ChatGPT can sign in again). Removes: every
+# Keeps: the migration history, the FX rates and the OAuth client
+# registrations (so Claude/ChatGPT can sign in again). Removes: every
 # business record, every login and partner record, every assistant connection.
 # Then creates one CORE_PARTNER login + partner record per argument, asking for
 # each password on the terminal (never on the command line, never echoed).

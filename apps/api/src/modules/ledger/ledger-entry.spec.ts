@@ -541,7 +541,6 @@ describe('the second time: reversing a manual entry', () => {
         originalAmount: 100.5,
         originalCurrency: 'AED',
         occurredOn: new Date('2026-09-01T00:00:00Z'),
-        accountId: null,
         cycleId,
         relatedType: null,
         relatedId: null,

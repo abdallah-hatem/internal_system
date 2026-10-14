@@ -7,7 +7,7 @@ const req = createRequire(process.argv[2] + '/package.json');
 const { PrismaClient } = req('@prisma/client');
 const bcrypt = req('bcrypt');
 
-const KEEP = new Set(['_prisma_migrations', 'money_accounts', 'currency_rates', 'oauth_clients']);
+const KEEP = new Set(['_prisma_migrations', 'currency_rates', 'oauth_clients']);
 const AUTH = ['oauth_refresh_tokens', 'partners', 'users'];
 
 const people = require('fs')

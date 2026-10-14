@@ -635,7 +635,6 @@
     "amount": "Amount",
     "currency": "Currency",
     "fxRate": "FX Rate to EGP",
-    "account": "Account",
     "cycle": "Cycle",
     "relatedTo": "Related To",
     "reason": "Reason",
@@ -1168,7 +1167,6 @@
       "lenderFinancing": "Friend's payment",
       "lenderRepayment": "Repayment",
       "lenderPlan": "Repayment plan",
-      "moneyAccount": "Money account",
       "shipmentDeparture": "Departure"
     },
     "generic": "Something went wrong. Please try again.",
@@ -1343,7 +1341,6 @@
     "FINANCING_EXCEEDS_ORDER": "{amount} {currency} is more than is left to pay on {reference}: the order is {total} {currency} and friends already paid {financed}.",
     "FINANCING_REMOVED": "This friend's payment was removed.",
     "FINANCING_HAS_REPAYMENTS": "{lender} has been repaid on this; reverse those repayments before removing it.",
-    "ACCOUNT_NOT_USABLE": "{account} is not an active account in EGP; a repayment leaves one in pounds.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "He paid the supplier on {paidOn}; a repayment cannot be dated before that.",
     "LENDER_REPAYMENT_ALREADY_REVERSED": "This repayment was already reversed. Reversing again would count it twice.",
     "LENDER_CYCLE_SETTLED": "Cycle {cycle} is settled; reverse the settlement before undoing a repayment on it.",

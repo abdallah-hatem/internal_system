@@ -284,21 +284,11 @@ describe('POST /cycles/:id/transfers', () => {
     ]);
     // The ledger pair: A recovers, B takes on — same amount, the transfer behind both.
     expect(
-      ledgerOf(a).map((r) => [
-        r.direction,
-        r.amount.toFixed(2),
-        r.relatedId,
-        r.accountId ?? null,
-      ]),
-    ).toEqual([['INFLOW', '2200.00', t.id, null]]);
+      ledgerOf(a).map((r) => [r.direction, r.amount.toFixed(2), r.relatedId]),
+    ).toEqual([['INFLOW', '2200.00', t.id]]);
     expect(
-      ledgerOf(b).map((r) => [
-        r.direction,
-        r.amount.toFixed(2),
-        r.relatedId,
-        r.accountId ?? null,
-      ]),
-    ).toEqual([['OUTFLOW', '2200.00', t.id, null]]);
+      ledgerOf(b).map((r) => [r.direction, r.amount.toFixed(2), r.relatedId]),
+    ).toEqual([['OUTFLOW', '2200.00', t.id]]);
   });
 
   it('moving everything leaves A with nothing on the shelf and nothing to write off', async () => {

@@ -333,7 +333,6 @@ export function registerLenderTools(
         rateToEgp: r.rateToEgp,
         cleared: r.cleared,
         exchangeDifferenceEgp: r.exchangeDiffEgp,
-        account: r.account?.name ?? null,
         reversed: r.reversedAt !== null,
       })),
       plan: f.plan
@@ -424,7 +423,7 @@ export function registerLenderTools(
     {
       title: 'Get a friend we owe',
       description:
-        "One friend (lender) by name or id: every order he paid for (which order, which cycle, how much, at the order's rate), every repayment (pounds, the rate that day, what it cleared in his currency, the exchange difference, the account, whether it was reversed), his repayment plan, and what is still owed — in his currency and in pounds at today's rate. When the name is close to more than one friend, or not exact, returns the candidates instead; ask the partner which one.",
+        "One friend (lender) by name or id: every order he paid for (which order, which cycle, how much, at the order's rate), every repayment (pounds, the rate that day, what it cleared in his currency, the exchange difference, whether it was reversed), his repayment plan, and what is still owed — in his currency and in pounds at today's rate. When the name is close to more than one friend, or not exact, returns the candidates instead; ask the partner which one.",
       inputSchema: { lender: lenderField },
     },
     async ({ lender }) => {
@@ -808,8 +807,6 @@ export function registerLenderTools(
       }
     }
 
-    // No money account is asked (§18, owner 2026-10-11): no other money flow
-    // records one, and the office dialog does not ask either.
     if (questions.length || rate === null) {
       return { status: 'questions', questions };
     }
@@ -915,7 +912,7 @@ export function registerLenderTools(
       description:
         'We paid a friend (lender) back in pounds — "paid Mahmoud 50,000 pounds today", or "pay him off". It clears pounds ÷ that day\'s rate of what we owe him in his currency. ' +
         "The rate defaults to today's rate on the exchange-rate page (the preview says so); use the partner's rate when he gives one. payOff uses the exact pounds that settle the debt at that rate. " +
-        'The friend is matched by exact name or id; a close or unknown name, or which order when he is owed on several, comes back as a question with nothing to confirm. No money account is asked. ' +
+        'The friend is matched by exact name or id; a close or unknown name, or which order when he is owed on several, comes back as a question with nothing to confirm. ' +
         'Refused when it is more than is owed, dated in the future or before he paid, or nothing is owed (a cycle settles only once its friends are repaid). ' +
         'The preview shows what it clears, what is still owed after and the exchange difference. Call without a confirmationToken to preview.',
       inputSchema: repaymentShape,

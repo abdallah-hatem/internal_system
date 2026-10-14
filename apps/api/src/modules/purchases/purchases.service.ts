@@ -766,7 +766,6 @@ export class PurchasesService {
               amount: original.amount,
               currency: original.currency,
               fxRateToEgp: original.fxRateToEgp,
-              accountId: original.accountId,
               cycleId: original.cycleId,
               relatedType: original.relatedType,
               relatedId: original.relatedId,

@@ -46,8 +46,6 @@ export interface FinancingView {
     rateToEgp: string;
     cleared: string;
     exchangeDiffEgp: string;
-    /** Only on repayments recorded before 2026-10-11, when an account was asked (§18). */
-    account: { id: string; name: string } | null;
     reversedAt: string | null;
     reversalReason: string | null;
   }[];
@@ -140,8 +138,6 @@ export function RecordRepaymentDialog({
   const current = rates[financing.currency];
   const rate = typedRate ?? (current ? String(current) : '');
   const [amount, setAmount] = useState('');
-  // No money account is asked (§18, owner 2026-10-11): no other money flow in
-  // the app records one, and the step did not matter to him.
 
   const rateNumber = Number(rate);
   const { data: quote } = useQuery<{ owed: string; settlingEgp: string }>({
