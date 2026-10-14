@@ -250,3 +250,11 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   the web build ("Cannot find module '@prisma/client'"). The build uses `tsconfig.build.json`, which excludes tests.
   When a subagent reports "2 errors, @prisma/client not found" in a web typecheck, that is exactly this; reproduce with
   `apps/api/node_modules` moved aside and `next build` before calling it a worktree artifact. — 2026-10-11
+
+## iPhone Safari
+
+- iOS 26 Safari colours the status-bar strip from a fixed element touching the top of the page, and the drawer's
+  dark overlay left it dark after closing. Inside Safari's own window `env(safe-area-inset-top)` is 0, so offsetting
+  by the notch changed nothing (it only matters in the home-screen app); starting the overlay below the header
+  (`top-16`) fixed it. The iOS simulator's Safari never showed the tint, so it can't confirm a fix here: ship, and
+  have the owner check on his phone. — 2026-10-14
