@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { CheckCircle, Loader2, MinusCircle, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
+import { isOffered, isSellable } from '@/lib/product-status';
 import { selectOnFocus } from '@/lib/select-on-focus';
 import { saleOrderTotals } from '@/lib/sale-totals';
 import { Select } from '@/components/ui/select';
@@ -30,6 +31,7 @@ export interface SaleFormProduct {
   id: string;
   name: string;
   sku: string;
+  status?: string | null;
   prices?: { channel: string; amount: number | string; effectiveTo?: string | null }[];
 }
 
@@ -395,14 +397,20 @@ export function SaleOrderForm({
                       }
                       placeholder={t('product')}
                       searchPlaceholder={tc('search')}
-                      options={products.map((p) => {
+                      options={products
+                        // Switched off, it is sold from the shelf until the
+                        // shelf is empty, then it leaves (§3, owner 2026-10-14).
+                        .filter((p) => isSellable(p, stockFor(p.id)))
+                        .map((p) => {
                         const available = stockFor(p.id);
                         return {
                           value: p.id,
                           label: p.name,
                           // The count belongs where the product is chosen, not
                           // in an error after the order is built.
-                          hint: `${p.sku} · ${formatNumber(available)} ${t('inStock')}`,
+                          // Tag last, so a hint in either language still starts with the SKU
+                          // and lines up with its neighbours (the Arabic tag first flipped the line).
+                          hint: `${p.sku} · ${formatNumber(available)} ${t('inStock')}${isOffered(p) ? '' : ` · ${t('inactiveTag')}`}`,
                           disabled: available <= 0,
                         };
                       })}

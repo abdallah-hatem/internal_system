@@ -98,6 +98,7 @@ const ENDPOINTS = {
   'product.create': ['products/products.controller.ts', 'ProductsController', 'Post', ''],
   'product.edit': ['products/products.controller.ts', 'ProductsController', 'Put', ':id'],
   'product.setPrice': ['products/products.controller.ts', 'ProductsController', 'Post', ':id/prices'],
+  'product.setStatus': ['products/products.controller.ts', 'ProductsController', 'Put', ':id/status'],
   'product.addPhoto': ['files/files.controller.ts', 'FilesController', 'Post', 'products/:productId'],
   'product.deletePhoto': ['files/files.controller.ts', 'FilesController', 'Delete', ':id'],
   'category.create': ['products/products.controller.ts', 'CategoriesController', 'Post', ''],

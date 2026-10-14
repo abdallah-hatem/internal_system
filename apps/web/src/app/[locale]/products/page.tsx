@@ -23,6 +23,11 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { ProductStatusAction } from '@/components/products/product-status-action';
+
+/** The status filter: Active by default (§3, 2026-10-14). */
+const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 // ─── Types ────────────────────────────────────────────────────────────
 interface ProductRaw {
   id: string;
@@ -46,6 +51,7 @@ interface Product {
   description?: string;
   barcode?: string;
   minStock: number;
+  status?: string;
   isActive: boolean;
   b2bPrice?: number;
   b2cPrice?: number;
@@ -81,6 +87,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ACTIVE');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -94,7 +101,7 @@ export default function ProductsPage() {
   const closeEditProduct = () => setEditingProduct(null);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, categoryFilter]);
+  useEffect(() => { setPage(1); }, [search, categoryFilter, statusFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { items: products, capped, isLoading } = useAllRecords(['products'], '/products');
@@ -140,6 +147,7 @@ export default function ProductsPage() {
     description: raw.description,
     barcode: raw.barcode,
     minStock: Number(raw.minStock ?? 0),
+    status: raw.status,
     isActive: raw.status === 'ACTIVE',
     b2bPrice: raw.prices?.find((p: any) => p.channel === 'B2B' && !p.effectiveTo)?.amount
       ? Number(raw.prices.find((p: any) => p.channel === 'B2B' && !p.effectiveTo).amount)
@@ -161,7 +169,10 @@ export default function ProductsPage() {
       p.name?.toLowerCase().includes(search.toLowerCase()) ||
       p.sku?.toLowerCase().includes(search.toLowerCase());
     const matchCat = !categoryFilter || p.categoryName === categoryFilter;
-    return matchSearch && matchCat;
+    // Anything not ACTIVE counts as inactive, as on the server.
+    const matchStatus =
+      statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? p.isActive : !p.isActive);
+    return matchSearch && matchCat && matchStatus;
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -177,7 +188,10 @@ export default function ProductsPage() {
         action={may.create ? { label: t('create'), onClick: openCreate } : undefined}
       />
     ) : (
-      <NoMatch filtered={!!categoryFilter} onClear={() => { setSearch(''); setCategoryFilter(''); }} />
+      <NoMatch
+        filtered={!!categoryFilter || statusFilter !== 'ACTIVE'}
+        onClear={() => { setSearch(''); setCategoryFilter(''); setStatusFilter('ACTIVE'); }}
+      />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -243,6 +257,28 @@ export default function ProductsPage() {
             searchPlaceholder={t('category')}
             options={categoryList.map((cat) => ({ value: cat.name, label: cat.name }))}
           />
+        </div>
+        <div
+          role="group"
+          aria-label={t('statusFilter')}
+          data-testid="status-filter"
+          className="flex flex-wrap gap-2 mt-3"
+        >
+          {STATUS_FILTERS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={statusFilter === key}
+              onClick={() => setStatusFilter(key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                statusFilter === key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-card border border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {key === 'ACTIVE' ? t('active') : key === 'INACTIVE' ? t('inactive') : t('filterAll')}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -320,6 +356,7 @@ export default function ProductsPage() {
                             <Edit className="h-4 w-4" />
                           </button>
                           )}
+                          <ProductStatusAction product={product} look="icon" />
                         </div>
                       </td>
                     </tr>
@@ -385,6 +422,7 @@ export default function ProductsPage() {
                     <Edit className="h-3.5 w-3.5" /> {tc('edit')}
                   </button>
                   )}
+                  <ProductStatusAction product={product} look="text" />
                 </div>
               </div>
             ))

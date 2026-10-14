@@ -71,7 +71,9 @@ function service(
       findUnique: jest.fn().mockResolvedValue({ id: 's1', name: 'Yiwu Parts' }),
     },
     product: {
-      findUnique: jest.fn().mockResolvedValue({ id: 'p1', name: 'Brake pad' }),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ id: 'p1', name: 'Brake pad', status: 'ACTIVE' }),
     },
     purchaseOrder: {
       findFirst: jest.fn((args: { where: Record<string, unknown> }) =>

@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 import { badRequest, conflict } from '../../../common/api-error';
+import { SELLABLE } from '../../../common/product-status';
 import { availableByProduct } from '../../../common/available-stock';
 import { formatMoney, formatQty } from '../../../common/money';
 import { PAYMENT_METHODS } from '../../../common/walk-in';
@@ -339,7 +340,10 @@ export function registerSalesTools(
 
   async function catalogue() {
     const [products, customers] = await Promise.all([
+      // What can be sold (§3, owner 2026-10-14): a switched-off product is
+      // still sold from the shelf, and is not matched once the shelf is empty.
       prisma().product.findMany({
+        where: SELLABLE,
         select: {
           id: true,
           name: true,

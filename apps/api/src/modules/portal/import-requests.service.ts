@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { badRequest, conflict, notFound } from '../../common/api-error';
+import { assertOffered } from '../../common/product-status';
 import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
@@ -218,6 +219,8 @@ export class ImportRequestsService {
     if (decision.productId) {
       const product = await this.prisma.product.findUnique({ where: { id: decision.productId } });
       if (!product) throw notFound('product');
+      // Pointing a shop at a part it cannot order is no answer (§3, 2026-10-14).
+      assertOffered(product);
     }
 
     await this.prisma.productRequest.update({

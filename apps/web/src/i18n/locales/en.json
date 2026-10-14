@@ -224,7 +224,19 @@
     "noSuppliersTitle": "No suppliers linked",
     "noSuppliersHint": "The suppliers this product is bought from appear here.",
     "noCompatibilityTitle": "No motorcycle models listed",
-    "noCompatibilityHint": "The models this part fits are listed here."
+    "noCompatibilityHint": "The models this part fits are listed here.",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "deactivateTitle": "Deactivate {name}?",
+    "deactivateBody": "It can no longer be bought: it leaves new purchase orders. What is on the shelf can still be sold, and once that is gone it leaves the sale form and the store. Orders, drafts, stock and history stay as they are. You can reactivate it at any time.",
+    "reactivateTitle": "Reactivate {name}?",
+    "reactivateBody": "It will be offered again for new sales, purchase orders and in the store.",
+    "deactivated": "{name} deactivated",
+    "reactivated": "{name} reactivated",
+    "statusChangeFailed": "Could not change the product's status",
+    "inactiveNotice": "Deactivated — no more can be bought. What is on the shelf can still be sold; once it is gone, it leaves the sale form and the store.",
+    "filterAll": "All",
+    "statusFilter": "Show products"
   },
   "cycles": {
     "title": "Import Cycles",
@@ -512,7 +524,8 @@
       "printedOn": "Printed {date}",
       "credited": "Returns credited",
       "returnedInFull": "Returned in full — nothing is owed on it."
-    }
+    },
+    "inactiveTag": "Inactive"
   },
   "customers": {
     "title": "Customers",
@@ -1382,7 +1395,9 @@
     "TRANSFER_UNITS_SOLD": "Some of the {product} moved to {cycle} has been sold or used there; the move is permanent now.",
     "CYCLE_HAS_TRANSFERS_IN": "Cycle {cycle} holds leftover stock moved in from another cycle; undo that move before cancelling it.",
     "LEDGER_CATEGORY_RESERVED": "Moving leftover stock between cycles is recorded from the cycle page, not as a ledger entry.",
-    "RUNNING_COST_CHARGED": "This running cost was already taken from a payout ({cycles}). Reverse that settlement first, then this entry."
+    "RUNNING_COST_CHARGED": "This running cost was already taken from a payout ({cycles}). Reverse that settlement first, then this entry.",
+    "PRODUCT_INACTIVE": "{product} is deactivated, so no more of it can be ordered. Reactivate it to buy more.",
+    "PRODUCT_STATUS_INVALID": "A product is either active or inactive."
   },
   "orderRequests": {
     "title": "Order requests",
@@ -1609,7 +1624,9 @@
       "CALCULATE": "Calculated",
       "APPROVE": "Approved",
       "ADD_PARTICIPANT": "Participant added",
-      "ADD_ITEM": "Item added"
+      "ADD_ITEM": "Item added",
+      "DEACTIVATE": "Deactivated",
+      "REACTIVATE": "Reactivated"
     },
     "entityType": {
       "Product": "Product",

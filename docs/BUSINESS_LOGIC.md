@@ -433,6 +433,56 @@ and the inventory page cannot disagree. Guess, open until confirmed: receiving
 stock still alerts whenever the product is low after the receipt, even if it
 was already low before (unchanged from 2026-10-10).
 
+**DECIDED 2026-10-14 by the owner — a product is switched off, never deleted.**
+*Built 2026-10-14 (`feature/product-deactivate`).* Its orders, batches, receipts,
+returns and settlements all point at it, so it is never removed. A core partner
+**deactivates** it and can **reactivate** it — from the product page and from the
+row's actions on the products list, each after a short confirm that says what it
+does. `PUT /products/:id/status` with `{ status }`, core partners only; the status
+is ACTIVE or INACTIVE and nothing else, checked on the server on every way in
+(that endpoint, `PUT /products/:id`, `POST /products`) — `PRODUCT_STATUS_INVALID`.
+Defined once in `apps/api/src/common/product-status.ts` (web reading:
+`apps/web/src/lib/product-status.ts`). Any stored value other than ACTIVE reads
+as off. Switching to the status it already has changes nothing and logs nothing.
+The audit log records DEACTIVATE / REACTIVATE.
+
+**DECIDED 2026-10-14 by the owner — switched off means no more is BOUGHT; what is
+on the shelf is still SOLD.**
+- *Blocked:* a new purchase-order line, on a new order or added to a draft — from
+  the Purchases form, the wizard, or the assistant (`create_purchase_order`) —
+  refused as `PRODUCT_INACTIVE`, naming the product (en + ar). The Purchases
+  form, the wizard and the assistant's receipt matching (`match_receipt`) stop
+  offering it. A product created through quick-create is always active.
+- *Allowed while there is stock:* the sale form (shop and walk-in) and the
+  assistant's `record_sale`. The sale picker tags it "Inactive" and lists it only
+  while some is available; once its stock reaches zero it drops out of every sale
+  picker and the assistant no longer matches it. A sale beyond what is on the
+  shelf is refused as for any product (`NOT_ENOUGH_STOCK`).
+- *Never touched:* orders already made, drafts holding it (confirming one still
+  works), a shop's pending request for it (approving still works), stock on the
+  shelf, receipts, returns, settlements, history, its prices, and the product
+  page, which keeps showing its stock and batches with a note that it is off.
+- The low-stock rule above already skips it. The products list filters
+  Active / Inactive / All, opening on Active.
+
+Guesses made while building it, open until confirmed (2026-10-14):
+- **The storefront keeps showing it while stock remains, and hides it at zero**
+  (the owner's recommendation, taken). A shop can still ask for it while there is
+  some; asking for more than is left is refused as for any product. "Stock" for
+  the catalogue is verified units on the shelf, held ones included, so a product
+  whose every unit is held by another shop's request still shows, as "out of
+  stock", until the hold ends or the sale empties the shelf. An *active* product
+  with nothing on the shelf stays listed as before — it will be bought again.
+- **An import request cannot be answered with a switched-off product**
+  (`PRODUCT_INACTIVE`): answering one says "we stock this now", and no more of it
+  will be bought. The office's answer picker does not offer it.
+- "The price list" in the brief was read as the storefront catalogue, which is
+  the shops' price list; the office has no separate one. Setting a price on an
+  inactive product is still allowed — it is still sold from the shelf.
+- On a receipt, a switched-off product's printed SKU is not matched; creating a
+  new product under the same SKU is then refused as `PRODUCT_SKU_TAKEN`, naming
+  the product — the cue to reactivate it rather than duplicate it.
+
 ---
 
 ## 4. Sales

@@ -1,5 +1,6 @@
 'use client';
 import { useAllRecords } from '@/lib/list-all';
+import { offeredOnly } from '@/lib/product-status';
 import { LeftoversReturnLink } from './leftovers-return-link';
 import { Select } from '../ui/select';
 import { DatePicker } from '../ui/date-picker';
@@ -948,7 +949,8 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     }
     return options;
   };
-  const productList: any[] = Array.isArray(products) ? products : [];
+  // A switched-off product takes no new purchase-order line (§3, 2026-10-14).
+  const productList: any[] = Array.isArray(products) ? offeredOnly(products) : [];
 
   const isStep1Loading = createCycleMutation.isPending;
   const isStep2Loading = createPoMutation.isPending;

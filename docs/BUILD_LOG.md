@@ -37,6 +37,14 @@ _(none)_
   snapshot/restored, check-data zero. Per task from now on: touched specs + affected groups in the agent's own environment; the
   full suite once before each deploy. (Skill updated: abdallah-skills 1.46.0.)
 - Done 2026-10-12: L6, L8, L7 shipped unattended; dev stopped, Docker quit, Amphetamine ended.
+- Deactivate a product built 2026-10-14 on `feature/product-deactivate` (from af653cc; not merged, not pushed; no
+  migration): `PUT /products/:id/status` (core partners), Deactivate/Reactivate with a confirm on the product page
+  and each list row, list filter Active/Inactive/All. Owner decided mid-build: off = no more is BOUGHT (new PO
+  lines refused `PRODUCT_INACTIVE`, buying pickers and receipt matching drop it); the shelf is still SOLD (sale
+  form tags it Inactive, record_sale and the storefront keep it) until stock is zero. §3; guesses there (storefront
+  visibility, import-request answer refused). New specs 99-product-deactivate(+storefront), assistant unit tests.
+  Seen, not fixed: TC-PORTAL-03 fails when run after 34 — TC-INV-48's product is named "Cost Check", which lands on
+  the catalogue's first page and trips the "no `cost` in the payload" word check.
 - L8 built 2026-10-12 on `feature/l8-departures-in-parts` (master 431c4d2 merged in; not merged back, not pushed):
   goods leave in parts (§1) — a departure per day with per-product lines, Undo where nothing depends on it, only
   what left can arrive or be lost, PARTLY_DEPARTED, goods cards split waiting-at-origin from on-the-way, the
