@@ -483,6 +483,34 @@ Guesses made while building it, open until confirmed (2026-10-14):
   new product under the same SKU is then refused as `PRODUCT_SKU_TAKEN`, naming
   the product — the cue to reactivate it rather than duplicate it.
 
+### Arabic names for categories and products  — DECIDED 2026-10-14 (owner), details GUESSED
+
+The owner, 2026-10-14: categories and products get an Arabic name, products an Arabic description too, and
+a reader on Arabic sees them. Migration `20261014150000_arabic_names` (additive, nullable).
+
+**DECIDED (owner's brief):**
+- A category has an optional Arabic name; a product an optional Arabic name and Arabic description.
+- **Fallback:** wherever the reader's language is Arabic, the Arabic value is shown when there is one, the English
+  one otherwise — never a blank. The office follows its URL locale (`/ar`, `/en`); the storefront opens in Arabic
+  for everyone (§13), so a shop sees the Arabic unless it switches to English.
+- **Search in both languages:** a search matches the English name, the Arabic name and the SKU — the office's
+  product and category lists and every product or category picker, the storefront catalogue (plus the barcode, as
+  before), and the assistant (`find_products`, receipt matching, `record_sale`).
+- **The assistant never invents a translation.** `create_product`, and a new product inside
+  `create_purchase_order`, take `nameAr`/`descriptionAr` only when the partner gave them, and leave them empty
+  otherwise (§16).
+
+| Question | What the code does | Status |
+|---|---|---|
+| Is a category's Arabic name unique? | **Yes, when present** — compared ignoring case and surrounding space, the same question the English name answers. Refused as `CATEGORY_NAME_AR_TAKEN`, naming the category that has it. Any number of categories may have none. Enforced twice: the service asks first (so the refusal names itself), and a partial unique index on `lower(name_ar)` stops two at once. | **GUESS** (recommended option, taken) |
+| Is a product's Arabic name unique? | **No** — English product names are not unique either (the SKU is what identifies a product). | **GUESS** |
+| What is stored | Trimmed. An empty or blank value is stored as **null**, so "no Arabic" has one spelling. Not sent on an edit leaves what is stored; sent empty clears it. A number or object is `VALIDATION_FAILED`. | **GUESS** |
+| How long | Arabic name ≤ **200** characters (`NAME_AR_TOO_LONG`), Arabic description ≤ **1000** (`DESCRIPTION_AR_TOO_LONG`) — the limits the assistant's tools already set for the English fields. The office's own English fields still have none; not changed here. | **GUESS** |
+| Which name the API sends | **Both.** Responses carry `name` and `nameAr` (and `description`/`descriptionAr`; an invoice line `product`/`productAr`; shipment and stock lines `productName`/`productNameAr`) and the client picks, because only the client knows which language the reader chose (CLAUDE.md §9). One helper per app picks: `apps/api/src/common/arabic-names.ts`, `apps/web/src/lib/localized-name.ts`, `apps/storefront/src/lib/localized-name.ts`; the office's unit test runs its copy against the API's. | DECIDED |
+| What a list shows on the other language | The office's category list and product page also show the name in the *other* language (the Arabic under the English on `/en`, and the reverse), so a partner can see whether one was entered. | **GUESS** |
+| How the assistant matches an Arabic name | The same matcher, against both names: an exact Arabic name (case, spacing, punctuation, short vowels and the tatweel ignored; أ إ آ read as ا, ة as ه, ى as ي) is a match; anything weaker is offered as a candidate, never taken. Its outputs carry both names (`nameAr`, `categoryAr`, `productAr`; null when none — never a guess). | **GUESS** (the folding) |
+| Screens that still show only the English | Stock transfers between cycles, the leftovers dialog, the import-request queue's own text, and the products named inside refusal messages (those are English params the client interpolates). | Recorded, not built — not in the brief's list of screens. |
+
 ---
 
 ## 4. Sales
@@ -1757,6 +1785,17 @@ landed, and the step that refused if the walk stopped short.
 
 **Not kept.** The receipt image itself is not stored — the purchase order records
 the supplier's invoice number, and the photograph stays in the conversation.
+
+**Arabic names (DECIDED 2026-10-14, owner; §3).** `find_products` searches the
+English name, the Arabic name and the SKU, and returns `nameAr` and `categoryAr`
+beside `name` and `category` (null when none was entered). Receipt matching
+(`match_receipt`) and `record_sale` match a product by either name through the
+one matcher — an exact Arabic name is a match, a partial one only a candidate —
+and their candidates and lines carry both names. **The assistant never invents a
+translation:** `create_product` and a new product in `create_purchase_order` take
+`nameAr`/`descriptionAr` only when the partner wrote or said them, and leave them
+empty otherwise; the tool descriptions and the server instructions say so. There
+is no tool to create a category; an Arabic name for one is added in the office.
 
 
 ---
