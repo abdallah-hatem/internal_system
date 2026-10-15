@@ -296,6 +296,10 @@ export function SaleOrderForm({
       onClose={onCancel}
       size="lg"
       busy={pending}
+      // The test id names the whole dialog — fields, the refusal and the
+      // actions in its fixed footer — as it named the form when they were all
+      // inside it.
+      cardProps={{ 'data-testid': 'sale-order-form' }}
       footer={
             <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-3">
               <button
@@ -339,7 +343,7 @@ export function SaleOrderForm({
             </div>
       }
     >
-    <form id={formId} onSubmit={submit} noValidate className="space-y-4" data-testid="sale-order-form">
+    <form id={formId} onSubmit={submit} noValidate className="space-y-4" data-sale-order-form="">
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           {/* The label row holds the switch and keeps the height of the other

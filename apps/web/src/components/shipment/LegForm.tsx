@@ -188,6 +188,7 @@ export function LegCreateForm({
   return (
     <Dialog
       data-leg-form={testId}
+      cardProps={{ 'data-testid': 'leg-create-form' }}
       title={title}
       onClose={onDone}
       busy={create.isPending}
@@ -195,7 +196,6 @@ export function LegCreateForm({
     >
       <ValidatedForm
         id={formId}
-        data-testid="leg-create-form"
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
@@ -344,6 +344,7 @@ export function LegEditForm({
   return (
     <Dialog
       data-leg-form={testId}
+      cardProps={{ 'data-testid': 'leg-edit-form' }}
       title={title}
       onClose={onDone}
       busy={update.isPending}
@@ -351,7 +352,6 @@ export function LegEditForm({
     >
       <ValidatedForm
         id={formId}
-        data-testid="leg-edit-form"
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);

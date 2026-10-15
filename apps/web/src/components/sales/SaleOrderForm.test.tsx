@@ -312,7 +312,7 @@ describe('SaleOrderForm', () => {
 
   it('noValidate: an order with no customer or no product names them in the reader\'s words and sends nothing', () => {
     renderForm(vi.fn(), '');
-    const form = screen.getByTestId('sale-order-form');
+    const form = screen.getByTestId('sale-order-form').querySelector('form')!;
     expect(form.hasAttribute('novalidate')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
     const alert = screen.getByTestId('form-problem');
@@ -468,7 +468,7 @@ describe('SaleOrderForm — walk-in', () => {
     // Enter in a field submits the first submit button, which is now the sale.
     // The buttons sit in the dialog's fixed footer and belong to the form by
     // its id, so ask the form which submit buttons are its own.
-    const form = screen.getByTestId('sale-order-form') as HTMLFormElement;
+    const form = screen.getByTestId('sale-order-form').querySelector('form')!;
     const submits = Array.from(form.elements).filter(
       (el) => el instanceof HTMLButtonElement && el.type === 'submit',
     );
