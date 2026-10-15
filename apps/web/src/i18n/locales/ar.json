@@ -49,6 +49,7 @@
     "listCapped": "يتم عرض أول {count} فقط. توجد سجلات أخرى غير معروضة هنا.",
     "selectPlaceholder": "اختر من القائمة",
     "noOptionsMatch": "لا توجد نتائج",
+    "noOptionsYet": "لا يوجد ما يمكن اختياره بعد",
     "print": "طباعة",
     "brand": "S&F",
     "searchList": "اكتب لتصفية القائمة"
@@ -2126,6 +2127,7 @@
     "chooseCurrency": "اختر عملة",
     "chooseCostBasis": "اختر طريقة الاحتساب",
     "chooseCycle": "اختر دورة",
+    "noCyclesToBuyFor": "لا توجد دورة تقبل مشتريات الآن. ابدأ دورة استيراد أولًا من صفحة دورات الاستيراد.",
     "chooseSupplier": "اختر مورّدًا",
     "chooseProduct": "اختر منتجًا",
     "chooseProvider": "اختر شركة شحن",

@@ -147,11 +147,35 @@ describe('the shared empty slot is EmptyState (finding #32)', () => {
     expect(empty?.getAttribute('data-size')).toBe('compact');
   });
 
-  it("a caller's own empty text still wins", () => {
+  it('a search that matches nothing says so, whatever the empty-list text is', () => {
     show('en', <Select options={options} emptyText="No cycles" />);
     fireEvent.click(screen.getByRole('combobox'));
     fireEvent.change(document.querySelector('[cmdk-input]')!, { target: { value: 'zzzz' } });
-    expect(document.querySelector('[data-slot="empty-state"]')?.textContent).toBe('No cycles');
+    expect(document.querySelector('[data-slot="empty-state"]')?.textContent).toBe(en.common.noOptionsMatch);
+  });
+
+  // Owner, 2026-10-15: a picker with nothing in it opened as a blank strip —
+  // the empty message lived only behind the search box, which a short list
+  // does not have.
+  it('a picker with nothing to choose says so, in the reader\'s language, never a blank strip', () => {
+    show('ar', <Select options={[]} />);
+    fireEvent.click(screen.getByRole('combobox'));
+    const empty = document.querySelector('[data-testid="select-empty"] [data-slot="empty-state"]');
+    expect(empty?.textContent).toBe(ar.common.noOptionsYet);
+  });
+
+  it("an empty picker shows the caller's text and its hint — why it is empty, where the first one is made", () => {
+    show('en', <Select options={[]} emptyText="No cycles yet" emptyHint="Start one under Import Cycles." />);
+    fireEvent.click(screen.getByRole('combobox'));
+    const empty = document.querySelector('[data-testid="select-empty"]');
+    expect(empty?.textContent).toContain('No cycles yet');
+    expect(empty?.textContent).toContain('Start one under Import Cycles.');
+  });
+
+  it('a list with options never shows the empty-list state', () => {
+    show('en', <Select options={options.slice(0, 2)} />);
+    fireEvent.click(screen.getByRole('combobox'));
+    expect(document.querySelector('[data-testid="select-empty"]')).toBeNull();
   });
 
   it('compact and default are one component with one structure', () => {

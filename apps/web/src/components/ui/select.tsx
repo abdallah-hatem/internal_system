@@ -65,6 +65,7 @@ export function Select({
   placeholder,
   searchPlaceholder,
   emptyText,
+  emptyHint,
   required,
   disabled,
   clearable = false,
@@ -78,7 +79,10 @@ export function Select({
   onChange?: (value: string) => void;
   placeholder?: string;
   searchPlaceholder?: string;
+  /** What to say when the list has nothing to choose at all. */
   emptyText?: string;
+  /** Under it: why it is empty, or where the first one is made. */
+  emptyHint?: string;
   required?: boolean;
   disabled?: boolean;
   clearable?: boolean;
@@ -220,10 +224,20 @@ export function Select({
           >
             {showSearch && <CommandInput placeholder={searchPlaceholder ?? t('searchList')} className="h-9" />}
             <CommandList>
-              {showSearch && (
-                <CommandEmpty className="p-0">
-                  <EmptyState size="compact" icon={null} title={emptyText ?? t('noOptionsMatch')} />
-                </CommandEmpty>
+              {/* Nothing to choose at all: say so, and why. It used to open
+                  as a blank strip — the empty message lived only behind the
+                  search box, which a short list does not have (owner,
+                  2026-10-15). */}
+              {options.length === 0 ? (
+                <div data-testid="select-empty">
+                  <EmptyState size="compact" icon={null} title={emptyText ?? t('noOptionsYet')} description={emptyHint} />
+                </div>
+              ) : (
+                showSearch && (
+                  <CommandEmpty className="p-0">
+                    <EmptyState size="compact" icon={null} title={t('noOptionsMatch')} />
+                  </CommandEmpty>
+                )
               )}
               <CommandGroup>
                 {options.map((opt) => (

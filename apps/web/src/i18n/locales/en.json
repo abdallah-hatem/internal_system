@@ -49,6 +49,7 @@
     "listCapped": "Showing the first {count} only. More exist and are not listed here.",
     "selectPlaceholder": "Choose from the list",
     "noOptionsMatch": "No matches",
+    "noOptionsYet": "Nothing to choose from yet",
     "print": "Print",
     "brand": "S&F",
     "searchList": "Type to filter the list"
@@ -2126,6 +2127,7 @@
     "chooseCurrency": "Choose a currency",
     "chooseCostBasis": "Choose how it is charged",
     "chooseCycle": "Choose a cycle",
+    "noCyclesToBuyFor": "No cycle is taking purchases. Start an import cycle first, under Import Cycles.",
     "chooseSupplier": "Choose a supplier",
     "chooseProduct": "Choose a product",
     "chooseProvider": "Choose a shipping provider",
