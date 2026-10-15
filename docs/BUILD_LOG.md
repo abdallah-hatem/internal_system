@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: paused 2026-10-15 1:55 AM at the owner's request (reminder set for 11:40 AM). Live: Arabic names + spelling-tolerant Arabic search, the 8 categories in production, category collapse + product counts, white outline buttons, rename to S&F System, assistant list_categories/create_category, category names unique ignoring case. Paused: skeletons in place of loading spinners — WIP commit `c2179c3` on `feature/skeletons` (worktree `.claude/worktrees/agent-a7ef6100de3d901d4`; brief and measure scripts in its `.ui-audit/`); converted, NOT measured, e2e not run, storefront spec not written. To finish: own stack from that worktree, measure every screen en/ar 390/1440, fix, fail-before, screenshots, full lint/tests, merge, push. Docker quit.
+Current stage: idle 2026-10-15 — all live: skeletons replace every "Loading..." content spinner in the office and storefront (`c4307d2`; measured en/ar 390/1440; 99-skeletons*.spec 26/26, fail on old code), plus everything from 2026-10-14/15 (Arabic names + search, categories, rename to S&F System, assistant category tools). Known test debt: TC-NOT-05 (expects the email in the header; it lives in the account menu) and TC-UI-02 (breaks when run after spec 100, whose test category sorts first) — both fail on master too. Docker quit.
 
 ## Waiting on the user
 _(none)_
