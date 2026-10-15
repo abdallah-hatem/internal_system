@@ -9,7 +9,8 @@ import { PriceContext } from './price-context';
 import { ProductCard, ProductCardSkeleton } from './product-card';
 import { QueryError } from './query-error';
 import { SearchField } from './search-field';
-import { useCatalogue, useCategories } from './queries';
+import { PAGE_SIZE, useCatalogue, useCategories } from './queries';
+import { SkeletonGroup, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { useDebounced } from './use-debounced';
 
 /**
@@ -56,23 +57,34 @@ export function CatalogueList() {
           <div className="mt-3">
             <PriceContext channel={first.channel} viewer={first.viewer} />
           </div>
+        ) : catalogue.isPending ? (
+          // Whose prices these are arrives with the first page. Its line is
+          // held, so the header does not grow over the grid when it lands.
+          <SkeletonGroup className="mt-3">
+            <SkeletonText className="w-48" />
+          </SkeletonGroup>
         ) : null}
       </header>
 
-      <div className="p-4">
+      {/* A new search or category keeps the cards already on screen
+          (`keepPreviousData` in queries.ts), dimmed until the answer replaces
+          them. Skeletons are for the first paint only. */}
+      <div
+        aria-busy={catalogue.isPlaceholderData || undefined}
+        data-stale={catalogue.isPlaceholderData || undefined}
+        className={`p-4 transition-opacity ${catalogue.isPlaceholderData ? 'opacity-60' : ''}`}
+      >
         {catalogue.isError ? (
           <QueryError error={catalogue.error} onRetry={() => void catalogue.refetch()} />
         ) : catalogue.isPending ? (
-          <>
-            <span className="sr-only" role="status">
-              {tc('loading')}
-            </span>
+          <SkeletonRegion>
+            <SkeletonText size="xs" lineClassName="mb-3" className="w-32" />
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: 6 }, (_, index) => (
+              {repeat(PAGE_SIZE, (index) => (
                 <ProductCardSkeleton key={index} />
               ))}
             </ul>
-          </>
+          </SkeletonRegion>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
             <PackageSearch aria-hidden className="h-8 w-8 text-gray-300" />
@@ -94,7 +106,9 @@ export function CatalogueList() {
               <button
                 type="button"
                 onClick={() => void catalogue.fetchNextPage()}
-                disabled={catalogue.isFetchingNextPage}
+                // Not while the cards are the last search's: their next page
+                // belongs to the query being replaced.
+                disabled={catalogue.isFetchingNextPage || catalogue.isPlaceholderData}
                 className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-base font-semibold text-gray-900 hover:bg-gray-50 disabled:text-gray-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
               >
                 {catalogue.isFetchingNextPage ? tc('loading') : t('loadMore')}

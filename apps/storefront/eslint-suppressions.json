@@ -19,7 +19,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 29
+      "count": 28
     }
   },
   "src/components/account/alerts-prompt.tsx": {
@@ -83,12 +83,12 @@
   },
   "src/components/catalogue/product-card.tsx": {
     "local/no-raw-colors": {
-      "count": 12
+      "count": 6
     }
   },
   "src/components/catalogue/product-detail.tsx": {
     "local/no-raw-colors": {
-      "count": 19
+      "count": 15
     }
   },
   "src/components/catalogue/product-image.tsx": {
@@ -111,7 +111,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 41
+      "count": 40
     }
   },
   "src/components/imports/import-form.tsx": {
@@ -127,7 +127,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 22
+      "count": 20
     }
   },
   "src/components/imports/photo-uploader.tsx": {
@@ -172,7 +172,7 @@
   },
   "src/components/requests/basket-sheet.tsx": {
     "local/no-raw-colors": {
-      "count": 29
+      "count": 28
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -196,7 +196,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 48
+      "count": 47
     }
   },
   "src/components/requests/request-list.tsx": {
@@ -204,7 +204,7 @@
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 17
+      "count": 16
     }
   },
   "src/components/ui/command.tsx": {

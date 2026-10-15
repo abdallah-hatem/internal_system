@@ -1,11 +1,12 @@
 'use client';
 
-import { CircleAlert, CircleCheck, Clock, LoaderCircle, LogOut, Store } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { CircleAlert, CircleCheck, Clock, LogOut, Store } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 
 import { Link } from '../../i18n/navigation';
 import { useMe, useSession, useSignOut } from '../../lib/session';
 import { useRefusal } from '../requests/use-refusal';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { LanguageSwitch } from './language-switch';
 import { Notifications } from './notifications';
 
@@ -32,9 +33,7 @@ export function AccountPanel() {
   // The server renders this signed-out because it cannot read `localStorage`.
   // Deciding before hydration would flash "you are not signed in" at a shop
   // that is, on every single visit.
-  if (!ready) {
-    return <Waiting label={tCommon('loading')} />;
-  }
+  if (!ready) return <AccountPanelSkeleton />;
 
   if (!signedIn) {
     return (
@@ -60,7 +59,7 @@ export function AccountPanel() {
     );
   }
 
-  if (isPending) return <Waiting label={tCommon('loading')} />;
+  if (isPending) return <AccountPanelSkeleton />;
 
   if (isError) {
     // A 401 never lands here: the interceptor clears the token, the session
@@ -171,11 +170,53 @@ function Row({
   );
 }
 
-function Waiting({ label }: { label: string }) {
+/**
+ * The signed-in panel before it arrives, traced from the one above: the shop
+ * card (name beside its icon, the verification line, email and phone under a
+ * rule), the language card with its two buttons, and the sign-out button, in
+ * the same `space-y-3`. The notifications card is left out — it appears only
+ * when the API has a push key, and is absent more often than not.
+ *
+ * Shown before the browser has said whether there is a token as well: most
+ * visits here are signed in, and that wait passes inside the skeleton's 200ms
+ * delay anyway.
+ */
+function AccountPanelSkeleton() {
+  const english = useLocale() !== 'ar';
   return (
-    <p className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-      <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-      {label}
-    </p>
+    <SkeletonRegion className="space-y-3">
+      <div
+        data-testid="skeleton-row"
+        className="space-y-3 rounded-2xl bg-background p-5 text-start shadow-sm ring-1 ring-border/70 ring-inset"
+      >
+        <div className="flex items-start gap-2">
+          <Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded" />
+          <SkeletonText size="lg" className="w-40" />
+        </div>
+        {/* "Your account is approved…" takes two lines on a phone, and in English at any width. */}
+        <div>
+          <SkeletonText className="w-full" />
+          <SkeletonText className="w-1/2" lineClassName={english ? undefined : 'sm:hidden'} />
+        </div>
+        <div className="space-y-2 border-t border-muted pt-3">
+          {repeat(2, (i) => (
+            <div key={i} className="flex items-center justify-between gap-3">
+              <SkeletonText className="w-16" />
+              <SkeletonText className="w-36" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-2xl bg-background p-4 text-start shadow-sm ring-1 ring-border/70 ring-inset">
+        <SkeletonText className="w-20" />
+        <div className="flex gap-2">
+          <Skeleton className="h-11 flex-1 rounded-xl" />
+          <Skeleton className="h-11 flex-1 rounded-xl" />
+        </div>
+      </div>
+
+      <Skeleton className="h-12 w-full rounded-2xl" />
+    </SkeletonRegion>
   );
 }

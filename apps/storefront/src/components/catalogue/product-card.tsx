@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
 import { StockBadge } from '../ui/stock-badge';
+import { Skeleton, SkeletonText } from '../ui/skeleton';
 import { ProductImage } from './product-image';
 import { localName } from '../../lib/localized-name';
 import type { CatalogueItem } from './types';
@@ -58,18 +59,33 @@ export function ProductCard({ item }: { item: CatalogueItem }) {
   );
 }
 
-/** A card-shaped hole, so the grid does not jump when the answer arrives. */
+/**
+ * The card before it arrives, traced from `ProductCard` above: the same square
+ * image, the category line, a two-line name in the name's own line height, and
+ * the price beside the stock badge pinned to the bottom. Tokens rather than
+ * palette colours (`bg-background` is the card's white, `border-border` its
+ * grey-200).
+ */
 export function ProductCardSkeleton() {
   return (
-    <li
-      aria-hidden
-      className="flex animate-pulse flex-col overflow-hidden rounded-xl border border-gray-200 bg-white"
-    >
-      <div className="aspect-square w-full bg-gray-100" />
-      <div className="flex flex-col gap-2 p-3">
-        <div className="h-3 w-1/3 rounded bg-gray-100" />
-        <div className="h-4 w-4/5 rounded bg-gray-100" />
-        <div className="h-4 w-1/2 rounded bg-gray-100" />
+    <li data-testid="skeleton-row" className="flex">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background text-start shadow-sm">
+        <Skeleton className="aspect-square w-full rounded-none" />
+
+        <div className="flex flex-1 flex-col gap-1 p-3">
+          <SkeletonText size="xs" className="w-1/3" />
+
+          <div className="text-sm leading-snug">
+            <SkeletonText lineClassName="h-[1lh]" className="w-full" />
+            {/* A part's name usually runs to two lines in a phone's two columns, one in the wider grids. */}
+            <SkeletonText lineClassName="h-[1lh] sm:hidden" className="w-2/3" />
+          </div>
+
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-2">
+            <SkeletonText size="base" className="w-20" />
+            <Skeleton className="h-5 w-14 rounded-full" />
+          </div>
+        </div>
       </div>
     </li>
   );

@@ -1,11 +1,12 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, Package } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleAlert, Package } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '../../lib/localized-name';
 
 import { Link } from '../../i18n/navigation';
 import { useSession } from '../../lib/session';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { useDates } from '../requests/format';
 import { useRefusal } from '../requests/use-refusal';
 import { ImportPhoto } from './photo';
@@ -35,14 +36,10 @@ export function ImportList() {
   const { signedIn, ready } = useSession();
   const { data, isPending, isError, error, refetch } = useImports();
 
-  if (!ready) {
-    return (
-      <p className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-        {tCommon('loading')}
-      </p>
-    );
-  }
+  // Before the browser has said whether there is a token, and then while the
+  // list is on its way, the same rows. Most visits here are signed in, and the
+  // first state passes before the skeleton's 200ms delay would show it.
+  if (!ready) return <ImportListSkeleton />;
 
   /**
    * Signed out is not an error.
@@ -67,14 +64,7 @@ export function ImportList() {
     );
   }
 
-  if (isPending) {
-    return (
-      <p className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-        {tCommon('loading')}
-      </p>
-    );
-  }
+  if (isPending) return <ImportListSkeleton />;
 
   if (isError) {
     return (
@@ -162,6 +152,50 @@ function ImportRow({ request }: { request: ImportRequest }) {
 
       <Chevron className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
     </Link>
+  );
+}
+
+/**
+ * How many row skeletons a first load shows. The list is not paged; ten is
+ * more than a phone screen holds, so nothing below the fold moves either.
+ */
+const LIST_ROWS = 10;
+
+function ImportListSkeleton() {
+  return (
+    <SkeletonRegion className="space-y-2 px-4">
+      {repeat(LIST_ROWS, (i) => (
+        <ImportRowSkeleton key={i} />
+      ))}
+    </SkeletonRegion>
+  );
+}
+
+/**
+ * An import row before it arrives, traced from the card and `ImportRow` above:
+ * the part's name and its pill, the date, a line of the owner's reply, and the
+ * chevron. The photo is left out — most requests are a description first — and
+ * at 56px it is shorter than the text beside it, so the row is the same height
+ * either way.
+ */
+function ImportRowSkeleton() {
+  return (
+    <div
+      data-testid="skeleton-row"
+      className="overflow-hidden rounded-xl bg-background shadow-sm ring-1 ring-border/70 ring-inset"
+    >
+      <div className="flex items-center gap-3 p-4">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <SkeletonText className="w-32" />
+            <Skeleton className="h-5 w-28 rounded-full" />
+          </div>
+          <SkeletonText size="xs" className="w-24" />
+          {/* The reply line is only there once the owner answered; a request waiting has none. */}
+        </div>
+        <Skeleton className="h-5 w-5 shrink-0 rounded" />
+      </div>
+    </div>
   );
 }
 

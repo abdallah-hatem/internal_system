@@ -14,6 +14,7 @@ import { useState } from 'react';
 
 import { Link } from '../../i18n/navigation';
 import { useSession } from '../../lib/session';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { trimQuantity } from '../requests/decimal';
 import { useDates } from '../requests/format';
 import { useRefusal } from '../requests/use-refusal';
@@ -69,10 +70,7 @@ export function ImportDetail({ id }: { id: string }) {
     return (
       <div className="space-y-4 px-4 py-4">
         {back}
-        <p className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-          {tCommon('loading')}
-        </p>
+        <ImportDetailSkeleton />
       </div>
     );
   }
@@ -149,6 +147,45 @@ export function ImportDetail({ id }: { id: string }) {
 
       {canWithdraw(data.status) && <Withdraw id={data.id} />}
     </div>
+  );
+}
+
+/**
+ * The request before it arrives, traced from the page above: the part's name
+ * and its pill, the dates, the card of details the shop typed (label over
+ * value, two of them), and the photos — heading, a line under it, and a row of
+ * three squares. Sits in the page's own `space-y-4`.
+ */
+function ImportDetailSkeleton() {
+  return (
+    <SkeletonRegion className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SkeletonText size="lg" className="w-40" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+        </div>
+        <SkeletonText size="xs" className="w-36" />
+      </div>
+
+      <div className="divide-y divide-muted overflow-hidden rounded-xl bg-background shadow-sm ring-1 ring-border/70 ring-inset">
+        {repeat(2, (i) => (
+          <div key={i} data-testid="skeleton-row" className="p-4">
+            <SkeletonText size="xs" className="w-16" />
+            <SkeletonText lineClassName="mt-1" className="w-48" />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <SkeletonText className="w-20" />
+        <SkeletonText size="xs" className="w-56" />
+        <div className="grid grid-cols-3 gap-2">
+          {repeat(3, (i) => (
+            <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    </SkeletonRegion>
   );
 }
 

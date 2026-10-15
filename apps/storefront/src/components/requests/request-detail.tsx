@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { localName } from '../../lib/localized-name';
 import { isZero, sameDecimal, trimQuantity } from './decimal';
 import { StatusPill, useDates } from './format';
@@ -45,10 +46,7 @@ export function RequestDetail({ id }: { id: string }) {
     return (
       <div className="space-y-4 px-4 py-4">
         {back}
-        <p className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-          {tCommon('loading')}
-        </p>
+        <RequestDetailSkeleton />
       </div>
     );
   }
@@ -100,6 +98,43 @@ export function RequestDetail({ id }: { id: string }) {
           left open on a stale copy will get. */}
       {data.status === 'PENDING' && <Withdraw id={data.id} />}
     </div>
+  );
+}
+
+/**
+ * The request before it arrives, traced from the page above: the number and
+ * its pill, the dates, and the card of lines — each line a name, SKU and unit
+ * price beside the quantity column. Three lines; a request rarely has fewer.
+ * Sits in the page's own `space-y-4`, so its sections land where the real ones
+ * do.
+ */
+function RequestDetailSkeleton() {
+  return (
+    <SkeletonRegion className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SkeletonText size="lg" className="w-28" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+        </div>
+        <SkeletonText size="xs" className="w-36" />
+      </div>
+
+      <div className="divide-y divide-muted overflow-hidden rounded-xl bg-background shadow-sm ring-1 ring-border/70 ring-inset">
+        {repeat(3, (i) => (
+          <div key={i} data-testid="skeleton-row" className="flex items-start gap-3 p-4">
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <SkeletonText className="w-40" />
+              <SkeletonText size="xs" className="w-20" />
+              <SkeletonText size="xs" className="w-28" />
+            </div>
+            <div className="flex shrink-0 flex-col items-end">
+              <SkeletonText size="xs" lineClassName="h-[16.5px]" className="w-10" />
+              <SkeletonText className="w-6" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </SkeletonRegion>
   );
 }
 

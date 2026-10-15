@@ -1,6 +1,6 @@
 'use client';
 
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import { api } from '../../lib/api';
@@ -14,7 +14,8 @@ import type { CataloguePage, Category, ProductDetail } from './types';
  * retail is not a missing feature, it is the wrong number.
  */
 
-const PAGE_SIZE = 24;
+/** Products per page, and so the number of card skeletons a first load shows. */
+export const PAGE_SIZE = 24;
 
 /** A 404 from the API — a SKU that was never there, or has been withdrawn. */
 export function isNotFound(error: unknown): boolean {
@@ -39,6 +40,10 @@ export function useCatalogue(search: string, categoryId: string) {
       return data.data;
     },
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
+    // A new search or category is a new key. Without this the grid already on
+    // screen is dropped for skeletons on every settled keystroke; with it the
+    // old cards stay, dimmed, until the answer replaces them.
+    placeholderData: keepPreviousData,
   });
 }
 

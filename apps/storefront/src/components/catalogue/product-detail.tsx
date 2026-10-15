@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
 import { StockBadge } from '../ui/stock-badge';
+import { Skeleton, SkeletonRegion, SkeletonText } from '../ui/skeleton';
 import { ProductImage } from './product-image';
 import { localDescription, localName } from '../../lib/localized-name';
 import { QueryError } from './query-error';
@@ -61,15 +62,7 @@ export function ProductDetail({ sku }: { sku: string }) {
     return (
       <div className="mx-auto w-full max-w-3xl p-4">
         {back}
-        <span className="sr-only" role="status">
-          {tc('loading')}
-        </span>
-        <div aria-hidden className="mt-4 animate-pulse space-y-4">
-          <div className="aspect-square w-full rounded-xl bg-gray-100 sm:aspect-16/10" />
-          <div className="h-6 w-2/3 rounded bg-gray-100" />
-          <div className="h-5 w-1/3 rounded bg-gray-100" />
-          <div className="h-20 w-full rounded bg-gray-100" />
-        </div>
+        <ProductDetailSkeleton />
       </div>
     );
   }
@@ -193,5 +186,38 @@ export function ProductDetail({ sku }: { sku: string }) {
         </div>
       </article>
     </div>
+  );
+}
+
+/**
+ * The product before it arrives, traced from the `<article>` above: the square
+ * image in the first column, then category, name, SKU, the price beside its
+ * stock badge, a few lines of description and the add button, each in its own
+ * text size's line height and the same `gap-3`.
+ */
+function ProductDetailSkeleton() {
+  return (
+    <SkeletonRegion className="mt-4 grid gap-6 sm:grid-cols-2">
+      <Skeleton data-testid="skeleton-row" className="aspect-square w-full rounded-xl" />
+
+      <div className="flex flex-col gap-3 text-start">
+        <SkeletonText className="w-24" />
+        <SkeletonText size="xl" className="w-2/3" />
+        <SkeletonText size="xs" className="w-28" />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <SkeletonText size="2xl" className="w-32" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+        </div>
+
+        <div className="text-sm leading-relaxed">
+          <SkeletonText lineClassName="h-[1lh]" className="w-full" />
+          <SkeletonText lineClassName="h-[1lh]" className="w-full" />
+          <SkeletonText lineClassName="h-[1lh]" className="w-1/2" />
+        </div>
+
+        <Skeleton className="mt-2 h-12 w-full rounded-xl" />
+      </div>
+    </SkeletonRegion>
   );
 }

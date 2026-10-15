@@ -1,10 +1,11 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, CircleAlert, Clock, LoaderCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleAlert, Clock } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { Link } from '../../i18n/navigation';
 import { Money } from '../ui/money';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { StatusPill, useDates } from './format';
 import { useRequests, type PortalRequest } from './queries';
 import { useRefusal } from './use-refusal';
@@ -26,10 +27,11 @@ export function RequestList() {
 
   if (isPending) {
     return (
-      <p className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
-        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-        {tCommon('loading')}
-      </p>
+      <SkeletonRegion className="space-y-2 px-4">
+        {repeat(LIST_ROWS, (i) => (
+          <RequestRowSkeleton key={i} />
+        ))}
+      </SkeletonRegion>
     );
   }
 
@@ -97,6 +99,36 @@ function RequestRow({ request }: { request: PortalRequest }) {
 
       <Chevron className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
     </Link>
+  );
+}
+
+/**
+ * How many row skeletons a first load shows. The list is not paged; ten is
+ * more than a phone screen holds, so nothing below the fold moves either.
+ */
+const LIST_ROWS = 10;
+
+/**
+ * A request row before it arrives, traced from `RequestRow` above: the number
+ * and its pill, the date line, the status line, and the chevron, in the same
+ * card with the same padding.
+ */
+function RequestRowSkeleton() {
+  return (
+    <div
+      data-testid="skeleton-row"
+      className="flex items-center gap-3 rounded-xl bg-background p-4 shadow-sm ring-1 ring-border/70 ring-inset"
+    >
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <SkeletonText className="w-20" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+        </div>
+        <SkeletonText size="xs" className="w-32" />
+        <SkeletonText size="xs" className="w-40" />
+      </div>
+      <Skeleton className="h-5 w-5 shrink-0 rounded" />
+    </div>
   );
 }
 

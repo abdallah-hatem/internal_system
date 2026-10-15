@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { Link } from '../../i18n/navigation';
 import { useBasket, useBasketCount, useBasketHydrated } from '../../stores/basket';
 import { Money } from '../ui/money';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { localName } from '../../lib/localized-name';
 import { estimateTotal } from './decimal';
 import { QuantityStepper } from './quantity-stepper';
@@ -157,7 +158,7 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
           <form onSubmit={send} className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {!hydrated ? (
-                <p className="py-8 text-center text-sm text-gray-500">{tCommon('loading')}</p>
+                <BasketLinesSkeleton />
               ) : lines.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500">{t('empty')}</p>
               ) : (
@@ -263,6 +264,33 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * The basket's lines before the saved basket has been read back, traced from
+ * the `<li>` above: name, SKU and price on the start side, the quantity
+ * stepper (two 36px buttons and a 48px box inside a 1px border) and the remove
+ * link on the end. Two lines — compact, since the count is not known yet.
+ */
+function BasketLinesSkeleton() {
+  return (
+    <SkeletonRegion className="divide-y divide-muted">
+      {repeat(2, (i) => (
+        <div key={i} data-testid="skeleton-row" className="flex items-start gap-3 py-3">
+          <div className="min-w-0 flex-1">
+            <SkeletonText className="w-40" />
+            <SkeletonText size="xs" className="w-20" />
+            {/* The price is an inline span, so its line is the block's 24px, not 16. */}
+            <SkeletonText size="xs" lineClassName="h-6" className="w-16" />
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <Skeleton className="h-[38px] w-[122px] rounded-lg" />
+            <SkeletonText size="xs" className="w-12" />
+          </div>
+        </div>
+      ))}
+    </SkeletonRegion>
   );
 }
 
