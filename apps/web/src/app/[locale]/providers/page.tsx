@@ -10,7 +10,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import {
-  Truck, Plus, Search, Edit, X, Loader2, Phone, Mail, User, Trash2,
+  Truck, Plus, Search, Edit, Loader2, Phone, Mail, User, Trash2,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';

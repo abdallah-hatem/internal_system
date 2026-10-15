@@ -12,7 +12,7 @@ import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/paginati
 import { FormActions } from '../../../components/ui/fields';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import {
-  Plus, Search, Edit, X, Loader2, Phone, Mail, MessageCircle, Trash2, ShoppingCart,
+  Plus, Search, Edit, Loader2, Phone, Mail, MessageCircle, Trash2, ShoppingCart,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';

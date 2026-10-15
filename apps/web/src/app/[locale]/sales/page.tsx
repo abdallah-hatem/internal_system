@@ -31,7 +31,7 @@ import {
   type SaleFormStockRow,
 } from '../../../components/sales/SaleOrderForm';
 import {
-  Plus, Search, X, Loader2,
+  Plus, Search, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
   Undo2, ShoppingCart, Wallet, FileText,
 } from 'lucide-react';

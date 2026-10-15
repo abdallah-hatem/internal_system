@@ -11,7 +11,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Select } from '../../../components/ui/select';
 import {
-  ShieldCheck, Search, Eye, X,
+  ShieldCheck, Search, Eye, 
   ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';

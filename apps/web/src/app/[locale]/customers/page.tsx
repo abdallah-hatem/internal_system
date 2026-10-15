@@ -16,7 +16,7 @@ import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useDateFormat } from '../../../lib/dates';
 import {
-  Users, Plus, Search, Eye, Edit, X, Loader2,
+  Users, Plus, Search, Eye, Edit, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
   ShieldAlert, ShieldCheck,
 } from 'lucide-react';

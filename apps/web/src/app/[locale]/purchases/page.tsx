@@ -12,7 +12,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  ShoppingCart, Plus, Search, Eye, X, MinusCircle, ChevronRight,
+  ShoppingCart, Plus, Search, Eye, MinusCircle, ChevronRight,
   Package, DollarSign,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';

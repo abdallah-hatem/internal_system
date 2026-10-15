@@ -13,7 +13,7 @@ import { Money } from '../../../components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
 import {
   Scale, Loader2, TrendingUp, TrendingDown,
-  CheckCircle2, Wallet, RotateCcw, Calculator, X,
+  CheckCircle2, Wallet, RotateCcw, Calculator, 
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 

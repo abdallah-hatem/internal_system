@@ -11,7 +11,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Plus, Search, Eye, X,
+  Plus, Search, Eye, 
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';

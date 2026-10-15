@@ -23,7 +23,7 @@ import {
   canTakePayment,
 } from '../../../components/payments/RecordPaymentDialog';
 import {
-  Plus, Search, Eye, X, Loader2,
+  Plus, Search, Eye, Loader2,
   ArrowRightLeft, RotateCcw, Download,
 } from 'lucide-react';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';

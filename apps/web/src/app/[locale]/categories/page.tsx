@@ -9,7 +9,7 @@ import { useToast } from '../../../components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Tag, Plus, Search, Edit, X, Loader2, Trash2, ChevronRight, ChevronDown,
+  Tag, Plus, Search, Edit, Loader2, Trash2, ChevronRight, ChevronDown,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
