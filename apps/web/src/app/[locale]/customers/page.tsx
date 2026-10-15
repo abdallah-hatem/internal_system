@@ -29,6 +29,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -60,24 +61,8 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The table row and the phone card below, traced: same cells, same paddings,
-// the 28px icon buttons that set the row's height. Change one, change the other.
-function CustomerRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-12 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-28" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          {repeat(2, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
-        </div>
-      </td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand. Change one, change the other.
 
 function CustomerCardSkeleton() {
   return (
@@ -251,6 +236,102 @@ function CustomersPageContent() {
     });
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Name, type, phone, email, balance, actions (components/ui/data-table.tsx).
+  // The phone fits "+971 50 123 4567", the balance "-123,456.00 EGP"; a long
+  // email is cut with the whole of it on hover; the name takes what is left.
+  const columns: Column<Customer>[] = [
+    {
+      key: 'name', header: t('name'), width: 'auto', title: (c) => c.displayName,
+      className: 'font-medium text-gray-900',
+      cell: (customer) => (
+        // The name wraps to two lines and is cut after them; the badge keeps its line.
+        <span className="flex items-center gap-2" title={customer.displayName}>
+          <span className="min-w-0 line-clamp-2 break-words">
+            <CustomerLink id={customer.id} name={customer.displayName} />
+          </span>
+          {customer.verificationStatus === 'UNVERIFIED' && (
+            <span
+              title={t('awaitingReviewHint')}
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+            >
+              <ShieldAlert className="h-3 w-3" />
+              {t('awaitingReview')}
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: 'type', header: t('type'), width: '5.5rem', skeleton: { kind: 'pill', share: 'w-1/2' },
+      cell: (customer) => (
+        <CellBadge className={TYPE_COLORS[customer.type] ?? 'bg-gray-100 text-gray-600'}>
+          {customer.type === 'B2B' ? t('b2b') : t('b2c')}
+        </CellBadge>
+      ),
+    },
+    {
+      key: 'phone', header: t('phone'), width: '10rem', className: 'text-gray-600', skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (customer) => (
+        <span className="flex items-center gap-1">
+          <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {customer.phone ? <LatinText dir="ltr" truncate>{customer.phone}</LatinText> : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'email', header: t('email'), width: '13rem', className: 'text-gray-600', skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (customer) => (
+        <span className="flex items-center gap-1">
+          <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {customer.email ? <LatinText truncate>{customer.email}</LatinText> : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'balance', header: t('balance'), width: '9rem', kind: 'value', skeleton: { kind: 'text', share: 'w-2/3' },
+      headerProps: { 'aria-sort': byBalance ? 'descending' : undefined },
+      cell: (customer) => (
+        <Money
+          value={customer.outstandingBalance ?? 0}
+          currency={customer.currency ?? 'EGP'}
+          className={`font-medium ${customer.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}
+        />
+      ),
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '8rem', skeleton: { kind: 'buttons', count: 2 },
+      cell: (customer) => (
+        <div className="flex items-center gap-1">
+          {customer.verificationStatus === 'UNVERIFIED' && (
+            <button
+              onClick={() => setVerifyingCustomer(customer)}
+              disabled={verifyMutation.isPending}
+              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+              title={t('verify')}
+            >
+              <ShieldCheck className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            title={tc('view')}
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setEditingCustomer(customer)}
+            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+            title={tc('edit')}
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -312,110 +393,16 @@ function CustomersPageContent() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('name')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('type')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('phone')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('email')}</th>
-                  <th
-                    className="text-start px-4 py-3 font-medium text-gray-600"
-                    aria-sort={byBalance ? 'descending' : undefined}
-                  >
-                    {t('balance')}
-                  </th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <CustomerRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={6}>{emptyList}</td></tr>
-                  ) : (
-                  paginated.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <span className="inline-flex items-center gap-2">
-                          <CustomerLink id={customer.id} name={customer.displayName} />
-                          {customer.verificationStatus === 'UNVERIFIED' && (
-                            <span
-                              title={t('awaitingReviewHint')}
-                              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
-                            >
-                              <ShieldAlert className="h-3 w-3" />
-                              {t('awaitingReview')}
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[customer.type] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {customer.type === 'B2B' ? t('b2b') : t('b2c')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-gray-400" />
-                          {customer.phone ? <LatinText dir="ltr">{customer.phone}</LatinText> : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5 text-gray-400" />
-                          {customer.email ? <LatinText>{customer.email}</LatinText> : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Money
-                          value={customer.outstandingBalance ?? 0}
-                          currency={customer.currency ?? 'EGP'}
-                          className={`font-medium ${customer.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {customer.verificationStatus === 'UNVERIFIED' && (
-                            <button
-                              onClick={() => setVerifyingCustomer(customer)}
-                              disabled={verifyMutation.isPending}
-                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
-                              title={t('verify')}
-                            >
-                              <ShieldCheck className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                            title={tc('view')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingCustomer(customer)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            title={tc('edit')}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(c) => c.id}
+        isLoading={isLoading}
+        stale={reloading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (

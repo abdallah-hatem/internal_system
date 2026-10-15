@@ -22,6 +22,7 @@ import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -180,6 +181,25 @@ export default function PaymentPlansPage() {
     }
   };
 
+  // A plan's instalments, opened under it: due date (and note), amount, paid, state.
+  const instalmentColumns: Column<Instalment>[] = [
+    {
+      key: 'dueOn', header: t('dueOn'), width: 'auto', className: 'text-gray-700',
+      cell: (i) => (
+        <span className="line-clamp-2 break-words" title={i.note ?? undefined}>
+          <span className="whitespace-nowrap">{formatDate(i.dueOn)}</span>
+          {i.note && <span className="ms-2 text-xs text-gray-400">{i.note}</span>}
+        </span>
+      ),
+    },
+    { key: 'amount', header: t('amount'), width: '8.5rem', kind: 'value', align: 'end', className: 'text-gray-900', cell: (i) => <Money value={i.amount} /> },
+    { key: 'paid', header: t('paid'), width: '8.5rem', kind: 'value', align: 'end', className: 'text-gray-500', cell: (i) => <Money value={i.paidEgp} /> },
+    {
+      key: 'status', header: tc('status'), width: '6rem', align: 'end',
+      cell: (i) => <CellBadge className={`px-2 ${STATE_STYLE[i.state]}`}>{t(i.state.toLowerCase())}</CellBadge>,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -268,37 +288,17 @@ export default function PaymentPlansPage() {
 
               {expanded === plan.id && (
                 <div className="border-t border-gray-100 px-4 py-3">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-xs text-gray-500">
-                        <th className="py-1.5 text-start font-medium">{t('dueOn')}</th>
-                        <th className="py-1.5 text-end font-medium">{t('amount')}</th>
-                        <th className="py-1.5 text-end font-medium">{t('paid')}</th>
-                        <th className="py-1.5 text-end font-medium">{tc('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {plan.instalments.map((i) => (
-                        <tr key={i.id}>
-                          <td className="py-2 text-gray-700">
-                            {formatDate(i.dueOn)}
-                            {i.note && <span className="ms-2 text-xs text-gray-400">{i.note}</span>}
-                          </td>
-                          <td className="py-2 text-end text-gray-900">
-                            <Money value={i.amount} />
-                          </td>
-                          <td className="py-2 text-end text-gray-500">
-                            <Money value={i.paidEgp} />
-                          </td>
-                          <td className="py-2 text-end">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATE_STYLE[i.state]}`}>
-                              {t(i.state.toLowerCase())}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {/* The shared table (components/ui/data-table.tsx): the date
+                      and its note take what is left; the amounts fit
+                      "123,456.00 EGP" and never cut. */}
+                  <DataTable
+                    frame="none"
+                    density="compact"
+                    autoMin="8rem"
+                    rows={plan.instalments}
+                    rowKey={(i) => i.id}
+                    columns={instalmentColumns}
+                  />
 
                   {/* Payments are applied to the earliest promise first, so a
                       shop that pays generously early is not chased. */}

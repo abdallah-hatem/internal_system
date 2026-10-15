@@ -17,6 +17,7 @@ import {
 import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog {
@@ -48,20 +49,8 @@ const ENTITY_TYPES = [
 ];
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The log row and card below, traced: the 28px View button sets the row's
-// height. Change one, change the other.
-function AuditLogRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-28" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><Skeleton className="size-7 rounded-lg" /></td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand. Change one, change the other.
 
 function AuditLogCardSkeleton() {
   return (
@@ -140,6 +129,53 @@ export default function AuditLogsPage() {
 
   const detail = (logDetail as AuditLog) ?? viewingLog;
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Timestamp, actor, action, record type, record id, actions
+  // (components/ui/data-table.tsx). The timestamp fits "Dec 28, 2026, 12:59 PM";
+  // a long action or record type is cut with the whole of it on hover; the
+  // actor takes what is left.
+  const columns: Column<AuditLog>[] = [
+    {
+      key: 'timestamp', header: t('timestamp'), width: '10.5rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' },
+      cell: (log) => formatDate(log.occurredAt, { includeTime: true }),
+    },
+    {
+      key: 'actor', header: t('actor'), width: 'auto', kind: 'name', className: 'text-gray-700',
+      title: (log) => log.actor?.email ?? log.actorUserId, cell: (log) => log.actor?.email ?? log.actorUserId ?? '—',
+    },
+    {
+      key: 'action', header: t('action'), width: '10rem', skeleton: { kind: 'pill', share: 'w-2/3' },
+      cell: (log) => (
+        <CellBadge className={ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-600'} title={codeLabel('auditAction', log.action)}>
+          {codeLabel('auditAction', log.action)}
+        </CellBadge>
+      ),
+    },
+    {
+      key: 'entity', header: t('entity'), width: '10rem', kind: 'label', className: 'text-gray-600',
+      title: (log) => codeLabel('entityType', log.entityType), skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (log) => codeLabel('entityType', log.entityType),
+    },
+    {
+      key: 'entityId', header: t('entityId'), width: '7rem', kind: 'label', className: 'text-gray-500 font-mono text-xs',
+      title: (log) => log.entityId, skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' },
+      cell: (log) => `${log.entityId?.slice(0, 8)}...`,
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '5.5rem', skeleton: { kind: 'buttons', count: 1 },
+      cell: (log) => (
+        <button
+          onClick={() => setViewingLog(log)}
+          className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+          title={tc('view')}
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -176,57 +212,16 @@ export default function AuditLogsPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('timestamp')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('actor')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('action')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('entity')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('entityId')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <AuditLogRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={6}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(log.occurredAt, { includeTime: true })}</td>
-                      <td className="px-4 py-3 text-gray-700">{log.actor?.email ?? log.actorUserId ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {codeLabel('auditAction', log.action)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{codeLabel('entityType', log.entityType)}</td>
-                      <td className="px-4 py-3 text-gray-500 font-mono text-xs truncate max-w-[120px]">{log.entityId?.slice(0, 8)}...</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => setViewingLog(log)}
-                          className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                          title={tc('view')}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(log) => log.id}
+        isLoading={isLoading}
+        stale={reloading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (

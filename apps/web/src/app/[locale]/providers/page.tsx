@@ -20,6 +20,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -31,27 +32,9 @@ interface Provider {
 }
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The provider row and card below, traced: name, contact person, phone,
-// email, and the 28px icon buttons that set the row's height when the reader
-// may edit. Change one, change the other.
-function ProviderRowSkeleton({ actions }: { actions: number }) {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-28" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
-      {/* The real row keeps this cell even when it is empty. */}
-      <td className="px-4 py-3">
-        {actions > 0 && (
-          <div className="flex items-center gap-1">
-            {repeat(actions, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
-          </div>
-        )}
-      </td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand, with the 28px icon
+// buttons when the reader may edit. Change one, change the other.
 
 function ProviderCardSkeleton({ actions }: { actions: number }) {
   return (
@@ -195,6 +178,80 @@ export default function ProvidersPage() {
     });
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Name, contact person, phone, email, and the actions when the reader may
+  // act (components/ui/data-table.tsx). A long contact, phone or email is cut
+  // with the whole of it on hover; the name takes what is left. The actions
+  // cell exists only with its header — rows used to keep an empty fifth cell
+  // under a four-column header for a reader who may not act.
+  const columns: Column<Provider>[] = [
+    {
+      key: 'name', header: t('name'), width: 'auto', kind: 'name', className: 'font-medium text-gray-900',
+      title: (p) => p.name, cell: (p) => <LatinText>{p.name}</LatinText>,
+    },
+    {
+      key: 'contactPerson', header: t('contactPerson'), width: '12rem', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (p) => (
+        <span className="flex items-center gap-1">
+          <User className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {p.contactPerson ? <LatinText truncate>{p.contactPerson}</LatinText> : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'phone', header: t('phone'), width: '10rem', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (p) => (
+        <span className="flex items-center gap-1">
+          <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {p.phone ? <LatinText dir="ltr" truncate>{p.phone}</LatinText> : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'email', header: t('email'), width: '15rem', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (p) => (
+        <span className="flex items-center gap-1">
+          <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {p.email ? <LatinText truncate>{p.email}</LatinText> : '—'}
+        </span>
+      ),
+    },
+    ...(mayRow
+      ? [{
+          key: 'actions', header: tc('actions'), width: '6rem', skeleton: { kind: 'buttons', count: actionCount },
+          cell: (provider: Provider) => (
+            <div className="flex items-center gap-1">
+              {may.edit && (
+              <button
+                type="button"
+                data-testid="edit-action"
+                onClick={() => setEditingProvider(provider)}
+                className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                title={tc('edit')}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              )}
+              {may.delete && (
+              <button
+                type="button"
+                data-testid="delete-action"
+                onClick={() => setDeletingProvider(provider)}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title={tc('delete')}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              )}
+            </div>
+          ),
+        } satisfies Column<Provider>]
+      : []),
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -229,85 +286,15 @@ export default function ProvidersPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('name')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('contactPerson')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('phone')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('email')}</th>
-                  {mayRow && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <ProviderRowSkeleton key={i} actions={actionCount} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={mayRow ? 5 : 4}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((provider) => (
-                    <tr key={provider.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900"><LatinText>{provider.name}</LatinText></td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1">
-                          <User className="h-3.5 w-3.5 text-gray-400" />
-                          {provider.contactPerson ? <LatinText>{provider.contactPerson}</LatinText> : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-gray-400" />
-                          {provider.phone ? <span dir="ltr">{provider.phone}</span> : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5 text-gray-400" />
-                          {provider.email ? <LatinText>{provider.email}</LatinText> : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {mayRow && (
-                        <div className="flex items-center gap-1">
-                          {may.edit && (
-                          <button
-                            type="button"
-                            data-testid="edit-action"
-                            onClick={() => setEditingProvider(provider)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                            title={tc('edit')}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          )}
-                          {may.delete && (
-                          <button
-                            type="button"
-                            data-testid="delete-action"
-                            onClick={() => setDeletingProvider(provider)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title={tc('delete')}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          )}
-                        </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(p) => p.id}
+        isLoading={isLoading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (

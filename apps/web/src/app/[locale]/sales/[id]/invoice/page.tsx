@@ -14,7 +14,8 @@ import { Money } from '@/components/ui/money';
 import { LatinText } from '@/components/ui/latin-text';
 import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { Skeleton, SkeletonRegion, SkeletonText } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 
 /** `GET /sales/orders/:id/invoice` (api SalesService.invoice). */
 interface Invoice {
@@ -48,6 +49,80 @@ interface Invoice {
 /** How many lines the placeholder invoice shows — a typical order, not a page. */
 const SKELETON_LINES = 3;
 
+type InvoiceLine = Invoice['lines'][number];
+
+/**
+ * The lines table's columns, shared by the invoice and its placeholder
+ * (components/ui/data-table.tsx): #, product, quantity, unit price, discount,
+ * line total. The amounts fit "123,456.00 EGP" and never cut; the product
+ * takes what is left and, on a document that is printed, wraps in full. On a phone the price and discount move under the name;
+ * on paper (A4, 186mm wide) every column prints.
+ */
+function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
+  const t = useTranslations('sales.invoice');
+  const { formatAmount, formatNumber } = useNumberFormat();
+  const { locale } = useParams<{ locale: string }>();
+  return [
+    {
+      key: 'line', header: t('line'), width: '2.5rem', kind: 'value', className: 'align-top text-muted-foreground',
+      skeleton: { kind: 'text', share: 'w-3' }, cell: (_line, i) => formatNumber(i + 1),
+    },
+    {
+      key: 'product', header: t('product'), width: 'auto', className: 'align-top',
+      skeleton: {
+        kind: 'custom',
+        render: () => (
+          <>
+            <SkeletonText className="w-2/3" />
+            <SkeletonText size="xs" className="w-1/3" />
+            <SkeletonText size="xs" lineClassName="sm:hidden" className="w-1/4" />
+          </>
+        ),
+      },
+      cell: (line) => {
+        const name = localName({ name: line.product, nameAr: line.productAr }, locale);
+        return (
+          <>
+            {/* A paper document: the whole name, wrapped, never cut. */}
+            <p className="font-medium text-foreground break-words" data-testid="invoice-line-product">
+              <LatinText>{name}</LatinText>
+            </p>
+            <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{line.sku}</LatinText></p>
+            {/* On a phone, price and discount sit under the name. */}
+            <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden">
+              <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>
+              {Number(line.discount) > 0 && (
+                <>
+                  {' · '}
+                  {t('discount')} <bdi dir="ltr">- {formatAmount(line.discount)}</bdi>
+                </>
+              )}
+            </p>
+          </>
+        );
+      },
+    },
+    {
+      key: 'quantity', header: t('quantity'), width: '4.5rem', kind: 'value', align: 'end', className: 'align-top',
+      skeleton: { kind: 'text', share: 'w-1/3' }, cell: (line) => formatNumber(line.quantity),
+    },
+    {
+      key: 'unitPrice', header: t('unitPrice'), width: '7.5rem', kind: 'value', align: 'end', className: 'align-top',
+      hiddenBelow: 'sm', skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (line) => <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>,
+    },
+    {
+      key: 'discount', header: t('discount'), width: '7rem', kind: 'value', align: 'end', className: 'align-top',
+      hiddenBelow: 'sm', skeleton: { kind: 'text', share: 'w-1/3' },
+      cell: (line) => (Number(line.discount) > 0 ? <bdi dir="ltr">- {formatAmount(line.discount)}</bdi> : '—'),
+    },
+    {
+      key: 'lineTotal', header: t('lineTotal'), width: '9rem', kind: 'value', align: 'end', className: 'align-top font-medium',
+      skeleton: { kind: 'text', share: 'w-2/3' }, cell: (line) => <Money value={line.lineTotal} currency={currency} />,
+    },
+  ];
+}
+
 /**
  * The invoice before it arrives, traced from the article below: the header
  * with its number and date, Bill to, the lines table, the totals beside the
@@ -56,6 +131,7 @@ const SKELETON_LINES = 3;
 function InvoiceSkeleton() {
   const t = useTranslations('sales.invoice');
   const tc = useTranslations('common');
+  const columns = useInvoiceColumns();
   // Every word that needs no data is the real word; only the figures wait.
   return (
     <div className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
@@ -78,34 +154,7 @@ function InvoiceSkeleton() {
       </div>
 
       <div className="py-4">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs text-muted-foreground [&>th]:px-2 [&>th]:py-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
-              <th className="w-6 text-start font-medium">{t('line')}</th>
-              <th className="text-start font-medium">{t('product')}</th>
-              <th className="text-end font-medium">{t('quantity')}</th>
-              <th className="hidden text-end font-medium sm:table-cell">{t('unitPrice')}</th>
-              <th className="hidden text-end font-medium sm:table-cell">{t('discount')}</th>
-              <th className="text-end font-medium">{t('lineTotal')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border [&>tr>td]:px-2 [&>tr>td]:py-2 [&>tr>td:first-child]:ps-0 [&>tr>td:last-child]:pe-0">
-            {repeat(SKELETON_LINES, (i) => (
-              <tr key={i} data-testid="skeleton-row">
-                <td className="align-top"><SkeletonText className="w-3" /></td>
-                <td className="align-top">
-                  <SkeletonText className="w-28 sm:w-40" />
-                  <SkeletonText size="xs" className="w-20" />
-                  <SkeletonText size="xs" lineClassName="sm:hidden" className="w-16" />
-                </td>
-                <td className="align-top"><SkeletonText lineClassName="justify-end" className="w-6" /></td>
-                <td className="hidden align-top sm:table-cell"><SkeletonText lineClassName="justify-end" className="w-16" /></td>
-                <td className="hidden align-top sm:table-cell"><SkeletonText lineClassName="justify-end" className="w-8" /></td>
-                <td className="align-top"><SkeletonText lineClassName="justify-end" className="w-20" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable frame="none" density="compact" autoMin="10rem" isLoading skeletonRows={SKELETON_LINES} rows={[]} rowKey={(l) => l.id} columns={columns} />
       </div>
 
       <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
@@ -160,7 +209,6 @@ export default function InvoicePage() {
   const tc = useTranslations('common');
   const apiError = useApiError();
   const { formatDate } = useDateFormat();
-  const { formatAmount, formatNumber } = useNumberFormat();
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
 
@@ -176,6 +224,7 @@ export default function InvoicePage() {
     refetchOnMount: 'always',
   });
 
+  const columns = useInvoiceColumns(data?.currency);
   const back = () => router.push(`/${locale}/sales`);
 
   if (isLoading) {
@@ -266,51 +315,16 @@ export default function InvoicePage() {
 
         {/* The lines */}
         <div className="py-4">
-          <table className="w-full text-sm" data-testid="invoice-lines">
-            <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground [&>th]:px-2 [&>th]:py-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
-                <th className="w-6 text-start font-medium">{t('line')}</th>
-                <th className="text-start font-medium">{t('product')}</th>
-                <th className="text-end font-medium">{t('quantity')}</th>
-                <th className="hidden text-end font-medium sm:table-cell print:table-cell">{t('unitPrice')}</th>
-                <th className="hidden text-end font-medium sm:table-cell print:table-cell">{t('discount')}</th>
-                <th className="text-end font-medium">{t('lineTotal')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border [&>tr>td]:px-2 [&>tr>td]:py-2 [&>tr>td:first-child]:ps-0 [&>tr>td:last-child]:pe-0">
-              {data.lines.map((line, i) => (
-                <tr key={line.id} data-testid="invoice-line">
-                  <td className="align-top tabular-nums text-muted-foreground">{formatNumber(i + 1)}</td>
-                  <td className="align-top">
-                    <p className="font-medium text-foreground" data-testid="invoice-line-product">
-                      <LatinText>{localName({ name: line.product, nameAr: line.productAr }, locale)}</LatinText>
-                    </p>
-                    <p className="text-xs text-muted-foreground"><LatinText dir="ltr">{line.sku}</LatinText></p>
-                    {/* On a phone, price and discount sit under the name. */}
-                    <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden">
-                      <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>
-                      {Number(line.discount) > 0 && (
-                        <>
-                          {' · '}
-                          {t('discount')} <bdi dir="ltr">- {formatAmount(line.discount)}</bdi>
-                        </>
-                      )}
-                    </p>
-                  </td>
-                  <td className="whitespace-nowrap text-end align-top tabular-nums">{formatNumber(line.quantity)}</td>
-                  <td className="hidden whitespace-nowrap text-end align-top tabular-nums sm:table-cell print:table-cell">
-                    <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>
-                  </td>
-                  <td className="hidden whitespace-nowrap text-end align-top tabular-nums sm:table-cell print:table-cell">
-                    {Number(line.discount) > 0 ? <bdi dir="ltr">- {formatAmount(line.discount)}</bdi> : '—'}
-                  </td>
-                  <td className="whitespace-nowrap text-end align-top font-medium tabular-nums">
-                    <Money value={line.lineTotal} currency={data.currency} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            frame="none"
+            density="compact"
+            autoMin="10rem"
+            tableTestId="invoice-lines"
+            rows={data.lines}
+            rowKey={(line) => line.id}
+            rowProps={() => ({ 'data-testid': 'invoice-line' })}
+            columns={columns}
+          />
         </div>
 
         {/* Totals, and the shop's account beside them */}

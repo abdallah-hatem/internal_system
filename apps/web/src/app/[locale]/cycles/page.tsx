@@ -20,6 +20,7 @@ import { useCan } from '../../../lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Cycle {
   id: string;
@@ -69,28 +70,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The table row and the phone card below, traced: same cells, same paddings,
-// the status chip's 20px, the Details link at the column's end. Change one,
-// change the other.
-function CycleRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      {/* Inline, around an empty line of text-xs, as the real chip is: it sits on
-          the cell's baseline and that sets the row one pixel taller than 20px. */}
-      <td className="px-4 py-3">
-        <Skeleton className="inline-flex w-20 rounded-full py-0.5 text-xs before:content-['\200b']" />
-      </td>
-      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-10" lineClassName="justify-end" /></td>
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-12" lineClassName="justify-end" /></td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand. Change one, change the other.
 
 function CycleCardSkeleton() {
   return (
@@ -175,6 +156,96 @@ export default function CyclesPage() {
     );
   const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Code (with its origin under it), status, participants, purchases, profit,
+  // ROI, date, actions (components/ui/data-table.tsx). Short values — a status
+  // chip, money, a date — never wrap. Each fixed column fits its title in
+  // English and Arabic ("العائد على الاستثمار" sets ROI's), and the actions
+  // fit Continue setup beside Details. Nine columns that wide did not fit a
+  // 1440 screen, so the origin, a two-word fact, moved under the code — the
+  // way the phone card shows it.
+  const columns: Column<Cycle>[] = [
+    {
+      key: 'code', header: t('code'), width: 'auto',
+      skeleton: {
+        kind: 'custom',
+        render: () => (
+          <>
+            <SkeletonText size="xs" className="w-1/2" />
+            <SkeletonText size="xs" className="w-1/3" />
+          </>
+        ),
+      },
+      cell: (cycle) => {
+        const origin = cycle.originType === 'CHINA' ? t('china') : t('uaeDirect');
+        return (
+          <div className="min-w-0">
+            <bdi className="block truncate font-mono text-xs font-medium text-gray-900 text-left rtl:text-right" title={cycle.code}>{cycle.code}</bdi>
+            <p data-testid="cycle-origin" className="truncate text-xs text-gray-500" title={origin}>{origin}</p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status', header: t('status'), width: '8.5rem',
+      skeleton: {
+        kind: 'custom',
+        // Inline, around an empty line of text-xs, as the real chip is.
+        render: () => <Skeleton className="inline-flex w-2/3 rounded-full py-0.5 text-xs before:content-['\200b']" />,
+      },
+      cell: (cycle) => <StatusBadge status={cycle.status} label={codeLabel('cycleStatus', cycle.status)} />,
+    },
+    {
+      key: 'participants', header: t('participants'), width: '6.5rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (cycle) => cycle.participants?.length ?? 0,
+    },
+    {
+      key: 'purchases', header: t('purchases'), width: '6rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (cycle) => cycle.purchaseOrders?.length ?? 0,
+    },
+    {
+      key: 'profit', header: t('profit'), width: '8.5rem', kind: 'value', align: 'end',
+      skeleton: { kind: 'text', share: 'w-2/3' },
+      cellProps: () => ({ 'data-testid': 'cycle-profit' }),
+      cell: (cycle) => <ProfitFigure figure={profitByCode.get(cycle.code)} />,
+    },
+    {
+      key: 'roi', header: t('roi'), width: '7.25rem', kind: 'value', align: 'end',
+      skeleton: { kind: 'text', share: 'w-1/3' },
+      cellProps: () => ({ 'data-testid': 'cycle-roi' }),
+      cell: (cycle) => <RoiFigure figure={profitByCode.get(cycle.code)} />,
+    },
+    {
+      key: 'date', header: tc('date'), width: '6.75rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (cycle) => <bdi>{formatDate(cycle.startedOn)}</bdi>,
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '13.75rem', align: 'end', className: 'whitespace-nowrap',
+      skeleton: { kind: 'text', share: 'w-1/4' },
+      cell: (cycle) => (
+        <div className="flex items-center justify-end gap-3">
+          {/* Continue setup comes first and Details last, so Details sits at
+              the column's end in every row whether or not the cycle still has
+              setup to do. */}
+          <ContinueSetupLink cycleId={cycle.id} status={cycle.status} />
+          {/* Details is offered for every cycle, in every status. A closed
+              one is the one you most want to look back at. */}
+          <button
+            type="button"
+            data-testid="cycle-details"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/${locale}/cycles/${cycle.id}/details`);
+            }}
+            className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+          >
+            {tc('details')}
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -236,98 +307,23 @@ export default function CyclesPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-      {/* Short values — the code, a status chip, money, a date — never
-          wrap: they were breaking at 1440 while the counts beside them sat
-          half empty. Only the origin may wrap. At tablet width, if the row
-          still does not fit, the table scrolls inside its own box. */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm [&_th]:whitespace-nowrap">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{t('code')}</th>
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{t('origin')}</th>
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{t('status')}</th>
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{t('participants')}</th>
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{t('purchases')}</th>
-                <th className="text-end px-4 py-3 font-medium text-gray-600">{t('profit')}</th>
-                <th className="text-end px-4 py-3 font-medium text-gray-600">{t('roi')}</th>
-                <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('date')}</th>
-                <th className="text-end px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-              </tr>
-            </thead>
-            {isLoading ? (
-              <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                {repeat(PAGE_SIZE, (i) => <CycleRowSkeleton key={i} />)}
-              </SkeletonGroup>
-            ) : (
-            <tbody className="divide-y divide-gray-100">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={9}>{emptyList}</td>
-                </tr>
-              ) : (
-                paginated.map((cycle) => {
-                  const figure = profitByCode.get(cycle.code);
-                  return (
-                    <tr
-                      key={cycle.id}
-                      data-testid="cycle-row"
-                      // Always the cycle's page. A cycle still being set up
-                      // used to open the wizard here, and the only way from the
-                      // wizard to the details was to finish it; resuming setup
-                      // is the separate "Continue setup" in the last column.
-                      onClick={() => router.push(`/${locale}/cycles/${cycle.id}/details`)}
-                      className="cursor-pointer transition-colors hover:bg-primary-50"
-                    >
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                        <bdi className="whitespace-nowrap">{cycle.code}</bdi>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{cycle.originType === 'CHINA' ? t('china') : t('uaeDirect')}</td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <StatusBadge status={cycle.status} label={codeLabel('cycleStatus', cycle.status)} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{cycle.participants?.length ?? 0}</td>
-                      <td className="px-4 py-3 text-gray-600">{cycle.purchaseOrders?.length ?? 0}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-end" data-testid="cycle-profit">
-                        <ProfitFigure figure={figure} />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-end" data-testid="cycle-roi">
-                        <RoiFigure figure={figure} />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-gray-500 text-xs">
-                        <bdi>{formatDate(cycle.startedOn)}</bdi>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <div className="flex items-center justify-end gap-3">
-                          {/* Continue setup comes first and Details last, so
-                              Details sits at the column's end in every row
-                              whether or not the cycle still has setup to do. */}
-                          <ContinueSetupLink cycleId={cycle.id} status={cycle.status} />
-                          {/* Details is offered for every cycle, in every
-                              status. A closed one is the one you most want to
-                              look back at and it used to show the least. */}
-                          <button
-                            type="button"
-                            data-testid="cycle-details"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/${locale}/cycles/${cycle.id}/details`);
-                            }}
-                            className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
-                          >
-                            {tc('details')}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-            )}
-          </table>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). At
+          tablet width, if the row does not fit, it scrolls inside its own box.
+          The row always opens the cycle's page; resuming setup is the separate
+          "Continue setup" in the last column. */}
+      <DataTable
+        className="hidden md:block"
+        density="tight"
+        autoMin="8rem"
+        columns={columns}
+        rows={paginated}
+        rowKey={(c) => c.id}
+        isLoading={isLoading}
+        empty={emptyList}
+        onRowClick={(cycle) => router.push(`/${locale}/cycles/${cycle.id}/details`)}
+        rowClassName={() => 'hover:bg-primary-50'}
+        rowProps={() => ({ 'data-testid': 'cycle-row' })}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (
@@ -394,9 +390,7 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
   const color = STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600';
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
-      {label}
-    </span>
+    <CellBadge className={color} title={label}>{label}</CellBadge>
   );
 }
 

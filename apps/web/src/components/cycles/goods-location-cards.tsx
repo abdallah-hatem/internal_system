@@ -10,6 +10,7 @@ import type { Shipment } from '@/components/shipment/shipment-model';
 import { LatinText } from '@/components/ui/latin-text';
 import { useNumberFormat } from '@/lib/numbers';
 import { Skeleton, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { locateGoods, type GoodsBuckets, type LocationBatch, type LocationTransfer } from './goods-location';
 
 type Place = 'inChina' | 'toUae' | 'inUae' | 'toEgypt' | 'inEgypt' | 'sold' | 'lost' | 'moved';
@@ -38,6 +39,61 @@ const GRID: Record<number, string> = {
   7: 'sm:grid-cols-4 xl:grid-cols-7',
   8: 'sm:grid-cols-4 xl:grid-cols-8',
 };
+
+/**
+ * Each place's column width in the per-product table: its title on one line
+ * in English and Arabic ("On the way to Egypt", "في الطريق إلى الإمارات").
+ */
+const PLACE_WIDTH: Record<Place | 'ordered', string> = {
+  ordered: '5rem',
+  inChina: '5rem',
+  toUae: '8.25rem',
+  inUae: '5rem',
+  toEgypt: '8.75rem',
+  inEgypt: '6rem',
+  sold: '4rem',
+  lost: '4rem',
+  moved: '7.5rem',
+};
+
+type ProductRow = ReturnType<typeof locateGoods>['products'][number];
+
+/**
+ * The per-product table's columns (components/ui/data-table.tsx): the product
+ * — which takes what is left and wraps to two lines — then Ordered and a
+ * column per place. Counts never cut.
+ */
+function useLocationColumns(places: Place[], fmt: (n: number) => string): Column<ProductRow>[] {
+  const t = useTranslations('goodsLocation');
+  const locale = useLocale();
+  return [
+    {
+      key: 'product', header: t('product'), width: 'auto', kind: 'name', className: 'font-medium text-foreground',
+      title: (p) => localName({ name: p.productName, nameAr: p.productNameAr }, locale),
+      skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (p) => <LatinText>{localName({ name: p.productName, nameAr: p.productNameAr }, locale)}</LatinText>,
+    },
+    {
+      key: 'ordered', header: t('ordered'), width: PLACE_WIDTH.ordered, kind: 'value', align: 'end', className: 'text-foreground',
+      cellProps: () => ({ 'data-place': 'ordered' }), skeleton: { kind: 'text', share: 'w-1/3' },
+      cell: (p) => fmt(p.ordered),
+    },
+    ...places.map((place): Column<ProductRow> => ({
+      key: place, header: t(place), width: PLACE_WIDTH[place], align: 'end', className: 'tabular-nums text-foreground',
+      cellProps: () => ({ 'data-place': place }), skeleton: { kind: 'text', share: 'w-1/3' },
+      cell: (p) => (
+        <>
+          <span className="whitespace-nowrap">{fmt(p[place])}</span>
+          {place === 'inEgypt' && p.notCheckedIn > 0 && (
+            <span className="block text-xs font-normal text-muted-foreground">
+              {t('notCheckedIn', { count: fmt(p.notCheckedIn) })}
+            </span>
+          )}
+        </>
+      ),
+    })),
+  ];
+}
 
 /**
  * The places a cycle of this route shows, in the order the goods travel. Lost
@@ -79,11 +135,16 @@ export function GoodsLocationCards({
     () => locateGoods({ originType, shipment, batches, transfers }),
     [originType, shipment, batches, transfers],
   );
+  const locationColumns = useLocationColumns(
+    placesFor(located.direct, located.totals),
+    (n) => formatNumber(n, { maximumFractionDigits: 3 }),
+  );
   if (!shipment || (located.products.length === 0 && located.fromCycles.length === 0)) return null;
 
   const fmt = (n: number) => formatNumber(n, { maximumFractionDigits: 3 });
   const places = placesFor(located.direct, located.totals);
   const { totals } = located;
+  const columns = locationColumns;
 
   return (
     <section data-testid="goods-location" aria-label={t('title')} className="space-y-3">
@@ -121,40 +182,16 @@ export function GoodsLocationCards({
           </div>
 
           {/* Per product: a table from 640px up, a card per product below it. */}
-          <div className="hidden overflow-x-auto rounded-xl border border-border bg-card sm:block">
-            <table data-testid="location-table" className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs text-muted-foreground">
-                  <th className="px-4 py-2 text-start font-medium">{t('product')}</th>
-                  <th className="px-3 py-2 text-end font-medium">{t('ordered')}</th>
-                  {places.map((place) => (
-                    <th key={place} className="px-3 py-2 text-end font-medium">{t(place)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {located.products.map((p) => (
-                  <tr key={p.productId} data-testid="location-row" data-product={p.productName}>
-                    {/* Wraps rather than truncates: at 1024px eight columns left the name three letters. */}
-                    <td className="min-w-40 break-words px-4 py-2 font-medium text-foreground">
-                      <LatinText>{localName({ name: p.productName, nameAr: p.productNameAr }, locale)}</LatinText>
-                    </td>
-                    <td data-place="ordered" className="px-3 py-2 text-end tabular-nums text-foreground">{fmt(p.ordered)}</td>
-                    {places.map((place) => (
-                      <td key={place} data-place={place} className="px-3 py-2 text-end tabular-nums text-foreground">
-                        {fmt(p[place])}
-                        {place === 'inEgypt' && p.notCheckedIn > 0 && (
-                          <span className="block text-xs font-normal text-muted-foreground">
-                            {t('notCheckedIn', { count: fmt(p.notCheckedIn) })}
-                          </span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            className="hidden sm:block bg-card"
+            density="dense"
+            autoMin="10rem"
+            tableTestId="location-table"
+            rows={located.products}
+            rowKey={(p) => p.productId}
+            rowProps={(p) => ({ 'data-testid': 'location-row', 'data-product': p.productName })}
+            columns={columns}
+          />
           <ul className="space-y-2 sm:hidden">
             {located.products.map((p) => (
               <li key={p.productId} data-testid="location-product-card" data-product={p.productName} className="rounded-lg border border-border bg-card p-3">
@@ -230,6 +267,7 @@ export function GoodsLocationCards({
 export function GoodsLocationSkeleton({ direct = false, products = 2 }: { direct?: boolean; products?: number }) {
   const t = useTranslations('goodsLocation');
   const places = placesFor(direct, { lost: 0, moved: 0 } as GoodsBuckets);
+  const columns = useLocationColumns(places, String);
   return (
     <section aria-hidden="true" className="space-y-3">
       <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
@@ -246,29 +284,18 @@ export function GoodsLocationSkeleton({ direct = false, products = 2 }: { direct
           </div>
         ))}
       </div>
-      <div className="hidden overflow-x-auto rounded-xl border border-border bg-card sm:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs text-muted-foreground">
-              <th className="px-4 py-2 text-start font-medium">{t('product')}</th>
-              <th className="px-3 py-2 text-end font-medium">{t('ordered')}</th>
-              {places.map((place) => (
-                <th key={place} className="px-3 py-2 text-end font-medium">{t(place)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {repeat(products, (i) => (
-              <tr key={i}>
-                <td className="min-w-40 px-4 py-2"><SkeletonText className="w-28" /></td>
-                {repeat(places.length + 1, (c) => (
-                  <td key={c} className="px-3 py-2"><SkeletonText className="w-8" lineClassName="justify-end" /></td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* The section's skeleton is counted by its place cards; the table's rows carry no test id. */}
+      <DataTable
+        className="hidden sm:block bg-card"
+        density="dense"
+        autoMin="10rem"
+        isLoading
+        skeletonRows={products}
+        skeletonRowTestId={null}
+        rows={[]}
+        rowKey={(p) => p.productId}
+        columns={columns}
+      />
       <ul className="space-y-2 sm:hidden">
         {repeat(products, (i) => (
           <li key={i} className="rounded-lg border border-border bg-card p-3">

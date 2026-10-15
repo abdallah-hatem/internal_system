@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Money } from '@/components/ui/money';
+import { DataTable, type Column } from '@/components/ui/data-table';
 
 /**
  * Who gets what from one settlement.
@@ -112,6 +113,32 @@ export function SettlementParticipants({
   const running = (r: ParticipantRow) =>
     r.runningCosts === 0 ? '—' : <Money value={r.runningCosts} />;
 
+  // The participant takes what is left and wraps; every amount fits
+  // "-123,456.00 EGP" and never cuts.
+  const columns: Column<ParticipantRow>[] = [
+    {
+      key: 'participant', header: t('participant'), width: 'auto', kind: 'name', title: name,
+      cell: (r) => (
+        <>
+          <span className="text-foreground"><bdi>{name(r)}</bdi></span>
+          {r.isInvestor && (
+            <span className="ms-2 text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary whitespace-nowrap">
+              {t('investor')}
+            </span>
+          )}
+        </>
+      ),
+    },
+    { key: 'capital', header: t('capital'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: (r) => <Money value={r.capital} /> },
+    { key: 'share', header: t('netProfit'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-foreground', cell: (r) => <Money value={r.share} /> },
+    {
+      key: 'fee', header: t('fee'), width: '8.75rem', kind: 'value', align: 'end', className: (r) => feeTone(r.fee),
+      cellProps: (r) => ({ title: feeTitle(r) }), cell: fee,
+    },
+    { key: 'running', header: t('runningCosts'), width: '8.75rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: running },
+    { key: 'payout', header: t('payout'), width: '9.25rem', kind: 'value', align: 'end', className: 'font-semibold text-foreground', cell: (r) => <Money value={r.payout} /> },
+  ];
+
   return (
     <>
       {/* Phone: one card per participant. */}
@@ -156,53 +183,17 @@ export function SettlementParticipants({
         ))}
       </ul>
 
-      {/* Tablet and up: the table. */}
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <caption className="sr-only">
-            {t('participant')} — {cycleCode}
-          </caption>
-          <thead className="bg-muted text-xs text-muted-foreground">
-            <tr>
-              <th scope="col" className="text-start px-5 py-2 font-medium">{t('participant')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('capital')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('netProfit')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('fee')}</th>
-              <th scope="col" className="text-end px-4 py-2 font-medium whitespace-nowrap">{t('runningCosts')}</th>
-              <th scope="col" className="text-end px-5 py-2 font-medium whitespace-nowrap">{t('payout')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td className="px-5 py-3 min-w-[10rem]">
-                  <span className="text-foreground break-words"><bdi>{name(r)}</bdi></span>
-                  {r.isInvestor && (
-                    <span className="ms-2 text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary whitespace-nowrap">
-                      {t('investor')}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-end text-muted-foreground tabular-nums whitespace-nowrap">
-                  <Money value={r.capital} />
-                </td>
-                <td className="px-4 py-3 text-end text-foreground tabular-nums whitespace-nowrap">
-                  <Money value={r.share} />
-                </td>
-                <td className={`px-4 py-3 text-end tabular-nums whitespace-nowrap ${feeTone(r.fee)}`} title={feeTitle(r)}>
-                  {fee(r)}
-                </td>
-                <td className="px-4 py-3 text-end text-muted-foreground tabular-nums whitespace-nowrap">
-                  {running(r)}
-                </td>
-                <td className="px-5 py-3 text-end font-semibold text-foreground tabular-nums whitespace-nowrap">
-                  <Money value={r.payout} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Tablet and up: the table (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        frame="none"
+        density="dense"
+        autoMin="10rem"
+        caption={<>{t('participant')} — {cycleCode}</>}
+        rows={rows}
+        rowKey={(r) => r.key}
+        columns={columns}
+      />
     </>
   );
 }

@@ -14,6 +14,7 @@ import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LatinText } from '@/components/ui/latin-text';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import {
   PlanDialog,
   ReasonDialog,
@@ -251,6 +252,48 @@ function FinancingCard({
   const removed = Boolean(f.removedAt);
   const owed = Number(f.owed);
   const standing = f.repayments.filter((r) => !r.reversedAt);
+  type Repayment = FinancingView['repayments'][number];
+  const struck = (r: Repayment) => (r.reversedAt ? 'line-through' : undefined);
+
+  // A financing's repayments: date, pounds paid, rate, cleared, exchange
+  // difference, and Reverse.
+  const repaymentColumns: Column<Repayment>[] = [
+    { key: 'date', header: t('date'), width: 'auto', kind: 'value', className: struck, cell: (r) => formatDate(r.paidOn) },
+    {
+      key: 'pounds', header: t('pounds'), width: '8.5rem', kind: 'value', align: 'end', className: struck,
+      cell: (r) => <Money value={r.amountEgp} currency="EGP" />,
+    },
+    {
+      key: 'rate', header: t('rate'), width: '5rem', kind: 'value', align: 'end', className: struck,
+      cell: (r) => <span dir="ltr">{Number(r.rateToEgp)}</span>,
+    },
+    {
+      key: 'cleared', header: t('cleared'), width: '8.5rem', kind: 'value', align: 'end', className: struck,
+      cell: (r) => <Money value={r.cleared} currency={f.currency} />,
+    },
+    {
+      key: 'exchangeDiff', header: t('exchangeDiff'), width: '8.5rem', kind: 'value', align: 'end', className: struck,
+      cell: (r) => <Money value={r.exchangeDiffEgp} currency="EGP" />,
+    },
+    {
+      key: 'actions', header: null, width: '6rem', align: 'end', className: 'whitespace-nowrap',
+      cell: (r) =>
+        r.reversedAt ? (
+          <span className="text-xs" title={r.reversalReason ?? ''}>{t('reversed')}</span>
+        ) : (
+          may.reverse && (
+            <button
+              type="button"
+              onClick={() => onOpen({ kind: 'reverse', repaymentId: r.id })}
+              data-testid="reverse-repayment"
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> {t('reverse')}
+            </button>
+          )
+        ),
+    },
+  ];
 
   return (
     <section
@@ -381,49 +424,19 @@ function FinancingCard({
           <p className="text-sm text-muted-foreground">{t('noRepayments')}</p>
         ) : (
           <>
-            {/* Desktop */}
-            <table className="hidden w-full text-sm md:table">
-              <thead>
-                <tr className="border-b border-border text-xs text-muted-foreground">
-                  <th className="py-2 pe-3 text-start font-medium">{t('date')}</th>
-                  <th className="px-3 py-2 text-end font-medium">{t('pounds')}</th>
-                  <th className="px-3 py-2 text-end font-medium">{t('rate')}</th>
-                  <th className="px-3 py-2 text-end font-medium">{t('cleared')}</th>
-                  <th className="px-3 py-2 text-end font-medium">{t('exchangeDiff')}</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {f.repayments.map((r) => {
-                  const struck = r.reversedAt ? 'line-through' : '';
-                  return (
-                    <tr key={r.id} data-testid="repayment-row" className={r.reversedAt ? 'text-muted-foreground' : ''}>
-                      <td className={`py-2 pe-3 ${struck}`}>{formatDate(r.paidOn)}</td>
-                      <td className={`px-3 py-2 text-end ${struck}`}><Money value={r.amountEgp} currency="EGP" /></td>
-                      <td className={`px-3 py-2 text-end tabular-nums ${struck}`}><span dir="ltr">{Number(r.rateToEgp)}</span></td>
-                      <td className={`px-3 py-2 text-end ${struck}`}><Money value={r.cleared} currency={f.currency} /></td>
-                      <td className={`px-3 py-2 text-end ${struck}`}><Money value={r.exchangeDiffEgp} currency="EGP" /></td>
-                      <td className="py-2 ps-3 text-end">
-                        {r.reversedAt ? (
-                          <span className="text-xs" title={r.reversalReason ?? ''}>{t('reversed')}</span>
-                        ) : (
-                          may.reverse && (
-                            <button
-                              type="button"
-                              onClick={() => onOpen({ kind: 'reverse', repaymentId: r.id })}
-                              data-testid="reverse-repayment"
-                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" /> {t('reverse')}
-                            </button>
-                          )
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {/* Desktop — the shared table (components/ui/data-table.tsx). The
+                amounts fit "123,456.00 EGP" and never cut; the date takes the rest. */}
+            <DataTable
+              className="hidden md:block"
+              frame="none"
+              density="compact"
+              autoMin="7rem"
+              rows={f.repayments}
+              rowKey={(r) => r.id}
+              rowProps={() => ({ 'data-testid': 'repayment-row' })}
+              rowClassName={(r) => (r.reversedAt ? 'text-muted-foreground' : undefined)}
+              columns={repaymentColumns}
+            />
 
             {/* Phone */}
             <ul className="space-y-2 md:hidden">

@@ -49,6 +49,7 @@ import { downloadCsv, datedFilename } from '@/lib/export-csv';
 import { businessToday } from '@/lib/dates';
 import { Download } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -115,23 +116,9 @@ const STATUS_COLORS: Record<string, string> = {
 const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled'] as const;
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The sale row and card below, traced: order number, customer, two badges,
-// two amounts, the date and the View link. Change one, change the other.
-function SaleRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-10 rounded-full" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-20" /></td>
-      {/* The real badges sit on the text's baseline, which makes the line 21px, not 20. */}
-      <td className="px-4 py-3"><SkeletonText className="w-12" lineClassName="h-5.25" /></td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand: order number,
+// customer, two badges, the amount, the date. Change one, change the other.
 
 function SaleCardSkeleton() {
   return (
@@ -403,17 +390,136 @@ function SalesPageContent() {
     );
 
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Order #, customer, channel, status, total, outstanding, date, actions
+  // (components/ui/data-table.tsx). Each fixed column fits its title in
+  // English and Arabic; the amounts fit "-123,456.00 EGP" and are
+  // end-aligned so the digits line up; the customer takes what is left.
+  const columns: Column<SaleOrder>[] = [
+    {
+      key: 'orderNo', header: t('orderNo'), width: '8.5rem', skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (order) => (
+        // The whole row opens the order. The order number is a real button,
+        // so a keyboard reaches the same place.
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewingOrder(order);
+          }}
+          aria-label={t('openOrder', { orderNo: order.orderNo })}
+          title={order.orderNo}
+          className="block max-w-full truncate font-mono text-xs font-medium text-primary-600 hover:underline"
+        >
+          {order.orderNo}
+        </button>
+      ),
+    },
+    {
+      key: 'customer', header: t('customer'), width: 'auto', kind: 'name', className: 'text-gray-900',
+      title: (order) => (order.customer?.isWalkIn ? t('walkInCustomer') : order.customer?.displayName),
+      cellProps: () => ({ onClick: (e) => e.stopPropagation() }),
+      cell: (order) => customerCell(order),
+    },
+    {
+      key: 'channel', header: t('channel'), width: '6rem', skeleton: { kind: 'pill', share: 'w-1/2' },
+      cell: (order) => channelBadge(order.channel),
+    },
+    {
+      key: 'status', header: tc('status'), width: '8rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      cell: (order) => statusBadge(order.status),
+    },
+    {
+      key: 'total', header: t('total'), width: '9.5rem', kind: 'value', align: 'end',
+      className: 'text-gray-900 font-medium', skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (order) => <Money value={order.total} currency={order.currency} />,
+    },
+    {
+      key: 'outstanding', header: t('outstanding'), width: '9.5rem', kind: 'value', align: 'end',
+      skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (order) => outstandingCell(order),
+    },
+    {
+      key: 'date', header: t('date'), width: '7.5rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (order) => formatDate(order.createdAt),
+    },
+    {
+      // The real badges sit on the text's baseline, which makes the line 21px, not 20.
+      key: 'actions', header: tc('actions'), width: '6rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
+      cell: (order) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewingOrder(order);
+          }}
+          className="inline-flex items-center gap-1 whitespace-nowrap text-primary-600 hover:text-primary-700 text-sm font-medium"
+        >
+          {tc('view')} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
+        </button>
+      ),
+    },
+  ];
+
+  // An order's lines: product, quantity, unit price, discount, line total.
+  // On a phone the product takes the room: quantity, price and discount move
+  // under its name and only the line total keeps a column (re-audit N5).
+  const itemColumns: Column<SaleOrderItem>[] = [
+    {
+      key: 'product', header: t('product'), width: 'auto', title: (item) => localName(item.product, locale),
+      cell: (item) => (
+        <>
+          <p className="font-medium text-gray-900 line-clamp-2 break-words" title={localName(item.product, locale)}>
+            <ProductLink id={item.productId} name={localName(item.product, locale)} />
+          </p>
+          <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{item.product?.sku}</LatinText></p>
+          <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
+            <LatinText dir="ltr" className="whitespace-nowrap">{item.quantity} × {formatAmount(item.unitPrice)}</LatinText>
+            {item.discount > 0 && (
+              <>
+                {' · '}
+                <span className="whitespace-nowrap">
+                  {t('discount')} <LatinText dir="ltr">- {formatAmount(item.discount)}</LatinText>
+                </span>
+              </>
+            )}
+          </p>
+        </>
+      ),
+    },
+    {
+      key: 'quantity', header: t('quantity'), width: '5rem', kind: 'value', align: 'end', hiddenBelow: 'sm',
+      className: 'text-gray-600', cell: (item) => item.quantity,
+    },
+    {
+      key: 'unitPrice', header: t('unitPrice'), width: '7.5rem', kind: 'value', align: 'end', hiddenBelow: 'sm',
+      className: 'text-gray-600', cell: (item) => <bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi>,
+    },
+    {
+      key: 'discount', header: t('discount'), width: '7.5rem', kind: 'value', align: 'end', hiddenBelow: 'sm',
+      className: 'text-gray-600',
+      cell: (item) => (item.discount > 0 ? <bdi dir="ltr">- {formatAmount(item.discount)}</bdi> : '—'),
+    },
+    {
+      // What the server stored for the line, not a re-derivation of it.
+      key: 'lineTotal', header: t('lineTotal'), width: '8.5rem', kind: 'value', align: 'end',
+      className: 'font-medium text-gray-900',
+      cell: (item) => <Money value={item.lineTotal} currency={detail?.currency} />,
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   const statusBadge = (status: string) => (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600'}`}
+      className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600'}`}
     >
       {codeLabel('orderStatus', status)}
     </span>
   );
   const channelBadge = (channel: string) => (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+      className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${
         channel === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
       }`}
     >
@@ -525,84 +631,20 @@ function SalesPageContent() {
         </div>
       )}
 
-      {/* Desktop Table */}
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
       {!noOrdersYet && (
-        <div data-testid="sales-table" aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('orderNo')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('customer')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('channel')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('status')}</th>
-                  {/* Money is end-aligned, as on every other table, so the
-                      digits line up down the column. */}
-                  <th className="text-end px-4 py-3 font-medium text-gray-600">{t('total')}</th>
-                  <th className="text-end px-4 py-3 font-medium text-gray-600">{t('outstanding')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('date')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <SaleRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={8}><NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} /></td></tr>
-                ) : (
-                  paginated.map((order) => (
-                    // The whole row opens the order. The order number is a
-                    // real button, so a keyboard reaches the same place.
-                    <tr
-                      key={order.id}
-                      data-testid="sale-row"
-                      onClick={() => setViewingOrder(order)}
-                      className="cursor-pointer hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewingOrder(order);
-                          }}
-                          aria-label={t('openOrder', { orderNo: order.orderNo })}
-                          className="font-mono text-xs font-medium text-primary-600 hover:underline"
-                        >
-                          {order.orderNo}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-gray-900" onClick={(e) => e.stopPropagation()}>
-                        {customerCell(order)}
-                      </td>
-                      <td className="px-4 py-3">{channelBadge(order.channel)}</td>
-                      <td className="px-4 py-3">{statusBadge(order.status)}</td>
-                      <td className="px-4 py-3 text-end whitespace-nowrap tabular-nums text-gray-900 font-medium"><Money value={order.total} currency={order.currency} /></td>
-                      <td className="px-4 py-3 text-end whitespace-nowrap tabular-nums">{outstandingCell(order)}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewingOrder(order);
-                          }}
-                          className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 text-sm font-medium"
-                        >
-                          {tc('view')} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+        <DataTable
+          testId="sales-table"
+          className="hidden md:block"
+          columns={columns}
+          rows={paginated}
+          rowKey={(o) => o.id}
+          isLoading={isLoading}
+          stale={reloading}
+          onRowClick={(order) => setViewingOrder(order)}
+          rowProps={() => ({ 'data-testid': 'sale-row' })}
+          empty={<NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} />}
+        />
       )}
 
       {/* Mobile Cards */}
@@ -687,56 +729,14 @@ function SalesPageContent() {
               {(detail.items ?? []).length === 0 ? (
                 <EmptyState size="compact" icon={Package} title={t('noItemsTitle')} description={t('noItemsHint')} />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      {/* Side padding on every cell: without it the headers run
-                          together on a phone ("DiscountLine Total"). Numbers
-                          end-aligned and kept on one line. */}
-                      <tr className="border-b border-gray-200 [&>th]:px-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
-                        {/* On a phone the product takes the room: quantity,
-                            price and discount move under its name and only the
-                            line total keeps a column (re-audit N5). */}
-                        <th className="w-full text-start py-2 text-xs text-gray-500 font-medium sm:w-auto">{t('product')}</th>
-                        <th className="hidden sm:table-cell text-end py-2 text-xs text-gray-500 font-medium">{t('quantity')}</th>
-                        <th className="hidden sm:table-cell text-end py-2 text-xs text-gray-500 font-medium">{t('unitPrice')}</th>
-                        <th className="hidden sm:table-cell text-end py-2 text-xs text-gray-500 font-medium">{t('discount')}</th>
-                        <th className="text-end py-2 text-xs text-gray-500 font-medium">{t('lineTotal')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {(detail.items ?? []).map((item: SaleOrderItem) => (
-                        <tr key={item.id} className="[&>td]:px-2 [&>td:first-child]:ps-0 [&>td:last-child]:pe-0">
-                          <td className="py-2">
-                            <p className="font-medium text-gray-900">
-                              <ProductLink id={item.productId} name={localName(item.product, locale)} />
-                            </p>
-                            <p className="text-xs text-muted-foreground whitespace-nowrap"><LatinText dir="ltr">{item.product?.sku}</LatinText></p>
-                            <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
-                              <LatinText dir="ltr" className="whitespace-nowrap">{item.quantity} × {formatAmount(item.unitPrice)}</LatinText>
-                              {item.discount > 0 && (
-                                <>
-                                  {' · '}
-                                  <span className="whitespace-nowrap">
-                                    {t('discount')} <LatinText dir="ltr">- {formatAmount(item.discount)}</LatinText>
-                                  </span>
-                                </>
-                              )}
-                            </p>
-                          </td>
-                          <td className="hidden sm:table-cell py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.quantity}</td>
-                          <td className="hidden sm:table-cell py-2 text-end whitespace-nowrap tabular-nums text-gray-600"><bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi></td>
-                          <td className="hidden sm:table-cell py-2 text-end whitespace-nowrap tabular-nums text-gray-600">{item.discount > 0 ? <bdi dir="ltr">- {formatAmount(item.discount)}</bdi> : '—'}</td>
-                          <td className="py-2 text-end whitespace-nowrap tabular-nums font-medium text-gray-900">
-                            {/* What the server stored for the line, not a
-                                re-derivation of it. */}
-                            <Money value={item.lineTotal} currency={detail.currency} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  frame="none"
+                  density="compact"
+                  autoMin="9rem"
+                  columns={itemColumns}
+                  rows={detail.items ?? []}
+                  rowKey={(item) => item.id}
+                />
               )}
             </div>
 

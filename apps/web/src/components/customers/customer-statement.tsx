@@ -16,6 +16,7 @@ import { LatinText } from '@/components/ui/latin-text';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
 import { isolateCodes } from '@/components/layout/isolate-codes';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, DataTableSkeletonRow, cellPadding, type Column } from '@/components/ui/data-table';
 
 /** One row of `GET /customers/:id/statement` (api common/customer-statement.ts). */
 export interface StatementRow {
@@ -48,20 +49,9 @@ const noon = (day: string) => `${day}T12:00:00Z`;
 const SKELETON_ROWS = 4;
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The table's body and the phone's cards below, traced: the opening row, a
-// few movements, the closing row — same paddings, same 36px rows. Change the
-// real ones, change these.
-function StatementRowSkeleton({ testId = 'skeleton-row', className }: { testId?: string; className?: string }) {
-  return (
-    <tr data-testid={testId} className={className}>
-      <td><SkeletonText size="xs" className="w-20" /></td>
-      <td><SkeletonText className="w-56" /></td>
-      <td><SkeletonText className="w-20" lineClassName="justify-end" /></td>
-      <td><SkeletonText className="w-20" lineClassName="justify-end" /></td>
-      <td><SkeletonText className="w-24" lineClassName="justify-end" /></td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`, the opening and closing lines with them; the phone's cards
+// below are traced by hand. Change the real ones, change these.
 
 function StatementCardSkeleton() {
   return (
@@ -185,19 +175,35 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
   const amountCell = (value: string | null) =>
     value === null ? <span className="text-muted-foreground">—</span> : <Money value={value} currency="EGP" />;
 
-  // One header for the table and for its skeleton, so the columns are the same.
-  const head = (
-    <thead>
-      <tr className="border-b border-border text-xs text-muted-foreground [&>th]:px-2 [&>th]:py-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
-        <th className="w-28 text-start font-medium">{t('date')}</th>
-        <th className="text-start font-medium">{t('description')}</th>
-        <th className="w-32 text-end font-medium">{t('debit')}</th>
-        <th className="w-32 text-end font-medium">{t('credit')}</th>
-        <th className="w-36 text-end font-medium">{t('balance')}</th>
-      </tr>
-    </thead>
-  );
-  const bodyCells = '[&>tr>td]:px-2 [&>tr>td]:py-2 [&>tr>td:first-child]:ps-0 [&>tr>td:last-child]:pe-0';
+  // One table for the statement and its skeleton (components/ui/data-table.tsx):
+  // date, description, debit, credit, balance. The amounts fit
+  // "123,456.00 EGP" and never cut; the description takes what is left and,
+  // on a statement that may be printed, wraps in full rather than being cut.
+  // On A4 (186mm) the four fixed columns leave the description about 200px.
+  const columns: Column<StatementRow>[] = [
+    {
+      key: 'date', header: t('date'), width: '7rem', kind: 'value', className: 'text-xs text-muted-foreground',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (row) => formatDate(noon(row.date)),
+    },
+    {
+      key: 'description', header: t('description'), width: 'auto', className: 'break-words text-foreground',
+      cell: (row) => isolateCodes(describe(row)),
+    },
+    {
+      key: 'debit', header: t('debit'), width: '8rem', kind: 'value', align: 'end',
+      skeleton: { kind: 'text', share: 'w-2/3' }, cell: (row) => amountCell(debit(row)),
+    },
+    {
+      key: 'credit', header: t('credit'), width: '8rem', kind: 'value', align: 'end', className: 'text-foreground',
+      skeleton: { kind: 'text', share: 'w-2/3' }, cell: (row) => amountCell(credit(row)),
+    },
+    {
+      key: 'balance', header: t('balance'), width: '8.5rem', kind: 'value', align: 'end', className: 'font-medium',
+      skeleton: { kind: 'text', share: 'w-3/4' }, cell: (row) => <Money value={row.balance} />,
+    },
+  ];
+  const pad = cellPadding('compact');
+  const money = `${pad} whitespace-nowrap text-end tabular-nums`;
 
   return (
     <section
@@ -263,14 +269,18 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
         <div>
           <LoadingStatus />
           {/* The table's own header over skeleton rows; cards on a phone. */}
-          <table className="hidden w-full text-sm sm:table">
-            {head}
-            <SkeletonGroup as="tbody" className={`divide-y divide-border ${bodyCells}`}>
-              <StatementRowSkeleton testId="skeleton-total" className="bg-muted/60" />
-              {repeat(SKELETON_ROWS, (i) => <StatementRowSkeleton key={i} />)}
-              <StatementRowSkeleton testId="skeleton-total" className="border-t-2 border-border" />
-            </SkeletonGroup>
-          </table>
+          <DataTable
+            className="hidden sm:block"
+            frame="none"
+            density="compact"
+            isLoading
+            skeletonRows={SKELETON_ROWS}
+            rows={[]}
+            rowKey={() => ''}
+            columns={columns}
+            beforeRows={<DataTableSkeletonRow testId="skeleton-total" className="bg-muted/60" columns={columns} density="compact" />}
+            afterRows={<DataTableSkeletonRow testId="skeleton-total" className="border-t-2 border-border" columns={columns} density="compact" />}
+          />
           <SkeletonGroup className="space-y-2 sm:hidden">
             <StatementTotalSkeleton />
             {repeat(SKELETON_ROWS, (i) => <StatementCardSkeleton key={i} />)}
@@ -283,41 +293,38 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
           className={`transition-opacity ${reloading ? 'opacity-60' : ''}`}
         >
           {/* From sm up, and always on paper: one table, money end-aligned. */}
-          <table className="hidden w-full text-sm sm:table print:table" data-testid="statement-table">
-            {head}
-            <tbody className={`divide-y divide-border ${bodyCells}`}>
+          <DataTable
+            className="hidden sm:block print:block"
+            frame="none"
+            density="compact"
+            autoMin="10rem"
+            tableTestId="statement-table"
+            rows={data.rows}
+            rowKey={(row, i) => `${row.kind}-${row.reference}-${i}`}
+            rowProps={(row) => ({ 'data-testid': 'statement-row', 'data-kind': row.kind })}
+            empty={<p className="py-4 text-center text-sm text-muted-foreground">{t('empty')}</p>}
+            beforeRows={
               <tr data-testid="statement-opening" className="bg-muted/60 font-medium">
-                <td className="whitespace-nowrap text-xs text-muted-foreground">{data.from ? formatDate(noon(data.from)) : '—'}</td>
-                <td>{t('opening')}</td>
-                <td />
-                <td />
-                <td className="whitespace-nowrap text-end tabular-nums"><Money value={data.openingBalance} /></td>
+                <td className={`${pad} whitespace-nowrap text-xs text-muted-foreground`}>{data.from ? formatDate(noon(data.from)) : '—'}</td>
+                <td className={pad}>{t('opening')}</td>
+                <td className={pad} />
+                <td className={pad} />
+                <td className={money}><Money value={data.openingBalance} /></td>
               </tr>
-              {data.rows.map((row, i) => (
-                <tr key={`${row.kind}-${row.reference}-${i}`} data-testid="statement-row" data-kind={row.kind}>
-                  <td className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(noon(row.date))}</td>
-                  <td className="text-foreground">{isolateCodes(describe(row))}</td>
-                  <td className="whitespace-nowrap text-end tabular-nums">{amountCell(debit(row))}</td>
-                  <td className="whitespace-nowrap text-end tabular-nums text-foreground">{amountCell(credit(row))}</td>
-                  <td className="whitespace-nowrap text-end font-medium tabular-nums"><Money value={row.balance} /></td>
-                </tr>
-              ))}
-              {data.rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-sm text-muted-foreground">{t('empty')}</td>
-                </tr>
-              )}
+            }
+            afterRows={
               <tr data-testid="statement-closing" className="border-t-2 border-border font-semibold">
-                <td className="whitespace-nowrap text-xs text-muted-foreground">{data.to ? formatDate(noon(data.to)) : '—'}</td>
-                <td>{t('closing')}</td>
-                <td className="whitespace-nowrap text-end tabular-nums"><Money value={data.debits} /></td>
-                <td className="whitespace-nowrap text-end tabular-nums text-foreground"><Money value={data.credits} /></td>
-                <td data-testid="statement-closing-balance" className="whitespace-nowrap text-end tabular-nums">
+                <td className={`${pad} whitespace-nowrap text-xs text-muted-foreground`}>{data.to ? formatDate(noon(data.to)) : '—'}</td>
+                <td className={pad}>{t('closing')}</td>
+                <td className={money}><Money value={data.debits} /></td>
+                <td className={`${money} text-foreground`}><Money value={data.credits} /></td>
+                <td data-testid="statement-closing-balance" className={money}>
                   <Money value={data.closingBalance} />
                 </td>
               </tr>
-            </tbody>
-          </table>
+            }
+            columns={columns}
+          />
 
           {/* A phone: one card per row, the balance on its own line. */}
           <div className="space-y-2 sm:hidden print:hidden" data-testid="statement-cards">
