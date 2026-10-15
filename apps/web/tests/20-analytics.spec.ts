@@ -144,6 +144,8 @@ test.describe('Analytics page', () => {
     await login(page);
     await page.goto(`${BASE}/en/analytics`);
     await expect(page.locator('div.overflow-x-auto').first()).toBeVisible({ timeout: 10000 });
+    // The chart's frame is up from the first paint, over a skeleton: wait for the real bars.
+    await expect(page.locator('.bg-primary-500').first()).toBeAttached({ timeout: 10000 });
 
     // A percentage height inside an auto-height column collapses to nothing,
     // which drew the chart as a row of labels with no bars at all.

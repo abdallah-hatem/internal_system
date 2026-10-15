@@ -49,7 +49,8 @@ test.describe('Dashboard & Analytics Flow', () => {
   test('TC-DASH-04: Analytics page loads', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/analytics`);
-    await expect(page.getByRole('heading', { name: /Analytics|Revenue/i })).toBeVisible({ timeout: 10000 });
+    // The page's own title: the section headings are on screen from the first paint now, over their skeletons.
+    await expect(page.getByRole('heading', { name: /Analytics|Revenue/i, level: 1 })).toBeVisible({ timeout: 10000 });
   });
 
   test('TC-DASH-05: Analytics shows revenue data', async ({ page }) => {
