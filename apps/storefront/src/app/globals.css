@@ -116,3 +116,24 @@ body {
     font-size: 16px;
   }
 }
+
+/*
+ * Skeletons wait 200ms before they show (components/ui/skeleton.tsx). An answer
+ * that arrives sooner replaces them unseen, so a fast list never flashes grey
+ * placeholders. Invisible, not absent: the space is held, so nothing moves when
+ * they appear. A fade, not a movement, so reduced motion keeps it.
+ */
+@keyframes skeleton-appear {
+  from {
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.skeleton-appear {
+  animation: skeleton-appear 150ms ease-out 200ms both;
+}
