@@ -261,3 +261,37 @@ for (const viewport of [
     });
   });
 }
+
+/**
+ * The columns do not move when the data lands (owner, 2026-10-15): a table
+ * sized to its content took one set of widths from the skeleton's bars and
+ * another from the real names and amounts, so every column jumped sideways.
+ * Each table now reads one list of widths (components/ui/table-columns.tsx).
+ * This compares every cell edge of the first skeleton row with the first real
+ * row, in both directions of reading.
+ */
+const cellEdges = (page: Page, row: string) =>
+  page.locator(row).first().locator('td').evaluateAll((tds) =>
+    tds.map((td) => {
+      const r = td.getBoundingClientRect();
+      return [Math.round(r.left), Math.round(r.right)];
+    }),
+  );
+
+for (const locale of ['en', 'ar'] as const) {
+  test(`TC-SKEL-30 Products: no column moves when the rows land (${locale}, 1440px)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const gate = await gateApi(page);
+    await login(page, locale);
+    gate.hold();
+    await openNav(page, messages(locale).nav.products);
+    await expect(skeletonRows(page).first()).toBeVisible();
+    const before = await cellEdges(page, 'table tr[data-testid="skeleton-row"]');
+    expect(before.length).toBe(8);
+
+    gate.release();
+    await expect(page.getByTestId('skeleton')).toHaveCount(0);
+    const after = await cellEdges(page, 'table tbody tr');
+    expect(after).toEqual(before);
+  });
+}

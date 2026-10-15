@@ -27,6 +27,7 @@ import { ProductStatusAction } from '@/components/products/product-status-action
 import { localName, matchesName } from '@/lib/localized-name';
 import { namedOption } from '@/components/entities/entity-forms';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { ColGroup, minTableWidth } from '@/components/ui/table-columns';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -84,18 +85,25 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
+// ─── Columns ──────────────────────────────────────────────────────────
+// SKU, name, category, B2B, B2C, min stock, status, actions. One list for the
+// header, the real rows and the skeleton rows, so no column moves when the
+// data lands (components/ui/table-columns.tsx). The name takes what is left.
+const PRODUCT_COLUMNS = ['7rem', 'auto', '9rem', '8.5rem', '8.5rem', '6.5rem', '6.5rem', '7.5rem'] as const;
+
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The row and the card below, traced: same cells, same paddings, the same
 // 28px icon buttons that set the row's height. Change one, change the other.
+// Bars are a share of their column, not a guessed width.
 function ProductRowSkeleton() {
   return (
     <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-3/4" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-1/2" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-3/4 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-2/3" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-2/3" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-1/4" /></td>
       <td className="px-4 py-3"><Skeleton className="h-5 w-14 rounded-full" /></td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
@@ -359,7 +367,8 @@ export default function ProductsPage() {
       {/* Desktop Table */}
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full table-fixed text-sm" style={{ minWidth: minTableWidth(PRODUCT_COLUMNS) }}>
+              <ColGroup widths={PRODUCT_COLUMNS} />
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('sku')}</th>
@@ -383,14 +392,21 @@ export default function ProductsPage() {
                 ) : (
                   paginated.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{product.sku}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <ProductLink id={product.id} name={product.displayName} />
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500 truncate" title={product.sku}>{product.sku}</td>
+                      {/* A long name wraps to a second line and is cut after it;
+                          the whole name is the cell's tooltip. */}
+                      <td className="px-4 py-3 font-medium text-gray-900" title={product.displayName}>
+                        <div className="line-clamp-2 break-words">
+                          <ProductLink id={product.id} name={product.displayName} />
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap bg-gray-100 rounded-full px-2.5 py-0.5 text-xs">
-                          <Tag className="h-3 w-3" />
-                          {product.categoryLabel || '—'}
+                        <span
+                          className="inline-flex max-w-full items-center gap-1 whitespace-nowrap bg-gray-100 rounded-full px-2.5 py-0.5 text-xs"
+                          title={product.categoryLabel || undefined}
+                        >
+                          <Tag className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{product.categoryLabel || '—'}</span>
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
