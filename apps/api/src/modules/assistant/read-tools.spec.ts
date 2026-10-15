@@ -188,6 +188,7 @@ function harness(db: Db) {
   const p = prisma as unknown as PrismaService;
   const audit = {} as AuditService;
   const notifications = {} as NotificationsService;
+  const plans = new PaymentPlansService(p, audit, notifications);
   const services = new Map<unknown, unknown>([
     [SuppliersService, new SuppliersService(p, audit)],
     [ProductsService, new ProductsService(p, audit, notifications)],
@@ -208,9 +209,9 @@ function harness(db: Db) {
         createForMultipleUsers: () => Promise.resolve({ count: 0 }),
       }),
     ],
-    [CustomersService, new CustomersService(p, audit)],
+    [CustomersService, new CustomersService(p, audit, plans)],
     [PaymentsService, new PaymentsService(p, audit)],
-    [PaymentPlansService, new PaymentPlansService(p, audit, notifications)],
+    [PaymentPlansService, plans],
     [AnalyticsService, new AnalyticsService(p)],
     [CurrencyRatesService, new CurrencyRatesService(p, audit)],
   ]);

@@ -105,3 +105,42 @@ export function withOverdue(
     }))
     .filter((r) => !overdueOnly || cents(r.overdue) > 0);
 }
+
+export interface ToCollect {
+  /** Everyone owing, added up — not only the rows shown. */
+  totalOwed: string;
+  /** Of that, what is behind on a payment plan. */
+  totalOverdue: string;
+  /** How many customers owe anything. */
+  customers: number;
+  rows: ReceivableWithOverdue[];
+}
+
+/**
+ * The dashboard's "To collect" card (owner, 2026-10-15): the customers to
+ * chase first. Anyone with something overdue comes before anyone without,
+ * then the larger balance first, so a shop behind on its plan is never below
+ * a bigger one that is not. The totals cover every customer owing, so the
+ * card's headline and the Receivables tile cannot disagree.
+ */
+export function toCollect(
+  receivables: readonly ReceivableWithOverdue[],
+  limit: number,
+): ToCollect {
+  const owed = receivables.reduce((s, r) => s + cents(r.outstanding), 0);
+  const overdue = receivables.reduce((s, r) => s + cents(r.overdue), 0);
+  const rows = [...receivables]
+    .sort(
+      (a, b) =>
+        Number(cents(b.overdue) > 0) - Number(cents(a.overdue) > 0) ||
+        cents(b.outstanding) - cents(a.outstanding) ||
+        a.customer.localeCompare(b.customer),
+    )
+    .slice(0, Math.max(0, limit));
+  return {
+    totalOwed: money(owed),
+    totalOverdue: money(overdue),
+    customers: receivables.length,
+    rows,
+  };
+}

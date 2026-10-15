@@ -15,6 +15,7 @@ vi.mock('@/i18n/navigation', () => ({
       {children}
     </a>
   ),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 const auth = vi.hoisted(() => ({ role: 'CORE_PARTNER' as string | undefined }));
@@ -43,6 +44,9 @@ beforeEach(() => {
   get.mockImplementation((url: string) => {
     if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: KPIS } });
     if (url.startsWith('/analytics/top-products')) return Promise.resolve({ data: { data: [] } });
+    if (url.startsWith('/customers/to-collect')) {
+      return Promise.resolve({ data: { data: { totalOwed: '0.00', totalOverdue: '0.00', customers: 0, rows: [] } } });
+    }
     if (url.startsWith('/analytics/cycle-profitability')) {
       return Promise.resolve({ data: { data: responses.cycles } });
     }

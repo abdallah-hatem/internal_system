@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { CustomersService } from './customers.service';
+import type { PaymentPlansService } from '../payment-plans/payment-plans.service';
 
 /**
  * The balance on the customers list.
@@ -94,6 +95,10 @@ function fakeDb(orders: Order[]) {
   const service = new CustomersService(
     prisma as unknown as PrismaService,
     { log: jest.fn() } as unknown as AuditService,
+    {
+      overdueSummary: () =>
+        Promise.resolve({ data: { totalOverdueEgp: 0, plans: [] } }),
+    } as unknown as PaymentPlansService,
   );
   return { service, calls };
 }

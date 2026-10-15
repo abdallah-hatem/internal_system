@@ -18,6 +18,7 @@ import {
   type TileKey,
 } from '../../../components/dashboard/dashboard-model';
 import { YourCycles } from '../../../components/dashboard/your-cycles';
+import { ToCollect } from '../../../components/dashboard/to-collect';
 import { Money } from '../../../components/ui/money';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
@@ -238,8 +239,10 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Who to chase beside what sells (owner, 2026-10-15); recent activity
+          takes its own row below. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {canSeeRecentActivity(role) && <RecentActivity />}
+        <ToCollect />
 
         <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-card-foreground">
@@ -269,6 +272,8 @@ export default function DashboardPage() {
           )}
         </section>
       </div>
+
+      {canSeeRecentActivity(role) && <RecentActivity />}
     </div>
   );
 }

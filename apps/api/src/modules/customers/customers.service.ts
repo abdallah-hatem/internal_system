@@ -18,13 +18,19 @@ import {
   owedBy,
   owedByEach,
 } from '../../common/customer-balance';
-import { receivablesByCustomer } from '../../common/receivables';
+import {
+  receivablesByCustomer,
+  toCollect,
+  withOverdue,
+} from '../../common/receivables';
+import { PaymentPlansService } from '../payment-plans/payment-plans.service';
 import { assertNotWalkIn } from '../../common/walk-in';
 @Injectable()
 export class CustomersService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private paymentPlans: PaymentPlansService,
   ) {}
 
   async findAll(
@@ -126,6 +132,20 @@ export class CustomersService {
       },
     });
     return { data: receivablesByCustomer(orders) };
+  }
+
+  /**
+   * The dashboard's To collect card (owner, 2026-10-15): the `limit` customers
+   * to chase first, overdue before not, then the largest balance, with the
+   * totals across everyone owing. The same receivables and the same overdue
+   * figure the assistant's list_receivables reads — nothing worked out twice.
+   */
+  async toCollect(limit = 5) {
+    const [{ data: owing }, { data: overdue }] = await Promise.all([
+      this.receivables(),
+      this.paymentPlans.overdueSummary(),
+    ]);
+    return { data: toCollect(withOverdue(owing, overdue.plans), limit) };
   }
 
   async findById(id: string) {

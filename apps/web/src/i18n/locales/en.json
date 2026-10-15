@@ -163,7 +163,19 @@
     "cycleProfit": "Profit so far",
     "owedToLenders": "Owed to lenders",
     "owedToLendersNone": "Nothing owed",
-    "owedToLendersNoRate": "A currency with no current rate is left out of the pounds"
+    "owedToLendersNoRate": "A currency with no current rate is left out of the pounds",
+    "toCollect": "To collect",
+    "toCollectAll": "View all",
+    "toCollectCustomer": "Customer",
+    "toCollectOwes": "Owes",
+    "toCollectOldest": "Oldest unpaid",
+    "toCollectOrders": "{count, plural, one {{n} order} other {{n} orders}}",
+    "toCollectDays": "{count, plural, =0 {today} one {{n} day} other {{n} days}}",
+    "toCollectTotal": "Total owed:",
+    "toCollectOverdueWord": "overdue",
+    "toCollectEmpty": "Nobody owes you anything right now",
+    "toCollectEmptyHint": "Confirmed sales that are not fully paid show here, overdue first.",
+    "toCollectError": "Could not load who owes you. Refresh to try again."
   },
   "products": {
     "title": "Products",
