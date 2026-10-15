@@ -98,7 +98,7 @@ describe('DataTable', () => {
   it('dims a stale table and keeps its rows', () => {
     const { rerender, container } = render(<DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} />);
     const outer = container.firstElementChild as HTMLElement;
-    expect(outer.getAttribute('aria-busy')).toBeNull();
+    expect(outer.getAttribute('aria-busy')).toBe('false');
 
     rerender(<DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} stale />);
     expect(outer.getAttribute('aria-busy')).toBe('true');

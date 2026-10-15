@@ -352,7 +352,7 @@ export function DataTable<Row>({
   return (
     <div
       data-testid={testId}
-      aria-busy={stale || undefined}
+      aria-busy={stale}
       className={cn(
         frame === 'card' && 'bg-white rounded-xl border border-gray-200 overflow-hidden',
         'transition-opacity',
