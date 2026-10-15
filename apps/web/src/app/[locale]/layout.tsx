@@ -4,7 +4,9 @@ import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { IBM_Plex_Sans, IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from 'next/font/google';
 import { routing } from '../../i18n/routing';
+import { cookies } from 'next/headers';
 import { AuthProvider } from '../../lib/auth-context';
+import { SESSION_COOKIE, decodeSessionUser } from '../../lib/session-cookie';
 import { QueryProvider } from '../../lib/query-provider';
 import { AppShell } from '../../components/layout/app-shell';
 import '../globals.css';
@@ -95,6 +97,10 @@ export default async function LocaleLayout({
   // infer one from a cookie that may be stale or absent.
   setRequestLocale(locale);
   const messages = await getMessages({ locale });
+  // Who is signed in, so the first paint is their screen — the account card,
+  // their menu, their buttons — instead of a signed-out one that changes once
+  // the scripts read storage (owner, 2026-10-15; lib/session-cookie.ts).
+  const initialUser = decodeSessionUser((await cookies()).get(SESSION_COOKIE)?.value);
 
   return (
     <html
@@ -106,7 +112,7 @@ export default async function LocaleLayout({
       <body className="min-h-screen bg-gray-50 font-sans antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
-            <AuthProvider>
+            <AuthProvider initialUser={initialUser}>
               <AppShell>{children}</AppShell>
             </AuthProvider>
           </QueryProvider>

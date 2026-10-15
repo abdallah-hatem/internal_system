@@ -275,3 +275,13 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - A list or detail screen loading its data shows a skeleton that traces its rows (building-frontends
   ui-patterns "Skeletons"), never `<Loader2/> Loading...`. 28 office screens and 9 storefront components still had the
   spinner on 2026-10-15 and the owner had to ask. Spinners stay only inside buttons that are saving. — 2026-10-15
+
+## Who is signed in, at first paint
+
+- The server must know who is signed in when it draws a page. The token lives in localStorage, which the server
+  never sees, so every page rendered signed-out and the account card and partner-only buttons flashed away on each
+  refresh until the scripts read storage (owner, 2026-10-15: "server side session or cookie awareness is a must").
+  `lib/session-cookie.ts` mirrors id/email/name/role into `sf_session_user`; the [locale] layout reads it with
+  `cookies()` and seeds `AuthProvider`. It is display-only — the API authorises from the token — and the provider
+  rewrites or clears it to match storage on every load, sign-in, sign-out, 401 and cross-tab sign-out. Freeze the
+  server's paint in a test by aborting `/_next/static/*.js` and reloading (99-no-flash-on-refresh). — 2026-10-15
