@@ -18,7 +18,7 @@ import { useNumberFormat } from '@/lib/numbers';
 
 import { useDateFormat } from '../../../lib/dates';
 import { useCodeLabel } from '../../../lib/labels';
-import { LegCreateForm, LegEditForm, LegFormModal, type LegRow } from '@/components/shipment/LegForm';
+import { LegCreateForm, LegEditForm, type LegRow } from '@/components/shipment/LegForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 // ─── Types ────────────────────────────────────────────────────────────
@@ -309,20 +309,17 @@ export default function ShipmentsPage() {
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {/* The leg forms are defined once and shared with the cycle page (§13). */}
       {showCreateModal && (
-        <LegFormModal title={t('create')} onClose={closeCreate} testId="create">
-          <LegCreateForm cycles={cycleList} onDone={closeCreate} />
-        </LegFormModal>
+        <LegCreateForm title={t('create')} testId="create" cycles={cycleList} onDone={closeCreate} />
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingShipment && (
-        <LegFormModal
+        <LegEditForm
           title={`${tc('edit')} — ${editingShipment.cycle?.code ?? ''} #${editingShipment.sequence}`}
-          onClose={closeEdit}
           testId="edit"
-        >
-          <LegEditForm leg={editingShipment} onDone={closeEdit} />
-        </LegFormModal>
+          leg={editingShipment}
+          onDone={closeEdit}
+        />
       )}
     </div>
   );

@@ -9,7 +9,8 @@ import { businessToday } from '@/lib/dates';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useAnnounceStatusMove } from './status-move';
 import { LegRoute } from './LegRoute';
-import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, qtyInputClass, useRefreshShipment } from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { qtyInputClass, useRefreshShipment } from './ShipmentDialog';
 import { atOriginByLine, departureLinesFrom, fieldValue, type ShipmentLeg } from './shipment-model';
 
 /**
@@ -200,8 +201,8 @@ export function RecordDepartureDialog({
   };
 
   return (
-    <ShipmentDialog
-      testId="record-departure"
+    <Dialog
+      data-shipment-dialog="record-departure"
       title={t('recordDepartureTitle', { leg: leg.sequence })}
       onClose={onClose}
       busy={pending}
@@ -212,6 +213,7 @@ export function RecordDepartureDialog({
           <DialogPrimary pending={pending} label={t('recordDeparture')} />
         </>
       }
+      bodyClassName="space-y-4"
     >
       {leg.origin && leg.destination && (
         <LegRoute className="text-sm text-muted-foreground" origin={leg.origin} destination={leg.destination} />
@@ -236,6 +238,6 @@ export function RecordDepartureDialog({
         }}
       />
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

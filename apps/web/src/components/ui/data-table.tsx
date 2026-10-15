@@ -258,7 +258,9 @@ export function DataTable<Row>({
   const hidden = (c: Column<Row>) => (c.hiddenBelow ? HIDDEN_CELL[c.hiddenBelow] : undefined);
 
   const table = (
-    <div className="overflow-x-auto">
+    // Only sideways; in a card it stops short of the rounded bottom so the bar
+    // never runs along the border (building-frontends, "Scrollbar").
+    <div className={cn('scrollbar-clean scrollbar-x overflow-x-auto', frame === 'card' && 'mb-1.5')}>
       <table
         data-testid={tableTestId}
         data-slot="data-table"

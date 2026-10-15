@@ -12,7 +12,8 @@ import { Money } from '@/components/ui/money';
 import { Select } from '@/components/ui/select';
 import { CurrencyRateFields } from '@/components/ui/currency-rate-fields';
 import { useToast } from '@/components/ui/toast';
-import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, useRefreshShipment } from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { useRefreshShipment } from './ShipmentDialog';
 import { lossRecovery, type ShipmentLoss } from './shipment-model';
 
 export interface RefundPayer {
@@ -108,8 +109,8 @@ export function RecordRefundDialog({
   };
 
   return (
-    <ShipmentDialog
-      testId="record-refund"
+    <Dialog
+      data-shipment-dialog="record-refund"
       title={t('refundTitle')}
       subtitle={productName}
       onClose={onClose}
@@ -121,6 +122,7 @@ export function RecordRefundDialog({
           <DialogPrimary pending={pending} label={t('recordRefund')} />
         </>
       }
+      bodyClassName="space-y-4"
     >
       <dl data-testid="refund-summary" className="grid grid-cols-3 gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
         <div>
@@ -216,7 +218,7 @@ export function RecordRefundDialog({
       </div>
 
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }
 

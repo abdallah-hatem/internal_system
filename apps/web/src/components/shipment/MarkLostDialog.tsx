@@ -7,14 +7,8 @@ import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { Money } from '@/components/ui/money';
 import { useToast } from '@/components/ui/toast';
-import {
-  DialogAlert,
-  DialogCancel,
-  DialogPrimary,
-  ShipmentDialog,
-  qtyInputClass,
-  useRefreshShipment,
-} from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { qtyInputClass, useRefreshShipment } from './ShipmentDialog';
 import { useLandedUnitCosts } from './ReceiveDeliveryDialog';
 import { losableByLine, num, parseQty, type ShipmentLeg } from './shipment-model';
 
@@ -164,13 +158,14 @@ export function MarkLostDialog({
     );
 
   return (
-    <ShipmentDialog
-      testId="mark-lost"
+    <Dialog
+      data-shipment-dialog="mark-lost"
       title={t('markLostTitle', { leg: leg.sequence })}
       onClose={onClose}
       busy={pending}
       onSubmit={(e) => void submit(e)}
       footer={footer}
+      bodyClassName="space-y-4"
     >
       {step === 'edit' && (
         <>
@@ -260,6 +255,6 @@ export function MarkLostDialog({
       )}
 
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

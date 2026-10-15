@@ -12,14 +12,7 @@ import { useCan } from '@/lib/can';
 import { isOffered } from '@/lib/product-status';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 
 /**
  * Deactivate / Reactivate a product, after a short confirm that says what it
@@ -110,37 +103,40 @@ export function ProductStatusAction({
   return (
     <>
       {trigger}
-      <Dialog open={open} onOpenChange={(o) => !change.isPending && setOpen(o)}>
-        <DialogContent className="sm:max-w-md" showCloseButton={false}>
-          <DialogHeader className="text-start sm:text-start">
-            <DialogTitle>
-              {active ? t('deactivateTitle', { name: shownName }) : t('reactivateTitle', { name: shownName })}
-            </DialogTitle>
-            <DialogDescription>{active ? t('deactivateBody') : t('reactivateBody')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              disabled={change.isPending}
-              className="min-h-11 rounded-lg text-muted-foreground"
-            >
-              {tc('cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant={active ? 'destructive' : 'default'}
-              onClick={() => change.mutate()}
-              disabled={change.isPending}
-              className="min-h-11 rounded-lg"
-            >
-              {change.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-              {label}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {open && (
+        <Dialog
+          size="sm"
+          showClose={false}
+          title={active ? t('deactivateTitle', { name: shownName }) : t('reactivateTitle', { name: shownName })}
+          onClose={() => setOpen(false)}
+          busy={change.isPending}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setOpen(false)}
+                disabled={change.isPending}
+                className="min-h-11 rounded-lg text-muted-foreground"
+              >
+                {tc('cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant={active ? 'destructive' : 'default'}
+                onClick={() => change.mutate()}
+                disabled={change.isPending}
+                className="min-h-11 rounded-lg"
+              >
+                {change.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                {label}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-muted-foreground">{active ? t('deactivateBody') : t('reactivateBody')}</p>
+        </Dialog>
+      )}
     </>
   );
 }

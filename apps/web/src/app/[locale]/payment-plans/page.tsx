@@ -14,7 +14,7 @@ import { Select } from '../../../components/ui/select';
 import { DatePicker } from '../../../components/ui/date-picker';
 import { MoneyInput } from '../../../components/ui/money-input';
 import {
-  CalendarClock, Plus, X, Loader2, AlertTriangle, Check, Trash2, Ban,
+  CalendarClock, Plus, Loader2, AlertTriangle, Check, Trash2, Ban,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 
@@ -23,6 +23,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -328,140 +329,137 @@ export default function PaymentPlansPage() {
 
       {/* ─── Create ────────────────────────────────────────────────── */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowCreate(false)} />
-          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{t('create')}</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="h-5 w-5" />
+        <Dialog
+          title={t('create')}
+          onClose={() => setShowCreate(false)}
+          busy={createMutation.isPending}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+              >
+                {tc('cancel')}
               </button>
+              <button
+                type="submit"
+                form="payment-plan-create-form"
+                disabled={createMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                {t('agree')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm
+            id="payment-plan-create-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const instalments = lines
+                .filter((l) => Number(l.amount) > 0 && l.dueOn)
+                .map((l) => ({
+                  dueOn: l.dueOn,
+                  amount: Number(l.amount),
+                  note: l.note || undefined,
+                }));
+
+              if (!customerId) return addToast(t('needCustomer'), 'error');
+              if (instalments.length === 0) return addToast(t('needInstalment'), 'error');
+
+              createMutation.mutate({ customerId, instalments });
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {t('customer')}<span className="ms-1 text-red-500">*</span>
+              </label>
+              <Select
+                value={customerId}
+                onChange={setCustomerId}
+                placeholder={tph('chooseCustomer')}
+                searchPlaceholder={tph('searchCustomers')}
+                options={(Array.isArray(customers) ? customers : []).map((c: any) => ({
+                  value: c.id,
+                  label: c.displayName,
+                  hint: c.phone ?? codeLabel('customerType', c.type),
+                }))}
+              />
             </div>
 
-            <ValidatedForm
-              onSubmit={(e) => {
-                e.preventDefault();
-                const instalments = lines
-                  .filter((l) => Number(l.amount) > 0 && l.dueOn)
-                  .map((l) => ({
-                    dueOn: l.dueOn,
-                    amount: Number(l.amount),
-                    note: l.note || undefined,
-                  }));
-
-                if (!customerId) return addToast(t('needCustomer'), 'error');
-                if (instalments.length === 0) return addToast(t('needInstalment'), 'error');
-
-                createMutation.mutate({ customerId, instalments });
-              }}
-              className="min-h-0 space-y-4 overflow-y-auto p-6"
-            >
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  {t('customer')}<span className="ms-1 text-red-500">*</span>
-                </label>
-                <Select
-                  value={customerId}
-                  onChange={setCustomerId}
-                  placeholder={tph('chooseCustomer')}
-                  searchPlaceholder={tph('searchCustomers')}
-                  options={(Array.isArray(customers) ? customers : []).map((c: any) => ({
-                    value: c.id,
-                    label: c.displayName,
-                    hint: c.phone ?? codeLabel('customerType', c.type),
-                  }))}
-                />
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">{t('instalments')}</label>
-                  <button
-                    type="button"
-                    onClick={addLine}
-                    className="inline-flex items-center gap-1 text-sm text-primary-600 hover:underline"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> {t('addInstalment')}
-                  </button>
-                </div>
-
-                {/* Amounts are whatever was agreed — the dates default to the
-                    next Sundays but nothing forces equal splits. */}
-                <p className="mb-2 text-xs text-gray-400">{t('amountsNote')}</p>
-
-                <div className="space-y-2">
-                  {lines.map((line, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <div className="w-40 shrink-0">
-                        <DatePicker
-                          name={`due-${idx}`}
-                          value={line.dueOn}
-                          onChange={(v: string) =>
-                            setLines((l) => l.map((x, i) => (i === idx ? { ...x, dueOn: v } : x)))
-                          }
-                        />
-                      </div>
-                      <MoneyInput
-                        placeholder={tph('money')}
-                        value={line.amount}
-                        onChange={(raw) =>
-                          setLines((l) => l.map((x, i) => (i === idx ? { ...x, amount: raw } : x)))
-                        }
-                        className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder={t('notePlaceholder')}
-                        value={line.note}
-                        onChange={(e) =>
-                          setLines((l) => l.map((x, i) => (i === idx ? { ...x, note: e.target.value } : x)))
-                        }
-                        className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <button
-                        type="button"
-                        aria-label={tc('delete')}
-                        onClick={() => setLines((l) => l.filter((_, i) => i !== idx))}
-                        className="mt-1 rounded p-1.5 text-gray-300 hover:bg-gray-100 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {lines.length > 0 && (
-                  <div className="mt-3 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                    <span className="text-sm text-gray-600">{t('planTotal')}</span>
-                    <Money value={draftTotal} className="text-sm font-semibold text-gray-900" />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">{t('instalments')}</label>
                 <button
                   type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                  onClick={addLine}
+                  className="inline-flex items-center gap-1 text-sm text-primary-600 hover:underline"
                 >
-                  {tc('cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50"
-                >
-                  {createMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  {t('agree')}
+                  <Plus className="h-3.5 w-3.5" /> {t('addInstalment')}
                 </button>
               </div>
-            </ValidatedForm>
-          </div>
-        </div>
+
+              {/* Amounts are whatever was agreed — the dates default to the
+                  next Sundays but nothing forces equal splits. */}
+              <p className="mb-2 text-xs text-gray-400">{t('amountsNote')}</p>
+
+              <div className="space-y-2">
+                {lines.map((line, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <div className="w-40 shrink-0">
+                      <DatePicker
+                        name={`due-${idx}`}
+                        value={line.dueOn}
+                        onChange={(v: string) =>
+                          setLines((l) => l.map((x, i) => (i === idx ? { ...x, dueOn: v } : x)))
+                        }
+                      />
+                    </div>
+                    <MoneyInput
+                      placeholder={tph('money')}
+                      value={line.amount}
+                      onChange={(raw) =>
+                        setLines((l) => l.map((x, i) => (i === idx ? { ...x, amount: raw } : x)))
+                      }
+                      className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder={t('notePlaceholder')}
+                      value={line.note}
+                      onChange={(e) =>
+                        setLines((l) => l.map((x, i) => (i === idx ? { ...x, note: e.target.value } : x)))
+                      }
+                      className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <button
+                      type="button"
+                      aria-label={tc('delete')}
+                      onClick={() => setLines((l) => l.filter((_, i) => i !== idx))}
+                      className="mt-1 rounded p-1.5 text-gray-300 hover:bg-gray-100 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {lines.length > 0 && (
+                <div className="mt-3 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <span className="text-sm text-gray-600">{t('planTotal')}</span>
+                  <Money value={draftTotal} className="text-sm font-semibold text-gray-900" />
+                </div>
+              )}
+            </div>
+          </ValidatedForm>
+        </Dialog>
       )}
     </div>
   );

@@ -195,19 +195,64 @@ a:focus-visible,
   text-align: right;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
+/* ── Scrollbars ─────────────────────────────────────────────────────────
+   Never the native bar (owner, 2026-10-15; building-frontends ui-patterns
+   "Scrollbar"). Every scroll container carries `scrollbar-clean` — thin, a
+   transparent track, a rounded thumb inset from its edges — and `html` carries
+   it for the page itself. `unit/scroll-containers.test.mjs` fails on an
+   `overflow-*-auto` without it.
+
+   This replaced a global `::-webkit-scrollbar` block: Chrome 121+ ignores the
+   WebKit pseudo-elements on any element that sets `scrollbar-width`, so the
+   two could not coexist, and the global one painted a grey track down every
+   rounded edge it touched. */
+:root {
+  --scrollbar-thumb: rgb(0 0 0 / 0.18);
+  --scrollbar-thumb-hover: rgb(0 0 0 / 0.32);
 }
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
+.dark {
+  --scrollbar-thumb: rgb(255 255 255 / 0.20);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 0.34);
 }
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+
+@utility scrollbar-clean {
+  /* Reserve the gutter so content doesn't jump when the bar appears. */
+  scrollbar-gutter: stable;
+
+  /* Standard — Firefox, and Chrome 121+. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+
+  /* WebKit/Blink fallback. Harmless where the standard properties already applied. */
+  &::-webkit-scrollbar { width: 10px; height: 10px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-corner { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    /* Transparent border + content-box clip insets the thumb, so a 10px track
+       renders a ~6px bar with breathing room on both sides. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-hover);
+  }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+
+/* A strip that only scrolls sideways (a wide table, a row of tabs) reserves no
+   vertical gutter: `overflow-x: auto` makes `overflow-y` auto as well, and a
+   stable gutter would then take a column of empty space beside the content.
+   Outside any layer so it outranks the utility above. */
+.scrollbar-clean.scrollbar-x {
+  scrollbar-gutter: auto;
+}
+
+/* Fields scroll their own text; they are not containers anyone marks up, so
+   they take the same look here rather than per element. */
+textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* Hide number input spin arrows */

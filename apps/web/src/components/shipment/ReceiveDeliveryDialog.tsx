@@ -9,14 +9,8 @@ import { useApiError } from '@/lib/api-error';
 import { useDateFormat } from '@/lib/dates';
 import { Money } from '@/components/ui/money';
 import { useAnnounceStatusMove } from './status-move';
-import {
-  DialogAlert,
-  DialogCancel,
-  DialogPrimary,
-  ShipmentDialog,
-  qtyInputClass,
-  useRefreshShipment,
-} from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { qtyInputClass, useRefreshShipment } from './ShipmentDialog';
 import {
   fieldValue,
   parseQty,
@@ -139,8 +133,8 @@ export function ReceiveDeliveryDialog({
   };
 
   return (
-    <ShipmentDialog
-      testId="receive-delivery"
+    <Dialog
+      data-shipment-dialog="receive-delivery"
       size="lg"
       title={t('receiveTitle', { date: formatDate(delivery.arrivedOn) })}
       onClose={onClose}
@@ -152,6 +146,7 @@ export function ReceiveDeliveryDialog({
           <DialogPrimary pending={pending} label={t('receiveIntoStock')} />
         </>
       }
+      bodyClassName="space-y-4"
     >
       <p className="text-sm text-muted-foreground">{t('receiveHint')}</p>
       {rows.length === 0 ? (
@@ -217,6 +212,6 @@ export function ReceiveDeliveryDialog({
         </ul>
       )}
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

@@ -107,7 +107,7 @@ export default async function LocaleLayout({
       lang={locale}
       dir={locale === 'ar' ? 'rtl' : 'ltr'}
       suppressHydrationWarning
-      className={`${sans.variable} ${arabic.variable} ${mono.variable}`}
+      className={`scrollbar-clean ${sans.variable} ${arabic.variable} ${mono.variable}`}
     >
       <body className="min-h-screen bg-gray-50 font-sans antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>

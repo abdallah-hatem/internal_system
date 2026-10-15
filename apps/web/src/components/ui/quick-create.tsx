@@ -1,17 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from './toast';
 import { useApiError } from '../../lib/api-error';
 import { FormActions } from './fields';
 import { ENTITY_FORMS, type EntityName } from '../entities/entity-forms';
 import { ValidatedForm } from '@/components/ui/validated-form';
-import { useEscapeToClose } from '@/lib/use-escape-to-close';
+import { Dialog } from '@/components/ui/dialog';
 
 /**
  * Create the thing a picker is missing, without leaving the form.
@@ -42,14 +41,12 @@ export type QuickCreateEntity = EntityName;
  * out was to throw the purchase order away. Refusing to nest just moved the
  * dead end one level deeper.
  *
- * Nesting needs no depth counter. Every dialog portals to <body>, so they are
- * siblings in mount order, and at equal z-index the later one paints on top —
- * which is the inner one, always. An earlier version computed 60, 70, 80… per
- * depth; flattening it to a constant changed nothing any test could tell apart,
- * so it was machinery holding up nothing, and it is gone.
- *
- * The scale it sits in: page modals at 50, these at 60, the pickers at 90 (see
- * `popover.tsx` — they have to clear this), the toasts at 100.
+ * Nesting needs no depth counter. Every dialog is the shared one
+ * (`components/ui/dialog.tsx`), which portals to <body>, so they are siblings in
+ * mount order, and at equal z-index the later one paints on top — which is the
+ * inner one, always. An earlier version computed 60, 70, 80… per depth;
+ * flattening it to a constant changed nothing any test could tell apart, so it
+ * was machinery holding up nothing, and it is gone.
  */
 
 export function QuickCreate({
@@ -127,54 +124,46 @@ function QuickCreateModal({
     onError: (err: any) => toast.error(apiError(err, tc('error'))),
   });
 
-  useEscapeToClose(onClose, create.isPending);
+  const formId = useId();
 
   /**
-   * Rendered into `document.body`, not where it sits in the tree.
-   *
-   * The trigger lives inside the form it is helping to fill, so rendering here
-   * would put a `<form>` inside a `<form>` — invalid markup, and the inner
+   * The shared dialog renders into `document.body`, not where it sits in the
+   * tree. The trigger lives inside the form it is helping to fill, so rendering
+   * here would put a `<form>` inside a `<form>` — invalid markup, and the inner
    * submit bubbles to the outer one, saving the very record the person has not
    * finished. A portal puts it beside them instead of inside.
    */
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div
+  return (
+    <Dialog
       data-quick-create-dialog={entity}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      title={t(config.titleKey)}
+      onClose={onClose}
+      busy={create.isPending}
+      footer={
+        <FormActions
+          form={formId}
+          onCancel={onClose}
+          cancelLabel={tc('cancel')}
+          submitLabel={tc('create')}
+          busy={create.isPending}
+        />
+      }
     >
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">{t(config.titleKey)}</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <ValidatedForm
-          onSubmit={(e) => {
-            e.preventDefault();
-            // The outer form is a portal away, not an ancestor, so nothing
-            // bubbles — but stopping here keeps that true if the markup moves.
-            e.stopPropagation();
-            create.mutate(config.toPayload(new FormData(e.currentTarget)));
-          }}
-          data-quick-create-form={entity}
-          className="space-y-4 overflow-y-auto p-6"
-        >
-          <Fields />
-          <FormActions
-            onCancel={onClose}
-            cancelLabel={tc('cancel')}
-            submitLabel={tc('create')}
-            busy={create.isPending}
-          />
-        </ValidatedForm>
-      </div>
-    </div>,
-    document.body,
+      <ValidatedForm
+        id={formId}
+        onSubmit={(e) => {
+          e.preventDefault();
+          // The outer form is a portal away, not an ancestor, so nothing
+          // bubbles — but stopping here keeps that true if the markup moves.
+          e.stopPropagation();
+          create.mutate(config.toPayload(new FormData(e.currentTarget)));
+        }}
+        data-quick-create-form={entity}
+        className="space-y-4"
+      >
+        <Fields />
+      </ValidatedForm>
+    </Dialog>
   );
 }
 

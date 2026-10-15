@@ -13,12 +13,13 @@ import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
   Plus, Search, Edit, Eye, Tag,
-  X, Loader2,
 } from 'lucide-react';
 
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { Dialog } from '@/components/ui/dialog';
+import { FormActions } from '@/components/ui/fields';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
@@ -498,58 +499,48 @@ export default function ProductsPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => closeCreate()}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
+        <Dialog
+          title={t('create')}
+          onClose={() => closeCreate()}
+          busy={createMutation.isPending}
+          footer={
+            <FormActions
+              form="product-create-form"
+              onCancel={() => closeCreate()}
+              cancelLabel={tc('cancel')}
+              submitLabel={tc('create')}
+              busy={createMutation.isPending}
+            />
+          }
+        >
+          <ValidatedForm id="product-create-form" onSubmit={handleCreate} className="space-y-4">
             <ENTITY_FORMS.product.Fields />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => closeCreate()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
-                {tc('cancel')}
-              </button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('create')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingProduct && (
-        <Modal title={t('edit')} onClose={() => closeEditProduct()}>
-          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
+        <Dialog
+          title={t('edit')}
+          onClose={() => closeEditProduct()}
+          busy={updateMutation.isPending}
+          footer={
+            <FormActions
+              form="product-edit-form"
+              onCancel={() => closeEditProduct()}
+              cancelLabel={tc('cancel')}
+              submitLabel={tc('save')}
+              busy={updateMutation.isPending}
+            />
+          }
+        >
+          <ValidatedForm id="product-edit-form" onSubmit={handleUpdate} className="space-y-4">
             <ENTITY_FORMS.product.Fields record={editingProduct} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => closeEditProduct()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
-                {tc('cancel')}
-              </button>
-              <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
     </div>
   );
 }
-
-// ─── Shared helpers ───────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-

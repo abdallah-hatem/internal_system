@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Forklift, Loader2 } from 'lucide-react';
 import { useCan } from '@/lib/can';
 import { MoveLeftoversDialog } from '@/components/cycles/move-leftovers-dialog';
-import { DialogCancel, ShipmentDialog } from '@/components/shipment/ShipmentDialog';
+import { Dialog, DialogCancel } from '@/components/ui/dialog';
 
 /**
  * Paying out a settlement whose cycle still holds stock (`CYCLE_HAS_UNSOLD_STOCK`)
@@ -56,8 +56,8 @@ export function UnsoldStockPrompt({
   }
 
   return (
-    <ShipmentDialog
-      testId="unsold-stock"
+    <Dialog
+      data-shipment-dialog="unsold-stock"
       size="sm"
       title={t('markPaid')}
       subtitle={cycleCode}
@@ -91,6 +91,7 @@ export function UnsoldStockPrompt({
           )}
         </>
       }
+      bodyClassName="space-y-4"
     >
       {moved ? (
         <p role="status" data-testid="unsold-moved" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
@@ -117,6 +118,6 @@ export function UnsoldStockPrompt({
           <p className="text-xs text-muted-foreground">{t('acceptRemainingStockHint')}</p>
         </>
       )}
-    </ShipmentDialog>
+    </Dialog>
   );
 }

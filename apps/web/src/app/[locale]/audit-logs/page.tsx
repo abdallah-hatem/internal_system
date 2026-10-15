@@ -18,6 +18,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog {
@@ -261,7 +262,7 @@ export default function AuditLogsPage() {
 
       {/* ─── View Log Detail ─────────────────────────────────────── */}
       {viewingLog && detail && (
-        <Modal title={`${t('action')}: ${codeLabel('auditAction', detail.action)}`} onClose={() => setViewingLog(null)}>
+        <Dialog title={`${t('action')}: ${codeLabel('auditAction', detail.action)}`} onClose={() => setViewingLog(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('timestamp')} value={formatDate(detail.occurredAt, { includeTime: true })} />
@@ -278,17 +279,21 @@ export default function AuditLogsPage() {
                 {detail.beforeJson && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-1">{t('before')}</h4>
-                    <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 overflow-x-auto max-h-48 overflow-y-auto">
-                      {JSON.stringify(detail.beforeJson, null, 2)}
-                    </pre>
+                    <div className="bg-gray-50 rounded-lg p-1.5">
+                      <pre className="scrollbar-clean max-h-48 overflow-auto p-1.5 text-xs text-gray-700">
+                        {JSON.stringify(detail.beforeJson, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 )}
                 {detail.afterJson && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-1">{t('after')}</h4>
-                    <pre className="bg-gray-50 rounded-lg p-3 text-xs text-gray-700 overflow-x-auto max-h-48 overflow-y-auto">
-                      {JSON.stringify(detail.afterJson, null, 2)}
-                    </pre>
+                    <div className="bg-gray-50 rounded-lg p-1.5">
+                      <pre className="scrollbar-clean max-h-48 overflow-auto p-1.5 text-xs text-gray-700">
+                        {JSON.stringify(detail.afterJson, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 )}
               </div>
@@ -301,24 +306,8 @@ export default function AuditLogsPage() {
               </div>
             )}
           </div>
-        </Modal>
+        </Dialog>
       )}
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
     </div>
   );
 }

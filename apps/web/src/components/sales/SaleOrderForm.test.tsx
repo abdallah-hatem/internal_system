@@ -104,6 +104,7 @@ function renderForm(
             customers={[SHOP, RETAIL]}
             products={[PISTON]}
             stock={[{ productId: PISTON.id, availableStock: 60 }]}
+            title="New sale"
             onCancel={() => {}}
             onSaved={onSaved}
             initialCustomerId={initialCustomerId}
@@ -465,7 +466,13 @@ describe('SaleOrderForm — walk-in', () => {
     expect(screen.queryByRole('button', { name: en.sales.saveDraft })).toBeNull();
     expect(screen.queryByRole('button', { name: en.sales.createAndConfirm })).toBeNull();
     // Enter in a field submits the first submit button, which is now the sale.
-    expect(screen.getByTestId('sale-order-form').querySelectorAll('button[type="submit"]')).toHaveLength(1);
+    // The buttons sit in the dialog's fixed footer and belong to the form by
+    // its id, so ask the form which submit buttons are its own.
+    const form = screen.getByTestId('sale-order-form') as HTMLFormElement;
+    const submits = Array.from(form.elements).filter(
+      (el) => el instanceof HTMLButtonElement && el.type === 'submit',
+    );
+    expect(submits).toHaveLength(1);
   });
 
   it('the total reads as paid, by the chosen method', () => {

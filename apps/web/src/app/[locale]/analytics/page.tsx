@@ -208,7 +208,7 @@ export default function AnalyticsPage() {
                 {!hasAnyRevenue && (
                   <p className="mb-3 text-xs text-gray-500">{t('noRevenueInPeriod')}</p>
                 )}
-                <div ref={chartRef} className="flex items-end gap-2 h-48 overflow-x-auto">
+                <div ref={chartRef} className="scrollbar-clean scrollbar-x flex items-end gap-2 h-48 overflow-x-auto">
                   {revenueList.map((item) => {
                     const heightPct = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0;
                     const [year, month] = (item.month ?? '').split('-');
