@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
+import { useCan } from '@/lib/can';
 
 /**
  * The wizard writes a cycle at every step, and only a partner may (R1b). A
@@ -16,11 +17,15 @@ export function WizardGate({ cycleId, children }: { cycleId?: string; children: 
   const router = useRouter();
   const { locale } = useParams<{ locale: string }>();
   const allowed = can(user?.role, 'cycle.create');
+  // Drawn like every other partner-only control until the session is read,
+  // so the wizard does not blink away on a refresh; the redirect still waits
+  // for the real role.
+  const drawn = useCan('cycle.create');
 
   useEffect(() => {
     if (isLoading || !user || allowed) return;
     router.replace(cycleId ? `/${locale}/cycles/${cycleId}/details` : `/${locale}/cycles`);
   }, [isLoading, user, allowed, cycleId, locale, router]);
 
-  return allowed ? <>{children}</> : null;
+  return drawn ? <>{children}</> : null;
 }

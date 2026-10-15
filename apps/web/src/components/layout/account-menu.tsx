@@ -6,6 +6,7 @@ import { Loader2, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useCodeLabel } from '@/lib/labels';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 
 /**
  * Who is signed in, and the way out (owner, 2026-10-14).
@@ -18,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 export function AccountMenu() {
   const t = useTranslations('nav');
   const codeLabel = useCodeLabel();
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const started = useRef(false);
@@ -35,6 +36,11 @@ export function AccountMenu() {
     setSigningOut(true);
     void logout();
   };
+
+  // Who is signed in is read from storage after the first paint, so for that
+  // moment the card had no name and simply was not there (owner, 2026-10-15).
+  // Trace it instead: the same avatar, name and role lines, the same border.
+  if (isLoading) return <AccountMenuSkeleton />;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -94,5 +100,22 @@ export function AccountMenu() {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** The trigger's own box: border, padding, the 32px avatar and two lines. */
+function AccountMenuSkeleton() {
+  return (
+    <div
+      data-testid="account-menu-skeleton"
+      aria-hidden="true"
+      className="skeleton-appear flex items-center gap-2 rounded-lg ps-3 pe-1 py-1 border-s border-border"
+    >
+      <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+      <span className="hidden sm:block">
+        <SkeletonText size="sm" className="w-24" />
+        <SkeletonText size="xs" className="w-16" />
+      </span>
+    </div>
   );
 }

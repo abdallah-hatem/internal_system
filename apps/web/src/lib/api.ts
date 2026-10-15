@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { writeSessionCookie } from './session-cookie';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -31,6 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      writeSessionCookie(null);
 
       // Keep the locale the user is actually in. This was hardcoded to
       // /en/login, and because a signed-out page fires queries that 401, this

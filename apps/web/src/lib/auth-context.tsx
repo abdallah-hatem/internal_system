@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, authApi } from './api';
 import { pushSupported } from './push';
 import { useCycleWizardDraft } from '../stores/cycle-wizard-draft';
+import { encodeSessionUser, readSessionCookie, writeSessionCookie, type SessionUser } from './session-cookie';
 
 interface User {
   id: string;
@@ -60,19 +61,37 @@ function readStoredSession(): { token: string; user: User } | null {
   }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: ReactNode;
+  /**
+   * Who the server read from the session cookie (lib/session-cookie.ts), so
+   * the first paint is already the signed-in screen. Null when the cookie is
+   * absent, and then the screen waits for storage as before.
+   */
+  initialUser?: SessionUser | null;
+}) {
+  const [user, setUser] = useState<User | null>(initialUser);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialUser);
   const locale = useLocale();
   const queryClient = useQueryClient();
   const signingOut = useRef(false);
 
   useEffect(() => {
+    // Storage is the session; the cookie only mirrors it for the server.
+    // Bring the cookie in line (a session from before the cookie existed, a
+    // sign-out in another tab, a token the API rejected), then trust storage.
     const saved = readStoredSession();
     if (saved) {
       setToken(saved.token);
       setUser(saved.user);
+      if (readSessionCookie() !== encodeSessionUser(saved.user)) writeSessionCookie(saved.user);
+    } else {
+      setUser(null);
+      if (readSessionCookie()) writeSessionCookie(null);
     }
     setIsLoading(false);
 
@@ -84,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const resync = () => {
       const now = readStoredSession();
       if (!now) {
+        writeSessionCookie(null);
         queryClient.clear();
         setToken(null);
         setUser(null);
@@ -110,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
     localStorage.setItem('token', accessToken);
     localStorage.setItem('user', JSON.stringify(userData));
+    writeSessionCookie(userData);
     setToken(accessToken);
     setUser(userData);
   }, [queryClient]);
@@ -145,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      writeSessionCookie(null);
       // A half-built cycle belongs to whoever typed it; the next partner on
       // this browser should not be offered it as theirs.
       useCycleWizardDraft.getState().clear();

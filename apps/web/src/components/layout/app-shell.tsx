@@ -5,6 +5,7 @@ import { Link, usePathname } from '../../i18n/navigation';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
+import { useDrawnRole } from '../../lib/can';
 import { ToastProvider, ToastBridge } from '../ui/toast';
 import { NotificationBell } from './notification-bell';
 import { AccountMenu } from './account-menu';
@@ -134,9 +135,10 @@ export function AppShell({
   const [langOpen, setLangOpen] = useState(false);
   // One reading of the role for every surface, so the sidebar, "More" and the
   // phone bar cannot disagree about what this person may open.
-  const groups = navForRole(user?.role);
-  const systemItems = systemForRole(user?.role);
-  const barItems = phoneBarItems(user?.role);
+  const drawnRole = useDrawnRole();
+  const groups = navForRole(drawnRole);
+  const systemItems = systemForRole(drawnRole);
+  const barItems = phoneBarItems(drawnRole);
 
   const isLoginPage = pathname.includes('/login');
 
