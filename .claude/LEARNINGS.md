@@ -188,6 +188,9 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - Run the tests the change touches, not all 466. The full run is 13 minutes and the owner
   has asked for it to stop being the default — a label change does not need the ledger
   tests. `-g "TC-X-01|TC-X-02"` or a single spec file. — 2026-09-02
+- No e2e runs unless the owner asks (2026-10-15: "testing should be done on affected parts not full e2e", then
+  "remember no e2e test"). Prove a change with unit/service tests, component tests, lint, tsc and a screenshot of the
+  real screen. The rule below about running everything before a push is superseded by this. — 2026-10-15
 - Run everything before a push or a deploy, and when the change is cross-cutting: a guard,
   a shared component, an error code, anything in `common/`. That is what the rule below is
   about, and it is not in tension with the one above — narrow while iterating, wide before
