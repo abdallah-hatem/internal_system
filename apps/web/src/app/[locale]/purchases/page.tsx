@@ -401,6 +401,7 @@ export default function PurchasesPage() {
                   required
                   placeholder={tph('chooseCycle')}
                   searchPlaceholder={tph('searchCycles')}
+                  emptyHint={tph('noCyclesToBuyFor')}
                   options={cycleList.map((c: any) => ({
                     value: c.id,
                     label: c.code,
