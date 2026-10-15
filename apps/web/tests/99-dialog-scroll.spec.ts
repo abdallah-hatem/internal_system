@@ -27,12 +27,14 @@
  * content is taller than the screen, and every real form gets there on a
  * small enough phone.
  */
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type ElementHandle, type Locator, type Page } from '@playwright/test';
 import { login, messages, type Locale } from './support/ui';
 import { go } from './support/gate';
 
 type Opener = {
   name: string;
+  /** The screenshot's file name. */
+  slug: string;
   /** Opens the dialog from the dashboard and returns its card (role=dialog). */
   open: (page: Page, locale: Locale) => Promise<Locator>;
   /** The button that saves, by its visible name. */
@@ -73,6 +75,7 @@ async function clickCreate(page: Page, label: string) {
 const OPENERS: Opener[] = [
   {
     name: 'new product',
+    slug: 'new-product',
     async open(page, locale) {
       const m = messages(locale);
       await go(page, m.nav.products, locale);
@@ -83,6 +86,7 @@ const OPENERS: Opener[] = [
   },
   {
     name: 'quick-create category (nested in new product)',
+    slug: 'quick-create-category',
     async open(page, locale) {
       const m = messages(locale);
       await go(page, m.nav.products, locale);
@@ -96,6 +100,7 @@ const OPENERS: Opener[] = [
   },
   {
     name: 'new sale',
+    slug: 'new-sale',
     async open(page, locale) {
       const m = messages(locale);
       await go(page, m.nav.sales, locale);
@@ -106,6 +111,7 @@ const OPENERS: Opener[] = [
   },
   {
     name: 'record payment',
+    slug: 'record-payment',
     async open(page, locale) {
       const m = messages(locale);
       await go(page, m.nav.payments, locale);
@@ -116,6 +122,7 @@ const OPENERS: Opener[] = [
   },
   {
     name: 'ledger entry',
+    slug: 'ledger-entry',
     async open(page, locale) {
       const m = messages(locale);
       await go(page, m.nav.ledger, locale);
@@ -126,6 +133,7 @@ const OPENERS: Opener[] = [
   },
   {
     name: 'add lender',
+    slug: 'add-lender',
     async open(page, locale) {
       const m = messages(locale);
       await go(page, m.nav.lenders, locale);
@@ -135,6 +143,12 @@ const OPENERS: Opener[] = [
     primary: (l) => messages(l).common.create,
   },
 ];
+
+const SHOTS = process.env.DIALOG_SHOTS === '1';
+const SHOT_DIR = '../../.ui-audit/dialogs';
+// Playwright's Chromium hides scrollbars by default; a picture of where the bar
+// sits needs it drawn.
+if (SHOTS) test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } });
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 700 },
@@ -187,10 +201,17 @@ for (const locale of ['en', 'ar'] as const) {
               const s = getComputedStyle(el);
               return /(auto|scroll)/.test(s.overflowY) && el.tagName !== 'TEXTAREA';
             });
-            return scrollers[0] ?? null;
+            return (scrollers[0] as HTMLElement | undefined) ?? null;
           });
-          const body = handle.asElement();
+          const body = handle.asElement() as ElementHandle<HTMLElement> | null;
           expect(body, 'the dialog has a scroll region').not.toBeNull();
+
+          // DIALOG_SHOTS=1: the dialog as it really is, its own content
+          // scrolled halfway, for a person to look at (.ui-audit is git-ignored).
+          if (SHOTS) {
+            await body!.evaluate((el) => (el.scrollTop = (el.scrollHeight - el.clientHeight) / 2));
+            await page.screenshot({ path: `${SHOT_DIR}/${opener.slug}-${locale}-${vp.width}.png` });
+          }
 
           // Long content: if the form fits the screen, give it more.
           await body!.evaluate((el) => {
