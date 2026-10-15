@@ -89,7 +89,7 @@ function StatusBadge({ active }: { active: boolean }) {
 // SKU, name, category, B2B, B2C, min stock, status, actions. One list for the
 // header, the real rows and the skeleton rows, so no column moves when the
 // data lands (components/ui/table-columns.tsx). The name takes what is left.
-const PRODUCT_COLUMNS = ['7rem', 'auto', '9rem', '8.5rem', '8.5rem', '6.5rem', '6.5rem', '7.5rem'] as const;
+const PRODUCT_COLUMNS = ['7rem', 'auto', '9rem', '8.5rem', '8.5rem', '7.5rem', '6.5rem', '7.5rem'] as const;
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The row and the card below, traced: same cells, same paddings, the same
@@ -371,14 +371,14 @@ export default function ProductsPage() {
               <ColGroup widths={PRODUCT_COLUMNS} />
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('sku')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('name')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('category')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('b2bPrice')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('b2cPrice')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('minStock')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('sku')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('name')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('category')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('b2bPrice')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('b2cPrice')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('minStock')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{t('status')}</th>
+                  <th className="text-start px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{tc('actions')}</th>
                 </tr>
               </thead>
               {isLoading ? (

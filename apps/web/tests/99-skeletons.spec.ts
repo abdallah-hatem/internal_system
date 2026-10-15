@@ -295,3 +295,30 @@ for (const locale of ['en', 'ar'] as const) {
     expect(after).toEqual(before);
   });
 }
+
+/**
+ * A header title never wraps (owner, 2026-10-15): "الحد الأدنى للمخزون" broke
+ * onto two lines in the Min Stock column. Each column is wide enough for its
+ * title in both languages, on one line, without spilling into the next.
+ */
+for (const locale of ['en', 'ar'] as const) {
+  test(`TC-SKEL-31 Products: every header title fits its column on one line (${locale}, 1440px)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page, locale);
+    await openNav(page, messages(locale).nav.products);
+    const ths = page.locator('table thead th').filter({ visible: true });
+    await expect(ths).toHaveCount(8);
+    const cells = await ths.evaluateAll((els) =>
+      els.map((th) => {
+        const cs = getComputedStyle(th);
+        const line = parseFloat(cs.lineHeight);
+        const inner = th.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+        return { text: th.textContent, lines: Math.round(inner / line), overflow: th.scrollWidth - th.clientWidth };
+      }),
+    );
+    for (const c of cells) {
+      expect(c.lines, `"${c.text}" wraps`).toBe(1);
+      expect(c.overflow, `"${c.text}" spills out of its column`).toBeLessThanOrEqual(0);
+    }
+  });
+}
