@@ -186,7 +186,11 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (row) => formatDate(noon(row.date)),
     },
     {
-      key: 'description', header: t('description'), width: 'auto', className: 'break-words text-foreground',
+      // A record code stays whole and moves to the next line, unless it is
+      // longer than the column (a bank reference on A4): then it breaks inside
+      // rather than running over the debit beside it.
+      key: 'description', header: t('description'), width: 'auto',
+      className: 'break-words text-foreground [&_bdi]:inline-block [&_bdi]:max-w-full [&_bdi]:whitespace-normal [&_bdi]:[overflow-wrap:anywhere]',
       cell: (row) => isolateCodes(describe(row)),
     },
     {

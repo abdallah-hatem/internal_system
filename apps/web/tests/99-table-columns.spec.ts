@@ -25,7 +25,8 @@
  *  The tables that are not lists (an order's lines, an invoice, a statement,
  *  a cycle's goods and shipment, a settlement, the running costs, a lender's
  *  repayments, a plan's instalments, a product's batches) get TC-COL-02 and
- *  TC-COL-03 the same way (TC-COL-04).
+ *  TC-COL-03 the same way (TC-COL-04); the invoice and the statement also fit
+ *  A4 on paper with every column shown (TC-COL-05).
  *
  *  The fixtures build every row the way the business does — stock only
  *  through a cycle, a purchase and a verified receipt; a confirmed sale; a
@@ -389,6 +390,53 @@ for (const locale of ['en', 'ar'] as const) {
       });
     }
   });
+}
+
+// ─── On paper ───────────────────────────────────────────────────────────
+
+/**
+ * The invoice and the statement print on A4 (globals.css: 12mm margins, so
+ * 186mm — 703px — across). A fixed-width table wider than that would be cut
+ * at the paper's edge, so on paper every column must be shown and the table
+ * must fit: TC-COL-05.
+ */
+const PAPER = [
+  {
+    name: 'the invoice',
+    table: 'invoice-lines',
+    open: (page: Page, locale: Locale) => DETAILS[1].open(page, locale),
+  },
+  {
+    name: "a shop's statement",
+    table: 'statement-table',
+    open: (page: Page, locale: Locale) => DETAILS[2].open(page, locale),
+  },
+];
+
+for (const locale of ['en', 'ar'] as const) {
+  for (const doc of PAPER) {
+    test(`TC-COL-05 ${doc.name} fits A4 with every column, on paper (${locale})`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await login(page, locale);
+      await doc.open(page, locale);
+      await page.emulateMedia({ media: 'print' });
+      await page.setViewportSize({ width: 703, height: 1000 });
+      const fit = await page.getByTestId(doc.table).evaluate((t) => {
+        let box = t.parentElement!;
+        while (getComputedStyle(box).overflowX === 'visible' && box.parentElement) box = box.parentElement;
+        return {
+          hidden: [...t.querySelectorAll('thead th')].filter((th) => getComputedStyle(th).display === 'none').length,
+          width: Math.round(t.getBoundingClientRect().width),
+          room: box.clientWidth,
+          scroll: box.scrollWidth,
+        };
+      });
+      expect(fit.hidden, 'every column printed').toBe(0);
+      expect(fit.scroll, `table ${fit.width}px on ${fit.room}px of paper`).toBeLessThanOrEqual(fit.room + 1);
+      expect(await cellProblems(page), 'TC-COL-03 on paper').toEqual([]);
+      await shot(page, `print-${doc.table}-${locale}`);
+    });
+  }
 }
 
 // ─── Screenshots at the other widths, for looking at ────────────────────
