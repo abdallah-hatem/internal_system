@@ -105,7 +105,7 @@ test.beforeAll(async ({ request }) => {
 function headerProblems(page: Page) {
   return page.evaluate(() => {
     const out: string[] = [];
-    for (const table of document.querySelectorAll('main table')) {
+    for (const table of document.querySelectorAll('main table, [role="dialog"] table')) {
       if (!(table as HTMLElement).offsetParent) continue;
       for (const th of table.querySelectorAll(':scope > thead th')) {
         const el = th as HTMLElement;
@@ -131,7 +131,7 @@ function headerProblems(page: Page) {
 function scrollProblems(page: Page) {
   return page.evaluate(() => {
     const out: string[] = [];
-    for (const table of document.querySelectorAll('main table')) {
+    for (const table of document.querySelectorAll('main table, [role="dialog"] table')) {
       if (!(table as HTMLElement).offsetParent) continue;
       let box = table.parentElement;
       while (box && getComputedStyle(box).overflowX === 'visible') box = box.parentElement;
@@ -156,7 +156,7 @@ function cellProblems(page: Page) {
       const o = getComputedStyle(el);
       return o.overflowX !== 'visible' || o.overflowY !== 'visible';
     };
-    for (const table of document.querySelectorAll('main table')) {
+    for (const table of document.querySelectorAll('main table, [role="dialog"] table')) {
       if (!(table as HTMLElement).offsetParent) continue;
       const rows = [...table.querySelectorAll(':scope > tbody > tr')].filter((r) => !r.closest('[data-skeleton]')).slice(0, 10);
       for (const tr of rows) {
@@ -198,7 +198,7 @@ function cellProblems(page: Page) {
 function edgesOf(page: Page, tableIndex: number, selector: string) {
   return page.evaluate(
     ({ tableIndex, selector }) => {
-      const tables = [...document.querySelectorAll('main table')].filter((t) => (t as HTMLElement).offsetParent);
+      const tables = [...document.querySelectorAll('main table, [role="dialog"] table')].filter((t) => (t as HTMLElement).offsetParent);
       const row = tables[tableIndex]?.querySelector(selector);
       return row ? [...row.querySelectorAll(':scope > td')].map((td) => {
         const b = td.getBoundingClientRect();
@@ -212,7 +212,7 @@ function edgesOf(page: Page, tableIndex: number, selector: string) {
 /** Which visible table in main holds the skeleton rows. */
 function skeletonTableIndex(page: Page) {
   return page.evaluate(() =>
-    [...document.querySelectorAll('main table')]
+    [...document.querySelectorAll('main table, [role="dialog"] table')]
       .filter((t) => (t as HTMLElement).offsetParent)
       .findIndex((t) => t.querySelector('tr[data-testid="skeleton-row"]')),
   );
@@ -259,7 +259,7 @@ for (const locale of ['en', 'ar'] as const) {
         expect(index).toBeGreaterThanOrEqual(0);
         const before = await edgesOf(page, index, 'tr[data-testid="skeleton-row"]');
         expect(before?.length, 'skeleton cells, one per column').toBe(list.columns);
-        const ths = await page.evaluate((i) => [...document.querySelectorAll('main table')].filter((t) => (t as HTMLElement).offsetParent)[i].querySelectorAll('thead th').length, index);
+        const ths = await page.evaluate((i) => [...document.querySelectorAll('main table, [role="dialog"] table')].filter((t) => (t as HTMLElement).offsetParent)[i].querySelectorAll('thead th').length, index);
         expect(ths, 'header cells').toBe(list.columns);
         // Titles are the real ones while loading: they must fit already.
         expect(await headerProblems(page), 'TC-COL-02 while loading').toEqual([]);
@@ -317,7 +317,7 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
       await openNav(page, m.nav.purchases);
       await page.getByPlaceholder(m.purchases.search).fill(cycleCode);
       await page.getByRole('main').locator('tr', { hasText: cycleCode }).getByRole('button', { name: m.common.view }).click();
-      await expect(page.locator('main table').nth(1)).toBeVisible();
+      await expect(page.getByRole('dialog').locator('table')).toBeVisible();
     },
   },
   {
