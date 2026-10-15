@@ -847,6 +847,19 @@ A plan cannot promise more than the shop actually owes.
 
 ---
 
+### Dashboard: To collect — owner, 2026-10-15
+
+The dashboard shows the five customers to chase first, beside Top products, for the roles that see
+customer balances (core partner, admin support). **Order: anyone with something overdue on a payment
+plan first, then the larger balance; ties by name.** Each row: the customer, their number of unpaid
+orders, what they owe, the overdue part (only when there is one), and how long ago their oldest unpaid
+order was placed. The headline totals everyone owing and the overdue part across all of them, so it
+agrees with the Receivables tile. The figures are the same receivables (§7, `common/receivables.ts`)
+and the same overdue rule (plans only, never above what is owed) the assistant's `list_receivables`
+reads — `GET /customers/to-collect?limit=` (1–20, default 5). A row opens the customer; View all opens
+Customers sorted by balance. Nobody owing shows "Nobody owes you anything right now". Owner chose the
+card from a mock; "upcoming" by due date was not used because only plan shops have due dates.
+
 ## 7b. A customer's statement  — built 2026-10-11 (I2)
 
 On the shop's page: pick a range of days and read the balance it opened at, every

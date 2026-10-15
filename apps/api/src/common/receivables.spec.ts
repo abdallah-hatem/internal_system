@@ -1,4 +1,5 @@
-import { receivablesByCustomer, withOverdue } from './receivables';
+import { receivablesByCustomer, toCollect, withOverdue } from './receivables';
+import { toCollectLimit } from '../modules/customers/customers.controller';
 
 /**
  * Who owes what (I1, 2026-10-11): one row per customer with something owed,
@@ -140,5 +141,103 @@ describe('withOverdue', () => {
       { customer: { id: 'c' }, overdueEgp: '500.00' },
     ]);
     expect(out.find((r) => r.customerId === 'c')!.overdue).toBe('100.00');
+  });
+});
+
+describe('toCollect — the dashboard card (owner, 2026-10-15)', () => {
+  const r = (customer: string, outstanding: string, overdue = '0.00') => ({
+    customerId: customer.toLowerCase(),
+    customer,
+    phone: null,
+    outstanding,
+    overdue,
+    openOrders: 1,
+    oldestUnpaidOn: '2026-10-01',
+    oldestUnpaidAt: '2026-10-01T09:00:00.000Z',
+  });
+
+  it('anyone overdue comes before anyone not, even with a smaller balance; then the larger balance', () => {
+    const out = toCollect(
+      [
+        r('Big', '90000.00'),
+        r('Late small', '500.00', '200.00'),
+        r('Mid', '40000.00'),
+        r('Late big', '30000.00', '1.00'),
+      ],
+      5,
+    );
+    expect(out.rows.map((x) => x.customer)).toEqual([
+      'Late big',
+      'Late small',
+      'Big',
+      'Mid',
+    ]);
+  });
+
+  it('shows only `limit` rows but totals everyone owing, to the cent', () => {
+    const all = [
+      r('A', '0.10'),
+      r('B', '0.20', '0.10'),
+      r('C', '100.00'),
+      r('D', '5.55', '5.55'),
+      r('E', '1.00'),
+      r('F', '2.00'),
+    ];
+    const out = toCollect(all, 2);
+    expect(out.rows).toHaveLength(2);
+    expect(out.totalOwed).toBe('108.85');
+    expect(out.totalOverdue).toBe('5.65');
+    expect(out.customers).toBe(6);
+  });
+
+  it('nobody owing is a card with nothing to show, not an error', () => {
+    expect(toCollect([], 5)).toEqual({
+      totalOwed: '0.00',
+      totalOverdue: '0.00',
+      customers: 0,
+      rows: [],
+    });
+  });
+
+  it('a limit of zero or less shows no rows, and the totals still stand', () => {
+    for (const n of [0, -3]) {
+      const out = toCollect([r('A', '10.00', '5.00')], n);
+      expect(out.rows).toEqual([]);
+      expect(out.totalOwed).toBe('10.00');
+    }
+  });
+
+  it('ties fall back to the name, so the card does not reshuffle between visits', () => {
+    const out = toCollect([r('Zed', '100.00'), r('Amr', '100.00')], 5);
+    expect(out.rows.map((x) => x.customer)).toEqual(['Amr', 'Zed']);
+  });
+
+  it('the overdue it shows is withOverdue\'s, capped at what is owed — never "overdue 500 of a 100 balance"', () => {
+    const owing = [r('A', '100.00')];
+    const capped = withOverdue(owing, [
+      { customer: { id: 'a' }, overdueEgp: '500.00' },
+    ]);
+    const out = toCollect(capped, 5);
+    expect(out.rows[0].overdue).toBe('100.00');
+    expect(out.totalOverdue).toBe('100.00');
+  });
+});
+
+describe('toCollectLimit — what ?limit= may ask for', () => {
+  it.each([
+    [undefined, 5],
+    ['', 5],
+    ['abc', 5],
+    ['2.5', 5],
+    ['NaN', 5],
+    ['0', 1],
+    ['-4', 1],
+    ['1', 1],
+    ['7', 7],
+    ['20', 20],
+    ['21', 20],
+    ['99999', 20],
+  ])('%p → %p', (raw, n) => {
+    expect(toCollectLimit(raw)).toBe(n);
   });
 });

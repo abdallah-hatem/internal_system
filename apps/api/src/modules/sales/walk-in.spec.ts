@@ -9,6 +9,7 @@ import { CustomersService } from '../customers/customers.service';
 import { ReturnsService } from '../returns/returns.service';
 import { SalesController } from './sales.controller';
 import { SalesService, type CreateSaleOrderInput } from './sales.service';
+import type { PaymentPlansService } from '../payment-plans/payment-plans.service';
 
 /**
  * Walk-in sales, the refusals that need no database (plan W1,
@@ -137,7 +138,14 @@ describe('the walk-in record is reserved', () => {
       },
       saleOrder: { groupBy: jest.fn(() => Promise.resolve([])) },
     } as unknown as PrismaService;
-    return { service: new CustomersService(prisma, audit), update, findMany };
+    return {
+      service: new CustomersService(prisma, audit, {
+        overdueSummary: () =>
+          Promise.resolve({ data: { totalOverdueEgp: 0, plans: [] } }),
+      } as unknown as PaymentPlansService),
+      update,
+      findMany,
+    };
   }
 
   it('Editing the walk-in customer → WALK_IN_RESERVED, and nothing is written', async () => {

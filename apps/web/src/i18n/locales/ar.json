@@ -163,7 +163,19 @@
     "cycleProfit": "الربح حتى الآن",
     "owedToLenders": "المستحق للمُقرضين",
     "owedToLendersNone": "لا شيء مستحق",
-    "owedToLendersNoRate": "عملة بلا سعر حالي غير محسوبة بالجنيه"
+    "owedToLendersNoRate": "عملة بلا سعر حالي غير محسوبة بالجنيه",
+    "toCollect": "للتحصيل",
+    "toCollectAll": "عرض الكل",
+    "toCollectCustomer": "العميل",
+    "toCollectOwes": "المستحق",
+    "toCollectOldest": "أقدم فاتورة",
+    "toCollectOrders": "{count, plural, one {فاتورة واحدة} two {فاتورتان} few {{n} فواتير} other {{n} فاتورة}}",
+    "toCollectDays": "{count, plural, =0 {اليوم} one {منذ يوم} two {منذ يومين} few {منذ {n} أيام} other {منذ {n} يوم}}",
+    "toCollectTotal": "إجمالي المستحق:",
+    "toCollectOverdueWord": "متأخر",
+    "toCollectEmpty": "لا أحد مدين لك الآن",
+    "toCollectEmptyHint": "تظهر هنا المبيعات المؤكدة غير المدفوعة بالكامل، المتأخر أولًا.",
+    "toCollectError": "تعذّر تحميل المستحقات. حدّث الصفحة للمحاولة مجددًا."
   },
   "products": {
     "title": "المنتجات",

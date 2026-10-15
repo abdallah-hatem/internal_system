@@ -9,6 +9,7 @@ import { CustomersService } from '../customers/customers.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ReturnsService } from '../returns/returns.service';
 import { SalesService, type CreateSaleOrderInput } from './sales.service';
+import type { PaymentPlansService } from '../payment-plans/payment-plans.service';
 
 /**
  * Walk-in sales against a real Postgres (plan W1, BUSINESS_LOGIC §4,
@@ -46,7 +47,10 @@ suite('walk-in sales against Postgres', () => {
     sales = new SalesService(db, audit, new PaymentsService(db, audit), {
       createForMultipleUsers: () => Promise.resolve({ count: 0 }),
     });
-    customers = new CustomersService(db, audit);
+    customers = new CustomersService(db, audit, {
+      overdueSummary: () =>
+        Promise.resolve({ data: { totalOverdueEgp: 0, plans: [] } }),
+    } as unknown as PaymentPlansService);
     returns = new ReturnsService(db, audit);
     analytics = new AnalyticsService(db);
     const user = await prisma.user.create({

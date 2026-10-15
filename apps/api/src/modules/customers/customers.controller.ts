@@ -41,6 +41,21 @@ export class CustomersController {
     return this.customersService.findAll(query);
   }
 
+  // The dashboard's To collect card (owner, 2026-10-15): the customers to
+  // chase first and the totals owed and overdue. Balances are the office's,
+  // so the same roles as the customer list. Before ':id', which would read
+  // "to-collect" as a customer id.
+  @Get('to-collect')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary:
+      'Customers to collect from first: overdue before not, then the largest balance; with totals',
+  })
+  toCollect(@Query('limit') limit?: string) {
+    return this.customersService.toCollect(toCollectLimit(limit));
+  }
+
   // A shop's statement is its money, so the same roles as its balance.
   @Get(':id/statement')
   @UseGuards(RolesGuard)
@@ -91,4 +106,15 @@ export class CustomersController {
   update(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
     return this.customersService.update(id, body, user.id);
   }
+}
+
+/**
+ * Rows the To collect card may ask for: 5 by default, never fewer than 1 or
+ * more than 20 — a dashboard card, not a list. Anything that is not a whole
+ * number reads as the default rather than as an error a card cannot show.
+ */
+export function toCollectLimit(raw: string | undefined): number {
+  const n = Number(raw);
+  if (raw === undefined || raw === '' || !Number.isInteger(n)) return 5;
+  return Math.min(20, Math.max(1, n));
 }
