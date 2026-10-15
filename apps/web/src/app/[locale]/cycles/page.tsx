@@ -180,7 +180,7 @@ export default function CyclesPage() {
         const origin = cycle.originType === 'CHINA' ? t('china') : t('uaeDirect');
         return (
           <div className="min-w-0">
-            <bdi className="block truncate font-mono text-xs font-medium text-gray-900 text-left rtl:text-right" title={cycle.code}>{cycle.code}</bdi>
+            <bdi className="block w-fit max-w-full truncate font-mono text-xs font-medium text-gray-900" title={cycle.code}>{cycle.code}</bdi>
             <p data-testid="cycle-origin" className="truncate text-xs text-gray-500" title={origin}>{origin}</p>
           </div>
         );

@@ -81,6 +81,8 @@ describe('DataTable', () => {
     expect(cut.className).toContain('truncate');
     // Cut at the text's own end, whichever way the page reads.
     expect(cut.getAttribute('dir')).toBe('auto');
+    // As wide as its text, so a short one sits on the row's start edge.
+    expect(cut.className).toContain('w-fit');
     expect(sku.getAttribute('title')).toBe('PRD-000001');
 
     expect(name.querySelector('div')!.className).toContain('line-clamp-2');

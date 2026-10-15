@@ -324,11 +324,12 @@ export function DataTable<Row>({
                           {/* A name wraps to a second line and is cut after it. A label
                               is cut on its one line at its own end: `dir="auto"` puts the
                               ellipsis after a Latin code in an Arabic row, not before
-                              its tail (LatinText does the same). */}
+                              its tail, and `w-fit` keeps a short one on the row's start
+                              edge (LatinText does the same). */}
                           {kind === 'name' ? (
                             <div className="line-clamp-2 break-words">{content}</div>
                           ) : kind === 'label' ? (
-                            <div dir="auto" className="truncate text-left rtl:text-right">{content}</div>
+                            <div dir="auto" className="w-fit max-w-full truncate">{content}</div>
                           ) : (
                             content
                           )}
