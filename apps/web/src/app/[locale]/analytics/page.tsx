@@ -13,6 +13,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface MonthlyRevenue {
@@ -72,17 +73,13 @@ function RevenueChartSkeleton() {
   );
 }
 
-/** One top-product row: name, SKU, then three figures at the end. */
-function TopProductRowSkeleton() {
+/** A top product's name over its SKU, as the real cell. */
+function TopProductNameSkeleton() {
   return (
-    <tr data-testid="skeleton-row">
-      {/* A product name and its revenue wrap to two lines in a phone's narrow table. */}
-      <td className="py-2.5"><SkeletonText className="w-28" /><SkeletonText className="w-16" lineClassName="sm:hidden" /></td>
-      <td className="py-2.5"><SkeletonText size="xs" lineClassName="h-5" className="w-16" /></td>
-      <td className="py-2.5"><SkeletonText lineClassName="justify-end" className="w-8" /></td>
-      <td className="py-2.5"><SkeletonText lineClassName="justify-end" className="w-20" /></td>
-      <td className="py-2.5"><SkeletonText lineClassName="justify-end" className="w-10" /></td>
-    </tr>
+    <>
+      <SkeletonText className="w-2/3" />
+      <SkeletonText size="xs" className="w-1/3" />
+    </>
   );
 }
 
@@ -153,6 +150,39 @@ export default function AnalyticsPage() {
   }, [revenueList]);
 
   const isLoading = loadingRevenue || loadingProducts || loadingCycles;
+
+  // Top products: the name (its SKU under it), quantity sold, revenue,
+  // margin. The revenue fits "123,456.00 EGP".
+  const topProductColumns: Column<TopProduct>[] = [
+    {
+      key: 'product', header: t('product'), width: 'auto', title: (p) => localName(p, locale),
+      skeleton: { kind: 'custom', render: () => <TopProductNameSkeleton /> },
+      cell: (p) => (
+        <>
+          <p className="font-medium text-gray-900 line-clamp-2 break-words" title={localName(p, locale)}>{localName(p, locale)}</p>
+          <p className="truncate font-mono text-xs text-gray-500" title={p.sku}><bdi dir="ltr">{p.sku}</bdi></p>
+        </>
+      ),
+    },
+    {
+      key: 'quantity', header: t('quantitySold'), width: '6.5rem', kind: 'value', align: 'end', className: 'text-gray-900',
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (p) => formatNumber(p.totalQuantitySold),
+    },
+    {
+      key: 'revenue', header: t('revenue'), width: '8rem', kind: 'value', align: 'end', className: 'text-gray-900',
+      skeleton: { kind: 'text', share: 'w-2/3' }, cell: (p) => <Money value={p.revenueEgp} />,
+    },
+    {
+      key: 'margin', header: t('margin'), width: '5rem', kind: 'value', align: 'end',
+      skeleton: { kind: 'text', share: 'w-1/2' },
+      cell: (p) =>
+        p.marginPct === null ? (
+          <span className="text-gray-400">—</span>
+        ) : (
+          <span className={p.marginPct >= 0 ? 'text-green-600' : 'text-red-600'}>{pct(p.marginPct)}</span>
+        ),
+    },
+  ];
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -227,44 +257,20 @@ export default function AnalyticsPage() {
               {!loadingProducts && productList.length === 0 ? (
                 <EmptyState size="compact" icon={Package} title={t('noData')} description={t('noTopProductsHint')} />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-start py-2 font-medium text-gray-600">{t('product')}</th>
-                        <th className="text-start py-2 font-medium text-gray-600">SKU</th>
-                        <th className="text-end py-2 font-medium text-gray-600">{t('quantitySold')}</th>
-                        <th className="text-end py-2 font-medium text-gray-600">{t('revenue')}</th>
-                        <th className="text-end py-2 font-medium text-gray-600">{t('margin')}</th>
-                      </tr>
-                    </thead>
-                    {loadingProducts ? (
-                      <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                        {repeat(TOP_PRODUCTS, (i) => <TopProductRowSkeleton key={i} />)}
-                      </SkeletonGroup>
-                    ) : (
-                    <tbody className="divide-y divide-gray-100">
-                      {productList.map((p) => (
-                        <tr key={p.productId} className="hover:bg-gray-50">
-                          <td className="py-2.5 text-gray-900 font-medium">{localName(p, locale)}</td>
-                          <td className="py-2.5 text-gray-500 font-mono text-xs">{p.sku}</td>
-                          <td className="py-2.5 text-end text-gray-900">{formatNumber(p.totalQuantitySold)}</td>
-                          <td className="py-2.5 text-end text-gray-900"><Money value={p.revenueEgp} /></td>
-                          <td className="py-2.5 text-end">
-                            {p.marginPct === null ? (
-                              <span className="text-gray-400">—</span>
-                            ) : (
-                              <span className={p.marginPct >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                {pct(p.marginPct)}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    )}
-                  </table>
-                </div>
+                // The shared table (components/ui/data-table.tsx). The card is
+                // half the page wide, so the SKU sits under the name rather than
+                // in a column of its own (its header was an untranslated "SKU"),
+                // and the name takes what the three figures leave.
+                <DataTable
+                  frame="none"
+                  density="compact"
+                  autoMin="9rem"
+                  isLoading={loadingProducts}
+                  skeletonRows={TOP_PRODUCTS}
+                  rows={productList}
+                  rowKey={(p) => p.productId}
+                  columns={topProductColumns}
+                />
               )}
             </section>
 

@@ -25,6 +25,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCodeLabel } from '@/lib/labels';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -93,26 +94,9 @@ const DIRECTION_COLORS: Record<string, string> = {
 };
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The ledger row and card below, traced. Most rows are a flow's, which has
-// only the View button (a hand-written entry adds Reverse), so the skeleton
-// carries one 28px icon button and the card no Reverse footer.
-function LedgerRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          <Skeleton className="size-7 rounded-lg" />
-        </div>
-      </td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand, with no Reverse footer
+// (most rows are a flow's). Change one, change the other.
 
 function LedgerCardSkeleton() {
   return (
@@ -229,6 +213,69 @@ export default function LedgerPage() {
     });
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Date, type, category, direction, amount, cycle, actions
+  // (components/ui/data-table.tsx). The category is what tells rows apart and
+  // takes what is left; a long type is cut with the whole of it on hover; the
+  // amount fits "-123,456.00 EGP".
+  const columns: Column<LedgerEntry>[] = [
+    {
+      key: 'date', header: t('date'), width: '7.5rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (e) => formatDate(entryDate(e)),
+    },
+    {
+      key: 'type', header: t('type'), width: '11.5rem', kind: 'label', className: 'text-gray-600',
+      title: (e) => typeLabel(e.type), skeleton: { kind: 'text', share: 'w-2/3' }, cell: (e) => typeLabel(e.type),
+    },
+    {
+      key: 'category', header: t('category'), width: 'auto', kind: 'name', className: 'text-gray-600',
+      title: (e) => categoryLabel(e.category), cell: (e) => <bdi>{categoryLabel(e.category)}</bdi>,
+    },
+    {
+      key: 'direction', header: t('direction'), width: '7rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      cell: (entry) => (
+        <CellBadge className={DIRECTION_COLORS[entry.direction] ?? 'bg-gray-100 text-gray-600'}>
+          {entry.direction === 'INFLOW' ? <ArrowUpRight className="inline h-3 w-3" /> : <ArrowDownRight className="inline h-3 w-3" />}{' '}
+          {t(entry.direction?.toLowerCase() ?? entry.direction)}
+        </CellBadge>
+      ),
+    },
+    {
+      key: 'amount', header: t('amount'), width: '9.5rem', kind: 'value', className: 'font-medium text-gray-900',
+      skeleton: { kind: 'text', share: 'w-2/3' }, cell: (e) => <Money value={e.amount} currency={e.currency} />,
+    },
+    {
+      key: 'cycle', header: t('cycle'), width: '9rem', kind: 'label', className: 'text-gray-600',
+      title: (e) => e.cycle?.code, skeleton: { kind: 'text', share: 'w-2/3' }, cell: (e) => e.cycle?.code ?? '—',
+    },
+    {
+      // Most rows are a flow's, which has only the View button (a hand-written
+      // entry adds Reverse), so the skeleton carries one.
+      key: 'actions', header: tc('actions'), width: '6rem', skeleton: { kind: 'buttons', count: 1 },
+      cell: (entry) => (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setViewingEntry(entry)}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            title={tc('view')}
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          {reversible(entry) && (
+            <button
+              type="button"
+              onClick={() => { setSelectedEntry(entry); setShowReverseModal(true); }}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title={t('reverse')}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -331,74 +378,15 @@ export default function LedgerPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('date')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('type')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('category')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('direction')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('cycle')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <LedgerRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={7}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(entryDate(entry))}</td>
-                      <td className="px-4 py-3 text-gray-600">{typeLabel(entry.type)}</td>
-                      <td className="px-4 py-3 text-gray-600"><bdi>{categoryLabel(entry.category)}</bdi></td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${DIRECTION_COLORS[entry.direction] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {entry.direction === 'INFLOW' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                          {t(entry.direction?.toLowerCase() ?? entry.direction)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <Money value={entry.amount} currency={entry.currency} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{entry.cycle?.code ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setViewingEntry(entry)}
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                            title={tc('view')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          {reversible(entry) && (
-                            <button
-                              type="button"
-                              onClick={() => { setSelectedEntry(entry); setShowReverseModal(true); }}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title={t('reverse')}
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(e) => e.id}
+        isLoading={isLoading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (

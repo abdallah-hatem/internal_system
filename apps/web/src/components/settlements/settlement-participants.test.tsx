@@ -115,8 +115,10 @@ describe('SettlementParticipants on a phone (UI audit 2026-10-10 #1)', () => {
   it('keeps the table, hidden below md, for wider screens', () => {
     const { container } = renderIn('en');
     const table = container.querySelector('table')!;
-    expect(table.parentElement!.className).toContain('hidden');
-    expect(table.parentElement!.className).toContain('md:block');
+    // The shared table's frame (components/ui/data-table.tsx) around its scroller.
+    const frame = table.parentElement!.parentElement!;
+    expect(frame.className).toContain('hidden');
+    expect(frame.className).toContain('md:block');
     expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
   });
 });

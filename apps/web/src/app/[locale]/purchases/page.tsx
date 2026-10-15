@@ -29,6 +29,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { offeredOnly } from '@/lib/product-status';
@@ -70,23 +71,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The purchase order row and card below, traced: reference, supplier, cycle,
-// currency, rate, date, the status badge and the View link. Change one,
-// change the other.
-function PurchaseRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-10" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-10" /></td>
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-12" /></td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand. Change one, change the other.
 
 function PurchaseCardSkeleton() {
   return (
@@ -236,6 +222,87 @@ export default function PurchasesPage() {
     setLineItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Reference, supplier, cycle, currency, rate, date, status, actions
+  // (components/ui/data-table.tsx). Each fixed column fits its title in
+  // English and Arabic ("سعر الصرف إلى الجنيه" sets the rate's); the
+  // supplier takes what is left.
+  const columns: Column<PurchaseOrder>[] = [
+    {
+      key: 'reference', header: t('reference'), width: '8.5rem', kind: 'label',
+      className: 'font-mono text-xs font-medium text-primary-600', title: (po) => po.reference,
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (po) => po.reference,
+    },
+    {
+      key: 'supplier', header: t('supplier'), width: 'auto', kind: 'name', className: 'text-gray-900',
+      title: (po) => po.supplier?.name, cell: (po) => <LatinText>{po.supplier?.name ?? '—'}</LatinText>,
+    },
+    {
+      key: 'cycle', header: t('cycle'), width: '8.5rem', kind: 'label', className: 'text-gray-600 font-mono text-xs',
+      title: (po) => po.cycle?.code, skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (po) => po.cycle?.code ?? '—',
+    },
+    {
+      key: 'currency', header: t('currency'), width: '6rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/3' }, cell: (po) => po.currency,
+    },
+    {
+      key: 'fxRate', header: t('fxRate'), width: '9rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (po) => po.fxRateToEgp,
+    },
+    {
+      key: 'orderedOn', header: t('orderedDate'), width: '8rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (po) => formatDate(po.orderedOn),
+    },
+    {
+      key: 'status', header: tc('status'), width: '8.5rem', skeleton: { kind: 'pill', share: 'w-2/3' },
+      cell: (po) => (
+        <CellBadge className={STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}>{codeLabel('poStatus', po.status)}</CellBadge>
+      ),
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '6rem', skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (po) => (
+        <button
+          onClick={() => setViewingPO(po)}
+          className="inline-flex items-center gap-1 whitespace-nowrap text-primary-600 hover:text-primary-700 text-sm font-medium"
+        >
+          {tc('view')} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
+        </button>
+      ),
+    },
+  ];
+
+  // An order's lines, in its window: product, ordered, received, unit price,
+  // discount, line total. The amounts fit "123,456.00 EGP" and never cut; the
+  // product takes what is left.
+  const itemColumns: Column<POItem>[] = [
+    {
+      key: 'product', header: t('product'), width: 'auto', title: (item) => localName(item.product, locale),
+      cell: (item) => (
+        <>
+          <p className="font-medium text-gray-900 line-clamp-2 break-words" title={localName(item.product, locale)}>
+            <ProductLink id={item.productId} name={localName(item.product, locale)} />
+          </p>
+          <p className="text-xs text-gray-500 truncate" title={item.product?.sku}>{item.product?.sku}</p>
+        </>
+      ),
+    },
+    { key: 'orderedQty', header: t('orderedQty'), width: '6rem', kind: 'value', className: 'text-gray-600', cell: (item) => item.orderedQty },
+    { key: 'receivedQty', header: t('receivedQty'), width: '6rem', kind: 'value', className: 'text-gray-600', cell: (item) => item.receivedQty },
+    {
+      key: 'unitPrice', header: t('unitPrice'), width: '8rem', kind: 'value', className: 'text-gray-600',
+      cell: (item) => <Money value={item.unitPrice} currency={viewingPO?.currency} />,
+    },
+    {
+      key: 'discount', header: t('discount'), width: '8rem', kind: 'value', className: 'text-gray-600',
+      cell: (item) => (item.discount > 0 ? <Money value={-item.discount} currency={viewingPO?.currency} /> : '—'),
+    },
+    {
+      key: 'lineTotal', header: t('lineTotal'), width: '8.5rem', kind: 'value', className: 'font-medium text-gray-900',
+      cell: (item) => <Money value={item.orderedQty * item.unitPrice - item.discount} currency={viewingPO?.currency} />,
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -272,60 +339,15 @@ export default function PurchasesPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('reference')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('supplier')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('cycle')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('currency')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('fxRate')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('orderedDate')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <PurchaseRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={8}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((po) => (
-                    <tr key={po.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-primary-600">{po.reference}</td>
-                      <td className="px-4 py-3 text-gray-900"><LatinText>{po.supplier?.name ?? '—'}</LatinText></td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{po.cycle?.code ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{po.currency}</td>
-                       <td className="px-4 py-3 text-gray-600">{po.fxRateToEgp}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(po.orderedOn)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {codeLabel('poStatus', po.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => setViewingPO(po)}
-                          className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 text-sm font-medium"
-                        >
-                          {tc('view')} <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(po) => po.id}
+        isLoading={isLoading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (
@@ -508,7 +530,7 @@ export default function PurchasesPage() {
 
       {/* ─── View PO Detail ────────────────────────────────────────── */}
       {viewingPO && (
-        <Modal title={viewingPO.reference} onClose={() => setViewingPO(null)}>
+        <Modal wide title={viewingPO.reference} onClose={() => setViewingPO(null)}>
           <div className="space-y-6">
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -532,46 +554,14 @@ export default function PurchasesPage() {
               {(poDetail?.items ?? viewingPO.items ?? []).length === 0 ? (
                 <EmptyState size="compact" title={t('noItemsTitle')} description={t('noItemsHint')} />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('product')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('orderedQty')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('receivedQty')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('unitPrice')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('discount')}</th>
-                        <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('lineTotal')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {(poDetail?.items ?? viewingPO.items ?? []).map((item: POItem) => (
-                        <tr key={item.id}>
-                          <td className="py-2">
-                            <p className="font-medium text-gray-900">
-                              <ProductLink id={item.productId} name={localName(item.product, locale)} />
-                            </p>
-                            <p className="text-xs text-gray-500">{item.product?.sku}</p>
-                          </td>
-                          <td className="py-2 text-gray-600">{item.orderedQty}</td>
-                          <td className="py-2 text-gray-600">{item.receivedQty}</td>
-                          <td className="py-2 text-gray-600">
-                            <Money value={item.unitPrice} currency={viewingPO.currency} />
-                          </td>
-                          <td className="py-2 text-gray-600">
-                            {item.discount > 0 ? <Money value={-item.discount} currency={viewingPO.currency} /> : '—'}
-                          </td>
-                          <td className="py-2 font-medium text-gray-900">
-                            <Money
-                              value={item.orderedQty * item.unitPrice - item.discount}
-                              currency={viewingPO.currency}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  frame="none"
+                  density="compact"
+                  autoMin="10rem"
+                  columns={itemColumns}
+                  rows={poDetail?.items ?? viewingPO.items ?? []}
+                  rowKey={(item) => item.id}
+                />
               )}
             </div>
 
@@ -648,11 +638,12 @@ export default function PurchasesPage() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+/** `wide`: the order's window, whose six-column item table needs the room — its amounts never truncate. */
+function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+      <div className={`relative bg-white rounded-2xl shadow-xl w-full ${wide ? 'max-w-4xl' : 'max-w-2xl'} flex flex-col max-h-[90vh]`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>

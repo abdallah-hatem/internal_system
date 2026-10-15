@@ -11,6 +11,7 @@ import {
   Plus, Search, Edit, MapPin,
 } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { LegRoute } from '@/components/shipment/LegRoute';
 import { Money } from '@/components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
@@ -34,38 +35,23 @@ const STATUS_COLORS: Record<string, string> = {
 
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The leg row and card below, traced: cycle and leg number, route, provider,
-// tracking, status badge, two dates, the two-line cost, and the 28px edit
-// button when the reader may edit. Change one, change the other.
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand: cycle and leg number,
+// route, the status badge, two dates and the two-line cost. Change one,
+// change the other.
 
 /**
  * LegCost: the amount over its 11px basis line, both `leading-tight`.
  * Measured, not derived: in the table cell the inline-flex sits on a text-sm
  * baseline and takes 34.25px; in the card's text-xs footer it is a flex item
- * of 15 + 13.75px.
+ * of 15 + 13.75px. In the table the bars are a share of the column.
  */
 function LegCostSkeleton({ inCard = false }: { inCard?: boolean }) {
   return (
     <div className="flex flex-col">
-      <SkeletonText size={inCard ? 'xs' : 'sm'} className="w-20" lineClassName={inCard ? 'h-[15px]' : 'h-5'} />
-      <SkeletonText size="xs" className="w-16 h-2" lineClassName={inCard ? 'h-[13.75px]' : 'h-[14.25px]'} />
+      <SkeletonText size={inCard ? 'xs' : 'sm'} className={inCard ? 'w-20' : 'w-3/4'} lineClassName={inCard ? 'h-[15px]' : 'h-5'} />
+      <SkeletonText size="xs" className={inCard ? 'w-16 h-2' : 'w-1/2 h-2'} lineClassName={inCard ? 'h-[13.75px]' : 'h-[14.25px]'} />
     </div>
-  );
-}
-
-function ShipmentRowSkeleton({ edit }: { edit: boolean }) {
-  return (
-    <tr data-testid="skeleton-row" className="[&>td:first-child]:ps-4 [&>td:last-child]:pe-4">
-      <td className="px-2.5 py-3"><SkeletonText className="w-20" /></td>
-      <td className="px-2.5 py-3"><SkeletonText className="w-40" /></td>
-      <td className="px-2.5 py-3"><SkeletonText className="w-20" /></td>
-      <td className="px-2.5 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-2.5 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
-      <td className="px-2.5 py-3"><SkeletonText size="xs" className="w-16" /></td>
-      <td className="px-2.5 py-3"><SkeletonText size="xs" className="w-16" /></td>
-      <td className="px-2.5 py-3"><LegCostSkeleton /></td>
-      {edit && <td className="px-2.5 py-3"><Skeleton className="size-7 rounded-lg" /></td>}
-    </tr>
   );
 }
 
@@ -150,6 +136,78 @@ export default function ShipmentsPage() {
       <NoMatch onClear={() => setSearch('')} />
     );
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Cycle and leg, route, provider, tracking, status, departed, arrived,
+  // cost, and the edit button when the reader may edit
+  // (components/ui/data-table.tsx). Each fixed column fits its title in
+  // English and Arabic ("Shipping Provider" sets the provider's); the cost
+  // fits "123,456.00 EGP"; the route takes what is left and breaks between
+  // its two places when it must. Short values never wrap (UI audit #29).
+  const columns: Column<Shipment>[] = [
+    {
+      // The leg number shares the cycle's cell, as on the phone card.
+      key: 'cycle', header: t('cycle'), width: '9rem', kind: 'label', className: 'text-gray-600',
+      title: (ship) => `${ship.cycle?.code ?? '—'} #${ship.sequence}`, skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (ship) => (
+        <>
+          <bdi className="font-mono text-xs">{ship.cycle?.code ?? '—'}</bdi>{' '}
+          <bdi data-testid="leg-sequence" className="text-xs text-gray-500">#{ship.sequence}</bdi>
+        </>
+      ),
+    },
+    {
+      key: 'route', header: t('route'), width: 'auto',
+      cell: (ship) => (
+        <div className="flex items-center gap-1.5 overflow-hidden text-gray-700" title={`${ship.origin ?? '—'} → ${ship.destination ?? '—'}`}>
+          <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <LegRoute origin={ship.origin} destination={ship.destination} />
+        </div>
+      ),
+    },
+    {
+      key: 'provider', header: t('provider'), width: '8.75rem', kind: 'label', className: 'text-gray-600',
+      title: (ship) => ship.provider, skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (ship) => <LatinText>{ship.provider}</LatinText>,
+    },
+    {
+      key: 'trackingRef', header: t('trackingRef'), width: '6.5rem', kind: 'label', className: 'font-mono text-xs text-gray-500',
+      title: (ship) => ship.trackingRef, skeleton: { kind: 'text', size: 'xs', share: 'w-2/3' },
+      cell: (ship) => <bdi>{ship.trackingRef ?? '—'}</bdi>,
+    },
+    {
+      key: 'status', header: t('status'), width: '8.25rem', skeleton: { kind: 'pill', share: 'w-2/3' },
+      cell: (ship) => <StatusBadge status={ship.status} />,
+    },
+    {
+      key: 'departedOn', header: t('departedOn'), width: '6.75rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (ship) => formatDate(ship.departedOn),
+    },
+    {
+      key: 'arrivedOn', header: t('arrivedOn'), width: '6.75rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (ship) => formatDate(ship.arrivedOn),
+    },
+    {
+      key: 'amount', header: t('amount'), width: '8.5rem', kind: 'value', className: 'text-gray-700',
+      skeleton: { kind: 'custom', render: () => <LegCostSkeleton /> }, cell: (ship) => <LegCost ship={ship} />,
+    },
+    ...(may.edit
+      ? [{
+          key: 'actions', header: tc('actions'), width: '4.75rem', skeleton: { kind: 'buttons', count: 1 },
+          cell: (ship: Shipment) => (
+            <button
+              type="button"
+              data-testid="edit-action"
+              onClick={() => openEdit(ship)}
+              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+              title={tc('edit')}
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          ),
+        } satisfies Column<Shipment>]
+      : []),
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -186,80 +244,17 @@ export default function ShipmentsPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 [&>th:first-child]:ps-4 [&>th:last-child]:pe-4">
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('cycle')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('route')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('provider')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('trackingRef')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('status')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('departedOn')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('arrivedOn')}</th>
-                  <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{t('amount')}</th>
-                  {may.edit && <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{tc('actions')}</th>}
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <ShipmentRowSkeleton key={i} edit={may.edit} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={may.edit ? 9 : 8}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((ship) => (
-                    <tr key={ship.id} className="hover:bg-gray-50 transition-colors [&>td:first-child]:ps-4 [&>td:last-child]:pe-4">
-                      {/* Short values never wrap (UI audit #29): a code, a date or an
-                          amount split over two lines while the route column had room.
-                          The leg number shares the cycle's cell, as on the phone card,
-                          so the table fits its card at 1440 with the route on one line
-                          (re-audit N1). */}
-                      <td className="px-2.5 py-3 text-gray-600 whitespace-nowrap">
-                        <bdi className="font-mono text-xs">{ship.cycle?.code ?? '—'}</bdi>{' '}
-                        <bdi data-testid="leg-sequence" className="text-xs text-gray-500">#{ship.sequence}</bdi>
-                      </td>
-                      <td className="px-2.5 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-gray-700">
-                          <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                          <LegRoute nowrap origin={ship.origin} destination={ship.destination} />
-                        </div>
-                      </td>
-                      <td className="px-2.5 py-3 text-gray-600"><LatinText>{ship.provider}</LatinText></td>
-                      <td className="px-2.5 py-3 font-mono text-xs text-gray-500 whitespace-nowrap"><bdi>{ship.trackingRef ?? '—'}</bdi></td>
-                      <td className="px-2.5 py-3 whitespace-nowrap">
-                        <StatusBadge status={ship.status} />
-                      </td>
-                      <td className="px-2.5 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.departedOn)}</td>
-                      <td className="px-2.5 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(ship.arrivedOn)}</td>
-                      <td className="px-2.5 py-3 text-gray-700 whitespace-nowrap">
-                        <LegCost ship={ship} />
-                      </td>
-                      {may.edit && (
-                      <td className="px-2.5 py-3">
-                        <button
-                          type="button"
-                          data-testid="edit-action"
-                          onClick={() => openEdit(ship)}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                          title={tc('edit')}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                      </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        density="tight"
+        autoMin="10rem"
+        columns={columns}
+        rows={paginated}
+        rowKey={(ship) => ship.id}
+        isLoading={isLoading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (
@@ -375,9 +370,7 @@ function StatusBadge({ status }: { status: string }) {
   const color = STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600';
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
-      {labelKey}
-    </span>
+    <CellBadge className={color}>{labelKey}</CellBadge>
   );
 }
 

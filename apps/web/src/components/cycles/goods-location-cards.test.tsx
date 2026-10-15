@@ -178,9 +178,11 @@ describe('where the goods are, at the top of cycle details', () => {
 
     const phoneCards = within(section).getAllByTestId('location-product-card');
     expect(phoneCards.map((c) => c.dataset.product)).toEqual(['Brake pad', 'Chain kit']);
-    // The table hides below 640px and the cards above it.
-    expect(table.parentElement!.className).toContain('hidden');
-    expect(table.parentElement!.className).toContain('sm:block');
+    // The table hides below 640px and the cards above it. (The shared table,
+    // components/ui/data-table.tsx, is its scroller inside its frame.)
+    const frame = table.parentElement!.parentElement!;
+    expect(frame.className).toContain('hidden');
+    expect(frame.className).toContain('sm:block');
     expect(phoneCards[0].parentElement!.className).toContain('sm:hidden');
   });
 

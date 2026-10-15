@@ -21,6 +21,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface InventorySummary {
@@ -44,20 +45,9 @@ interface Movement {
 }
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The product row and card below, traced: the chevron cell, the name, three
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand: the name and three
 // counts. Change one, change the other.
-function InventoryRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-4" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
-    </tr>
-  );
-}
 
 function InventoryCardSkeleton() {
   return (
@@ -156,6 +146,159 @@ function InventoryPageContent() {
       <NoMatch onClear={() => setSearch('')} />
     );
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // The chevron, product, total, reserved, available, batches
+  // (components/ui/data-table.tsx). Each fixed column fits its title in
+  // English and Arabic; the product takes what is left.
+  const columns: Column<InventorySummary>[] = [
+    {
+      key: 'expand', header: null, width: '3rem', skeleton: { kind: 'text', share: 'w-4' },
+      cell: (item) => (
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${expandedProduct === item.productId ? 'rotate-180' : ''}`} />
+      ),
+    },
+    {
+      key: 'product', header: t('product'), width: 'auto',
+      cell: (item) => {
+        const name = localName({ name: item.productName, nameAr: item.productNameAr }, locale);
+        return (
+          // The name wraps to two lines and is cut after them; the badge keeps its line.
+          <div className="flex items-center gap-2" title={name}>
+            <p className="min-w-0 font-medium text-gray-900 line-clamp-2 break-words">
+              <ProductLink id={item.productId} name={name} />
+            </p>
+            {isBelowMinStock(item) && (
+              <span data-testid="low-stock-badge" className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-red-600 bg-red-100 rounded-full px-2 py-0.5">
+                <AlertTriangle className="h-3 w-3" aria-hidden="true" /> {t('low')}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'totalStock', header: t('totalStock'), width: '8rem', kind: 'value', className: 'font-medium text-gray-900',
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (item) => item.totalStock,
+    },
+    {
+      key: 'reserved', header: t('reserved'), width: '7rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (item) => item.reservedStock,
+    },
+    {
+      key: 'available', header: t('available'), width: '7rem', kind: 'value',
+      className: (item) => `font-medium ${isBelowMinStock(item) ? 'text-red-600' : 'text-green-600'}`,
+      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (item) => item.availableStock,
+    },
+    {
+      key: 'batches', header: t('batches'), width: '7rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/5' }, cell: (item) => item.batches?.length ?? 0,
+    },
+  ];
+
+  // A product's batches, opened under its row: batch, cycle, arrived,
+  // received, remaining, landed cost, verification, actions. The cycle takes
+  // what is left.
+  const batchColumns: Column<InventorySummary['batches'][number]>[] = [
+    {
+      key: 'batch', header: t('batch'), width: '6.5rem', kind: 'value', className: 'font-mono text-xs text-gray-600',
+      cell: (batch) => <BatchRef id={batch.id} />,
+    },
+    {
+      key: 'cycle', header: t('cycle'), width: 'auto', kind: 'label', className: 'text-gray-600',
+      title: (batch) => batch.cycle?.code, cell: (batch) => batch.cycle?.code ?? '—',
+    },
+    {
+      // Dated from the shipping leg, so it is empty until the leg is dated —
+      // said plainly rather than shown as a dash, which reads as "no data"
+      // when it means "nobody entered it yet".
+      key: 'arrived', header: t('arrived'), headerTitle: t('arrivedHint'), width: '7.5rem', kind: 'value', className: 'text-gray-600',
+      cell: (batch) => (batch.arrivedOn ? formatDate(batch.arrivedOn) : <span className="text-gray-400">{t('notArrivedYet')}</span>),
+    },
+    {
+      key: 'received', header: t('received'), headerTitle: t('receivedHint'), width: '8rem', kind: 'value', className: 'text-gray-600',
+      cell: (batch) => formatDate(batch.receivedAt),
+    },
+    {
+      key: 'remaining', header: t('remaining'), width: '6rem', kind: 'value', className: 'font-medium text-gray-900',
+      cell: (batch) => batch.remainingQty,
+    },
+    {
+      key: 'landedCost', header: t('landedCost'), width: '8.5rem', kind: 'value', className: 'text-gray-600',
+      cell: (batch) => <Money value={batch.landedUnitCostEgp} />,
+    },
+    {
+      key: 'verification', header: t('verificationStatus'), width: '7rem',
+      cell: (batch) => <VerificationBadge status={batch.verificationStatus} />,
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '7.5rem',
+      cell: (batch) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedBatchId(selectedBatchId === batch.id ? null : batch.id);
+          }}
+          className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-primary-600 hover:text-primary-700 font-medium"
+        >
+          <ArrowUpDown className="h-3.5 w-3.5" /> {t('movements')}
+        </button>
+      ),
+    },
+  ];
+
+  /** The row under an opened product: its batches, and a batch's movements. */
+  const batchesRow = (item: InventorySummary) =>
+    expandedProduct === item.productId && (
+      <tr>
+        <td colSpan={columns.length} className="px-4 py-4 bg-gray-50">
+          {(item.batches ?? []).length === 0 ? (
+            <EmptyState size="compact" icon={null} title={t('noBatchesTitle')} />
+          ) : (
+            <div className="space-y-3">
+              <DataTable
+                frame="none"
+                density="compact"
+                autoMin="8rem"
+                columns={batchColumns}
+                rows={item.batches ?? []}
+                rowKey={(batch) => batch.id}
+                rowClassName={() => 'hover:bg-white'}
+              />
+
+              {/* Movements */}
+              {selectedBatchId && (
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">{t('movements')}</h4>
+                  {movementList.length === 0 ? (
+                    <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
+                  ) : (
+                    <div className="space-y-2">
+                      {movementList.map((mov) => (
+                        <div key={mov.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {codeLabel('movementType', mov.movementType)}
+                            </span>
+                            <span className="text-gray-700">{mov.qtyDelta}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-gray-500 text-xs">{formatDate(mov.occurredAt)}</span>
+                            {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{codeLabel('referenceType', mov.referenceType)}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -209,163 +352,23 @@ function InventoryPageContent() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 w-8" />
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('product')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('totalStock')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('reserved')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('available')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('batches')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <InventoryRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={6}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((item) => {
-                    const isExpanded = expandedProduct === item.productId;
-                    // The one rule (§3, 2026-10-10): active, a minimum set, on hand below it.
-                    const isLow = isBelowMinStock(item);
-                    return (
-                      <Fragment key={item.productId}>
-                        <tr
-                          data-testid="inventory-row"
-                          data-product={item.productName}
-                          data-low={isLow ? 'true' : 'false'}
-                          className={`hover:bg-gray-50 transition-colors cursor-pointer ${isLow ? 'bg-red-50/50' : ''}`}
-                          onClick={() => setExpandedProduct(isExpanded ? null : item.productId)}
-                        >
-                          <td className="px-4 py-3">
-                            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                          </td>
-                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  <ProductLink id={item.productId} name={localName({ name: item.productName, nameAr: item.productNameAr }, locale)} />
-                                </p>
-                              </div>
-                              {isLow && (
-                                <span data-testid="low-stock-badge" className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-100 rounded-full px-2 py-0.5">
-                                  <AlertTriangle className="h-3 w-3" aria-hidden="true" /> {t('low')}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-medium text-gray-900">{item.totalStock}</td>
-                          <td className="px-4 py-3 text-gray-600">{item.reservedStock}</td>
-                          <td className={`px-4 py-3 font-medium ${isLow ? 'text-red-600' : 'text-green-600'}`}>{item.availableStock}</td>
-                          <td className="px-4 py-3 text-gray-600">{item.batches?.length ?? 0}</td>
-                        </tr>
-                        {isExpanded && (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-4 bg-gray-50">
-                              {(item.batches ?? []).length === 0 ? (
-                                <EmptyState size="compact" icon={null} title={t('noBatchesTitle')} />
-                              ) : (
-                                <div className="space-y-3">
-                                  <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                      <thead>
-                                        <tr className="border-b border-gray-200">
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('batch')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('cycle')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium" title={t('arrivedHint')}>{t('arrived')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium" title={t('receivedHint')}>{t('received')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('remaining')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('landedCost')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium">{t('verificationStatus')}</th>
-                                          <th className="text-start py-2 text-xs text-gray-500 font-medium">{tc('actions')}</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-gray-100">
-                                         {(item.batches ?? []).map((batch: any) => (
-                                          <tr key={batch.id} className="hover:bg-white">
-                                            <td className="py-2 font-mono text-xs text-gray-600"><BatchRef id={batch.id} /></td>
-                                            <td className="py-2 text-gray-600">{batch.cycle?.code ?? '—'}</td>
-                                            {/* Dated from the shipping leg, so it is empty until the leg
-                                                is dated — said plainly rather than shown as a dash, which
-                                                reads as "no data" when it means "nobody entered it yet". */}
-                                            <td className="py-2 text-gray-600">
-                                              {batch.arrivedOn ? formatDate(batch.arrivedOn) : (
-                                                <span className="text-gray-400">{t('notArrivedYet')}</span>
-                                              )}
-                                            </td>
-                                            <td className="py-2 text-gray-600">{formatDate(batch.receivedAt)}</td>
-                                             <td className="py-2 font-medium text-gray-900">{batch.remainingQty}</td>
-                                            <td className="py-2 text-gray-600"><Money value={batch.landedUnitCostEgp} /></td>
-                                            <td className="py-2">
-                                              <VerificationBadge status={batch.verificationStatus} />
-                                            </td>
-                                            <td className="py-2">
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setSelectedBatchId(selectedBatchId === batch.id ? null : batch.id);
-                                                }}
-                                                className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
-                                              >
-                                                <ArrowUpDown className="h-3.5 w-3.5" /> {t('movements')}
-                                              </button>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-
-                                  {/* Movements */}
-                                  {selectedBatchId && (
-                                    <div className="bg-white rounded-lg border border-gray-200 p-4">
-                                      <h4 className="text-sm font-semibold text-gray-900 mb-3">{t('movements')}</h4>
-                                      {movementList.length === 0 ? (
-                                        <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
-                                      ) : (
-                                        <div className="space-y-2">
-                                          {movementList.map((mov) => (
-                                            <div key={mov.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                                              <div className="flex items-center gap-2">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                  mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                                }`}>
-                                                  {codeLabel('movementType', mov.movementType)}
-                                                </span>
-                                                <span className="text-gray-700">{mov.qtyDelta}</span>
-                                              </div>
-                                              <div className="text-right">
-                                                <span className="text-gray-500 text-xs">{formatDate(mov.occurredAt)}</span>
-                                                {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{codeLabel('referenceType', mov.referenceType)}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(item) => item.productId}
+        isLoading={isLoading}
+        empty={emptyList}
+        onRowClick={(item) => setExpandedProduct(expandedProduct === item.productId ? null : item.productId)}
+        rowClassName={(item) => (isBelowMinStock(item) ? 'bg-red-50/50' : undefined)}
+        rowProps={(item) => ({
+          'data-testid': 'inventory-row',
+          'data-product': item.productName,
+          'data-low': isBelowMinStock(item) ? 'true' : 'false',
+        })}
+        afterRow={batchesRow}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (
@@ -497,7 +500,6 @@ function InventoryPageContent() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-import { Fragment } from 'react';
 
 import { useDateFormat } from '../../../lib/dates';
 function VerificationBadge({ status }: { status: string }) {

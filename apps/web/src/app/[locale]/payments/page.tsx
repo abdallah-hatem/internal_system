@@ -33,6 +33,7 @@ import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -62,27 +63,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The payment row and card below, traced: the 28px icon buttons set the
-// row's height; the card keeps the Allocate / Reverse footer a recorded
-// payment has. Change one, change the other.
-function PaymentRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-10" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-16" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          {repeat(3, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
-        </div>
-      </td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand, keeping the Allocate /
+// Reverse footer a recorded payment has. Change one, change the other.
 
 function PaymentCardSkeleton() {
   return (
@@ -256,6 +239,86 @@ function PaymentsPageContent() {
     });
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Customer, amount, currency, method, received, reference, status, actions
+  // (components/ui/data-table.tsx). Each fixed column fits its title in
+  // English and Arabic; the amount fits "-123,456.00 EGP"; the customer
+  // takes what is left.
+  const columns: Column<Payment>[] = [
+    {
+      key: 'customer', header: t('customer'), width: 'auto', kind: 'name',
+      title: (p) => p.customer?.displayName, className: 'text-gray-900 font-medium',
+      cell: (p) => <CustomerLink id={p.customerId} name={p.customer?.displayName} />,
+    },
+    {
+      // The amount carries its own currency: without it a USD payment
+      // rendered as "… EGP" beside a USD column. End-aligned, as money is.
+      key: 'amount', header: t('amount'), width: '9rem', kind: 'value', align: 'end',
+      className: 'text-gray-900 font-medium', skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (p) => <Money value={p.amount} currency={p.currency} />,
+    },
+    {
+      key: 'currency', header: t('currency'), width: '6rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/3' },
+      cell: (p) => p.currency,
+    },
+    {
+      key: 'method', header: t('method'), width: '8rem', kind: 'label', className: 'text-gray-600',
+      title: (p) => codeLabel('paymentMethod', p.method), skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (p) => codeLabel('paymentMethod', p.method),
+    },
+    {
+      key: 'receivedOn', header: t('receivedOn'), width: '8rem', kind: 'value', className: 'text-gray-500 text-xs',
+      skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' },
+      cell: (p) => formatDate(p.receivedOn),
+    },
+    {
+      key: 'reference', header: t('reference'), width: '9rem', kind: 'label', className: 'text-gray-500 font-mono text-xs',
+      title: (p) => p.reference, skeleton: { kind: 'text', size: 'xs', share: 'w-1/2' },
+      cell: (p) => (p.reference ? <bdi dir="ltr">{p.reference}</bdi> : '—'),
+    },
+    {
+      key: 'status', header: t('status'), width: '7.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      cell: (p) => (
+        <CellBadge className={STATUS_COLORS[p.status] ?? 'bg-gray-100 text-gray-600'}>
+          {codeLabel('paymentStatus', p.status)}
+        </CellBadge>
+      ),
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '8rem', skeleton: { kind: 'buttons', count: 3 },
+      cell: (payment) => (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setViewingPayment(payment)}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            title={tc('view')}
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          {payment.status === 'RECORDED' && (
+            <>
+              <button
+                onClick={() => { setSelectedPayment(payment); setShowAllocateModal(true); }}
+                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title={t('allocate')}
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => { setSelectedPayment(payment); setShowReverseModal(true); }}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title={t('reverse')}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -309,98 +372,27 @@ function PaymentsPageContent() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div data-testid="payments-table" aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('customer')}</th>
-                  {/* Money end-aligned, as on every other table. */}
-                  <th className="text-end px-4 py-3 font-medium text-gray-600">{t('amount')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('currency')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('method')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('receivedOn')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('reference')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <PaymentRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8}>
-                      {search || dated ? (
-                        <NoMatch filtered={dated} onClear={clearFilters} />
-                      ) : (
-                        <EmptyState
-                          title={t('empty')}
-                          description={t('emptyHint')}
-                          action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                  ) : (
-                    paginated.map((payment) => (
-                      <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-900 font-medium">
-                        <CustomerLink id={payment.customerId} name={payment.customer?.displayName} />
-                      </td>
-                      {/* The amount carries its own currency: without it a USD
-                          payment rendered as "… EGP" beside a USD column. */}
-                      <td className="px-4 py-3 text-end whitespace-nowrap tabular-nums text-gray-900 font-medium"><Money value={payment.amount} currency={payment.currency} /></td>
-                      <td className="px-4 py-3 text-gray-600">{payment.currency}</td>
-                      <td className="px-4 py-3 text-gray-600">{codeLabel('paymentMethod', payment.method)}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(payment.receivedOn)}</td>
-                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{payment.reference ? <bdi dir="ltr">{payment.reference}</bdi> : '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[payment.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {codeLabel('paymentStatus', payment.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setViewingPayment(payment)}
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                            title={tc('view')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          {payment.status === 'RECORDED' && (
-                            <>
-                              <button
-                                onClick={() => { setSelectedPayment(payment); setShowAllocateModal(true); }}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title={t('allocate')}
-                              >
-                                <ArrowRightLeft className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => { setSelectedPayment(payment); setShowReverseModal(true); }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title={t('reverse')}
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        testId="payments-table"
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(p) => p.id}
+        isLoading={isLoading}
+        stale={reloading}
+        empty={
+          search || dated ? (
+            <NoMatch filtered={dated} onClear={clearFilters} />
+          ) : (
+            <EmptyState
+              title={t('empty')}
+              description={t('emptyHint')}
+              action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+            />
+          )
+        }
+      />
 
       {/* Mobile Cards */}
       {isLoading && (

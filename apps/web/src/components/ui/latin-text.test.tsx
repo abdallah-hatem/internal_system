@@ -34,9 +34,11 @@ describe('LatinText', () => {
     expect(el.getAttribute('dir')).toBe('auto');
     expect(el.className).toMatch(/\btruncate\b/);
     expect(el.className).toMatch(/\bblock\b/);
-    // Aligned by the row, not by its own (left-to-right) direction: a short
-    // Latin name in an Arabic row stays on the row's start edge.
-    expect(el.className).toContain('[text-align:match-parent]');
+    // Placed by the row, not aligned by its own (left-to-right) direction: as
+    // wide as its text, so it sits on the row's start edge in Arabic. Not
+    // match-parent, which Chromium resolves against the element's own direction.
+    expect(el.className).toMatch(/\bw-fit\b/);
+    expect(el.className).toMatch(/\bmax-w-full\b/);
     expect(el.className).toContain('[unicode-bidi:isolate]');
     // Cut off on screen, still readable on hover.
     expect(el.getAttribute('title')).toBe('Audit Partial Front Disc Brake Rotor 220mm Stainless Steel Heavy Duty');

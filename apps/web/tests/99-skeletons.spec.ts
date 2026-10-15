@@ -26,7 +26,8 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { apiCtx, owedOrder, stockedProduct } from './support/fixtures';
-import { login, messages, openNav } from './support/ui';
+import { login, messages } from './support/ui';
+import { gateApi, go, type Gate } from './support/gate';
 
 const m = messages('en');
 const PAGE_SIZE = 10;
@@ -62,46 +63,6 @@ test.beforeAll(async ({ request }) => {
   await mk('payments', { customerId: customer.id, amount: 400, currency: 'EGP', method: 'CASH' });
   cycleCode = cycle.code;
 });
-
-/** Holds every GET to the API until released; logins and saves pass. */
-async function gateApi(page: Page) {
-  let open: () => void = () => {};
-  let gate = Promise.resolve();
-  let holding = false;
-  await page.route(/\/api\/v1\//, async (route) => {
-    const req = route.request();
-    if (holding && req.method() === 'GET' && !/\/auth\//.test(req.url())) await gate;
-    await route.continue().catch(() => {});
-  });
-  return {
-    hold() {
-      holding = true;
-      gate = new Promise<void>((resolve) => (open = resolve));
-    },
-    release() {
-      holding = false;
-      open();
-    },
-  };
-}
-
-/**
- * Through the menu, as a person does: the sidebar on a desktop; on a phone
- * the bottom bar, or More and the drawer for a screen the bar does not hold
- * (spec 74).
- */
-async function go(page: Page, label: string) {
-  if ((page.viewportSize()?.width ?? 1440) >= 768) return openNav(page, label);
-  const bar = page.getByTestId('phone-bar');
-  let link = bar.getByRole('link', { name: label, exact: true });
-  if ((await link.count()) === 0) {
-    await bar.getByRole('button', { name: m.nav.more }).click();
-    link = page.locator('aside').getByRole('link', { name: label, exact: true });
-  }
-  const href = await link.getAttribute('href');
-  await link.click();
-  if (href) await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 15000 });
-}
 
 const skeletons = (page: Page) => page.getByTestId('skeleton').filter({ visible: true });
 const skeletonRows = (page: Page) => page.getByTestId('skeleton-row').filter({ visible: true });
@@ -158,7 +119,7 @@ interface Screen {
   /** Rows a skeleton of this screen holds. */
   rows: number;
   /** From the dashboard, get the held screen on its way. */
-  open: (page: Page, gate: Awaited<ReturnType<typeof gateApi>>) => Promise<void>;
+  open: (page: Page, gate: Gate) => Promise<void>;
 }
 
 const viaNav = (label: string): Screen['open'] => async (page, gate) => {
@@ -261,3 +222,7 @@ for (const viewport of [
     });
   });
 }
+
+// The columns holding still when the rows land, and every header title
+// fitting its column (TC-SKEL-30/31, Products only), are now checked on every
+// table by 99-table-columns.spec.ts.

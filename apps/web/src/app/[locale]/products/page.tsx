@@ -27,6 +27,7 @@ import { ProductStatusAction } from '@/components/products/product-status-action
 import { localName, matchesName } from '@/lib/localized-name';
 import { namedOption } from '@/components/entities/entity-forms';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -85,26 +86,8 @@ function StatusBadge({ active }: { active: boolean }) {
 }
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The row and the card below, traced: same cells, same paddings, the same
-// 28px icon buttons that set the row's height. Change one, change the other.
-function ProductRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-5 w-14 rounded-full" /></td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          {repeat(3, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
-        </div>
-      </td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand. Change one, change the other.
 
 function ProductCardSkeleton() {
   return (
@@ -283,6 +266,81 @@ export default function ProductsPage() {
     });
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // SKU, name, category, B2B, B2C, min stock, status, actions. Each fixed
+  // column fits its title in English and Arabic ("الحد الأدنى للمخزون" sets
+  // Min Stock's); the prices fit "123,456.00 EGP"; the name takes what is left.
+  const columns: Column<Product>[] = [
+    {
+      key: 'sku', header: t('sku'), width: '7rem', kind: 'label', title: (p) => p.sku,
+      className: 'font-mono text-xs text-gray-500', skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' },
+      cell: (p) => p.sku,
+    },
+    {
+      key: 'name', header: t('name'), width: 'auto', kind: 'name', title: (p) => p.displayName,
+      className: 'font-medium text-gray-900',
+      cell: (p) => <ProductLink id={p.id} name={p.displayName} />,
+    },
+    {
+      key: 'category', header: t('category'), width: '9rem', className: 'text-gray-600',
+      skeleton: { kind: 'pill', share: 'w-3/4' },
+      cell: (p) => (
+        <span
+          className="inline-flex max-w-full items-center gap-1 whitespace-nowrap bg-gray-100 rounded-full px-2.5 py-0.5 text-xs"
+          title={p.categoryLabel || undefined}
+        >
+          <Tag className="h-3 w-3 shrink-0" />
+          <span className="truncate">{p.categoryLabel || '—'}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'b2b', header: t('b2bPrice'), width: '9rem', kind: 'value', className: 'text-gray-700',
+      skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (p) => (p.b2bPrice != null ? <Money value={p.b2bPrice} /> : '—'),
+    },
+    {
+      key: 'b2c', header: t('b2cPrice'), width: '9rem', kind: 'value', className: 'text-gray-700',
+      skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (p) => (p.b2cPrice != null ? <Money value={p.b2cPrice} /> : '—'),
+    },
+    {
+      key: 'minStock', header: t('minStock'), width: '8rem', kind: 'value', className: 'text-gray-700',
+      skeleton: { kind: 'text', share: 'w-1/4' },
+      cell: (p) => p.minStock,
+    },
+    {
+      key: 'status', header: t('status'), width: '6.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      cell: (p) => <StatusBadge active={p.isActive} />,
+    },
+    {
+      key: 'actions', header: tc('actions'), width: '8rem', skeleton: { kind: 'buttons', count: 3 },
+      cell: (product) => (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => router.push(`/${locale}/products/${product.id}`)}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            title={tc('view')}
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          {may.edit && (
+          <button
+            type="button"
+            data-testid="edit-action"
+            onClick={() => openEditProduct(product)}
+            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+            title={tc('edit')}
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          )}
+          <ProductStatusAction product={product} look="icon" />
+        </div>
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -356,86 +414,15 @@ export default function ProductsPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('sku')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('name')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('category')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('b2bPrice')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('b2cPrice')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('minStock')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('status')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <ProductRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={8}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{product.sku}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <ProductLink id={product.id} name={product.displayName} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap bg-gray-100 rounded-full px-2.5 py-0.5 text-xs">
-                          <Tag className="h-3 w-3" />
-                          {product.categoryLabel || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
-                        {product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
-                        {product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">
-                        {product.minStock}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge active={product.isActive} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => router.push(`/${locale}/products/${product.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                            title={tc('view')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          {may.edit && (
-                          <button
-                            type="button"
-                            data-testid="edit-action"
-                            onClick={() => openEditProduct(product)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                            title={tc('edit')}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          )}
-                          <ProductStatusAction product={product} look="icon" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(p) => p.id}
+        isLoading={isLoading}
+        empty={emptyList}
+      />
 
       {/* Mobile Cards */}
       {isLoading && (

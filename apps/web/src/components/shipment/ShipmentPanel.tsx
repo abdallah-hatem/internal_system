@@ -19,6 +19,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import { LegRoute } from './LegRoute';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { useToast } from '@/components/ui/toast';
 import { statusesToWalk } from '@/components/cycles/wizard-walk';
 import { useRefreshShipment } from './ShipmentDialog';
@@ -116,6 +117,46 @@ export function useShipment(cycleId: string | undefined) {
 /** How many product lines the placeholder leg shows. */
 const SKELETON_LINES = 2;
 
+type LegLine = ShipmentLeg['lines'][number];
+
+/**
+ * A leg's product table (components/ui/data-table.tsx), shared by the panel
+ * and its placeholder: the product — which takes what is left and wraps to
+ * two lines — then a count per stage and the progress bar. Each count column
+ * fits its title in English and Arabic ("بانتظار الاستلام" sets Waiting's).
+ */
+function useLegColumns(productNames: Record<string, string>, ordered: Map<string, number>): Column<LegLine>[] {
+  const t = useTranslations('shipment');
+  const { formatNumber } = useNumberFormat();
+  const count = (key: string, id: string, header: string, width: string, value: (l: LegLine) => number | null): Column<LegLine> => ({
+    key, header, width, kind: 'value', align: 'end', className: 'text-foreground',
+    cellProps: () => ({ 'data-testid': id }), skeleton: { kind: 'text', share: 'w-1/4' },
+    cell: (line) => {
+      const v = value(line);
+      return v === null ? '—' : formatNumber(v, { maximumFractionDigits: 3 });
+    },
+  });
+  return [
+    {
+      key: 'product', header: t('product'), width: 'auto', kind: 'name', className: 'font-medium text-foreground',
+      title: (line) => productNames[line.purchaseOrderItemId], skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (line) => <LatinText>{productNames[line.purchaseOrderItemId]}</LatinText>,
+    },
+    count('ordered', 'line-ordered', t('ordered'), '5.5rem', (l) => ordered.get(l.purchaseOrderItemId) ?? 0),
+    count('atOrigin', 'line-at-origin', t('atOriginCol'), '5rem', (l) => num(l.atOrigin)),
+    count('delivered', 'line-delivered', t('delivered'), '5.5rem', (l) => l.delivered),
+    count('received', 'line-received', t('receivedCol'), '5.5rem', (l) => l.received),
+    count('waiting', 'line-waiting', t('waiting'), '6rem', (l) => l.waiting),
+    count('lost', 'line-lost', t('lost'), '4.5rem', (l) => l.lost),
+    count('onTheWay', 'line-on-the-way', t('onTheWay'), '5.5rem', (l) => l.onTheWay),
+    {
+      key: 'progress', header: t('progress'), width: '8rem', headerClassName: 'ps-4', className: 'ps-4',
+      skeleton: { kind: 'custom', render: () => <Skeleton className="h-1.5 w-full rounded-full" /> },
+      cell: (line) => <Progress value={legLineProgress(line)} label={t('progressLabel')} />,
+    },
+  ];
+}
+
 /**
  * The panel before the shipment arrives, traced from the panel and one
  * `LegBlock`: the title and totals, the leg heading over its status badge,
@@ -128,6 +169,8 @@ function PlainFrame({ className, children }: { className?: string; children: Rea
 export function ShipmentPanelSkeleton({ inside = false }: { inside?: boolean }) {
   // Inside another skeleton (the cycle page's), that one already says "Loading".
   const Frame = inside ? PlainFrame : SkeletonRegion;
+  // The table's real titles: they need no data.
+  const columns = useLegColumns({}, new Map());
   return (
     <Frame className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -142,30 +185,17 @@ export function ShipmentPanelSkeleton({ inside = false }: { inside?: boolean }) 
             <SkeletonText size="xs" className="w-24" />
           </div>
         </div>
-        <div className="hidden md:block">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="py-2"><SkeletonText size="xs" className="w-16" /></th>
-                {repeat(7, (i) => (
-                  <th key={i} className="py-2"><SkeletonText size="xs" lineClassName="justify-end" className="w-12" /></th>
-                ))}
-                <th className="w-28 py-2 ps-4"><SkeletonText size="xs" className="w-14" /></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {repeat(SKELETON_LINES, (i) => (
-                <tr key={i} data-testid="skeleton-row">
-                  <td className="py-2"><SkeletonText className="w-32" /></td>
-                  {repeat(7, (j) => (
-                    <td key={j} className="py-2"><SkeletonText lineClassName="justify-end" className="w-6" /></td>
-                  ))}
-                  <td className="py-2 ps-4"><Skeleton className="h-1.5 w-full rounded-full" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          className="hidden md:block"
+          frame="none"
+          density="compact"
+          autoMin="10rem"
+          isLoading
+          skeletonRows={SKELETON_LINES}
+          rows={[]}
+          rowKey={(l) => l.purchaseOrderItemId}
+          columns={columns}
+        />
         <div className="space-y-2 md:hidden">
           {repeat(SKELETON_LINES, (i) => (
             <div key={i} data-testid="skeleton-row" className="rounded-lg border border-border p-3">
@@ -488,6 +518,7 @@ function LegBlock({
   const { formatDate } = useDateFormat();
   const losable = Object.values(losableByLine(leg)).some((q) => q > 0);
   const losses = leg.losses ?? [];
+  const columns = useLegColumns(productNames, ordered);
 
   return (
     <div data-testid="shipment-leg" data-leg-id={leg.legId} data-leg-sequence={leg.sequence} className="space-y-3">
@@ -579,46 +610,16 @@ function LegBlock({
       </div>
 
       {/* Desktop: a table. Phone: a card per product. */}
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs text-muted-foreground">
-              <th className="py-2 text-start font-medium">{t('product')}</th>
-              <th className="py-2 text-end font-medium">{t('ordered')}</th>
-              <th className="py-2 text-end font-medium">{t('atOriginCol')}</th>
-              <th className="py-2 text-end font-medium">{t('delivered')}</th>
-              <th className="py-2 text-end font-medium">{t('receivedCol')}</th>
-              <th className="py-2 text-end font-medium">{t('waiting')}</th>
-              <th className="py-2 text-end font-medium">{t('lost')}</th>
-              <th className="py-2 text-end font-medium">{t('onTheWay')}</th>
-              <th className="w-28 py-2 ps-4 text-start font-medium">{t('progress')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {leg.lines.map((line) => (
-              <tr
-                key={line.purchaseOrderItemId}
-                data-testid="shipment-line"
-                data-product={productNames[line.purchaseOrderItemId]}
-              >
-                <td className="max-w-56 py-2 font-medium text-foreground">
-                  <LatinText truncate>{productNames[line.purchaseOrderItemId]}</LatinText>
-                </td>
-                <Cell id="line-ordered" value={ordered.get(line.purchaseOrderItemId) ?? 0} />
-                <Cell id="line-at-origin" value={num(line.atOrigin)} />
-                <Cell id="line-delivered" value={line.delivered} />
-                <Cell id="line-received" value={line.received} />
-                <Cell id="line-waiting" value={line.waiting} />
-                <Cell id="line-lost" value={line.lost} />
-                <Cell id="line-on-the-way" value={line.onTheWay} />
-                <td className="py-2 ps-4">
-                  <Progress value={legLineProgress(line)} label={t('progressLabel')} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        className="hidden md:block"
+        frame="none"
+        density="compact"
+        autoMin="10rem"
+        rows={leg.lines}
+        rowKey={(line) => line.purchaseOrderItemId}
+        rowProps={(line) => ({ 'data-testid': 'shipment-line', 'data-product': productNames[line.purchaseOrderItemId] })}
+        columns={columns}
+      />
       <ul className="space-y-2 md:hidden">
         {leg.lines.map((line) => (
           <li
@@ -839,15 +840,6 @@ function LegBlock({
         </div>
       )}
     </div>
-  );
-}
-
-function Cell({ id, value }: { id: string; value: number | null }) {
-  const { formatNumber } = useNumberFormat();
-  return (
-    <td data-testid={id} className="py-2 text-end tabular-nums text-foreground">
-      {value === null ? '—' : formatNumber(value, { maximumFractionDigits: 3 })}
-    </td>
   );
 }
 

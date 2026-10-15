@@ -9,6 +9,7 @@ import { businessToday } from '@/lib/dates';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
 import { Money } from '@/components/ui/money';
+import { DataTable } from '@/components/ui/data-table';
 import { Select } from '@/components/ui/select';
 
 /**
@@ -190,31 +191,32 @@ export function RunningCostsSection() {
                   </li>
                 ))}
               </ul>
-              <div className="hidden overflow-x-auto sm:block">
-                <table data-testid="running-costs-partners" className="w-full text-sm">
-                  <thead className="text-xs text-muted-foreground">
-                    <tr>
-                      <th scope="col" className="py-1.5 text-start font-medium">{t('name')}</th>
-                      <th scope="col" className="py-1.5 ps-3 text-end font-medium">{t('share')}</th>
-                      <th scope="col" className="py-1.5 ps-3 text-end font-medium">{t('taken')}</th>
-                      <th scope="col" className="py-1.5 ps-3 text-end font-medium">{t('waiting')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {data.partners.map((p) => (
-                      <tr key={p.userId}>
-                        <td className="py-1.5 text-foreground">
-                          <bdi>{p.name ?? '—'}</bdi>
-                          {p.active === false && <Left label={t('leftPartner')} />}
-                        </td>
-                        <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums"><Money value={p.shareEgp} /></td>
-                        <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums text-muted-foreground"><Money value={p.chargedEgp} /></td>
-                        <td className="whitespace-nowrap py-1.5 ps-3 text-end tabular-nums text-foreground"><Money value={p.waitingEgp} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {/* The shared table (components/ui/data-table.tsx): the name takes
+                  what is left; the amounts fit "123,456.00 EGP" and never cut. */}
+              <DataTable
+                className="hidden sm:block"
+                frame="none"
+                density="compact"
+                autoMin="8rem"
+                tableTestId="running-costs-partners"
+                rows={data.partners}
+                rowKey={(p) => p.userId}
+                columns={[
+                  {
+                    key: 'name', header: t('name'), width: 'auto', kind: 'name', className: 'text-foreground',
+                    title: (p) => p.name,
+                    cell: (p) => (
+                      <>
+                        <bdi>{p.name ?? '—'}</bdi>
+                        {p.active === false && <Left label={t('leftPartner')} />}
+                      </>
+                    ),
+                  },
+                  { key: 'share', header: t('share'), width: '7.5rem', kind: 'value', align: 'end', cell: (p) => <Money value={p.shareEgp} /> },
+                  { key: 'taken', header: t('taken'), width: '8.5rem', kind: 'value', align: 'end', className: 'text-muted-foreground', cell: (p) => <Money value={p.chargedEgp} /> },
+                  { key: 'waiting', header: t('waiting'), width: '8rem', kind: 'value', align: 'end', className: 'text-foreground', cell: (p) => <Money value={p.waitingEgp} /> },
+                ]}
+              />
             </div>
           )}
 

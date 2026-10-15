@@ -21,6 +21,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { useCountryLabel } from './country';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable, type Column } from '@/components/ui/data-table';
+import { LatinText } from '@/components/ui/latin-text';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -43,26 +45,9 @@ interface Supplier {
 const contactOf = (s: Supplier): SupplierContact => s.contactJson ?? {};
 
 // ─── Skeletons ────────────────────────────────────────────────────────
-// The supplier row and card below, traced: name, country, contact line, order
-// count, and the 28px icon buttons that set the row's height when the reader
-// may edit. Change one, change the other.
-function SupplierRowSkeleton({ actions }: { actions: number }) {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-48" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
-      {actions > 0 && (
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-1">
-            {repeat(actions, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
-          </div>
-        </td>
-      )}
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the phone card below is traced by hand, with the 28px icon
+// buttons when the reader may edit. Change one, change the other.
 
 function SupplierCardSkeleton({ actions }: { actions: number }) {
   return (
@@ -205,6 +190,66 @@ export default function SuppliersPage() {
     updateMutation.mutate({ id: editingSupplier.id, ...ENTITY_FORMS.supplier.toPayload(fd) });
   };
 
+  // ── Columns ───────────────────────────────────────────────────────
+  // Name, country, contact, orders, and the actions when the reader may act
+  // (components/ui/data-table.tsx). A long country or contact is cut with the
+  // whole of it on hover; the name takes what is left.
+  const columns: Column<Supplier>[] = [
+    {
+      key: 'name', header: t('name'), width: 'auto', kind: 'name', className: 'font-medium text-gray-900',
+      title: (s) => s.name, cell: (s) => <LatinText>{s.name}</LatinText>,
+    },
+    {
+      key: 'country', header: t('country'), width: '9rem', kind: 'label', className: 'text-gray-600',
+      title: (s) => countryLabel(s.country), skeleton: { kind: 'text', share: 'w-2/3' }, cell: (s) => countryLabel(s.country),
+    },
+    {
+      key: 'contact', header: t('contact'), width: '18rem', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-3/4' }, cell: (s) => <ContactLine contact={contactOf(s)} />,
+    },
+    {
+      key: 'orders', header: t('orders'), width: '7rem', kind: 'value', className: 'text-gray-600',
+      skeleton: { kind: 'text', share: 'w-1/4' },
+      cell: (s) => (
+        <span className="inline-flex items-center gap-1">
+          <ShoppingCart className="h-3.5 w-3.5 text-gray-400" />
+          {orderCount(s)}
+        </span>
+      ),
+    },
+    ...(mayRow
+      ? [{
+          key: 'actions', header: tc('actions'), width: '6rem', skeleton: { kind: 'buttons', count: actionCount },
+          cell: (supplier: Supplier) => (
+            <div className="flex items-center gap-1">
+              {may.edit && (
+              <button
+                type="button"
+                data-testid="edit-action"
+                onClick={() => setEditingSupplier(supplier)}
+                className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                title={tc('edit')}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              )}
+              {may.delete && (
+              <button
+                type="button"
+                data-testid="delete-action"
+                onClick={() => setDeletingSupplier(supplier)}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title={tc('delete')}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              )}
+            </div>
+          ),
+        } satisfies Column<Supplier>]
+      : []),
+  ];
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -240,77 +285,15 @@ export default function SuppliersPage() {
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
 
-      {/* Desktop table */}
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('name')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('country')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('contact')}</th>
-                  <th className="text-start px-4 py-3 font-medium text-gray-600">{t('orders')}</th>
-                  {mayRow && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-muted">
-                  {repeat(PAGE_SIZE, (i) => <SupplierRowSkeleton key={i} actions={actionCount} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-gray-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={mayRow ? 5 : 4}>{emptyList}</td></tr>
-                ) : (
-                  paginated.map((supplier) => (
-                    <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">{supplier.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{countryLabel(supplier.country)}</td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <ContactLine contact={contactOf(supplier)} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <span className="inline-flex items-center gap-1">
-                          <ShoppingCart className="h-3.5 w-3.5 text-gray-400" />
-                          {orderCount(supplier)}
-                        </span>
-                      </td>
-                      {mayRow && (
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {may.edit && (
-                          <button
-                            type="button"
-                            data-testid="edit-action"
-                            onClick={() => setEditingSupplier(supplier)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                            title={tc('edit')}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          )}
-                          {may.delete && (
-                          <button
-                            type="button"
-                            data-testid="delete-action"
-                            onClick={() => setDeletingSupplier(supplier)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title={tc('delete')}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          )}
-                        </div>
-                      </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
-        </div>
+      {/* Desktop table — the shared one (components/ui/data-table.tsx). */}
+      <DataTable
+        className="hidden md:block"
+        columns={columns}
+        rows={paginated}
+        rowKey={(s) => s.id}
+        isLoading={isLoading}
+        empty={emptyList}
+      />
 
       {/* Mobile cards */}
       {isLoading && (
@@ -454,10 +437,11 @@ function ContactLine({ contact }: { contact: SupplierContact }) {
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {parts.map(({ icon: Icon, value }) => (
-        <span key={value} className="inline-flex items-center gap-1">
-          <Icon className="h-3.5 w-3.5 text-gray-400" />
-          {/* Phone numbers and handles read left to right in Arabic too (UI #15). */}
-          <span dir="ltr">{value}</span>
+        <span key={value} className="inline-flex min-w-0 max-w-full items-center gap-1" title={value}>
+          <Icon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          {/* Phone numbers and handles read left to right in Arabic too (UI #15);
+              one too long for the column is cut, whole on hover. */}
+          <span dir="ltr" className="truncate">{value}</span>
         </span>
       ))}
     </span>

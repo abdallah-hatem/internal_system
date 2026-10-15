@@ -112,7 +112,8 @@ describe('the Running costs section', () => {
     expect(cards.className).toContain('sm:hidden');
     expect(within(cards).getAllByRole('listitem')).toHaveLength(3);
     expect(within(cards).getAllByRole('listitem')[2].querySelectorAll('dt')).toHaveLength(3);
-    expect(screen.getByTestId('running-costs-partners').parentElement!.className).toContain('hidden');
+    // The shared table's frame (components/ui/data-table.tsx) around its scroller.
+    expect(screen.getByTestId('running-costs-partners').parentElement!.parentElement!.className).toContain('hidden');
   });
 
   it('a partner who left still shows, his share still waiting, marked as no longer a partner', async () => {

@@ -17,6 +17,7 @@ import { FormActions } from '@/components/ui/fields';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';
 import { LenderModal } from '@/components/lenders/lender-dialogs';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { DataTable } from '@/components/ui/data-table';
 
 /**
  * Friends who pay a supplier for us and are repaid in pounds (BUSINESS_LOGIC
@@ -105,48 +106,44 @@ export default function LendersPage() {
       </div>
 
       {isLoading && <LoadingStatus />}
-          {/* Desktop */}
-          <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted">
-                  <th className="px-4 py-3 text-start font-medium text-muted-foreground">{t('name')}</th>
-                  <th className="px-4 py-3 text-start font-medium text-muted-foreground">{t('phone')}</th>
-                  <th className="px-4 py-3 text-start font-medium text-muted-foreground">{t('orders')}</th>
-                  <th className="px-4 py-3 text-end font-medium text-muted-foreground">{t('owed')}</th>
-                </tr>
-              </thead>
-              {isLoading ? (
-                <SkeletonGroup as="tbody" className="divide-y divide-border">
-                  {repeat(LENDER_SKELETONS, (i) => <LenderRowSkeleton key={i} />)}
-                </SkeletonGroup>
-              ) : (
-              <tbody className="divide-y divide-border">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4}>{empty}</td>
-                  </tr>
-                ) : (
-                  rows.map((l) => (
-                    <tr key={l.id} data-testid="lender-row" className="hover:bg-muted">
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        <span className="inline-flex items-center gap-2">
-                          <LenderLink id={l.id} name={l.name} />
-                          {l.overdue && <OverdueBadge label={t('overdue')} />}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{l.phone ? <span dir="ltr">{l.phone}</span> : '—'}</td>
-                      <td className="px-4 py-3 text-muted-foreground tabular-nums">{l.financingCount}</td>
-                      <td className="px-4 py-3 text-end">
-                        <OwedList owed={l.owed} none={t('nothingOwed')} />
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              )}
-            </table>
-          </div>
+          {/* Desktop — the shared table (components/ui/data-table.tsx). Name,
+              phone, orders paid for, still owed; the owed figures fit
+              "-123,456.00 USD", one line per currency; the name takes the rest. */}
+          <DataTable
+            className="hidden md:block"
+            skeletonRows={LENDER_SKELETONS}
+            isLoading={isLoading}
+            rows={rows}
+            rowKey={(l) => l.id}
+            rowProps={() => ({ 'data-testid': 'lender-row' })}
+            empty={empty}
+            columns={[
+              {
+                key: 'name', header: t('name'), width: 'auto', className: 'font-medium text-foreground',
+                cell: (l: LenderRow) => (
+                  // The name wraps to two lines and is cut after them; the badge keeps its line.
+                  <span className="flex items-center gap-2" title={l.name}>
+                    <span className="min-w-0 line-clamp-2 break-words"><LenderLink id={l.id} name={l.name} /></span>
+                    {l.overdue && <OverdueBadge label={t('overdue')} />}
+                  </span>
+                ),
+              },
+              {
+                key: 'phone', header: t('phone'), width: '10rem', kind: 'label', className: 'text-muted-foreground',
+                title: (l: LenderRow) => l.phone, skeleton: { kind: 'text', share: 'w-3/4' },
+                cell: (l: LenderRow) => (l.phone ? <span dir="ltr">{l.phone}</span> : '—'),
+              },
+              {
+                key: 'orders', header: t('orders'), width: '8.5rem', kind: 'value', className: 'text-muted-foreground',
+                skeleton: { kind: 'text', share: 'w-1/5' }, cell: (l: LenderRow) => l.financingCount,
+              },
+              {
+                key: 'owed', header: t('owed'), width: '10rem', kind: 'value', align: 'end',
+                skeleton: { kind: 'text', share: 'w-2/3' },
+                cell: (l: LenderRow) => <OwedList owed={l.owed} none={t('nothingOwed')} />,
+              },
+            ]}
+          />
 
           {/* Phone */}
           {isLoading ? (
@@ -211,18 +208,9 @@ export default function LendersPage() {
 /** Lenders are a handful of friends, not a page of ten. */
 const LENDER_SKELETONS = 4;
 
-// The lender row and card above, traced: name, phone, count and one owed
-// figure (one currency, the usual case). Change one, change the other.
-function LenderRowSkeleton() {
-  return (
-    <tr data-testid="skeleton-row">
-      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
-      <td className="px-4 py-3"><SkeletonText className="w-24" lineClassName="justify-end" /></td>
-    </tr>
-  );
-}
+// The table's skeleton rows are drawn by DataTable from each column's
+// `skeleton`; the lender card above is traced here: name, phone, count and
+// one owed figure (one currency, the usual case). Change one, change the other.
 
 function LenderCardSkeleton() {
   return (
