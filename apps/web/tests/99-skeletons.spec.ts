@@ -26,7 +26,8 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { apiCtx, owedOrder, stockedProduct } from './support/fixtures';
-import { login, messages, openNav } from './support/ui';
+import { login, messages } from './support/ui';
+import { gateApi, go, type Gate } from './support/gate';
 
 const m = messages('en');
 const PAGE_SIZE = 10;
@@ -62,46 +63,6 @@ test.beforeAll(async ({ request }) => {
   await mk('payments', { customerId: customer.id, amount: 400, currency: 'EGP', method: 'CASH' });
   cycleCode = cycle.code;
 });
-
-/** Holds every GET to the API until released; logins and saves pass. */
-async function gateApi(page: Page) {
-  let open: () => void = () => {};
-  let gate = Promise.resolve();
-  let holding = false;
-  await page.route(/\/api\/v1\//, async (route) => {
-    const req = route.request();
-    if (holding && req.method() === 'GET' && !/\/auth\//.test(req.url())) await gate;
-    await route.continue().catch(() => {});
-  });
-  return {
-    hold() {
-      holding = true;
-      gate = new Promise<void>((resolve) => (open = resolve));
-    },
-    release() {
-      holding = false;
-      open();
-    },
-  };
-}
-
-/**
- * Through the menu, as a person does: the sidebar on a desktop; on a phone
- * the bottom bar, or More and the drawer for a screen the bar does not hold
- * (spec 74).
- */
-async function go(page: Page, label: string) {
-  if ((page.viewportSize()?.width ?? 1440) >= 768) return openNav(page, label);
-  const bar = page.getByTestId('phone-bar');
-  let link = bar.getByRole('link', { name: label, exact: true });
-  if ((await link.count()) === 0) {
-    await bar.getByRole('button', { name: m.nav.more }).click();
-    link = page.locator('aside').getByRole('link', { name: label, exact: true });
-  }
-  const href = await link.getAttribute('href');
-  await link.click();
-  if (href) await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 15000 });
-}
 
 const skeletons = (page: Page) => page.getByTestId('skeleton').filter({ visible: true });
 const skeletonRows = (page: Page) => page.getByTestId('skeleton-row').filter({ visible: true });
@@ -158,7 +119,7 @@ interface Screen {
   /** Rows a skeleton of this screen holds. */
   rows: number;
   /** From the dashboard, get the held screen on its way. */
-  open: (page: Page, gate: Awaited<ReturnType<typeof gateApi>>) => Promise<void>;
+  open: (page: Page, gate: Gate) => Promise<void>;
 }
 
 const viaNav = (label: string): Screen['open'] => async (page, gate) => {
@@ -262,63 +223,6 @@ for (const viewport of [
   });
 }
 
-/**
- * The columns do not move when the data lands (owner, 2026-10-15): a table
- * sized to its content took one set of widths from the skeleton's bars and
- * another from the real names and amounts, so every column jumped sideways.
- * Each table now reads one list of widths (components/ui/table-columns.tsx).
- * This compares every cell edge of the first skeleton row with the first real
- * row, in both directions of reading.
- */
-const cellEdges = (page: Page, row: string) =>
-  page.locator(row).first().locator('td').evaluateAll((tds) =>
-    tds.map((td) => {
-      const r = td.getBoundingClientRect();
-      return [Math.round(r.left), Math.round(r.right)];
-    }),
-  );
-
-for (const locale of ['en', 'ar'] as const) {
-  test(`TC-SKEL-30 Products: no column moves when the rows land (${locale}, 1440px)`, async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    const gate = await gateApi(page);
-    await login(page, locale);
-    gate.hold();
-    await openNav(page, messages(locale).nav.products);
-    await expect(skeletonRows(page).first()).toBeVisible();
-    const before = await cellEdges(page, 'table tr[data-testid="skeleton-row"]');
-    expect(before.length).toBe(8);
-
-    gate.release();
-    await expect(page.getByTestId('skeleton')).toHaveCount(0);
-    const after = await cellEdges(page, 'table tbody tr');
-    expect(after).toEqual(before);
-  });
-}
-
-/**
- * A header title never wraps (owner, 2026-10-15): "الحد الأدنى للمخزون" broke
- * onto two lines in the Min Stock column. Each column is wide enough for its
- * title in both languages, on one line, without spilling into the next.
- */
-for (const locale of ['en', 'ar'] as const) {
-  test(`TC-SKEL-31 Products: every header title fits its column on one line (${locale}, 1440px)`, async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await login(page, locale);
-    await openNav(page, messages(locale).nav.products);
-    const ths = page.locator('table thead th').filter({ visible: true });
-    await expect(ths).toHaveCount(8);
-    const cells = await ths.evaluateAll((els) =>
-      els.map((th) => {
-        const cs = getComputedStyle(th);
-        const line = parseFloat(cs.lineHeight);
-        const inner = th.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-        return { text: th.textContent, lines: Math.round(inner / line), overflow: th.scrollWidth - th.clientWidth };
-      }),
-    );
-    for (const c of cells) {
-      expect(c.lines, `"${c.text}" wraps`).toBe(1);
-      expect(c.overflow, `"${c.text}" spills out of its column`).toBeLessThanOrEqual(0);
-    }
-  });
-}
+// The columns holding still when the rows land, and every header title
+// fitting its column (TC-SKEL-30/31, Products only), are now checked on every
+// table by 99-table-columns.spec.ts.
