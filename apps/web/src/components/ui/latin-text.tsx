@@ -18,9 +18,13 @@ import { cn } from '@/lib/utils';
  *   name stays right to left.
  * - `truncate`: a block that resolves its own direction from the content
  *   (`dir="auto"`), so the ellipsis lands where the text ends — on the right
- *   for Latin, on the left for Arabic. Its alignment follows the parent
- *   (`text-align: match-parent`), so a short Latin name in an Arabic row still
- *   sits on the row's start edge rather than jumping to the left.
+ *   for Latin, on the left for Arabic. It is aligned to the page's start edge
+ *   (`text-left rtl:text-right`), so a short Latin name in an Arabic row still
+ *   sits on the row's start edge rather than jumping to the left. That was
+ *   `text-align: match-parent`, which Chromium computes as `start` of the
+ *   element's own direction — left for Latin — so the name did jump (found
+ *   measuring table cells, 2026-10-15). When the text overflows, alignment no
+ *   longer applies and it is cut at its own end either way.
  *
  * The full value is the element's `title` when truncated, so a cut-off name can
  * still be read on hover.
@@ -58,7 +62,7 @@ export function LatinText({
       data-truncate=""
       dir={dir}
       title={hover}
-      className={cn('block min-w-0 truncate [text-align:match-parent] [unicode-bidi:isolate]', className)}
+      className={cn('block min-w-0 truncate text-left rtl:text-right [unicode-bidi:isolate]', className)}
     >
       {children}
     </span>

@@ -15,11 +15,22 @@
  */
 export type ColumnWidths = readonly string[];
 
-export function ColGroup({ widths }: { widths: ColumnWidths }) {
+export function ColGroup({
+  widths,
+  classNames,
+}: {
+  widths: ColumnWidths;
+  /**
+   * Per column, for a column whose cells are hidden at some widths (`hidden
+   * sm:table-column` beside `hidden sm:table-cell`): a `<col>` left showing
+   * for a column with no cells keeps its width as an empty gap.
+   */
+  classNames?: readonly (string | undefined)[];
+}) {
   return (
     <colgroup>
       {widths.map((w, i) => (
-        <col key={i} style={w === 'auto' ? undefined : { width: w }} />
+        <col key={i} className={classNames?.[i]} style={w === 'auto' ? undefined : { width: w }} />
       ))}
     </colgroup>
   );
