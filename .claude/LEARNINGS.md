@@ -285,3 +285,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   `cookies()` and seeds `AuthProvider`. It is display-only — the API authorises from the token — and the provider
   rewrites or clears it to match storage on every load, sign-in, sign-out, 401 and cross-tab sign-out. Freeze the
   server's paint in a test by aborting `/_next/static/*.js` and reloading (99-no-flash-on-refresh). — 2026-10-15
+
+## Tables
+
+- Every table goes through `components/ui/data-table.tsx`. There were 29 hand-written `<table>`s, so fixing column
+  widths (skeleton → data jump, wrapping headers) meant the same change 29 times; the owner asked "aren't all the
+  tables using one table component?". Grep `components/ui` before writing a table, a list, a card or a dialog —
+  the skill's "second occurrence extracts". — 2026-10-15
