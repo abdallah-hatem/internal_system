@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Clock, Loader2, Store, X } from 'lucide-react';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Money } from '@/components/ui/money';
 
@@ -86,9 +87,9 @@ export default function OrderRequestsPage() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
-        </div>
+        <SkeletonRegion className="space-y-4">
+          {repeat(SKELETON_CARDS, (i) => <RequestCardSkeleton key={i} />)}
+        </SkeletonRegion>
       )}
 
       {!isLoading && requests.length === 0 && (
@@ -107,6 +108,65 @@ export default function OrderRequestsPage() {
             onSuccess={(m) => toast.success(m)}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** Cards the queue shows while it loads: it is a short list, a few at a time. */
+const SKELETON_CARDS = 3;
+
+/**
+ * `RequestCard` below, traced: the number and shop over the date beside the
+ * hold chip, two lines with their quantity and price inputs, the note box and
+ * the total with its two buttons. Change one, change the other.
+ */
+function RequestCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-xl border border-border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-muted px-5 py-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <SkeletonText className="w-20" />
+            <SkeletonText size="base" className="w-32" />
+          </div>
+          <SkeletonText size="xs" className="w-32" lineClassName="mt-0.5" />
+        </div>
+        <Skeleton className="h-6 w-24 rounded-full" />
+      </div>
+
+      <div className="divide-y divide-muted">
+        {repeat(2, (i) => (
+          <div key={i} className="flex flex-wrap gap-3 px-5 py-4">
+            <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+              <SkeletonText className="w-48" />
+              <SkeletonText size="xs" className="w-56" />
+            </div>
+            <div className="w-24">
+              <SkeletonText size="xs" className="w-16" lineClassName="mb-1" />
+              <Skeleton className="h-[38px] w-full rounded-lg" />
+            </div>
+            <div className="w-32">
+              <SkeletonText size="xs" className="w-16" lineClassName="mb-1" />
+              <Skeleton className="h-[38px] w-full rounded-lg" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-3 border-t border-muted px-5 py-4">
+        <div className="pb-1.5">
+          <SkeletonText className="w-24" lineClassName="mb-1" />
+          {/* Two rows of relaxed text-sm, its padding and border; a textarea sits on the baseline, 6px above the line's bottom (pb-1.5). */}
+          <Skeleton className="h-[63.5px] w-full rounded-lg" />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SkeletonText className="w-36" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9.5 w-24 rounded-lg" />
+            <Skeleton className="h-9.5 w-24 rounded-lg" />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -15,6 +15,25 @@ import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { useApiError } from '@/lib/api-error';
 import { PASSWORD_MIN_LENGTH, isStrongPassword } from '@/lib/password-rule';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+/**
+ * The profile's three read-only fields before the profile arrives, traced:
+ * a text-sm label over a 38px input (py-2, a 20px line, a 1px border).
+ */
+function ProfileFieldsSkeleton() {
+  return (
+    <SkeletonRegion className="space-y-4">
+      {repeat(3, (i) => (
+        <div key={i} data-testid="skeleton-row">
+          <SkeletonText lineClassName="mb-1" className="w-24" />
+          <Skeleton className="h-[38px] w-full rounded-lg" />
+        </div>
+      ))}
+    </SkeletonRegion>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function SettingsPage() {
@@ -103,14 +122,7 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
       </div>
 
-      {/* Loading */}
-      {loadingProfile && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
-
-      {!loadingProfile && (
+      {/* Only the profile's own fields wait for the profile; the rest of the page does not need it. */}
         <>
           {/* Profile Section */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
@@ -118,6 +130,9 @@ export default function SettingsPage() {
               <User className="h-5 w-5 text-gray-400" />
               {t('profile')}
             </h2>
+            {loadingProfile ? (
+              <ProfileFieldsSkeleton />
+            ) : (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('displayName')}</label>
@@ -150,6 +165,7 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+            )}
           </section>
 
           {/* Language Section */}
@@ -246,7 +262,6 @@ export default function SettingsPage() {
             </ValidatedForm>
           </section>
         </>
-      )}
     </div>
   );
 }

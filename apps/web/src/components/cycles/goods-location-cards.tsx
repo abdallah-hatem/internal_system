@@ -9,6 +9,7 @@ import { Link } from '@/i18n/navigation';
 import type { Shipment } from '@/components/shipment/shipment-model';
 import { LatinText } from '@/components/ui/latin-text';
 import { useNumberFormat } from '@/lib/numbers';
+import { Skeleton, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { locateGoods, type GoodsBuckets, type LocationBatch, type LocationTransfer } from './goods-location';
 
 type Place = 'inChina' | 'toUae' | 'inUae' | 'toEgypt' | 'inEgypt' | 'sold' | 'lost' | 'moved';
@@ -215,6 +216,74 @@ export function GoodsLocationCards({
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+/**
+ * The section above, traced, for the cycle page while the cycle loads: the
+ * heading, a card per place (six on a China route, four on a UAE one — the
+ * caller says which, from the cycle list it came from; China when it cannot)
+ * and the per-product table, or a card per product on a phone. The labels are
+ * the real ones; only the figures wait.
+ */
+export function GoodsLocationSkeleton({ direct = false, products = 2 }: { direct?: boolean; products?: number }) {
+  const t = useTranslations('goodsLocation');
+  const places = placesFor(direct, { lost: 0, moved: 0 } as GoodsBuckets);
+  return (
+    <section aria-hidden="true" className="space-y-3">
+      <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
+      <div className={`grid grid-cols-2 gap-3 ${GRID[places.length]}`}>
+        {places.map((place) => (
+          <div key={place} data-testid="skeleton-row" className="min-h-11 rounded-xl border border-border bg-card p-3 sm:p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground sm:text-sm">{t(place)}</p>
+                <SkeletonText size="base" className="w-10" lineClassName="mt-1 sm:h-8" />
+              </div>
+              <Skeleton className={`hidden size-8 shrink-0 rounded-lg sm:block ${places.length >= 6 ? 'xl:hidden' : ''}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto rounded-xl border border-border bg-card sm:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs text-muted-foreground">
+              <th className="px-4 py-2 text-start font-medium">{t('product')}</th>
+              <th className="px-3 py-2 text-end font-medium">{t('ordered')}</th>
+              {places.map((place) => (
+                <th key={place} className="px-3 py-2 text-end font-medium">{t(place)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {repeat(products, (i) => (
+              <tr key={i}>
+                <td className="min-w-40 px-4 py-2"><SkeletonText className="w-28" /></td>
+                {repeat(places.length + 1, (c) => (
+                  <td key={c} className="px-3 py-2"><SkeletonText className="w-8" lineClassName="justify-end" /></td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="space-y-2 sm:hidden">
+        {repeat(products, (i) => (
+          <li key={i} className="rounded-lg border border-border bg-card p-3">
+            <SkeletonText className="w-32" />
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {repeat(places.length + 1, (c) => (
+                <div key={c}>
+                  <SkeletonText size="xs" className="w-14" />
+                  <SkeletonText size="xs" className="w-8" />
+                </div>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

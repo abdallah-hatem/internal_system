@@ -32,6 +32,7 @@ import { downloadCsv, datedFilename } from '@/lib/export-csv';
 import { useApiError } from '../../../lib/api-error';
 import { useOpenFromQuery } from '../../../lib/open-from-query';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -59,6 +60,51 @@ const STATUS_COLORS: Record<string, string> = {
   REVERSED: 'bg-red-100 text-red-700',
 };
 
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The payment row and card below, traced: the 28px icon buttons set the
+// row's height; the card keeps the Allocate / Reverse footer a recorded
+// payment has. Change one, change the other.
+function PaymentRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-10" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-20" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-16" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          {repeat(3, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function PaymentCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText size="base" className="w-36" />
+        <Skeleton className="h-5 w-16 rounded-full" />
+      </div>
+      <div className="flex items-center gap-3 mb-2">
+        <SkeletonText className="w-20" />
+        <SkeletonText className="w-16" />
+      </div>
+      <div className="flex items-center justify-between">
+        <SkeletonText size="xs" className="w-20" />
+        <SkeletonText size="xs" className="w-16" />
+      </div>
+      <div className="flex items-center gap-2 mt-3 pt-2 border-t border-muted">
+        {repeat(2, (i) => <Skeleton key={i} className="h-6 w-20 rounded" />)}
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 /**
@@ -260,15 +306,10 @@ function PaymentsPageContent() {
 
       <ListCapNotice capped={capped} count={payments.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div data-testid="payments-table" aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -285,6 +326,11 @@ function PaymentsPageContent() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <PaymentRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr>
@@ -351,12 +397,17 @@ function PaymentsPageContent() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <PaymentCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div data-testid="payments-cards" aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           {filtered.length === 0 ? (

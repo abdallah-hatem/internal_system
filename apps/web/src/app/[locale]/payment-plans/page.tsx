@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useApiError } from '../../../lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 type InstalmentState = 'PAID' | 'DUE' | 'OVERDUE' | 'UPCOMING';
 
 interface Instalment {
@@ -81,6 +82,33 @@ function nextSundayAfter(day: string) {
 }
 
 const today = () => asDay(new Date());
+
+/** Plans a shop is usually on at once — a short list, not a page of ten. */
+const PLAN_SKELETONS = 4;
+
+/**
+ * A collapsed plan card below, traced: customer, reference and the next-due
+ * line on the start side; the figure and its caption on the end side.
+ */
+function PlanCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-xl border border-border bg-card">
+      <div className="flex w-full items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <SkeletonText size="base" className="w-32" />
+            <SkeletonText size="xs" className="w-16" />
+          </div>
+          <SkeletonText size="xs" className="w-56 max-w-full" lineClassName="mt-1" />
+        </div>
+        <div className="shrink-0">
+          <SkeletonText size="base" className="w-20" lineClassName="justify-end" />
+          <SkeletonText size="xs" className="w-14" lineClassName="justify-end" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PaymentPlansPage() {
   const codeLabel = useCodeLabel();
@@ -179,9 +207,9 @@ export default function PaymentPlansPage() {
       <ListCapNotice capped={capped} count={plans.length} />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
-        </div>
+        <SkeletonRegion className="space-y-3">
+          {repeat(PLAN_SKELETONS, (i) => <PlanCardSkeleton key={i} />)}
+        </SkeletonRegion>
       ) : ordered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-white">
           <EmptyState

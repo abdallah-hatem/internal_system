@@ -45,6 +45,7 @@ import { useApiError } from '../../lib/api-error';
 import { FieldWithQuickCreate } from '../ui/quick-create';
 import { RowAction } from '../ui/fields';
 import { BackLink } from '../ui/back-link';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { ValidatedForm } from '@/components/ui/validated-form';
 // ---------------------------------------------------------------------------
 // Constants
@@ -98,6 +99,39 @@ type LineItem = WizardLineItem;
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+/**
+ * The wizard while a resumed cycle loads: the progress card with its step
+ * circles, and the step card with a heading and its fields — the frame below,
+ * traced, so the form lands where its skeleton was.
+ */
+function WizardSkeleton() {
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      <SkeletonRegion className="space-y-6">
+        <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-2">
+            {STEPS.map((step) => (
+              <div key={step.titleKey} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <SkeletonText size="xs" className="w-16" lineClassName="hidden sm:flex" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-4 sm:p-6 space-y-5">
+          <SkeletonText size="lg" className="mb-4 w-48" />
+          {repeat(4, (i) => (
+            <div key={i}>
+              <SkeletonText className="mb-1 w-28" />
+              <Skeleton className="h-[var(--field-h)] w-full rounded-lg" />
+            </div>
+          ))}
+        </div>
+      </SkeletonRegion>
+    </div>
+  );
+}
 
 export default function CycleWizard({ existingCycleId }: { existingCycleId?: string }) {
   const apiError = useApiError();
@@ -965,12 +999,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const leavingForCyclePage =
     isResuming && !!cycle && !WIZARD_STATUSES.includes(cycle.status);
   if ((isResuming && isLoadingCycle) || leavingForCyclePage) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16 flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary-600 me-3" />
-        <span className="text-gray-500 text-sm">{t('loadingCycle')}</span>
-      </div>
-    );
+    return <WizardSkeleton />;
   }
 
   // ---------------------------------------------------------------------------

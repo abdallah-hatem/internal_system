@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { Money } from '@/components/ui/money';
 import { parseDisplayedMoney, useNumberFormat } from '@/lib/numbers';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 
 export interface StatTileProps {
   label: string;
@@ -59,6 +60,27 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub }:
     >
       {body}
     </Link>
+  );
+}
+
+/**
+ * A tile that has not arrived, traced from `StatTile`: the same frame, the
+ * label and figure lines at their responsive sizes, and the icon badge
+ * (`p-3` round a `size-6` icon, 48px) that sets the height from `sm` up.
+ * `sub` adds the second line the owed-to-lenders tile carries.
+ */
+export function StatTileSkeleton({ sub = false }: { sub?: boolean }) {
+  return (
+    <div data-testid="skeleton-row" className="block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
+          <SkeletonText size="base" lineClassName="mt-1 sm:h-8" className="w-24 sm:h-5 sm:w-36" />
+          {sub && <SkeletonText size="xs" lineClassName="mt-1" className="w-28" />}
+        </div>
+        <Skeleton className="hidden size-12 flex-shrink-0 rounded-lg sm:block" />
+      </div>
+    </div>
   );
 }
 

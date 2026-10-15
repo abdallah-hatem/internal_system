@@ -14,11 +14,12 @@ import { useRouter } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import Link from 'next/link';
-import { Route, Plus, Search, Loader2 } from 'lucide-react';
+import { Route, Plus, Search } from 'lucide-react';
 
 import { useCan } from '../../../lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Cycle {
   id: string;
@@ -66,6 +67,50 @@ const STATUS_COLORS: Record<string, string> = {
   CLOSED: 'bg-gray-200 text-gray-700',
   CANCELLED: 'bg-red-100 text-red-700',
 };
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The table row and the phone card below, traced: same cells, same paddings,
+// the status chip's 20px, the Details link at the column's end. Change one,
+// change the other.
+function CycleRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
+      {/* Inline, around an empty line of text-xs, as the real chip is: it sits on
+          the cell's baseline and that sets the row one pixel taller than 20px. */}
+      <td className="px-4 py-3">
+        <Skeleton className="inline-flex w-20 rounded-full py-0.5 text-xs before:content-['\200b']" />
+      </td>
+      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-10" lineClassName="justify-end" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-12" lineClassName="justify-end" /></td>
+    </tr>
+  );
+}
+
+function CycleCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText className="w-28" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+      </div>
+      <div className="flex items-center gap-4">
+        <SkeletonText size="xs" className="w-12" />
+        <SkeletonText size="xs" className="w-20" />
+        <SkeletonText size="xs" className="w-20" />
+      </div>
+      <div className="mt-2 flex items-center gap-4">
+        <SkeletonText size="xs" className="w-24" />
+        <SkeletonText size="xs" className="w-14" />
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function CyclesPage() {
@@ -188,19 +233,14 @@ export default function CyclesPage() {
 
       <ListCapNotice capped={capped} count={cycles.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
-        // Short values — the code, a status chip, money, a date — never
-        // wrap: they were breaking at 1440 while the counts beside them sat
-        // half empty. Only the origin may wrap. At tablet width, if the row
-        // still does not fit, the table scrolls inside its own box.
+      {/* Short values — the code, a status chip, money, a date — never
+          wrap: they were breaking at 1440 while the counts beside them sat
+          half empty. Only the origin may wrap. At tablet width, if the row
+          still does not fit, the table scrolls inside its own box. */}
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm [&_th]:whitespace-nowrap">
             <thead>
@@ -216,6 +256,11 @@ export default function CyclesPage() {
                 <th className="text-end px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
               </tr>
             </thead>
+            {isLoading ? (
+              <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                {repeat(PAGE_SIZE, (i) => <CycleRowSkeleton key={i} />)}
+              </SkeletonGroup>
+            ) : (
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
@@ -280,11 +325,16 @@ export default function CyclesPage() {
                 })
               )}
             </tbody>
+            )}
           </table>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <CycleCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

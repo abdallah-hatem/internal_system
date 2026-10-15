@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
@@ -302,7 +303,8 @@ function RecordPaymentForm({
               >
                 {order ? t('orderOwes', { order: order.orderNo }) : t('owedNow')}{' '}
                 {ordersLoading && !order ? (
-                  <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
+                  // The figure, before the orders it is summed from arrive.
+                  <Skeleton data-testid="payment-owed-skeleton" className="inline-block h-3.5 w-20 rounded align-middle" />
                 ) : (
                   <Money value={owed} currency={currency} className="font-semibold text-foreground" />
                 )}

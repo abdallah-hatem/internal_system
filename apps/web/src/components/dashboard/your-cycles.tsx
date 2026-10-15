@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useCodeLabel } from '@/lib/labels';
 import { Money } from '@/components/ui/money';
 import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /** One line of GET /analytics/cycle-profitability — the API scopes it. */
 interface CycleProfit {
@@ -17,6 +18,22 @@ interface CycleProfit {
   totalRevenue: number;
   totalCost: number;
   profit: number;
+}
+
+/** One cycle line, traced: code over status, the profit label over the figure at the end. */
+function YourCycleRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex items-center justify-between gap-3 py-3">
+      <div className="min-w-0">
+        <SkeletonText className="w-24" />
+        <SkeletonText size="xs" className="w-16" />
+      </div>
+      <div className="flex flex-shrink-0 flex-col items-end">
+        <SkeletonText size="xs" className="w-12" />
+        <SkeletonText className="w-20" />
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -42,11 +59,9 @@ export function YourCycles() {
         {t('yourCycles')}
       </h3>
       {isLoading ? (
-        <ul aria-hidden="true" className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <li key={i} className="h-14 animate-pulse rounded-md bg-muted" />
-          ))}
-        </ul>
+        <SkeletonRegion className="divide-y divide-border">
+          {repeat(3, (i) => <YourCycleRowSkeleton key={i} />)}
+        </SkeletonRegion>
       ) : isError ? (
         <p role="alert" className="text-sm text-destructive">{t('yourCyclesError')}</p>
       ) : rows.length === 0 ? (

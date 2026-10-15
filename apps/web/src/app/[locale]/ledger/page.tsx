@@ -11,7 +11,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Plus, Search, Eye, X, Loader2,
+  Plus, Search, Eye, X,
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';
@@ -24,6 +24,7 @@ import { Download } from 'lucide-react';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCodeLabel } from '@/lib/labels';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -90,6 +91,46 @@ const DIRECTION_COLORS: Record<string, string> = {
   INFLOW: 'bg-green-100 text-green-700',
   OUTFLOW: 'bg-red-100 text-red-700',
 };
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The ledger row and card below, traced. Most rows are a flow's, which has
+// only the View button (a hand-written entry adds Reverse), so the skeleton
+// carries one 28px icon button and the card no Reverse footer.
+function LedgerRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          <Skeleton className="size-7 rounded-lg" />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function LedgerCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <Skeleton className="h-5 w-20 rounded-full" />
+        <SkeletonText size="base" className="w-24" />
+      </div>
+      <div className="flex items-center gap-2 mb-1">
+        <SkeletonText className="w-24" />
+        <SkeletonText className="w-20" />
+      </div>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-muted">
+        <SkeletonText size="xs" className="w-20" />
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function LedgerPage() {
@@ -287,15 +328,10 @@ export default function LedgerPage() {
 
       <ListCapNotice capped={capped} count={entries.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -310,6 +346,11 @@ export default function LedgerPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <LedgerRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={7}>{emptyList}</td></tr>
@@ -354,12 +395,17 @@ export default function LedgerPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <LedgerCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

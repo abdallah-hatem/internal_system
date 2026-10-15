@@ -26,6 +26,7 @@ import { usePriceCheck } from '@/lib/price-check';
 import { BelowCostPrice } from '@/components/sales/below-cost';
 import { ProductStatusAction } from '@/components/products/product-status-action';
 import { localDescription, localName } from '@/lib/localized-name';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -122,6 +123,176 @@ function movementTypeIcon(type: string) {
   }
 }
 
+// ─── Skeletons ────────────────────────────────────────────────────────
+// Traced from the page below and its sub-components: the same header, the
+// same four stat cards, the same two columns of cards. Change one, change the
+// other.
+
+/** A card of the page — `p-5`, a text-sm heading line with `mb-4` under it. */
+function SectionCardSkeleton({ children, heading = 'w-32' }: { children: React.ReactNode; heading?: string }) {
+  return (
+    <div className="bg-card rounded-xl border border-border p-5">
+      <SkeletonText lineClassName="mb-4" className={heading} />
+      {children}
+    </div>
+  );
+}
+
+/** `StatCard`: a 40px icon square beside a text-xs label over a text-lg figure. */
+function StatCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-10 w-10 rounded-lg" />
+        <div>
+          <SkeletonText size="xs" className="w-16" />
+          <SkeletonText size="lg" className="w-12" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** `DetailItem`: a text-xs label over a text-sm value. */
+function DetailItemSkeleton({ full = false }: { full?: boolean }) {
+  return (
+    <div className={full ? 'col-span-2 md:col-span-3' : ''}>
+      <SkeletonText size="xs" lineClassName="mb-0.5" className="w-16" />
+      <SkeletonText className={full ? 'w-2/3' : 'w-24'} />
+    </div>
+  );
+}
+
+/** One batch's header button: a single text-sm line of figures and a chevron. */
+function BatchRowSkeleton() {
+  return (
+    <div className="border border-muted rounded-lg overflow-hidden">
+      <div className="w-full flex items-center justify-between gap-4 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-4">
+          <SkeletonText size="xs" lineClassName="h-5" className="w-16" />
+          {repeat(3, (i) => <SkeletonText key={i} className="w-20" />)}
+        </div>
+        <Skeleton className="size-4 shrink-0 rounded" />
+      </div>
+    </div>
+  );
+}
+
+/** `PriceRow` for someone who may set a price: label line, then currency, input and Save. */
+function PriceRowSkeleton() {
+  return (
+    <div className="rounded-lg bg-muted/50 px-4 py-3">
+      <div className="mb-2 flex items-center gap-2">
+        <Skeleton className="size-4 rounded" />
+        <SkeletonText className="w-20" />
+      </div>
+      <div className="flex items-center gap-2">
+        <SkeletonText size="xs" className="w-7" />
+        <Skeleton className="h-[34px] flex-1 rounded-lg" />
+        <Skeleton className="h-7 w-16 shrink-0 rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+/** One price-history entry: the channel badge, the amount over its date at the end. */
+function PriceHistoryRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2.5">
+      <Skeleton className="h-5 w-16 rounded-full" />
+      <div className="flex flex-col items-end">
+        <SkeletonText className="w-20" />
+        <SkeletonText size="xs" className="w-16" />
+      </div>
+    </div>
+  );
+}
+
+/** One movement inside an opened batch: badge and quantity, the date at the end. */
+function BatchMovementRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex items-center justify-between bg-card rounded-lg px-3 py-2 border border-muted">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-5 w-24 rounded-full" />
+        <SkeletonText className="w-6" />
+      </div>
+      <div className="flex flex-col items-end">
+        <SkeletonText size="xs" className="w-28" />
+        <SkeletonText size="xs" className="w-20" />
+      </div>
+    </div>
+  );
+}
+
+/** The whole page before the product and its stock arrive. */
+function ProductDetailSkeleton() {
+  return (
+    <SkeletonRegion className="space-y-6">
+      {/* Header: name, status badge, the status button at the end, SKU under. */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <SkeletonText size="2xl" className="w-56" />
+          <Skeleton className="h-5 w-14 rounded-full" />
+          <div className="sm:ms-auto">
+            <Skeleton className="h-11 w-32 rounded-lg sm:h-9" />
+          </div>
+        </div>
+        <SkeletonText className="w-24" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {repeat(4, (i) => <StatCardSkeleton key={i} />)}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Photos: heading and Add photo button, the empty line under. */}
+          <div className="bg-card rounded-xl border border-border p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <SkeletonText className="w-16" />
+              <Skeleton className="h-[34px] w-28 rounded-lg" />
+            </div>
+            <Skeleton className="h-[68px] w-full rounded-lg" />
+          </div>
+          <SectionCardSkeleton heading="w-20">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {repeat(6, (i) => <DetailItemSkeleton key={i} />)}
+              <DetailItemSkeleton full />
+              <DetailItemSkeleton full />
+              <DetailItemSkeleton />
+            </div>
+          </SectionCardSkeleton>
+          <SectionCardSkeleton>
+            <div className="space-y-3">{repeat(2, (i) => <BatchRowSkeleton key={i} />)}</div>
+          </SectionCardSkeleton>
+          <SectionCardSkeleton>
+            <Skeleton className="h-[134px] w-full rounded-lg" />
+          </SectionCardSkeleton>
+        </div>
+        <div className="space-y-6">
+          <SectionCardSkeleton>
+            <div className="space-y-3">{repeat(2, (i) => <PriceRowSkeleton key={i} />)}</div>
+          </SectionCardSkeleton>
+          <SectionCardSkeleton heading="w-24">
+            <div className="space-y-2">{repeat(2, (i) => <PriceHistoryRowSkeleton key={i} />)}</div>
+          </SectionCardSkeleton>
+          <SectionCardSkeleton heading="w-20">
+            <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
+              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+              <SkeletonText className="w-28" />
+            </div>
+          </SectionCardSkeleton>
+          <SectionCardSkeleton heading="w-24">
+            <div className="flex flex-wrap gap-2">
+              {repeat(3, (i) => <Skeleton key={i} className="h-6 w-20 rounded-full" />)}
+            </div>
+          </SectionCardSkeleton>
+        </div>
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
   const codeLabel = useCodeLabel();
@@ -189,8 +360,9 @@ export default function ProductDetailPage() {
   // ── Loading state ─────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24 text-gray-500">
-        <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
+      <div className="space-y-3">
+        <BackLink onClick={() => router.back()} />
+        <ProductDetailSkeleton />
       </div>
     );
   }
@@ -387,9 +559,12 @@ export default function ProductDetailPage() {
                       {isExpanded && (
                         <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
                           {loadingMovements ? (
-                            <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
-                              <Loader2 className="h-4 w-4 animate-spin me-2" /> {tc('loading')}
-                            </div>
+                            <>
+                              <LoadingStatus />
+                              <SkeletonGroup className="space-y-2">
+                                {repeat(2, (i) => <BatchMovementRowSkeleton key={i} />)}
+                              </SkeletonGroup>
+                            </>
                           ) : allMovements.length === 0 ? (
                             <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
                           ) : (
@@ -540,9 +715,9 @@ export default function ProductDetailPage() {
               {t('priceHistory')}
             </h2>
             {loadingPrices ? (
-              <div className="flex items-center justify-center py-4 text-gray-500 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin me-2" /> {tc('loading')}
-              </div>
+              <SkeletonRegion className="space-y-2">
+                {repeat(2, (i) => <PriceHistoryRowSkeleton key={i} />)}
+              </SkeletonRegion>
             ) : priceHistory.length === 0 ? (
               <EmptyState size="compact" icon={DollarSign} title={t('noPriceHistoryTitle')} description={t('noPriceHistoryHint')} />
             ) : (

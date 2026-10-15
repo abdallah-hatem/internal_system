@@ -11,6 +11,7 @@ import { useDateFormat } from '../../lib/dates';
 import { Button } from '../ui/button';
 import { EmptyState } from '../ui/empty-state';
 import { useToast } from '../ui/toast';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,22 @@ interface Connection {
 }
 
 const CONNECTIONS_KEY = ['assistant-connections'];
+
+/**
+ * One connection line, traced: the app's name over when it connected, and the
+ * 44px Disconnect button at the end that sets the row's height.
+ */
+function ConnectionRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <SkeletonText className="w-32" />
+        <SkeletonText size="xs" className="w-72 max-w-full" />
+      </div>
+      <Skeleton className="h-11 w-32 rounded-lg" />
+    </div>
+  );
+}
 
 /**
  * Settings → Claude connections (BUSINESS_LOGIC §16).
@@ -113,11 +130,9 @@ export function AssistantConnections() {
       <p className="text-sm text-muted-foreground mb-4">{t('intro')}</p>
 
       {isLoading ? (
-        <div className="space-y-3" aria-hidden>
-          {[0, 1].map((i) => (
-            <div key={i} className="h-16 rounded-lg animate-pulse bg-muted" />
-          ))}
-        </div>
+        <SkeletonRegion className="divide-y divide-border rounded-lg border border-border">
+          {repeat(2, (i) => <ConnectionRowSkeleton key={i} />)}
+        </SkeletonRegion>
       ) : isError ? (
         <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           {t('loadFailed')}

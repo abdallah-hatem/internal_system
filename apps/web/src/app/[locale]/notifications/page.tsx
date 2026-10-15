@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useDateFormat } from '../../../lib/dates';
 import {
-  Bell, Loader2, CheckCheck, Check,
+  Bell, CheckCheck, Check,
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -14,6 +14,7 @@ import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/paginati
 import { Link } from '../../../i18n/navigation';
 import { notificationHref, useNotificationText, useNotifications } from '../../../lib/notifications';
 import { isolateCodes } from '@/components/layout/isolate-codes';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface Notification {
@@ -41,7 +42,6 @@ export default function NotificationsPage() {
   const notificationText = useNotificationText();
   const { timeAgo } = useDateFormat();
   const t = useTranslations('notifications');
-  const tc = useTranslations('common');
   const queryClient = useQueryClient();
 
   // The shared query. This page and the bell each had their own under the same
@@ -77,7 +77,8 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* As tall as the Mark all button, so the list does not drop when it appears. */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:min-h-10">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
           {unreadCount > 0 && (
@@ -86,6 +87,8 @@ export default function NotificationsPage() {
             </span>
           )}
         </div>
+        {/* On a phone the button sits under the title; hold its place until we know. */}
+        {isLoading && <Skeleton aria-hidden="true" className="h-10 w-40 rounded-lg sm:hidden" />}
         {unreadCount > 0 && (
           <button
             onClick={() => markAllReadMutation.mutate()}
@@ -98,10 +101,12 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {/* Loading */}
+      {/* Loading: a page of rows in the list's own frame. */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <SkeletonRegion className="divide-y divide-muted">
+            {repeat(PAGE_SIZE, (i) => <NotificationRowSkeleton key={i} />)}
+          </SkeletonRegion>
         </div>
       )}
 
@@ -158,6 +163,24 @@ export default function NotificationsPage() {
   );
 }
 
+
+/**
+ * `NotificationRow` and what the page puts in it, traced: the 32px icon tile,
+ * the title line and the time on the end side.
+ */
+function NotificationRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex items-start gap-3 sm:gap-4 px-4 py-4">
+      <Skeleton className="mt-0.5 size-8 rounded-lg" />
+      <div className="flex-1 min-w-0">
+        <SkeletonText className="w-3/4" />
+        {/* A notification's title runs to two lines on a phone. */}
+        <SkeletonText className="w-1/2" lineClassName="sm:hidden" />
+      </div>
+      <SkeletonText size="xs" className="w-14" />
+    </div>
+  );
+}
 
 /**
  * One notification, as a link when there is somewhere to go.

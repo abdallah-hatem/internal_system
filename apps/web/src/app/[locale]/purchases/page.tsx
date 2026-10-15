@@ -12,7 +12,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  ShoppingCart, Plus, Search, Eye, X, MinusCircle, Loader2, ChevronRight,
+  ShoppingCart, Plus, Search, Eye, X, MinusCircle, ChevronRight,
   Package, DollarSign,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';
@@ -28,6 +28,7 @@ import { InputField, RowAction } from '../../../components/ui/fields';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { offeredOnly } from '@/lib/product-status';
@@ -67,6 +68,42 @@ const STATUS_COLORS: Record<string, string> = {
   RECEIVED: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
 };
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The purchase order row and card below, traced: reference, supplier, cycle,
+// currency, rate, date, the status badge and the View link. Change one,
+// change the other.
+function PurchaseRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-10" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-10" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-12" /></td>
+    </tr>
+  );
+}
+
+function PurchaseCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText className="w-28" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+      </div>
+      <SkeletonText className="w-36" />
+      <div className="flex items-center gap-3 mt-1">
+        <SkeletonText size="xs" className="w-20" />
+        <SkeletonText size="xs" className="w-8" />
+        <SkeletonText size="xs" className="w-20" />
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function PurchasesPage() {
@@ -232,15 +269,10 @@ export default function PurchasesPage() {
 
       <ListCapNotice capped={capped} count={purchases.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -256,6 +288,11 @@ export default function PurchasesPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <PurchaseRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8}>{emptyList}</td></tr>
@@ -285,12 +322,17 @@ export default function PurchasesPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <PurchaseCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

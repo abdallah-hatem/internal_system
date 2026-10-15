@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { FileX, Loader2, Printer } from 'lucide-react';
+import { FileX, Printer } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -14,6 +14,7 @@ import { Money } from '@/components/ui/money';
 import { LatinText } from '@/components/ui/latin-text';
 import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /** `GET /sales/orders/:id/invoice` (api SalesService.invoice). */
 interface Invoice {
@@ -42,6 +43,104 @@ interface Invoice {
   returned: boolean;
   owes: string;
   account: { balanceBefore: string; balanceAfter: string; balanceNow: string } | null;
+}
+
+/** How many lines the placeholder invoice shows — a typical order, not a page. */
+const SKELETON_LINES = 3;
+
+/**
+ * The invoice before it arrives, traced from the article below: the header
+ * with its number and date, Bill to, the lines table, the totals beside the
+ * account box, and the two signature lines.
+ */
+function InvoiceSkeleton() {
+  const t = useTranslations('sales.invoice');
+  const tc = useTranslations('common');
+  // Every word that needs no data is the real word; only the figures wait.
+  return (
+    <div className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
+      <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-lg font-bold text-foreground">{tc('brand')}</p>
+          <p className="mt-1 text-xl font-semibold text-foreground">{t('title')}</p>
+        </div>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm sm:text-end">
+          <dt className="text-muted-foreground">{t('number')}</dt>
+          <dd><SkeletonText lineClassName="sm:justify-end" className="w-28" /></dd>
+          <dt className="text-muted-foreground">{t('date')}</dt>
+          <dd><SkeletonText lineClassName="sm:justify-end" className="w-24" /></dd>
+        </dl>
+      </div>
+
+      <div className="border-b border-border py-4 text-sm">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('billTo')}</p>
+        <SkeletonText size="base" lineClassName="mt-1" className="w-40" />
+      </div>
+
+      <div className="py-4">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs text-muted-foreground [&>th]:px-2 [&>th]:py-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
+              <th className="w-6 text-start font-medium">{t('line')}</th>
+              <th className="text-start font-medium">{t('product')}</th>
+              <th className="text-end font-medium">{t('quantity')}</th>
+              <th className="hidden text-end font-medium sm:table-cell">{t('unitPrice')}</th>
+              <th className="hidden text-end font-medium sm:table-cell">{t('discount')}</th>
+              <th className="text-end font-medium">{t('lineTotal')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border [&>tr>td]:px-2 [&>tr>td]:py-2 [&>tr>td:first-child]:ps-0 [&>tr>td:last-child]:pe-0">
+            {repeat(SKELETON_LINES, (i) => (
+              <tr key={i} data-testid="skeleton-row">
+                <td className="align-top"><SkeletonText className="w-3" /></td>
+                <td className="align-top">
+                  <SkeletonText className="w-28 sm:w-40" />
+                  <SkeletonText size="xs" className="w-20" />
+                  <SkeletonText size="xs" lineClassName="sm:hidden" className="w-16" />
+                </td>
+                <td className="align-top"><SkeletonText lineClassName="justify-end" className="w-6" /></td>
+                <td className="hidden align-top sm:table-cell"><SkeletonText lineClassName="justify-end" className="w-16" /></td>
+                <td className="hidden align-top sm:table-cell"><SkeletonText lineClassName="justify-end" className="w-8" /></td>
+                <td className="align-top"><SkeletonText lineClassName="justify-end" className="w-20" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+        <div className="order-2 sm:order-1">
+          <div className="rounded-lg border border-border p-3 text-sm">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('account')}</p>
+            <FigureSkeleton label={t('balanceBefore')} />
+            <FigureSkeleton label={t('thisInvoice')} />
+            <FigureSkeleton label={t('balanceAfter')} strong />
+          </div>
+        </div>
+        <div className="order-1 space-y-1 text-sm sm:order-2">
+          <FigureSkeleton label={t('subtotal')} />
+          <FigureSkeleton label={t('total')} strong />
+          <FigureSkeleton label={t('paid')} />
+          <FigureSkeleton label={t('owes')} strong />
+        </div>
+      </div>
+
+      <div className="mt-10 grid grid-cols-2 gap-8 text-sm text-muted-foreground">
+        <div className="border-t border-border pt-2">{t('receivedBy')}</div>
+        <div className="border-t border-border pt-2">{t('deliveredBy')}</div>
+      </div>
+    </div>
+  );
+}
+
+/** `Figure` with its real label: a text-sm line, `py-0.5`, the amount waiting. */
+function FigureSkeleton({ label, strong }: { label: string; strong?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-4 py-0.5 text-foreground ${strong ? 'font-semibold' : ''}`}>
+      <span>{label}</span>
+      <SkeletonText className="w-24" />
+    </div>
+  );
 }
 
 /** A calendar day at noon UTC, so no browser timezone can move it a day. */
@@ -81,8 +180,16 @@ export default function InvoicePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="me-2 h-5 w-5 animate-spin" />
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-3">
+            <BackLink onClick={back} label={t('back')} />
+          </div>
+          <Skeleton className="h-11 w-24 rounded-lg sm:h-9" />
+        </div>
+        <SkeletonRegion>
+          <InvoiceSkeleton />
+        </SkeletonRegion>
       </div>
     );
   }

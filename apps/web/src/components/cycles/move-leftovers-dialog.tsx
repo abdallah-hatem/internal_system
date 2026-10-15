@@ -16,6 +16,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Select } from '@/components/ui/select';
 import { Money } from '@/components/ui/money';
 import { LatinText } from '@/components/ui/latin-text';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { fieldValue, parseQty } from '@/components/shipment/shipment-model';
 import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, qtyInputClass } from '@/components/shipment/ShipmentDialog';
@@ -35,6 +36,26 @@ export const TRANSFER_QUERY_KEYS = [
 
 /** The query `GET /cycles/:id/transfers/movable` is cached under. */
 export const movableKey = (cycleId: string) => ['cycle-transfers', cycleId, 'movable'];
+
+/** Products the move list shows while the cycle's shelf loads. */
+const MOVE_SKELETON_ROWS = 3;
+
+/**
+ * One `move-row` below, traced: the product and its on-shelf line beside the
+ * 7rem quantity input (text-base on a phone, text-sm from md, as
+ * `qtyInputClass`). Change one, change the other.
+ */
+function MoveRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="grid grid-cols-[1fr_7rem] items-center gap-3">
+      <div className="min-w-0">
+        <SkeletonText className="w-40" />
+        <SkeletonText size="xs" className="w-24" />
+      </div>
+      <Skeleton className="h-[42px] w-full rounded-lg md:h-[38px]" />
+    </div>
+  );
+}
 
 /**
  * Move a cycle's leftovers to another cycle at their cost (BUSINESS_LOGIC §8,
@@ -153,7 +174,9 @@ export function MoveLeftoversDialog({
       }
     >
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">{tc('loading')}</p>
+        <SkeletonRegion className="space-y-2">
+          {repeat(MOVE_SKELETON_ROWS, (i) => <MoveRowSkeleton key={i} />)}
+        </SkeletonRegion>
       ) : cannot ? (
         <p role="alert" data-testid="move-cannot" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {cannot}

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCurrencyRates } from '@/lib/currency-rates';
@@ -406,6 +406,3 @@ export function PlanDialog({ financing, onClose }: { financing: FinancingView; o
   );
 }
 
-export function Spinner() {
-  return <Loader2 className="h-4 w-4 animate-spin" />;
-}

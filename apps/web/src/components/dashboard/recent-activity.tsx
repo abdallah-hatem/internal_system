@@ -10,6 +10,7 @@ import { useDateFormat } from '@/lib/dates';
 import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Money } from '@/components/ui/money';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /** One line of `GET /analytics/recent-activity`, as the API sends it. */
 export interface RecentActivityItem {
@@ -29,6 +30,26 @@ export interface RecentActivityItem {
 
 /** Under `analytics` so a confirmed sale (which invalidates `['analytics']`) refreshes it. */
 export const RECENT_ACTIVITY_KEY = ['analytics', 'recent-activity'] as const;
+
+/** How many lines the dashboard asks for. */
+const RECENT_LIMIT = 10;
+
+/** One activity line, traced: the round kind icon, two lines beside it, amount and date at the end. */
+function RecentActivityRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex items-start gap-3 py-2.5">
+      <Skeleton className="mt-0.5 size-8 flex-shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1">
+        <SkeletonText className="w-32" />
+        <SkeletonText size="xs" className="w-24" />
+      </div>
+      <div className="flex flex-shrink-0 flex-col items-end">
+        <SkeletonText className="w-20" />
+        <SkeletonText size="xs" className="w-16" />
+      </div>
+    </div>
+  );
+}
 
 const KIND_ICON = { SALE: ShoppingCart, PAYMENT: Banknote, RECEIPT: PackageCheck } as const;
 
@@ -51,7 +72,7 @@ export function RecentActivity() {
   const { data, isLoading, isError } = useQuery({
     queryKey: RECENT_ACTIVITY_KEY,
     queryFn: () =>
-      api.get('/analytics/recent-activity?limit=10').then((r) => r.data.data ?? r.data),
+      api.get(`/analytics/recent-activity?limit=${RECENT_LIMIT}`).then((r) => r.data.data ?? r.data),
     staleTime: 0,
     refetchOnMount: 'always',
   });
@@ -68,11 +89,9 @@ export function RecentActivity() {
       </h3>
 
       {isLoading ? (
-        <ul aria-hidden="true" className="space-y-3">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <li key={i} className="h-11 animate-pulse rounded-md bg-muted" />
-          ))}
-        </ul>
+        <SkeletonRegion className="divide-y divide-border">
+          {repeat(RECENT_LIMIT, (i) => <RecentActivityRowSkeleton key={i} />)}
+        </SkeletonRegion>
       ) : isError ? (
         <p role="alert" className="py-4 text-center text-sm text-muted-foreground">
           {t('recentActivityError')}

@@ -19,6 +19,7 @@ import { InputField } from '../../../components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -27,6 +28,50 @@ interface Provider {
   phone?: string;
   email?: string;
   notes?: string;
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The provider row and card below, traced: name, contact person, phone,
+// email, and the 28px icon buttons that set the row's height when the reader
+// may edit. Change one, change the other.
+function ProviderRowSkeleton({ actions }: { actions: number }) {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-28" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
+      {/* The real row keeps this cell even when it is empty. */}
+      <td className="px-4 py-3">
+        {actions > 0 && (
+          <div className="flex items-center gap-1">
+            {repeat(actions, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function ProviderCardSkeleton({ actions }: { actions: number }) {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText size="base" className="w-32" />
+        {actions > 0 && (
+          <div className="flex items-center gap-1">
+            {repeat(actions, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
+          </div>
+        )}
+      </div>
+      {/* Contact person and phone. The email line is left out: it is the
+          rare one, and a card without it is the usual height. */}
+      <div className="flex items-center gap-4 mb-1">
+        <SkeletonText className="w-24" />
+        <SkeletonText className="w-28" />
+      </div>
+    </div>
+  );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────
@@ -44,6 +89,8 @@ export default function ProvidersPage() {
     delete: useCan('provider.delete'),
   };
   const mayRow = may.edit || may.delete;
+  /** The icon buttons a row carries, for its skeleton. */
+  const actionCount = (may.edit ? 1 : 0) + (may.delete ? 1 : 0);
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -179,15 +226,10 @@ export default function ProvidersPage() {
         />
       </div>
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -200,6 +242,11 @@ export default function ProvidersPage() {
                   {mayRow && <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>}
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <ProviderRowSkeleton key={i} actions={actionCount} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={mayRow ? 5 : 4}>{emptyList}</td></tr>
@@ -257,12 +304,17 @@ export default function ProvidersPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <ProviderCardSkeleton key={i} actions={actionCount} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

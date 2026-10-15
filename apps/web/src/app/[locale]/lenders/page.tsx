@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HandCoins, Loader2, Plus, Search, AlertTriangle } from 'lucide-react';
+import { HandCoins, Plus, Search, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -16,6 +16,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { FormActions } from '@/components/ui/fields';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';
 import { LenderModal } from '@/components/lenders/lender-dialogs';
+import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /**
  * Friends who pay a supplier for us and are repaid in pounds (BUSINESS_LOGIC
@@ -103,12 +104,7 @@ export default function LendersPage() {
         />
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
-        </div>
-      ) : (
-        <>
+      {isLoading && <LoadingStatus />}
           {/* Desktop */}
           <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block">
             <table className="w-full text-sm">
@@ -120,6 +116,11 @@ export default function LendersPage() {
                   <th className="px-4 py-3 text-end font-medium text-muted-foreground">{t('owed')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-border">
+                  {repeat(LENDER_SKELETONS, (i) => <LenderRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-border">
                 {rows.length === 0 ? (
                   <tr>
@@ -143,10 +144,16 @@ export default function LendersPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
 
           {/* Phone */}
+          {isLoading ? (
+            <SkeletonGroup className="space-y-3 md:hidden">
+              {repeat(LENDER_SKELETONS, (i) => <LenderCardSkeleton key={i} />)}
+            </SkeletonGroup>
+          ) : (
           <div className="space-y-3 md:hidden">
             {rows.length === 0 ? (
               <div className="rounded-xl border border-border bg-card">{empty}</div>
@@ -176,8 +183,7 @@ export default function LendersPage() {
               ))
             )}
           </div>
-        </>
-      )}
+          )}
 
       {creating && (
         <LenderModal title={t('create')} onClose={() => setCreating(false)}>
@@ -198,6 +204,37 @@ export default function LendersPage() {
           </ValidatedForm>
         </LenderModal>
       )}
+    </div>
+  );
+}
+
+/** Lenders are a handful of friends, not a page of ten. */
+const LENDER_SKELETONS = 4;
+
+// The lender row and card above, traced: name, phone, count and one owed
+// figure (one currency, the usual case). Change one, change the other.
+function LenderRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" lineClassName="justify-end" /></td>
+    </tr>
+  );
+}
+
+function LenderCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-xl border border-border bg-card p-4">
+      <div className="min-w-0">
+        <SkeletonText size="base" className="w-36" />
+        <SkeletonText size="xs" className="w-32" lineClassName="mt-0.5" />
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+        <SkeletonText className="w-16" />
+        <SkeletonText className="w-24" />
+      </div>
     </div>
   );
 }

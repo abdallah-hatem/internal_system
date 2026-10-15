@@ -18,6 +18,7 @@ import { Money } from '@/components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
 import { LegRoute } from './LegRoute';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { statusesToWalk } from '@/components/cycles/wizard-walk';
 import { useRefreshShipment } from './ShipmentDialog';
@@ -112,6 +113,84 @@ export function useShipment(cycleId: string | undefined) {
   });
 }
 
+/** How many product lines the placeholder leg shows. */
+const SKELETON_LINES = 2;
+
+/**
+ * The panel before the shipment arrives, traced from the panel and one
+ * `LegBlock`: the title and totals, the leg heading over its status badge,
+ * the product table (cards on a phone), and the departures heading.
+ */
+function PlainFrame({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={className}>{children}</div>;
+}
+
+export function ShipmentPanelSkeleton({ inside = false }: { inside?: boolean }) {
+  // Inside another skeleton (the cycle page's), that one already says "Loading".
+  const Frame = inside ? PlainFrame : SkeletonRegion;
+  return (
+    <Frame className="rounded-xl border border-border bg-card p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <SkeletonText className="w-24" />
+        <SkeletonText size="xs" className="w-64 max-w-full" />
+      </div>
+      <div className="space-y-3">
+        <div className="min-w-0">
+          <SkeletonText className="w-40" />
+          <div className="mt-0.5 flex items-center gap-2">
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <SkeletonText size="xs" className="w-24" />
+          </div>
+        </div>
+        <div className="hidden md:block">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="py-2"><SkeletonText size="xs" className="w-16" /></th>
+                {repeat(7, (i) => (
+                  <th key={i} className="py-2"><SkeletonText size="xs" lineClassName="justify-end" className="w-12" /></th>
+                ))}
+                <th className="w-28 py-2 ps-4"><SkeletonText size="xs" className="w-14" /></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {repeat(SKELETON_LINES, (i) => (
+                <tr key={i} data-testid="skeleton-row">
+                  <td className="py-2"><SkeletonText className="w-32" /></td>
+                  {repeat(7, (j) => (
+                    <td key={j} className="py-2"><SkeletonText lineClassName="justify-end" className="w-6" /></td>
+                  ))}
+                  <td className="py-2 ps-4"><Skeleton className="h-1.5 w-full rounded-full" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="space-y-2 md:hidden">
+          {repeat(SKELETON_LINES, (i) => (
+            <div key={i} data-testid="skeleton-row" className="rounded-lg border border-border p-3">
+              <SkeletonText className="w-40" />
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {repeat(7, (j) => (
+                  <div key={j}>
+                    <SkeletonText size="xs" className="w-14" />
+                    <SkeletonText size="xs" className="w-6" />
+                  </div>
+                ))}
+              </div>
+              <Skeleton className="mt-2 h-1.5 w-full rounded-full" />
+            </div>
+          ))}
+        </div>
+        <div>
+          <SkeletonText size="xs" lineClassName="mb-1" className="w-20" />
+          <SkeletonText className="w-36" />
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
 /**
  * The cycle page's Shipment panel (BUSINESS_LOGIC §1, §2, §3, §6 — 2026-10-10).
  *
@@ -144,7 +223,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
   );
 
   if (isLoading) {
-    return <div className="h-40 animate-pulse rounded-xl border border-border bg-muted" aria-hidden="true" />;
+    return <ShipmentPanelSkeleton />;
   }
   if (isError || !shipment) {
     return <p className="rounded-xl border border-border p-5 text-sm text-muted-foreground">{t('loadFailed')}</p>;

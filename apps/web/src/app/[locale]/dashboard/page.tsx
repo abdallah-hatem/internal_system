@@ -9,7 +9,8 @@ import { useAuth } from '../../../lib/auth-context';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { QuickActions } from '../../../components/dashboard/quick-actions';
 import { RecentActivity } from '../../../components/dashboard/recent-activity';
-import { StatTile } from '../../../components/dashboard/stat-tile';
+import { StatTile, StatTileSkeleton } from '../../../components/dashboard/stat-tile';
+import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '../../../components/ui/skeleton';
 import {
   canSeeRecentActivity,
   dashboardView,
@@ -56,9 +57,37 @@ interface TopProduct {
   totalQuantitySold: number;
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────
+// ─── Skeletons ────────────────────────────────────────────────────────
 
-const TILE_COUNT = 12;
+/** How many tiles the business dashboard shows; the last one carries a second line. */
+const TILE_COUNT = 13;
+
+/**
+ * The tile grid before the figures arrive — the same grid, one skeleton per
+ * tile. The page renders the one "Loading" announcement beside it.
+ */
+function StatTilesSkeleton() {
+  return (
+    <SkeletonGroup className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+      {repeat(TILE_COUNT, (i) => <StatTileSkeleton key={i} sub={i === TILE_COUNT - 1} />)}
+    </SkeletonGroup>
+  );
+}
+
+/** One top-product line, traced: name over SKU, the units sold at the end. */
+function TopProductRowSkeleton() {
+  return (
+    <li data-testid="skeleton-row" className="flex items-center justify-between gap-3 py-2.5">
+      <div className="min-w-0">
+        <SkeletonText className="w-36" />
+        <SkeletonText size="xs" className="w-20" />
+      </div>
+      <SkeletonText className="w-14" />
+    </li>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
@@ -168,7 +197,10 @@ export default function DashboardPage() {
         {view === 'cycles' ? (
           <YourCycles />
         ) : (
-          <div aria-hidden="true" className="h-40 animate-pulse rounded-xl bg-muted" />
+          <>
+            <LoadingStatus />
+            <StatTilesSkeleton />
+          </>
         )}
       </div>
     );
@@ -184,13 +216,11 @@ export default function DashboardPage() {
         <QuickActions role={role} />
       </div>
 
+      {(loadingDash || loadingProducts) && <LoadingStatus />}
+
       {/* Stat tiles — two columns on a phone, each one a link to its list. */}
       {loadingDash ? (
-        <div aria-hidden="true" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          {Array.from({ length: TILE_COUNT }, (_, i) => (
-            <div key={i} className="h-20 animate-pulse rounded-xl bg-muted sm:h-28" />
-          ))}
-        </div>
+        <StatTilesSkeleton />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           {stats.map((stat) => (
@@ -217,11 +247,9 @@ export default function DashboardPage() {
             {t('topProducts')}
           </h3>
           {loadingProducts ? (
-            <ul aria-hidden="true" className="space-y-3">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <li key={i} className="h-11 animate-pulse rounded-md bg-muted" />
-              ))}
-            </ul>
+            <SkeletonGroup as="ul" className="divide-y divide-border">
+              {repeat(5, (i) => <TopProductRowSkeleton key={i} />)}
+            </SkeletonGroup>
           ) : productList.length === 0 ? (
             <EmptyState icon={Package} title={t('topProductsEmpty')} className="py-6" />
           ) : (

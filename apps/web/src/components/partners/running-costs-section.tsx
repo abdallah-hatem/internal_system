@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
 import { businessToday } from '@/lib/dates';
 import { useCodeLabel } from '@/lib/labels';
@@ -121,9 +121,26 @@ export function RunningCostsSection() {
       <p className="mb-4 text-sm text-muted-foreground">{t('runningCostsIntro')}</p>
 
       {isLoading || !data ? (
-        <div className="flex justify-center py-6 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-        </div>
+        <SkeletonRegion className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {repeat(3, (i) => <FigureSkeleton key={i} />)}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {repeat(2, (i) => (
+              <div key={i}>
+                <SkeletonText size="xs" className="mb-2 w-24" />
+                <div className="divide-y divide-border">
+                  {repeat(3, (j) => (
+                    <div key={j} className="flex justify-between gap-3 py-1.5">
+                      <SkeletonText className="w-28" />
+                      <SkeletonText className="w-20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SkeletonRegion>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -222,6 +239,16 @@ function Left({ label }: { label: string }) {
     <span data-testid="running-costs-left" className="ms-2 text-[11px] font-normal text-muted-foreground">
       {label}
     </span>
+  );
+}
+
+/** `Figure` before its number arrives: the same bordered box, label line and text-lg figure line. */
+function FigureSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-lg border border-border p-3">
+      <SkeletonText size="xs" className="w-16" />
+      <SkeletonText size="lg" className="w-28" lineClassName="mt-0.5" />
+    </div>
   );
 }
 

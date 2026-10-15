@@ -8,8 +8,9 @@ import { useTranslations } from 'next-intl';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Plus, Search, Edit, Loader2, MapPin,
+  Plus, Search, Edit, MapPin,
 } from 'lucide-react';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { LegRoute } from '@/components/shipment/LegRoute';
 import { Money } from '@/components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';
@@ -31,6 +32,60 @@ const STATUS_COLORS: Record<string, string> = {
   ARRIVED: 'bg-green-100 text-green-700',
 };
 
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The leg row and card below, traced: cycle and leg number, route, provider,
+// tracking, status badge, two dates, the two-line cost, and the 28px edit
+// button when the reader may edit. Change one, change the other.
+
+/**
+ * LegCost: the amount over its 11px basis line, both `leading-tight`.
+ * Measured, not derived: in the table cell the inline-flex sits on a text-sm
+ * baseline and takes 34.25px; in the card's text-xs footer it is a flex item
+ * of 15 + 13.75px.
+ */
+function LegCostSkeleton({ inCard = false }: { inCard?: boolean }) {
+  return (
+    <div className="flex flex-col">
+      <SkeletonText size={inCard ? 'xs' : 'sm'} className="w-20" lineClassName={inCard ? 'h-[15px]' : 'h-5'} />
+      <SkeletonText size="xs" className="w-16 h-2" lineClassName={inCard ? 'h-[13.75px]' : 'h-[14.25px]'} />
+    </div>
+  );
+}
+
+function ShipmentRowSkeleton({ edit }: { edit: boolean }) {
+  return (
+    <tr data-testid="skeleton-row" className="[&>td:first-child]:ps-4 [&>td:last-child]:pe-4">
+      <td className="px-2.5 py-3"><SkeletonText className="w-20" /></td>
+      <td className="px-2.5 py-3"><SkeletonText className="w-40" /></td>
+      <td className="px-2.5 py-3"><SkeletonText className="w-20" /></td>
+      <td className="px-2.5 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-2.5 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+      <td className="px-2.5 py-3"><SkeletonText size="xs" className="w-16" /></td>
+      <td className="px-2.5 py-3"><SkeletonText size="xs" className="w-16" /></td>
+      <td className="px-2.5 py-3"><LegCostSkeleton /></td>
+      {edit && <td className="px-2.5 py-3"><Skeleton className="size-7 rounded-lg" /></td>}
+    </tr>
+  );
+}
+
+function ShipmentCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText size="xs" className="w-24" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+      </div>
+      <SkeletonText className="w-48" lineClassName="mb-1" />
+      <SkeletonText size="xs" className="w-28" />
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-muted">
+        <SkeletonText size="xs" className="w-16" />
+        <SkeletonText size="xs" className="w-16" />
+        <LegCostSkeleton inCard />
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
@@ -128,15 +183,10 @@ export default function ShipmentsPage() {
 
       <ListCapNotice capped={capped} count={shipments.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -153,6 +203,11 @@ export default function ShipmentsPage() {
                   {may.edit && <th className="text-start px-2.5 py-3 font-medium text-gray-600 whitespace-nowrap">{tc('actions')}</th>}
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <ShipmentRowSkeleton key={i} edit={may.edit} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={may.edit ? 9 : 8}>{emptyList}</td></tr>
@@ -201,12 +256,17 @@ export default function ShipmentsPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <ShipmentCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

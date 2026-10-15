@@ -11,11 +11,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Select } from '../../../components/ui/select';
 import {
-  ShieldCheck, Search, Eye, X, Loader2,
+  ShieldCheck, Search, Eye, X,
   ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog {
@@ -46,6 +47,35 @@ const ENTITY_TYPES = [
   'Shipment', 'InventoryBatch', 'Cycle', 'Settlement', 'User', 'LedgerEntry',
 ];
 
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The log row and card below, traced: the 28px View button sets the row's
+// height. Change one, change the other.
+function AuditLogRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-28" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><Skeleton className="size-7 rounded-lg" /></td>
+    </tr>
+  );
+}
+
+function AuditLogCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <Skeleton className="h-5 w-16 rounded-full" />
+        <SkeletonText size="xs" className="w-20" />
+      </div>
+      <SkeletonText className="w-28" lineClassName="mb-1" />
+      <SkeletonText size="xs" className="w-40" />
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function AuditLogsPage() {
   const codeLabel = useCodeLabel();
@@ -63,10 +93,13 @@ export default function AuditLogsPage() {
   useEffect(() => { setPage(1); }, [search, entityFilter]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: logs, capped, isLoading } = useAllRecords(
+  const { items: logs, capped, isLoading, reloading } = useAllRecords(
     ['audit-logs', entityFilter],
     '/audit-logs',
     entityFilter ? { entityType: entityFilter } : {},
+    // The record type is filtered by the API, so a new one is a new query: keep
+    // the rows on screen, dimmed, until it arrives, rather than back to skeletons.
+    { keepPrevious: true },
   );
 
   const { data: logDetail } = useQuery({
@@ -140,16 +173,11 @@ export default function AuditLogsPage() {
 
       <ListCapNotice capped={capped} count={logs.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -162,6 +190,11 @@ export default function AuditLogsPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <AuditLogRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={6}>{emptyList}</td></tr>
@@ -190,14 +223,19 @@ export default function AuditLogsPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <AuditLogCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
-        <div className="md:hidden space-y-3">
+        <div aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (

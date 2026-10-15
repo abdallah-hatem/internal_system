@@ -7,10 +7,11 @@ import { api } from '../../../lib/api';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Search, Loader2, Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from 'lucide-react';
+import { Search, Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from 'lucide-react';
 import { RunningCostsSection } from '@/components/partners/running-costs-section';
 import { PayoutHistory, type PartnerPayout } from '@/components/partners/payout-history';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
@@ -149,10 +150,29 @@ export default function PartnersPage() {
         />
       </div>
 
+      {/* Loading: the totals, then each section under its own heading. The
+          running costs fetch their own figures and show their own skeleton. */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
+        <>
+          <LoadingStatus />
+          <SkeletonGroup className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            {/* Capital in and Profit earned carry no hint; the other three do. */}
+            {repeat(5, (i) => <TotalSkeleton key={i} hint={i >= 2} />)}
+          </SkeletonGroup>
+          <RunningCostsSection />
+          <section>
+            <h2 className="text-lg font-semibold text-foreground mb-4">{t('partners')}</h2>
+            <SkeletonGroup className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {repeat(3, (i) => <PartnerCardSkeleton key={i} />)}
+            </SkeletonGroup>
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold text-foreground mb-4">{t('investors')}</h2>
+            <SkeletonGroup className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <PartnerCardSkeleton />
+            </SkeletonGroup>
+          </section>
+        </>
       )}
 
       {!isLoading && (
@@ -261,6 +281,80 @@ function Total({
         <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{value}</span>
       </p>
       {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+/** `Total`, traced: label beside its icon, the figure, the hint line. */
+function TotalSkeleton({ hint }: { hint: boolean }) {
+  // The Arabic hints are shorter: two lines where the English take three.
+  const longHint = useLocale() !== 'ar';
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-5 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <SkeletonText className="w-24" />
+        <Skeleton className="size-5 shrink-0 rounded" />
+      </div>
+      <SkeletonText size="xl" className="w-32" lineClassName="mt-1" />
+      {/* The hint wraps: two lines in one or two columns, three in the narrow five (two in Arabic). */}
+      {hint && (
+        <div className="mt-1">
+          <SkeletonText size="xs" className="w-full" />
+          <SkeletonText size="xs" className="w-3/4" />
+          {longHint && <SkeletonText size="xs" className="w-1/2" lineClassName="hidden xl:flex" />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * `PartnerCard`, traced: avatar and name over the badge, four figures, the
+ * cycles block with two cycles, and the payout block with one payout.
+ */
+function PartnerCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-5">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-10 rounded-full" />
+          <div>
+            <SkeletonText size="base" className="w-28" />
+            <SkeletonText size="xs" className="w-40" />
+          </div>
+        </div>
+        <Skeleton className="h-5 w-24 rounded-full" />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {repeat(4, (i) => (
+          <div key={i}>
+            {/* Figure's label: 11px type on the page's 1.5 line height. */}
+            <SkeletonText size="xs" className="w-16 h-2" lineClassName="h-[16.5px] mb-0.5" />
+            <SkeletonText className="w-20" />
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-muted pt-3">
+        <div className="flex items-center justify-between mb-2">
+          <SkeletonText className="w-20" />
+          <SkeletonText size="xs" className="w-14" />
+        </div>
+        <div className="space-y-1">
+          {repeat(2, (i) => (
+            <div key={i} className="flex items-center justify-between">
+              <SkeletonText size="xs" className="w-24" />
+              <SkeletonText size="xs" className="w-28" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="border-t border-border pt-3 mt-3">
+        <SkeletonText className="w-28" lineClassName="mb-2" />
+        <div className="rounded-lg border border-border px-3 py-2 flex items-center justify-between gap-3">
+          <SkeletonText size="xs" className="w-32" />
+          <SkeletonText size="xs" className="w-20" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Money } from '@/components/ui/money';
 import { useCodeLabel } from '@/lib/labels';
+import { SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /**
  * A payout explains itself (BUSINESS_LOGIC §8, owner 2026-10-11; built L7).
@@ -95,6 +96,55 @@ function Total({ label, amount, tone }: { label: string; amount: number; tone?: 
       <dd className={`shrink-0 whitespace-nowrap tabular-nums ${color}`}>
         <Money value={amount} />
       </dd>
+    </div>
+  );
+}
+
+/** `Line` and `Total` before their figures arrive: the same paddings, a text-sm line each. */
+function LineSkeleton({ total = false, wrapsOnPhone = false }: { total?: boolean; wrapsOnPhone?: boolean }) {
+  return (
+    <div className={total ? 'mt-1 flex justify-between gap-3 border-t border-border pt-2' : 'flex justify-between gap-3 py-1'}>
+      <div>
+        <SkeletonText className="w-32" />
+        {/* "Share of the cycle profit (33.33%)" takes two lines beside its figure on a phone. */}
+        {wrapsOnPhone && <SkeletonText className="w-16" lineClassName="sm:hidden" />}
+      </div>
+      <SkeletonText className="w-20" />
+    </div>
+  );
+}
+
+/**
+ * The breakdown below, traced, for a settlement card's skeleton: the heading,
+ * the cycle's box (revenue, cost of goods, the no-other-costs note, profit) and
+ * one box per participant (share, capital back, to be paid) — three, as a cycle
+ * of the three partners has.
+ */
+export function PayoutBreakdownSkeleton({ participants = 3 }: { participants?: number }) {
+  // Arabic labels are shorter: the share line does not wrap on a phone.
+  const english = useLocale() !== 'ar';
+  return (
+    <div className="space-y-4 px-4 py-4 sm:px-5">
+      <SkeletonText size="xs" className="w-40" />
+      <div className="rounded-lg border border-border p-3">
+        <SkeletonText size="xs" className="w-20" lineClassName="mb-1" />
+        <LineSkeleton />
+        <LineSkeleton />
+        <div className="py-1">
+          <SkeletonText size="xs" className="w-40" />
+        </div>
+        <LineSkeleton total />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {repeat(participants, (i) => (
+          <div key={i} className="rounded-lg border border-border p-3">
+            <SkeletonText className="w-24" lineClassName="mb-1" />
+            <LineSkeleton wrapsOnPhone={english} />
+            <LineSkeleton />
+            <LineSkeleton total />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

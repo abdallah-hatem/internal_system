@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarClock, HandCoins, Loader2, RotateCcw, Trash2, Wallet } from 'lucide-react';
+import { CalendarClock, HandCoins, RotateCcw, Trash2, Wallet } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useCan } from '@/lib/can';
 import { useDateFormat } from '@/lib/dates';
@@ -13,6 +13,7 @@ import { Money } from '@/components/ui/money';
 import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LatinText } from '@/components/ui/latin-text';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import {
   PlanDialog,
   ReasonDialog,
@@ -50,7 +51,6 @@ const STATE_STYLE: Record<string, string> = {
 
 export default function LenderPage() {
   const t = useTranslations('lenders');
-  const tc = useTranslations('common');
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -64,8 +64,9 @@ export default function LenderPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
+      <div className="space-y-6">
+        <BackLink onClick={() => router.push(`/${locale}/lenders`)} label={t('back')} />
+        <LenderDetailSkeleton />
       </div>
     );
   }
@@ -160,6 +161,72 @@ export default function LenderPage() {
         />
       )}
     </div>
+  );
+}
+
+/** Orders a lender has usually paid for — the page shows every one, unpaged. */
+const FINANCING_SKELETONS = 2;
+
+/**
+ * The page below the back link, traced: the name and phone beside the owed
+ * box, the "paid for" heading, and financing cards. Change the page, change this.
+ */
+function LenderDetailSkeleton() {
+  const t = useTranslations('lenders');
+  return (
+    <SkeletonRegion className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <SkeletonText size="2xl" className="w-48" />
+          <SkeletonText className="w-32" lineClassName="mt-1" />
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <SkeletonText size="xs" className="w-16" lineClassName="sm:justify-end" />
+          <SkeletonText size="lg" className="w-28" lineClassName="sm:justify-end" />
+        </div>
+      </div>
+      {/* The section's title needs no data: the real one. */}
+      <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+        <HandCoins className="h-4 w-4 text-muted-foreground" /> {t('paidFor')}
+      </h2>
+      {repeat(FINANCING_SKELETONS, (i) => <FinancingCardSkeleton key={i} />)}
+    </SkeletonRegion>
+  );
+}
+
+/** `FinancingCard` below, traced: header, the three figures, the actions, repayments. */
+function FinancingCardSkeleton() {
+  return (
+    <section data-testid="skeleton-row" className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
+        <div className="min-w-0 space-y-1">
+          <SkeletonText className="w-48" />
+          <SkeletonText className="w-40" />
+          <SkeletonText size="xs" className="w-56 max-w-full" />
+        </div>
+        <div>
+          <SkeletonText size="xs" className="w-12" lineClassName="sm:justify-end" />
+          <SkeletonText size="xl" className="w-28" lineClassName="sm:justify-end" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-px border-b border-border bg-muted sm:grid-cols-3">
+        {repeat(3, (i) => (
+          <div key={i} className={`min-w-0 bg-card px-4 py-3 sm:px-5 ${i === 2 ? 'col-span-2 sm:col-span-1' : ''}`}>
+            <SkeletonText size="xs" className="w-16" />
+            <SkeletonText className="w-24" />
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
+        <Skeleton className="h-8 w-40 rounded-lg" />
+        {/* The bordered one is 2px taller than the filled one beside it. */}
+        <Skeleton className="h-8.5 w-28 rounded-lg" />
+      </div>
+      <div className="px-4 py-3 sm:px-5">
+        <SkeletonText className="w-24" lineClassName="mb-2" />
+        <SkeletonText className="w-40" />
+      </div>
+    </section>
   );
 }
 

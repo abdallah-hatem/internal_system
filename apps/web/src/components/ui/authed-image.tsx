@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { api } from '../../lib/api';
+import { Skeleton } from './skeleton';
 
 /**
  * An image that lives behind the login.
@@ -47,6 +48,7 @@ export function AuthedImage({
     };
   }, [objectKey]);
 
-  if (!src) return <div className={`${className ?? ''} animate-pulse bg-gray-100`} />;
+  // The image's own box, so the grid does not move when it lands.
+  if (!src) return <Skeleton className={className} />;
   return <img src={src} alt={alt} className={className} />;
 }

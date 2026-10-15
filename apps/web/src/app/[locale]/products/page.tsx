@@ -26,6 +26,7 @@ import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { ProductStatusAction } from '@/components/products/product-status-action';
 import { localName, matchesName } from '@/lib/localized-name';
 import { namedOption } from '@/components/entities/entity-forms';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -80,6 +81,54 @@ function StatusBadge({ active }: { active: boolean }) {
     >
       {active ? t('active') : t('inactive')}
     </span>
+  );
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The row and the card below, traced: same cells, same paddings, the same
+// 28px icon buttons that set the row's height. Change one, change the other.
+function ProductRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText size="xs" className="w-20" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-16" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-14 rounded-full" /></td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          {repeat(3, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function ProductCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <SkeletonText size="base" className="w-2/3" />
+          <SkeletonText size="xs" className="w-20" />
+        </div>
+        <Skeleton className="h-5 w-14 rounded-full" />
+      </div>
+      <Skeleton className="h-5 w-24 rounded-full" />
+      <div className="grid grid-cols-2 gap-3">
+        {repeat(2, (i) => (
+          <div key={i}>
+            <SkeletonText size="xs" className="w-16" />
+            <SkeletonText className="w-20" />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-end gap-2 pt-1 border-t border-muted">
+        {repeat(3, (i) => <Skeleton key={i} className="h-6 w-14 rounded" />)}
+      </div>
+    </div>
   );
 }
 
@@ -304,15 +353,10 @@ export default function ProductsPage() {
 
       <ListCapNotice capped={capped} count={products.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -328,6 +372,11 @@ export default function ProductsPage() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <ProductRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8}>{emptyList}</td></tr>
@@ -383,12 +432,17 @@ export default function ProductsPage() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <ProductCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

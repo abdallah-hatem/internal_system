@@ -7,6 +7,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { localName, otherName } from '@/lib/localized-name';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Loader2, PackageSearch, Search, X } from 'lucide-react';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 
 import { api } from '../../../lib/api';
@@ -75,9 +76,9 @@ export default function ImportRequestsPage() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
-        </div>
+        <SkeletonRegion className="space-y-4">
+          {repeat(SKELETON_CARDS, (i) => <RequestCardSkeleton key={i} />)}
+        </SkeletonRegion>
       )}
 
       {!isLoading && requests.length === 0 && (
@@ -96,6 +97,52 @@ export default function ImportRequestsPage() {
             onSuccess={(m) => toast.success(m)}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** Cards the queue shows while it loads: it is a short list, a few at a time. */
+const SKELETON_CARDS = 3;
+
+/**
+ * `RequestCard` below, traced: the name and its line over the status chip,
+ * two details, the reply box and the row of answers. Change one, change the
+ * other.
+ */
+function RequestCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-xl border border-border bg-card">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-muted px-5 py-4">
+        <div className="min-w-0">
+          <SkeletonText size="base" className="w-40" />
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <SkeletonText size="xs" className="w-16" />
+            <SkeletonText size="xs" className="w-24" />
+          </div>
+        </div>
+        <Skeleton className="h-6 w-20 rounded-full" />
+      </div>
+
+      <div className="px-5 py-4">
+        {/* The quantity; the link and photos are only there when the shop gave them. */}
+        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+          <div>
+            <SkeletonText size="xs" className="w-16" />
+            <SkeletonText className="w-40" />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 border-t border-muted px-5 py-4">
+        <div className="pb-1.5">
+          <SkeletonText className="w-20" lineClassName="mb-1" />
+          {/* Two rows of relaxed text-sm, its padding and border; a textarea sits on the line's baseline, 6px above its bottom. */}
+          <Skeleton className="h-[63.5px] w-full rounded-lg" />
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {repeat(4, (i) => <Skeleton key={i} className="h-9.5 w-32 rounded-lg" />)}
+        </div>
       </div>
     </div>
   );

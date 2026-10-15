@@ -32,8 +32,9 @@ import {
   oldestFirst,
 } from '../../../../components/payments/RecordPaymentDialog';
 import {
-  Loader2, Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
+  Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
 } from 'lucide-react';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 import { BackLink } from '../../../../components/ui/back-link';
 import { CustomerStatement } from '../../../../components/customers/customer-statement';
@@ -78,17 +79,19 @@ export default function CustomerPage() {
     queryFn: () => api.get(`/customers/${id}`).then((r) => r.data.data ?? r.data),
   });
 
-  const { items: orders, capped: ordersCapped } = useAllRecords<SaleOrder>(
+  // Each section waits for its own list. Until it has it, it shows its
+  // skeleton — not "No orders yet", which is a claim, and not a balance of 0.
+  const { items: orders, capped: ordersCapped, isLoading: ordersLoading } = useAllRecords<SaleOrder>(
     ['sales', id],
     '/sales/orders',
     { customerId: id },
   );
-  const { items: payments, capped: paymentsCapped } = useAllRecords<PaymentRecord>(
+  const { items: payments, capped: paymentsCapped, isLoading: paymentsLoading } = useAllRecords<PaymentRecord>(
     ['payments', id],
     '/payments',
     { customerId: id },
   );
-  const { items: plans } = useAllRecords(['paymentPlans', id], '/payment-plans', {
+  const { items: plans, isLoading: plansLoading } = useAllRecords(['paymentPlans', id], '/payment-plans', {
     customerId: id,
   });
 
@@ -104,15 +107,7 @@ export default function CustomerPage() {
     .filter((p) => p.status === 'RECORDED')
     .reduce((s, p) => s + num(p.amount), 0);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-gray-500">
-        <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
-      </div>
-    );
-  }
-
-  if (!customer) {
+  if (!isLoading && !customer) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white">
         <EmptyState
@@ -132,6 +127,11 @@ export default function CustomerPage() {
         <BackLink onClick={() => router.push(`/${locale}/customers`)} />
       </div>
 
+      {(isLoading || ordersLoading || paymentsLoading || plansLoading) && <LoadingStatus />}
+
+      {isLoading ? (
+        <CustomerHeaderSkeleton />
+      ) : (
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{customer.displayName}</h1>
@@ -164,6 +164,7 @@ export default function CustomerPage() {
           </button>
         </div>
       </div>
+      )}
 
       {plan?.isOverdue && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 print:hidden">
@@ -174,15 +175,26 @@ export default function CustomerPage() {
         </div>
       )}
 
+      {/* The balance and the order count come from the orders, the paid
+          figure from the payments: a tile waits for the list it adds up. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 print:hidden">
-        <Tile testId="customer-balance" label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
-        <Tile label={tp('title')} value={<Money value={paid} />} />
-        <Tile label={ts('title')} value={String(orderList.length)} />
+        {ordersLoading ? (
+          <TileSkeleton label={t('balance')} />
+        ) : (
+          <Tile testId="customer-balance" label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
+        )}
+        {paymentsLoading ? <TileSkeleton label={tp('title')} /> : <Tile label={tp('title')} value={<Money value={paid} />} />}
+        {ordersLoading ? <TileSkeleton label={ts('title')} /> : <Tile label={ts('title')} value={String(orderList.length)} />}
       </div>
 
       <Card title={ts('title')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
         <ListCapNotice capped={ordersCapped} count={orderList.length} />
-        {orderList.length === 0 ? (
+        {ordersLoading ? (
+          <RowsSkeleton
+            headers={[ts('orderNo'), ts('date'), tc('status'), ts('total'), ts('outstanding')]}
+            numeric={[3, 4]}
+          />
+        ) : orderList.length === 0 ? (
           <EmptyState
             title={t('noOrders')}
             description={t('noOrdersHint')}
@@ -226,7 +238,12 @@ export default function CustomerPage() {
 
       <Card title={tp('title')} icon={<Wallet className="h-4 w-4 text-gray-400" />}>
         <ListCapNotice capped={paymentsCapped} count={paymentList.length} />
-        {paymentList.length === 0 ? (
+        {paymentsLoading ? (
+          <RowsSkeleton
+            headers={[tp('receivedOn'), tp('method'), tp('status'), tp('amount'), t('unappliedColumn')]}
+            numeric={[3, 4]}
+          />
+        ) : paymentList.length === 0 ? (
           <EmptyState
             title={t('noPayments')}
             description={t('noPaymentsHint')}
@@ -262,7 +279,11 @@ export default function CustomerPage() {
       </Card>
 
       <Card title={tpl('title')} icon={<CalendarClock className="h-4 w-4 text-gray-400" />}>
-        {!plan ? (
+        {plansLoading ? (
+          <SkeletonGroup className="divide-y divide-muted">
+            {repeat(2, (i) => <PlanRowSkeleton key={i} />)}
+          </SkeletonGroup>
+        ) : !plan ? (
           <EmptyState
             size="compact"
             icon={CalendarClock}
@@ -285,13 +306,95 @@ export default function CustomerPage() {
         )}
       </Card>
 
-      <CustomerStatement customerId={id} customerName={customer.displayName} />
+      {/* Fetches its own figures, so it starts alongside the customer rather
+          than after it, and shows its own skeleton meanwhile. */}
+      <CustomerStatement customerId={id} customerName={customer?.displayName ?? ''} />
 
-      <RecordPaymentDialog
-        open={showPay}
-        onClose={() => setShowPay(false)}
-        customer={{ id, displayName: customer.displayName, currency: customer.currency }}
-      />
+      {customer && (
+        <RecordPaymentDialog
+          open={showPay}
+          onClose={() => setShowPay(false)}
+          customer={{ id, displayName: customer.displayName, currency: customer.currency }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// Each traces the real piece beside it: the heading block and its two
+// buttons, a tile, a row of `Rows`. Change one, change the other.
+
+/** The name, the type · phone line, and the two actions (44px on a phone). */
+function CustomerHeaderSkeleton() {
+  return (
+    <SkeletonGroup className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <div>
+        <SkeletonText size="2xl" className="w-56" />
+        <SkeletonText className="w-40" lineClassName="mt-1" />
+      </div>
+      <div className="flex gap-2">
+        <Skeleton className="h-11 w-36 rounded-lg sm:h-9" />
+        <Skeleton className="h-11 w-32 rounded-lg sm:h-9" />
+      </div>
+    </SkeletonGroup>
+  );
+}
+
+/** A tile whose label is known and whose figure is not yet. */
+function TileSkeleton({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <SkeletonGroup>
+        <SkeletonText size="xl" className="w-28" lineClassName="mt-1" />
+      </SkeletonGroup>
+    </div>
+  );
+}
+
+/** Rows a section shows while its list loads. */
+const SECTION_SKELETON_ROWS = 3;
+
+/**
+ * `Rows` with its real header over skeleton rows. A row is `Row` of five
+ * `Cell`s: a 24px line on a wide screen, an 11px label over it on a phone.
+ */
+function RowsSkeleton({ headers, numeric }: { headers: string[]; numeric: number[] }) {
+  return (
+    <Rows headers={headers} numeric={numeric}>
+      <SkeletonGroup className="divide-y divide-muted">
+      {repeat(SECTION_SKELETON_ROWS, (i) => (
+        <div key={i} data-testid="skeleton-row" className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">
+          {repeat(5, (c) => (
+            <div key={c} className="min-w-0">
+              <SkeletonText
+                size="xs"
+                className="h-2 w-12"
+                lineClassName={`h-[16.5px] sm:hidden ${numeric.includes(c) ? 'justify-end' : ''}`}
+              />
+              <SkeletonText
+                size="base"
+                className={`h-3 ${c < 2 ? 'w-20' : 'w-16'}`}
+                lineClassName={numeric.includes(c) ? 'justify-end' : ''}
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+      </SkeletonGroup>
+    </Rows>
+  );
+}
+
+/** One instalment of a plan: four short values in a `Row`. */
+function PlanRowSkeleton() {
+  return (
+    <div className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">
+      <SkeletonText size="xs" className="w-20" />
+      <SkeletonText className="w-20" />
+      <SkeletonText size="xs" className="w-14" />
+      <SkeletonText size="xs" className="w-16" />
     </div>
   );
 }

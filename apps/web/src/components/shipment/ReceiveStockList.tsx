@@ -11,6 +11,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { useDateFormat } from '@/lib/dates';
 import { Link } from '@/i18n/navigation';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonGroup, SkeletonText, repeat, LoadingStatus } from '@/components/ui/skeleton';
 import { ReceiveDeliveryDialog } from './ReceiveDeliveryDialog';
 import {
   RECEIVING_STATUSES,
@@ -19,6 +20,22 @@ import {
   waitingDeliveries,
   type Shipment,
 } from './shipment-model';
+
+/**
+ * One waiting delivery, traced: the cycle code and leg over what waits, and
+ * the Receive button at the end (44px on a phone, 32px from `sm`).
+ */
+function WaitingDeliveryRowSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <SkeletonText className="w-48" />
+        <SkeletonText size="xs" className="w-40" />
+      </div>
+      <Skeleton className="h-11 w-36 rounded-lg sm:h-8" />
+    </div>
+  );
+}
 
 /**
  * "Receive stock" on the inventory page (UX #4, BUSINESS_LOGIC §3).
@@ -67,10 +84,12 @@ export function ReceiveStockList() {
         <p className="text-xs text-muted-foreground">{t('waitingHint')}</p>
       </div>
       {loading ? (
-        <div className="space-y-2 p-4" aria-hidden="true">
-          <div className="h-12 animate-pulse rounded-lg bg-muted" />
-          <div className="h-12 animate-pulse rounded-lg bg-muted" />
-        </div>
+        <>
+          <LoadingStatus />
+          <SkeletonGroup className="divide-y divide-border">
+            {repeat(2, (i) => <WaitingDeliveryRowSkeleton key={i} />)}
+          </SkeletonGroup>
+        </>
       ) : rows.length === 0 ? (
         <EmptyState title={t('nothingWaiting')} description={t('nothingWaitingHint')} icon={PackageCheck} />
       ) : (

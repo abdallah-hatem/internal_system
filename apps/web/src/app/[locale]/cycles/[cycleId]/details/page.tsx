@@ -1,5 +1,5 @@
 'use client';
-import { GoodsLocationCards } from '@/components/cycles/goods-location-cards';
+import { GoodsLocationCards, GoodsLocationSkeleton } from '@/components/cycles/goods-location-cards';
 import { CycleTransfersSection, MoveLeftoversButton, useCycleTransfers } from '@/components/cycles/cycle-transfers';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
@@ -39,12 +39,13 @@ import { ContinueSetupLink } from '@/components/cycles/continue-setup';
 import { CycleStatusButton } from '@/components/cycles/cycle-status-button';
 import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
-import { ShipmentPanel, useShipment } from '../../../../../components/shipment/ShipmentPanel';
+import { ShipmentPanel, ShipmentPanelSkeleton, useShipment } from '../../../../../components/shipment/ShipmentPanel';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useNumberFormat } from '@/lib/numbers';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -179,8 +180,12 @@ export default function CycleDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-gray-500">
-        <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
+      <div className="space-y-6">
+        <BackLink onClick={() => router.push(`/${locale}/cycles`)} />
+        {/* The list the person came from already knows the route: a China cycle's six places, or a UAE one's four. */}
+        <CycleDetailSkeleton
+          direct={queryClient.getQueryData<{ items: { id: string; originType?: string }[] }>(['cycles'])?.items.find((c) => c.id === id)?.originType === 'UAE_DIRECT'}
+        />
       </div>
     );
   }
@@ -385,6 +390,101 @@ export default function CycleDetailsPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────
+// The page below, traced while the cycle loads: the code and its line, the
+// actions, the four tiles, the profit card and the three lists — with their
+// real titles, which need no data. Each row skeleton gives every value the
+// text size its real cell has, so the rows are the real rows' height. Change
+// a section, change its tracing here.
+
+/** Rows a list section shows while the cycle loads. */
+const SECTION_SKELETON_ROWS = 3;
+
+/** One `Row`, a value per cell at the size that cell's text is. */
+function DetailRowSkeleton({ sizes }: { sizes: SkeletonTextSize[] }) {
+  return (
+    <div data-testid="skeleton-row" className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">
+      {sizes.map((size, i) => (
+        <SkeletonText key={i} size={size} className={i % 2 ? 'w-16' : 'w-24'} />
+      ))}
+    </div>
+  );
+}
+
+function SectionSkeleton({ title, icon, sizes }: { title: string; icon: React.ReactNode; sizes: SkeletonTextSize[] }) {
+  return (
+    <Card title={title} icon={icon}>
+      <div className="divide-y divide-muted">
+        {repeat(SECTION_SKELETON_ROWS, (i) => <DetailRowSkeleton key={i} sizes={sizes} />)}
+      </div>
+    </Card>
+  );
+}
+
+function CycleDetailSkeleton({ direct }: { direct: boolean }) {
+  const t = useTranslations('cycles');
+  return (
+    <SkeletonRegion className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <SkeletonText size="2xl" className="w-48" />
+          <SkeletonText className="w-44" lineClassName="mt-1" />
+        </div>
+        {/* Change status, Move leftovers, Settlement: bordered text-sm buttons, 38px. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-9.5 w-36 rounded-lg" />
+          <Skeleton className="h-9.5 w-36 rounded-lg" />
+          <Skeleton className="h-9.5 w-32 rounded-lg" />
+        </div>
+      </div>
+
+      <GoodsLocationSkeleton direct={direct} />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        {[t('participants'), t('invested'), t('purchases'), t('landedCost')].map((label) => (
+          <div key={label} className="rounded-xl border border-border bg-card p-4">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <SkeletonText size="lg" className="w-24" lineClassName="mt-1" />
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {t('profit')}
+        </h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {repeat(6, (i) => (
+            <div key={i}>
+              <SkeletonText size="xs" className="w-16" />
+              <SkeletonText size={i < 2 ? 'lg' : 'sm'} className="w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <ShipmentPanelSkeleton inside />
+
+      <SectionSkeleton
+        title={t('participants')}
+        icon={<Users className="h-4 w-4 text-muted-foreground" />}
+        sizes={['base', 'xs', 'sm', 'xs', 'xs']}
+      />
+      <SectionSkeleton
+        title={t('purchases')}
+        icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />}
+        sizes={['xs', 'sm', 'xs', 'sm', 'xs']}
+      />
+      <SectionSkeleton
+        title={t('inventory')}
+        icon={<Boxes className="h-4 w-4 text-muted-foreground" />}
+        sizes={['sm', 'xs', 'xs', 'sm', 'xs']}
+      />
+    </SkeletonRegion>
   );
 }
 

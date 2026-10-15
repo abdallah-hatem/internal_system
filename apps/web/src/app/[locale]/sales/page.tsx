@@ -48,6 +48,7 @@ import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filte
 import { downloadCsv, datedFilename } from '@/lib/export-csv';
 import { businessToday } from '@/lib/dates';
 import { Download } from 'lucide-react';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -112,6 +113,45 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled'] as const;
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The sale row and card below, traced: order number, customer, two badges,
+// two amounts, the date and the View link. Change one, change the other.
+function SaleRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-32" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-10 rounded-full" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-20" lineClassName="justify-end" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-20" /></td>
+      {/* The real badges sit on the text's baseline, which makes the line 21px, not 20. */}
+      <td className="px-4 py-3"><SkeletonText className="w-12" lineClassName="h-5.25" /></td>
+    </tr>
+  );
+}
+
+function SaleCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText className="w-28" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+      </div>
+      <SkeletonText className="w-40" />
+      <div className="flex items-center gap-3 mt-2">
+        <Skeleton className="h-5 w-10 rounded-full" />
+        <SkeletonText className="w-20" />
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <SkeletonText size="xs" className="w-20" />
+        <SkeletonText size="xs" className="w-28" />
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 function SalesPageContent() {
@@ -470,12 +510,8 @@ function SalesPageContent() {
 
       <ListCapNotice capped={capped} count={orders.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Nothing sold yet: say what goes here, and offer the way to start. */}
       {noOrdersYet && (
@@ -490,7 +526,7 @@ function SalesPageContent() {
       )}
 
       {/* Desktop Table */}
-      {!isLoading && !noOrdersYet && (
+      {!noOrdersYet && (
         <div data-testid="sales-table" aria-busy={reloading} className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -508,6 +544,11 @@ function SalesPageContent() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <SaleRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8}><NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} /></td></tr>
@@ -558,12 +599,18 @@ function SalesPageContent() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
       )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <SaleCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && !noOrdersYet && (
         <div data-testid="sales-cards" aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           {filtered.length === 0 ? (

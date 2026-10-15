@@ -14,12 +14,13 @@ import { ReceiveStockList } from '../../../components/shipment/ReceiveStockList'
 import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Search, ChevronDown, Loader2, AlertTriangle,
+  Search, ChevronDown, AlertTriangle,
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface InventorySummary {
@@ -40,6 +41,41 @@ interface Movement {
   occurredAt: string;
   referenceType?: string;
   referenceId?: string;
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The product row and card below, traced: the chevron cell, the name, three
+// counts. Change one, change the other.
+function InventoryRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText className="w-4" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-40" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-8" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-6" /></td>
+    </tr>
+  );
+}
+
+function InventoryCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border overflow-hidden">
+      <div className="p-4">
+        <SkeletonText size="base" className="w-2/3" />
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          {repeat(3, (i) => (
+            <div key={i}>
+              {/* A text-xs label inline in a text-sm cell: an 18px line. */}
+              <SkeletonText size="xs" className="w-14" lineClassName="h-[18px]" />
+              <SkeletonText className="w-8" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────
@@ -170,15 +206,10 @@ function InventoryPageContent() {
         </div>
       )}
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -192,6 +223,11 @@ function InventoryPageContent() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{t('batches')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <InventoryRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={6}>{emptyList}</td></tr>
@@ -326,12 +362,17 @@ function InventoryPageContent() {
                   })
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <InventoryCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
           {filtered.length === 0 ? (

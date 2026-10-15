@@ -20,6 +20,7 @@ import { useCan } from '@/lib/can';
 import { categoryIndent } from './indent';
 import { localName, matchesName, otherName } from '@/lib/localized-name';
 import { useLocale } from 'next-intl';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -61,6 +62,33 @@ function flattenTree(nodes: Category[], depth = 0): (Category & { depth: number;
     }
   }
   return result;
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The category row below, traced: the same indent for its depth, the 20px
+// toggle slot, the tag icon, the name, a badge, and the 28px icon buttons that
+// set the row's height when the reader may edit. Change one, change the other.
+/** A tree's shape while it loads: top-level rows with a child or two under some. */
+const SKELETON_DEPTHS = [0, 1, 1, 0, 1, 0, 0, 1, 2, 0];
+
+function CategoryRowSkeleton({ depth, actions }: { depth: number; actions: number }) {
+  return (
+    <div
+      data-testid="skeleton-row"
+      className="flex items-center gap-2 px-4 py-3"
+      style={categoryIndent(depth)}
+    >
+      <Skeleton className="size-5 shrink-0 rounded" />
+      <Skeleton className="size-4 shrink-0 rounded" />
+      <SkeletonText className={depth === 0 ? 'w-32' : 'w-24'} />
+      {depth > 0 && <Skeleton className="h-5 w-16 shrink-0 rounded-full" />}
+      {actions > 0 && (
+        <div className="ms-auto flex items-center gap-1 shrink-0">
+          {repeat(actions, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────
@@ -273,11 +301,18 @@ export default function CategoriesPage() {
         )}
       </div>
 
-      {/* Loading */}
+      {/* Loading: the tree's own card over skeleton rows. */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
+        <>
+          <LoadingStatus />
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            <SkeletonGroup className="divide-y divide-muted">
+              {SKELETON_DEPTHS.slice(0, PAGE_SIZE).map((depth, i) => (
+                <CategoryRowSkeleton key={i} depth={depth} actions={(may.edit ? 1 : 0) + (may.delete ? 1 : 0)} />
+              ))}
+            </SkeletonGroup>
+          </div>
+        </>
       )}
 
       {/* Category Tree */}

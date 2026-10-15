@@ -1,9 +1,10 @@
 'use client';
 import { useAllRecords } from '@/lib/list-all';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Select } from '../../../components/ui/select';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../../../lib/api';
@@ -26,7 +27,7 @@ import {
   participantRows,
   type SettlementLine,
 } from '@/components/settlements/settlement-participants';
-import { PayoutBreakdownView, type PayoutBreakdown } from '@/components/settlements/payout-breakdown';
+import { PayoutBreakdownSkeleton, PayoutBreakdownView, type PayoutBreakdown } from '@/components/settlements/payout-breakdown';
 import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
 import { UnsoldStockPrompt } from '@/components/settlements/unsold-stock-prompt';
 // ─── Types ────────────────────────────────────────────────────────────
@@ -234,9 +235,9 @@ export default function SettlementsPage() {
       <ListCapNotice capped={capped} count={settlements.length} />
 
       {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-        </div>
+        <SkeletonRegion className="space-y-5">
+          {repeat(SKELETON_CARDS, (i) => <SettlementCardSkeleton key={i} />)}
+        </SkeletonRegion>
       ) : list.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200">
           <EmptyState icon={Scale} title={t('empty')} description={t('emptyHint')} />
@@ -343,6 +344,91 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────
+/** Cards the list shows while it loads: each is tall, so two fill the screen. */
+const SKELETON_CARDS = 2;
+
+/**
+ * The top of `SettlementCard` below, traced: the cycle code and status over
+ * its 28px actions, the four-figure P&L strip, the participants (a table from
+ * md, cards below it) and the footnote. The breakdown under them depends on
+ * the settlement and is left out. Change the card, change this.
+ */
+function SettlementCardSkeleton() {
+  // Arabic words are shorter: on a phone the actions fit beside the code, and the footnote takes two lines, not three.
+  const english = useLocale() !== 'ar';
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-muted">
+        <div className="flex min-w-0 items-center gap-3">
+          <SkeletonText className="w-24" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className={`h-7 rounded-lg ${english ? 'w-20' : 'w-14'}`} />
+          <Skeleton className={`h-7 rounded-lg ${english ? 'w-20' : 'w-14'}`} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-muted border-b border-muted">
+        {repeat(4, (i) => (
+          <div key={i} className="min-w-0 px-4 py-3 sm:px-5">
+            <SkeletonText size="xs" className="w-16" lineClassName="mb-0.5" />
+            <SkeletonText className="w-24" />
+            {/* Unsold stock's unit count (11px), on the last figure. */}
+            {i === 3 && <SkeletonText size="xs" className="h-2 w-12" lineClassName="mt-0.5 h-[16.5px]" />}
+          </div>
+        ))}
+      </div>
+
+      {/* The unsold-stock warning: a settlement worked out while some of the cycle is still on the shelf. */}
+      <div className="px-5 py-2 border-b border-muted">
+        <SkeletonText size="xs" className="w-2/3" />
+        <SkeletonText size="xs" className="w-1/3" lineClassName="sm:hidden" />
+      </div>
+
+      <div className="divide-y divide-muted md:hidden">
+        {repeat(3, (i) => (
+          <div key={i} className="px-4 py-3">
+            <SkeletonText size="base" className="w-32" />
+            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+              {repeat(5, (c) => (
+                <div key={c} className="min-w-0">
+                  <SkeletonText size="xs" className="w-14" />
+                  <SkeletonText className="w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden md:block">
+        <Skeleton className="h-8 w-full rounded-none" />
+        <div className="divide-y divide-muted">
+          {repeat(3, (i) => (
+            <div key={i} className="flex items-center justify-between gap-4 px-5 py-3">
+              <SkeletonText className="w-32" />
+              <div className="flex gap-8">
+                {repeat(5, (c) => <SkeletonText key={c} className="w-16" />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-border">
+        <PayoutBreakdownSkeleton />
+      </div>
+
+      <div className="px-5 py-2 border-t border-muted">
+        {/* One line on a desktop; three on a phone in English, two in Arabic. */}
+        <SkeletonText size="xs" className="w-2/3 h-2" lineClassName="h-[16.5px]" />
+        <SkeletonText size="xs" className="w-full h-2" lineClassName="h-[16.5px] sm:hidden" />
+        {english && <SkeletonText size="xs" className="w-1/2 h-2" lineClassName="h-[16.5px] sm:hidden" />}
+      </div>
+    </div>
+  );
+}
+
 function SettlementCard({
   settlement: s,
   may,

@@ -28,6 +28,7 @@ import { sortByBalance } from '../../../components/dashboard/list-params';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -57,6 +58,48 @@ const TYPE_COLORS: Record<string, string> = {
   B2B: 'bg-blue-100 text-blue-700',
   B2C: 'bg-emerald-100 text-emerald-700',
 };
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The table row and the phone card below, traced: same cells, same paddings,
+// the 28px icon buttons that set the row's height. Change one, change the other.
+function CustomerRowSkeleton() {
+  return (
+    <tr data-testid="skeleton-row">
+      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
+      <td className="px-4 py-3"><Skeleton className="h-5 w-12 rounded-full" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-28" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-36" /></td>
+      <td className="px-4 py-3"><SkeletonText className="w-24" /></td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          {repeat(2, (i) => <Skeleton key={i} className="size-7 rounded-lg" />)}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function CustomerCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <SkeletonText size="base" className="w-40" />
+        <Skeleton className="h-5 w-12 rounded-full" />
+      </div>
+      <div className="flex items-center gap-4 mb-2">
+        <SkeletonText className="w-28" />
+        <SkeletonText className="w-32" />
+      </div>
+      <div className="flex items-center justify-between pt-2 border-t border-muted">
+        <SkeletonText className="w-36" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-[22px] w-[30px] rounded" />
+          <Skeleton className="size-4 rounded" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────
 /**
@@ -103,10 +146,13 @@ function CustomersPageContent() {
   useEffect(() => { setPage(1); }, [search, verification, byBalance]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: customers, capped, isLoading } = useAllRecords(
+  // Changing the verification filter is a new query: keep the rows on screen
+  // (dimmed) until it answers rather than dropping back to skeletons.
+  const { items: customers, capped, isLoading, reloading } = useAllRecords(
     ['customers', verification],
     '/customers',
     verification ? { verification } : {},
+    { keepPrevious: true },
   );
 
   const { data: customerDetail } = useQuery({
@@ -263,16 +309,11 @@ function CustomersPageContent() {
 
       <ListCapNotice capped={capped} count={customers.length} />
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin me-2" /> {tc('loading')}
-        </div>
-      )}
+      {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
+      {isLoading && <LoadingStatus />}
 
       {/* Desktop Table */}
-      {!isLoading && (
-        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className={`hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -290,6 +331,11 @@ function CustomersPageContent() {
                   <th className="text-start px-4 py-3 font-medium text-gray-600">{tc('actions')}</th>
                 </tr>
               </thead>
+              {isLoading ? (
+                <SkeletonGroup as="tbody" className="divide-y divide-muted">
+                  {repeat(PAGE_SIZE, (i) => <CustomerRowSkeleton key={i} />)}
+                </SkeletonGroup>
+              ) : (
               <tbody className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
                   <tr><td colSpan={6}>{emptyList}</td></tr>
@@ -366,14 +412,19 @@ function CustomersPageContent() {
                   ))
                 )}
               </tbody>
+              )}
             </table>
           </div>
         </div>
-      )}
 
       {/* Mobile Cards */}
+      {isLoading && (
+        <SkeletonGroup className="md:hidden space-y-3">
+          {repeat(PAGE_SIZE, (i) => <CustomerCardSkeleton key={i} />)}
+        </SkeletonGroup>
+      )}
       {!isLoading && (
-        <div className="md:hidden space-y-3">
+        <div className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
           {filtered.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (

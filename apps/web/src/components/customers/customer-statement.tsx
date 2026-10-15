@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Download, FileText, Loader2, Printer } from 'lucide-react';
+import { Download, FileText, Printer } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -15,6 +15,7 @@ import { Money } from '@/components/ui/money';
 import { LatinText } from '@/components/ui/latin-text';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
 import { isolateCodes } from '@/components/layout/isolate-codes';
+import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /** One row of `GET /customers/:id/statement` (api common/customer-statement.ts). */
 export interface StatementRow {
@@ -42,6 +43,50 @@ export interface Statement {
 
 /** A calendar day at noon UTC, so no browser timezone can move it a day. */
 const noon = (day: string) => `${day}T12:00:00Z`;
+
+/** Movements a statement's skeleton shows before the real ones arrive. */
+const SKELETON_ROWS = 4;
+
+// ─── Skeletons ────────────────────────────────────────────────────────
+// The table's body and the phone's cards below, traced: the opening row, a
+// few movements, the closing row — same paddings, same 36px rows. Change the
+// real ones, change these.
+function StatementRowSkeleton({ testId = 'skeleton-row', className }: { testId?: string; className?: string }) {
+  return (
+    <tr data-testid={testId} className={className}>
+      <td><SkeletonText size="xs" className="w-20" /></td>
+      <td><SkeletonText className="w-56" /></td>
+      <td><SkeletonText className="w-20" lineClassName="justify-end" /></td>
+      <td><SkeletonText className="w-20" lineClassName="justify-end" /></td>
+      <td><SkeletonText className="w-24" lineClassName="justify-end" /></td>
+    </tr>
+  );
+}
+
+function StatementCardSkeleton() {
+  return (
+    <div data-testid="skeleton-row" className="rounded-lg border border-border px-3 py-2">
+      <div className="flex items-start justify-between gap-3">
+        <SkeletonText className="w-40" />
+        <SkeletonText className="w-20" />
+      </div>
+      <div className="mt-1 flex items-center justify-between">
+        <SkeletonText size="xs" className="w-20" />
+        <SkeletonText size="xs" className="w-28" />
+      </div>
+    </div>
+  );
+}
+
+/** The opening and closing bars of the phone's list. */
+function StatementTotalSkeleton() {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
+      <SkeletonText className="w-24 bg-background" />
+      <SkeletonText className="w-24 bg-background" />
+    </div>
+  );
+}
 
 /**
  * A shop's statement of account (BUSINESS_LOGIC §7b, I2 2026-10-11): pick the
@@ -140,6 +185,20 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
   const amountCell = (value: string | null) =>
     value === null ? <span className="text-muted-foreground">—</span> : <Money value={value} currency="EGP" />;
 
+  // One header for the table and for its skeleton, so the columns are the same.
+  const head = (
+    <thead>
+      <tr className="border-b border-border text-xs text-muted-foreground [&>th]:px-2 [&>th]:py-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
+        <th className="w-28 text-start font-medium">{t('date')}</th>
+        <th className="text-start font-medium">{t('description')}</th>
+        <th className="w-32 text-end font-medium">{t('debit')}</th>
+        <th className="w-32 text-end font-medium">{t('credit')}</th>
+        <th className="w-36 text-end font-medium">{t('balance')}</th>
+      </tr>
+    </thead>
+  );
+  const bodyCells = '[&>tr>td]:px-2 [&>tr>td]:py-2 [&>tr>td:first-child]:ps-0 [&>tr>td:last-child]:pe-0';
+
   return (
     <section
       data-testid="customer-statement"
@@ -201,8 +260,22 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
       )}
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-8 text-muted-foreground">
-          <Loader2 className="me-2 h-5 w-5 animate-spin" /> {tc('loading')}
+        <div>
+          <LoadingStatus />
+          {/* The table's own header over skeleton rows; cards on a phone. */}
+          <table className="hidden w-full text-sm sm:table">
+            {head}
+            <SkeletonGroup as="tbody" className={`divide-y divide-border ${bodyCells}`}>
+              <StatementRowSkeleton testId="skeleton-total" className="bg-muted/60" />
+              {repeat(SKELETON_ROWS, (i) => <StatementRowSkeleton key={i} />)}
+              <StatementRowSkeleton testId="skeleton-total" className="border-t-2 border-border" />
+            </SkeletonGroup>
+          </table>
+          <SkeletonGroup className="space-y-2 sm:hidden">
+            <StatementTotalSkeleton />
+            {repeat(SKELETON_ROWS, (i) => <StatementCardSkeleton key={i} />)}
+            <StatementTotalSkeleton />
+          </SkeletonGroup>
         </div>
       ) : data ? (
         <div
@@ -211,16 +284,8 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
         >
           {/* From sm up, and always on paper: one table, money end-aligned. */}
           <table className="hidden w-full text-sm sm:table print:table" data-testid="statement-table">
-            <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground [&>th]:px-2 [&>th]:py-2 [&>th:first-child]:ps-0 [&>th:last-child]:pe-0">
-                <th className="w-28 text-start font-medium">{t('date')}</th>
-                <th className="text-start font-medium">{t('description')}</th>
-                <th className="w-32 text-end font-medium">{t('debit')}</th>
-                <th className="w-32 text-end font-medium">{t('credit')}</th>
-                <th className="w-36 text-end font-medium">{t('balance')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border [&>tr>td]:px-2 [&>tr>td]:py-2 [&>tr>td:first-child]:ps-0 [&>tr>td:last-child]:pe-0">
+            {head}
+            <tbody className={`divide-y divide-border ${bodyCells}`}>
               <tr data-testid="statement-opening" className="bg-muted/60 font-medium">
                 <td className="whitespace-nowrap text-xs text-muted-foreground">{data.from ? formatDate(noon(data.from)) : '—'}</td>
                 <td>{t('opening')}</td>
