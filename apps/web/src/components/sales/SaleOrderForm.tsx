@@ -1,7 +1,7 @@
 'use client';
 import { localName, otherName } from '@/lib/localized-name';
 
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { CheckCircle, Loader2, MinusCircle, Plus, Wallet } from 'lucide-react';
@@ -21,6 +21,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { PAYMENT_METHODS } from '@/components/payments/RecordPaymentDialog';
 import { usePriceCheck } from '@/lib/price-check';
 import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
+import { Dialog } from '@/components/ui/dialog';
 
 export interface SaleFormCustomer {
   id: string;
@@ -123,7 +124,10 @@ export function SaleOrderForm({
   initialCustomerId,
   onCancel,
   onSaved,
+  title,
 }: {
+  /** The dialog's title: the form renders in the shared dialog, its actions in the fixed footer. */
+  title: string;
   customers: SaleFormCustomer[];
   products: SaleFormProduct[];
   stock: SaleFormStockRow[];
@@ -281,12 +285,65 @@ export function SaleOrderForm({
   };
 
   const pending = mutation.isPending;
+  const formId = useId();
   const confirming = mutation.variables?.confirm === true;
   const fieldClass =
     'w-full min-w-0 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2';
 
   return (
-    <form onSubmit={submit} noValidate className="space-y-4" data-testid="sale-order-form">
+    <Dialog
+      title={title}
+      onClose={onCancel}
+      size="lg"
+      busy={pending}
+      // The test id names the whole dialog — fields, the refusal and the
+      // actions in its fixed footer — as it named the form when they were all
+      // inside it.
+      cardProps={{ 'data-testid': 'sale-order-form' }}
+      footer={
+            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-3">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0"
+              >
+                {tc('cancel')}
+              </button>
+              {/* First in the DOM, so Enter in a field saves a draft rather than
+                  confirming a sale — implicit submission clicks the first submit.
+                  A walk-in has no draft (§4), so there it is not offered at all. */}
+              {!walkIn && (
+                <button
+                  type="submit"
+                  form={formId}
+                  onClick={() => (mode.current = 'draft')}
+                  disabled={pending}
+                  className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+                >
+                  {pending && !confirming && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t('saveDraft')}
+                </button>
+              )}
+              <button
+                type="submit"
+                  form={formId}
+                onClick={() => (mode.current = 'confirm')}
+                disabled={pending}
+                className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+              >
+                {pending && confirming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : walkIn ? (
+                  <Wallet className="h-4 w-4" />
+                ) : (
+                  <CheckCircle className="h-4 w-4" />
+                )}
+                {walkIn ? t('sellAndTakePayment') : t('createAndConfirm')}
+              </button>
+            </div>
+      }
+    >
+    <form id={formId} onSubmit={submit} noValidate className="space-y-4" data-sale-order-form="">
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           {/* The label row holds the switch and keeps the height of the other
@@ -558,46 +615,8 @@ export function SaleOrderForm({
           </p>
         )
       )}
-
-      <div className="flex flex-col-reverse gap-2 border-t border-border pt-3 sm:flex-row sm:justify-end sm:gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0"
-        >
-          {tc('cancel')}
-        </button>
-        {/* First in the DOM, so Enter in a field saves a draft rather than
-            confirming a sale — implicit submission clicks the first submit.
-            A walk-in has no draft (§4), so there it is not offered at all. */}
-        {!walkIn && (
-          <button
-            type="submit"
-            onClick={() => (mode.current = 'draft')}
-            disabled={pending}
-            className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
-          >
-            {pending && !confirming && <Loader2 className="h-4 w-4 animate-spin" />}
-            {t('saveDraft')}
-          </button>
-        )}
-        <button
-          type="submit"
-          onClick={() => (mode.current = 'confirm')}
-          disabled={pending}
-          className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
-        >
-          {pending && confirming ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : walkIn ? (
-            <Wallet className="h-4 w-4" />
-          ) : (
-            <CheckCircle className="h-4 w-4" />
-          )}
-          {walkIn ? t('sellAndTakePayment') : t('createAndConfirm')}
-        </button>
-      </div>
     </form>
+    </Dialog>
   );
 }
 

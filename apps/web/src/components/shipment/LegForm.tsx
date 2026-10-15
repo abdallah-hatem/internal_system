@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useDateFormat } from '@/lib/dates';
@@ -14,6 +13,7 @@ import { Select } from '@/components/ui/select';
 import { InputField } from '@/components/ui/fields';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { Dialog } from '@/components/ui/dialog';
 import { ShippingCostFields, readShippingCostFields } from '@/components/shipping/ShippingCostFields';
 import { Link } from '@/i18n/navigation';
 import { SHIPMENT_QUERY_KEYS } from './ShipmentDialog';
@@ -100,43 +100,24 @@ export function legCostLocked(totals: { received: number; lost: number } | undef
   return !!totals && (totals.received > 0 || totals.lost > 0);
 }
 
-/** Portalled, so a form inside it is never inside another form (§13). */
-export function LegFormModal({ title, onClose, children, testId }: { title: string; onClose: () => void; children: ReactNode; testId?: string }) {
-  const tc = useTranslations('common');
-  if (typeof document === 'undefined') return null;
-  return createPortal(
-    <div data-leg-form={testId} className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4">
-      <div className="fixed inset-0" style={{ backgroundColor: 'rgb(0 0 0 / 0.5)' }} onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={title} className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          <button type="button" onClick={onClose} aria-label={tc('close')} className="text-muted-foreground hover:text-foreground">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="min-h-0 overflow-y-auto p-6">{children}</div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-function FormButtons({ pending, onCancel, label }: { pending: boolean; onCancel: () => void; label: string }) {
+/** The leg dialog's actions, in its fixed footer; `form` ties the submit to the form above. */
+function FormButtons({ pending, onCancel, label, form }: { pending: boolean; onCancel: () => void; label: string; form: string }) {
   const tc = useTranslations('common');
   return (
-    <div className="flex justify-end gap-3 pt-2">
+    <>
       <button type="button" onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted">
         {tc('cancel')}
       </button>
       <button
         type="submit"
+        form={form}
         disabled={pending}
         className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {label}
       </button>
-    </div>
+    </>
   );
 }
 
@@ -158,11 +139,17 @@ function CostLockedNote() {
  * (`defaults`).
  */
 export function LegCreateForm({
+  title,
+  testId,
   cycles,
   fixedCycleId,
   defaults,
   onDone,
 }: {
+  /** The dialog's title; the form renders in the shared dialog (§13: it portals out of any form). */
+  title: string;
+  /** `data-leg-form` on the dialog, for tests. */
+  testId?: string;
   /** The cycles to pick from — the Shipments page. */
   cycles?: { id: string; code: string; originType?: string; status?: string }[];
   /** The cycle this leg is for — the cycle page. */
@@ -185,6 +172,7 @@ export function LegCreateForm({
   const [providerId, setProviderId] = useState('');
   const departure = useLegDeparture(cycleId);
 
+  const formId = useId();
   const create = useMutation({
     mutationFn: ({ cycleId: id, ...body }: Record<string, unknown> & { cycleId: string }) =>
       api.post(`/cycles/${id}/shipping-legs`, body),
@@ -198,99 +186,107 @@ export function LegCreateForm({
   });
 
   return (
-    <ValidatedForm
-      data-testid="leg-create-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        // The leg's first departure, per product (L8).
-        const { departureLines, invalid } = departure.read();
-        if (invalid) {
-          addToast(tShipment('qtyNotNumber', { product: departure.productNames[invalid] ?? '' }), 'error');
-          return;
-        }
-        create.mutate({
-          cycleId: String(fd.get('cycleId') ?? ''),
-          sequence: Number(fd.get('sequence')),
-          origin: fd.get('origin'),
-          destination: fd.get('destination'),
-          ...providers.fields(fd.get('providerId')),
-          trackingRef: fd.get('trackingRef'),
-          ...(departure.departedOn ? { departedOn: departure.departedOn, departureLines } : {}),
-          ...readShippingCostFields(fd),
-        });
-      }}
-      className="space-y-4"
+    <Dialog
+      data-leg-form={testId}
+      cardProps={{ 'data-testid': 'leg-create-form' }}
+      title={title}
+      onClose={onDone}
+      busy={create.isPending}
+      footer={<FormButtons form={formId} pending={create.isPending} onCancel={onDone} label={tc('create')} />}
     >
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {fixedCycleId ? (
-          <input type="hidden" name="cycleId" value={fixedCycleId} />
-        ) : (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">{t('cycle')}</label>
-            <Select
-              name="cycleId"
-              required
-              value={cycleId}
-              onChange={(v) => {
-                setCycleId(v);
-                // Another cycle waits for other goods: start its quantities afresh.
-                departure.setTyped({});
-              }}
-              placeholder={tph('chooseCycle')}
-              searchPlaceholder={tph('searchCycles')}
-              options={(cycles ?? []).map((c) => ({
-                value: c.id,
-                label: c.code,
-                hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)]
-                  .filter(Boolean)
-                  .join(' · '),
-              }))}
-            />
-          </div>
-        )}
-        <InputField
-          label={t('sequence')}
-          name="sequence"
-          type="number"
-          required
-          placeholder={tph('legSequence')}
-          defaultValue={defaults ? String(defaults.sequence) : undefined}
-        />
-      </div>
-
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <InputField label={t('origin')} name="origin" required defaultValue={defaults?.origin} placeholder={tph('origin')} />
-        <InputField label={t('destination')} name="destination" required defaultValue={defaults?.destination} placeholder={tph('destination')} />
-      </div>
-
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-foreground">
-            {t('provider')}
-            <span className="ms-1 text-destructive">*</span>
-          </label>
-          <FieldWithQuickCreate entity="provider" onCreated={(pr) => setProviderId(pr.id)}>
-            <Select
-              name="providerId"
-              required
-              value={providerId}
-              onChange={setProviderId}
-              placeholder={tph('chooseProvider')}
-              searchPlaceholder={tph('searchProviders')}
-              options={providers.options()}
-            />
-          </FieldWithQuickCreate>
+      <ValidatedForm
+        id={formId}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          // The leg's first departure, per product (L8).
+          const { departureLines, invalid } = departure.read();
+          if (invalid) {
+            addToast(tShipment('qtyNotNumber', { product: departure.productNames[invalid] ?? '' }), 'error');
+            return;
+          }
+          create.mutate({
+            cycleId: String(fd.get('cycleId') ?? ''),
+            sequence: Number(fd.get('sequence')),
+            origin: fd.get('origin'),
+            destination: fd.get('destination'),
+            ...providers.fields(fd.get('providerId')),
+            trackingRef: fd.get('trackingRef'),
+            ...(departure.departedOn ? { departedOn: departure.departedOn, departureLines } : {}),
+            ...readShippingCostFields(fd),
+          });
+        }}
+        className="space-y-4"
+      >
+        <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {fixedCycleId ? (
+            <input type="hidden" name="cycleId" value={fixedCycleId} />
+          ) : (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">{t('cycle')}</label>
+              <Select
+                name="cycleId"
+                required
+                value={cycleId}
+                onChange={(v) => {
+                  setCycleId(v);
+                  // Another cycle waits for other goods: start its quantities afresh.
+                  departure.setTyped({});
+                }}
+                placeholder={tph('chooseCycle')}
+                searchPlaceholder={tph('searchCycles')}
+                options={(cycles ?? []).map((c) => ({
+                  value: c.id,
+                  label: c.code,
+                  hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)]
+                    .filter(Boolean)
+                    .join(' · '),
+                }))}
+              />
+            </div>
+          )}
+          <InputField
+            label={t('sequence')}
+            name="sequence"
+            type="number"
+            required
+            placeholder={tph('legSequence')}
+            defaultValue={defaults ? String(defaults.sequence) : undefined}
+          />
         </div>
-        <InputField label={t('trackingRef')} name="trackingRef" placeholder={tph('trackingRef')} />
-      </div>
 
-      <LegDepartureFields state={departure} cycleId={cycleId || undefined} label={t('firstDeparture')} />
+        <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <InputField label={t('origin')} name="origin" required defaultValue={defaults?.origin} placeholder={tph('origin')} />
+          <InputField label={t('destination')} name="destination" required defaultValue={defaults?.destination} placeholder={tph('destination')} />
+        </div>
 
-      <ShippingCostFields />
+        <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">
+              {t('provider')}
+              <span className="ms-1 text-destructive">*</span>
+            </label>
+            <FieldWithQuickCreate entity="provider" onCreated={(pr) => setProviderId(pr.id)}>
+              <Select
+                name="providerId"
+                required
+                value={providerId}
+                onChange={setProviderId}
+                placeholder={tph('chooseProvider')}
+                searchPlaceholder={tph('searchProviders')}
+                options={providers.options()}
+              />
+            </FieldWithQuickCreate>
+          </div>
+          <InputField label={t('trackingRef')} name="trackingRef" placeholder={tph('trackingRef')} />
+        </div>
 
-      <FormButtons pending={create.isPending} onCancel={onDone} label={tc('create')} />
-    </ValidatedForm>
+        <LegDepartureFields state={departure} cycleId={cycleId || undefined} label={t('firstDeparture')} />
+
+        <ShippingCostFields />
+
+      </ValidatedForm>
+    </Dialog>
   );
 }
 
@@ -301,10 +297,16 @@ export function LegCreateForm({
  * form says why and where a late charge goes instead, and sends no cost.
  */
 export function LegEditForm({
+  title,
+  testId,
   leg,
   onDone,
   onCyclePage = false,
 }: {
+  /** The dialog's title; the form renders in the shared dialog (§13: it portals out of any form). */
+  title: string;
+  /** `data-leg-form` on the dialog, for tests. */
+  testId?: string;
   leg: LegRow;
   onDone: () => void;
   /** Rendered on the cycle's own page: no links pointing back at it. */
@@ -326,6 +328,7 @@ export function LegEditForm({
   const locked = legCostLocked(shipment?.totals);
   const [providerId, setProviderId] = useState('');
 
+  const formId = useId();
   const update = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.put(`/shipping/legs/${leg.id}`, body),
     onSuccess: (res) => {
@@ -339,95 +342,103 @@ export function LegEditForm({
   });
 
   return (
-    <ValidatedForm
-      data-testid="leg-edit-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        // A leg that has not left records its first departure, per product,
-        // as Record departure does (L8).
-        const { departureLines, invalid } = departure.read();
-        if (invalid) {
-          addToast(tShipment('qtyNotNumber', { product: departure.productNames[invalid] ?? '' }), 'error');
-          return;
-        }
-        // No `status` and no `arrivedOn`: a leg's status is read from what
-        // was recorded, and arrivals are deliveries, recorded on the cycle's
-        // Shipment panel (BUSINESS_LOGIC §1, 2026-10-10).
-        update.mutate({
-          departedOn: fd.get('departedOn') || null,
-          departureLines,
-          ...providers.fields(fd.get('providerId')),
-          trackingRef: fd.get('trackingRef'),
-          ...(locked ? {} : readShippingCostFields(fd)),
-        });
-      }}
-      className="space-y-4"
+    <Dialog
+      data-leg-form={testId}
+      cardProps={{ 'data-testid': 'leg-edit-form' }}
+      title={title}
+      onClose={onDone}
+      busy={update.isPending}
+      footer={<FormButtons form={formId} pending={update.isPending} onCancel={onDone} label={tc('save')} />}
     >
-      {/* The leg's status, read from what was recorded — not a date. */}
-      <p data-testid="leg-arrival" className="text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{t('status')}</span>
-        {' · '}
-        {codeLabel('legStatus', leg.status)}
-        {leg.arrivedOn ? ` · ${formatDate(leg.arrivedOn)}` : ''}
-      </p>
-      {/* The same fields Record departure renders on the cycle page (I3, L8):
-          one definition, the full width so a product's name has room. */}
-      <LegDepartureFields
-        state={departure}
-        cycleId={leg.cycleId}
-        label={t('departedOn')}
-        defaultDepartedOn={leg.departedOn ?? null}
-        linkToCycle={!onCyclePage}
-      />
-      {!onCyclePage && (
-        <p className="text-xs text-muted-foreground">
-          {t('arrivalsAreDeliveries')}{' '}
-          <Link href={`/cycles/${leg.cycleId}/details`} data-testid="leg-open-cycle" className="cursor-pointer font-medium text-primary hover:underline">
-            {t('openShipmentPanel')}
-          </Link>
+      <ValidatedForm
+        id={formId}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          // A leg that has not left records its first departure, per product,
+          // as Record departure does (L8).
+          const { departureLines, invalid } = departure.read();
+          if (invalid) {
+            addToast(tShipment('qtyNotNumber', { product: departure.productNames[invalid] ?? '' }), 'error');
+            return;
+          }
+          // No `status` and no `arrivedOn`: a leg's status is read from what
+          // was recorded, and arrivals are deliveries, recorded on the cycle's
+          // Shipment panel (BUSINESS_LOGIC §1, 2026-10-10).
+          update.mutate({
+            departedOn: fd.get('departedOn') || null,
+            departureLines,
+            ...providers.fields(fd.get('providerId')),
+            trackingRef: fd.get('trackingRef'),
+            ...(locked ? {} : readShippingCostFields(fd)),
+          });
+        }}
+        className="space-y-4"
+      >
+        {/* The leg's status, read from what was recorded — not a date. */}
+        <p data-testid="leg-arrival" className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{t('status')}</span>
+          {' · '}
+          {codeLabel('legStatus', leg.status)}
+          {leg.arrivedOn ? ` · ${formatDate(leg.arrivedOn)}` : ''}
         </p>
-      )}
-
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-foreground">{t('provider')}</label>
-          <FieldWithQuickCreate entity="provider" onCreated={(pr) => setProviderId(pr.id)}>
-            <Select
-              name="providerId"
-              value={
-                providerId ||
-                leg.providerId ||
-                providers.list.find((p) => p.name === leg.provider)?.id ||
-                (leg.provider ? `name:${leg.provider}` : '')
-              }
-              onChange={setProviderId}
-              placeholder={tph('chooseProvider')}
-              searchPlaceholder={tph('searchProviders')}
-              options={providers.options(leg.provider)}
-            />
-          </FieldWithQuickCreate>
-        </div>
-        <InputField label={t('trackingRef')} name="trackingRef" defaultValue={leg.trackingRef ?? undefined} placeholder={tph('trackingRef')} />
-      </div>
-
-      {locked ? (
-        <CostLockedNote />
-      ) : (
-        <ShippingCostFields
-          defaults={{
-            costBasis: leg.costBasis ?? 'FLAT',
-            ratePerUnit: leg.ratePerUnit ?? '',
-            chargeablePieces: leg.chargeablePieces ?? '',
-            chargeableWeightKg: leg.chargeableWeightKg ?? '',
-            amount: leg.amount ?? '',
-            currency: leg.currency ?? 'EGP',
-            fxRateToEgp: leg.fxRateToEgp ?? 1,
-          }}
+        {/* The same fields Record departure renders on the cycle page (I3, L8):
+            one definition, the full width so a product's name has room. */}
+        <LegDepartureFields
+          state={departure}
+          cycleId={leg.cycleId}
+          label={t('departedOn')}
+          defaultDepartedOn={leg.departedOn ?? null}
+          linkToCycle={!onCyclePage}
         />
-      )}
+        {!onCyclePage && (
+          <p className="text-xs text-muted-foreground">
+            {t('arrivalsAreDeliveries')}{' '}
+            <Link href={`/cycles/${leg.cycleId}/details`} data-testid="leg-open-cycle" className="cursor-pointer font-medium text-primary hover:underline">
+              {t('openShipmentPanel')}
+            </Link>
+          </p>
+        )}
 
-      <FormButtons pending={update.isPending} onCancel={onDone} label={tc('save')} />
-    </ValidatedForm>
+        <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">{t('provider')}</label>
+            <FieldWithQuickCreate entity="provider" onCreated={(pr) => setProviderId(pr.id)}>
+              <Select
+                name="providerId"
+                value={
+                  providerId ||
+                  leg.providerId ||
+                  providers.list.find((p) => p.name === leg.provider)?.id ||
+                  (leg.provider ? `name:${leg.provider}` : '')
+                }
+                onChange={setProviderId}
+                placeholder={tph('chooseProvider')}
+                searchPlaceholder={tph('searchProviders')}
+                options={providers.options(leg.provider)}
+              />
+            </FieldWithQuickCreate>
+          </div>
+          <InputField label={t('trackingRef')} name="trackingRef" defaultValue={leg.trackingRef ?? undefined} placeholder={tph('trackingRef')} />
+        </div>
+
+        {locked ? (
+          <CostLockedNote />
+        ) : (
+          <ShippingCostFields
+            defaults={{
+              costBasis: leg.costBasis ?? 'FLAT',
+              ratePerUnit: leg.ratePerUnit ?? '',
+              chargeablePieces: leg.chargeablePieces ?? '',
+              chargeableWeightKg: leg.chargeableWeightKg ?? '',
+              amount: leg.amount ?? '',
+              currency: leg.currency ?? 'EGP',
+              fxRateToEgp: leg.fxRateToEgp ?? 1,
+            }}
+          />
+        )}
+
+      </ValidatedForm>
+    </Dialog>
   );
 }

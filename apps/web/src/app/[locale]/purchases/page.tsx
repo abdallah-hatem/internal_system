@@ -35,6 +35,7 @@ import { useAllRecords } from '@/lib/list-all';
 import { offeredOnly } from '@/lib/product-status';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -391,8 +392,20 @@ export default function PurchasesPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => { setShowCreateModal(false); setLineItems([]); }}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
+        <Dialog
+          title={t('create')}
+          onClose={() => { setShowCreateModal(false); setLineItems([]); }}
+          size="lg"
+          footer={
+            <>
+              <button type="button" onClick={() => { setShowCreateModal(false); setLineItems([]); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit" form="purchase-create-form" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                {createMutation.isPending ? tc('loading') : tc('create')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="purchase-create-form" onSubmit={handleCreate} className="space-y-4">
             <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('cycle')}</label>
@@ -519,19 +532,13 @@ export default function PurchasesPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-              <button type="button" onClick={() => { setShowCreateModal(false); setLineItems([]); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                {createMutation.isPending ? tc('loading') : tc('create')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── View PO Detail ────────────────────────────────────────── */}
       {viewingPO && (
-        <Modal wide title={viewingPO.reference} onClose={() => setViewingPO(null)}>
+        <Dialog title={viewingPO.reference} onClose={() => setViewingPO(null)} size="xl">
           <div className="space-y-6">
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -599,13 +606,23 @@ export default function PurchasesPage() {
               )}
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Refund Modal ──────────────────────────────────────────── */}
       {showRefundModal && viewingPO && (
-        <Modal title={t('recordRefund')} onClose={() => setShowRefundModal(false)}>
-          <ValidatedForm
+        <Dialog
+          title={t('recordRefund')}
+          onClose={() => setShowRefundModal(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setShowRefundModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="purchases-3-form" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
+            </>
+          }
+        >
+          <ValidatedForm id="purchases-3-form"
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -627,12 +644,8 @@ export default function PurchasesPage() {
             </div>
             <TextareaField label={t('reason')} name="reason" placeholder={tph('purchaseRefundReason')} />
             <InputField label={tc('date')} name="recordedOn" type="date" required />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowRefundModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">{tc('save')}</button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
     </div>
   );
@@ -640,20 +653,6 @@ export default function PurchasesPage() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 /** `wide`: the order's window, whose six-column item table needs the room — its amounts never truncate. */
-function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl shadow-xl w-full ${wide ? 'max-w-4xl' : 'max-w-2xl'} flex flex-col max-h-[90vh]`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 
 function Detail({ label, value }: { label: string; value: string }) {

@@ -19,7 +19,8 @@ import { LatinText } from '@/components/ui/latin-text';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { fieldValue, parseQty } from '@/components/shipment/shipment-model';
-import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, qtyInputClass } from '@/components/shipment/ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { qtyInputClass } from '@/components/shipment/ShipmentDialog';
 
 /** Everything a move changes on another screen: both cycles, stock, settlements, profit, funding. */
 export const TRANSFER_QUERY_KEYS = [
@@ -159,8 +160,8 @@ export function MoveLeftoversDialog({
   };
 
   return (
-    <ShipmentDialog
-      testId="move-leftovers"
+    <Dialog
+      data-shipment-dialog="move-leftovers"
       title={t('moveTitle')}
       subtitle={cycleCode}
       onClose={onClose}
@@ -172,6 +173,7 @@ export function MoveLeftoversDialog({
           {!cannot && products.length > 0 && <DialogPrimary pending={pending} label={t('move')} />}
         </>
       }
+      bodyClassName="space-y-4"
     >
       {isLoading ? (
         <SkeletonRegion className="space-y-2">
@@ -296,6 +298,6 @@ export function MoveLeftoversDialog({
           <DialogAlert message={refusal} />
         </>
       )}
-    </ShipmentDialog>
+    </Dialog>
   );
 }

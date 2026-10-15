@@ -6,7 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useToast } from '@/components/ui/toast';
-import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, useRefreshShipment } from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { useRefreshShipment } from './ShipmentDialog';
 import { type ShipmentLossRefund } from './shipment-model';
 import { Money } from '@/components/ui/money';
 
@@ -62,8 +63,8 @@ export function UndoRefundDialog({ refund, onClose }: { refund: ShipmentLossRefu
   };
 
   return (
-    <ShipmentDialog
-      testId="undo-refund"
+    <Dialog
+      data-shipment-dialog="undo-refund"
       size="sm"
       title={t('undoRefundTitle')}
       onClose={onClose}
@@ -75,6 +76,7 @@ export function UndoRefundDialog({ refund, onClose }: { refund: ShipmentLossRefu
           <DialogPrimary destructive pending={pending} label={t('undoRefund')} />
         </>
       }
+      bodyClassName="space-y-4"
     >
       <p className="text-sm text-foreground">
         {t.rich('undoRefundConfirm', {
@@ -103,6 +105,6 @@ export function UndoRefundDialog({ refund, onClose }: { refund: ShipmentLossRefu
         />
       </div>
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

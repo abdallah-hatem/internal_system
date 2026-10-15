@@ -113,7 +113,7 @@ test.describe('Field rows stay level when one shows its error', () => {
         // Save it empty: Cycle, Supplier and Ordered date show "Required", twice over —
         // the second submit is where a margin guessing the error line doubled.
         for (const attempt of [1, 2]) {
-          await page.locator('form button[type="submit"]:visible').last().click();
+          await page.locator('[role="dialog"] button[type="submit"]:visible').last().click();
           await expect(page.locator('form [role="alert"]:visible').first(), `attempt ${attempt}`).toBeVisible();
 
           const lines = await measureFieldRows(page, 'form');
@@ -163,7 +163,7 @@ test.describe('Field rows stay level when one shows its error', () => {
     const name = page.locator('input[name="name"]').first();
     await expect(name).toBeVisible();
 
-    await page.locator('form button[type="submit"]:visible').last().click();
+    await page.locator('[role="dialog"] button[type="submit"]:visible').last().click();
     await expect(page.locator('[role="alert"]:visible').first()).toBeVisible();
     let w = worst(await measureFieldRows(page));
     expect(w.lines).toBeGreaterThan(0);

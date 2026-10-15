@@ -30,6 +30,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -461,30 +462,33 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
-            <ENTITY_FORMS.customer.Fields />
-            <div className="flex justify-end gap-3 pt-2">
+        <Dialog
+          title={t('create')}
+          onClose={() => setShowCreateModal(false)}
+          footer={
+            <>
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+              <button type="submit"
+                form="customers-1-form" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
                 {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('create')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <ValidatedForm id="customers-1-form" onSubmit={handleCreate} className="space-y-4">
+            <ENTITY_FORMS.customer.Fields />
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Verify Confirmation ───────────────────────────────────── */}
       {verifyingCustomer && (
-        <Modal title={t('verify')} onClose={() => setVerifyingCustomer(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">{t('confirmVerify')}</p>
-            <p className="text-sm font-medium text-gray-900">{verifyingCustomer.displayName}</p>
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              {t('verifyWarning')}
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
+        <Dialog
+          title={t('verify')}
+          onClose={() => setVerifyingCustomer(null)}
+          footer={
+            <>
               <button
                 type="button"
                 onClick={() => setVerifyingCustomer(null)}
@@ -505,15 +509,36 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                 {verifyMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t('verify')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">{t('confirmVerify')}</p>
+            <p className="text-sm font-medium text-gray-900">{verifyingCustomer.displayName}</p>
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              {t('verifyWarning')}
+            </p>
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingCustomer && (
-        <Modal title={t('edit')} onClose={() => setEditingCustomer(null)}>
-          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
+        <Dialog
+          title={t('edit')}
+          onClose={() => setEditingCustomer(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setEditingCustomer(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="customers-3-form" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {tc('save')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="customers-3-form" onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="displayName" defaultValue={editingCustomer.displayName} required placeholder={tph('customerName')} />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -529,20 +554,13 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
             </div>
             <InputField label={t('phone')} name="phone" type="tel" defaultValue={editingCustomer.phone} placeholder={tph('phone')} />
             <InputField label={t('email')} name="email" type="email" defaultValue={editingCustomer.email} placeholder={tph('email')} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setEditingCustomer(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── View Customer Detail ──────────────────────────────────── */}
       {viewingCustomer && detail && (
-        <Modal title={detail.displayName} onClose={() => setViewingCustomer(null)}>
+        <Dialog title={detail.displayName} onClose={() => setViewingCustomer(null)}>
           <div className="space-y-6">
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -593,24 +611,8 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
               )}
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
     </div>
   );
 }

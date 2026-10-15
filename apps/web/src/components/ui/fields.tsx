@@ -160,14 +160,24 @@ export function FormActions({
   cancelLabel,
   submitLabel,
   busy,
+  form,
+  disabled,
 }: {
   onCancel: () => void;
   cancelLabel: string;
   submitLabel: string;
   busy?: boolean;
+  /**
+   * The id of the form these submit, when they sit outside it — in a dialog's
+   * fixed footer (`components/ui/dialog.tsx`). The submit is still the form's
+   * own button, so Enter in a field still submits.
+   */
+  form?: string;
+  /** Submit unavailable for a reason other than a save in flight. */
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex justify-end gap-3 pt-2">
+    <div className={form ? 'flex justify-end gap-3' : 'flex justify-end gap-3 pt-2'}>
       {/* type="button" on the cancel, or it submits the form it is meant to
           abandon — the default for a button inside a form. */}
       <button
@@ -179,7 +189,8 @@ export function FormActions({
       </button>
       <button
         type="submit"
-        disabled={busy}
+        form={form}
+        disabled={busy || disabled}
         className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2"
       >
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}

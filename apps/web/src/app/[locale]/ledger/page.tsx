@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useCodeLabel } from '@/lib/labels';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -446,23 +447,29 @@ export default function LedgerPage() {
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedEntry && (
-        <Modal title={t('reverse')} onClose={() => { setShowReverseModal(false); setSelectedEntry(null); }}>
-          <ValidatedForm onSubmit={handleReverse} className="space-y-4">
+        <Dialog
+          title={t('reverse')}
+          onClose={() => { setShowReverseModal(false); setSelectedEntry(null); }}
+          footer={
+            <>
+              <button type="button" onClick={() => { setShowReverseModal(false); setSelectedEntry(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="ledger-1-form" className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{t('reverse')}</button>
+            </>
+          }
+        >
+          <ValidatedForm id="ledger-1-form" onSubmit={handleReverse} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedEntry.amount} currency={selectedEntry.currency} /></span>
             </p>
             <TextareaField label={t('reverseReason')} name="reason" required minLength={3} placeholder={tph('reverseReason')} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => { setShowReverseModal(false); setSelectedEntry(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">{t('reverse')}</button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── View Entry Detail ─────────────────────────────────────── */}
       {viewingEntry && detail && (
-        <Modal title={`${t('type')}: ${typeLabel(detail.type)}`} onClose={() => setViewingEntry(null)}>
+        <Dialog title={`${t('type')}: ${typeLabel(detail.type)}`} onClose={() => setViewingEntry(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('date')} value={formatDate(entryDate(detail))} />
@@ -487,24 +494,8 @@ export default function LedgerPage() {
               <Detail label={t('reason')} value={detail.reason ?? '—'} />
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
     </div>
   );
 }

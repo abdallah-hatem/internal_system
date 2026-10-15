@@ -264,7 +264,7 @@ export default function CyclesPage() {
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="scrollbar-clean scrollbar-x flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         <button
           onClick={() => setStatusFilter('')}
           className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${

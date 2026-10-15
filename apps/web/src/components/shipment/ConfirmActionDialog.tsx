@@ -4,7 +4,8 @@ import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useApiError } from '@/lib/api-error';
 import { useToast } from '@/components/ui/toast';
-import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog, useRefreshShipment } from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { useRefreshShipment } from './ShipmentDialog';
 
 /**
  * "Are you sure?" for a shipment write that removes something — deleting a
@@ -57,8 +58,8 @@ export function ConfirmActionDialog({
   };
 
   return (
-    <ShipmentDialog
-      testId={testId}
+    <Dialog
+      data-shipment-dialog={testId}
       size="sm"
       title={title}
       onClose={onClose}
@@ -69,9 +70,10 @@ export function ConfirmActionDialog({
           <DialogPrimary type="button" destructive pending={pending} onClick={() => void run()} label={confirmLabel} />
         </>
       }
+      bodyClassName="space-y-4"
     >
       <p className="text-sm text-foreground">{message}</p>
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

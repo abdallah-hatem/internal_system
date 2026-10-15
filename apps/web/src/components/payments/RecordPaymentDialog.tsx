@@ -2,11 +2,10 @@
 import { useAllRecords } from '@/lib/list-all';
 
 import { useMemo, useRef, useState } from 'react';
-import { useEscapeToClose } from '@/lib/use-escape-to-close';
-import { createPortal } from 'react-dom';
+import { Dialog } from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -100,12 +99,9 @@ export function RecordPaymentDialog({
   order?: PaymentOrder | null;
   onRecorded?: () => void;
 }) {
-  if (!open || typeof document === 'undefined') return null;
+  if (!open) return null;
   // Mounted fresh on every open, so nothing typed last time survives a close.
-  return createPortal(
-    <RecordPaymentForm customer={customer} order={order} onClose={onClose} onRecorded={onRecorded} />,
-    document.body,
-  );
+  return <RecordPaymentForm customer={customer} order={order} onClose={onClose} onRecorded={onRecorded} />;
 }
 
 function RecordPaymentForm({
@@ -146,7 +142,6 @@ function RecordPaymentForm({
   // Escape closes the form — not while the method or date picker is open
   // (that Escape is the picker's; it used to close the whole form and lose it),
   // and not mid-save. The shared definition (lib/use-escape-to-close).
-  useEscapeToClose(onClose, () => submitting.current);
 
   // A picker only when nobody said whose payment this is.
   const { items: customers } = useAllRecords<PaymentCustomer>(['customers'], '/customers', undefined, {
@@ -239,165 +234,142 @@ function RecordPaymentForm({
   }));
 
   return (
-    <div data-record-payment-dialog className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* A scrim is black in either theme; a token would invert it in dark mode. */}
-      <div
-        className="fixed inset-0"
-        style={{ backgroundColor: 'rgb(0 0 0 / 0.5)' }}
-        onClick={() => !submitting.current && onClose()}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="record-payment-title"
-        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col rounded-2xl bg-background shadow-xl"
-      >
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
-          <h2 id="record-payment-title" className="text-lg font-semibold text-foreground">
-            {order ? t('recordFor', { order: order.orderNo }) : t('create')}
-          </h2>
+    <Dialog
+      data-record-payment-dialog
+      size="sm"
+      title={order ? t('recordFor', { order: order.orderNo }) : t('create')}
+      onClose={onClose}
+      busy={() => submitting.current}
+      onSubmit={(e) => void submit(e)}
+      bodyClassName="space-y-4"
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
             disabled={pending}
-            aria-label={tc('close')}
-            className="flex size-11 cursor-pointer items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed sm:size-8"
+            className="min-h-11 cursor-pointer rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:cursor-not-allowed sm:min-h-0"
           >
-            <X className="h-5 w-5" />
+            {tc('cancel')}
           </button>
+          <button
+            type="submit"
+            disabled={pending || !customerId}
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+          >
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {tc('save')}
+          </button>
+        </>
+      }
+    >
+      {fixedCustomerId ? (
+        customerName && (
+          <p className="text-sm text-muted-foreground">
+            {t('customer')}: <span className="font-medium text-foreground">{customerName}</span>
+          </p>
+        )
+      ) : (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            {t('customer')}
+            <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+          </label>
+          <Select
+            name="customerId"
+            required
+            value={customerId}
+            onChange={(id) => {
+              setCustomerId(id);
+              setRefusal(null);
+            }}
+            placeholder={t('selectCustomer')}
+            searchPlaceholder={tph('searchCustomers')}
+            options={customerOptions}
+          />
         </div>
+      )}
 
-        <form noValidate onSubmit={(e) => void submit(e)} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-4">
-            {fixedCustomerId ? (
-              customerName && (
-                <p className="text-sm text-muted-foreground">
-                  {t('customer')}: <span className="font-medium text-foreground">{customerName}</span>
-                </p>
-              )
-            ) : (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  {t('customer')}
-                  <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-                </label>
-                <Select
-                  name="customerId"
-                  required
-                  value={customerId}
-                  onChange={(id) => {
-                    setCustomerId(id);
-                    setRefusal(null);
-                  }}
-                  placeholder={t('selectCustomer')}
-                  searchPlaceholder={tph('searchCustomers')}
-                  options={customerOptions}
-                />
-              </div>
-            )}
+      {customerId && (
+        <div
+          data-testid="payment-owed"
+          className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground"
+        >
+          {order ? t('orderOwes', { order: order.orderNo }) : t('owedNow')}{' '}
+          {ordersLoading && !order ? (
+            // The figure, before the orders it is summed from arrive.
+            <Skeleton data-testid="payment-owed-skeleton" className="inline-block h-3.5 w-20 rounded align-middle" />
+          ) : (
+            <Money value={owed} currency={currency} className="font-semibold text-foreground" />
+          )}
+          <p className="mt-0.5 text-xs">{order ? t('appliedToOrder') : t('appliedOldestFirst')}</p>
+        </div>
+      )}
 
-            {customerId && (
-              <div
-                data-testid="payment-owed"
-                className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground"
-              >
-                {order ? t('orderOwes', { order: order.orderNo }) : t('owedNow')}{' '}
-                {ordersLoading && !order ? (
-                  // The figure, before the orders it is summed from arrive.
-                  <Skeleton data-testid="payment-owed-skeleton" className="inline-block h-3.5 w-20 rounded align-middle" />
-                ) : (
-                  <Money value={owed} currency={currency} className="font-semibold text-foreground" />
-                )}
-                <p className="mt-0.5 text-xs">{order ? t('appliedToOrder') : t('appliedOldestFirst')}</p>
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="payment-amount" className="mb-1 block text-sm font-medium text-foreground">
-                {t('amount')}
-                <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-              </label>
-              <MoneyInput
-                id="payment-amount"
-                name="amount"
-                required
-                value={amount}
-                onChange={(raw) => {
-                  setAmount(raw);
-                  setRefusal(null);
-                }}
-                placeholder={owed > 0 ? formatAmount(owed) : tph('money')}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
-              />
-            </div>
-
-            <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">{t('method')}</label>
-                <Select
-                  name="method"
-                  value={method}
-                  placeholder={tph('choosePaymentMethod')}
-                  onChange={setMethod}
-                  options={PAYMENT_METHODS.map((m) => ({ value: m, label: codeLabel('paymentMethod', m) }))}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  {t('receivedOn')}
-                  <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-                </label>
-                <DatePicker
-                  name="receivedOn"
-                  required
-                  disableFuture
-                  value={receivedOn}
-                  onChange={(v) => setReceivedOn(v || businessToday())}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="payment-reference" className="mb-1 block text-sm font-medium text-foreground">
-                {t('reference')}
-              </label>
-              <input
-                id="payment-reference"
-                name="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder={t('referencePlaceholder')}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
-              />
-            </div>
-
-            {refusal && (
-              <p role="alert" data-testid="payment-refusal" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {refusal}
-              </p>
-            )}
-          </div>
-
-          <div className="flex shrink-0 justify-end gap-3 border-t border-border px-6 py-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={pending}
-              className="min-h-11 cursor-pointer rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:cursor-not-allowed sm:min-h-0"
-            >
-              {tc('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={pending || !customerId}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
-            >
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {tc('save')}
-            </button>
-          </div>
-        </form>
+      <div>
+        <label htmlFor="payment-amount" className="mb-1 block text-sm font-medium text-foreground">
+          {t('amount')}
+          <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+        </label>
+        <MoneyInput
+          id="payment-amount"
+          name="amount"
+          required
+          value={amount}
+          onChange={(raw) => {
+            setAmount(raw);
+            setRefusal(null);
+          }}
+          placeholder={owed > 0 ? formatAmount(owed) : tph('money')}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+        />
       </div>
-    </div>
+
+      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-foreground">{t('method')}</label>
+          <Select
+            name="method"
+            value={method}
+            placeholder={tph('choosePaymentMethod')}
+            onChange={setMethod}
+            options={PAYMENT_METHODS.map((m) => ({ value: m, label: codeLabel('paymentMethod', m) }))}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            {t('receivedOn')}
+            <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+          </label>
+          <DatePicker
+            name="receivedOn"
+            required
+            disableFuture
+            value={receivedOn}
+            onChange={(v) => setReceivedOn(v || businessToday())}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="payment-reference" className="mb-1 block text-sm font-medium text-foreground">
+          {t('reference')}
+        </label>
+        <input
+          id="payment-reference"
+          name="reference"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder={t('referencePlaceholder')}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+        />
+      </div>
+
+      {refusal && (
+        <p role="alert" data-testid="payment-refusal" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {refusal}
+        </p>
+      )}
+    </Dialog>
   );
 }

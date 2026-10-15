@@ -14,7 +14,7 @@ import { Link } from '@/i18n/navigation';
 import { Money } from '@/components/ui/money';
 import { LatinText } from '@/components/ui/latin-text';
 import { useToast } from '@/components/ui/toast';
-import { DialogAlert, DialogCancel, DialogPrimary, ShipmentDialog } from '@/components/shipment/ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
 import { MoveLeftoversDialog, TRANSFER_QUERY_KEYS } from './move-leftovers-dialog';
 
 /** Leftovers moved out of and into a cycle (§8, L5) — one cache entry per cycle. */
@@ -230,8 +230,8 @@ function UndoTransferDialog({ transfer, onClose }: { transfer: Transfer; onClose
   };
 
   return (
-    <ShipmentDialog
-      testId="undo-transfer"
+    <Dialog
+      data-shipment-dialog="undo-transfer"
       size="sm"
       title={t('undoTitle')}
       subtitle={`${transfer.fromCycle.code} → ${transfer.toCycle.code}`}
@@ -244,6 +244,7 @@ function UndoTransferDialog({ transfer, onClose }: { transfer: Transfer; onClose
           <DialogPrimary pending={pending} label={t('undo')} destructive />
         </>
       }
+      bodyClassName="space-y-4"
     >
       <p className="text-sm text-muted-foreground">{t('undoHint')}</p>
       <div>
@@ -266,6 +267,6 @@ function UndoTransferDialog({ transfer, onClose }: { transfer: Transfer; onClose
         />
       </div>
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

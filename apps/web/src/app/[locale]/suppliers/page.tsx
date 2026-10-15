@@ -23,6 +23,7 @@ import { useCountryLabel } from './country';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { LatinText } from '@/components/ui/latin-text';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -355,46 +356,53 @@ export default function SuppliersPage() {
 
       {/* ─── Create ────────────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
-            <ENTITY_FORMS.supplier.Fields />
+        <Dialog
+          title={t('create')}
+          onClose={() => setShowCreateModal(false)}
+          footer={
             <FormActions
+              form="supplier-create-form"
               onCancel={() => setShowCreateModal(false)}
               cancelLabel={tc('cancel')}
               submitLabel={tc('create')}
               busy={createMutation.isPending}
             />
+          }
+        >
+          <ValidatedForm id="supplier-create-form" onSubmit={handleCreate} className="space-y-4">
+            <ENTITY_FORMS.supplier.Fields />
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Edit ──────────────────────────────────────────────────── */}
       {editingSupplier && (
-        <Modal title={t('edit')} onClose={() => setEditingSupplier(null)}>
-          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
-            <ENTITY_FORMS.supplier.Fields record={editingSupplier} />
+        <Dialog
+          title={t('edit')}
+          onClose={() => setEditingSupplier(null)}
+          footer={
             <FormActions
+              form="supplier-edit-form"
               onCancel={() => setEditingSupplier(null)}
               cancelLabel={tc('cancel')}
               submitLabel={tc('save')}
               busy={updateMutation.isPending}
             />
+          }
+        >
+          <ValidatedForm id="supplier-edit-form" onSubmit={handleUpdate} className="space-y-4">
+            <ENTITY_FORMS.supplier.Fields record={editingSupplier} />
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Delete ────────────────────────────────────────────────── */}
       {deletingSupplier && (
-        <Modal title={t('delete')} onClose={() => setDeletingSupplier(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
-            <p className="text-sm font-medium text-gray-900">{deletingSupplier.name}</p>
-            {orderCount(deletingSupplier) > 0 && (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                {t('deleteBlocked')}
-              </p>
-            )}
-            <div className="flex justify-end gap-3 pt-2">
+        <Dialog
+          title={t('delete')}
+          onClose={() => setDeletingSupplier(null)}
+          footer={
+            <>
               <button
                 type="button"
                 onClick={() => setDeletingSupplier(null)}
@@ -410,9 +418,19 @@ export default function SuppliersPage() {
                 {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('delete')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
+            <p className="text-sm font-medium text-gray-900">{deletingSupplier.name}</p>
+            {orderCount(deletingSupplier) > 0 && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {t('deleteBlocked')}
+              </p>
+            )}
           </div>
-        </Modal>
+        </Dialog>
       )}
     </div>
   );
@@ -447,19 +465,3 @@ function ContactLine({ contact }: { contact: SupplierContact }) {
     </span>
   );
 }
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
-    </div>
-  );
-}
-

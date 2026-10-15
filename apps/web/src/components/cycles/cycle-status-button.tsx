@@ -16,14 +16,7 @@ import { RecordDeliveryDialog } from '@/components/shipment/RecordDeliveryDialog
 import { RecordDepartureDialog } from '@/components/shipment/RecordDepartureDialog';
 import type { ShipmentLeg } from '@/components/shipment/shipment-model';
 import { statusMoveOf } from '@/components/shipment/status-move';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 
 /**
  * Moving a cycle to another status, from the cycle's own page.
@@ -193,21 +186,30 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
         <ArrowRightLeft className="h-4 w-4" aria-hidden="true" /> {t('transition')}
       </button>
 
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          if (move.isPending) return;
-          if (next) setOpen(true);
-          else closeStatus();
-        }}
-      >
-        <DialogContent className="sm:max-w-md" data-testid="change-status-dialog">
-          <DialogHeader className="text-start sm:text-start">
-            <DialogTitle>{t('transition')}</DialogTitle>
-            <DialogDescription>
+      {open && (
+        <Dialog
+          size="sm"
+          cardProps={{ 'data-testid': 'change-status-dialog' }}
+          title={t('transition')}
+          description={
+            <>
               {t('currentStatus')} {codeLabel('cycleStatus', status ?? '')}
-            </DialogDescription>
-          </DialogHeader>
+            </>
+          }
+          onClose={closeStatus}
+          busy={move.isPending}
+          bodyClassName="space-y-4"
+          footer={
+            <button
+              type="button"
+              onClick={closeStatus}
+              disabled={move.isPending}
+              className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+            >
+              {tc('cancel')}
+            </button>
+          }
+        >
           <div className="space-y-2">
             {options.map((to) => (
               <button
@@ -259,18 +261,8 @@ export function CycleStatusButton({ cycleId, status }: { cycleId: string; status
               {t('statusFixSaved')}
             </p>
           )}
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={closeStatus}
-              disabled={move.isPending}
-              className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
-            >
-              {tc('cancel')}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
 
       {/* The fix dialogs are the ones the Shipping card opens; they portal to <body>. */}
       {fixing?.kind === 'departure' && fixingLeg && (

@@ -7,7 +7,7 @@ import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Pencil } from 'lucide-react';
 import { nextLegToAdd } from '@/components/cycles/leg-plan';
-import { LegCreateForm, LegEditForm, LegFormModal, type LegRow } from './LegForm';
+import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -390,9 +390,13 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
 
       {/* Dialogs portal to <body>; the ids are looked up again so they always show the latest figures. */}
       {open?.kind === 'addLeg' && nextLeg && (
-        <LegFormModal title={t('addLeg', { leg: nextLeg.sequence })} onClose={close} testId="add-leg">
-          <LegCreateForm fixedCycleId={cycle.id} defaults={nextLeg} onDone={close} />
-        </LegFormModal>
+        <LegCreateForm
+          title={t('addLeg', { leg: nextLeg.sequence })}
+          testId="add-leg"
+          fixedCycleId={cycle.id}
+          defaults={nextLeg}
+          onDone={close}
+        />
       )}
       {open?.kind === 'editLeg' && (() => {
         const row = cycle.shippingLegs?.find((l) => l.id === open.legId);
@@ -409,9 +413,13 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           arrivedOn: position.arrivedOn,
         };
         return (
-          <LegFormModal title={t('editLegTitle', { leg: position.sequence })} onClose={close} testId="edit-leg">
-            <LegEditForm leg={leg} onDone={close} onCyclePage />
-          </LegFormModal>
+          <LegEditForm
+            title={t('editLegTitle', { leg: position.sequence })}
+            testId="edit-leg"
+            leg={leg}
+            onDone={close}
+            onCyclePage
+          />
         );
       })()}
       {open?.kind === 'departure' && legById(open.legId) && (

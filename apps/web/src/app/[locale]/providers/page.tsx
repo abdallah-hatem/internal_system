@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Provider {
   id: string;
@@ -367,24 +368,43 @@ export default function ProvidersPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
-            <ENTITY_FORMS.provider.Fields />
-            <div className="flex justify-end gap-3 pt-2">
+        <Dialog
+          title={t('create')}
+          onClose={() => setShowCreateModal(false)}
+          footer={
+            <>
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+              <button type="submit"
+                form="providers-1-form" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
                 {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('create')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <ValidatedForm id="providers-1-form" onSubmit={handleCreate} className="space-y-4">
+            <ENTITY_FORMS.provider.Fields />
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingProvider && (
-        <Modal title={t('edit')} onClose={() => setEditingProvider(null)}>
-          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
+        <Dialog
+          title={t('edit')}
+          onClose={() => setEditingProvider(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setEditingProvider(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="providers-2-form" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {tc('save')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="providers-2-form" onSubmit={handleUpdate} className="space-y-4">
             <InputField label={t('name')} name="name" defaultValue={editingProvider.name} required placeholder={tph('providerName')} />
             <InputField label={t('contactPerson')} name="contactPerson" defaultValue={editingProvider.contactPerson} placeholder={tph('contactPerson')} />
             <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -392,24 +412,17 @@ export default function ProvidersPage() {
               <InputField label={t('email')} name="email" type="email" defaultValue={editingProvider.email} placeholder={tph('email')} />
             </div>
             <TextareaField label={t('notes')} name="notes" defaultValue={editingProvider.notes} placeholder={t('notesPlaceholder')} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setEditingProvider(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Delete Confirmation Modal ─────────────────────────────── */}
       {deletingProvider && (
-        <Modal title={t('delete')} onClose={() => setDeletingProvider(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
-            <p className="text-sm font-medium text-gray-900"><LatinText>{deletingProvider.name}</LatinText></p>
-            <div className="flex justify-end gap-3 pt-2">
+        <Dialog
+          title={t('delete')}
+          onClose={() => setDeletingProvider(null)}
+          footer={
+            <>
               <button type="button" onClick={() => setDeletingProvider(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
               <button
                 onClick={() => deleteMutation.mutate(deletingProvider.id)}
@@ -419,27 +432,15 @@ export default function ProvidersPage() {
                 {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('delete')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
+            <p className="text-sm font-medium text-gray-900"><LatinText>{deletingProvider.name}</LatinText></p>
           </div>
-        </Modal>
+        </Dialog>
       )}
     </div>
   );
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
-    </div>
-  );
-}
-

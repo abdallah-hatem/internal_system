@@ -15,7 +15,7 @@ import { LenderLink } from '@/components/ui/entity-link';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { FormActions } from '@/components/ui/fields';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';
-import { LenderModal } from '@/components/lenders/lender-dialogs';
+import { Dialog } from '@/components/ui/dialog';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/ui/data-table';
 
@@ -183,8 +183,20 @@ export default function LendersPage() {
           )}
 
       {creating && (
-        <LenderModal title={t('create')} onClose={() => setCreating(false)}>
+        <Dialog
+          title={t('create')}
+          onClose={() => setCreating(false)}
+          footer={
+            <FormActions form="lender-create-form"
+              onCancel={() => setCreating(false)}
+              cancelLabel={tc('cancel')}
+              submitLabel={tc('create')}
+              busy={create.isPending}
+            />
+          }
+        >
           <ValidatedForm
+            id="lender-create-form"
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
@@ -192,14 +204,8 @@ export default function LendersPage() {
             }}
           >
             <ENTITY_FORMS.lender.Fields />
-            <FormActions
-              onCancel={() => setCreating(false)}
-              cancelLabel={tc('cancel')}
-              submitLabel={tc('create')}
-              busy={create.isPending}
-            />
           </ValidatedForm>
-        </LenderModal>
+        </Dialog>
       )}
     </div>
   );

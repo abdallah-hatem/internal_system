@@ -50,6 +50,7 @@ import { businessToday } from '@/lib/dates';
 import { Download } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -697,21 +698,96 @@ function SalesPageContent() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {createFor && (
-        <Modal title={t('create')} onClose={closeCreate}>
-          <SaleOrderForm
-            customers={customerList}
-            products={productList}
-            stock={stockList}
-            initialCustomerId={createFor.customerId}
-            onCancel={closeCreate}
-            onSaved={onOrderSaved}
-          />
-        </Modal>
+        <SaleOrderForm
+          title={t('create')}
+          customers={customerList}
+          products={productList}
+          stock={stockList}
+          initialCustomerId={createFor.customerId}
+          onCancel={closeCreate}
+          onSaved={onOrderSaved}
+        />
       )}
 
       {/* ─── View Order Detail ──────────────────────────────────────── */}
       {viewingOrder && detail && (
-        <Modal title={detail.orderNo} onClose={() => setViewingOrder(null)}>
+        <Dialog
+          title={detail.orderNo}
+          onClose={() => setViewingOrder(null)}
+          size="lg"
+          footer={
+            // A cancelled order offers nothing to do; an empty bar would only say so.
+            detail.status === 'CANCELLED' && !canTakePayment(detail) ? undefined : (
+              <>
+              {/* A confirmed sale has an invoice / delivery note; a draft is
+                  not a sale yet and a cancelled order never happened (§4). */}
+              {detail.status !== 'DRAFT' && detail.status !== 'CANCELLED' && (
+                <Link
+                  href={`/${locale}/sales/${detail.id}/invoice`}
+                  data-testid="order-invoice"
+                  className="bg-background inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-muted"
+                >
+                  <FileText className="h-4 w-4" />
+                  {t('invoice.open')}
+                </Link>
+              )}
+              {canTakePayment(detail) && (
+                <button
+                  type="button"
+                  data-testid="order-record-payment"
+                  onClick={() => setPayingOrder(detail)}
+                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                >
+                  <Wallet className="h-4 w-4" />
+                  {tp('recordPayment')}
+                </button>
+              )}
+              {detail.status === 'DRAFT' && (
+                <>
+                  <button
+                    onClick={() => setCancellingOrder(detail)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
+                  >
+                    <Ban className="h-4 w-4" />
+                    {t('cancel')}
+                  </button>
+                  <button
+                    onClick={() => confirmMutation.mutate({ id: detail.id, version: detail.version ?? 1 })}
+                    disabled={confirmMutation.isPending}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {t('confirm')}
+                  </button>
+                </>
+              )}
+              {['CONFIRMED', 'PARTIALLY_PAID', 'PAID'].includes(detail.status) && (
+                <button
+                  onClick={() => setReturningOrder(detail)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  <Undo2 className="h-4 w-4" />
+                  {t('recordReturn')}
+                </button>
+              )}
+              {/* No cancel for a partially paid order. Money has come in
+                  against it, and cancelling would leave that payment attached
+                  to a dead order — collected, clearing nothing, unusable
+                  anywhere else. Record a return, which moves the goods, the
+                  cost and the cash together. */}
+              {detail.status === 'CONFIRMED' && (
+                <button
+                  onClick={() => setCancellingOrder(detail)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
+                >
+                  <Ban className="h-4 w-4" />
+                  {t('cancel')}
+                </button>
+              )}
+              </>
+            )
+          }
+        >
           <div className="space-y-6">
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -832,75 +908,8 @@ function SalesPageContent() {
             {detail.status === 'DRAFT' && <DraftBelowCost order={detail} />}
 
             {/* Actions */}
-            <div className="flex flex-wrap justify-end gap-3 pt-2 border-t border-gray-100">
-              {/* A confirmed sale has an invoice / delivery note; a draft is
-                  not a sale yet and a cancelled order never happened (§4). */}
-              {detail.status !== 'DRAFT' && detail.status !== 'CANCELLED' && (
-                <Link
-                  href={`/${locale}/sales/${detail.id}/invoice`}
-                  data-testid="order-invoice"
-                  className="bg-background inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-muted"
-                >
-                  <FileText className="h-4 w-4" />
-                  {t('invoice.open')}
-                </Link>
-              )}
-              {canTakePayment(detail) && (
-                <button
-                  type="button"
-                  data-testid="order-record-payment"
-                  onClick={() => setPayingOrder(detail)}
-                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
-                >
-                  <Wallet className="h-4 w-4" />
-                  {tp('recordPayment')}
-                </button>
-              )}
-              {detail.status === 'DRAFT' && (
-                <>
-                  <button
-                    onClick={() => setCancellingOrder(detail)}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                  >
-                    <Ban className="h-4 w-4" />
-                    {t('cancel')}
-                  </button>
-                  <button
-                    onClick={() => confirmMutation.mutate({ id: detail.id, version: detail.version ?? 1 })}
-                    disabled={confirmMutation.isPending}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    {t('confirm')}
-                  </button>
-                </>
-              )}
-              {['CONFIRMED', 'PARTIALLY_PAID', 'PAID'].includes(detail.status) && (
-                <button
-                  onClick={() => setReturningOrder(detail)}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  <Undo2 className="h-4 w-4" />
-                  {t('recordReturn')}
-                </button>
-              )}
-              {/* No cancel for a partially paid order. Money has come in
-                  against it, and cancelling would leave that payment attached
-                  to a dead order — collected, clearing nothing, unusable
-                  anywhere else. Record a return, which moves the goods, the
-                  cost and the cash together. */}
-              {detail.status === 'CONFIRMED' && (
-                <button
-                  onClick={() => setCancellingOrder(detail)}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                >
-                  <Ban className="h-4 w-4" />
-                  {t('cancel')}
-                </button>
-              )}
-            </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       <RecordPaymentDialog
@@ -911,29 +920,12 @@ function SalesPageContent() {
 
       {/* ─── Return Modal ──────────────────────────────────────────── */}
       {cancellingOrder && (
-        <Modal
+        <Dialog
           title={`${t('cancel')} — ${cancellingOrder.orderNo}`}
           onClose={() => setCancellingOrder(null)}
-        >
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              {t('cancelWarning')}
-            </p>
-            <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">{t('customer')}</span>
-                <span className="font-medium text-gray-900">
-                  {buyerName(cancellingOrder) ?? '—'}
-                </span>
-              </div>
-              <div className="mt-1 flex justify-between">
-                <span className="text-gray-500">{t('total')}</span>
-                <span className="font-medium text-gray-900">
-                  <Money value={Number(cancellingOrder.total)} currency={cancellingOrder.currency} />
-                </span>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
+          size="md"
+          footer={
+            <>
               <button
                 type="button"
                 onClick={() => setCancellingOrder(null)}
@@ -954,17 +946,58 @@ function SalesPageContent() {
                 <Ban className="h-4 w-4" />
                 {t('cancel')}
               </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              {t('cancelWarning')}
+            </p>
+            <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">{t('customer')}</span>
+                <span className="font-medium text-gray-900">
+                  {buyerName(cancellingOrder) ?? '—'}
+                </span>
+              </div>
+              <div className="mt-1 flex justify-between">
+                <span className="text-gray-500">{t('total')}</span>
+                <span className="font-medium text-gray-900">
+                  <Money value={Number(cancellingOrder.total)} currency={cancellingOrder.currency} />
+                </span>
+              </div>
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
 
       {returningOrder && (
-        <Modal
+        <Dialog
           title={`${t('recordReturn')} — ${returningOrder.orderNo}`}
           onClose={() => setReturningOrder(null)}
+          size="lg"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setReturningOrder(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                form="sales-4-form"
+                disabled={returnMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {returnMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('recordReturn')}
+              </button>
+            </>
+          }
         >
-          <ValidatedForm
+          <ValidatedForm id="sales-4-form"
             onSubmit={(e) => {
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
@@ -1059,44 +1092,9 @@ function SalesPageContent() {
               minLength={3}
               placeholder={t('reasonPlaceholder')}
             />
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setReturningOrder(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                {tc('cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={returnMutation.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                {returnMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('recordReturn')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  const tc = useTranslations('common');
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90dvh]">
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button type="button" onClick={onClose} aria-label={tc('close')} className="-me-2 flex size-11 items-center justify-center text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain min-h-0">{children}</div>
-      </div>
     </div>
   );
 }

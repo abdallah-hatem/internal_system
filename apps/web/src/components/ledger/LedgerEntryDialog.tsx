@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useEscapeToClose } from '@/lib/use-escape-to-close';
-import { createPortal } from 'react-dom';
+import { Dialog } from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDownRight, ArrowUpRight, Loader2, X } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCodeLabel } from '@/lib/labels';
@@ -61,9 +60,9 @@ export function LedgerEntryDialog({
   onClose: () => void;
   onRecorded?: () => void;
 }) {
-  if (!open || typeof document === 'undefined') return null;
+  if (!open) return null;
   // Mounted fresh on every open, so nothing typed last time survives a close.
-  return createPortal(<LedgerEntryForm onClose={onClose} onRecorded={onRecorded} />, document.body);
+  return <LedgerEntryForm onClose={onClose} onRecorded={onRecorded} />;
 }
 
 function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecorded?: () => void }) {
@@ -96,7 +95,6 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
 
   // Escape closes the form — never while a picker inside it is open, and
   // never mid-save. One definition for every dialog (lib/use-escape-to-close).
-  useEscapeToClose(onClose, () => submitting.current);
 
   const { items: cycles } = useAllRecords<CycleRow>(['cycles'], '/cycles');
   const cycleOptions = useMemo(
@@ -187,199 +185,175 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
   ];
 
   return (
-    <div data-ledger-entry-dialog className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* A scrim is black in either theme; a token would invert it in dark mode. */}
-      <div
-        className="fixed inset-0"
-        style={{ backgroundColor: 'rgb(0 0 0 / 0.5)' }}
-        onClick={() => !submitting.current && onClose()}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ledger-entry-title"
-        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col rounded-2xl bg-background shadow-xl"
-      >
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
-          <h2 id="ledger-entry-title" className="text-lg font-semibold text-foreground">
-            {t('recordTitle')}
-          </h2>
+    <Dialog
+      data-ledger-entry-dialog
+      title={t('recordTitle')}
+      onClose={onClose}
+      busy={() => submitting.current}
+      onSubmit={(e) => void submit(e)}
+      bodyClassName="space-y-4"
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
             disabled={pending}
-            aria-label={tc('close')}
-            className="flex size-11 cursor-pointer items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed sm:size-8"
+            className="min-h-11 cursor-pointer rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:cursor-not-allowed sm:min-h-0"
           >
-            <X className="h-5 w-5" />
+            {tc('cancel')}
           </button>
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+          >
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {tc('save')}
+          </button>
+        </>
+      }
+    >
+      <fieldset>
+        <legend className="mb-2 block text-sm font-medium text-foreground">{t('whatIsIt')}</legend>
+        <div role="radiogroup" aria-label={t('whatIsIt')} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {kinds.map(({ key, title, hint, Icon, tone }) => {
+            const on = kind === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                data-kind={key}
+                onClick={() => chooseKind(key)}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-start transition-colors ${
+                  on ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'border-border hover:bg-muted'
+                }`}
+              >
+                <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${tone}`} aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">{title}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </fieldset>
 
-        <form noValidate onSubmit={(e) => void submit(e)} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-4">
-            <fieldset>
-              <legend className="mb-2 block text-sm font-medium text-foreground">{t('whatIsIt')}</legend>
-              <div role="radiogroup" aria-label={t('whatIsIt')} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {kinds.map(({ key, title, hint, Icon, tone }) => {
-                  const on = kind === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      data-kind={key}
-                      onClick={() => chooseKind(key)}
-                      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-start transition-colors ${
-                        on ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'border-border hover:bg-muted'
-                      }`}
-                    >
-                      <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${tone}`} aria-hidden="true" />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-foreground">{title}</span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <div>
-              <label htmlFor="ledger-category" className="mb-1 block text-sm font-medium text-foreground">
-                {t('category')}
-                <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-              </label>
-              <Select
-                id="ledger-category"
-                name="category"
-                required
-                value={category}
-                onChange={(v) => {
-                  setCategory(v);
-                  setRefusal(null);
-                }}
-                placeholder={t('chooseCategory')}
-                searchPlaceholder={tph('searchCategories')}
-                options={categoryOptions}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="ledger-amount" className="mb-1 block text-sm font-medium text-foreground">
-                {t('amount')}
-                <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-              </label>
-              <MoneyInput
-                id="ledger-amount"
-                name="amount"
-                required
-                value={amount}
-                onChange={(raw) => {
-                  setAmount(raw);
-                  setRefusal(null);
-                }}
-                placeholder={tph('money')}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
-              />
-            </div>
-
-            <CurrencyRateFields
-              rateName="fxRateToEgp"
-              currencies={currencies}
-              defaultCurrency="EGP"
-              currencyLabel={t('currency')}
-              rateLabel={t('fxRate')}
-              required
-            />
-
-            <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div data-ledger-date>
-                <label className="mb-1 block text-sm font-medium text-foreground">
-                  {t('occurredOn')}
-                  <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-                </label>
-                <DatePicker
-                  name="occurredOn"
-                  required
-                  disableFuture
-                  value={occurredOn}
-                  onChange={(v) => setOccurredOn(v || businessToday())}
-                />
-              </div>
-              <div>
-                <label htmlFor="ledger-cycle" className="mb-1 block text-sm font-medium text-foreground">
-                  {t('chargeToCycle')}
-                  {cycleRequired ? (
-                    <span aria-hidden="true" className="ms-1 text-destructive">*</span>
-                  ) : (
-                    <span className="ms-1 text-xs font-normal text-muted-foreground">{t('optional')}</span>
-                  )}
-                </label>
-                <Select
-                  id="ledger-cycle"
-                  name="cycleId"
-                  value={cycleId}
-                  onChange={(v) => {
-                    setCycleId(v);
-                    setRefusal(null);
-                  }}
-                  clearable
-                  required={cycleRequired}
-                  placeholder={cycleRequired ? t('chooseCycle') : t('noCycle')}
-                  searchPlaceholder={tph('searchCycles')}
-                  options={cycleOptions}
-                />
-                {cycleRequired && (
-                  <p className="mt-1 text-xs text-muted-foreground">{t('cycleRequiredHint')}</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="ledger-note" className="mb-1 block text-sm font-medium text-foreground">
-                {t('note')}
-                <span className="ms-1 text-xs font-normal text-muted-foreground">{t('optional')}</span>
-              </label>
-              <textarea
-                id="ledger-note"
-                name="note"
-                rows={2}
-                maxLength={500}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder={t('notePlaceholder')}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
-              />
-            </div>
-
-            {refusal && (
-              <p ref={refusalRef} role="alert" data-testid="ledger-refusal" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {refusal}
-              </p>
-            )}
-          </div>
-
-          <div className="flex shrink-0 justify-end gap-3 border-t border-border px-6 py-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={pending}
-              className="min-h-11 cursor-pointer rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:cursor-not-allowed sm:min-h-0"
-            >
-              {tc('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
-            >
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {tc('save')}
-            </button>
-          </div>
-        </form>
+      <div>
+        <label htmlFor="ledger-category" className="mb-1 block text-sm font-medium text-foreground">
+          {t('category')}
+          <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+        </label>
+        <Select
+          id="ledger-category"
+          name="category"
+          required
+          value={category}
+          onChange={(v) => {
+            setCategory(v);
+            setRefusal(null);
+          }}
+          placeholder={t('chooseCategory')}
+          searchPlaceholder={tph('searchCategories')}
+          options={categoryOptions}
+        />
       </div>
-    </div>
+
+      <div>
+        <label htmlFor="ledger-amount" className="mb-1 block text-sm font-medium text-foreground">
+          {t('amount')}
+          <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+        </label>
+        <MoneyInput
+          id="ledger-amount"
+          name="amount"
+          required
+          value={amount}
+          onChange={(raw) => {
+            setAmount(raw);
+            setRefusal(null);
+          }}
+          placeholder={tph('money')}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-start text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+        />
+      </div>
+
+      <CurrencyRateFields
+        rateName="fxRateToEgp"
+        currencies={currencies}
+        defaultCurrency="EGP"
+        currencyLabel={t('currency')}
+        rateLabel={t('fxRate')}
+        required
+      />
+
+      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div data-ledger-date>
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            {t('occurredOn')}
+            <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+          </label>
+          <DatePicker
+            name="occurredOn"
+            required
+            disableFuture
+            value={occurredOn}
+            onChange={(v) => setOccurredOn(v || businessToday())}
+          />
+        </div>
+        <div>
+          <label htmlFor="ledger-cycle" className="mb-1 block text-sm font-medium text-foreground">
+            {t('chargeToCycle')}
+            {cycleRequired ? (
+              <span aria-hidden="true" className="ms-1 text-destructive">*</span>
+            ) : (
+              <span className="ms-1 text-xs font-normal text-muted-foreground">{t('optional')}</span>
+            )}
+          </label>
+          <Select
+            id="ledger-cycle"
+            name="cycleId"
+            value={cycleId}
+            onChange={(v) => {
+              setCycleId(v);
+              setRefusal(null);
+            }}
+            clearable
+            required={cycleRequired}
+            placeholder={cycleRequired ? t('chooseCycle') : t('noCycle')}
+            searchPlaceholder={tph('searchCycles')}
+            options={cycleOptions}
+          />
+          {cycleRequired && (
+            <p className="mt-1 text-xs text-muted-foreground">{t('cycleRequiredHint')}</p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="ledger-note" className="mb-1 block text-sm font-medium text-foreground">
+          {t('note')}
+          <span className="ms-1 text-xs font-normal text-muted-foreground">{t('optional')}</span>
+        </label>
+        <textarea
+          id="ledger-note"
+          name="note"
+          rows={2}
+          maxLength={500}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={t('notePlaceholder')}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+        />
+      </div>
+
+      {refusal && (
+        <p ref={refusalRef} role="alert" data-testid="ledger-refusal" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {refusal}
+        </p>
+      )}
+    </Dialog>
   );
 }

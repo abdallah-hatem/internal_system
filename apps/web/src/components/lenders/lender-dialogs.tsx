@@ -1,10 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCurrencyRates } from '@/lib/currency-rates';
@@ -14,6 +13,7 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { FieldLabel, FormActions } from '@/components/ui/fields';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { Dialog } from '@/components/ui/dialog';
 import { selectOnFocus } from '@/lib/select-on-focus';
 import { businessToday } from '@/lib/dates';
 
@@ -79,39 +79,6 @@ export function useRefreshLenderData() {
   };
 }
 
-/** A dialog that leaves the tree, so it never nests a form in a form (§13). */
-export function LenderModal({
-  title,
-  onClose,
-  children,
-  testId,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-  testId?: string;
-}) {
-  const tc = useTranslations('common');
-  // Opened by a click, so always on the client; the check keeps a server
-  // render from reaching for `document`.
-  if (typeof document === 'undefined') return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4" data-testid={testId}>
-      <div className="fixed inset-0 bg-foreground/50" onClick={onClose} />
-      <div role="dialog" aria-label={title} className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-xl">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-6 py-4">
-          <h2 className="min-w-0 text-lg font-semibold text-foreground">{title}</h2>
-          <button type="button" onClick={onClose} aria-label={tc('close')} className="text-muted-foreground hover:text-foreground">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="min-h-0 overflow-y-auto p-6">{children}</div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 /**
  * Pounds paid to him today at today's rate. The rate starts as the current one
  * from the exchange-rate page and is his to change; once typed, a later rates
@@ -162,12 +129,16 @@ export function RecordRepaymentDialog({
   });
 
   return (
-    <LenderModal
+    <Dialog
       title={t('recordRepayment')}
       onClose={onClose}
-      testId="record-repayment-dialog"
+      data-testid="record-repayment-dialog"
+      footer={
+        <FormActions form="record-repayment-form" onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={t('recordRepayment')} busy={save.isPending} />
+      }
     >
       <ValidatedForm
+        id="record-repayment-form"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
@@ -244,9 +215,8 @@ export function RecordRepaymentDialog({
           )}
         </div>
 
-        <FormActions onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={t('recordRepayment')} busy={save.isPending} />
       </ValidatedForm>
-    </LenderModal>
+    </Dialog>
   );
 }
 
@@ -284,8 +254,16 @@ export function ReasonDialog({
     onError: (e) => addToast(apiError(e, tc('operationFailed')), 'error'),
   });
   return (
-    <LenderModal title={title} onClose={onClose} testId={testId}>
+    <Dialog
+      title={title}
+      onClose={onClose}
+      data-testid={testId}
+      footer={
+        <FormActions form="lender-confirm-form" onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={submitLabel} busy={run.isPending} />
+      }
+    >
       <ValidatedForm
+        id="lender-confirm-form"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
@@ -310,9 +288,8 @@ export function ReasonDialog({
             className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        <FormActions onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={submitLabel} busy={run.isPending} />
       </ValidatedForm>
-    </LenderModal>
+    </Dialog>
   );
 }
 
@@ -341,8 +318,16 @@ export function PlanDialog({ financing, onClose }: { financing: FinancingView; o
     onError: (e) => addToast(apiError(e, tc('operationFailed')), 'error'),
   });
   return (
-    <LenderModal title={t('planTitle')} onClose={onClose} testId="plan-dialog">
+    <Dialog
+      title={t('planTitle')}
+      onClose={onClose}
+      data-testid="plan-dialog"
+      footer={
+        <FormActions form="lender-plan-form" onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={t('setPlan')} busy={save.isPending} />
+      }
+    >
       <ValidatedForm
+        id="lender-plan-form"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
@@ -400,9 +385,8 @@ export function PlanDialog({ financing, onClose }: { financing: FinancingView; o
             {t('planTotal')}: <Money value={total} currency={financing.currency} className="font-medium text-foreground" />
           </span>
         </div>
-        <FormActions onCancel={onClose} cancelLabel={tc('cancel')} submitLabel={t('setPlan')} busy={save.isPending} />
       </ValidatedForm>
-    </LenderModal>
+    </Dialog>
   );
 }
 

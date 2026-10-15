@@ -216,7 +216,7 @@ export function AppShell({
         {/* `dvh`, because `vh` on a phone is the height with the address bar
             hidden, and the last links fell under it. The open drawer sits
             above the phone bar (z-50 over z-30), so it needs no room for it. */}
-        <nav className="flex h-[calc(100dvh-4rem)] flex-col overflow-y-auto overscroll-contain p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+        <nav className="scrollbar-clean flex h-[calc(100dvh-4rem)] flex-col overflow-y-auto overscroll-contain p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
           {groups.map((group) => (
             <div key={group.key} className="mb-3">
               <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -325,7 +325,7 @@ export function AppShell({
         {/* Below md the page is padded by the phone bar's height and the
             home-indicator inset, so the last row and a page's own buttons
             can always be scrolled clear of the bar. */}
-        <main className="flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-6 md:pb-6">
+        <main className="scrollbar-clean flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-6 md:pb-6">
           {children}
         </main>
       </div>

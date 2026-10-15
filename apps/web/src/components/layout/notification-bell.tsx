@@ -98,7 +98,8 @@ export function NotificationBell() {
           )}
         </div>
 
-        <div className="max-h-80 overflow-y-auto">
+        {/* Inset from the panel's sides and rounded bottom, so the bar stays inside it. */}
+        <div className="scrollbar-clean mx-1.5 mb-1.5 max-h-80 overflow-y-auto">
           {list.length === 0 ? (
             <EmptyState size="compact" icon={Bell} title={t('noData')} description={t('emptyHint')} />
           ) : (

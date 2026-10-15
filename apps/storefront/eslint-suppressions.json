@@ -116,10 +116,7 @@
   },
   "src/components/imports/import-form.tsx": {
     "local/no-raw-colors": {
-      "count": 29
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
+      "count": 22
     }
   },
   "src/components/imports/import-list.tsx": {
@@ -172,10 +169,7 @@
   },
   "src/components/requests/basket-sheet.tsx": {
     "local/no-raw-colors": {
-      "count": 28
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
+      "count": 22
     }
   },
   "src/components/requests/quantity-stepper.tsx": {

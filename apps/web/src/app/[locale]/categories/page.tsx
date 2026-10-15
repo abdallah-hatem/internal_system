@@ -21,6 +21,7 @@ import { categoryIndent } from './indent';
 import { localName, matchesName, otherName } from '@/lib/localized-name';
 import { useLocale } from 'next-intl';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -415,24 +416,43 @@ export default function CategoriesPage() {
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
       {showCreateModal && (
-        <Modal title={t('create')} onClose={() => setShowCreateModal(false)}>
-          <ValidatedForm onSubmit={handleCreate} className="space-y-4">
-            <ENTITY_FORMS.category.Fields />
-            <div className="flex justify-end gap-3 pt-2">
+        <Dialog
+          title={t('create')}
+          onClose={() => setShowCreateModal(false)}
+          footer={
+            <>
               <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+              <button type="submit"
+                form="categories-1-form" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
                 {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tc('create')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <ValidatedForm id="categories-1-form" onSubmit={handleCreate} className="space-y-4">
+            <ENTITY_FORMS.category.Fields />
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Edit Modal ────────────────────────────────────────────── */}
       {editingCategory && (
-        <Modal title={t('edit')} onClose={() => setEditingCategory(null)}>
-          <ValidatedForm onSubmit={handleUpdate} className="space-y-4">
+        <Dialog
+          title={t('edit')}
+          onClose={() => setEditingCategory(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setEditingCategory(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="categories-2-form" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {tc('save')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="categories-2-form" onSubmit={handleUpdate} className="space-y-4">
             {/* The same form the create modal and the `+` render (CLAUDE.md §13).
                 This modal had its own copy with name and parent only, so the
                 Arabic name would have been dropped on every edit. */}
@@ -447,20 +467,29 @@ export default function CategoriesPage() {
                 )}
               </div>
             )}
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setEditingCategory(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={updateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('save')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Delete Confirmation Modal ─────────────────────────────── */}
       {deletingCategory && (
-        <Modal title={t('delete')} onClose={() => setDeletingCategory(null)}>
+        <Dialog
+          title={t('delete')}
+          onClose={() => setDeletingCategory(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setDeletingCategory(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button
+                onClick={() => deleteMutation.mutate(deletingCategory.id)}
+                disabled={deleteMutation.isPending || (deletingCategory._count ? (deletingCategory._count.products > 0 || deletingCategory._count.children > 0) : false)}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {tc('delete')}
+              </button>
+            </>
+          }
+        >
           <div className="space-y-4">
             <p className="text-sm text-gray-600">{t('confirmDelete')}</p>
             <p className="text-sm font-medium text-gray-900">{localName(deletingCategory, locale)}</p>
@@ -475,37 +504,9 @@ export default function CategoriesPage() {
                 <p className="mt-1 font-medium">{t('deleteReassignFirst')}</p>
               </div>
             )}
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setDeletingCategory(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button
-                onClick={() => deleteMutation.mutate(deletingCategory.id)}
-                disabled={deleteMutation.isPending || (deletingCategory._count ? (deletingCategory._count.products > 0 || deletingCategory._count.children > 0) : false)}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('delete')}
-              </button>
-            </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
     </div>
   );
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
-    </div>
-  );
-}
-

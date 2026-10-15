@@ -30,6 +30,7 @@ import {
 import { PayoutBreakdownSkeleton, PayoutBreakdownView, type PayoutBreakdown } from '@/components/settlements/payout-breakdown';
 import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
 import { UnsoldStockPrompt } from '@/components/settlements/unsold-stock-prompt';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Settlement {
   id: string;
@@ -260,8 +261,31 @@ export default function SettlementsPage() {
       {/* Reversing writes balancing ledger entries; the reason travels with them
           and into the audit log, so it has to come from the person reversing. */}
       {reversing && (
-        <Modal title={t('reverse')} onClose={() => setReversing(null)}>
-          <ValidatedForm
+        <Dialog
+          title={t('reverse')}
+          onClose={() => setReversing(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setReversing(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                form="settlements-1-form"
+                disabled={actionMutation.isPending}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {actionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('reverse')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="settlements-1-form"
             onSubmit={(e) => {
               e.preventDefault();
               actionMutation.mutate({
@@ -287,25 +311,8 @@ export default function SettlementsPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setReversing(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                {tc('cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={actionMutation.isPending}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {actionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('reverse')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* Unsold stock keeps its cost with the cycle, so closing writes it off —
@@ -323,22 +330,6 @@ export default function SettlementsPage() {
           onClose={() => setStockPrompt(null)}
         />
       )}
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  const closeLabel = useTranslations('common')('close');
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button type="button" onClick={onClose} aria-label={closeLabel} className="cursor-pointer text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
     </div>
   );
 }

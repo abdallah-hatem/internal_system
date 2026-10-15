@@ -56,7 +56,7 @@ test.describe('Arabic names — the office app', () => {
     await login(page);
     await openProducts(page);
     await page.getByTestId('create-action').click();
-    const productForm = page.locator('form:has(input[name="nameAr"])').first();
+    const productForm = page.getByRole('dialog').filter({ has: page.locator('input[name="nameAr"]') }).first();
     await productForm.locator('input[name="name"]').fill(`${label} Part`);
 
     await page.locator('[data-quick-create="category"]').first().click();
@@ -163,7 +163,7 @@ test.describe('Arabic names — the office app', () => {
 
     const editRow = async () => {
       await page.getByRole('main').getByTestId('edit-action').filter({ visible: true }).first().click();
-      const form = page.locator('form:has(input[name="nameAr"])');
+      const form = page.getByRole('dialog').filter({ has: page.locator('input[name="nameAr"]') });
       await expect(form).toBeVisible();
       return form;
     };
@@ -265,7 +265,7 @@ test.describe('Arabic names — the office app', () => {
     await login(page, 'ar');
     await openNav(page, m.nav.categories);
     await page.getByTestId('create-action').click();
-    const form = page.locator('form:has(input[name="nameAr"])');
+    const form = page.getByRole('dialog').filter({ has: page.locator('input[name="nameAr"]') });
     await form.locator('input[name="name"]').fill(`${label} B`);
     await form.locator('input[name="nameAr"]').fill(arabic);
     await form.getByRole('button', { name: m.common.create, exact: true }).click();

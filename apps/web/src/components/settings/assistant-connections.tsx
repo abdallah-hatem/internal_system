@@ -12,14 +12,7 @@ import { Button } from '../ui/button';
 import { EmptyState } from '../ui/empty-state';
 import { useToast } from '../ui/toast';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 
 /** One Claude app the partner has signed in, as the API lists it. */
 interface Connection {
@@ -193,38 +186,40 @@ export function AssistantConnections() {
         </ul>
       )}
 
-      <Dialog
-        open={confirmingAll}
-        onOpenChange={(open) => !disconnectAll.isPending && setConfirmingAll(open)}
-      >
-        <DialogContent className="sm:max-w-md" showCloseButton={false}>
-          <DialogHeader className="text-start sm:text-start">
-            <DialogTitle>{t('confirmAllTitle')}</DialogTitle>
-            <DialogDescription>{t('confirmAll')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setConfirmingAll(false)}
-              disabled={disconnectAll.isPending}
-              className="min-h-11 rounded-lg text-muted-foreground"
-            >
-              {tc('cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => disconnectAll.mutate()}
-              disabled={disconnectAll.isPending}
-              className="min-h-11 rounded-lg"
-            >
-              {disconnectAll.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-              {t('disconnectAll')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {confirmingAll && (
+        <Dialog
+          size="sm"
+          showClose={false}
+          title={t('confirmAllTitle')}
+          onClose={() => setConfirmingAll(false)}
+          busy={disconnectAll.isPending}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setConfirmingAll(false)}
+                disabled={disconnectAll.isPending}
+                className="min-h-11 rounded-lg text-muted-foreground"
+              >
+                {tc('cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => disconnectAll.mutate()}
+                disabled={disconnectAll.isPending}
+                className="min-h-11 rounded-lg"
+              >
+                {disconnectAll.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                {t('disconnectAll')}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-muted-foreground">{t('confirmAll')}</p>
+        </Dialog>
+      )}
     </section>
   );
 }

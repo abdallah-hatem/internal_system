@@ -43,7 +43,7 @@ export function InstallCard() {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto p-5">
+        <DialogContent>
           <InstallGuide />
         </DialogContent>
       </Dialog>

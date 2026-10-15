@@ -8,14 +8,8 @@ import { useApiError } from '@/lib/api-error';
 import { businessToday } from '@/lib/dates';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useAnnounceStatusMove } from './status-move';
-import {
-  DialogAlert,
-  DialogCancel,
-  DialogPrimary,
-  ShipmentDialog,
-  qtyInputClass,
-  useRefreshShipment,
-} from './ShipmentDialog';
+import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
+import { qtyInputClass, useRefreshShipment } from './ShipmentDialog';
 import { fieldValue, onTheWayByLine, parseQty, type ShipmentLeg } from './shipment-model';
 
 /**
@@ -104,8 +98,8 @@ export function RecordDeliveryDialog({
   };
 
   return (
-    <ShipmentDialog
-      testId="record-delivery"
+    <Dialog
+      data-shipment-dialog="record-delivery"
       title={t('recordDeliveryTitle', { leg: leg.sequence })}
       onClose={onClose}
       busy={pending}
@@ -116,6 +110,7 @@ export function RecordDeliveryDialog({
           <DialogPrimary pending={pending} label={t('recordDelivery')} />
         </>
       }
+      bodyClassName="space-y-4"
     >
       <div>
         <label className="mb-1 block text-sm font-medium text-foreground">
@@ -185,6 +180,6 @@ export function RecordDeliveryDialog({
       </div>
 
       <DialogAlert message={refusal} />
-    </ShipmentDialog>
+    </Dialog>
   );
 }

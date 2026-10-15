@@ -34,6 +34,7 @@ import { useOpenFromQuery } from '../../../lib/open-from-query';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
+import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -469,8 +470,21 @@ function PaymentsPageContent() {
 
       {/* ─── Allocate Modal ────────────────────────────────────────── */}
       {showAllocateModal && selectedPayment && (
-        <Modal title={t('allocate')} onClose={() => { setShowAllocateModal(false); setSelectedPayment(null); }}>
-          <ValidatedForm onSubmit={handleAllocate} className="space-y-4">
+        <Dialog
+          title={t('allocate')}
+          onClose={() => { setShowAllocateModal(false); setSelectedPayment(null); }}
+          footer={
+            <>
+              <button type="button" onClick={() => { setShowAllocateModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="payments-1-form" disabled={allocateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
+                {allocateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {tc('confirm')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="payments-1-form" onSubmit={handleAllocate} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('customer')}: <span className="font-medium text-gray-900">{selectedPayment.customer?.displayName ?? '—'}</span>
             </p>
@@ -507,21 +521,27 @@ function PaymentsPageContent() {
               </label>
               <MoneyInput name="allocateAmount" required placeholder={tph('money')} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => { setShowAllocateModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={allocateMutation.isPending} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {allocateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {tc('confirm')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedPayment && (
-        <Modal title={t('reverse')} onClose={() => { setShowReverseModal(false); setSelectedPayment(null); }}>
-          <ValidatedForm onSubmit={handleReverse} className="space-y-4">
+        <Dialog
+          title={t('reverse')}
+          onClose={() => { setShowReverseModal(false); setSelectedPayment(null); }}
+          footer={
+            <>
+              <button type="button" onClick={() => { setShowReverseModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
+              <button type="submit"
+                form="payments-2-form" disabled={reverseMutation.isPending} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2">
+                {reverseMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('reverse')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="payments-2-form" onSubmit={handleReverse} className="space-y-4">
             <p className="text-sm text-gray-600">
               {t('customer')}: <span className="font-medium text-gray-900">{selectedPayment.customer?.displayName ?? '—'}</span>
             </p>
@@ -529,20 +549,13 @@ function PaymentsPageContent() {
               {t('amount')}: <span className="font-medium text-gray-900"><Money value={selectedPayment.amount} currency={selectedPayment.currency} /></span>
             </p>
             <TextareaField label={t('reverseReason')} name="reason" required minLength={3} placeholder={tph('reverseReason')} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => { setShowReverseModal(false); setSelectedPayment(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">{tc('cancel')}</button>
-              <button type="submit" disabled={reverseMutation.isPending} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2">
-                {reverseMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('reverse')}
-              </button>
-            </div>
           </ValidatedForm>
-        </Modal>
+        </Dialog>
       )}
 
       {/* ─── View Payment Detail ───────────────────────────────────── */}
       {viewingPayment && (
-        <Modal title={`${t('customer')}: ${viewingPayment.customer?.displayName ?? '—'}`} onClose={() => setViewingPayment(null)}>
+        <Dialog title={`${t('customer')}: ${viewingPayment.customer?.displayName ?? '—'}`} onClose={() => setViewingPayment(null)}>
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={viewingPayment.customer?.displayName ?? '—'} />
@@ -553,24 +566,8 @@ function PaymentsPageContent() {
               <Detail label={t('status')} value={codeLabel('paymentStatus', viewingPayment.status)} />
             </div>
           </div>
-        </Modal>
+        </Dialog>
       )}
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto min-h-0">{children}</div>
-      </div>
     </div>
   );
 }
