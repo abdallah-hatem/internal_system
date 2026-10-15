@@ -59,7 +59,7 @@ export default async function LocaleLayout({
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   return (
-    <html lang={locale} dir={dir} className={`${latin.variable} ${arabic.variable}`}>
+    <html lang={locale} dir={dir} className={`scrollbar-clean ${latin.variable} ${arabic.variable}`}>
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">
         <NextIntlClientProvider messages={messages}>
           <Providers>

@@ -1,13 +1,13 @@
 'use client';
 
-import { CircleAlert, LoaderCircle, Plus, X } from 'lucide-react';
+import { CircleAlert, LoaderCircle, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useId, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useId, useState } from 'react';
 
 import { Link } from '../../i18n/navigation';
 import { useSession } from '../../lib/session';
 import { PhotoUploader } from './photo-uploader';
+import { Sheet, SheetBody, SheetFooter, SheetForm } from '../ui/sheet';
 import { useCreateImport, useImport, type ImportRequest } from './queries';
 import { useRefusal } from '../requests/use-refusal';
 
@@ -123,9 +123,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [notes, setNotes] = useState('');
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [sent, setSent] = useState<ImportRequest | null>(null);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
 
   /**
    * One way out, used by the backdrop, the X, Escape and "done".
@@ -147,26 +145,7 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     onClose();
   }, [onClose, resetCreate]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    document.addEventListener('keydown', onKey);
-
-    // The sheet scrolls; the list behind it must not, or a thumb drag near the
-    // edge scrolls the wrong thing.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [open, close]);
-
-  if (!open || !mounted) return null;
+  if (!open) return null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,40 +189,13 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     );
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <button
-        type="button"
-        aria-label={tCommon('close')}
-        onClick={close}
-        className="absolute inset-0 bg-gray-900/40"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ask-title"
-        className="relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:mx-auto sm:max-w-lg"
-      >
-        <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 id="ask-title" className="text-base font-semibold">
-            {sent ? t('addPhotosTitle') : t('askTitle')}
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label={tCommon('close')}
-            className="-me-1 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
-          >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
-        </header>
-
+  return (
+    <Sheet open={open} onClose={close} title={sent ? t('addPhotosTitle') : t('askTitle')} maxHeight="92dvh">
         {sent ? (
           <SentStep request={sent} onDone={close} />
         ) : (
-          <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <SheetForm onSubmit={submit}>
+            <SheetBody className="space-y-4">
               <p className="text-sm text-gray-600">{t('intro')}</p>
 
               <Field
@@ -312,9 +264,9 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
               <p className="rounded-xl bg-brand-50 p-3 text-xs text-gray-700">
                 {t('photosNext')}
               </p>
-            </div>
+            </SheetBody>
 
-            <footer className="space-y-3 border-t border-gray-200 px-4 py-3">
+            <SheetFooter className="space-y-3">
               {create.isError && (
                 <p
                   role="alert"
@@ -333,12 +285,10 @@ function AskSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 {create.isPending && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />}
                 {t('submit')}
               </button>
-            </footer>
-          </form>
+            </SheetFooter>
+          </SheetForm>
         )}
-      </div>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }
 
@@ -358,7 +308,7 @@ function SentStep({ request, onDone }: { request: ImportRequest; onDone: () => v
 
   return (
     <>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <SheetBody className="space-y-4">
         <div className="rounded-xl bg-green-50 p-3">
           <p className="text-sm font-medium text-green-900">{t('sent')}</p>
           <p dir="auto" className="mt-0.5 text-sm text-green-900/80">
@@ -367,9 +317,9 @@ function SentStep({ request, onDone }: { request: ImportRequest; onDone: () => v
         </div>
 
         <PhotoUploader request={live} />
-      </div>
+      </SheetBody>
 
-      <footer className="flex gap-2 border-t border-gray-200 px-4 py-3">
+      <SheetFooter className="flex gap-2">
         <Link
           href={`/imports/${request.id}`}
           onClick={onDone}
@@ -384,7 +334,7 @@ function SentStep({ request, onDone }: { request: ImportRequest; onDone: () => v
         >
           {t('done')}
         </button>
-      </footer>
+      </SheetFooter>
     </>
   );
 }

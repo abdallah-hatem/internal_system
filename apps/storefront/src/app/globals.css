@@ -57,6 +57,58 @@ body {
   font-family: var(--font-sans);
 }
 
+/* ── Scrollbars ─────────────────────────────────────────────────────────
+   Never the native bar (owner, 2026-10-15; building-frontends ui-patterns
+   "Scrollbar"), the same utility as the office app. Every scroll container
+   carries `scrollbar-clean` — thin, a transparent track, a rounded thumb — and
+   `html` carries it for the page itself. The office app's
+   `unit/dialogs-and-scrollbars.test.mjs` scans this app too. */
+:root {
+  --scrollbar-thumb: rgb(0 0 0 / 0.18);
+  --scrollbar-thumb-hover: rgb(0 0 0 / 0.32);
+}
+.dark {
+  --scrollbar-thumb: rgb(255 255 255 / 0.20);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 0.34);
+}
+
+@utility scrollbar-clean {
+  /* Reserve the gutter so content doesn't jump when the bar appears. */
+  scrollbar-gutter: stable;
+
+  /* Standard — Firefox, and Chrome 121+. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+
+  /* WebKit/Blink fallback. Harmless where the standard properties already applied. */
+  &::-webkit-scrollbar { width: 10px; height: 10px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-corner { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    /* Transparent border + content-box clip insets the thumb, so a 10px track
+       renders a ~6px bar with breathing room on both sides. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+}
+
+/* A strip that only scrolls sideways reserves no vertical gutter. Unlayered so
+   it outranks the utility. */
+.scrollbar-clean.scrollbar-x {
+  scrollbar-gutter: auto;
+}
+
+/* Fields scroll their own text; they take the same look here rather than per element. */
+textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
 @layer base {
   /* Anything you can click says so.
    *

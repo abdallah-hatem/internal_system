@@ -1,13 +1,13 @@
 'use client';
 
-import { CircleAlert, Clock, LoaderCircle, ShoppingCart, Trash2, X } from 'lucide-react';
+import { CircleAlert, Clock, LoaderCircle, ShoppingCart, Trash2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useState } from 'react';
 
 import { Link } from '../../i18n/navigation';
 import { useBasket, useBasketCount, useBasketHydrated } from '../../stores/basket';
 import { Money } from '../ui/money';
+import { Sheet, SheetBody, SheetFooter, SheetForm } from '../ui/sheet';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { localName } from '../../lib/localized-name';
 import { estimateTotal } from './decimal';
@@ -52,9 +52,7 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
   const resetSubmit = submit.reset;
 
   const [sent, setSent] = useState<{ id: string; requestNo: string } | null>(null);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
 
   /**
    * One way out, used by the backdrop, the X, Escape and the confirmation.
@@ -69,26 +67,7 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
     onClose();
   }, [onClose, resetSubmit]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    document.addEventListener('keydown', onKey);
-
-    // The sheet scrolls; the catalogue behind it must not, or a thumb drag near
-    // the edge scrolls the wrong thing.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [open, close]);
-
-  if (!open || !mounted) return null;
+  if (!open) return null;
 
   const estimate = estimateTotal(lines);
 
@@ -113,35 +92,8 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
     );
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <button
-        type="button"
-        aria-label={tCommon('close')}
-        onClick={close}
-        className="absolute inset-0 bg-gray-900/40"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="basket-title"
-        className="relative flex max-h-[88dvh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:mx-auto sm:max-w-lg"
-      >
-        <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 id="basket-title" className="text-base font-semibold">
-            {t('title')}
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label={tCommon('close')}
-            className="-me-1 flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
-          >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
-        </header>
-
+  return (
+    <Sheet open={open} onClose={close} title={t('title')}>
         {sent ? (
           <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
             <p className="text-base font-medium">{t('sent')}</p>
@@ -155,8 +107,8 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
             </Link>
           </div>
         ) : (
-          <form onSubmit={send} className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <SheetForm onSubmit={send}>
+            <SheetBody>
               {!hydrated ? (
                 <BasketLinesSkeleton />
               ) : lines.length === 0 ? (
@@ -215,10 +167,10 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
                   />
                 </label>
               )}
-            </div>
+            </SheetBody>
 
             {hydrated && lines.length > 0 && (
-              <footer className="space-y-3 border-t border-gray-200 px-4 py-3">
+              <SheetFooter className="space-y-3">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-sm text-gray-600">{t('total')}</span>
                   {/* An estimate, and named as one on both sides: the label says
@@ -257,13 +209,11 @@ export function BasketSheet({ open, onClose }: { open: boolean; onClose: () => v
                   )}
                   {t('submit')}
                 </button>
-              </footer>
+              </SheetFooter>
             )}
-          </form>
+          </SheetForm>
         )}
-      </div>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }
 
