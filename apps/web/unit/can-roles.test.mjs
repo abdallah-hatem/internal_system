@@ -124,6 +124,7 @@ const ENDPOINTS = {
   'fxRate.edit': ['currency-rates/currency-rates.controller.ts', 'CurrencyRatesController', 'Put', ':code'],
   'fxRate.add': ['currency-rates/currency-rates.controller.ts', 'CurrencyRatesController', 'Post', ''],
   'users.list': ['users/users.controller.ts', 'UsersController', 'Get', ''],
+  'sale.contractPlan': ['payment-plans/sale-contract.controller.ts', 'SaleContractController', 'Post', ':id/contract-plan'],
   'stockTransfer.create': ['stock-transfers/stock-transfers.controller.ts', 'CycleTransfersController', 'Post', ':id/transfers'],
   'stockTransfer.undo': ['stock-transfers/stock-transfers.controller.ts', 'StockTransfersController', 'Post', ':id/undo'],
 };

@@ -51,6 +51,7 @@ import { Download } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
+import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -69,6 +70,8 @@ interface SaleOrder {
   orderedAt?: string;
   items?: SaleOrderItem[];
   paymentAllocations?: PaymentAllocation[];
+  /** The sale's instalment plan, from the detail (§7, 2026-10-16). */
+  contractPlan?: ContractSale['contractPlan'];
 }
 
 interface PaymentAllocation {
@@ -172,6 +175,8 @@ function SalesPageContent() {
   // "Record payment" on a confirmed order that still owes (U2): the money goes
   // on that order, through the one payment form.
   const [payingOrder, setPayingOrder] = useState<SaleOrder | null>(null);
+  // The Contract button's plan popup (§7, 2026-10-16).
+  const [contractFor, setContractFor] = useState<SaleOrder | null>(null);
 
   // Arriving from a shop's page with ?customer=<id> opens the order form on
   // that shop, so "New Order" there means what it says instead of dropping you
@@ -732,6 +737,11 @@ function SalesPageContent() {
                   {t('invoice.open')}
                 </Link>
               )}
+              {/* Only once the detail has said whether the sale has its plan:
+                  the list row does not know, and would offer a second one. */}
+              {orderDetail && (
+                <ContractButton sale={detail} onAgree={() => setContractFor(detail)} />
+              )}
               {canTakePayment(detail) && (
                 <button
                   type="button"
@@ -911,6 +921,10 @@ function SalesPageContent() {
             {/* Actions */}
           </div>
         </Dialog>
+      )}
+
+      {contractFor && (
+        <ContractPlanDialog sale={contractFor} onClose={() => setContractFor(null)} />
       )}
 
       <RecordPaymentDialog

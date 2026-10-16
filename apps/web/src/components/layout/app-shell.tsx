@@ -73,7 +73,6 @@ const NAV_ICONS: Record<string, Icon> = {
   sales: BadgePercent,
   customers: Users,
   payments: CreditCard,
-  paymentPlans: CalendarClock,
   lenders: HandCoins,
   ledger: BookOpen,
   partners: Handshake,

@@ -81,7 +81,6 @@
     "accountMenu": "Account menu",
     "signingOut": "Signing out…",
     "settlements": "Settlements",
-    "paymentPlans": "Payment Plans",
     "groups": {
       "overview": "Overview",
       "importing": "Importing",
@@ -545,7 +544,33 @@
     },
     "inactiveTag": "Inactive",
     "saleDate": "Sale date",
-    "backDatedNote": "An earlier day: only stock received by that day can be sold."
+    "backDatedNote": "An earlier day: only stock received by that day can be sold.",
+    "contract": {
+      "open": "Contract",
+      "dialogTitle": "Instalment contract",
+      "total": "Sale total",
+      "paid": "Paid so far",
+      "remaining": "Remaining",
+      "count": "Number of instalments",
+      "countRange": "Between 1 and 36 instalments",
+      "firstDue": "First due date",
+      "schedule": "Instalments",
+      "line": "#",
+      "dueOn": "Due date",
+      "amount": "Amount",
+      "dueLabel": "Due date of instalment {n}",
+      "amountLabel": "Amount of instalment {n}",
+      "sum": "Instalments total",
+      "short": "{amount} short of the remaining amount",
+      "over": "{amount} more than the remaining amount",
+      "matches": "Matches the remaining amount",
+      "create": "Create contract",
+      "created": "Contract created",
+      "createFailed": "Could not create the contract",
+      "back": "Back to sales",
+      "notAvailable": "No contract for this sale",
+      "language": "Contract language"
+    }
   },
   "customers": {
     "title": "Customers",
@@ -584,7 +609,7 @@
     "notFoundHint": "They may have been removed, or the link is wrong.",
     "backToCustomers": "Back to customers",
     "noPlanTitle": "No payment plan for this customer",
-    "noPlanHint": "A plan splits what they owe into agreed instalments with due dates.",
+    "noPlanHint": "A plan splits what they owe on a sale into instalments. Agree one from the sale's Contract button.",
     "openPlans": "Open payment plans",
     "statement": {
       "title": "Statement",
@@ -657,7 +682,12 @@
     "reversedToast": "Payment reversed",
     "reverseFailed": "Could not reverse the payment",
     "empty": "No payments yet",
-    "emptyHint": "Money a customer pays for a confirmed order is recorded here."
+    "emptyHint": "Money a customer pays for a confirmed order is recorded here.",
+    "tabs": {
+      "label": "Payments views",
+      "payments": "Payments",
+      "plans": "Instalment plans"
+    }
   },
   "ledger": {
     "title": "Financial Ledger",
@@ -1138,11 +1168,8 @@
     "runningCostsDay": "Share of running costs ({day})"
   },
   "paymentPlans": {
-    "title": "Payment Plans",
+    "title": "Instalment plans",
     "subtitle": "Agreed schedules for clearing shop balances",
-    "create": "New Plan",
-    "created": "Plan agreed",
-    "createFailed": "Could not agree the plan",
     "cancelled": "Plan cancelled",
     "cancelFailed": "Could not cancel the plan",
     "cancelPlan": "Cancel plan",
@@ -1155,23 +1182,17 @@
     "nextDue": "Next due",
     "remaining": "Remaining",
     "of": "of",
-    "customer": "Customer",
-    "instalments": "Instalments",
-    "addInstalment": "Add instalment",
     "dueOn": "Due",
     "amount": "Amount",
     "paid": "Paid",
-    "planTotal": "Plan total",
-    "agree": "Agree plan",
-    "notePlaceholder": "Second instalment, cash at the shop",
-    "needCustomer": "Choose a customer",
-    "needInstalment": "Add at least one instalment with an amount",
-    "amountsNote": "Amounts are whatever you agreed — they need not be equal. Dates default to the next Sundays.",
     "cumulativeNote": "Payments clear the earliest instalment first, so paying early covers what comes next.",
     "paid_": "Paid",
     "due": "Due",
     "upcoming": "Upcoming",
-    "emptyHint": "Instalments agreed with a customer, with what is due and when."
+    "emptyHint": "Plans are created from a sale's Contract button: open a confirmed sale on Sales and press Contract.",
+    "sale": "Sale",
+    "openContract": "Open contract",
+    "goToSales": "Go to Sales"
   },
   "errors": {
     "PUSH_NOT_CONFIGURED": "Alerts are not set up on the server yet.",
@@ -1444,7 +1465,14 @@
     "FINANCING_RATE_REQUIRED": "He paid in {currency}, which is not {reference}'s currency: say what {currency} was worth in pounds on the day he paid.",
     "RATE_TOO_PRECISE": "A rate has at most {decimals} decimals; {rate} has more.",
     "CURRENCY_CODE_INVALID": "{value} is not a currency code: three letters, such as AED.",
-    "CURRENCY_EXISTS": "{currency} is already on the exchange-rate page; change its rate there."
+    "CURRENCY_EXISTS": "{currency} is already on the exchange-rate page; change its rate there.",
+    "SALE_CONTRACT_NOT_OPEN": "Order {order} is not confirmed or partly paid, so it cannot be sold on instalments.",
+    "SALE_CONTRACT_NOT_EGP": "Order {order} is in {currency}; instalment contracts are in EGP.",
+    "SALE_CONTRACT_NOTHING_OWED": "Nothing is outstanding on order {order}, so there is nothing to put on instalments.",
+    "SALE_HAS_PLAN": "Order {order} already has its instalment plan ({reference}).",
+    "CONTRACT_SUM_MISMATCH": "The instalments total {total} EGP but {owed} EGP is outstanding on order {order}.",
+    "INSTALMENT_DUE_IN_PAST": "An instalment cannot fall due in the past ({day}).",
+    "SALE_HAS_NO_PLAN": "Order {order} has no instalment plan, so it has no contract."
   },
   "orderRequests": {
     "title": "Order requests",
@@ -2192,7 +2220,8 @@
     "searchProviders": "Search by provider name",
     "searchLenders": "Search by lender name",
     "searchTypes": "Search by type",
-    "currencyCode": "GBP"
+    "currencyCode": "GBP",
+    "instalmentCount": "3"
   },
   "fxRates": {
     "title": "Exchange rates",

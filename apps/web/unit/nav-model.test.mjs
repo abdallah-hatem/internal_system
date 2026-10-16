@@ -37,8 +37,8 @@ test('every phone-bar key is a real menu entry — a renamed key cannot vanish s
 test('"More" holds the whole menu, grouped as the sidebar is, bar entries included', () => {
   const groups = navForRole('CORE_PARTNER');
   assert.deepEqual(groups.map((g) => g.key), NAV_GROUPS.map((g) => g.key));
-  assert.equal(allKeys(groups).length, 24 - SYSTEM_ITEMS.length);
-  assert.equal(allKeys(groups).length + systemForRole('CORE_PARTNER').length, 24);
+  assert.equal(allKeys(groups).length, 23 - SYSTEM_ITEMS.length);
+  assert.equal(allKeys(groups).length + systemForRole('CORE_PARTNER').length, 23);
 });
 
 const restricted = [
@@ -87,4 +87,17 @@ test('"More" is lit only on a page the bar does not reach', () => {
   assert.ok(!isMoreActive('/customers/123', bar));
   assert.ok(isMoreActive('/payments', bar));
   assert.ok(isMoreActive('/settings', bar));
+});
+
+// Instalment plans are the second tab of Payments (owner, 2026-10-16), not an
+// entry of their own: no role's menu lists them, and no entry links to the old page.
+test('no menu lists Payment Plans; Payments is still there for the roles that read the books', () => {
+  const everything = [...allKeys(NAV_GROUPS), ...keys(SYSTEM_ITEMS)];
+  assert.ok(!everything.includes('paymentPlans'));
+  const hrefs = [...NAV_GROUPS.flatMap((g) => g.items), ...SYSTEM_ITEMS].map((i) => i.href);
+  assert.ok(!hrefs.some((h) => h.startsWith('/payment-plans')), hrefs.join(' '));
+  for (const role of ['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR']) {
+    assert.ok(!allKeys(navForRole(role)).includes('paymentPlans'), role);
+  }
+  assert.ok(allKeys(navForRole('CORE_PARTNER')).includes('payments'));
 });

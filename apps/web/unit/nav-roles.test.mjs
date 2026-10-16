@@ -109,7 +109,6 @@ const SOURCES = {
   sales: ['sales/sales.controller.ts', 'SalesController', ''],
   customers: ['customers/customers.controller.ts', 'CustomersController', ''],
   payments: ['payments/payments.controller.ts', 'PaymentsController', ''],
-  paymentPlans: ['payment-plans/payment-plans.controller.ts', 'PaymentPlansController', ''],
   lenders: ['lenders/lenders.controller.ts', 'LendersController', ''],
   ledger: ['ledger/ledger.controller.ts', 'LedgerController', ''],
   partners: ['users/users.controller.ts', 'UsersController', 'participation'],
@@ -137,11 +136,11 @@ for (const item of ALL) {
 
 // ─── What each role is offered ──────────────────────────────────────────
 
-test('a core partner sees all 24 entries', () => {
-  assert.equal(menuKeys('CORE_PARTNER').length, 24);
+test('a core partner sees all 23 entries', () => {
+  assert.equal(menuKeys('CORE_PARTNER').length, 23);
 });
 
-test('admin support sees all 24 entries — every restricted endpoint lets them read', () => {
+test('admin support sees all 23 entries — every restricted endpoint lets them read', () => {
   assert.deepEqual(menuKeys('ADMIN_SUPPORT'), menuKeys('CORE_PARTNER'));
 });
 

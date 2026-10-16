@@ -37,7 +37,7 @@ const INVESTOR_HREFS = [
 ];
 const PARTNER_ONLY_HREFS = [
   '/analytics', '/order-requests', '/import-requests', '/sales', '/customers',
-  '/payments', '/payment-plans', '/lenders', '/ledger', '/partners', '/audit-logs',
+  '/payments', '/lenders', '/ledger', '/partners', '/audit-logs',
 ];
 
 /** A fresh account with the given role, created by a partner. */
@@ -112,7 +112,6 @@ test.describe('The menu by role', () => {
       '/sales': '/sales/orders',
       '/customers': '/customers',
       '/payments': '/payments',
-      '/payment-plans': '/payment-plans',
       '/lenders': '/lenders',
       '/ledger': '/ledger',
       '/partners': '/users/participation',

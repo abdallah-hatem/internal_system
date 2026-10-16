@@ -369,7 +369,9 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
   {
     name: "a plan's instalments",
     open: async (page, locale) => {
-      await openNav(page, messages(locale).nav.paymentPlans);
+      // Instalment plans are the second tab of Payments (2026-10-16).
+      await openNav(page, messages(locale).nav.payments);
+      await page.getByTestId('tab-plans').click();
       await page.getByRole('main').getByRole('button').filter({ hasText: stamp }).first().click();
       await expect(page.locator('main table')).toBeVisible();
     },

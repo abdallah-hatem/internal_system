@@ -35,6 +35,9 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
+import { TabBar } from '@/components/ui/tab-bar';
+import { PaymentPlansList } from '@/components/payments/payment-plans-list';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -99,8 +102,51 @@ function PaymentCardSkeleton() {
 export default function PaymentsPage() {
   return (
     <Suspense fallback={null}>
-      <PaymentsPageContent />
+      <PaymentsViews />
     </Suspense>
+  );
+}
+
+/** The two views of the page; `?view=plans` opens the second. */
+type PaymentsView = 'payments' | 'plans';
+
+/**
+ * Payments, and the instalment plans being followed up, as two tabs of one
+ * page (owner, 2026-10-16) — plans no longer have a menu entry of their own.
+ * The open tab lives in the URL, so a refresh or the back button returns to
+ * it, and switching does not move the page (`scroll: false`).
+ */
+function PaymentsViews() {
+  const t = useTranslations('payments.tabs');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const view: PaymentsView = searchParams.get('view') === 'plans' ? 'plans' : 'payments';
+
+  const show = (next: PaymentsView) => {
+    if (next === view) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'plans') params.set('view', 'plans');
+    else params.delete('view');
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  return (
+    <div className="space-y-6">
+      <TabBar
+        label={t('label')}
+        value={view}
+        onChange={show}
+        tabs={[
+          { key: 'payments', label: t('payments') },
+          { key: 'plans', label: t('plans') },
+        ]}
+      />
+      <div role="tabpanel" aria-labelledby={`tab-${view}`}>
+        {view === 'plans' ? <PaymentPlansList /> : <PaymentsPageContent />}
+      </div>
+    </div>
   );
 }
 

@@ -291,7 +291,7 @@ export default function CustomerPage() {
             icon={CalendarClock}
             title={t('noPlanTitle')}
             description={t('noPlanHint')}
-            action={owed > 0 ? { label: t('openPlans'), href: '/payment-plans' } : undefined}
+            action={owed > 0 ? { label: t('openPlans'), href: '/payments?view=plans' } : undefined}
           />
         ) : (
           <Rows>
