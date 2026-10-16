@@ -542,7 +542,9 @@
       "credited": "مرتجعات مخصومة",
       "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه."
     },
-    "inactiveTag": "غير نشط"
+    "inactiveTag": "غير نشط",
+    "saleDate": "تاريخ البيع",
+    "backDatedNote": "يوم سابق: لا يُباع إلا ما استُلم من بضاعة حتى ذلك اليوم."
   },
   "customers": {
     "title": "العملاء",

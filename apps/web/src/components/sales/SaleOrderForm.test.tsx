@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import { ToastProvider } from '@/components/ui/toast';
 import { formatAmount } from '@/lib/numbers';
+import { businessToday } from '@/lib/dates';
 // The server's own formula, to hold the screen to.
 import { saleOrderTotals } from '../../../../api/src/common/sale-totals';
 import {
@@ -503,6 +504,8 @@ describe('SaleOrderForm — walk-in', () => {
       walkIn: true,
       channel: 'B2C',
       currency: 'EGP',
+      // The day of the sale, always said: today unless an earlier one was chosen.
+      orderedOn: businessToday(),
       confirm: true,
       payment: { method: 'BANK_TRANSFER' },
       items: [{ productId: PISTON.id, quantity: 2, unitPrice: 2100, discount: 0 }],
@@ -778,5 +781,103 @@ describe('SaleOrderForm — selling below cost (L4, §4)', () => {
     // One run, kept on one line: a no-break space before the currency.
     expect(warning.textContent).toContain('\u20662,000.00\u00a0EGP\u2069');
     expect(total()!.textContent).toContain('\u2066200.00\u00a0EGP\u2069');
+  });
+});
+
+describe('SaleOrderForm — the sale date (§4, 2026-10-16)', () => {
+  // 10:00 in Cairo on 16 October 2026. Only the clock is faked.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T07:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const saleDate = () => document.querySelector<HTMLInputElement>('input[type="hidden"][name="orderedOn"]')!;
+  const openCalendar = () =>
+    fireEvent.click(document.querySelector<HTMLElement>('[data-date-picker="orderedOn"]')!);
+  const dayButton = (day: string) => document.querySelector<HTMLButtonElement>(`[data-day="${day}"]`);
+
+  it('is there, labelled, and starts on today in Cairo', () => {
+    renderForm();
+    expect(screen.getByText(en.sales.saleDate)).toBeTruthy();
+    expect(saleDate().value).toBe('2026-10-16');
+    expect(screen.queryByTestId('back-dated-note')).toBeNull();
+  });
+
+  it('today by default: Create & confirm sends orderedOn = today', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'CONFIRMED' } } });
+    const { onSaved } = renderForm();
+    pick(3, 'Piston kit');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.createAndConfirm }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1]).toMatchObject({ orderedOn: '2026-10-16', confirm: true });
+  });
+
+  it('an earlier day chosen in the calendar is the one sent — on a draft too — and the form says what that means', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'DRAFT' } } });
+    const { onSaved } = renderForm();
+    openCalendar();
+    fireEvent.click(dayButton('2026-10-05')!);
+    expect(saleDate().value).toBe('2026-10-05');
+    expect(screen.getByTestId('back-dated-note').textContent).toBe(en.sales.backDatedNote);
+    pick(3, 'Piston kit');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.saveDraft }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1]).toMatchObject({ orderedOn: '2026-10-05', confirm: false });
+  });
+
+  it('a day that has not come cannot be picked', () => {
+    renderForm();
+    openCalendar();
+    expect(dayButton('2026-10-17')!.disabled).toBe(true);
+    expect(dayButton('2026-10-16')!.disabled).toBe(false);
+  });
+
+  it('the price check is asked about the chosen day, so the cost is what that day could draw', async () => {
+    renderForm();
+    pick(3, 'Piston kit');
+    openCalendar();
+    fireEvent.click(dayButton('2026-10-05')!);
+    await waitFor(() =>
+      expect(priceCheck.mock.calls.some(([body]) => body.orderedOn === '2026-10-05')).toBe(true),
+    );
+  });
+
+  it('a walk-in sale carries the day too', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'PAID' } } });
+    const { onSaved } = renderForm(vi.fn(), undefined);
+    fireEvent.click(screen.getByTestId('walk-in-switch'));
+    openCalendar();
+    fireEvent.click(dayButton('2026-10-02')!);
+    pick(3, 'Piston kit');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.sellAndTakePayment }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0][1]).toMatchObject({ walkIn: true, orderedOn: '2026-10-02' });
+  });
+
+  it('the refusal for stock that had not arrived by then reads in the reader’s words, and the form keeps the day and the lines', async () => {
+    answer = () =>
+      Promise.reject({
+        response: {
+          data: {
+            error: {
+              code: 'NOT_ENOUGH_STOCK_ON_DATE',
+              message: 'English fallback',
+              params: { product: 'Piston kit', day: '2026-10-05', available: '2.000', wanted: '5.000' },
+            },
+          },
+        },
+      });
+    renderForm(vi.fn(), SHOP.id, 'ar');
+    openCalendar();
+    fireEvent.click(dayButton('2026-10-05')!);
+    pick(3, 'Piston kit');
+    fireEvent.click(screen.getByRole('button', { name: ar.sales.createAndConfirm }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('2026-10-05');
+    expect(alert.textContent).not.toContain('English fallback');
+    expect(alert.textContent).toContain(ar.errors.NOT_ENOUGH_STOCK_ON_DATE.split('{')[0]);
+    expect(saleDate().value).toBe('2026-10-05');
+    expect(lines()).toHaveLength(1);
   });
 });

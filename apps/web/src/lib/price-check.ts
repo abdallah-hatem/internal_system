@@ -62,10 +62,21 @@ function useSettled<T>(value: T, ms: number): T {
 export function usePriceCheck(
   items: PriceCheckItem[],
   currency: string,
-  { enabled = true }: { enabled?: boolean } = {},
+  {
+    enabled = true,
+    orderedOn,
+  }: {
+    enabled?: boolean;
+    /**
+     * The sale's day (§4, 2026-10-16). A sale dated in the past is costed
+     * from the stock there was that day, as confirming draws it.
+     */
+    orderedOn?: string;
+  } = {},
 ): PriceCheckResult | undefined {
   const body = JSON.stringify({
     currency,
+    ...(orderedOn ? { orderedOn } : {}),
     items: items.map((i) => ({
       productId: i.productId,
       quantity: Number(i.quantity) || 0,

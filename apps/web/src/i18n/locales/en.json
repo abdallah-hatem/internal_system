@@ -542,7 +542,9 @@
       "credited": "Returns credited",
       "returnedInFull": "Returned in full — nothing is owed on it."
     },
-    "inactiveTag": "Inactive"
+    "inactiveTag": "Inactive",
+    "saleDate": "Sale date",
+    "backDatedNote": "An earlier day: only stock received by that day can be sold."
   },
   "customers": {
     "title": "Customers",
