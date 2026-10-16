@@ -23,6 +23,8 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   form had Category and Cycle ID as free text and a Type list offering system types like Purchase, and the
   API saved whatever came, so a typed `contribution` or `purchase` row would have moved cash and profit.
   The owner: "how is there a category that is text? also cycle Id as text ???? insane". — 2026-10-11
+  It happened again with the supplier's Country (free text) on 2026-10-16. When adding or reviewing a form, check every
+  text input: if its valid values are a known list (countries, currencies, units, statuses), it is a picker.
 
 - Lint the whole app (`npm run lint`), not the files you touched. This repo freezes old violations per file in
   `eslint-suppressions.json`; one new `any` in a spec pushes that file past its count and every frozen error in it
