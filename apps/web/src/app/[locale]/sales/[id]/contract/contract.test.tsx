@@ -147,6 +147,9 @@ describe('the contract page', () => {
 
     const doc = screen.getByTestId('contract');
     expect(doc.getAttribute('dir')).toBe('ltr');
+    // Aligned to its own start: the Arabic app's [dir=rtl] rule (globals.css)
+    // otherwise right-aligned every English heading on the sheet.
+    expect(doc.className).toContain('text-start');
     expect(text('contract-title')).toBe('Instalment Sale Contract');
     expect(doc.textContent).toContain('Cairo');
     expect(within(screen.getAllByTestId('contract-line')[0]).getAllByRole('cell')[1].textContent).toBe('Q58 Max Intercom');

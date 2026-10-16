@@ -63,7 +63,7 @@ export function ContractDocument({ contract: c, lang }: { contract: SaleContract
       lang={lang}
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
       style={{ fontFamily: DOCUMENT_FONT }}
-      className="mx-auto max-w-[794px] rounded-xl border border-border bg-card px-6 py-8 text-[12.5px] leading-relaxed text-foreground shadow-sm sm:px-12"
+      className="mx-auto max-w-[794px] rounded-xl border border-border bg-card px-6 py-8 text-start text-[12.5px] leading-relaxed text-foreground shadow-sm sm:px-12"
     >
       <header className="flex items-start justify-between gap-4 border-b-2 border-foreground pb-3" data-print-keep>
         <div className="flex items-center gap-3">
