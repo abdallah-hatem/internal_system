@@ -2048,7 +2048,12 @@
     "save": "Save",
     "cancelPlanHint": "The schedule stops counting; repayments and what is owed do not change.",
     "rateFor": "Rate ({currency} → EGP)",
-    "poundsEgp": "Pounds paid (EGP)"
+    "poundsEgp": "Pounds paid (EGP)",
+    "paidInCurrency": "Currency he paid in",
+    "ordersCurrency": "the order's currency",
+    "rateOnThatDay": "Rate to EGP on that day ({currency} → EGP)",
+    "financingRateHint": "The rate on the day he paid — prefilled from the order's rate or the current rate; change it if that day's was different",
+    "worthInPounds": "Worth <egp></egp> at this rate"
   },
   "transfers": {
     "title": "Transfers",

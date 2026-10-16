@@ -18,6 +18,8 @@ import { FieldWithQuickCreate } from '@/components/ui/quick-create';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { LenderLink } from '@/components/ui/entity-link';
 import { useAllRecords } from '@/lib/list-all';
+import { useCurrencyRates } from '@/lib/currency-rates';
+import { selectOnFocus } from '@/lib/select-on-focus';
 import { useRefreshLenderData, type FinancingView } from './lender-dialogs';
 
 /**
@@ -39,9 +41,9 @@ export function PaidByFriend({
   /** The cycle page: every order of the cycle, with an order picker. */
   cycleId?: string;
   /** The purchase-order dialog: this one order. */
-  purchaseOrder?: { id: string; reference: string; currency: string };
+  purchaseOrder?: FinanceableOrder;
   /** The cycle's orders, for the picker on the cycle page. */
-  orders?: { id: string; reference: string; currency: string }[];
+  orders?: FinanceableOrder[];
   /** A cycle being settled, settled or cancelled takes no new payment. */
   closed?: boolean;
 }) {
@@ -113,11 +115,38 @@ export function PaidByFriend({
   );
 }
 
+/** An order a friend can pay: its currency and its own rate to pounds. */
+export interface FinanceableOrder {
+  id: string;
+  reference: string;
+  currency: string;
+  /** The order's rate, which prefills the rate when he paid in its currency. */
+  fxRateToEgp?: number | string;
+}
+
+/** amount × rate to the piastre, half up — the figure the server stores. */
+function poundsOf(amount: string, rate: string): number | null {
+  const a = Number(amount);
+  const r = Number(rate);
+  if (!(a > 0) || !(r > 0)) return null;
+  return Math.round(a * r * 100 + 1e-7) / 100;
+}
+
+/**
+ * Record what a friend paid (§18). He may pay in his own currency — an order
+ * priced in CNY paid in AED — at the rate on the day he paid (2026-10-16).
+ *
+ * Currency starts as the order's; the rate starts as the order's own rate for
+ * the order's currency, today's from the exchange-rate page for any other, and
+ * 1 for pounds. Once he types a rate it is his: only choosing another currency
+ * or order starts it again. The pounds it is worth are shown as he types —
+ * the server stores the same amount × rate, half up.
+ */
 function AddFinancingForm({
   orders,
   onDone,
 }: {
-  orders: { id: string; reference: string; currency: string }[];
+  orders: FinanceableOrder[];
   onDone: () => void;
 }) {
   const t = useTranslations('lenders');
@@ -126,13 +155,35 @@ function AddFinancingForm({
   const apiError = useApiError();
   const { addToast } = useToast();
   const refresh = useRefreshLenderData();
+  const rates = useCurrencyRates();
   // Its own key under ['lenders']: the Lenders page caches the bare list there,
   // and the `+` invalidates the prefix, so both refresh after a quick-create.
   const { items: lenders } = useAllRecords(['lenders', 'picker'], '/lenders');
   const [orderId, setOrderId] = useState(orders.length === 1 ? orders[0].id : '');
   const [lenderId, setLenderId] = useState('');
   const [amount, setAmount] = useState('');
+  /** '' follows the order's currency. */
+  const [chosenCurrency, setChosenCurrency] = useState('');
+  /** null until he types one. */
+  const [typedRate, setTypedRate] = useState<string | null>(null);
   const order = orders.find((o) => o.id === orderId);
+
+  const currency = chosenCurrency || order?.currency || '';
+  const isEgp = currency === 'EGP';
+  const prefilledRate = isEgp
+    ? '1'
+    : currency && currency === order?.currency && Number(order?.fxRateToEgp) > 0
+      ? String(Number(order!.fxRateToEgp))
+      : rates[currency]
+        ? String(rates[currency])
+        : '';
+  const rate = isEgp ? '1' : (typedRate ?? prefilledRate);
+  const pounds = poundsOf(amount, rate);
+
+  // EGP, the order's currency, and every currency with a rate on file.
+  const currencies = [...new Set(['EGP', ...(order ? [order.currency] : []), ...Object.keys(rates)])].sort(
+    (a, b) => (a === order?.currency ? -1 : b === order?.currency ? 1 : a.localeCompare(b)),
+  );
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.post(`/purchases/${orderId}/financings`, body),
@@ -154,6 +205,8 @@ function AddFinancingForm({
         save.mutate({
           lenderId,
           amount: Number(amount),
+          currency,
+          ...(isEgp ? {} : { fxRateToEgp: Number(rate) }),
           paidOn: (fd.get('paidOn') as string) || undefined,
         });
       }}
@@ -164,7 +217,11 @@ function AddFinancingForm({
             name="purchaseOrderId"
             required
             value={orderId}
-            onChange={setOrderId}
+            onChange={(id) => {
+              setOrderId(id);
+              // Another order, another currency and rate to start from.
+              setTypedRate(null);
+            }}
             placeholder={t('pickOrder')}
             searchPlaceholder={tph('searchOrders')}
             options={orders.map((o) => ({ value: o.id, label: o.reference, hint: o.currency }))}
@@ -185,9 +242,50 @@ function AddFinancingForm({
         </FieldWithQuickCreate>
       </FieldLabel>
       <div className="field-row grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FieldLabel label={t('paidInCurrency')} required>
+          <Select
+            name="currency"
+            required
+            value={currency}
+            onChange={(code) => {
+              setChosenCurrency(code);
+              setTypedRate(null);
+            }}
+            placeholder={tph('chooseCurrency')}
+            options={currencies.map((code) => ({
+              value: code,
+              label: code,
+              ...(code === order?.currency ? { hint: t('ordersCurrency') } : {}),
+            }))}
+          />
+        </FieldLabel>
+        <div>
+          <label htmlFor="financing-rate" className="mb-1 block text-sm font-medium text-foreground">
+            {t('rateOnThatDay', { currency: currency || '—' })}
+            <span className="ms-1 text-destructive">*</span>
+          </label>
+          <input
+            id="financing-rate"
+            name="fxRateToEgp"
+            data-testid="financing-rate"
+            inputMode="decimal"
+            autoComplete="off"
+            required
+            disabled={isEgp}
+            placeholder={tph('fxRate')}
+            value={rate}
+            onChange={(e) => setTypedRate(e.target.value.replace(/[^\d.]/g, ''))}
+            {...selectOnFocus}
+            dir="ltr"
+            className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-muted disabled:text-muted-foreground"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t('financingRateHint')}</p>
+        </div>
+      </div>
+      <div className="field-row grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor="financing-amount" className="mb-1 block text-sm font-medium text-foreground">
-            {t('amountIn', { currency: order?.currency ?? '—' })}
+            {t('amountIn', { currency: currency || '—' })}
             <span className="ms-1 text-destructive">*</span>
           </label>
           <MoneyInput
@@ -199,6 +297,13 @@ function AddFinancingForm({
             placeholder={tph('money')}
             className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+          {pounds !== null && !isEgp && (
+            <p data-testid="financing-egp" className="mt-1 text-xs text-muted-foreground">
+              {t.rich('worthInPounds', {
+                egp: () => <Money value={pounds} currency="EGP" className="font-medium text-foreground" />,
+              })}
+            </p>
+          )}
         </div>
         <FieldLabel label={t('paidOn')} required>
           <DatePicker name="paidOn" required disableFuture defaultValue={businessToday()} />

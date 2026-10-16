@@ -2048,7 +2048,12 @@
     "save": "حفظ",
     "cancelPlanHint": "يتوقف احتساب الجدول؛ لا تتغير السدادات ولا المتبقي.",
     "rateFor": "السعر ({currency} إلى الجنيه)",
-    "poundsEgp": "المدفوع (جنيه)"
+    "poundsEgp": "المدفوع (جنيه)",
+    "paidInCurrency": "العملة التي دفع بها",
+    "ordersCurrency": "عملة الطلب",
+    "rateOnThatDay": "سعر الصرف يوم الدفع ({currency} → EGP)",
+    "financingRateHint": "السعر في يوم الدفع — يُملأ مسبقًا من سعر الطلب أو السعر الحالي؛ غيّره إن كان سعر ذلك اليوم مختلفًا",
+    "worthInPounds": "تعادل <egp></egp> بهذا السعر"
   },
   "transfers": {
     "title": "التحويلات",
