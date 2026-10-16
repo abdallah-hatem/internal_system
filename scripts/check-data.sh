@@ -300,12 +300,18 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM lender_financings f
    WHERE (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
            WHERE r.financing_id = f.id AND r.reversed_at IS NULL) > f.amount
+  -- Compared in pounds, exactly (2026-10-16): friends may pay one order in
+  -- different currencies, each at the rate on the day he paid.
   UNION ALL SELECT 19.1, 'friends paid more of an order than its total',
          count(*) FROM purchase_orders o
-   WHERE (SELECT coalesce(sum(f.amount), 0) FROM lender_financings f
+   WHERE (SELECT coalesce(sum(f.amount * f.fx_rate_to_egp), 0) FROM lender_financings f
            WHERE f.purchase_order_id = o.id AND f.removed_at IS NULL)
        > (SELECT coalesce(sum(i.line_total), 0) FROM purchase_order_items i
-           WHERE i.purchase_order_id = o.id)
+           WHERE i.purchase_order_id = o.id) * o.fx_rate_to_egp
+  -- What he paid in pounds is his amount at his own rate, half up.
+  UNION ALL SELECT 19.6, 'friend''s payment whose pounds are not its amount at its rate',
+         count(*) FROM lender_financings
+   WHERE amount_egp <> round(amount * fx_rate_to_egp, 2)
   UNION ALL SELECT 19.2, 'repayment to a friend dated in the future or before he paid',
          count(*) FROM lender_repayments r JOIN lender_financings f ON f.id = r.financing_id
    WHERE r.paid_on > (now() AT TIME ZONE 'Africa/Cairo')::date OR r.paid_on < f.paid_on

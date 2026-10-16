@@ -1112,9 +1112,11 @@ model LenderFinancing {
   purchaseOrderId      String    @map("purchase_order_id") @db.Uuid
   /// The order's cycle. An order never changes cycle; kept for the gates.
   cycleId              String    @map("cycle_id") @db.Uuid
+  /// The currency he paid in — not necessarily the order's (§18, 2026-10-16).
   currency             String
   amount               Decimal   @db.Decimal(18, 2)
-  /// The ORDER's rate, copied when recorded. The debt is valued at it.
+  /// His currency's rate on the day he paid (the order's when none was given;
+  /// before 2026-10-16 always the order's). The debt is valued at it.
   fxRateToEgp          Decimal   @map("fx_rate_to_egp") @db.Decimal(18, 4)
   /// amount × fxRateToEgp, half up — the ledger inflow.
   amountEgp            Decimal   @map("amount_egp") @db.Decimal(18, 2)
@@ -1153,7 +1155,8 @@ model LenderRepayment {
   rateToEgp             Decimal   @map("rate_to_egp") @db.Decimal(18, 4)
   /// Debt cleared, in the financing's currency (common/lender-math.ts).
   cleared               Decimal   @db.Decimal(18, 2)
-  /// What `cleared` was worth at the order's rate.
+  /// What `cleared` was worth at the financing's own rate (the column keeps
+  /// its old name; until 2026-10-16 that rate was always the order's).
   clearedAtOrderRateEgp Decimal   @map("cleared_at_order_rate_egp") @db.Decimal(18, 2)
   /// amountEgp − clearedAtOrderRateEgp: a cost when positive, a gain when
   /// negative. Counts in cycle profit; never an operating expense.

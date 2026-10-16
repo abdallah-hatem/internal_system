@@ -1383,7 +1383,7 @@
     "LENDER_NAME_REQUIRED": "المُقرض يحتاج إلى اسم.",
     "CYCLE_CLOSED_FOR_FINANCING": "الدورة {cycle} في حالة {status}؛ لا يمكن تسجيل ما دفعه صديق عليها.",
     "LENDER_ALREADY_FINANCES_ORDER": "{lender} دفع بالفعل للطلب {reference}. احذفه وسجّله من جديد لتغييره.",
-    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed}.",
+    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed} {currency}.",
     "FINANCING_REMOVED": "تم حذف ما دفعه هذا الصديق.",
     "FINANCING_HAS_REPAYMENTS": "سُدِّد لـ {lender} على هذا؛ ألغِ تلك السدادات قبل حذفه.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "دفع للمورد في {paidOn}؛ لا يمكن أن يسبق السداد هذا التاريخ.",
@@ -1391,7 +1391,6 @@
     "LENDER_CYCLE_SETTLED": "الدورة {cycle} مُسوّاة؛ ألغِ التسوية قبل التراجع عن سداد عليها.",
     "LENDER_NOTHING_OWED": "لا شيء مستحق لـ {lender} على هذا، فلا يوجد ما يُجدول.",
     "LENDER_NOT_OWED": "لا شيء مستحق لـ {lender}، فلا يوجد ما يُسدَّد.",
-    "LENDER_CURRENCY_MISMATCH": "{reference} بعملة {orderCurrency}؛ ما دفعه الصديق عنه يُسجَّل بـ {orderCurrency} وليس {currency}.",
     "LENDER_PLAN_EXISTS": "لهذا خطة نشطة بالفعل. ألغِها قبل الاتفاق على غيرها.",
     "LENDER_PLAN_EXCEEDS_OWED": "مجموع الأقساط {total} {currency} والمستحق {owed} فقط.",
     "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه.",
@@ -1432,7 +1431,10 @@
     "PRODUCT_STATUS_INVALID": "حالة المنتج إما نشط أو غير نشط.",
     "NOT_ENOUGH_STOCK_ON_DATE": "لم يكن قد استُلم من {product} حتى {day} سوى {available}، لذا لا يمكن أن يكون قد بيع {wanted} في ذلك اليوم.",
     "PAYMENT_BEFORE_ORDER": "دفعة استُلمت في {receivedOn} لا يمكن أن تسدد {order}، فقد بيع في {orderedOn}.",
-    "RECEIVED_BEFORE_ARRIVAL": "لا يمكن استلام البضاعة في {day}: فقد وصلت الشحنة إلى مصر في {arrivedOn}."
+    "RECEIVED_BEFORE_ARRIVAL": "لا يمكن استلام البضاعة في {day}: فقد وصلت الشحنة إلى مصر في {arrivedOn}.",
+    "FINANCING_RATE_REQUIRED": "دفع بـ {currency} وهي ليست عملة {reference}: اذكر سعر {currency} بالجنيه في يوم الدفع.",
+    "RATE_TOO_PRECISE": "السعر لا يتجاوز {decimals} أرقام عشرية؛ {rate} فيه أكثر من ذلك.",
+    "CURRENCY_CODE_INVALID": "{value} ليس رمز عملة: ثلاثة أحرف لاتينية مثل AED."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

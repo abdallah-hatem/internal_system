@@ -4,9 +4,10 @@ import { badRequest } from './api-error';
 import { formatMoney } from './money';
 
 /**
- * The money of a friend's loan (BUSINESS_LOGIC §18): he paid a supplier in the
- * order's currency, we owe him that amount in that currency, and we repay it
- * in pounds at whatever the rate is on the day.
+ * The money of a friend's loan (BUSINESS_LOGIC §18): he paid a supplier in his
+ * own currency at that day's rate (2026-10-16 — not necessarily the order's),
+ * we owe him that amount in that currency, and we repay it in pounds at
+ * whatever the rate is on the day.
  *
  * Pure — no Nest, no Prisma client — so every branch is unit-tested
  * (`lender-math.spec.ts`) and the service, the quote endpoint and the checks
@@ -19,26 +20,31 @@ import { formatMoney } from './money';
  *   what is owed. Rounding down leaves at most 0.01 per part payment, and the
  *   settling amount includes it, so the debt always ends at exactly zero.
  * - More than the settling amount is refused (rule 1: too much).
- * - At the order's rate, the final repayment takes whatever keeps the parts
- *   equal to his payment at that rate, so the exchange difference over a repaid
- *   debt is exactly pounds paid − his amount at the order's rate.
+ * - At the financing's own rate (the rate on the day he paid), the final
+ *   repayment takes whatever keeps the parts equal to his payment at that
+ *   rate, so the exchange difference over a repaid debt is exactly pounds
+ *   paid − his payment's pounds (`amountEgp`).
  */
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 const ZERO = D(0);
 
 export interface FinancingTerms {
-  /** What he paid, in the order's currency. */
+  /** What he paid, in his currency. */
   amount: Prisma.Decimal;
-  /** amount × the order's rate, half up — the ledger inflow. */
+  /** amount × the financing's rate, half up — the ledger inflow. */
   amountEgp: Prisma.Decimal;
-  /** The order's rate. */
-  orderRate: Prisma.Decimal;
+  /**
+   * The rate on the day he paid, stored on the financing. Until 2026-10-16
+   * this was always the order's, copied; now it is his own.
+   */
+  financingRate: Prisma.Decimal;
 }
 
 export interface StandingRepayment {
   amountEgp: Prisma.Decimal;
   cleared: Prisma.Decimal;
+  /** What it cleared at the financing's rate (the column keeps its old name). */
   clearedAtOrderRateEgp: Prisma.Decimal;
   exchangeDiffEgp: Prisma.Decimal;
 }
@@ -46,8 +52,9 @@ export interface StandingRepayment {
 export interface PlannedRepayment {
   /** Debt cleared, in his currency. */
   cleared: Prisma.Decimal;
+  /** What it cleared at the financing's rate (stored as clearedAtOrderRateEgp). */
   clearedAtOrderRateEgp: Prisma.Decimal;
-  /** Pounds paid − what was cleared at the order's rate. Positive is a cost. */
+  /** Pounds paid − what was cleared at the financing's rate. Positive is a cost. */
   exchangeDiffEgp: Prisma.Decimal;
   /** True when this repayment pays the debt off. */
   final: boolean;
@@ -69,13 +76,13 @@ export function settlingEgp(
   return D(owed).mul(D(rate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
-/** Debt valued at the order's rate, to the piastre. */
-export function atOrderRate(
+/** Debt valued at the financing's own rate, to the piastre. */
+export function atFinancingRate(
   cleared: Prisma.Decimal.Value,
-  orderRate: Prisma.Decimal.Value,
+  financingRate: Prisma.Decimal.Value,
 ): Prisma.Decimal {
   return D(cleared)
-    .mul(D(orderRate))
+    .mul(D(financingRate))
     .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
@@ -123,7 +130,7 @@ export function planRepayment(
   }
 
   if (pounds.eq(settling)) {
-    // Pays it off: everything left is cleared, and at the order's rate this
+    // Pays it off: everything left is cleared, and at the financing's rate this
     // takes whatever keeps the parts equal to what he paid (§2's residual).
     const before = standing.reduce(
       (s, x) => s.add(D(x.clearedAtOrderRateEgp)),
@@ -146,11 +153,127 @@ export function planRepayment(
       { amount: formatMoney(pounds), rate: r.toString() },
     );
   }
-  const atOrder = atOrderRate(cleared, financing.orderRate);
+  const atOrder = atFinancingRate(cleared, financing.financingRate);
   return {
     cleared,
     clearedAtOrderRateEgp: atOrder,
     exchangeDiffEgp: pounds.sub(atOrder),
     final: false,
   };
+}
+
+// ─── What he paid, in pounds (§18, 2026-10-16) ─────────────────────────────
+
+/**
+ * An order's worth in pounds: its lines at its own rate, half up. What
+ * friends' payments on it are capped at — they may pay in different
+ * currencies, so pounds are the one unit that compares them.
+ */
+export function orderTotalEgp(
+  lineTotals: readonly Prisma.Decimal.Value[],
+  orderRate: Prisma.Decimal.Value,
+): Prisma.Decimal {
+  return lineTotals
+    .reduce<Prisma.Decimal>((s, t) => s.add(D(t)), ZERO)
+    .mul(D(orderRate))
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * Would this payment take what friends paid of an order past the order
+ * (§18, 2026-10-16)? Compared in pounds, since friends may pay in different
+ * currencies — and compared **exactly**, before any rounding: two friends
+ * paying 1.00 each of a 2.00 order at 13.8567 are 13.86 + 13.86 rounded but
+ * 27.7134 together, which is the order to the last digit. Rounding each first
+ * would refuse a payment of exactly what is left.
+ *
+ * The figures returned are the rounded ones people read.
+ */
+export function financingCap(input: {
+  lineTotals: readonly Prisma.Decimal.Value[];
+  orderRate: Prisma.Decimal.Value;
+  standing: readonly {
+    amount: Prisma.Decimal.Value;
+    rate: Prisma.Decimal.Value;
+  }[];
+  adding: { amount: Prisma.Decimal.Value; rate: Prisma.Decimal.Value };
+}): {
+  exceeds: boolean;
+  totalEgp: Prisma.Decimal;
+  financedEgp: Prisma.Decimal;
+  addingEgp: Prisma.Decimal;
+} {
+  const exact = (f: {
+    amount: Prisma.Decimal.Value;
+    rate: Prisma.Decimal.Value;
+  }) => D(f.amount).mul(D(f.rate));
+  const totalExact = input.lineTotals
+    .reduce<Prisma.Decimal>((s, t) => s.add(D(t)), ZERO)
+    .mul(D(input.orderRate));
+  const financedExact = input.standing.reduce<Prisma.Decimal>(
+    (s, f) => s.add(exact(f)),
+    ZERO,
+  );
+  return {
+    exceeds: financedExact.add(exact(input.adding)).gt(totalExact),
+    totalEgp: orderTotalEgp(input.lineTotals, input.orderRate),
+    financedEgp: input.standing.reduce<Prisma.Decimal>(
+      (s, f) => s.add(financingAmountEgp(f.amount, f.rate)),
+      ZERO,
+    ),
+    addingEgp: financingAmountEgp(input.adding.amount, input.adding.rate),
+  };
+}
+
+/** What he paid, in pounds at his rate: amount × rate, half up. */
+export function financingAmountEgp(
+  amount: Prisma.Decimal.Value,
+  rate: Prisma.Decimal.Value,
+): Prisma.Decimal {
+  return D(amount)
+    .mul(D(rate))
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * The currency and rate a friend's payment is recorded at.
+ *
+ * - Neither said: the order's currency at the order's rate — how it was
+ *   before 2026-10-16.
+ * - EGP: rate 1; any other rate is BASE_CURRENCY_RATE_FIXED.
+ * - A rate said: that rate, the one on the day he paid.
+ * - The order's currency with no rate: the order's rate.
+ * - Another currency with no rate: FINANCING_RATE_REQUIRED — a rate on the
+ *   exchange-rate page is today's, not the day he paid, so it only prefills.
+ *
+ * Whether a currency other than EGP and the order's is one the business keeps
+ * a rate for is the caller's to check: it needs the database.
+ */
+export function financingTerms(input: {
+  currency?: string;
+  rate?: Prisma.Decimal;
+  orderCurrency: string;
+  orderRate: Prisma.Decimal.Value;
+  orderReference: string;
+}): { currency: string; rate: Prisma.Decimal } {
+  const currency = input.currency ?? input.orderCurrency;
+  if (currency === 'EGP') {
+    if (input.rate && !input.rate.eq(1)) {
+      throw badRequest(
+        'BASE_CURRENCY_RATE_FIXED',
+        'EGP is the base currency — its rate is 1 by definition and cannot be changed.',
+        { currency: 'EGP' },
+      );
+    }
+    return { currency, rate: D(1) };
+  }
+  if (input.rate) return { currency, rate: input.rate };
+  if (currency === input.orderCurrency) {
+    return { currency, rate: D(input.orderRate) };
+  }
+  throw badRequest(
+    'FINANCING_RATE_REQUIRED',
+    `He paid in ${currency}, which is not ${input.orderReference}'s currency: say what ${currency} was worth in pounds on the day he paid.`,
+    { currency, reference: input.orderReference },
+  );
 }

@@ -108,7 +108,7 @@ export async function cycleFinancedEgp(
 
 /**
  * The exchange difference on repayments, in EGP: positive is a cost (the
- * dirham rose since the order), negative a gain (§18).
+ * dirham rose since he paid), negative a gain (§18).
  *
  * Not a ledger row — the ledger shows the pounds leaving — so settlement,
  * cycle profit and the dashboard each read it here, the same way they read

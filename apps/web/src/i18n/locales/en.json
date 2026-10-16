@@ -1383,7 +1383,7 @@
     "LENDER_NAME_REQUIRED": "A lender needs a name.",
     "CYCLE_CLOSED_FOR_FINANCING": "Cycle {cycle} is {status}; a friend's payment cannot be recorded on it.",
     "LENDER_ALREADY_FINANCES_ORDER": "{lender} already paid for {reference}. Remove that and record it again to change it.",
-    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} is more than is left to pay on {reference}: the order is {total} {currency} and friends already paid {financed}.",
+    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} is more than is left to pay on {reference}: the order is {total} {currency} and friends already paid {financed} {currency}.",
     "FINANCING_REMOVED": "This friend's payment was removed.",
     "FINANCING_HAS_REPAYMENTS": "{lender} has been repaid on this; reverse those repayments before removing it.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "He paid the supplier on {paidOn}; a repayment cannot be dated before that.",
@@ -1391,7 +1391,6 @@
     "LENDER_CYCLE_SETTLED": "Cycle {cycle} is settled; reverse the settlement before undoing a repayment on it.",
     "LENDER_NOTHING_OWED": "{lender} is owed nothing on this, so there is nothing to schedule.",
     "LENDER_NOT_OWED": "{lender} is owed nothing, so there is nothing to repay.",
-    "LENDER_CURRENCY_MISMATCH": "{reference} is in {orderCurrency}; what a friend paid for it is recorded in {orderCurrency}, not {currency}.",
     "LENDER_PLAN_EXISTS": "This already has an active plan. Cancel it before agreeing another.",
     "LENDER_PLAN_EXCEEDS_OWED": "The instalments total {total} {currency} but only {owed} is owed.",
     "FINANCING_ORDER_EMPTY": "{reference} has no lines, so there is nothing a friend could have paid for.",
@@ -1432,7 +1431,10 @@
     "PRODUCT_STATUS_INVALID": "A product is either active or inactive.",
     "NOT_ENOUGH_STOCK_ON_DATE": "Only {available} of {product} had been received by {day}, so {wanted} cannot have been sold that day.",
     "PAYMENT_BEFORE_ORDER": "A payment received on {receivedOn} cannot pay {order}, which was sold on {orderedOn}.",
-    "RECEIVED_BEFORE_ARRIVAL": "Stock cannot be received on {day}: the delivery reached Egypt on {arrivedOn}."
+    "RECEIVED_BEFORE_ARRIVAL": "Stock cannot be received on {day}: the delivery reached Egypt on {arrivedOn}.",
+    "FINANCING_RATE_REQUIRED": "He paid in {currency}, which is not {reference}'s currency: say what {currency} was worth in pounds on the day he paid.",
+    "RATE_TOO_PRECISE": "A rate has at most {decimals} decimals; {rate} has more.",
+    "CURRENCY_CODE_INVALID": "{value} is not a currency code: three letters, such as AED."
   },
   "orderRequests": {
     "title": "Order requests",

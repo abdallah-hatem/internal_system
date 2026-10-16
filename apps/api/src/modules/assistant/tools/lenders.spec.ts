@@ -13,6 +13,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { businessToday } from '../../../common/dates';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { CostingService } from '../../costing/costing.service';
 import { LendersService } from '../../lenders/lenders.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import { AssistantServer } from '../assistant-server';
@@ -27,8 +28,8 @@ import type { AssistantUser } from '../tool-kit';
  * database is fake: in memory, rolling a transaction back when it throws,
  * because "a preview writes nothing" is under test.
  *
- * Beyond the happy path (CLAUDE.md §0): too much, a future day, zero, the
- * wrong currency, a name that is close or unknown, a new friend, an order
+ * Beyond the happy path (CLAUDE.md §0): too much, a future day, zero, a
+ * currency with no rate, a name that is close or unknown, a new friend, an order
  * that is not said, no account asked, the same token twice, altered arguments, a
  * repayment arriving between the preview and the yes, and roles the office
  * endpoints refuse.
@@ -743,8 +744,10 @@ describe('record_lender_financing — "Mahmoud paid 30,000 AED for PO-2026-0004"
     expect(codeOf(await finance({ ...paid30k, amount: 30000.01 }))).toBe(
       'FINANCING_EXCEEDS_ORDER',
     );
+    // His own currency is allowed (§18, 2026-10-16) — one with no rate on
+    // file is not.
     expect(codeOf(await finance({ ...paid30k, currency: 'CNY' }))).toBe(
-      'LENDER_CURRENCY_MISMATCH',
+      'NO_RATE_RECORDED',
     );
     expect(codeOf(await finance({ ...paid30k, amount: 0 }))).toBe(
       'AMOUNT_NOT_POSITIVE',
@@ -1204,5 +1207,324 @@ describe('lender tools — the documented cases, each named (L2 review)', () => 
     const shown = await call('get_lender', { lender: 'Khaled' });
     expect(shown.s.data!.owed).toEqual([]);
     expect(shown.s.data!.financings).toEqual([]);
+  });
+});
+
+// ── A friend pays in his own currency (§18, 2026-10-16) ──────────────────
+
+describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-16)', () => {
+  /** PO-2026-0006 is 5,000 CNY at 2: 10,000 EGP. Its friends pay in AED. */
+  const inAed = (amount: number, rate: number, lenderId = ids.mahmoud) =>
+    lendersService.finance(
+      ids.po6,
+      {
+        lenderId,
+        amount,
+        currency: 'AED',
+        fxRateToEgp: rate,
+        paidOn: daysAgo(20),
+      },
+      partner.id,
+    );
+
+  async function refusalOf(p: Promise<unknown>) {
+    try {
+      await p;
+    } catch (e) {
+      const body = (e as { getResponse(): any }).getResponse();
+      return { code: body.code as string, params: body.params };
+    }
+    throw new Error('expected a refusal');
+  }
+
+  it('AED paid on a CNY order: stored in AED at his rate, worth amount × rate in pounds, and the ledger says both', async () => {
+    const { data } = await inAed(500, 13.9);
+    expect(data).toMatchObject({
+      currency: 'AED',
+      amount: '500.00',
+      fxRateToEgp: '13.9000',
+      amountEgp: '6950.00',
+      owed: '500.00',
+    });
+    const row = db.tables.financialTransaction.find(
+      (t) => t.relatedId === data.id,
+    )!;
+    expect([
+      D(row.amount).toFixed(2),
+      row.currency,
+      D(row.fxRateToEgp).toFixed(4),
+      D(row.originalAmount).toFixed(2),
+      row.originalCurrency,
+    ]).toEqual(['6950.00', 'EGP', '13.9000', '500.00', 'AED']);
+  });
+
+  it('the cap is in pounds: a second friend over the order’s 10,000 EGP → FINANCING_EXCEEDS_ORDER with the figures in EGP; nothing written', async () => {
+    await inAed(500, 13.9);
+    const before = db.counts();
+    const r = await refusalOf(inAed(300, 13.9, ids.sami));
+    expect(r).toEqual({
+      code: 'FINANCING_EXCEEDS_ORDER',
+      params: {
+        amount: '4,170.00',
+        currency: 'EGP',
+        reference: 'PO-2026-0006',
+        total: '10,000.00',
+        financed: '6,950.00',
+      },
+    });
+    expect(db.counts()).toEqual(before);
+    // Up to the cap exactly is fine: 3,050 EGP is 219.4245 AED — at 13.9,
+    // 219.42 AED is 3,049.94 EGP.
+    await inAed(219.42, 13.9, ids.sami);
+  });
+
+  it('two friends paying exactly what is left in the order’s currency are not refused by rounding (13.86 + 13.86 of a 27.71 order)', async () => {
+    const po = db.insert('purchaseOrder', {
+      cycleId: ids.cycle,
+      reference: 'PO-2026-0007',
+      currency: 'USD',
+      fxRateToEgp: D('13.8567'),
+      orderedOn: new Date(),
+    }).id as string;
+    db.insert('purchaseOrderItem', {
+      purchaseOrderId: po,
+      productId: randomUUID(),
+      orderedQty: D(2),
+      lineTotal: D(2),
+    });
+    for (const lenderId of [ids.mahmoud, ids.sami]) {
+      const { data } = await lendersService.finance(
+        po,
+        { lenderId, amount: 1 },
+        partner.id,
+      );
+      expect(data.amountEgp).toBe('13.86');
+    }
+    // A piastre's worth more is too much.
+    const r = await refusalOf(
+      lendersService.finance(
+        po,
+        { lenderId: ids.mahmoudHassan, amount: 0.01 },
+        partner.id,
+      ),
+    );
+    expect(r.code).toBe('FINANCING_EXCEEDS_ORDER');
+  });
+
+  it('half up to the piastre, never to even: 10.15 at 1.5 is 15.225 → 15.23 EGP', async () => {
+    const { data } = await inAed(10.15, 1.5);
+    expect(data.amountEgp).toBe('15.23');
+  });
+
+  it('neither said: the order’s currency at the order’s rate, as before', async () => {
+    const { data } = await lendersService.finance(
+      ids.po6,
+      { lenderId: ids.mahmoud, amount: 1000 },
+      partner.id,
+    );
+    expect([data.currency, data.fxRateToEgp, data.amountEgp]).toEqual([
+      'CNY',
+      '2.0000',
+      '2000.00',
+    ]);
+  });
+
+  it('his currency is not the order’s and no rate is given → FINANCING_RATE_REQUIRED', async () => {
+    const r = await refusalOf(
+      lendersService.finance(
+        ids.po6,
+        { lenderId: ids.mahmoud, amount: 100, currency: 'AED' },
+        partner.id,
+      ),
+    );
+    expect(r).toEqual({
+      code: 'FINANCING_RATE_REQUIRED',
+      params: { currency: 'AED', reference: 'PO-2026-0006' },
+    });
+  });
+
+  it('a currency with no rate on file → NO_RATE_RECORDED, even with a rate typed', async () => {
+    for (const currency of ['GBP', 'CNY']) {
+      const r = await refusalOf(
+        lendersService.finance(
+          ids.po4,
+          { lenderId: ids.mahmoud, amount: 100, currency, fxRateToEgp: 60 },
+          partner.id,
+        ),
+      );
+      expect(r).toEqual({ code: 'NO_RATE_RECORDED', params: { currency } });
+    }
+  });
+
+  it('EGP: rate 1 whatever the order; any other rate → BASE_CURRENCY_RATE_FIXED', async () => {
+    const r = await refusalOf(
+      lendersService.finance(
+        ids.po6,
+        {
+          lenderId: ids.mahmoud,
+          amount: 100,
+          currency: 'EGP',
+          fxRateToEgp: 2,
+        },
+        partner.id,
+      ),
+    );
+    expect(r.code).toBe('BASE_CURRENCY_RATE_FIXED');
+    const { data } = await lendersService.finance(
+      ids.po6,
+      { lenderId: ids.mahmoud, amount: 3000, currency: 'egp' },
+      partner.id,
+    );
+    expect([data.currency, data.fxRateToEgp, data.amountEgp]).toEqual([
+      'EGP',
+      '1.0000',
+      '3000.00',
+    ]);
+  });
+
+  it.each([
+    [0, 'RATE_NOT_POSITIVE'],
+    [-13, 'RATE_NOT_POSITIVE'],
+    [Number.NaN, 'RATE_NOT_POSITIVE'],
+    [13.12345, 'RATE_TOO_PRECISE'],
+  ])('a rate of %p → %s; nothing written', async (rate, code) => {
+    const before = db.counts();
+    expect((await refusalOf(inAed(100, rate))).code).toBe(code);
+    expect(db.counts()).toEqual(before);
+  });
+
+  it.each(['AE', 'AEDX', '12A', 'د.إ'])(
+    'a currency that is not three letters (%p) → CURRENCY_CODE_INVALID',
+    async (currency) => {
+      const r = await refusalOf(
+        lendersService.finance(
+          ids.po6,
+          { lenderId: ids.mahmoud, amount: 100, currency, fxRateToEgp: 13 },
+          partner.id,
+        ),
+      );
+      expect(r.code).toBe('CURRENCY_CODE_INVALID');
+    },
+  );
+
+  it('his debt is in AED: a repayment clears pounds ÷ that day’s rate, and the exchange difference is measured against HIS rate, not the order’s', async () => {
+    const { data: f } = await inAed(500, 13.9);
+    // Paid off at 14.2: 7,100 EGP for what was 6,950 EGP when he paid.
+    const { data } = await lendersService.repay(
+      f.id,
+      { amountEgp: 7100, rateToEgp: 14.2, paidOn: daysAgo(5) },
+      partner.id,
+    );
+    expect(data.owed).toBe('0.00');
+    expect(data.exchangeDiffEgp).toBe('150.00');
+  });
+
+  it('what partners are asked to fund falls by his pounds, at his rate', async () => {
+    const costing = new CostingService(db as unknown as PrismaService);
+    const before = await costing.fundingFor(ids.cycle);
+    await inAed(500, 13.9);
+    const after = await costing.fundingFor(ids.cycle);
+    expect(before.financed.toFixed(2)).toBe('130000.00');
+    expect(after.financed.toFixed(2)).toBe('136950.00');
+    expect(before.toFund.sub(after.toFund).toFixed(2)).toBe('6950.00');
+  });
+
+  it('the order’s summary is told in pounds: its total and what friends paid, whatever their currencies', async () => {
+    await inAed(500, 13.9);
+    await lendersService.finance(
+      ids.po6,
+      { lenderId: ids.sami, amount: 1000 },
+      partner.id,
+    );
+    const { data } = await lendersService.forOrder(ids.po6);
+    expect(data).toMatchObject({
+      currency: 'CNY',
+      fxRateToEgp: '2.0000',
+      orderTotal: '5000.00',
+      orderTotalEgp: '10000.00',
+      financedEgp: '8950.00',
+      availableEgp: '1050.00',
+    });
+  });
+
+  describe('record_lender_financing — in his currency', () => {
+    it('USD on an AED order at the rate he gave: the preview names it and binds it; yes records it', async () => {
+      db.insert('currencyRate', { code: 'USD', rateToEgp: D(50.86) });
+      const args = {
+        lender: 'Mahmoud',
+        order: 'PO-2026-0004',
+        amount: 2000,
+        currency: 'USD',
+        fxRateToEgp: 49.5,
+      };
+      const preview = await finance(args);
+      expect(preview.s.data).toMatchObject({
+        currency: 'USD',
+        rateToEgp: '49.5000',
+        rateFrom: 'given',
+        amountEgp: '99000.00',
+        orderCurrency: 'AED',
+        orderTotalEgp: '390000.00',
+        orderFinancedEgp: '99000.00',
+      });
+      expect(preview.text).toContain('at 49.5000 EGP per USD (the rate given)');
+
+      const changed = await finance({
+        ...args,
+        fxRateToEgp: 49.6,
+        confirmationToken: preview.s.confirmationToken,
+      });
+      expect(codeOf(changed)).toBe('CONFIRMATION_MISMATCH');
+
+      const done = await finance({
+        ...args,
+        confirmationToken: preview.s.confirmationToken,
+      });
+      expect(done.s.status).toBe('committed');
+      const row = db.tables.lenderFinancing.find(
+        (f) => f.lenderId === ids.mahmoud,
+      )!;
+      expect([row.currency, D(row.fxRateToEgp).toFixed(4)]).toEqual([
+        'USD',
+        '49.5000',
+      ]);
+    });
+
+    it("no rate said for a currency that is not the order's: today's rate on the page, and the preview says so", async () => {
+      db.insert('currencyRate', { code: 'USD', rateToEgp: D(50.86) });
+      const preview = await finance({
+        lender: 'Mahmoud',
+        order: 'PO-2026-0006',
+        amount: 100,
+        currency: 'USD',
+      });
+      expect(preview.s.data).toMatchObject({
+        rateToEgp: '50.8600',
+        rateFrom: 'today',
+        amountEgp: '5086.00',
+      });
+      expect(preview.text).toContain("today's rate on the exchange-rate page");
+    });
+
+    it("the order's currency, no rate said: the order's rate, named as such", async () => {
+      const preview = await finance(paid30k);
+      expect(preview.s.data).toMatchObject({
+        rateToEgp: '13.0000',
+        rateFrom: 'order',
+      });
+      expect(preview.text).toContain("the order's own rate");
+    });
+
+    it('more than the order in pounds → FINANCING_EXCEEDS_ORDER in the preview; nothing to confirm', async () => {
+      db.insert('currencyRate', { code: 'USD', rateToEgp: D(50) });
+      const r = await finance({
+        lender: 'Mahmoud',
+        order: 'PO-2026-0004',
+        amount: 8000,
+        currency: 'USD',
+      });
+      expect(codeOf(r)).toBe('FINANCING_EXCEEDS_ORDER');
+      expect(r.s.confirmationToken).toBeUndefined();
+    });
   });
 });
