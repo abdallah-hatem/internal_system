@@ -546,6 +546,10 @@ export class LendersService {
           relatedType: 'LENDER_FINANCING',
           relatedId: id,
           reason: `${lender.name} paid ${formatMoney(amount)} ${currency} of ${order.reference}`,
+          // The ledger dates a row by the day it happened, not the day it was
+          // typed in: without this a payment entered weeks later sat on the
+          // day of entry (owner, 2026-10-16).
+          occurredOn: asDay(dto.paidOn),
           createdBy: actorId,
         },
       });
@@ -628,6 +632,10 @@ export class LendersService {
           relatedId: now.id,
           reversalOfId: now.ledgerTransactionId,
           reason: `Removed: ${reason.trim()}`,
+          // On the day of the payment it cancels, so that day's figures net
+          // to nothing instead of one month showing it and another taking it
+          // back (owner, 2026-10-16).
+          occurredOn: now.paidOn,
           createdBy: actorId,
         },
       });
@@ -721,6 +729,8 @@ export class LendersService {
           reason:
             `Repaid ${now.lender.name} ${formatMoney(plan.cleared)} ${now.currency} ` +
             `of ${now.purchaseOrder.reference} at ${dto.rateToEgp}`,
+          // The day he was repaid, as for his payment above.
+          occurredOn: paidOn,
           createdBy: actorId,
         },
       });
@@ -808,6 +818,8 @@ export class LendersService {
           relatedId: now.id,
           reversalOfId: now.ledgerTransactionId,
           reason: `Reversed: ${reason.trim()}`,
+          // On the day of the repayment it undoes, as a removed payment above.
+          occurredOn: now.paidOn,
           createdBy: actorId,
         },
       });

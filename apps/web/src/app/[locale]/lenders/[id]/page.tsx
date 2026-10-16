@@ -55,6 +55,10 @@ export default function LenderPage() {
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  // A removed payment is history, not a debt: hidden until asked for, so it
+  // does not read as a second payment beside the one that replaced it
+  // (owner, 2026-10-16).
+  const [showRemoved, setShowRemoved] = useState(false);
   const close = () => setDialog(null);
 
   const { data, isLoading, isError } = useQuery<LenderDetail>({
@@ -82,6 +86,9 @@ export default function LenderPage() {
       </div>
     );
   }
+
+  const standing = data.financings.filter((f) => !f.removedAt);
+  const removedOnes = data.financings.filter((f) => f.removedAt);
 
   return (
     <div className="space-y-6">
@@ -118,14 +125,30 @@ export default function LenderPage() {
         <HandCoins className="h-4 w-4 text-muted-foreground" /> {t('paidFor')}
       </h2>
 
-      {data.financings.length === 0 ? (
+      {standing.length === 0 ? (
         <div className="rounded-xl border border-border bg-card">
           <EmptyState icon={HandCoins} title={t('noFinancings')} description={t('noFinancingsHint')} />
         </div>
       ) : (
-        data.financings.map((f) => (
+        standing.map((f) => (
           <FinancingCard key={f.id} f={f} locale={locale} onOpen={setDialog} />
         ))
+      )}
+
+      {removedOnes.length > 0 && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            data-testid="toggle-removed"
+            aria-expanded={showRemoved}
+            onClick={() => setShowRemoved((v) => !v)}
+            className="text-sm font-medium text-primary-600 hover:underline"
+          >
+            {showRemoved ? t('hideRemoved') : t('showRemoved', { count: removedOnes.length })}
+          </button>
+          {showRemoved &&
+            removedOnes.map((f) => <FinancingCard key={f.id} f={f} locale={locale} onOpen={setDialog} />)}
+        </div>
       )}
 
       {dialog?.kind === 'repay' && <RecordRepaymentDialog financing={dialog.financing} onClose={close} />}

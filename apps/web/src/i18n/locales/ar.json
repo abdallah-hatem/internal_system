@@ -1994,6 +1994,8 @@
     "reversed": "مُلغى",
     "reversedBecause": "أُلغي: {reason}",
     "removed": "محذوف",
+    "showRemoved": "{count, plural, one {إظهار الدفعة المحذوفة} two {إظهار الدفعتين المحذوفتين} few {إظهار {count} دفعات محذوفة} other {إظهار {count} دفعة محذوفة}}",
+    "hideRemoved": "إخفاء الدفعات المحذوفة",
     "recordRepayment": "تسجيل سداد",
     "repaymentFor": "{lender} · {reference}",
     "owedNow": "المتبقي: <amount></amount>",

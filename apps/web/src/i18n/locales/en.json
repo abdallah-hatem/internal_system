@@ -1994,6 +1994,8 @@
     "reversed": "Reversed",
     "reversedBecause": "Reversed: {reason}",
     "removed": "Removed",
+    "showRemoved": "{count, plural, one {Show the removed payment} other {Show # removed payments}}",
+    "hideRemoved": "Hide removed payments",
     "recordRepayment": "Record repayment",
     "repaymentFor": "{lender} · {reference}",
     "owedNow": "Still owed: <amount></amount>",
