@@ -47,6 +47,7 @@ import { RowAction } from '../ui/fields';
 import { BackLink } from '../ui/back-link';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { ValidatedForm } from '@/components/ui/validated-form';
+import { splitAcrossPartners } from '@/lib/funding-split';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -460,10 +461,12 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     }
   };
 
-  const landedTotal = Number(landedCost?.totals?.landedEgp ?? 0);
-  // What friends paid suppliers for this cycle (§18) is not the partners' to
-  // fund: the server's `toFundEgp` is the landed cost less it, and both the
-  // split and the funded-versus-cost line read that one figure.
+  // The cycle's cost: goods, shipping and the expenses charged to it (§18,
+  // 2026-10-16) — the server's figure; landed cost on an API from before it.
+  const landedTotal = Number(landedCost?.totals?.cycleCostEgp ?? landedCost?.totals?.landedEgp ?? 0);
+  // What friends paid towards this cycle (§18) is not the partners' to fund:
+  // the server's `toFundEgp` is the cycle's cost less it, and both the split
+  // and the funded-versus-cost line read that one figure.
   const financedTotal = Number(landedCost?.totals?.lenderFinancedEgp ?? 0);
   const toFund = Number(landedCost?.totals?.toFundEgp ?? landedTotal);
   const fundedTotal = participants.reduce(
@@ -472,14 +475,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   );
 
   /**
-   * Split what the cycle actually cost across the core partners.
-   *
-   * To the piastre: thirds of 75,645.50 do not divide evenly, so the last
-   * partner absorbs the residual and the parts re-sum exactly. Left uneven,
-   * capital returned at settlement would not match capital put in.
-   *
-   * Investors are left alone — they put in a specific amount that is theirs,
-   * not a share of the whole.
+   * Split what the cycle has left to fund across the core partners, through
+   * the one split the cycle page uses too (`lib/funding-split`). Investors
+   * are left alone — they put in a specific amount that is theirs.
    */
   const splitEqually = () => {
     const core = participants.filter((p: any) => p.participantType === 'CORE_PARTNER');
@@ -488,12 +486,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       .filter((p: any) => p.participantType !== 'CORE_PARTNER')
       .reduce((sum: number, p: any) => sum + Number(contributions[p.id] || 0), 0);
 
-    const cents = Math.round(Math.max(toFund - investors, 0) * 100);
-    const each = Math.floor(cents / core.length);
+    const { shares } = splitAcrossPartners(toFund, investors, core.length);
     const next: Record<string, string> = { ...contributions };
     core.forEach((p: any, i: number) => {
-      const amount = (i === core.length - 1 ? cents - each * (core.length - 1) : each) / 100;
-      next[p.id] = amount.toFixed(2);
+      next[p.id] = shares[i].toFixed(2);
     });
     setContributions(next);
   };

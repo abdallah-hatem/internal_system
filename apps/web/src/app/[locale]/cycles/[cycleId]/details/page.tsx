@@ -46,6 +46,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useNumberFormat } from '@/lib/numbers';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
+import { splitAcrossPartners } from '@/lib/funding-split';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -149,19 +150,16 @@ export default function CycleDetailsPage() {
         .filter((p) => p.participantType !== 'CORE_PARTNER')
         .reduce((sum, p) => sum + num(p.contributionAmount), 0);
 
-      // What the partners are funding: the cycle's cost less what friends
-      // paid suppliers for it (§18, the server's `toFundEgp`) and less
-      // whatever an investor already put in.
+      // What the partners are funding: the cycle's cost — goods, shipping and
+      // the expenses charged to it — less what friends paid towards it (§18,
+      // the server's `toFundEgp`) and less whatever an investor already put
+      // in. The wizard's split is the same function.
       const toFund = num(costing?.totals?.toFundEgp ?? costing?.totals?.landedEgp);
-      const total = Math.max(toFund - investors, 0);
-      const cents = Math.round(total * 100);
-      const each = Math.floor(cents / partners.length);
+      const { total, shares } = splitAcrossPartners(toFund, investors, partners.length);
 
       for (let i = 0; i < partners.length; i++) {
-        const isLast = i === partners.length - 1;
-        const amount = (isLast ? cents - each * (partners.length - 1) : each) / 100;
         await api.put(`/cycles/participants/${partners[i].id}`, {
-          contributionAmount: amount,
+          contributionAmount: shares[i],
         });
       }
       return total;
@@ -318,7 +316,9 @@ export default function CycleDetailsPage() {
               </button>
               {canEditParticipant &&
                 participants.some((p) => p.participantType === 'CORE_PARTNER') &&
-                num(costing?.totals?.landedEgp) + num(costing?.totals?.transferredInEgp) > 0 && (
+                num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) +
+                  num(costing?.totals?.transferredInEgp) >
+                  0 && (
                   <button
                     onClick={() => splitEqually.mutate()}
                     disabled={splitEqually.isPending}

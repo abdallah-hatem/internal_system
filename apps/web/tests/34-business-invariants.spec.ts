@@ -1036,11 +1036,12 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
     const { headers, mk, cycle, po, lender, stamp } = await friendCycle(request, 'Inv L1');
     const post = (path: string, data: any) => request.post(`${API}/${path}`, { headers, data });
 
-    // More than the order, alone or across two friends.
-    expect(await codeOf(await post(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000.01 }))).toBe('FINANCING_EXCEEDS_ORDER');
+    // More than the cycle's cost — 390,000 of goods + 13,000 of freight =
+    // 403,000 EGP, 31,000 AED at 13 (§18, 2026-10-16) — alone or across two friends.
+    expect(await codeOf(await post(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 31000.01 }))).toBe('FINANCING_EXCEEDS_CYCLE_COST');
     const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 20000 });
     const second = await mk('lenders', { name: `Inv L1 Second ${stamp}` });
-    expect(await codeOf(await post(`purchases/${po.id}/financings`, { lenderId: second.id, amount: 10000.01 }))).toBe('FINANCING_EXCEEDS_ORDER');
+    expect(await codeOf(await post(`purchases/${po.id}/financings`, { lenderId: second.id, amount: 11000.01 }))).toBe('FINANCING_EXCEEDS_CYCLE_COST');
     // The same friend twice on one order.
     expect(await codeOf(await post(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 1 }))).toBe('LENDER_ALREADY_FINANCES_ORDER');
     // Zero, negative, a date that has not come.

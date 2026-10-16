@@ -2056,7 +2056,10 @@
     "ordersCurrency": "the order's currency",
     "rateOnThatDay": "Rate to EGP on that day ({currency} → EGP)",
     "financingRateHint": "The rate on the day he paid — prefilled from the order's rate or the current rate; change it if that day's was different",
-    "worthInPounds": "Worth <egp></egp> at this rate"
+    "worthInPounds": "Worth <egp></egp> at this rate",
+    "availableToFinance": "Up to <available></available> is left to pay of this cycle's cost: its goods, shipping and the expenses charged to it come to <cost></cost>, and friends have paid <financed></financed>.",
+    "financingCoversHint": "His payment may cover the order's goods, the cycle's shipping and the fees charged to the cycle. Record a card fee as a ledger expense on this cycle first, so it counts.",
+    "financingOverAvailable": "That is more than is left of the cycle's cost — it will be refused."
   },
   "transfers": {
     "title": "Transfers",
