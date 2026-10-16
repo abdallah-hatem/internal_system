@@ -1926,7 +1926,8 @@
     "departureHintParts": "يبدأ كل منتج بكل ما ينتظر المغادرة. اخفض الرقم إن غادر جزء فقط؛ يبقى الباقي منتظراً.",
     "addLeg": "أضف المرحلة {leg}",
     "editLeg": "تعديل المرحلة",
-    "editLegTitle": "تعديل المرحلة {leg}"
+    "editLegTitle": "تعديل المرحلة {leg}",
+    "receivedOn": "تاريخ الاستلام"
   },
   "shippingCost": {
     "title": "تكلفة الشحن",

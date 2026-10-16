@@ -1926,7 +1926,8 @@
     "departureHintParts": "Each product starts at everything still waiting. Lower a number if only part left; the rest stays waiting.",
     "addLeg": "Add leg {leg}",
     "editLeg": "Edit leg",
-    "editLegTitle": "Edit leg {leg}"
+    "editLegTitle": "Edit leg {leg}",
+    "receivedOn": "Received on"
   },
   "shippingCost": {
     "title": "Shipment cost",
