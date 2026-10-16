@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { badRequest, conflict } from '../../../common/api-error';
 import { SELLABLE } from '../../../common/product-status';
 import { availableByProduct } from '../../../common/available-stock';
+import { chosenDay, businessToday } from '../../../common/dates';
 import { formatMoney, formatQty } from '../../../common/money';
 import { PAYMENT_METHODS } from '../../../common/walk-in';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -13,6 +14,7 @@ import { PaymentsService } from '../../payments/payments.service';
 import { priceOn, type PriceChannel } from '../../portal/portal-pricing';
 import {
   type CreateSaleOrderInput,
+  receivedCutoff,
   SalesService,
 } from '../../sales/sales.service';
 import { previewByRollback, rollingBack } from '../dry-run';
@@ -42,6 +44,7 @@ import { writeTool, type AssistantContext } from '../tool-kit';
  */
 
 const CURRENCY = 'EGP';
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const LIST_PRICE_NOTE = 'list price — confirm or give the price';
 
 const saleShape = {
@@ -91,6 +94,14 @@ const saleShape = {
     .describe(
       'How a walk-in sale was paid; cash when unsaid. Not for a named customer — their sale is owed and paid later in the office app.',
     ),
+  orderedOn: z
+    .string()
+    .trim()
+    .regex(DAY, 'YYYY-MM-DD')
+    .optional()
+    .describe(
+      'The day the sale was made, YYYY-MM-DD — ONLY when the partner says it was on an earlier day ("I sold … last Tuesday"). Leave out otherwise: it is then today (Cairo). Never a day that has not come yet. A sale on an earlier day can only use stock that had been received by that day.',
+    ),
 };
 
 type SaleInput = {
@@ -103,6 +114,7 @@ type SaleInput = {
     discount?: number;
   }[];
   paymentMethod?: (typeof PAYMENT_METHODS)[number];
+  orderedOn?: string;
 };
 
 interface CatalogueProduct {
@@ -309,6 +321,8 @@ export function resolveSale(
       ...(input.paymentMethod
         ? { payment: { method: input.paymentMethod } }
         : {}),
+      // Only when the partner said a day; the service checks it (§4).
+      ...(input.orderedOn ? { orderedOn: input.orderedOn } : {}),
     },
   };
 }
@@ -438,17 +452,24 @@ export function registerSalesTools(
       };
     }
 
+    // What the shelf held on the sale's day (§4, 2026-10-16): a sale on an
+    // earlier day is shown against, and bound to, the stock received by then.
+    const orderedOn = chosenDay(plan.body.orderedOn, 'SALE_MADE');
     const available = await availableByProduct(
       prisma(),
       plan.lines.map((l) => l.productId),
+      undefined,
+      receivedCutoff(orderedOn),
     );
     const seen = await dryRun(plan.body);
     // Below cost (§4, 2026-10-11): the sales service's own price check, the
     // one every office screen reads — each line against the FIFO cost of the
     // units it would draw, after its discount. A warning, never a refusal.
-    const { data: cost } = await ctx
-      .resolve(SalesService)
-      .priceCheck({ currency: CURRENCY, items: plan.body.items });
+    const { data: cost } = await ctx.resolve(SalesService).priceCheck({
+      currency: CURRENCY,
+      items: plan.body.items,
+      orderedOn,
+    });
     const method = input.paymentMethod ?? 'CASH';
     const lines = plan.lines.map((l, i) => ({
       line: l.line,
@@ -477,7 +498,7 @@ export function registerSalesTools(
 
     return {
       summary: [
-        `Sale to ${who}, created and confirmed in one step:`,
+        `Sale to ${who} on ${orderedOn}${orderedOn === businessToday() ? ' (today)' : ''}, created and confirmed in one step:`,
         ...lines.map(
           (l) =>
             `- ${l.product} (${l.sku}): ${formatQty(l.qty)} × ${formatMoney(l.unitPrice)}` +
@@ -501,6 +522,7 @@ export function registerSalesTools(
       data: {
         walkIn: plan.walkIn,
         customer: plan.customer,
+        orderedOn,
         channel: plan.channel,
         currency: CURRENCY,
         lines,
@@ -524,6 +546,7 @@ export function registerSalesTools(
         'Records a sale the partner made: created and confirmed in one step. Name the customer (a shop on file) — the sale is then owed — or set walkIn for a buyer who is not a shop, which is paid in full on the spot at retail prices. ' +
         'Products and customers are matched by exact name, SKU or id only: a close name comes back as a question with candidates and nothing to confirm. ' +
         'Without a price the preview offers the list price, which the partner must confirm. ' +
+        'A sale made on an earlier day takes orderedOn — only when the partner says the day; it then draws only stock received by that day, and is refused (NOT_ENOUGH_STOCK_ON_DATE) when there was not enough then. ' +
         "A line sold below cost — under what its goods cost, the FIFO cost of the units it would draw, after its discount — carries a belowCost block (each unit's cost, the price after discount, the loss on the line), and belowCostLossEgp is the total: tell the partner the loss before the partner confirms. It is a warning, never a refusal. " +
         'Call without a confirmationToken to preview. Records no other payments, returns or settlements.',
       inputSchema: saleShape,
@@ -537,6 +560,7 @@ export function registerSalesTools(
         const d = shown.data as {
           customer: { id: string } | null;
           walkIn: boolean;
+          orderedOn: string;
           lines: {
             productId: string;
             qty: string;
@@ -550,6 +574,7 @@ export function registerSalesTools(
         return {
           walkIn: d.walkIn,
           customer: d.customer?.id ?? null,
+          orderedOn: d.orderedOn,
           lines: d.lines.map((l) => [
             l.productId,
             l.qty,

@@ -9,6 +9,11 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
+import {
+  businessDay,
+  businessToday,
+  instantOfDay,
+} from '../../../common/dates';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { PaymentsService } from '../../payments/payments.service';
@@ -166,6 +171,9 @@ class FakeDb {
       const c = cond as Row;
       if ('in' in c) return (c.in as unknown[]).includes(value);
       if ('gt' in c) return D(value ?? 0).gt(D(c.gt));
+      // A received cut-off on a timestamp (§4, 2026-10-16).
+      if ('lt' in c && c.lt instanceof Date)
+        return value instanceof Date && value < c.lt;
       if ('startsWith' in c)
         return (
           typeof value === 'string' && value.startsWith(String(c.startsWith))
@@ -937,6 +945,7 @@ describe('record_sale — what the assistant offers', () => {
       'confirmationToken',
       'customer',
       'lines',
+      'orderedOn',
       'paymentMethod',
       'walkIn',
     ]);
@@ -1080,5 +1089,85 @@ describe('record_sale — selling below cost (§4, §16, 2026-10-11)', () => {
     const sale = tools.find((t) => t.name === 'record_sale')!;
     expect(sale.description).toMatch(/below cost/i);
     expect(sale.description).toMatch(/before the partner confirms/i);
+  });
+});
+
+describe('record_sale — a sale made on an earlier day (§4, §16, 2026-10-16)', () => {
+  const daysAgo = (n: number) =>
+    new Date(Date.parse(`${businessToday()}T00:00:00Z`) - n * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+  /** The 40 pads were received twenty days ago. */
+  const receivedTwentyDaysAgo = () => {
+    const b = db.tables.inventoryBatch.findIndex((x) => x.id === ids.padBatch);
+    db.tables.inventoryBatch[b] = {
+      ...db.tables.inventoryBatch[b],
+      createdAt: instantOfDay(daysAgo(20)),
+    };
+  };
+  const tenDaysAgo = () => ({ ...walkInSale, orderedOn: daysAgo(10) });
+
+  it('said by the partner: the preview names the day, and confirming records the sale on it', async () => {
+    receivedTwentyDaysAgo();
+    const preview = await call(tenDaysAgo());
+    expect(preview.s.data?.orderedOn).toBe(daysAgo(10));
+    expect(preview.text).toContain(`on ${daysAgo(10)}`);
+    expect(preview.s.data?.lines?.[0].available).toBe('40');
+
+    const r = await confirm(tenDaysAgo(), preview.s.confirmationToken);
+    expect(r.s.status).toBe('committed');
+    const [order] = db.tables.saleOrder;
+    expect(businessDay(order.orderedAt as Date)).toBe(daysAgo(10));
+    // A walk-in sale is paid on the spot: on the day of the sale.
+    const [payment] = db.tables.payment;
+    expect((payment.receivedOn as Date).toISOString().slice(0, 10)).toBe(
+      daysAgo(10),
+    );
+  });
+
+  it('unsaid: today, as before', async () => {
+    const preview = await call(walkInSale);
+    expect(preview.s.data?.orderedOn).toBe(businessToday());
+    expect(preview.text).toContain('(today)');
+  });
+
+  it('a day before the stock arrived → NOT_ENOUGH_STOCK_ON_DATE in the preview; nothing to confirm, nothing written', async () => {
+    // The pads were received just now: ten days ago there were none.
+    const before = db.counts();
+    const r = await call(tenDaysAgo());
+    expect(codeOf(r)).toBe('NOT_ENOUGH_STOCK_ON_DATE');
+    expect(r.s.confirmationToken).toBeUndefined();
+    expect(db.counts()).toEqual(before);
+  });
+
+  it('a day that has not come → DATE_IN_FUTURE', async () => {
+    const tomorrow = new Date(
+      Date.parse(`${businessToday()}T00:00:00Z`) + 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const r = await call({ ...walkInSale, orderedOn: tomorrow });
+    expect(codeOf(r)).toBe('DATE_IN_FUTURE');
+    expect(db.tables.saleOrder).toHaveLength(0);
+  });
+
+  it('another day on the commit than the preview showed → CONFIRMATION_MISMATCH; nothing written', async () => {
+    receivedTwentyDaysAgo();
+    const preview = await call(tenDaysAgo());
+    const r = await confirm(
+      { ...walkInSale, orderedOn: daysAgo(5) },
+      preview.s.confirmationToken,
+    );
+    expect(codeOf(r)).toBe('CONFIRMATION_MISMATCH');
+    expect(db.tables.saleOrder).toHaveLength(0);
+  });
+
+  it('the tool tells Claude to send the day only when the partner says it', async () => {
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === 'record_sale')!;
+    const field = (
+      tool.inputSchema.properties as Record<string, { description?: string }>
+    ).orderedOn;
+    expect(field.description).toMatch(/ONLY when the partner says/);
   });
 });

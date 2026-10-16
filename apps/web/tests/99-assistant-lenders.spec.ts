@@ -118,7 +118,7 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     // Nothing written by the preview: no friend of that name, nothing financed.
     const lenders = (await (await request.get(`${API}/lenders`, { headers })).json()).data as any[];
     expect(lenders.find((l) => l.name === friend)).toBeUndefined();
-    expect((await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financed).toBe('0.00');
+    expect((await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financedEgp).toBe('0.00');
 
     // A changed amount is not what was agreed.
     expect(codeOf(await confirm('record_lender_financing', { ...withNew, amount: 20000 }, shown))).toBe('CONFIRMATION_MISMATCH');
@@ -126,7 +126,8 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     const done = await confirm('record_lender_financing', withNew, shown);
     expect(done.structuredContent?.status, text(done)).toBe('committed');
     const onOrder = (await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data;
-    expect(onOrder.financed).toBe('30000.00');
+    // Told in pounds (§18, 2026-10-16): 30,000 AED at the order's 13.
+    expect(onOrder.financedEgp).toBe('390000.00');
     expect(onOrder.financings[0].lender.name).toBe(friend);
     const costing = (await (await request.get(`${API}/costing/cycles/${cycle.id}/landed-cost`, { headers })).json());
     expect(costing.totals.toFundEgp).toBe('13000.00');
@@ -212,14 +213,15 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     expect(one.structuredContent?.data.financings[0]).toMatchObject({ order: po.reference, paid: '12000.00', owed: '12000.00' });
   });
 
-  test('TC-AL-04: the wrong currency, zero, more than the order, and an order that does not exist are refused with a code; nothing recorded', async ({ request }) => {
+  test('TC-AL-04: a currency with no rate, zero, more than the order, and an order that does not exist are refused with a code; nothing recorded', async ({ request }) => {
     const { headers, po, s } = await dirhamOrder(request, 'AL04');
     const base = { lender: `Nobody AL ${s}`, newLender: true, order: po.reference };
-    expect(codeOf(await tool('record_lender_financing', { ...base, amount: 100, currency: 'USD' }))).toBe('LENDER_CURRENCY_MISMATCH');
+    // His own currency is allowed (§18, 2026-10-16); one with no rate on file is not.
+    expect(codeOf(await tool('record_lender_financing', { ...base, amount: 100, currency: 'GBP' }))).toBe('NO_RATE_RECORDED');
     expect(codeOf(await tool('record_lender_financing', { ...base, amount: 0 }))).toBe('AMOUNT_NOT_POSITIVE');
     expect(codeOf(await tool('record_lender_financing', { ...base, amount: 30000.01 }))).toBe('FINANCING_EXCEEDS_ORDER');
     expect(codeOf(await tool('record_lender_financing', { ...base, amount: 5, order: 'PO-1999-0000' }))).toBe('NOT_FOUND');
-    expect((await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financed).toBe('0.00');
+    expect((await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financedEgp).toBe('0.00');
     const lenders = (await (await request.get(`${API}/lenders`, { headers })).json()).data as any[];
     expect(lenders.find((l) => l.name === base.lender)).toBeUndefined();
   });

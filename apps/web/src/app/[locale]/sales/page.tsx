@@ -443,7 +443,8 @@ function SalesPageContent() {
     {
       key: 'date', header: t('date'), width: '7.5rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', share: 'w-3/4' },
-      cell: (order) => formatDate(order.createdAt),
+      // The day it was sold, which a back-dated sale has before the day it was typed in (§4).
+      cell: (order) => formatDate(order.orderedAt ?? order.createdAt),
     },
     {
       // The real badges sit on the text's baseline, which makes the line 21px, not 20.
@@ -682,7 +683,7 @@ function SalesPageContent() {
                   <span className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></span>
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                  <span>{formatDate(order.createdAt)}</span>
+                  <span>{formatDate(order.orderedAt ?? order.createdAt)}</span>
                   {outstandingCell(order, true)}
                 </div>
               </div>
@@ -795,7 +796,7 @@ function SalesPageContent() {
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
               <Detail label={t('total')} value={<Money value={detail.total} currency={detail.currency} />} />
               <Detail label={t('outstanding')} value={outstandingCell(detail)} />
-              <Detail label={t('date')} value={formatDate(detail.createdAt)} />
+              <Detail label={t('date')} value={formatDate(detail.orderedAt ?? detail.createdAt)} />
               <Detail label={tc('status')} value={codeLabel('orderStatus', detail.status)} />
             </div>
 

@@ -13,6 +13,7 @@ import { findLowStock } from '../../common/low-stock';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
+import { chosenDay, instantOfDay } from '../../common/dates';
 import { loadShipment, lockCycle } from '../../common/shipment-load';
 import {
   assertInScope,
@@ -37,6 +38,13 @@ type Db = Prisma.TransactionClient;
  */
 export interface VerifyStockInput {
   deliveryId?: string | null;
+  /**
+   * The Cairo day the goods were counted into stock, YYYY-MM-DD (§3,
+   * 2026-10-16). Today when left out; never in the future, never before the
+   * delivery reached Egypt. It is the batch's received instant, so FIFO and a
+   * sale dated in the past both read it.
+   */
+  receivedOn?: string | null;
   items: Array<{
     deliveryLineId?: string;
     purchaseOrderItemId?: string;
@@ -131,6 +139,7 @@ export class InventoryService {
     db: Db = this.prisma,
   ) {
     assertUuid(cycleId, 'cycleId');
+    const receivedOn = chosenDay(data?.receivedOn, 'STOCK_RECEIVED');
     const items = Array.isArray(data?.items) ? data.items : [];
     if (items.length === 0) {
       throw badRequest(
@@ -286,6 +295,19 @@ export class InventoryService {
       );
     }
 
+    // Goods are counted in once they are here: never before the delivery
+    // that brought them reached Egypt (§3, 2026-10-16).
+    for (const r of counted) {
+      const arrivedOn = r.delivery.arrivedOn;
+      if (arrivedOn && receivedOn < arrivedOn) {
+        throw badRequest(
+          'RECEIVED_BEFORE_ARRIVAL',
+          `Stock cannot be received on ${receivedOn}: the delivery reached Egypt on ${arrivedOn}.`,
+          { day: receivedOn, arrivedOn },
+        );
+      }
+    }
+
     // Never past what the delivery line brought less what was already counted
     // in from it, and never past what of the order line is still waiting — a
     // loss can have taken some of what a delivery brought (§1, §3).
@@ -355,6 +377,8 @@ export class InventoryService {
 
     return {
       cycle,
+      /** The day the goods were counted in, YYYY-MM-DD. */
+      receivedOn,
       lines,
       totalEgp: lines.reduce(
         (s, l) => s.add(l.lineCostEgp),
@@ -421,6 +445,9 @@ export class InventoryService {
               saleableQty: line.receivedQty,
               landedUnitCostEgp: line.landedUnitCostEgp,
               verificationStatus: 'VERIFIED',
+              // The received instant FIFO orders by (§3): now for today, the
+              // middle of the chosen day for an earlier one.
+              createdAt: instantOfDay(plan.receivedOn),
             },
           });
           batches.push(batch);

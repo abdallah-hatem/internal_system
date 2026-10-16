@@ -342,7 +342,12 @@ export default function CycleDetailsPage() {
         <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
           <PaidByFriend
             cycleId={cycle.id}
-            orders={orders.map((o) => ({ id: o.id, reference: o.reference, currency: o.currency }))}
+            orders={orders.map((o) => ({
+              id: o.id,
+              reference: o.reference,
+              currency: o.currency,
+              fxRateToEgp: o.fxRateToEgp,
+            }))}
             closed={['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(cycle.status)}
           />
         </div>

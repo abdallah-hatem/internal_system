@@ -17,7 +17,7 @@ const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 const FINANCING = {
   amount: D('30000'),
   amountEgp: D('390000'),
-  orderRate: D('13'),
+  financingRate: D('13'),
 };
 
 function codeOf(fn: () => unknown): string | undefined {
@@ -165,7 +165,7 @@ describe('planRepayment', () => {
     const f = {
       amount: D('100'),
       amountEgp: D('33.33'),
-      orderRate: D('0.3333'),
+      financingRate: D('0.3333'),
     };
     const done: StandingRepayment[] = [];
     for (let i = 0; i < 2; i++) {

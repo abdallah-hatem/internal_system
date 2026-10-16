@@ -22,6 +22,8 @@ import { PAYMENT_METHODS } from '@/components/payments/RecordPaymentDialog';
 import { usePriceCheck } from '@/lib/price-check';
 import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
 import { Dialog } from '@/components/ui/dialog';
+import { DatePicker } from '@/components/ui/date-picker';
+import { businessToday } from '@/lib/dates';
 
 export interface SaleFormCustomer {
   id: string;
@@ -160,6 +162,12 @@ export function SaleOrderForm({
   const [idempotencyKey] = useState(newIdempotencyKey);
   const [walkIn, setWalkIn] = useState(false);
   const [method, setMethod] = useState<string>('CASH');
+  /**
+   * The day the sale was made (§4, 2026-10-16): today unless an earlier sale
+   * is being entered. Never a day that has not come — the picker greys them
+   * out and the server refuses them.
+   */
+  const [orderedOn, setOrderedOn] = useState(businessToday);
   /** The channel before walk-in fixed it to B2C, put back when it is turned off. */
   const channelBeforeWalkIn = useRef<string | null>(null);
 
@@ -228,7 +236,10 @@ export function SaleOrderForm({
   // Below cost (§4, 2026-10-11): asked of the server as the lines change, and
   // shown under each line and the total. A warning only — neither button
   // looks at it.
-  const priceCheck = usePriceCheck(lines, currency);
+  // Only a back-dated sale names its day: today is the server's default.
+  const priceCheck = usePriceCheck(lines, currency, {
+    orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
+  });
 
   // What is still empty, from state — never a snapshot taken at submit.
   const missing = [
@@ -279,8 +290,8 @@ export function SaleOrderForm({
       walkIn
         ? // No customer and never a draft: the server confirms and records the
           // payment of the full total with the order, or does none of it.
-          { walkIn: true, channel: 'B2C', currency, confirm: true, payment: { method }, items }
-        : { customerId, channel, currency, confirm: mode.current === 'confirm', items },
+          { walkIn: true, channel: 'B2C', currency, orderedOn, confirm: true, payment: { method }, items }
+        : { customerId, channel, currency, orderedOn, confirm: mode.current === 'confirm', items },
     );
   };
 
@@ -344,7 +355,7 @@ export function SaleOrderForm({
       }
     >
     <form id={formId} onSubmit={submit} noValidate className="space-y-4" data-sale-order-form="">
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           {/* The label row holds the switch and keeps the height of the other
               labels; the switch's touch area reaches past it. */}
@@ -375,6 +386,29 @@ export function SaleOrderForm({
                 options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: codeLabel('customerType', c.type) }))}
               />
             </FieldWithQuickCreate>
+          )}
+        </div>
+        <div>
+          <label htmlFor={`${formId}-ordered-on`} className="mb-1 block text-sm font-medium text-foreground">
+            {t('saleDate')}
+            <FieldMark required />
+          </label>
+          <DatePicker
+            id={`${formId}-ordered-on`}
+            name="orderedOn"
+            required
+            disableFuture
+            value={orderedOn}
+            onChange={(day) => {
+              setOrderedOn(day || businessToday());
+              // A refusal about the stock on another day no longer applies.
+              setRefusal(null);
+            }}
+          />
+          {orderedOn < businessToday() && (
+            <p data-testid="back-dated-note" className="mt-1 text-[11px] text-muted-foreground">
+              {t('backDatedNote')}
+            </p>
           )}
         </div>
         <div>

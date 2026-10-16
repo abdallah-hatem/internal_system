@@ -4,6 +4,7 @@ import { ExecutionContext, HttpException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { badRequest } from '../../common/api-error';
+import { businessDay } from '../../common/dates';
 import { loadShipment } from '../../common/shipment-load';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -1018,5 +1019,151 @@ describe('roles', () => {
       );
     }
     expect(guard.canActivate(contextFor('CORE_PARTNER'))).toBe(true);
+  });
+});
+
+// ─── The day it was received (§3, 2026-10-16) ─────────────────────────────
+
+describe('received stock has a date (§3, 2026-10-16)', () => {
+  /** Receive the whole first line of a delivery on `receivedOn`. */
+  const receiveOn = (
+    cycle: Row,
+    delivery: Row,
+    qty: number,
+    receivedOn: unknown,
+  ) =>
+    inventory.verifyStock(
+      cycle.id,
+      {
+        deliveryId: delivery.id,
+        receivedOn: receivedOn as string,
+        items: [{ deliveryLineId: delivery.lines[0].id, receivedQty: qty }],
+      },
+      ACTOR,
+    );
+
+  it('left out, it is today: the plan says so, and the batch is received now', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    const plan = await inventory.planVerification(cycle.id, {
+      deliveryId: d.id,
+      items: [{ deliveryLineId: d.lines[0].id, receivedQty: 15 }],
+    });
+    expect(plan.receivedOn).toBe('2026-10-10');
+    await receive(cycle, d, 15);
+    expect(batchesOf(item)[0].createdAt.getTime()).toBe(NOW.getTime());
+  });
+
+  it('an earlier day: the batch is received on that day in Cairo, which is what FIFO and a back-dated sale read', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    await receiveOn(cycle, d, 15, '2026-09-25');
+    const [batch] = batchesOf(item);
+    expect(businessDay(batch.createdAt)).toBe('2026-09-25');
+    // The arrival date stays the delivery's.
+    expect(batch.arrivedOn.toISOString().slice(0, 10)).toBe('2026-09-20');
+  });
+
+  it('the day the delivery arrived is allowed', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    await receiveOn(cycle, d, 15, '2026-09-20');
+    expect(businessDay(batchesOf(item)[0].createdAt)).toBe('2026-09-20');
+  });
+
+  it('before the delivery reached Egypt → RECEIVED_BEFORE_ARRIVAL naming both days; nothing received', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    const r = await refusal(receiveOn(cycle, d, 15, '2026-09-19'));
+    expect(r).toEqual({
+      status: 400,
+      code: 'RECEIVED_BEFORE_ARRIVAL',
+      params: { day: '2026-09-19', arrivedOn: '2026-09-20' },
+    });
+    expect(batchesOf(item)).toHaveLength(0);
+    expect(status(cycle)).toBe('ARRIVED_EGYPT');
+  });
+
+  it('a day that has not come → DATE_IN_FUTURE; not a date → BAD_DATE; nothing received', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    expect((await refusal(receiveOn(cycle, d, 15, '2026-10-11'))).code).toBe(
+      'DATE_IN_FUTURE',
+    );
+    for (const bad of ['2026-13-01', '25/09/2026', 20260925]) {
+      expect((await refusal(receiveOn(cycle, d, 15, bad))).code).toBe(
+        'BAD_DATE',
+      );
+    }
+    expect(batchesOf(item)).toHaveLength(0);
+  });
+
+  it('FIFO reads the chosen day: a delivery counted in today but dated back sells before one received in between', async () => {
+    const a = oneLeg({ status: 'SELLING', lines: [['Brake pad', 40, 100]] });
+    const b = cycleWithOrder(db, { status: 'SELLING' });
+    b.items[0].productId = a.item.productId;
+    const bLeg = addLeg(db, b.cycle, 1, {
+      departedOn: '2026-09-01',
+      amountEgp: 800,
+    });
+    const aDelivery = await deliver(a.leg, a.item, 10, '2026-09-20');
+    const bDelivery = await deliver(bLeg, b.items[0], 10, '2026-09-22');
+    // B counted in on the 1st of October; A typed in today, for the 25th.
+    await receiveOn(b.cycle, bDelivery, 10, '2026-10-01');
+    await receiveOn(a.cycle, aDelivery, 10, '2026-09-25');
+
+    const order = await sell(a.item.productId, 5);
+    const [alloc] = allocationsOf(order);
+    expect(
+      db.batches.find((x) => x.id === alloc.inventoryBatchId)!.cycleId,
+    ).toBe(a.cycle.id);
+  });
+
+  it('a sale back-dated to the day after a back-dated receipt can draw it; the day before cannot', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    await receiveOn(cycle, d, 15, '2026-09-25');
+
+    const r = await refusal(
+      sales.create(
+        {
+          customerId: (await sell(item.productId, 1)).customerId as string,
+          channel: 'B2B',
+          currency: 'EGP',
+          orderedOn: '2026-09-24',
+          items: [{ productId: item.productId, quantity: 1, unitPrice: 200 }],
+          confirm: true,
+        },
+        ACTOR,
+      ),
+    );
+    expect(r).toMatchObject({
+      code: 'NOT_ENOUGH_STOCK_ON_DATE',
+      params: { day: '2026-09-24', available: '0.000' },
+    });
+
+    const { data } = (await sales.create(
+      {
+        customerId: db.customers[0].id,
+        channel: 'B2B',
+        currency: 'EGP',
+        orderedOn: '2026-09-26',
+        items: [{ productId: item.productId, quantity: 3, unitPrice: 200 }],
+        confirm: true,
+      },
+      ACTOR,
+    )) as { data: Row };
+    expect(data.status).toBe('CONFIRMED');
+  });
+
+  it('the second visit: what was left waiting, received on another day, is its own batch on its own day', async () => {
+    const { cycle, item, leg } = oneLeg();
+    const d = await deliver(leg, item, 15, '2026-09-20');
+    await receiveOn(cycle, d, 14, '2026-09-21');
+    await receiveOn(cycle, d, 1, '2026-10-02');
+    expect(batchesOf(item).map((b) => businessDay(b.createdAt))).toEqual([
+      '2026-09-21',
+      '2026-10-02',
+    ]);
   });
 });

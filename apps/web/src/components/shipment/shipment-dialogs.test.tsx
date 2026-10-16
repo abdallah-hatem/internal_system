@@ -255,7 +255,8 @@ describe('Receive into stock', () => {
     expect(call.mock.calls[0]).toEqual([
       'post',
       '/receipts/verify',
-      { cycleId: 'c-1', deliveryId: 'd-1', items: [{ deliveryLineId: 'dl-1', receivedQty: 14 }] },
+      // Received on the day the delivery arrived, unless another day is chosen.
+      { cycleId: 'c-1', deliveryId: 'd-1', receivedOn: '2026-10-08', items: [{ deliveryLineId: 'dl-1', receivedQty: 14 }] },
     ]);
     release({ data: { data: [] } });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -285,6 +286,78 @@ describe('Receive into stock', () => {
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(qty('receive-qty', 'dl-1').value).toBe('16');
+  });
+});
+
+describe('Receive into stock — the day it was received (§3, 2026-10-16)', () => {
+  const lastLeg = leg({
+    status: 'PARTLY_ARRIVED',
+    delivered: 15,
+    onTheWay: 45,
+    lines: [
+      { purchaseOrderItemId: 'poi-1', entered: 40, delivered: 15, lost: 0, onTheWay: 25, received: 0, waiting: 15 },
+      { purchaseOrderItemId: 'poi-2', entered: 20, delivered: 0, lost: 0, onTheWay: 20, received: 0, waiting: 0 },
+    ],
+    deliveries: [
+      { id: 'd-1', arrivedOn: '2026-10-08', lines: [{ id: 'dl-1', purchaseOrderItemId: 'poi-1', qty: 15, received: 0 }] },
+    ],
+  });
+  // 10:00 in Cairo on 16 October 2026; only the clock is faked.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T07:00:00Z'));
+  });
+
+  const open = (onClose = vi.fn()) =>
+    wrap(<ReceiveDeliveryDialog cycleId="c-1" leg={lastLeg} delivery={lastLeg.deliveries[0]} productNames={NAMES} onClose={onClose} />);
+  const receivedOn = () => document.querySelector<HTMLInputElement>('input[type="hidden"][name="receivedOn"]')!;
+  const openCalendar = () => fireEvent.click(document.querySelector<HTMLElement>('[data-date-picker="receivedOn"]')!);
+  const day = (d: string) => document.querySelector<HTMLButtonElement>(`[data-day="${d}"]`)!;
+  const receive = () => fireEvent.click(within(dialog('receive-delivery')).getByRole('button', { name: 'Receive into stock' }));
+
+  it('"Received on" is there and starts on the day the delivery arrived; the counts still start at what was delivered', () => {
+    open();
+    expect(within(dialog('receive-delivery')).getByText(en.shipment.receivedOn)).toBeTruthy();
+    expect(receivedOn().value).toBe('2026-10-08');
+    expect(qty('receive-qty', 'dl-1').value).toBe('15');
+  });
+
+  it('another day chosen is the one sent', async () => {
+    state.answer = () => Promise.resolve({ data: { data: [] } });
+    open();
+    openCalendar();
+    fireEvent.click(day('2026-10-12'));
+    expect(receivedOn().value).toBe('2026-10-12');
+    receive();
+    await waitFor(() => expect(call).toHaveBeenCalledTimes(1));
+    expect(call.mock.calls[0][2]).toMatchObject({ receivedOn: '2026-10-12', items: [{ deliveryLineId: 'dl-1', receivedQty: 15 }] });
+  });
+
+  it('a day before the delivery arrived, or one that has not come, cannot be picked', () => {
+    open();
+    openCalendar();
+    expect(day('2026-10-07').disabled).toBe(true);
+    expect(day('2026-10-08').disabled).toBe(false);
+    expect(day('2026-10-16').disabled).toBe(false);
+    expect(day('2026-10-17').disabled).toBe(true);
+  });
+
+  it('a delivery dated today starts on today', () => {
+    const today = { ...lastLeg.deliveries[0], arrivedOn: '2026-10-16' };
+    wrap(<ReceiveDeliveryDialog cycleId="c-1" leg={lastLeg} delivery={today} productNames={NAMES} onClose={vi.fn()} />);
+    expect(receivedOn().value).toBe('2026-10-16');
+  });
+
+  it("the server's RECEIVED_BEFORE_ARRIVAL reads translated, and the dialog keeps the day and the counts", async () => {
+    state.answer = () => refusal('RECEIVED_BEFORE_ARRIVAL', { day: '2026-10-07', arrivedOn: '2026-10-08' });
+    const onClose = vi.fn();
+    open(onClose);
+    receive();
+    expect((await screen.findByTestId('shipment-refusal')).textContent).toBe(
+      en.errors.RECEIVED_BEFORE_ARRIVAL.replace('{day}', '2026-10-07').replace('{arrivedOn}', '2026-10-08'),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(receivedOn().value).toBe('2026-10-08');
   });
 });
 

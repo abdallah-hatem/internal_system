@@ -12,6 +12,12 @@ import type { PaymentsService } from '../payments/payments.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PriceCheckController, SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
+import {
+  businessDay,
+  businessToday,
+  endOfBusinessDay,
+  instantOfDay,
+} from '../../common/dates';
 
 /**
  * Create & confirm in one step (BUSINESS_LOGIC §4, DECIDED 2026-10-10).
@@ -94,6 +100,11 @@ function fakePrisma(initial: Store) {
     queue: Promise.resolve(),
   };
 
+  // `createdAt: { lt }` — the received cut-off of a sale dated in the past
+  // (§4, 2026-10-16). Ignoring it would let any back-dating test pass.
+  const receivedBefore = (b: any, where: any) =>
+    where.createdAt?.lt === undefined || b.createdAt < where.createdAt.lt;
+
   const decrement = (current: Prisma.Decimal, change: any) =>
     change?.decrement !== undefined ? current.sub(change.decrement) : D(change);
 
@@ -154,7 +165,8 @@ function fakePrisma(initial: Store) {
             const rows = db.store.batches.filter(
               (b) =>
                 b.productId === productId &&
-                b.verificationStatus === 'VERIFIED',
+                b.verificationStatus === 'VERIFIED' &&
+                receivedBefore(b, where),
             );
             if (rows.length === 0) return null;
             return {
@@ -172,7 +184,8 @@ function fakePrisma(initial: Store) {
             (b) =>
               b.productId === where.productId &&
               b.verificationStatus === 'VERIFIED' &&
-              b.saleableQty.gt(0),
+              b.saleableQty.gt(0) &&
+              receivedBefore(b, where),
           )
           .sort((a, b) => a.createdAt - b.createdAt)
           .map((b) => ({ ...b })),
@@ -238,6 +251,9 @@ function fakePrisma(initial: Store) {
         const order = {
           id: id('order'),
           version: 1,
+          // The columns' defaults, now(), as Postgres fills them.
+          createdAt: new Date(),
+          orderedAt: new Date(),
           ...rest,
           subtotal: D(rest.subtotal),
           total: D(rest.total),
@@ -1077,5 +1093,275 @@ describe('the price check — selling below cost warns, never refuses (§4, 2026
       expect(guard.canActivate(contextFor('CORE_PARTNER'))).toBe(true);
       expect(guard.canActivate(contextFor('ADMIN_SUPPORT'))).toBe(true);
     });
+  });
+});
+
+describe('a sale has a date (§4, 2026-10-16)', () => {
+  /** The Cairo day `n` days before today, YYYY-MM-DD. */
+  const daysAgo = (n: number) =>
+    new Date(Date.parse(`${businessToday()}T00:00:00Z`) - n * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+
+  /**
+   * A shelf received in two goes: 5 pistons twenty days ago at 100, and 10
+   * two days ago at 200. A sale dated ten days ago can only have drawn the
+   * first five.
+   */
+  function shelf() {
+    const built = build({ [PISTON]: 5 });
+    const [older] = built.db.store.batches;
+    older.createdAt = instantOfDay(daysAgo(20));
+    built.db.store.batches.push({
+      id: 'batch-later',
+      productId: PISTON,
+      verificationStatus: 'VERIFIED',
+      saleableQty: D(10),
+      remainingQty: D(10),
+      landedUnitCostEgp: D(200),
+      createdAt: instantOfDay(daysAgo(2)),
+    });
+    return built;
+  }
+
+  const piston = (quantity: number) => [
+    { productId: PISTON, quantity, unitPrice: 300 },
+  ];
+
+  const codeAndParams = async (p: Promise<unknown>) => {
+    try {
+      await p;
+    } catch (e) {
+      const err = e as HttpException;
+      return {
+        status: err.getStatus(),
+        ...(err.getResponse() as { code: string; params?: any }),
+      };
+    }
+    throw new Error('expected a refusal, and the request went through');
+  };
+
+  it('a sale dated ten days ago is stored on that day in Cairo', async () => {
+    const { service, db } = shelf();
+    await service.create(
+      order(piston(1), { orderedOn: daysAgo(10), confirm: true }),
+      'actor-1',
+    );
+    expect(businessDay(db.store.orders[0].orderedAt)).toBe(daysAgo(10));
+  });
+
+  it('left out, the sale is today, and draws the whole shelf as before', async () => {
+    const { service, db } = shelf();
+    const res: any = await service.create(
+      order(piston(12), { confirm: true }),
+      'actor-1',
+    );
+    expect(res.data.status).toBe('CONFIRMED');
+    expect(businessDay(db.store.orders[0].orderedAt)).toBe(businessToday());
+    expect(saleable(db, PISTON)).toBe(3);
+  });
+
+  it('today, said outright, behaves exactly as left out', async () => {
+    const { service, db } = shelf();
+    await service.create(
+      order(piston(12), { orderedOn: businessToday(), confirm: true }),
+      'actor-1',
+    );
+    expect(saleable(db, PISTON)).toBe(3);
+  });
+
+  it('a back-dated sale draws only what existed by its day, oldest first — never the later batch', async () => {
+    const { service, db } = shelf();
+    // Two early batches: 5 at 20 days ago (batch-0) and 3 at 15 days ago.
+    db.store.batches[0].saleableQty = D(2);
+    db.store.batches.push({
+      id: 'batch-middle',
+      productId: PISTON,
+      verificationStatus: 'VERIFIED',
+      saleableQty: D(3),
+      remainingQty: D(3),
+      landedUnitCostEgp: D(150),
+      createdAt: instantOfDay(daysAgo(15)),
+    });
+    await service.create(
+      order(piston(5), { orderedOn: daysAgo(10), confirm: true }),
+      'actor-1',
+    );
+    expect(
+      db.store.allocations.map((a) => [a.inventoryBatchId, Number(a.qty)]),
+    ).toEqual([
+      ['batch-0', 2],
+      ['batch-middle', 3],
+    ]);
+
+    // Everything that existed ten days ago is gone; the later batch cannot
+    // stand in for it.
+    const r = await refused(
+      service.create(
+        order(piston(1), { orderedOn: daysAgo(10), confirm: true }),
+        'actor-1',
+      ),
+    );
+    expect(r).toEqual({ status: 400, code: 'NOT_ENOUGH_STOCK_ON_DATE' });
+    const later = db.store.batches.find((b) => b.id === 'batch-later');
+    expect(Number(later.saleableQty)).toBe(10);
+
+    // Today it can.
+    await service.create(order(piston(1), { confirm: true }), 'actor-1');
+    expect(Number(later.saleableQty)).toBe(9);
+  });
+
+  it('more than had arrived by that day → NOT_ENOUGH_STOCK_ON_DATE naming the day and what there was; nothing saved', async () => {
+    const { service, db } = shelf();
+    const r = await codeAndParams(
+      service.create(
+        order(piston(8), { orderedOn: daysAgo(10), confirm: true }),
+        'actor-1',
+      ),
+    );
+    expect(r).toMatchObject({
+      status: 400,
+      code: 'NOT_ENOUGH_STOCK_ON_DATE',
+      params: {
+        product: 'Piston kit',
+        day: daysAgo(10),
+        available: '5.000',
+        wanted: '8.000',
+      },
+    });
+    expect(db.store.orders).toHaveLength(0);
+    expect(saleable(db, PISTON)).toBe(15);
+  });
+
+  it('a back-dated draft is refused at creation too — the same check as Create & confirm', async () => {
+    const { service, db } = shelf();
+    const r = await refused(
+      service.create(order(piston(6), { orderedOn: daysAgo(10) }), 'actor-1'),
+    );
+    expect(r).toEqual({ status: 400, code: 'NOT_ENOUGH_STOCK_ON_DATE' });
+    expect(db.store.orders).toHaveLength(0);
+  });
+
+  it('a day before any stock arrived → refused, even with a full shelf today', async () => {
+    const { service } = shelf();
+    const r = await refused(
+      service.create(
+        order(piston(1), { orderedOn: daysAgo(30), confirm: true }),
+        'actor-1',
+      ),
+    );
+    expect(r).toEqual({ status: 400, code: 'NOT_ENOUGH_STOCK_ON_DATE' });
+  });
+
+  it('the edges of the day: received at its last instant counts, at the first instant of the next does not', async () => {
+    const { service, db } = build({ [PISTON]: 1 });
+    const day = daysAgo(5);
+    db.store.batches[0].createdAt = new Date(
+      endOfBusinessDay(day).getTime() - 1,
+    );
+    db.store.batches.push({
+      id: 'batch-next-day',
+      productId: PISTON,
+      verificationStatus: 'VERIFIED',
+      saleableQty: D(1),
+      remainingQty: D(1),
+      landedUnitCostEgp: D(100),
+      createdAt: endOfBusinessDay(day),
+    });
+    await service.create(
+      order(piston(1), { orderedOn: day, confirm: true }),
+      'actor-1',
+    );
+    expect(db.store.allocations.map((a) => a.inventoryBatchId)).toEqual([
+      'batch-0',
+    ]);
+    const r = await refused(
+      service.create(
+        order(piston(1), { orderedOn: day, confirm: true }),
+        'actor-1',
+      ),
+    );
+    expect(r.code).toBe('NOT_ENOUGH_STOCK_ON_DATE');
+  });
+
+  it('a day that has not arrived → DATE_IN_FUTURE; nothing saved', async () => {
+    const { service, db } = shelf();
+    const tomorrow = new Date(
+      Date.parse(`${businessToday()}T00:00:00Z`) + 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const r = await refused(
+      service.create(
+        order(piston(1), { orderedOn: tomorrow, confirm: true }),
+        'actor-1',
+      ),
+    );
+    expect(r).toEqual({ status: 400, code: 'DATE_IN_FUTURE' });
+    expect(db.store.orders).toHaveLength(0);
+  });
+
+  it.each(['2026-02-30', '16/10/2026', 'yesterday', 20261001])(
+    'a day that is not a date (%p) → BAD_DATE, never a 500',
+    async (orderedOn) => {
+      const { service, db } = shelf();
+      const r = await refused(
+        service.create(
+          order(piston(1), { orderedOn, confirm: true }),
+          'actor-1',
+        ),
+      );
+      expect(r).toEqual({ status: 400, code: 'BAD_DATE' });
+      expect(db.store.orders).toHaveLength(0);
+    },
+  );
+
+  it('the second visit: a back-dated draft confirmed later still draws only from its own day', async () => {
+    const { service, db } = shelf();
+    const draft: any = await service.create(
+      order(piston(5), { orderedOn: daysAgo(10) }),
+      'actor-1',
+    );
+    // Someone sold most of the early batch in between; the later one cannot
+    // stand in for it.
+    db.store.batches[0].saleableQty = D(2);
+    const r = await codeAndParams(
+      service.confirmOrder(draft.data.id, 'actor-1', 1),
+    );
+    expect(r).toMatchObject({
+      code: 'NOT_ENOUGH_STOCK_ON_DATE',
+      params: { day: daysAgo(10), available: '2.000', wanted: '5.000' },
+    });
+    expect(db.store.allocations).toHaveLength(0);
+  });
+
+  it('a draft saved for its own day and confirmed days later is not back-dated: it draws later stock as before', async () => {
+    const { service, db } = shelf();
+    const draft: any = await service.create(order(piston(12)), 'actor-1');
+    // Saved three days ago, for that day.
+    const row = db.store.orders[0];
+    row.createdAt = instantOfDay(daysAgo(3));
+    row.orderedAt = instantOfDay(daysAgo(3));
+    const res: any = await service.confirmOrder(draft.data.id, 'actor-1', 1);
+    expect(res.data.status).toBe('CONFIRMED');
+    expect(saleable(db, PISTON)).toBe(3);
+  });
+
+  it('the price check of a back-dated sale costs what that day could draw', async () => {
+    const { service } = shelf();
+    // Ten days ago there were five: a sixth was not on the shelf, so the line
+    // is not costed (confirming would refuse it).
+    const back: any = await service.priceCheck({
+      currency: 'EGP',
+      orderedOn: daysAgo(10),
+      items: [{ productId: PISTON, quantity: 6, unitPrice: 150 }],
+    });
+    expect(back.data.lines[0]).toMatchObject({ costed: false });
+    // Today the sixth comes from the later batch at 200.
+    const today: any = await service.priceCheck({
+      currency: 'EGP',
+      items: [{ productId: PISTON, quantity: 6, unitPrice: 150 }],
+    });
+    expect(today.data.lines[0]).toMatchObject({ costEgp: '700.00' });
   });
 });

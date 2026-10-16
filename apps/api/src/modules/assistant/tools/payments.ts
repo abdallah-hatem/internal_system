@@ -292,7 +292,12 @@ export function registerPaymentTools(
           select: {
             amount: true,
             saleOrder: {
-              select: { orderNo: true, outstanding: true, createdAt: true },
+              select: {
+                orderNo: true,
+                outstanding: true,
+                orderedAt: true,
+                createdAt: true,
+              },
             },
           },
         },
@@ -300,7 +305,11 @@ export function registerPaymentTools(
     });
     const allocations = payment.allocations
       .slice()
-      .sort((a, b) => +a.saleOrder.createdAt - +b.saleOrder.createdAt)
+      .sort(
+        (a, b) =>
+          +a.saleOrder.orderedAt - +b.saleOrder.orderedAt ||
+          +a.saleOrder.createdAt - +b.saleOrder.createdAt,
+      )
       .map((a) => ({
         orderNo: a.saleOrder.orderNo,
         amount: Number(a.amount).toFixed(2),

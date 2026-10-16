@@ -209,7 +209,7 @@ const financingShape = {
   amount: z
     .number()
     .describe(
-      "How much he paid, in the order's own currency (e.g. 30000 for 30,000 AED). More than zero, at most two decimals.",
+      'How much he paid, in the currency he paid in (e.g. 30000 for 30,000 AED). More than zero, at most two decimals.',
     ),
   currency: z
     .string()
@@ -218,7 +218,13 @@ const financingShape = {
     .regex(/^[A-Z]{3}$/, 'an ISO 4217 code, such as AED')
     .optional()
     .describe(
-      "The currency the partner said, if any. Must be the order's currency; it is checked, never converted.",
+      "The currency he paid in, as the partner said it — it need not be the order's (an order priced in CNY paid in AED). EGP or any currency on the exchange-rate page. Leave out when unsaid: the order's currency.",
+    ),
+  fxRateToEgp: z
+    .number()
+    .optional()
+    .describe(
+      "EGP per unit of his currency on the day he paid. Use the partner's figure when he gives one. Left out: the order's own rate when he paid in the order's currency, otherwise today's rate from the exchange-rate page — the preview says which. At most four decimals.",
     ),
   paidOn: dayField('The day he paid the supplier'),
   note: z.string().trim().max(500).optional(),
@@ -264,6 +270,7 @@ type FinancingInput = {
   order: string;
   amount: number;
   currency?: string;
+  fxRateToEgp?: number;
   paidOn?: string;
   note?: string;
 };
@@ -320,8 +327,8 @@ export function registerLenderTools(
       currency: f.currency,
       paid: f.amount,
       paidOn: f.paidOn,
-      orderRateToEgp: f.fxRateToEgp,
-      paidAtOrderRateEgp: f.amountEgp,
+      rateToEgp: f.fxRateToEgp,
+      paidEgp: f.amountEgp,
       repaid: f.repaid,
       owed: f.owed,
       poundsPaid: f.paidEgp,
@@ -423,7 +430,7 @@ export function registerLenderTools(
     {
       title: 'Get a friend we owe',
       description:
-        "One friend (lender) by name or id: every order he paid for (which order, which cycle, how much, at the order's rate), every repayment (pounds, the rate that day, what it cleared in his currency, the exchange difference, whether it was reversed), his repayment plan, and what is still owed — in his currency and in pounds at today's rate. When the name is close to more than one friend, or not exact, returns the candidates instead; ask the partner which one.",
+        "One friend (lender) by name or id: every order he paid for (which order, which cycle, how much, in which currency and at the rate on the day he paid), every repayment (pounds, the rate that day, what it cleared in his currency, the exchange difference, whether it was reversed), his repayment plan, and what is still owed — in his currency and in pounds at today's rate. When the name is close to more than one friend, or not exact, returns the candidates instead; ask the partner which one.",
       inputSchema: { lender: lenderField },
     },
     async ({ lender }) => {
@@ -478,7 +485,15 @@ export function registerLenderTools(
           currency: string;
           cycleId: string;
         };
-        body: { amount: number; paidOn: string; note?: string };
+        /** Where the rate came from, said in the preview. */
+        rateFrom: 'given' | 'order' | 'today' | 'base' | 'none';
+        body: {
+          amount: number;
+          paidOn: string;
+          currency?: string;
+          fxRateToEgp?: number;
+          note?: string;
+        };
       };
 
   async function planFinancing(input: FinancingInput): Promise<FinancingPlan> {
@@ -509,16 +524,25 @@ export function registerLenderTools(
       select: { id: true, reference: true, currency: true, cycleId: true },
     });
     if (!order) throw notFound('purchaseOrder');
-    if (input.currency && input.currency !== order.currency) {
-      throw badRequest(
-        'LENDER_CURRENCY_MISMATCH',
-        `${order.reference} is in ${order.currency}; what a friend paid for it is recorded in ${order.currency}, not ${input.currency}. Nothing is converted.`,
-        {
-          reference: order.reference,
-          orderCurrency: order.currency,
-          currency: input.currency,
-        },
-      );
+
+    // His currency and that day's rate (§18, 2026-10-16), the office form's
+    // way: a rate said is used; unsaid, the order's own rate for the order's
+    // currency, otherwise today's on the exchange-rate page — which the
+    // preview names, so the partner can give the day's figure instead. A
+    // currency with no rate on file is left to the service to refuse.
+    const currency = input.currency ?? order.currency;
+    let rate: number | undefined = input.fxRateToEgp;
+    let rateFrom: 'given' | 'order' | 'today' | 'base' | 'none' = 'given';
+    if (rate === undefined) {
+      if (currency === 'EGP') rateFrom = 'base';
+      else if (currency === order.currency) rateFrom = 'order';
+      else {
+        const today = (await ratesToday(prisma(), [currency])).get(currency);
+        if (today) {
+          rate = Number(today.toFixed(4));
+          rateFrom = 'today';
+        } else rateFrom = 'none';
+      }
     }
 
     const found = resolveLender(input.lender, await allLenders(), true);
@@ -535,9 +559,12 @@ export function registerLenderTools(
       status: 'ready',
       lender,
       order,
+      rateFrom,
       body: {
         amount: input.amount,
         paidOn: input.paidOn ?? businessToday(),
+        ...(input.currency ? { currency } : {}),
+        ...(rate !== undefined ? { fxRateToEgp: rate } : {}),
         ...(input.note ? { note: input.note } : {}),
       },
     };
@@ -564,11 +591,14 @@ export function registerLenderTools(
       cycle: made.cycle.code,
       amount: made.amount,
       currency: made.currency,
-      orderRateToEgp: made.fxRateToEgp,
+      rateToEgp: made.fxRateToEgp,
+      rateFrom: p.rateFrom,
       amountEgp: made.amountEgp,
       paidOn: made.paidOn,
+      orderCurrency: onOrder.currency,
       orderTotal: onOrder.orderTotal,
-      orderFinanced: onOrder.financed,
+      orderTotalEgp: onOrder.orderTotalEgp,
+      orderFinancedEgp: onOrder.financedEgp,
       partnersFundBeforeEgp: before.toFund.toFixed(2),
       partnersFundAfterEgp: after.toFund.toFixed(2),
     };
@@ -576,19 +606,30 @@ export function registerLenderTools(
 
   type FinancingSeen = Awaited<ReturnType<typeof financingOutcome>>;
 
+  /** How the preview names where the rate came from. */
+  const RATE_FROM: Record<FinancingSeen['rateFrom'], string> = {
+    given: ' (the rate given)',
+    order:
+      " (the order's own rate; give the rate on the day he paid if it differed)",
+    today:
+      " (today's rate on the exchange-rate page; give the rate on the day he paid if it differed)",
+    base: '',
+    none: '',
+  };
+
   function describeFinancing(
     p: Extract<FinancingPlan, { status: 'ready' }>,
     seen: FinancingSeen,
   ) {
     return [
       `${p.lender.name} paid ${formatMoney(seen.amount)} ${seen.currency} of ${p.order.reference} (cycle ${seen.cycle}) on ${seen.paidOn}` +
-        ` — ${formatMoney(seen.amountEgp)} EGP at the order's rate ${seen.orderRateToEgp}.`,
+        ` — ${formatMoney(seen.amountEgp)} EGP at ${seen.rateToEgp} EGP per ${seen.currency}${RATE_FROM[seen.rateFrom]}.`,
       ...(p.lender.id === null
         ? [
             `${p.lender.name} is not on file yet: he will be added as a new lender.`,
           ]
         : []),
-      `Friends will have paid ${formatMoney(seen.orderFinanced)} of the order's ${formatMoney(seen.orderTotal)} ${seen.currency}.`,
+      `Friends will have paid ${formatMoney(seen.orderFinancedEgp)} EGP of the order's ${formatMoney(seen.orderTotal)} ${seen.orderCurrency} (${formatMoney(seen.orderTotalEgp)} EGP at its rate).`,
       `We owe him ${formatMoney(seen.amount)} ${seen.currency}, repaid in pounds at each day's rate.`,
       `Partners fund ${formatMoney(seen.partnersFundBeforeEgp)} EGP of the cycle before this, ${formatMoney(seen.partnersFundAfterEgp)} EGP after.`,
     ].join('\n');
@@ -616,9 +657,9 @@ export function registerLenderTools(
     {
       title: 'Record what a friend paid a supplier',
       description:
-        'A friend (lender) paid all or part of a purchase order for us — "Mahmoud paid 30,000 AED for PO-2026-0004". The amount is in the order\'s own currency and we then owe him that, repaid in pounds later. ' +
+        'A friend (lender) paid all or part of a purchase order for us — "Mahmoud paid 30,000 AED for PO-2026-0004". The amount is in the currency he paid in — not necessarily the order\'s — at the rate on the day he paid, and we then owe him that amount in that currency, repaid in pounds later. ' +
         'The friend is matched by exact name or id; a close or unknown name comes back as a question with nothing to confirm — a new friend is added only with newLender: true after the partner agreed. ' +
-        "Refused when it is more than is left to pay on the order, the currency is not the order's, the day is in the future, he already paid for that order, or the cycle is being settled, closed or cancelled. " +
+        'Refused when it is more than is left to pay on the order (compared in pounds), the currency has no rate on the exchange-rate page, the day is in the future, he already paid for that order, or the cycle is being settled, closed or cancelled. ' +
         'The preview shows what the partners will still have to fund afterwards. Call without a confirmationToken to preview.',
       inputSchema: financingShape,
     },
@@ -663,8 +704,9 @@ export function registerLenderTools(
           order: d.order,
           amount: d.amount,
           currency: d.currency,
+          rate: d.rateToEgp,
           paidOn: d.paidOn,
-          orderFinanced: d.orderFinanced,
+          orderFinancedEgp: d.orderFinancedEgp,
           partnersFundAfterEgp: d.partnersFundAfterEgp,
         };
       },
@@ -879,8 +921,8 @@ export function registerLenderTools(
       `Clears ${formatMoney(seen.cleared)} ${f.currency} of ${f.purchaseOrder.reference} (cycle ${f.cycle.code}).`,
       `Still owed: ${formatMoney(seen.owedBefore)} ${f.currency} before, ${formatMoney(seen.owedAfter)} ${f.currency} after.`,
       diff.isZero()
-        ? "No exchange difference: the same as the order's rate."
-        : `Exchange difference: ${diff.gt(0) ? '' : '-'}${formatMoney(diff.abs())} EGP — ${diff.gt(0) ? 'a cost to the cycle (his currency rose since the order)' : 'a gain to the cycle (his currency fell since the order)'}.`,
+        ? 'No exchange difference: the same as the rate he paid at.'
+        : `Exchange difference: ${diff.gt(0) ? '' : '-'}${formatMoney(diff.abs())} EGP — ${diff.gt(0) ? 'a cost to the cycle (his currency rose since he paid)' : 'a gain to the cycle (his currency fell since he paid)'}.`,
     ].join('\n');
   }
 

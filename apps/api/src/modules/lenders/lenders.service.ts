@@ -19,7 +19,15 @@ import {
   cyclesVisibleTo,
   type ScopeViewer,
 } from '../../common/investor-scope';
-import { owedOn, planRepayment, settlingEgp } from '../../common/lender-math';
+import {
+  financingCap,
+  financingTerms,
+  orderTotalEgp,
+  owedOn,
+  planRepayment,
+  settlingEgp,
+} from '../../common/lender-math';
+import { parseCurrencyCode, parseRateToEgp } from '../../common/fx-rate';
 import {
   STANDING_FINANCING,
   STANDING_REPAYMENT,
@@ -231,6 +239,7 @@ export class LendersService {
         id: true,
         cycleId: true,
         currency: true,
+        fxRateToEgp: true,
         items: { select: { lineTotal: true } },
       },
     });
@@ -247,13 +256,21 @@ export class LendersService {
     });
     const financings = rows.map((f) => this.view(f));
     const total = po.items.reduce((s, i) => s.add(i.lineTotal), D(0));
-    const financed = rows.reduce((s, f) => s.add(f.amount), D(0));
+    // Friends may pay in different currencies (§18, 2026-10-16), so what they
+    // paid of the order is told in pounds, the unit the cap compares in.
+    const totalEgp = orderTotalEgp(
+      po.items.map((i) => i.lineTotal),
+      po.fxRateToEgp,
+    );
+    const financedEgp = rows.reduce((s, f) => s.add(f.amountEgp), D(0));
     return {
       data: {
         currency: po.currency,
+        fxRateToEgp: D(po.fxRateToEgp).toFixed(4),
         orderTotal: m2(total),
-        financed: m2(financed),
-        available: m2(Prisma.Decimal.max(total.sub(financed), D(0))),
+        orderTotalEgp: m2(totalEgp),
+        financedEgp: m2(financedEgp),
+        availableEgp: m2(Prisma.Decimal.max(totalEgp.sub(financedEgp), D(0))),
         financings,
       },
     };
@@ -336,8 +353,13 @@ export class LendersService {
 
   /**
    * A friend paid all or part of this order (§18). His money paying our
-   * supplier comes into the ledger at the order's rate; nothing leaves an
-   * account of ours.
+   * supplier comes into the ledger at his own rate — the rate on the day he
+   * paid, in the currency he paid in (2026-10-16); nothing leaves an account
+   * of ours. Left out, both are the order's, as before.
+   *
+   * What friends paid of an order is capped in pounds: the sum of their
+   * `amountEgp` never above the order's lines at the order's rate. Two friends
+   * can pay one order in two currencies, so no other unit compares them.
    */
   async finance(
     purchaseOrderId: string,
@@ -356,6 +378,9 @@ export class LendersService {
       );
     }
     assertNotFuture(dto.paidOn, 'LENDER_PAID');
+    // Checked here as well as in the DTO: the assistant calls this directly.
+    const askedCurrency = parseCurrencyCode(dto.currency);
+    const askedRate = parseRateToEgp(dto.fxRateToEgp);
 
     const [po, lender] = await Promise.all([
       this.prisma.purchaseOrder.findUnique({
@@ -382,7 +407,7 @@ export class LendersService {
           items: { select: { lineTotal: true } },
           lenderFinancings: {
             where: STANDING_FINANCING,
-            select: { lenderId: true, amount: true },
+            select: { lenderId: true, amount: true, fxRateToEgp: true },
           },
         },
       });
@@ -409,29 +434,62 @@ export class LendersService {
           { reference: order.reference },
         );
       }
-      const total = order.items.reduce((s, i) => s.add(i.lineTotal), D(0));
-      const financed = order.lenderFinancings.reduce(
-        (s, f) => s.add(f.amount),
-        D(0),
-      );
+      // The currency he paid in: any the business keeps a rate for, EGP, or
+      // the order's own (§18, 2026-10-16). Checked before the rate — no rate
+      // typed makes an unknown currency known.
+      const paidIn = askedCurrency ?? order.currency;
+      if (paidIn !== 'EGP' && paidIn !== order.currency) {
+        const known = await tx.currencyRate.findUnique({
+          where: { code: paidIn },
+          select: { rateToEgp: true },
+        });
+        if (!known || known.rateToEgp === null) {
+          throw badRequest(
+            'NO_RATE_RECORDED',
+            `No exchange rate has been recorded for ${paidIn}.`,
+            { currency: paidIn },
+          );
+        }
+      }
+      // His day's rate; the order's when he named neither (common/lender-math,
+      // the one definition).
+      const { currency, rate } = financingTerms({
+        currency: paidIn,
+        rate: askedRate,
+        orderCurrency: order.currency,
+        orderRate: order.fxRateToEgp,
+        orderReference: order.reference,
+      });
+
       const amount = D(dto.amount);
-      if (financed.add(amount).gt(total)) {
+      const {
+        exceeds,
+        totalEgp,
+        financedEgp,
+        addingEgp: amountEgp,
+      } = financingCap({
+        lineTotals: order.items.map((i) => i.lineTotal),
+        orderRate: order.fxRateToEgp,
+        standing: order.lenderFinancings.map((f) => ({
+          amount: f.amount,
+          rate: f.fxRateToEgp,
+        })),
+        adding: { amount, rate },
+      });
+      if (exceeds) {
         throw badRequest(
           'FINANCING_EXCEEDS_ORDER',
-          `${formatMoney(amount)} ${order.currency} is more than is left to pay on ${order.reference}: ` +
-            `the order is ${formatMoney(total)} ${order.currency} and friends already paid ${formatMoney(financed)}.`,
+          `${formatMoney(amountEgp)} EGP is more than is left to pay on ${order.reference}: ` +
+            `the order is ${formatMoney(totalEgp)} EGP and friends already paid ${formatMoney(financedEgp)} EGP.`,
           {
-            amount: formatMoney(amount),
-            currency: order.currency,
+            amount: formatMoney(amountEgp),
+            currency: 'EGP',
             reference: order.reference,
-            total: formatMoney(total),
-            financed: formatMoney(financed),
+            total: formatMoney(totalEgp),
+            financed: formatMoney(financedEgp),
           },
         );
       }
-      const amountEgp = amount
-        .mul(order.fxRateToEgp)
-        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
       const ledger = await tx.financialTransaction.create({
         data: {
@@ -440,11 +498,14 @@ export class LendersService {
           direction: 'INFLOW',
           amount: amountEgp,
           currency: 'EGP',
-          fxRateToEgp: order.fxRateToEgp,
+          fxRateToEgp: rate,
+          ...(currency !== 'EGP'
+            ? { originalAmount: amount, originalCurrency: currency }
+            : {}),
           cycleId: order.cycleId,
           relatedType: 'LENDER_FINANCING',
           relatedId: id,
-          reason: `${lender.name} paid ${formatMoney(amount)} ${order.currency} of ${order.reference}`,
+          reason: `${lender.name} paid ${formatMoney(amount)} ${currency} of ${order.reference}`,
           createdBy: actorId,
         },
       });
@@ -454,9 +515,9 @@ export class LendersService {
           lenderId: lender.id,
           purchaseOrderId,
           cycleId: order.cycleId,
-          currency: order.currency,
+          currency,
           amount,
-          fxRateToEgp: order.fxRateToEgp,
+          fxRateToEgp: rate,
           amountEgp,
           paidOn: asDay(dto.paidOn),
           note: dto.note?.trim() || null,
@@ -599,7 +660,7 @@ export class LendersService {
         {
           amount: now.amount,
           amountEgp: now.amountEgp,
-          orderRate: now.fxRateToEgp,
+          financingRate: now.fxRateToEgp,
         },
         now.repayments,
         dto.amountEgp,

@@ -6,7 +6,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import { ToastProvider } from '@/components/ui/toast';
-import { RecordPaymentDialog, type PaymentOrder } from './RecordPaymentDialog';
+import { RecordPaymentDialog, oldestFirst, type PaymentOrder } from './RecordPaymentDialog';
 
 // `post` records calls; `answer` decides the reply, per URL. Kept apart because
 // a vi.fn returning a rejected promise chains its own copy nobody listens to.
@@ -250,5 +250,21 @@ describe('one form for recording a payment (rule 11)', () => {
       // None of them records a payment by its own hand.
       expect(source).not.toMatch(/api\.post\(\s*['`]\/payments['`]/);
     }
+  });
+});
+
+describe('oldest first is sold first (§4, §7, 2026-10-16)', () => {
+  it('a back-dated sale typed in today comes before an order typed in earlier for a later day — as the server applies money', () => {
+    const typedFirst = { id: 'typed-first', status: 'CONFIRMED', outstanding: '500', createdAt: '2026-03-08T10:00:00Z', orderedAt: '2026-03-08T10:00:00Z' };
+    const soldFirst = { id: 'sold-first', status: 'CONFIRMED', outstanding: '500', createdAt: '2026-10-16T08:00:00Z', orderedAt: '2026-03-01T10:00:00Z' };
+    const paid = { id: 'paid', status: 'PAID', outstanding: '0', createdAt: '2026-01-01T10:00:00Z', orderedAt: '2026-01-01T10:00:00Z' };
+    expect(oldestFirst([typedFirst, paid, soldFirst]).map((o) => o.id)).toEqual(['sold-first', 'typed-first']);
+  });
+
+  it('one day apart from nothing: the one written first goes first; an order from before the day was stored falls back to when it was written', () => {
+    const a = { id: 'a', status: 'CONFIRMED', outstanding: '1', createdAt: '2026-03-01T09:00:00Z', orderedAt: '2026-03-01T10:00:00Z' };
+    const b = { id: 'b', status: 'CONFIRMED', outstanding: '1', createdAt: '2026-03-01T08:00:00Z', orderedAt: '2026-03-01T10:00:00Z' };
+    const old = { id: 'old', status: 'CONFIRMED', outstanding: '1', createdAt: '2026-02-01T08:00:00Z' };
+    expect(oldestFirst([a, b, old]).map((o) => o.id)).toEqual(['old', 'b', 'a']);
   });
 });

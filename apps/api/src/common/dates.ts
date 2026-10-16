@@ -68,6 +68,8 @@ export const DATE_FIELDS = {
   LENDER_REPAID: 'The date a friend was repaid',
   LEDGER_ENTRY: 'The date of a ledger entry',
   STOCK_MOVED: 'The date leftover stock was moved',
+  SALE_MADE: 'The date a sale was made',
+  STOCK_RECEIVED: 'The date stock was received',
 } as const;
 export type DateField = keyof typeof DATE_FIELDS;
 
@@ -169,10 +171,56 @@ export function startOfBusinessDay(day: string): Date {
   return new Date(start);
 }
 
-function nextDay(day: string): string {
+/** The calendar day after `day`, both YYYY-MM-DD. */
+export function nextDay(day: string): string {
   return new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000)
     .toISOString()
     .slice(0, 10);
+}
+
+/**
+ * The first instant after `day` ends where the business is. "On or before
+ * that day" on a timestamp column is `< endOfBusinessDay(day)`.
+ */
+export function endOfBusinessDay(day: string): Date {
+  return startOfBusinessDay(nextDay(day));
+}
+
+/**
+ * The instant a record of something that happened on `day` is stored at
+ * (BUSINESS_LOGIC §4 and §3, 2026-10-16: a sale and a receipt carry their
+ * day).
+ *
+ * Today is now, exactly as before the day could be chosen — today's sales and
+ * receipts keep their own order to the second. An earlier day is midday in
+ * Cairo: well inside the day on either side of a clock change, so
+ * `businessDay()` of the stored instant is always the day chosen, and the UTC
+ * date is the same day too (midday Cairo is 09:00–10:00 UTC).
+ */
+export function instantOfDay(day: string, now = new Date()): Date {
+  if (day === businessToday(now)) return now;
+  return new Date(startOfBusinessDay(day).getTime() + 12 * 3_600_000);
+}
+
+/**
+ * A day a caller chose for a record, checked: written YYYY-MM-DD, a real
+ * date, and not after today in Cairo. Left out (undefined, null or '') it
+ * is today. The answer is the day, YYYY-MM-DD.
+ */
+export function chosenDay(value: unknown, field: DateField): string {
+  if (value === undefined || value === null || value === '') {
+    return businessToday();
+  }
+  if (typeof value !== 'string') {
+    // A number or an object is not a day; JSON shows what was sent.
+    const shown = JSON.stringify(value) ?? typeof value;
+    throw badRequest('BAD_DATE', `${shown} is not a date written YYYY-MM-DD.`, {
+      value: shown,
+    });
+  }
+  assertDay(value);
+  assertNotFuture(value, field);
+  return value;
 }
 
 /**

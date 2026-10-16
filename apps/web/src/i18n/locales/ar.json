@@ -105,7 +105,8 @@
       "inventory": "المخزون",
       "cycles": "الدورات"
     },
-    "lenders": "المُقرضون"
+    "lenders": "المُقرضون",
+    "fxRates": "أسعار الصرف"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -542,7 +543,9 @@
       "credited": "مرتجعات مخصومة",
       "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه."
     },
-    "inactiveTag": "غير نشط"
+    "inactiveTag": "غير نشط",
+    "saleDate": "تاريخ البيع",
+    "backDatedNote": "يوم سابق: لا يُباع إلا ما استُلم من بضاعة حتى ذلك اليوم."
   },
   "customers": {
     "title": "العملاء",
@@ -1207,7 +1210,8 @@
       "lenderFinancing": "ما دفعه الصديق",
       "lenderRepayment": "السداد",
       "lenderPlan": "خطة السداد",
-      "shipmentDeparture": "المغادرة"
+      "shipmentDeparture": "المغادرة",
+      "currencyRate": "العملة"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -1385,7 +1389,7 @@
     "LENDER_NAME_REQUIRED": "المُقرض يحتاج إلى اسم.",
     "CYCLE_CLOSED_FOR_FINANCING": "الدورة {cycle} في حالة {status}؛ لا يمكن تسجيل ما دفعه صديق عليها.",
     "LENDER_ALREADY_FINANCES_ORDER": "{lender} دفع بالفعل للطلب {reference}. احذفه وسجّله من جديد لتغييره.",
-    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed}.",
+    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed} {currency}.",
     "FINANCING_REMOVED": "تم حذف ما دفعه هذا الصديق.",
     "FINANCING_HAS_REPAYMENTS": "سُدِّد لـ {lender} على هذا؛ ألغِ تلك السدادات قبل حذفه.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "دفع للمورد في {paidOn}؛ لا يمكن أن يسبق السداد هذا التاريخ.",
@@ -1393,7 +1397,6 @@
     "LENDER_CYCLE_SETTLED": "الدورة {cycle} مُسوّاة؛ ألغِ التسوية قبل التراجع عن سداد عليها.",
     "LENDER_NOTHING_OWED": "لا شيء مستحق لـ {lender} على هذا، فلا يوجد ما يُجدول.",
     "LENDER_NOT_OWED": "لا شيء مستحق لـ {lender}، فلا يوجد ما يُسدَّد.",
-    "LENDER_CURRENCY_MISMATCH": "{reference} بعملة {orderCurrency}؛ ما دفعه الصديق عنه يُسجَّل بـ {orderCurrency} وليس {currency}.",
     "LENDER_PLAN_EXISTS": "لهذا خطة نشطة بالفعل. ألغِها قبل الاتفاق على غيرها.",
     "LENDER_PLAN_EXCEEDS_OWED": "مجموع الأقساط {total} {currency} والمستحق {owed} فقط.",
     "FINANCING_ORDER_EMPTY": "الطلب {reference} بلا أصناف، فلا يوجد ما يمكن أن يكون صديق قد دفعه.",
@@ -1431,7 +1434,14 @@
     "NAME_AR_TOO_LONG": "الاسم بالعربية لا يتجاوز {max} حرفًا.",
     "RUNNING_COST_CHARGED": "هذه المصروفات العامة خُصمت بالفعل من توزيع أرباح ({cycles}). اعكس تلك التسوية أولًا، ثم هذا القيد.",
     "PRODUCT_INACTIVE": "المنتج {product} موقوف، لذا لا يمكن طلب المزيد منه. أعِد تفعيله لتشتري المزيد.",
-    "PRODUCT_STATUS_INVALID": "حالة المنتج إما نشط أو غير نشط."
+    "PRODUCT_STATUS_INVALID": "حالة المنتج إما نشط أو غير نشط.",
+    "NOT_ENOUGH_STOCK_ON_DATE": "لم يكن قد استُلم من {product} حتى {day} سوى {available}، لذا لا يمكن أن يكون قد بيع {wanted} في ذلك اليوم.",
+    "PAYMENT_BEFORE_ORDER": "دفعة استُلمت في {receivedOn} لا يمكن أن تسدد {order}، فقد بيع في {orderedOn}.",
+    "RECEIVED_BEFORE_ARRIVAL": "لا يمكن استلام البضاعة في {day}: فقد وصلت الشحنة إلى مصر في {arrivedOn}.",
+    "FINANCING_RATE_REQUIRED": "دفع بـ {currency} وهي ليست عملة {reference}: اذكر سعر {currency} بالجنيه في يوم الدفع.",
+    "RATE_TOO_PRECISE": "السعر لا يتجاوز {decimals} أرقام عشرية؛ {rate} فيه أكثر من ذلك.",
+    "CURRENCY_CODE_INVALID": "{value} ليس رمز عملة: ثلاثة أحرف لاتينية مثل AED.",
+    "CURRENCY_EXISTS": "{currency} موجودة بالفعل في صفحة أسعار الصرف؛ غيّر سعرها من هناك."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1704,7 +1714,9 @@
       "LENDER_PAID": "تاريخ دفع الصديق للمورد",
       "LENDER_REPAID": "تاريخ السداد للصديق",
       "LEDGER_ENTRY": "تاريخ قيد في الدفتر",
-      "STOCK_MOVED": "تاريخ نقل البضاعة المتبقية"
+      "STOCK_MOVED": "تاريخ نقل البضاعة المتبقية",
+      "SALE_MADE": "تاريخ البيع",
+      "STOCK_RECEIVED": "تاريخ استلام البضاعة"
     },
     "country": {
       "CN": "الصين",
@@ -1917,7 +1929,8 @@
     "departureHintParts": "يبدأ كل منتج بكل ما ينتظر المغادرة. اخفض الرقم إن غادر جزء فقط؛ يبقى الباقي منتظراً.",
     "addLeg": "أضف المرحلة {leg}",
     "editLeg": "تعديل المرحلة",
-    "editLegTitle": "تعديل المرحلة {leg}"
+    "editLegTitle": "تعديل المرحلة {leg}",
+    "receivedOn": "تاريخ الاستلام"
   },
   "shippingCost": {
     "title": "تكلفة الشحن",
@@ -2038,7 +2051,12 @@
     "save": "حفظ",
     "cancelPlanHint": "يتوقف احتساب الجدول؛ لا تتغير السدادات ولا المتبقي.",
     "rateFor": "السعر ({currency} إلى الجنيه)",
-    "poundsEgp": "المدفوع (جنيه)"
+    "poundsEgp": "المدفوع (جنيه)",
+    "paidInCurrency": "العملة التي دفع بها",
+    "ordersCurrency": "عملة الطلب",
+    "rateOnThatDay": "سعر الصرف يوم الدفع ({currency} → EGP)",
+    "financingRateHint": "السعر في يوم الدفع — يُملأ مسبقًا من سعر الطلب أو السعر الحالي؛ غيّره إن كان سعر ذلك اليوم مختلفًا",
+    "worthInPounds": "تعادل <egp></egp> بهذا السعر"
   },
   "transfers": {
     "title": "التحويلات",
@@ -2160,6 +2178,30 @@
     "searchOrders": "ابحث برقم الطلب",
     "searchProviders": "ابحث باسم شركة الشحن",
     "searchLenders": "ابحث باسم المُقرض",
-    "searchTypes": "ابحث بالنوع"
+    "searchTypes": "ابحث بالنوع",
+    "currencyCode": "GBP"
+  },
+  "fxRates": {
+    "title": "أسعار الصرف",
+    "subtitle": "قيمة الوحدة من كل عملة بالجنيه المصري",
+    "prefillOnly": "هذه الأسعار تُملأ بها النماذج مسبقًا فقط. كل طلب ودفعة واستلام يحتفظ بالسعر الذي سُجّل به، فتغييره هنا لا يغيّر شيئًا مسجّلًا.",
+    "currency": "العملة",
+    "rate": "السعر بالجنيه",
+    "lastChanged": "آخر تغيير",
+    "actions": "إجراءات",
+    "base": "العملة الأساسية",
+    "noRate": "لا يوجد سعر بعد",
+    "editTitle": "سعر {currency}",
+    "add": "إضافة عملة",
+    "addTitle": "إضافة عملة",
+    "code": "رمز العملة",
+    "codeHint": "ثلاثة أحرف لاتينية، مثل GBP أو SAR",
+    "rateFor": "السعر ({currency} → EGP)",
+    "rateHint": "أكبر من صفر، وبحد أقصى أربعة أرقام عشرية",
+    "saved": "تم حفظ سعر {currency}",
+    "added": "تمت إضافة {currency}",
+    "saveFailed": "تعذّر حفظ السعر",
+    "emptyTitle": "لا توجد عملات بعد",
+    "emptyHint": "أضف العملات التي تشتري وتدفع بها مع سعرها بالجنيه."
   }
 }

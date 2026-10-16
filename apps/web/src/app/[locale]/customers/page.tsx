@@ -54,6 +54,8 @@ interface CustomerOrder {
   total: number;
   currency: string;
   createdAt: string;
+  /** The day it was sold (§4). */
+  orderedAt?: string;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -597,7 +599,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                     <div key={order.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 text-sm">
                       <div>
                         <p className="font-medium text-gray-900">{order.orderNo}</p>
-                        <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
+                        <p className="text-xs text-gray-500">{formatDate(order.orderedAt ?? order.createdAt)}</p>
                       </div>
                       <div className="text-end">
                         <p className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></p>

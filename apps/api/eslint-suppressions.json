@@ -50,9 +50,6 @@
   "src/common/available-stock.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 3
     }
   },
   "src/common/dates.ts": {
@@ -165,11 +162,6 @@
       "count": 8
     }
   },
-  "src/common/month-buckets.ts": {
-    "prettier/prettier": {
-      "count": 2
-    }
-  },
   "src/common/references.ts": {
     "prettier/prettier": {
       "count": 1
@@ -277,26 +269,9 @@
       "count": 1
     }
   },
-  "src/modules/currency-rates/currency-rates.controller.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    },
-    "prettier/prettier": {
-      "count": 1
-    }
-  },
   "src/modules/currency-rates/currency-rates.service.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 8
     }
   },
   "src/modules/customers/customers.controller.ts": {

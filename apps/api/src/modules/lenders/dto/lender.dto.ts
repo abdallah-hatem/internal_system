@@ -31,7 +31,11 @@ export class CreateLenderDto {
   notes?: string;
 }
 
-/** POST /purchases/:id/financings — he paid this much of the order, in its currency. */
+/**
+ * POST /purchases/:id/financings — he paid this much of the order, in his
+ * currency at that day's rate (§18, 2026-10-16). Both left out: the order's
+ * currency and rate, as before.
+ */
 export class CreateFinancingDto {
   @IsUUID('all')
   lenderId: string;
@@ -40,6 +44,24 @@ export class CreateFinancingDto {
   @IsPositive({ message: 'amount must be greater than 0' })
   @Type(() => Number)
   amount: number;
+
+  /**
+   * The currency he paid in. Shape only: the service refuses a code that is
+   * not three letters (CURRENCY_CODE_INVALID) or has no rate on file
+   * (NO_RATE_RECORDED), with codes the form can say.
+   */
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  /**
+   * His currency → EGP on the day he paid. Shape only: the service refuses
+   * zero or less (RATE_NOT_POSITIVE) and a fifth decimal (RATE_TOO_PRECISE).
+   */
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  fxRateToEgp?: number;
 
   /** The Cairo day he paid the supplier; today when not given. */
   @IsOptional()

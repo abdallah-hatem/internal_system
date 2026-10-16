@@ -9,7 +9,11 @@
 import {
   assertDayRange,
   assertNotFuture,
+  businessDay,
   businessToday,
+  chosenDay,
+  endOfBusinessDay,
+  instantOfDay,
   calendarRange,
   instantRange,
   startOfBusinessDay,
@@ -130,5 +134,77 @@ describe('day ranges', () => {
       gte: new Date('2026-08-01T00:00:00.000Z'),
       lte: new Date('2026-08-31T00:00:00.000Z'),
     });
+  });
+});
+
+describe('a record dated a chosen day (§4 and §3, 2026-10-16)', () => {
+  const DAY_MS = 86_400_000;
+  const everyDay = (fn: (day: string) => void) => {
+    for (
+      let t = Date.UTC(2024, 0, 1);
+      t <= Date.UTC(2027, 11, 31);
+      t += DAY_MS
+    ) {
+      fn(new Date(t).toISOString().slice(0, 10));
+    }
+  };
+
+  it('instantOfDay lands inside the chosen day in Cairo, and on the same UTC date — every day of four years', () => {
+    const now = new Date('2028-06-01T10:00:00Z');
+    const wrong: string[] = [];
+    everyDay((day) => {
+      const at = instantOfDay(day, now);
+      if (businessDay(at) !== day || at.toISOString().slice(0, 10) !== day) {
+        wrong.push(`${day} → ${at.toISOString()}`);
+      }
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it('instantOfDay of today is now, to the millisecond — today keeps its own order', () => {
+    const now = new Date('2026-08-22T21:37:00Z'); // the 23rd in Cairo
+    expect(instantOfDay('2026-08-23', now)).toBe(now);
+  });
+
+  it('endOfBusinessDay is the first instant of the next day in Cairo — every day of four years', () => {
+    const wrong: string[] = [];
+    everyDay((day) => {
+      const end = endOfBusinessDay(day);
+      const next = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS)
+        .toISOString()
+        .slice(0, 10);
+      if (
+        businessDay(new Date(end.getTime() - 1)) !== day ||
+        businessDay(end) !== next
+      ) {
+        wrong.push(day);
+      }
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it('chosenDay: left out is today; today and the past are kept; the future and non-dates are refused with codes', () => {
+    const code = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (e) {
+        return (e as { getResponse(): { code: string } }).getResponse().code;
+      }
+      return 'accepted';
+    };
+    const tomorrow = new Date(
+      Date.parse(`${businessToday()}T00:00:00Z`) + DAY_MS,
+    )
+      .toISOString()
+      .slice(0, 10);
+    expect(chosenDay(undefined, 'SALE_MADE')).toBe(businessToday());
+    expect(chosenDay('', 'SALE_MADE')).toBe(businessToday());
+    expect(chosenDay(null, 'SALE_MADE')).toBe(businessToday());
+    expect(chosenDay('2026-01-31', 'SALE_MADE')).toBe('2026-01-31');
+    expect(code(() => chosenDay(tomorrow, 'SALE_MADE'))).toBe('DATE_IN_FUTURE');
+    expect(code(() => chosenDay('2026-02-29', 'SALE_MADE'))).toBe('BAD_DATE');
+    expect(code(() => chosenDay('2026-1-5', 'SALE_MADE'))).toBe('BAD_DATE');
+    expect(code(() => chosenDay(42, 'STOCK_RECEIVED'))).toBe('BAD_DATE');
+    expect(code(() => chosenDay({}, 'STOCK_RECEIVED'))).toBe('BAD_DATE');
   });
 });

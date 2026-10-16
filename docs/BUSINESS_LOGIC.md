@@ -405,6 +405,28 @@ refusal (`CYCLE_NOT_ARRIVED`) stays for it. Selling then continues while later d
 FIFO still means the oldest **received** batch first: the day it was checked
 in, not the day it landed.
 
+**DECIDED 2026-10-16 (owner asked for the capability; details a GUESS, the
+recommended option) — received stock carries the day it was received.** The
+owner is entering a cycle that already happened: goods received in Cairo weeks
+ago. Receiving takes a **Received on** day (`receivedOn` on
+`POST /receipts/verify`), optional, today when left out.
+- Never in the future (`DATE_IN_FUTURE`), never a non-date (`BAD_DATE`), and
+  never before the delivery that brought the goods reached Egypt
+  (`RECEIVED_BEFORE_ARRIVAL`, naming both days).
+- That day is the batch's received instant (`createdAt`), which FIFO orders by
+  and a back-dated sale is cut off at (§4): today is now, to the second, as
+  before; an earlier day is stored at midday Cairo time, so the stored instant
+  is that day in Cairo and in UTC alike, on either side of a clock change.
+- The office dialog prefills it with the delivery's arrival day (today if it
+  arrived today), greys out days before arrival and after today, and keeps the
+  counts prefilled with what was delivered (owner: they will not count per
+  model).
+- GUESS: the arrival day, not today, is the prefill — opening the dialog late
+  is the usual reason the day matters. A part of a delivery received on another
+  day is its own batch on its own day.
+- `check-data` 25.3 and 25.4 watch for a batch received before its delivery
+  arrived, or on a day that has not come.
+
 **DECIDED 2026-10-10 — one meaning of "low stock".** A product is low when it is
 active, has a minimum set, and the stock on hand is below that minimum. A product
 with no minimum is never low. The dashboard count, the inventory filter and the
@@ -683,6 +705,45 @@ Guesses made while building it, open until confirmed (2026-10-11):
 - The warning sits beside the buttons rather than asking "are you sure?" first:
   it is on screen before Confirm is pressed, and a second click to get past it
   would make a decided price slower to enter every time.
+
+**DECIDED 2026-10-16 (owner asked for the capability; details a GUESS, the
+recommended option) — a sale has a date.** Entering a cycle that already
+happened means entering sales made weeks ago (B2B, some paid in instalments).
+A sale takes a **Sale date** (`orderedOn`, YYYY-MM-DD, a Cairo day) on
+`POST /sales/orders`, the walk-in sale and `POST /sales/price-check`;
+optional, today when left out, never in the future (`DATE_IN_FUTURE`), never a
+non-date (`BAD_DATE`). It is stored in `orderedAt` so that the sale's Cairo day
+is the day chosen (today: now, as before; an earlier day: midday in Cairo).
+- **Stock that day.** A sale dated before the day it is entered draws only
+  from batches received on or before the end of its day (§3), FIFO among them,
+  at creation and at confirm. Short of that: `NOT_ENOUGH_STOCK_ON_DATE`
+  (product, day, what there was, what was wanted) — it never draws stock that
+  arrived later. A sale entered for its own day draws the whole shelf exactly
+  as before.
+- GUESS: **a draft keeps its day.** A draft saved on Monday for Monday and
+  confirmed on Wednesday was never back-dated, so it draws the whole shelf as
+  before (confirming is when the goods leave, §3). A draft saved for an
+  earlier day is held to that day's stock when confirmed. There is no endpoint
+  that edits a draft, so a draft's day is chosen when it is saved; to change
+  it, cancel and enter it again.
+- GUESS: **back-dated sales are drawn from what is left in those batches now.**
+  Entering history out of order — today's sales first, then last month's — can
+  find the early batches already sold and refuse; enter a past cycle's sales in
+  date order.
+- Everything that reads a sale's date reads `orderedAt`: revenue by month
+  (bucketed by the Cairo month, which also fixes a sale at 00:30 on the 1st
+  being charted a month early), the dashboard, the customer statement, the
+  invoice, To collect's oldest unpaid order, the sales list and the customer's
+  pages. Settlement reads allocations, not dates. The below-cost warning of a
+  back-dated sale is costed from the stock of its day.
+- **The assistant** (`record_sale`) sends `orderedOn` only when the partner
+  says the sale was on an earlier day; the preview names the day, shows that
+  day's stock and binds the day.
+- The office form: "Sale date", the shared date picker, today prefilled,
+  future days greyed out; an earlier day says only stock received by then can
+  be sold.
+- `check-data` 25 and 25.1 watch for a sale dated forward and a back-dated sale
+  that drew stock received after its day.
 ---
 
 ## 5. Returns
@@ -806,7 +867,7 @@ unpaid orders first, as before.
 transaction that records the payment (`applyOldestFirst`), for the office form and
 the assistant alike. It was a loop in the browser after the payment was saved, so a
 dropped connection could leave money recorded but applied to nothing; now it is all
-of it or none of it. Oldest means the order created first.
+of it or none of it. Oldest means the order created first — since 2026-10-16, the order sold first (its sale day), then created first (§7a).
 
 A payment is in the order's currency or in Egyptian pounds; no other currency is
 offered.
@@ -944,6 +1005,18 @@ the system by number, so one shop's money could clear another's debt.
 
 **A record must point at something that exists.** A payment for an unknown
 customer is a clear refusal, not a 500.
+
+**DECIDED 2026-10-16 (with back-dated sales, §4; details a GUESS, the
+recommended option) — money cannot pay for a sale that had not happened yet.**
+A payment is not applied to an order sold after the day the payment was
+received (`PAYMENT_BEFORE_ORDER`, naming the order, the day it was sold and the
+day the money came in) — on a chosen order, oldest first and the Allocate
+action alike. A payment the same day as the sale is fine. **Oldest first now
+means sold first** (the sale's day), then written first: a sale back-dated to
+the 1st is paid before one typed in earlier for the 8th; money left over that
+could only go on a later sale is refused rather than applied. The payment
+dialog's order list sorts the same way. `check-data` 25.2 watches for a payment
+allocated to a sale made after it was received.
 
 ---
 
@@ -1961,6 +2034,29 @@ confirms it.**
 | Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; no money account is asked (DECIDED 2026-10-11; accounts removed 2026-10-14, "Which account" above); a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
 | Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |
 
+**DECIDED 2026-10-16 (owner asked for the capability; details a GUESS, the
+recommended option) — he pays in his own currency, at that day's rate.** The
+owner's case: a friend paid the supplier in AED while the order is priced in
+CNY or USD, and is repaid monthly in pounds at each month's AED rate. This
+replaces "in that order's currency" above.
+
+| Rule | Now | Status |
+|---|---|---|
+| The currency he paid in | EGP, the order's currency, or any currency with a rate on the exchange-rate page (§22); anything else `NO_RATE_RECORDED`, a code that is not three letters `CURRENCY_CODE_INVALID`. Left out: the order's currency. | GUESS |
+| The rate | The rate on the day he paid, as typed: above zero (`RATE_NOT_POSITIVE`), at most four decimals (`RATE_TOO_PRECISE`). EGP is 1 (`BASE_CURRENCY_RATE_FIXED`). Left out: the order's rate for the order's currency; for another currency it is required (`FINANCING_RATE_REQUIRED`) — a rate on the page is today's, not his day's, so it only prefills. | GUESS |
+| His pounds | `amountEgp` = amount × his rate, half up to the piastre. The ledger inflow is those pounds, at his rate, with his amount and currency kept as the original. | DECIDED |
+| The cap | Compared in pounds, and exactly: friends' amount × rate together never above the order's lines × the order's rate (`FINANCING_EXCEEDS_ORDER`, figures in EGP). Exactly, before rounding, so two friends paying exactly what is left in the order's currency are never refused by a piastre of rounding. | GUESS |
+| What we owe him | His amount, in his currency. Repayments clear pounds ÷ the rate typed on the repayment. | DECIDED |
+| The exchange difference | Pounds paid − what was cleared valued at **his** rate (the financing's own), not the order's. Over a repaid debt: pounds paid − his `amountEgp`. One definition, `common/lender-math.ts`. | GUESS |
+| Partners' capital | "Split equally" and the funding subtract his `amountEgp` (his pounds at his rate). | DECIDED |
+| The office form | Currency (EGP, the order's first, every currency with a rate) and "Rate to EGP on that day": the order's own rate for the order's currency, today's page rate for another, 1 for EGP; what it is worth in pounds shown as he types. | GUESS (the order's rate, not today's, prefills the order's currency, so an untouched form records what it always did) |
+| The assistant | `record_lender_financing` takes currency and rate; unsaid, the order's rate for the order's currency, otherwise today's page rate, and the preview says which; the rate is bound to the confirmation. | GUESS |
+
+No migration: a friend's payment already stored its own currency and rate (they
+were copies of the order's). Production had no friend's payments.
+`check-data` 19.1 now compares in pounds; 19.6 checks `amountEgp` is amount ×
+rate.
+
 ## 19. Signing out of the office  — built 2026-10-14 (owner asked for a way out), details GUESSED
 
 The owner, 2026-10-14: there was no way to log out. The header's avatar and name now open an account menu
@@ -2014,3 +2110,18 @@ said "China", the next "CN", a third "الصين", and nothing could tell they w
 
 Not changed: a shipping leg's origin and destination are fixed places, not countries; shipping providers and
 customers have no country.
+
+## 22. Exchange rates  — DECIDED 2026-10-16 (owner asked for the page), details GUESSED
+
+The owner, entering a past cycle with AED, CNY and USD, needs to see and set
+the rates the forms start from. An office page, **Exchange rates** (`/fx-rates`),
+at the foot of the menu beside Audit Logs and Settings.
+
+| Question | Rule | Status |
+|---|---|---|
+| What it shows | Every currency, its rate to EGP (to four decimals) and when it last changed; "no rate yet" for a currency without one. One line: these rates only prefill forms — every order, payment and receipt keeps the rate it was recorded at, so a change here restates nothing. | DECIDED |
+| Who | Every office role reads it (`GET /currency-rates` names no roles; the forms of every role prefill from it). Only a core partner changes a rate or adds a currency (`PUT`/`POST`, `@Roles('CORE_PARTNER')`). | GUESS |
+| Changing a rate | `PUT /currency-rates/:code`, only for a currency already on the page (404 otherwise, so a typo in a URL makes no currency). Above zero, at most four decimals; EGP is fixed at 1. `null` still means "no rate known". | DECIDED |
+| Adding a currency | `POST /currency-rates` with a three-letter code (upper-cased) and a rate, the same rules. A code already there is `CURRENCY_EXISTS`, also when two adds race. | GUESS (no removing a currency: one may be named by old records) |
+| One definition | `common/fx-rate.ts` — the code and rate checks, shared with a friend's payment in his own currency (§18). | DECIDED |
+

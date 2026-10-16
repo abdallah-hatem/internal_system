@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
-import { useDateFormat } from '@/lib/dates';
+import { businessToday, useDateFormat } from '@/lib/dates';
+import { DatePicker } from '@/components/ui/date-picker';
+import { FieldLabel } from '@/components/ui/fields';
 import { Money } from '@/components/ui/money';
 import { useAnnounceStatusMove } from './status-move';
 import { Dialog, DialogAlert, DialogCancel, DialogPrimary } from '@/components/ui/dialog';
@@ -45,6 +47,11 @@ export function useLandedUnitCosts(cycleId: string) {
  *
  * Two quick clicks send one receipt: the guard is a ref set before the
  * request, because the disabled button only lands after a render.
+ *
+ * "Received on" (§3, 2026-10-16) is the day the goods were counted in: the
+ * delivery's arrival day to start with — entering a shipment that came weeks
+ * ago is the usual reason to open this late — never before it and never after
+ * today. It is the day FIFO and a back-dated sale read.
  */
 export function ReceiveDeliveryDialog({
   cycleId,
@@ -72,6 +79,11 @@ export function ReceiveDeliveryDialog({
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const arrivedOn = delivery.arrivedOn.slice(0, 10);
+  const [receivedOn, setReceivedOn] = useState(() => {
+    const today = businessToday();
+    return arrivedOn < today ? arrivedOn : today;
+  });
   const submitting = useRef(false);
 
   const prefill = receivableByLine(delivery, leg);
@@ -119,7 +131,12 @@ export function ReceiveDeliveryDialog({
     setRefusal(null);
     let res: unknown;
     try {
-      res = await api.post('/receipts/verify', { cycleId, deliveryId: delivery.id, items });
+      res = await api.post('/receipts/verify', {
+        cycleId,
+        deliveryId: delivery.id,
+        receivedOn,
+        items,
+      });
     } catch (err) {
       setRefusal(apiError(err, t('receiveFailed')));
       submitting.current = false;
@@ -149,6 +166,21 @@ export function ReceiveDeliveryDialog({
       bodyClassName="space-y-4"
     >
       <p className="text-sm text-muted-foreground">{t('receiveHint')}</p>
+      <div className="max-w-xs">
+        <FieldLabel label={t('receivedOn')} required>
+          <DatePicker
+            name="receivedOn"
+            required
+            disableFuture
+            min={arrivedOn}
+            value={receivedOn}
+            onChange={(day) => {
+              setReceivedOn(day || arrivedOn);
+              setRefusal(null);
+            }}
+          />
+        </FieldLabel>
+      </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('nothingWaitingOnDelivery')}</p>
       ) : (

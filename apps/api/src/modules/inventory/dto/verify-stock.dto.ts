@@ -50,6 +50,15 @@ export class VerifyStockDto {
   @IsString()
   deliveryId?: string;
 
+  /**
+   * The day the goods were counted in, YYYY-MM-DD; today when left out. Only
+   * the shape is checked here — the service refuses a bad, future or
+   * before-arrival day with its own codes.
+   */
+  @IsOptional()
+  @IsString()
+  receivedOn?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => VerifyStockItemDto)

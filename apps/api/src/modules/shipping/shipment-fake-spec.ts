@@ -121,6 +121,10 @@ function restore(db: Store, snapshot: Store) {
 }
 
 export function fakePrisma(db: Store) {
+  // `createdAt: { lt }` — the received cut-off of a sale dated in the past
+  // (§4, 2026-10-16). Ignoring it would let any back-dating test pass.
+  const receivedBefore = (b: Row, where: Row) =>
+    where.createdAt?.lt === undefined || b.createdAt < where.createdAt.lt;
   const legsOf = (cycleId: string) =>
     db.legs
       .filter((l) => l.cycleId === cycleId)
@@ -382,7 +386,8 @@ export function fakePrisma(db: Store) {
               const rows = db.batches.filter(
                 (b) =>
                   b.productId === productId &&
-                  b.verificationStatus === 'VERIFIED',
+                  b.verificationStatus === 'VERIFIED' &&
+                  receivedBefore(b, where),
               );
               if (rows.length === 0) return null;
               return {
@@ -413,7 +418,8 @@ export function fakePrisma(db: Store) {
                     (where.cycleId === undefined ||
                       b.cycleId === where.cycleId) &&
                     b.verificationStatus === 'VERIFIED' &&
-                    b.saleableQty.gt(0),
+                    b.saleableQty.gt(0) &&
+                    receivedBefore(b, where),
                 )
                 .sort(
                   (a, b) =>
@@ -693,6 +699,9 @@ export function fakePrisma(db: Store) {
         const order = {
           id: randomUUID(),
           version: 1,
+          // The columns' defaults, now(), as Postgres fills them.
+          createdAt: new Date(),
+          orderedAt: new Date(),
           ...rest,
           subtotal: D(rest.subtotal),
           total: D(rest.total),

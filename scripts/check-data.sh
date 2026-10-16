@@ -300,12 +300,18 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM lender_financings f
    WHERE (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
            WHERE r.financing_id = f.id AND r.reversed_at IS NULL) > f.amount
+  -- Compared in pounds, exactly (2026-10-16): friends may pay one order in
+  -- different currencies, each at the rate on the day he paid.
   UNION ALL SELECT 19.1, 'friends paid more of an order than its total',
          count(*) FROM purchase_orders o
-   WHERE (SELECT coalesce(sum(f.amount), 0) FROM lender_financings f
+   WHERE (SELECT coalesce(sum(f.amount * f.fx_rate_to_egp), 0) FROM lender_financings f
            WHERE f.purchase_order_id = o.id AND f.removed_at IS NULL)
        > (SELECT coalesce(sum(i.line_total), 0) FROM purchase_order_items i
-           WHERE i.purchase_order_id = o.id)
+           WHERE i.purchase_order_id = o.id) * o.fx_rate_to_egp
+  -- What he paid in pounds is his amount at his own rate, half up.
+  UNION ALL SELECT 19.6, 'friend''s payment whose pounds are not its amount at its rate',
+         count(*) FROM lender_financings
+   WHERE amount_egp <> round(amount * fx_rate_to_egp, 2)
   UNION ALL SELECT 19.2, 'repayment to a friend dated in the future or before he paid',
          count(*) FROM lender_repayments r JOIN lender_financings f ON f.id = r.financing_id
    WHERE r.paid_on > (now() AT TIME ZONE 'Africa/Cairo')::date OR r.paid_on < f.paid_on
@@ -437,6 +443,36 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- one is chosen.
   UNION ALL SELECT 24, 'supplier whose country is not a country code',
          count(*) FROM suppliers WHERE country !~ '^[A-Z]{2}$'
+  -- A sale carries its own day (section 4, 2026-10-16). A day that has not
+  -- arrived is revenue in a period that has not happened.
+  UNION ALL SELECT 25, 'sale dated on a day that has not arrived',
+         count(*) FROM sale_orders
+   WHERE (ordered_at AT TIME ZONE 'Africa/Cairo')::date > (now() AT TIME ZONE 'Africa/Cairo')::date
+  -- A sale dated before the day it was entered draws only stock received by
+  -- the end of its own day. A row here sold goods that had not arrived yet.
+  UNION ALL SELECT 25.1, 'back-dated sale drew stock received after its day',
+         count(*) FROM sale_item_allocations a
+         JOIN sale_items i ON i.id = a.sale_item_id
+         JOIN sale_orders o ON o.id = i.sale_order_id
+         JOIN inventory_batches b ON b.id = a.inventory_batch_id
+   WHERE (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date < (o.created_at AT TIME ZONE 'Africa/Cairo')::date
+     AND (b.created_at AT TIME ZONE 'Africa/Cairo')::date > (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date
+  -- Money cannot pay for a sale that had not happened yet (section 7a,
+  -- 2026-10-16).
+  UNION ALL SELECT 25.2, 'payment allocated to a sale made after it was received',
+         count(*) FROM payment_allocations a
+         JOIN payments p ON p.id = a.payment_id
+         JOIN sale_orders o ON o.id = a.sale_order_id
+   WHERE p.received_on < (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date
+  -- Received stock carries the day it was counted in (section 3, 2026-10-16),
+  -- never before the delivery that brought it reached Egypt.
+  UNION ALL SELECT 25.3, 'stock received before its delivery arrived',
+         count(*) FROM inventory_batches b
+   WHERE b.arrived_on IS NOT NULL
+     AND (b.created_at AT TIME ZONE 'Africa/Cairo')::date < b.arrived_on
+  UNION ALL SELECT 25.4, 'stock received on a day that has not arrived',
+         count(*) FROM inventory_batches
+   WHERE (created_at AT TIME ZONE 'Africa/Cairo')::date > (now() AT TIME ZONE 'Africa/Cairo')::date
 SQL
 )
 

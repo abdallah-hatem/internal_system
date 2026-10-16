@@ -1,3 +1,5 @@
+import { businessDay, businessToday, startOfBusinessDay } from './dates';
+
 /**
  * The last N calendar months, ending with the one we are in.
  *
@@ -31,12 +33,42 @@
 export function monthBuckets(now: Date, months: number): string[] {
   return Array.from({ length: months }, (_, i) => {
     // All UTC, matching the key that is cut from it.
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1) + i, 1));
+    const d = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1) + i, 1),
+    );
     return d.toISOString().slice(0, 7);
   });
 }
 
 /** The first instant of the earliest bucket — what a query should filter from. */
 export function monthBucketsSince(now: Date, months: number): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1),
+  );
+}
+
+/**
+ * The months the revenue chart shows, read in the business's calendar
+ * (BUSINESS_LOGIC §4, 2026-10-16): the last `months` months ending with the
+ * one it is now **in Cairo**, and the instant the earliest of them began
+ * there.
+ *
+ * The buckets used to be cut from UTC. A sale at 00:30 on the 1st in Cairo is
+ * still the previous month in UTC, so it was charted a month early — and a
+ * sale dated back to the 1st of a month would be too, the moment its stored
+ * instant fell before UTC midnight.
+ */
+export function businessMonthBuckets(
+  now: Date,
+  months: number,
+): { keys: string[]; since: Date } {
+  // Midday UTC of Cairo's today: the UTC month of that instant is Cairo's.
+  const anchor = new Date(`${businessToday(now)}T12:00:00Z`);
+  const keys = monthBuckets(anchor, months);
+  return { keys, since: startOfBusinessDay(`${keys[0]}-01`) };
+}
+
+/** The month a sale belongs to: the month of its day in Cairo, YYYY-MM. */
+export function businessMonthOf(instant: Date): string {
+  return businessDay(instant).slice(0, 7);
 }

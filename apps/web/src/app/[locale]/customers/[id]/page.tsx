@@ -46,6 +46,8 @@ interface SaleOrder {
   outstanding: number | string;
   currency: string;
   createdAt: string;
+  /** The day it was sold (§4). */
+  orderedAt?: string;
 }
 
 interface PaymentRecord {
@@ -210,7 +212,7 @@ export default function CustomerPage() {
                 <Cell label={ts('orderNo')}>
                   <bdi dir="ltr" className="font-mono text-xs text-gray-500">{o.orderNo}</bdi>
                 </Cell>
-                <Cell label={ts('date')} className="text-xs text-gray-400">{formatDate(o.createdAt)}</Cell>
+                <Cell label={ts('date')} className="text-xs text-gray-400">{formatDate(o.orderedAt ?? o.createdAt)}</Cell>
                 <Cell label={tc('status')} className="text-sm">{codeLabel('orderStatus', o.status)}</Cell>
                 <Cell label={ts('total')} numeric className="text-sm">
                   <Money value={num(o.total)} currency={o.currency} />

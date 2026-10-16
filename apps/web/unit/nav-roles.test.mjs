@@ -116,6 +116,7 @@ const SOURCES = {
   settlements: ['settlements/settlements.controller.ts', 'SettlementsController', ''],
   notifications: ['notifications/notifications.controller.ts', 'NotificationsController', ''],
   auditLogs: ['audit/audit.controller.ts', 'AuditController', ''],
+  fxRates: ['currency-rates/currency-rates.controller.ts', 'CurrencyRatesController', ''],
   settings: ['auth/auth.controller.ts', 'AuthController', 'profile'],
 };
 
@@ -136,11 +137,11 @@ for (const item of ALL) {
 
 // ─── What each role is offered ──────────────────────────────────────────
 
-test('a core partner sees all 23 entries', () => {
-  assert.equal(menuKeys('CORE_PARTNER').length, 23);
+test('a core partner sees all 24 entries', () => {
+  assert.equal(menuKeys('CORE_PARTNER').length, 24);
 });
 
-test('admin support sees all 23 entries — every restricted endpoint lets them read', () => {
+test('admin support sees all 24 entries — every restricted endpoint lets them read', () => {
   assert.deepEqual(menuKeys('ADMIN_SUPPORT'), menuKeys('CORE_PARTNER'));
 });
 
@@ -152,7 +153,8 @@ const INVESTOR_MENU = [
   'cycles', 'purchases', 'suppliers', 'shipments', 'providers',
   'products', 'categories', 'inventory',
   'settlements',
-  'notifications', 'settings',
+  // Exchange rates: every role reads what its forms prefill from (§21).
+  'notifications', 'fxRates', 'settings',
 ];
 
 /** What any signed-in role is offered: the entries naming no roles. */

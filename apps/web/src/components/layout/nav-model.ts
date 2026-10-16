@@ -124,6 +124,9 @@ export const SYSTEM_ITEMS: readonly NavItem[] = [
   { key: 'notifications', href: '/notifications' },
   // GET /audit-logs — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
   { key: 'auditLogs', href: '/audit-logs', roles: BOOKS_READERS },
+  // GET /currency-rates — no @Roles: every office role reads the rates its
+  // forms prefill from; changing one is a core partner's (§22, 2026-10-16).
+  { key: 'fxRates', href: '/fx-rates' },
   { key: 'settings', href: '/settings' },
 ];
 

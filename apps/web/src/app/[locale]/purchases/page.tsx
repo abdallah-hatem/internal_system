@@ -552,7 +552,12 @@ export default function PurchasesPage() {
 
             {/* A friend who paid the supplier for us (§18). */}
             <PaidByFriend
-              purchaseOrder={{ id: viewingPO.id, reference: viewingPO.reference, currency: viewingPO.currency }}
+              purchaseOrder={{
+                id: viewingPO.id,
+                reference: viewingPO.reference,
+                currency: viewingPO.currency,
+                fxRateToEgp: viewingPO.fxRateToEgp,
+              }}
               closed={['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(viewingPO.cycle?.status ?? '')}
             />
 
