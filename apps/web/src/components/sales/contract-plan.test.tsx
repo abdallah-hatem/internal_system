@@ -205,7 +205,7 @@ describe('the plan popup', () => {
 
   it("keeps the user's edits when the first date moves: only untouched rows are re-dated", () => {
     wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
-    const later = addMonths(businessToday(), 4);
+    const later = addMonths(businessToday(), 5);
     typeInto(amount(1), '9000');
     fireEvent.change(dateOf(2), { target: { value: later } });
 
