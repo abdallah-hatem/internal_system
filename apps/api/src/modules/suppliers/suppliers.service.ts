@@ -12,6 +12,7 @@ import { supplierKey } from '../assistant/receipt/name-matching';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
+import { assertCountryCode, findCountry } from '../../common/countries';
 
 type Db = Prisma.TransactionClient;
 
@@ -30,9 +31,14 @@ export class SuppliersService {
     const limit = pageSize(rawLimit);
     const where: Prisma.SupplierWhereInput = {};
     if (search) {
+      // A country is stored as its code, so "China" or "الصين" finds the
+      // suppliers saved as CN; `contains` still reads a value the migration
+      // could not convert (§21).
+      const code = findCountry(search);
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { country: { contains: search, mode: 'insensitive' } },
+        ...(code ? [{ country: code }] : []),
       ];
     }
     // An investor: only the suppliers their cycles bought from, and only
@@ -130,10 +136,13 @@ export class SuppliersService {
     actorId: string,
     db: Db = this.prisma,
   ) {
+    // A code from the one list, upper-cased; refused before anything is
+    // written (§21, 2026-10-16).
+    const country = assertCountryCode(data.country);
     const supplier = await db.supplier.create({
       data: {
         name: data.name,
-        country: data.country,
+        country,
         contactJson: data.contactJson,
         notes: data.notes,
       },
@@ -165,12 +174,16 @@ export class SuppliersService {
   ) {
     const existing = await this.prisma.supplier.findUnique({ where: { id } });
     if (!existing) throw notFound('supplier');
+    // Left out, the country stays; sent, it must be a code — and sent empty
+    // is refused, not stored as no country (§21).
+    const country =
+      data.country === undefined ? undefined : assertCountryCode(data.country);
 
     const updated = await this.prisma.supplier.update({
       where: { id },
       data: {
         name: data.name,
-        country: data.country,
+        country,
         contactJson: data.contactJson,
         notes: data.notes,
       },

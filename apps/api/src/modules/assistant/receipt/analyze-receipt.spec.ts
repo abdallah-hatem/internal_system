@@ -122,6 +122,33 @@ describe('analyzeReceipt — supplier', () => {
     expect(question(a, 'SUPPLIER_WHICH')?.blocking).toBe(true);
   });
 
+  it('a candidate names its country in words, not as the stored code (§21)', () => {
+    const a = analyze(
+      {},
+      {
+        suppliers: [
+          { id: 'a', name: 'Guangzhou Parts', country: 'CN' },
+          { id: 'b', name: 'guangzhou parts', country: 'AE' },
+        ],
+      },
+    );
+    expect(a.supplier.candidates).toEqual([
+      expect.objectContaining({ id: 'a', country: 'CN', countryName: 'China' }),
+      expect.objectContaining({
+        id: 'b',
+        country: 'AE',
+        countryName: 'United Arab Emirates',
+      }),
+    ]);
+    expect(question(a, 'SUPPLIER_WHICH')?.options?.map((o) => o.label)).toEqual(
+      [
+        'Guangzhou Parts (China)',
+        'guangzhou parts (United Arab Emirates)',
+        expect.any(String),
+      ],
+    );
+  });
+
   it('Supplier unknown → SUPPLIER_NEW asking for the country, blocking', () => {
     const a = analyze({ supplierName: 'Ningbo Motor Works' });
     expect(a.supplier.status).toBe('unknown');

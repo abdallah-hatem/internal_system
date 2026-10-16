@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { badRequest, notFound } from '../../../common/api-error';
+import { countryName, resolveCountry } from '../../../common/countries';
 import { formatMoney, formatQty } from '../../../common/money';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { AuditService } from '../../audit/audit.service';
@@ -139,7 +140,14 @@ interface OrderDone {
   orderId: string;
   reference: string;
   cycle: { id: string; code: string };
-  supplier: { id: string; name: string; country: string; created: boolean };
+  supplier: {
+    id: string;
+    name: string;
+    /** The ISO code, and its English name for the partner to read (§21). */
+    country: string;
+    countryName: string;
+    created: boolean;
+  };
   currency: string;
   fxRateToEgp: string;
   orderedOn: string;
@@ -219,7 +227,8 @@ async function resolveSupplier(
     const { data } = await s.suppliers.create(
       {
         name: choice.new.name,
-        country: choice.new.country,
+        // "China", "الصين" or "cn" → CN; refused when it names no country.
+        country: resolveCountry(choice.new.country),
         notes: choice.new.notes,
       },
       actorId,
@@ -229,6 +238,7 @@ async function resolveSupplier(
       id: data.id,
       name: data.name,
       country: data.country,
+      countryName: countryName(data.country),
       created: true,
     };
   }
@@ -237,7 +247,7 @@ async function resolveSupplier(
     select: { id: true, name: true, country: true },
   });
   if (!found) throw notFound('supplier');
-  return { ...found, created: false };
+  return { ...found, countryName: countryName(found.country), created: false };
 }
 
 async function resolveProduct(
@@ -484,7 +494,7 @@ function describeOrder(done: OrderDone, committed: boolean): string {
       ? 'A new purchase order'
       : `${done.lines.length} line(s) to add to draft purchase order ${done.reference}`;
   const supplier = done.supplier.created
-    ? `${done.supplier.name} (${committed ? 'new supplier, created' : 'NEW supplier'}, ${done.supplier.country})`
+    ? `${done.supplier.name} (${committed ? 'new supplier, created' : 'NEW supplier'}, ${done.supplier.countryName})`
     : done.supplier.name;
   const parts = [
     `${head} on cycle ${done.cycle.code}, from ${supplier}.`,
@@ -565,20 +575,27 @@ export async function supplierWrite(
   actorId: string,
   mode: 'preview' | 'commit',
 ): Promise<ToolOutcome> {
+  // The partner says a country however he says it; the supplier is saved
+  // with its code (§21). Read before anything else, so "Narnia" is refused
+  // even when the name is free.
+  const country = resolveCountry(input.country);
   const created = await inTransaction(s.prisma, mode, async (tx) => {
     await s.suppliers.assertNameFree(input.name, tx);
-    return (await s.suppliers.create(input, actorId, tx)).data;
+    return (await s.suppliers.create({ ...input, country }, actorId, tx)).data;
   });
-  const what = `${created.name} (${created.country})`;
+  const named = countryName(created.country);
+  const what = `${created.name} (${named})`;
+  const data = {
+    name: created.name,
+    country: created.country,
+    countryName: named,
+  };
   return mode === 'commit'
     ? {
         summary: `Created supplier ${what}.`,
-        data: { id: created.id, name: created.name, country: created.country },
+        data: { id: created.id, ...data },
       }
-    : {
-        summary: `A new supplier: ${what}.`,
-        data: { id: null, name: created.name, country: created.country },
-      };
+    : { summary: `A new supplier: ${what}.`, data: { id: null, ...data } };
 }
 
 export async function productWrite(

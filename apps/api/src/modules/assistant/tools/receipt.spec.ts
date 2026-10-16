@@ -257,11 +257,11 @@ function seed() {
   });
   const supplier = db.insert('supplier', {
     name: 'Yiwu Parts',
-    country: 'China',
+    country: 'CN',
   });
   const other = db.insert('supplier', {
     name: 'Dubai Moto Trading',
-    country: 'UAE',
+    country: 'AE',
   });
   const category = db.insert('category', { name: 'Brakes' });
   const brakePad = db.insert('product', {
@@ -1036,6 +1036,82 @@ describe('create_supplier', () => {
     const r = await call('create_supplier', { name: ' — ', country: 'China' });
     expect(r.isError).toBe(true);
     expect(db.tables.supplier).toHaveLength(2);
+  });
+
+  // The country is saved as its code however the partner says it, and comes
+  // back as both the code and the English name (§21, 2026-10-16).
+  it.each([
+    ['China', 'Ningbo A'],
+    ['الصين', 'Ningbo B'],
+    ['cn', 'Ningbo C'],
+  ])('country "%s" → saved as CN, reported as China', async (country, name) => {
+    const r = await confirmed('create_supplier', { name, country });
+
+    expect(r.s.status).toBe('committed');
+    expect(r.s.data).toMatchObject({
+      name,
+      country: 'CN',
+      countryName: 'China',
+    });
+    expect(r.text).toContain(`${name} (China)`);
+    expect(db.tables.supplier.find((s) => s.name === name)?.country).toBe('CN');
+  });
+
+  it('the preview already shows the code and the name', async () => {
+    const r = await call('create_supplier', {
+      name: 'Sharjah Moto',
+      country: 'U.A.E.',
+    });
+    expect(r.s.status).toBe('preview');
+    expect(r.s.data).toMatchObject({
+      id: null,
+      country: 'AE',
+      countryName: 'United Arab Emirates',
+    });
+  });
+
+  it('"Narnia" → COUNTRY_UNKNOWN with a hint, nothing created', async () => {
+    const before = businessCounts();
+    const r = await call('create_supplier', {
+      name: 'Narnia Parts',
+      country: 'Narnia',
+    });
+
+    expect(codeOf(r)).toBe('COUNTRY_UNKNOWN');
+    expect(r.s.error?.params).toEqual({ country: 'Narnia' });
+    expect(r.s.error?.message).toMatch(/ISO code/);
+    expect(businessCounts()).toEqual(before);
+  });
+
+  it('a fragment is not a guess: "Chin" is refused, naming China', async () => {
+    const r = await call('create_supplier', {
+      name: 'Chin Parts',
+      country: 'Chin',
+    });
+    expect(codeOf(r)).toBe('COUNTRY_UNKNOWN');
+    expect(r.s.error?.message).toMatch(/China \(CN\)/);
+  });
+
+  it('a new supplier on a purchase order is saved with the code too', async () => {
+    const r = await confirmed('create_purchase_order', order());
+    expect(r.s.error).toBeUndefined();
+    const created = db.tables.supplier.find(
+      (s) => s.name === 'Guangzhou Brake Co.',
+    );
+    expect(created?.country).toBe('CN');
+    expect(r.text).toContain('new supplier, created, China');
+  });
+
+  it('…and an unknown country on one refuses the whole order', async () => {
+    const before = businessCounts();
+    const r = await call(
+      'create_purchase_order',
+      order({
+        supplier: { new: { name: 'Guangzhou Brake Co.', country: 'Narnia' } },
+      }),
+    );
+    expect(codeOf(r)).toBe('COUNTRY_UNKNOWN');
+    expect(businessCounts()).toEqual(before);
   });
 });
 

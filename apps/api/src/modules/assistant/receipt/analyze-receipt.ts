@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { countryName } from '../../../common/countries';
 import { businessToday } from '../../../common/dates';
 import { type Ranked, invoiceKey, matchByName } from './name-matching';
 import type {
@@ -131,7 +132,7 @@ export function analyzeReceipt(
       options: [
         ...supplier.candidates!.map((c) => ({
           value: c.id,
-          label: `${c.name} (${c.country})`,
+          label: `${c.name} (${countryName(c.country)})`,
         })),
         newSupplierOption,
       ],
@@ -548,6 +549,7 @@ function matchSupplier(
     id: r.item.id,
     name: r.item.name,
     country: r.item.country,
+    countryName: countryName(r.item.country),
     score: r.score,
   });
   if (found.status === 'matched')

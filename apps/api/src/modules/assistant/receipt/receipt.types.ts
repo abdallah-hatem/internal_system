@@ -101,7 +101,9 @@ export type MatchStatus = 'matched' | 'candidates' | 'unknown';
 export interface SupplierCandidate {
   id: string;
   name: string;
+  /** The ISO code, and its English name for the partner to read (§21). */
   country: string;
+  countryName: string;
   /** 0–1; 1 is the same name once case, spacing and punctuation are ignored. */
   score: number;
 }

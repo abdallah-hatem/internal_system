@@ -430,6 +430,13 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 23, 'product whose Arabic search key is not its Arabic name',
          count(*) FROM products
    WHERE name_ar_search IS DISTINCT FROM NULLIF(arabic_search_key(name_ar), '')
+  -- A supplier's country is an ISO code (section 21, 2026-10-16). The API
+  -- refuses anything else; a row here is free text from before the codes that
+  -- the migration could not read ("Egypt (Cairo)"). Open the supplier on the
+  -- Suppliers page and choose its country: the picker will not save it until
+  -- one is chosen.
+  UNION ALL SELECT 24, 'supplier whose country is not a country code',
+         count(*) FROM suppliers WHERE country !~ '^[A-Z]{2}$'
 SQL
 )
 

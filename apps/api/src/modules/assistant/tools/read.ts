@@ -4,6 +4,7 @@ import { isUUID } from 'class-validator';
 import { z } from 'zod';
 
 import { notFound } from '../../../common/api-error';
+import { countryName } from '../../../common/countries';
 import { pageSize } from '../../../common/dto/pagination.dto';
 import { AnalyticsService } from '../../analytics/analytics.service';
 import { CurrencyRatesService } from '../../currency-rates/currency-rates.service';
@@ -143,7 +144,7 @@ export function registerReadTools(
     {
       title: 'Find suppliers',
       description:
-        'Search suppliers by name or country (case-insensitive, part of a word is enough). Returns id, name, country, and how many products and purchase orders each has. Use it to find a supplier id before looking at their orders, or to check whether a supplier already exists before suggesting a new one.',
+        'Search suppliers by name or country (case-insensitive, part of a word is enough; a country also by its English or Arabic name or ISO code). Returns id, name, country (the ISO 3166-1 alpha-2 code, e.g. CN) and countryName (its English name — say this one), and how many products and purchase orders each has. Use it to find a supplier id before looking at their orders, or to check whether a supplier already exists before suggesting a new one.',
       inputSchema: {
         search: z
           .string()
@@ -163,6 +164,7 @@ export function registerReadTools(
         id: s.id,
         name: s.name,
         country: s.country,
+        countryName: countryName(s.country),
         products: s._count.products,
         purchaseOrders: s._count.purchaseOrders,
       }));
