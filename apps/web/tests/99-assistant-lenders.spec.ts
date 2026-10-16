@@ -219,7 +219,8 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     // His own currency is allowed (§18, 2026-10-16); one with no rate on file is not.
     expect(codeOf(await tool('record_lender_financing', { ...base, amount: 100, currency: 'GBP' }))).toBe('NO_RATE_RECORDED');
     expect(codeOf(await tool('record_lender_financing', { ...base, amount: 0 }))).toBe('AMOUNT_NOT_POSITIVE');
-    expect(codeOf(await tool('record_lender_financing', { ...base, amount: 30000.01 }))).toBe('FINANCING_EXCEEDS_ORDER');
+    // The cap is the cycle's cost, 403,000 EGP — 31,000 AED at 13 (§18, 2026-10-16).
+    expect(codeOf(await tool('record_lender_financing', { ...base, amount: 31000.01 }))).toBe('FINANCING_EXCEEDS_CYCLE_COST');
     expect(codeOf(await tool('record_lender_financing', { ...base, amount: 5, order: 'PO-1999-0000' }))).toBe('NOT_FOUND');
     expect((await (await request.get(`${API}/purchases/${po.id}/financings`, { headers })).json()).data.financedEgp).toBe('0.00');
     const lenders = (await (await request.get(`${API}/lenders`, { headers })).json()).data as any[];

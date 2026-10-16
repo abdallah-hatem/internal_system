@@ -1389,7 +1389,7 @@
     "LENDER_NAME_REQUIRED": "المُقرض يحتاج إلى اسم.",
     "CYCLE_CLOSED_FOR_FINANCING": "الدورة {cycle} في حالة {status}؛ لا يمكن تسجيل ما دفعه صديق عليها.",
     "LENDER_ALREADY_FINANCES_ORDER": "{lender} دفع بالفعل للطلب {reference}. احذفه وسجّله من جديد لتغييره.",
-    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} أكثر من المتبقي في {reference}: الطلب {total} {currency} ودفع الأصدقاء {financed} {currency}.",
+    "FINANCING_EXCEEDS_CYCLE_COST": "{amount} جنيه أكثر من المتبقي من تكلفة الدورة {cycle}: تكلفتها {cost} جنيه (البضاعة والشحن والمصروفات المحمّلة عليها)، ودفع الأصدقاء منها {financed} جنيه، فالمتبقي {available} جنيه.",
     "FINANCING_REMOVED": "تم حذف ما دفعه هذا الصديق.",
     "FINANCING_HAS_REPAYMENTS": "سُدِّد لـ {lender} على هذا؛ ألغِ تلك السدادات قبل حذفه.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "دفع للمورد في {paidOn}؛ لا يمكن أن يسبق السداد هذا التاريخ.",
@@ -2056,7 +2056,10 @@
     "ordersCurrency": "عملة الطلب",
     "rateOnThatDay": "سعر الصرف يوم الدفع ({currency} → EGP)",
     "financingRateHint": "السعر في يوم الدفع — يُملأ مسبقًا من سعر الطلب أو السعر الحالي؛ غيّره إن كان سعر ذلك اليوم مختلفًا",
-    "worthInPounds": "تعادل <egp></egp> بهذا السعر"
+    "worthInPounds": "تعادل <egp></egp> بهذا السعر",
+    "availableToFinance": "المتبقي للدفع من تكلفة هذه الدورة حتى <available></available>: البضاعة والشحن والمصروفات المحمّلة عليها مجموعها <cost></cost>، ودفع الأصدقاء منها <financed></financed>.",
+    "financingCoversHint": "يمكن أن يغطي ما دفعه بضاعة الطلب وشحن الدورة والرسوم المحمّلة على الدورة. سجّل رسوم البطاقة أولًا كمصروف في السجل المالي على هذه الدورة حتى تُحتسب.",
+    "financingOverAvailable": "هذا أكثر من المتبقي من تكلفة الدورة — سيُرفض."
   },
   "transfers": {
     "title": "التحويلات",

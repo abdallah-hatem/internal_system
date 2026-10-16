@@ -11,6 +11,7 @@ import {
 import { isUuid } from '../../common/uuid';
 import { cycleFinancedEgp } from '../../common/lender-debt';
 import { cycleTransfersInEgp, toFundEgp } from '../../common/stock-transfers';
+import { cycleExpensesEgp } from '../../common/cycle-expenses';
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
 
@@ -51,6 +52,13 @@ export interface CycleLandedCostResult {
   totalGoodsEgp: Prisma.Decimal;
   totalShippingEgp: Prisma.Decimal;
   totalLandedEgp: Prisma.Decimal;
+  /**
+   * Goods and legs before any rounding: each order's lines × its rate, each
+   * leg's native cost × its rate. What a friend's payment is capped against,
+   * compared exactly (§18), so a payment of exactly what is left is never
+   * refused by a piastre the rounding added.
+   */
+  exactLandedEgp: Prisma.Decimal;
   totalPieces: Prisma.Decimal;
   totalWeightKg: Prisma.Decimal;
   items: ItemLandedCost[];
@@ -70,19 +78,61 @@ export class CostingService {
   }
 
   /**
-   * What the partners and investors are asked to fund: the landed cost, plus
-   * leftover stock moved in from another cycle at its cost (§8, L5), less what
-   * friends paid — never below zero (§18). One definition for the costing's
-   * `toFundEgp`, "Split equally" and settlement's "a friend paid for it
-   * entirely" (§8, CLAUDE.md rule 11).
+   * What a cycle cost (§18, owner 2026-10-16): every order's goods, every
+   * shipping leg, and every expense charged to it in the ledger — a card
+   * fee, customs, a late freight bill. The one definition of "cycle cost":
+   * a friend's payment is capped at it less what friends already paid, and
+   * the partners fund it less what friends and investors put in
+   * (`fundingFor`).
+   *
+   * `db` is the transaction to read in, when the caller holds one.
+   */
+  async cycleCost(
+    cycleId: string,
+    opts: {
+      db?: Pick<
+        Prisma.TransactionClient,
+        'importCycle' | 'financialTransaction'
+      >;
+    } = {},
+  ) {
+    const landed = await this.computeCycleLandedCosts(cycleId, opts);
+    const expensesEgp = await cycleExpensesEgp(opts.db ?? this.prisma, cycleId);
+    return {
+      goodsEgp: landed.totalGoodsEgp,
+      shippingEgp: landed.totalShippingEgp,
+      landedEgp: landed.totalLandedEgp,
+      expensesEgp,
+      /** Goods + legs + expenses, as people read it. */
+      totalEgp: money(landed.totalLandedEgp.add(expensesEgp)),
+      /** The same before rounding goods and legs (expenses are stored in pounds). */
+      exactEgp: landed.exactLandedEgp.add(expensesEgp),
+    };
+  }
+
+  /**
+   * What the partners and investors are asked to fund: the cycle's cost
+   * (goods, legs and the expenses charged to it — `cycleCost`), plus leftover
+   * stock moved in from another cycle at its cost (§8, L5), less what friends
+   * paid — never below zero (§18). One definition for the costing's
+   * `toFundEgp`, "Split equally", the wizard's funded-versus-cost line, the
+   * assistant's previews and settlement's "a friend paid for it entirely"
+   * (§8, CLAUDE.md rule 11). Investors' money is the participants', taken off
+   * by the split itself.
    */
   async fundingFor(cycleId: string) {
-    const landed = (await this.computeCycleLandedCosts(cycleId)).totalLandedEgp;
+    const cost = await this.cycleCost(cycleId);
     const financed = await this.lenderFinancedEgp(cycleId);
     const transferredIn = await cycleTransfersInEgp(this.prisma, cycleId);
-    const { rest, toFund } = toFundEgp({ landed, transferredIn, financed });
+    const { rest, toFund } = toFundEgp({
+      landed: cost.totalEgp,
+      transferredIn,
+      financed,
+    });
     return {
-      landed,
+      landed: cost.landedEgp,
+      expenses: cost.expensesEgp,
+      cycleCost: cost.totalEgp,
       financed,
       transferredIn,
       toFund,
@@ -109,6 +159,18 @@ export class CostingService {
     amount: Prisma.Decimal | null;
     fxRateToEgp: Prisma.Decimal | null;
   }): Prisma.Decimal {
+    return money(this.legAmountExactEgp(leg));
+  }
+
+  /** A leg's cost in EGP before rounding: its native cost × its rate. */
+  private legAmountExactEgp(leg: {
+    costBasis: ShippingCostBasis;
+    ratePerUnit: Prisma.Decimal | null;
+    chargeablePieces: Prisma.Decimal | null;
+    chargeableWeightKg: Prisma.Decimal | null;
+    amount: Prisma.Decimal | null;
+    fxRateToEgp: Prisma.Decimal | null;
+  }): Prisma.Decimal {
     const fx = leg.fxRateToEgp ? D(leg.fxRateToEgp) : new Prisma.Decimal(1);
     let native: Prisma.Decimal;
 
@@ -123,7 +185,7 @@ export class CostingService {
         native = D(leg.amount);
     }
 
-    return money(native.mul(fx));
+    return native.mul(fx);
   }
 
   /**
@@ -186,8 +248,12 @@ export class CostingService {
     type Line = ItemLandedCost & { weightKg: Prisma.Decimal | null };
     const lines: Line[] = [];
 
+    let exactGoods = ZERO;
     for (const po of cycle.purchaseOrders) {
       const fx = D(po.fxRateToEgp);
+      exactGoods = exactGoods.add(
+        po.items.reduce((s, i) => s.add(D(i.lineTotal)), ZERO).mul(fx),
+      );
       for (const item of po.items) {
         // What was ordered, never what was received (§2, 2026-10-10).
         const qty = D(item.orderedQty);
@@ -227,6 +293,10 @@ export class CostingService {
     }));
 
     const totalShippingEgp = legs.reduce((s, l) => s.add(l.amountEgp), ZERO);
+    const exactLandedEgp = cycle.shippingLegs.reduce(
+      (s, leg) => s.add(this.legAmountExactEgp(leg)),
+      exactGoods,
+    );
 
     if (lines.length === 0) {
       if (totalShippingEgp.gt(0)) {
@@ -240,6 +310,7 @@ export class CostingService {
         totalGoodsEgp: ZERO,
         totalShippingEgp,
         totalLandedEgp: totalShippingEgp,
+        exactLandedEgp,
         totalPieces: ZERO,
         totalWeightKg: ZERO,
         items: [],
@@ -316,6 +387,7 @@ export class CostingService {
       totalGoodsEgp: money(totalGoodsEgp),
       totalShippingEgp,
       totalLandedEgp: money(totalGoodsEgp.add(totalShippingEgp)),
+      exactLandedEgp,
       totalPieces,
       totalWeightKg,
       items: lines,

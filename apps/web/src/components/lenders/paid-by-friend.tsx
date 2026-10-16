@@ -52,7 +52,7 @@ export function PaidByFriend({
   const [adding, setAdding] = useState(false);
 
   const key = cycleId ? ['financing', 'cycle', cycleId] : ['financing', 'order', purchaseOrder?.id];
-  const { data } = useQuery<{ financings: FinancingView[] }>({
+  const { data } = useQuery<{ financings: FinancingView[] } & Partial<CycleRoom>>({
     queryKey: key,
     queryFn: () =>
       api
@@ -109,10 +109,26 @@ export function PaidByFriend({
       )}
 
       {adding && (
-        <AddFinancingForm orders={pickable} onDone={() => setAdding(false)} />
+        <AddFinancingForm
+          orders={pickable}
+          room={data?.availableEgp !== undefined ? (data as CycleRoom) : undefined}
+          onDone={() => setAdding(false)}
+        />
       )}
     </section>
   );
+}
+
+/**
+ * What is left of the cycle's cost for friends to pay, in pounds, as the API
+ * reports it on both the order's and the cycle's financing (§18,
+ * 2026-10-16): goods, legs and the expenses charged to the cycle, less what
+ * friends paid. The same for every order of the cycle.
+ */
+interface CycleRoom {
+  cycleCostEgp: string;
+  cycleFinancedEgp: string;
+  availableEgp: string;
 }
 
 /** An order a friend can pay: its currency and its own rate to pounds. */
@@ -144,9 +160,12 @@ function poundsOf(amount: string, rate: string): number | null {
  */
 function AddFinancingForm({
   orders,
+  room,
   onDone,
 }: {
   orders: FinanceableOrder[];
+  /** What is left of the cycle's cost; the server refuses more. */
+  room?: CycleRoom;
   onDone: () => void;
 }) {
   const t = useTranslations('lenders');
@@ -304,10 +323,29 @@ function AddFinancingForm({
               })}
             </p>
           )}
+          {room && pounds !== null && pounds > Number(room.availableEgp) && (
+            <p data-testid="financing-over" className="mt-1 text-xs text-destructive">
+              {t('financingOverAvailable')}
+            </p>
+          )}
         </div>
         <FieldLabel label={t('paidOn')} required>
           <DatePicker name="paidOn" required disableFuture defaultValue={businessToday()} />
         </FieldLabel>
+      </div>
+      {/* The cap is the cycle's cost, not the order's (§18, 2026-10-16): a
+          friend paying by card paid the shipping and the fee in one sum. */}
+      <div className="space-y-1 text-xs text-muted-foreground">
+        {room && (
+          <p data-testid="financing-available">
+            {t.rich('availableToFinance', {
+              available: () => <Money value={room.availableEgp} currency="EGP" className="font-medium text-foreground" />,
+              cost: () => <Money value={room.cycleCostEgp} currency="EGP" className="font-medium text-foreground" />,
+              financed: () => <Money value={room.cycleFinancedEgp} currency="EGP" className="font-medium text-foreground" />,
+            })}
+          </p>
+        )}
+        <p>{t('financingCoversHint')}</p>
       </div>
       <FormActions onCancel={onDone} cancelLabel={tc('cancel')} submitLabel={t('save')} busy={save.isPending} />
     </ValidatedForm>

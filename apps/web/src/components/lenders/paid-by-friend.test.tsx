@@ -29,6 +29,11 @@ vi.mock('@/components/ui/quick-create', () => ({
 }));
 
 const post = vi.fn();
+/**
+ * What the API says is left of the cycle's cost (§18, 2026-10-16): the
+ * owner's case — goods, the China→UAE leg and the card fee, 114,991.98 EGP.
+ */
+let room: Record<string, string> = {};
 let answer: () => Promise<unknown> = () => new Promise(() => {});
 vi.mock('@/lib/api', () => ({
   api: {
@@ -39,7 +44,7 @@ vi.mock('@/lib/api', () => ({
     get: (url: string) => {
       if (url === '/currency-rates/map') return Promise.resolve({ data: { data: { AED: 13.85, USD: 50.86 } } });
       if (url === '/lenders') return Promise.resolve({ data: { data: [{ id: 'l-mahmoud', name: 'Mahmoud' }] } });
-      if (url.endsWith('/financings')) return Promise.resolve({ data: { data: { financings: [] } } });
+      if (url.endsWith('/financings')) return Promise.resolve({ data: { data: { financings: [], ...room } } });
       return Promise.resolve({ data: { data: [] } });
     },
   },
@@ -87,6 +92,7 @@ function typeInto(input: HTMLInputElement, value: string) {
 const save = () => screen.getByRole('button', { name: en.lenders.save });
 
 beforeEach(() => {
+  room = {};
   post.mockReset();
   answer = () => new Promise(() => {});
 });
@@ -176,9 +182,15 @@ describe('Paid by a friend — his currency and that day’s rate', () => {
         response: {
           data: {
             error: {
-              code: 'FINANCING_EXCEEDS_ORDER',
+              code: 'FINANCING_EXCEEDS_CYCLE_COST',
               message: 'English fallback',
-              params: { amount: '4,170.00', currency: 'EGP', reference: 'PO-2026-0006', total: '10,000.00', financed: '6,950.00' },
+              params: {
+                amount: '4,170.00',
+                cycle: 'CYC-2026-0007',
+                cost: '10,000.00',
+                financed: '6,950.00',
+                available: '3,050.00',
+              },
             },
           },
         },
@@ -187,10 +199,44 @@ describe('Paid by a friend — his currency and that day’s rate', () => {
     await pick('lenderId', 'Mahmoud');
     typeInto(amount(), '300');
     fireEvent.click(screen.getByRole('button', { name: ar.lenders.save }));
-    const shown = await screen.findByText((text) => text.includes('PO-2026-0006') && text.includes('10,000.00'));
+    const shown = await screen.findByText((text) => text.includes('CYC-2026-0007') && text.includes('10,000.00'));
     expect(shown.textContent).not.toContain('English fallback');
-    // What friends paid is said in pounds, with its currency named.
-    expect(shown.textContent).toContain('6,950.00 EGP');
+    // What is left is said in pounds.
+    expect(shown.textContent).toContain('3,050.00');
+    expect(shown.textContent).toContain('جنيه');
     expect(screen.getByTestId('financing-form')).toBeTruthy();
+  });
+});
+
+describe('Paid by a friend — the cap is the cycle’s cost, not the order’s (§18, 2026-10-16)', () => {
+  const OWNERS_CASE = { cycleCostEgp: '114991.98', cycleFinancedEgp: '0.00', availableEgp: '114991.98' };
+  const AED_ORDER: FinanceableOrder = { id: 'po-aed', reference: 'PO-2026-0010', currency: 'AED', fxRateToEgp: 13.85 };
+
+  it('says what is left of the cycle’s cost — goods, shipping and its expenses — as the API reports it', async () => {
+    room = OWNERS_CASE;
+    renderForm(AED_ORDER);
+    const line = await screen.findByTestId('financing-available');
+    expect(line.textContent).toMatch(/114,991\.98/);
+    expect(line.textContent).toMatch(/0\.00/);
+    expect(screen.getByText(en.lenders.financingCoversHint)).toBeTruthy();
+  });
+
+  it('his 8,302.67 AED at 13.85 — exactly what is left — raises no warning; a fils more does, and is still sent for the server to judge', async () => {
+    room = OWNERS_CASE;
+    renderForm(AED_ORDER);
+    await screen.findByTestId('financing-available');
+    typeInto(amount(), '8302.67');
+    expect(screen.getByTestId('financing-egp').textContent).toMatch(/114,991\.98/);
+    expect(screen.queryByTestId('financing-over')).toBeNull();
+    typeInto(amount(), '8302.68');
+    expect(screen.getByTestId('financing-over').textContent).toBe(en.lenders.financingOverAvailable);
+  });
+
+  it('in Arabic too', async () => {
+    room = OWNERS_CASE;
+    renderForm(AED_ORDER, 'ar');
+    const line = await screen.findByTestId('financing-available');
+    expect(line.textContent).toContain('114,991.98');
+    expect(screen.getByText(ar.lenders.financingCoversHint)).toBeTruthy();
   });
 });

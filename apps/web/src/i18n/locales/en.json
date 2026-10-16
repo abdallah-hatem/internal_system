@@ -1389,7 +1389,7 @@
     "LENDER_NAME_REQUIRED": "A lender needs a name.",
     "CYCLE_CLOSED_FOR_FINANCING": "Cycle {cycle} is {status}; a friend's payment cannot be recorded on it.",
     "LENDER_ALREADY_FINANCES_ORDER": "{lender} already paid for {reference}. Remove that and record it again to change it.",
-    "FINANCING_EXCEEDS_ORDER": "{amount} {currency} is more than is left to pay on {reference}: the order is {total} {currency} and friends already paid {financed} {currency}.",
+    "FINANCING_EXCEEDS_CYCLE_COST": "{amount} EGP is more than is left of cycle {cycle}'s cost: it cost {cost} EGP (goods, shipping and the expenses charged to it), friends already paid {financed} EGP, so {available} EGP is left.",
     "FINANCING_REMOVED": "This friend's payment was removed.",
     "FINANCING_HAS_REPAYMENTS": "{lender} has been repaid on this; reverse those repayments before removing it.",
     "LENDER_REPAYMENT_BEFORE_FINANCING": "He paid the supplier on {paidOn}; a repayment cannot be dated before that.",
@@ -2056,7 +2056,10 @@
     "ordersCurrency": "the order's currency",
     "rateOnThatDay": "Rate to EGP on that day ({currency} → EGP)",
     "financingRateHint": "The rate on the day he paid — prefilled from the order's rate or the current rate; change it if that day's was different",
-    "worthInPounds": "Worth <egp></egp> at this rate"
+    "worthInPounds": "Worth <egp></egp> at this rate",
+    "availableToFinance": "Up to <available></available> is left to pay of this cycle's cost: its goods, shipping and the expenses charged to it come to <cost></cost>, and friends have paid <financed></financed>.",
+    "financingCoversHint": "His payment may cover the order's goods, the cycle's shipping and the fees charged to the cycle. Record a card fee as a ledger expense on this cycle first, so it counts.",
+    "financingOverAvailable": "That is more than is left of the cycle's cost — it will be refused."
   },
   "transfers": {
     "title": "Transfers",

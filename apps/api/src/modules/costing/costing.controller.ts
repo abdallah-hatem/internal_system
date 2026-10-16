@@ -25,8 +25,9 @@ export class CostingController {
     const r = await this.costing.landedCostFor(cycleId, user);
     // A friend who paid a supplier funded that part (§18), so "Split
     // equally" and the wizard's funded-versus-cost line ask for the rest.
-    // Leftovers moved in from another cycle (§8, L5) are funded here too.
-    const { financed, toFund, transferredIn } =
+    // Leftovers moved in from another cycle (§8, L5) are funded here too,
+    // and so are the expenses charged to the cycle (§18, 2026-10-16).
+    const { financed, toFund, transferredIn, expenses, cycleCost } =
       await this.costing.fundingFor(cycleId);
     return {
       cycleId: r.cycleId,
@@ -34,6 +35,10 @@ export class CostingController {
         goodsEgp: r.totalGoodsEgp.toFixed(2),
         shippingEgp: r.totalShippingEgp.toFixed(2),
         landedEgp: r.totalLandedEgp.toFixed(2),
+        /** Ledger expenses charged to the cycle, net of reversals. */
+        expensesEgp: expenses.toFixed(2),
+        /** Goods + shipping + expenses: what friends and partners fund. */
+        cycleCostEgp: cycleCost.toFixed(2),
         lenderFinancedEgp: financed.toFixed(2),
         transferredInEgp: transferredIn.toFixed(2),
         toFundEgp: toFund.toFixed(2),

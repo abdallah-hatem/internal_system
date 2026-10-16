@@ -1991,7 +1991,7 @@ confirms it.**
 | Rule | Guess | Why |
 |---|---|---|
 | Who the friend is | A **lender**: a new kind of contact — not a partner, not a customer, not a supplier. He shares in no profit. | He is owed money; he does not own any of the cycle. |
-| What he can pay for | All or part of one purchase order, in that order's currency. Never more than the order's total. | The example is a supplier order in dirhams. Shipping legs paid by a friend can be added later. |
+| What he can pay for | All or part of one purchase order, in that order's currency. Never more than the order's total. **Replaced 2026-10-16: the cap is the cycle's cost still unpaid by friends — see the end of this section.** | The example is a supplier order in dirhams. Shipping legs paid by a friend can be added later. |
 | What we owe | The amount he paid, **in his currency** (e.g. 30,000 AED), until it reaches zero. | The owner's rule: each payment is worth the rate on that day. |
 | A repayment | We pay pounds on a date, at that day's rate (prefilled from the current rate, editable). It clears pounds ÷ rate of the debt. | — |
 | Paying too much | Refused: a repayment cannot clear more than is still owed. The last one shows exactly how many pounds settle it at the rate entered. | Rule 1 of the working rules: too much is refused. |
@@ -2029,7 +2029,7 @@ confirms it.**
 | A plan | Per order he paid for; instalments in his currency, totalling no more than is owed. One active plan at a time; cancel and agree again. Progress counts repayments dated on or after the plan's day, cumulatively, earliest instalment first — the same function as a customer's plan (§7). | Same habit as customer plans. |
 | Who is told when one is late | Every active core partner, once per instalment, by the existing morning job. | §7. |
 | "Owed to lenders" on the dashboard | Each currency, and in pounds at the current rate on the exchange-rate page; a currency with no rate is shown without pounds and says so. | §18: "in pounds at today's rate". |
-| "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. | §18: partners did not put up that part. |
+| "Split equally" | Splits the cycle's landed cost less what friends paid (at the order's rate) and less investors' money. Since 2026-10-16: the cycle's cost, expenses charged to it included (end of this section). | §18: partners did not put up that part. |
 | A cycle a friend paid for entirely | **DECIDED 2026-10-11 by the owner, built in L2:** its profit is split equally among the cycle's core partners; a temporary investor on it gets nothing; a custom split still overrides. "Entirely" means every contribution is zero and the friends' payments leave nothing to fund (`toFundEgp` zero). A cycle a friend paid for only partly, with no contributions, still refuses (§8). | The owner's rule. Partly paid still refuses: rounding must not pick who gets the money. |
 | Through the assistant | **Built 2026-10-11 (L2).** `list_lenders`, `get_lender`, `record_lender_financing` and `record_lender_repayment` (§16), through the same `LendersService` methods and the same roles as the office. The rate left unsaid is today's on the exchange-rate page and the preview says so; no money account is asked (DECIDED 2026-10-11; accounts removed 2026-10-14, "Which account" above); a new friend is added only on the partner's yes. Guesses listed in §16. | One set of rules for both doors (working rules §3, §11). |
 | Who sees the lenders list and a lender's page | Core partners and admin support, who can also ask what pays a debt off at a rate (the quote behind the repayment form). A temporary investor sees "Paid by" only on his own cycles' orders and cycle page. Every write is a core partner's. | §18: read-only where they already see the cycle. |
@@ -2045,7 +2045,7 @@ replaces "in that order's currency" above.
 | The currency he paid in | EGP, the order's currency, or any currency with a rate on the exchange-rate page (§22); anything else `NO_RATE_RECORDED`, a code that is not three letters `CURRENCY_CODE_INVALID`. Left out: the order's currency. | GUESS |
 | The rate | The rate on the day he paid, as typed: above zero (`RATE_NOT_POSITIVE`), at most four decimals (`RATE_TOO_PRECISE`). EGP is 1 (`BASE_CURRENCY_RATE_FIXED`). Left out: the order's rate for the order's currency; for another currency it is required (`FINANCING_RATE_REQUIRED`) — a rate on the page is today's, not his day's, so it only prefills. | GUESS |
 | His pounds | `amountEgp` = amount × his rate, half up to the piastre. The ledger inflow is those pounds, at his rate, with his amount and currency kept as the original. | DECIDED |
-| The cap | Compared in pounds, and exactly: friends' amount × rate together never above the order's lines × the order's rate (`FINANCING_EXCEEDS_ORDER`, figures in EGP). Exactly, before rounding, so two friends paying exactly what is left in the order's currency are never refused by a piastre of rounding. | GUESS |
+| The cap | Compared in pounds, and exactly: friends' amount × rate together never above the order's lines × the order's rate (`FINANCING_EXCEEDS_ORDER`, figures in EGP). Exactly, before rounding, so two friends paying exactly what is left in the order's currency are never refused by a piastre of rounding. **Superseded the same day: the cap is the cycle's cost (below); still exact, still in pounds.** | GUESS |
 | What we owe him | His amount, in his currency. Repayments clear pounds ÷ the rate typed on the repayment. | DECIDED |
 | The exchange difference | Pounds paid − what was cleared valued at **his** rate (the financing's own), not the order's. Over a repaid debt: pounds paid − his `amountEgp`. One definition, `common/lender-math.ts`. | GUESS |
 | Partners' capital | "Split equally" and the funding subtract his `amountEgp` (his pounds at his rate). | DECIDED |
@@ -2056,6 +2056,26 @@ No migration: a friend's payment already stored its own currency and rate (they
 were copies of the order's). Production had no friend's payments.
 `check-data` 19.1 now compares in pounds; 19.6 checks `amountEgp` is amount ×
 rate.
+
+**DECIDED 2026-10-16 (owner asked: "make the friend payment cover shipping and
+fees too"; details a GUESS, the recommended option) — his payment may cover the
+cycle's whole cost, not only the order's goods.** The real case: Mohammed paid an
+Alibaba order by card, AED 8,302.60 in all — goods 6,509.80, China→UAE shipping
+1,551.74 and the card processing fee 241.07. Until now only the goods could be
+recorded as owed to him. This replaces "Never more than the order's total"
+above and the 2026-10-16 "The cap" row.
+
+| Rule | Now | Status |
+|---|---|---|
+| What it is linked to | Still the purchase order he paid (no schema change); one friend once per order, as before. | GUESS |
+| The cycle's cost | Every purchase order's goods (lines × the order's rate) + every shipping leg's cost (its basis × its rate) + every ledger expense charged to the cycle, net of reversals (`operatingExpenseEgp`, the settlement's own reading), all in EGP. One definition: `CostingService.cycleCost`. | GUESS |
+| The cap | All friends' payments on the cycle (amount × his rate, exactly, before rounding) never above the cycle's cost — so a friend may pay what is left of it, whichever order he is recorded against. Refused with `FINANCING_EXCEEDS_CYCLE_COST` (params in EGP: `amount`, `cycle`, `cost`, `financed`, `available`). `FINANCING_EXCEEDS_ORDER` is gone. Checked under the cycle's lock. | GUESS |
+| A card or bank fee | Recorded as a manual ledger EXPENSE (`bank_fees`, or any other expense category) with the cycle picked: the ledger already accepted a cycle on every expense category; it counts in the cycle's cost from then on. Record it **before** the friend's payment, or his payment is refused as too much. An expense with no cycle (a running cost) or on another cycle does not raise the cap. | GUESS |
+| Cost to fund | What the partners fund (`fundingFor` → `toFundEgp`, the wizard's and the cycle page's Split equally, the wizard's funded-versus-cost line, the assistant previews' `partnersFundBefore/After`) = the cycle's cost (goods + legs + expenses charged to it) + leftovers moved in − friends' payments, floored at 0; Split equally then takes investors' money off (`lib/funding-split`, one split for both screens). | GUESS |
+| Settlement | Unchanged arithmetic: a friend's payment is not income, the expenses still reduce profit, his exchange difference still applies. "A friend paid for it entirely" (§8, `CYCLE_NOT_FUNDED` otherwise) now means his payments cover the cycle's cost **including its expenses**. | GUESS |
+| A cost that moves after he paid | A leg or an expense added later: the partners fund the new part, and another friend may pay it. A leg corrected down or an expense reversed: cost to fund and what is available stop at zero, never negative; `check-data` 19.1 (now per cycle) will name that cycle for a look. | GUESS |
+| Where it shows | `GET /purchases/:id/financings` and `GET /cycles/:id/financing` return `cycleGoodsEgp`, `cycleShippingEgp`, `cycleExpensesEgp`, `cycleCostEgp`, `cycleFinancedEgp` and `availableEgp` — now the cycle-wide room (the order's `orderTotalEgp` and `financedEgp` are kept). The landed-cost endpoint adds `expensesEgp` and `cycleCostEgp`. The office form says what is left of the cycle's cost and that his payment may cover shipping and fees; the wizard's "Cycle cost" is the cycle's cost. The assistant's `record_lender_financing` says the same and its preview shows the cycle's cost, what friends paid of it and what was available. | GUESS |
+| The owner's existing 6,509.86 AED | Remove it (with a reason — allowed while nothing is repaid) and record it again at 8,302.60 once the fee is on the cycle. | DECIDED (owner's plan) |
 
 ## 19. Signing out of the office  — built 2026-10-14 (owner asked for a way out), details GUESSED
 

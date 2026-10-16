@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CostingService } from '../costing/costing.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { formatMoney } from '../../common/money';
 import { isUuid } from '../../common/uuid';
@@ -20,6 +21,7 @@ import {
   type ScopeViewer,
 } from '../../common/investor-scope';
 import {
+  availableToFinanceEgp,
   financingCap,
   financingTerms,
   orderTotalEgp,
@@ -84,7 +86,27 @@ export class LendersService {
     private prisma: PrismaService,
     private audit: AuditService,
     private notifications: NotificationsService,
+    private costing: CostingService = new CostingService(prisma),
   ) {}
+
+  /**
+   * What friends may still pay towards a cycle (§18, 2026-10-16): its cost —
+   * goods, legs, expenses charged to it — less what they already paid, in
+   * pounds. Read by the order's and the cycle's summaries alike.
+   */
+  private async cycleRoom(cycleId: string) {
+    const cost = await this.costing.cycleCost(cycleId);
+    const financedEgp = await cycleFinancedEgp(this.prisma, cycleId);
+    return {
+      cycleGoodsEgp: m2(cost.goodsEgp),
+      cycleShippingEgp: m2(cost.shippingEgp),
+      cycleExpensesEgp: m2(cost.expensesEgp),
+      cycleCostEgp: m2(cost.totalEgp),
+      cycleFinancedEgp: m2(financedEgp),
+      /** What a friend's payment on any of the cycle's orders may still be. */
+      availableEgp: m2(availableToFinanceEgp(cost.totalEgp, financedEgp)),
+    };
+  }
 
   // ─── Reading ────────────────────────────────────────────────────────
 
@@ -269,8 +291,12 @@ export class LendersService {
         fxRateToEgp: D(po.fxRateToEgp).toFixed(4),
         orderTotal: m2(total),
         orderTotalEgp: m2(totalEgp),
+        /** What friends paid of this order. */
         financedEgp: m2(financedEgp),
-        availableEgp: m2(Prisma.Decimal.max(totalEgp.sub(financedEgp), D(0))),
+        // The cap is the cycle's cost, not the order's (§18, 2026-10-16):
+        // `availableEgp` is what a friend may still pay on this order,
+        // which is what is left of the whole cycle's cost.
+        ...(await this.cycleRoom(po.cycleId)),
         financings,
       },
     };
@@ -294,6 +320,7 @@ export class LendersService {
     return {
       data: {
         financedEgp: m2(await cycleFinancedEgp(this.prisma, cycleId)),
+        ...(await this.cycleRoom(cycleId)),
         owed: owed.map((o) => ({
           lenderId: o.lenderId,
           lender: o.lender,
@@ -357,9 +384,12 @@ export class LendersService {
    * paid, in the currency he paid in (2026-10-16); nothing leaves an account
    * of ours. Left out, both are the order's, as before.
    *
-   * What friends paid of an order is capped in pounds: the sum of their
-   * `amountEgp` never above the order's lines at the order's rate. Two friends
-   * can pay one order in two currencies, so no other unit compares them.
+   * What friends paid is capped in pounds at the cycle's cost still unpaid
+   * by friends (§18, owner 2026-10-16): every order's goods, every leg and
+   * every expense charged to the cycle, less every friend's payment standing
+   * on it. A friend who paid an order by card paid its shipping and the card
+   * fee in the same sum. Two friends can pay in two currencies, so no other
+   * unit compares them.
    */
   async finance(
     purchaseOrderId: string,
@@ -407,7 +437,7 @@ export class LendersService {
           items: { select: { lineTotal: true } },
           lenderFinancings: {
             where: STANDING_FINANCING,
-            select: { lenderId: true, amount: true, fxRateToEgp: true },
+            select: { lenderId: true },
           },
         },
       });
@@ -462,15 +492,24 @@ export class LendersService {
       });
 
       const amount = D(dto.amount);
+      // Read in the transaction, under the cycle's lock: the cost and every
+      // friend's payment on the cycle, not only this order's.
+      const [cost, onCycle] = await Promise.all([
+        this.costing.cycleCost(order.cycleId, { db: tx }),
+        tx.lenderFinancing.findMany({
+          where: { cycleId: order.cycleId, ...STANDING_FINANCING },
+          select: { amount: true, fxRateToEgp: true },
+        }),
+      ]);
       const {
         exceeds,
-        totalEgp,
+        costEgp,
         financedEgp,
+        availableEgp,
         addingEgp: amountEgp,
       } = financingCap({
-        lineTotals: order.items.map((i) => i.lineTotal),
-        orderRate: order.fxRateToEgp,
-        standing: order.lenderFinancings.map((f) => ({
+        cost,
+        standing: onCycle.map((f) => ({
           amount: f.amount,
           rate: f.fxRateToEgp,
         })),
@@ -478,15 +517,16 @@ export class LendersService {
       });
       if (exceeds) {
         throw badRequest(
-          'FINANCING_EXCEEDS_ORDER',
-          `${formatMoney(amountEgp)} EGP is more than is left to pay on ${order.reference}: ` +
-            `the order is ${formatMoney(totalEgp)} EGP and friends already paid ${formatMoney(financedEgp)} EGP.`,
+          'FINANCING_EXCEEDS_CYCLE_COST',
+          `${formatMoney(amountEgp)} EGP is more than is left of cycle ${order.cycle.code}'s cost: ` +
+            `it cost ${formatMoney(costEgp)} EGP (goods, shipping and the expenses charged to it), ` +
+            `friends already paid ${formatMoney(financedEgp)} EGP, so ${formatMoney(availableEgp)} EGP is left.`,
           {
             amount: formatMoney(amountEgp),
-            currency: 'EGP',
-            reference: order.reference,
-            total: formatMoney(totalEgp),
+            cycle: order.cycle.code,
+            cost: formatMoney(costEgp),
             financed: formatMoney(financedEgp),
+            available: formatMoney(availableEgp),
           },
         );
       }

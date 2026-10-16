@@ -18,6 +18,7 @@ const writes: { method: string; url: string; body: unknown }[] = [];
 type Body = Record<string, unknown>;
 let cycle: Body;
 let refuse: ((url: string, body: Body) => unknown) | null = null;
+let costingTotals: Record<string, unknown> = { landedEgp: 0 };
 
 const ok = (data: unknown) => Promise.resolve({ data: { data: data } });
 
@@ -25,7 +26,7 @@ vi.mock('../../lib/api', () => ({
   api: {
     get: (url: string) => {
       if (url === `/cycles/${String(cycle?.id)}`) return ok(cycle);
-      if (url.startsWith('/costing/')) return ok({ totals: { landedEgp: 0 }, items: [] });
+      if (url.startsWith('/costing/')) return ok({ totals: costingTotals, items: [] });
       if (url === '/currency-rates/map') return ok({});
       if (url === '/providers') return ok([{ id: 'prov-1', name: 'Aramex' }]);
       return ok([]);
@@ -135,6 +136,7 @@ async function finish() {
 }
 
 beforeEach(() => {
+  costingTotals = { landedEgp: 0 };
   writes.length = 0;
   refuse = null;
   push.mockReset();
@@ -525,5 +527,54 @@ describe('A reload restores the draft (spec 39, 47)', () => {
       </StrictMode>,
     );
     expect(await screen.findByTestId('wizard-draft-restored')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Funding: the cycle's cost includes the expenses charged to it (§18, 2026-10-16)
+// ---------------------------------------------------------------------------
+
+describe('the funding step', () => {
+  const partner = (n: number) => ({
+    id: `part-${n}`,
+    participantType: 'CORE_PARTNER',
+    contributionAmount: '0',
+    partner: { email: `p${n}@x.z`, partner: { displayName: `Partner ${n}` } },
+  });
+
+  it('shows the cycle’s cost with its expenses, and Split equally asks the partners for what friends did not pay', async () => {
+    // Goods and shipping 111,653.16 + a card fee of 3,338.82 charged to the
+    // cycle; a friend paid 100,000 of it.
+    costingTotals = {
+      landedEgp: '111653.16',
+      expensesEgp: '3338.82',
+      cycleCostEgp: '114991.98',
+      lenderFinancedEgp: '100000.00',
+      toFundEgp: '14991.98',
+    };
+    cycle = chinaCycle({ status: 'PURCHASING', participants: [partner(1), partner(2), partner(3)] });
+    renderWizard('cyc-1');
+    const cost = await screen.findByText((_, el) => el?.tagName === 'SPAN' && /^Cycle cost:/.test(el.textContent ?? ''));
+    expect(cost.textContent).toMatch(/114,991\.98/);
+    fireEvent.click(screen.getByRole('button', { name: en.wizard.splitEqually }));
+    const values = [1, 2, 3].map(
+      (n) => document.querySelector<HTMLInputElement>(`[data-field="contribution-part-${n}"]`)!.value.replace(/,/g, ''),
+    );
+    expect(values).toEqual(['4997.32', '4997.32', '4997.34']);
+    expect(values.map(Number).reduce((s, x) => s + x, 0).toFixed(2)).toBe('14991.98');
+  });
+
+  it('a friend who paid the whole cycle, fees included: nothing to fund, Split equally is off', async () => {
+    costingTotals = {
+      landedEgp: '111653.16',
+      expensesEgp: '3338.82',
+      cycleCostEgp: '114991.98',
+      lenderFinancedEgp: '114991.98',
+      toFundEgp: '0.00',
+    };
+    cycle = chinaCycle({ status: 'PURCHASING', participants: [partner(1), partner(2), partner(3)] });
+    renderWizard('cyc-1');
+    const split = await screen.findByRole('button', { name: en.wizard.splitEqually });
+    expect((split as HTMLButtonElement).disabled).toBe(true);
   });
 });

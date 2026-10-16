@@ -285,11 +285,15 @@ export function undoRefusal(input: {
 }
 
 /**
- * What the partners are asked to fund: the landed cost, plus stock moved in
+ * What the partners are asked to fund: the cycle's cost, plus stock moved in
  * from another cycle at its cost (§8, L5), less what friends paid (§18) —
  * never below zero. The arithmetic of `CostingService.fundingFor`.
  */
 export function toFundEgp(input: {
+  /**
+   * The cycle's cost: goods and legs (the landed cost) and, since
+   * 2026-10-16, the expenses charged to it (`CostingService.cycleCost`).
+   */
   landed: Prisma.Decimal.Value;
   transferredIn: Prisma.Decimal.Value;
   financed: Prisma.Decimal.Value;
