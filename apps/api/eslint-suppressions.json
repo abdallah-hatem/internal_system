@@ -50,9 +50,6 @@
   "src/common/available-stock.ts": {
     "@typescript-eslint/no-restricted-imports": {
       "count": 1
-    },
-    "prettier/prettier": {
-      "count": 3
     }
   },
   "src/common/dates.ts": {
@@ -163,11 +160,6 @@
   "src/common/month-buckets.spec.ts": {
     "prettier/prettier": {
       "count": 8
-    }
-  },
-  "src/common/month-buckets.ts": {
-    "prettier/prettier": {
-      "count": 2
     }
   },
   "src/common/references.ts": {
