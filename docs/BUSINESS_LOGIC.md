@@ -906,6 +906,70 @@ instead.
 
 A plan cannot promise more than the shop actually owes.
 
+### A sale's instalment contract — DECIDED 2026-10-16 (owner), details GUESSED
+
+The owner: *"On the sale order popup add a button Contract, it shows another
+popup to create the plan, then it creates the contract — it should be that
+simple."* A bigger first version (a settings page, stored contracts, new
+customer fields, a button on the shop page) was rejected as too much and removed.
+
+- **The button.** The sale order popup (Sales) has **Contract** for a sale that is
+  confirmed or partly paid, in EGP, with something outstanding, not a walk-in, and
+  with no plan yet — offered to core partners, who are the ones who may agree a
+  plan. A sale that already has its plan shows Contract to the sales roles (core
+  partner, admin support) and it opens the contract directly.
+- **The plan popup.** Sale total, paid so far, remaining (= outstanding). Number of
+  instalments (default 3, 1–36) and the first due date (default a month from
+  today); rows a calendar month apart from the first date (the 31st falls back to
+  a short month's last day, then returns), equal amounts with the last absorbing
+  the rounding. Every row's date and amount can be changed. **Create contract**
+  stays disabled until the rows add up to the remaining amount exactly; the
+  difference shows as it is typed. Moving the first date re-dates only rows
+  nobody touched; changing the count re-splits the amounts and keeps hand-typed
+  dates *(guess)*.
+- **The plan.** An ordinary plan (`PaymentPlansService`, the same rules above —
+  verified shop, one active plan per shop, never more than the shop owes, the
+  cumulative reading of who is behind) that names the sale (`saleOrderId`, one
+  plan per sale). `POST /sales/orders/:id/contract-plan`, core partners only, as
+  `POST /payment-plans`. Refused with a code: not confirmed or partly paid
+  (`SALE_CONTRACT_NOT_OPEN`), not EGP (`SALE_CONTRACT_NOT_EGP`), nothing
+  outstanding or a walk-in (`SALE_CONTRACT_NOTHING_OWED`), the sale already has
+  its plan (`SALE_HAS_PLAN`), instalments not adding up to the outstanding amount
+  (`CONTRACT_SUM_MISMATCH`), an instalment due before today (`INSTALMENT_DUE_IN_PAST`;
+  today is allowed — a payment taken at signing), and the existing
+  `CUSTOMER_HAS_ACTIVE_PLAN`. `GET /sales/orders/:id` says whether the sale has
+  its plan (`contractPlan`). *Guess:* a cancelled plan lets go of its sale, so the
+  sale can be given a new one; the cancelled plan keeps no link.
+- **The contract** is a print page (`/sales/[id]/contract`), built live from the
+  sale and its plan — nothing about it is stored. Number `CT-` + the order number;
+  dated the day the plan was agreed; Cairo. Seller S&F with blank lines for the
+  representative and phone; buyer the shop's name and phone, blank lines for the
+  address and ID / commercial registration; the sale's lines; three totals —
+  total price, **paid at signing = total − the plan's total**, **remaining in
+  instalments = the plan's total** (both fixed at signing, so a reprint says what
+  was signed, not today's balance); the schedule with a receipt-signature column;
+  the terms; two signature lines; "made in two copies". Arabic by default, whatever
+  language the office is in, with a switch to English. One A4 sheet for a typical
+  sale.
+- **The terms are fixed text in code** (suggested wording, approved in the mock;
+  the owner may change it later): the buyer received the goods sound and as
+  specified; pays the instalments on their dates, cash or bank transfer;
+  ownership stays with the seller until paid in full; two consecutive missed
+  instalments make the rest due at once; the courts of Cairo decide any dispute.
+- **Instalment plans moved into Payments** (owner, same day): a second tab,
+  "Instalment plans" (`/payments?view=plans`), for following up — every shop's
+  plan, behind, paid so far, remaining, next due, cancel. It has **no create
+  button any more**: in the office a plan is agreed only from a sale's Contract
+  button. A plan linked to a sale shows its order number and **Open contract**;
+  an older plan shows neither. The old `/payment-plans` address redirects to the
+  tab, the menu entry is gone, and an overdue-instalment notification opens the
+  tab. `POST /payment-plans` stays in the API (the assistant and older callers).
+- *OPEN:* a plan reads every payment the shop makes from the agreed day on
+  (cumulative, above) — so money paid on the day of signing, or on another of the
+  shop's sales, counts toward the instalments. With one active plan per shop that
+  is the rule as it stands; whether a sale contract should count only money on
+  its own sale is the owner's to say.
+
 ---
 
 ### Dashboard: To collect — owner, 2026-10-15
