@@ -4,7 +4,7 @@ Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The 
 fully autonomous too, chosen 2026-09-19.
 Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
 photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: idle 2026-10-15 — all live: skeletons replace every "Loading..." content spinner in the office and storefront (`c4307d2`; measured en/ar 390/1440; 99-skeletons*.spec 26/26, fail on old code), plus everything from 2026-10-14/15 (Arabic names + search, categories, rename to S&F System, assistant category tools). Known test debt: TC-NOT-05 (expects the email in the header; it lives in the account menu) and TC-UI-02 (breaks when run after spec 100, whose test category sorts first) — both fail on master too. Docker quit.
+Current stage: idle 2026-10-16 — live: sale and receipt dates, a friend's payment in his own currency covering the cycle's goods, shipping and fees, exchange-rates page, supplier country picker, To collect card, one DataTable and one Dialog, skeletons, no-flash first paint, push alerts (VAPID keys set in production 2026-10-16; owner confirmed a test alert arrived). Production data: CYC-2026-0001 (Alibaba receipt 304423979001024016, AED at 13.85 — real June rate still to confirm), friend Mohammed AED 8,302.60 on 15 Jul. No e2e runs unless the owner asks. Docker quit.
 
 ## Waiting on the user
 _(none)_
