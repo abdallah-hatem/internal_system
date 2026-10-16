@@ -1431,7 +1431,8 @@
     "PRODUCT_INACTIVE": "المنتج {product} موقوف، لذا لا يمكن طلب المزيد منه. أعِد تفعيله لتشتري المزيد.",
     "PRODUCT_STATUS_INVALID": "حالة المنتج إما نشط أو غير نشط.",
     "NOT_ENOUGH_STOCK_ON_DATE": "لم يكن قد استُلم من {product} حتى {day} سوى {available}، لذا لا يمكن أن يكون قد بيع {wanted} في ذلك اليوم.",
-    "PAYMENT_BEFORE_ORDER": "دفعة استُلمت في {receivedOn} لا يمكن أن تسدد {order}، فقد بيع في {orderedOn}."
+    "PAYMENT_BEFORE_ORDER": "دفعة استُلمت في {receivedOn} لا يمكن أن تسدد {order}، فقد بيع في {orderedOn}.",
+    "RECEIVED_BEFORE_ARRIVAL": "لا يمكن استلام البضاعة في {day}: فقد وصلت الشحنة إلى مصر في {arrivedOn}."
   },
   "orderRequests": {
     "title": "طلبات الشراء",

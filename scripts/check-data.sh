@@ -451,6 +451,15 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          JOIN payments p ON p.id = a.payment_id
          JOIN sale_orders o ON o.id = a.sale_order_id
    WHERE p.received_on < (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date
+  -- Received stock carries the day it was counted in (section 3, 2026-10-16),
+  -- never before the delivery that brought it reached Egypt.
+  UNION ALL SELECT 24.3, 'stock received before its delivery arrived',
+         count(*) FROM inventory_batches b
+   WHERE b.arrived_on IS NOT NULL
+     AND (b.created_at AT TIME ZONE 'Africa/Cairo')::date < b.arrived_on
+  UNION ALL SELECT 24.4, 'stock received on a day that has not arrived',
+         count(*) FROM inventory_batches
+   WHERE (created_at AT TIME ZONE 'Africa/Cairo')::date > (now() AT TIME ZONE 'Africa/Cairo')::date
 SQL
 )
 
