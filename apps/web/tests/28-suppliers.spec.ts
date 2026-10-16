@@ -44,7 +44,10 @@ test.describe('Suppliers', () => {
     // Create
     await page.getByRole('button', { name: /new supplier/i }).click();
     await page.locator('input[name="name"]').fill('Cairo Moto Imports');
-    await page.locator('input[name="country"]').fill('Egypt');
+    // Country is a picker of ISO codes (§21, 2026-10-16), not a text box.
+    await page.getByRole('combobox').filter({ hasText: 'Choose a country' }).click();
+    await page.getByPlaceholder('Search by country name or code').fill('مصر');
+    await page.getByRole('option', { name: 'Egypt' }).click();
     await page.locator('input[name="phone"]').fill('+20-2-5550100');
     await page.getByRole('button', { name: /^create$/i }).click();
 
@@ -56,9 +59,11 @@ test.describe('Suppliers', () => {
     // Edit — the contact lives in a free-form JSON column, so changing one key
     // must not drop the rest of the record.
     await row.getByTitle('Edit').click();
-    await page.locator('input[name="country"]').fill('Egypt (Cairo)');
+    await page.getByRole('combobox').filter({ hasText: 'Egypt' }).click();
+    await page.getByPlaceholder('Search by country name or code').fill('India');
+    await page.getByRole('option', { name: 'India' }).click();
     await page.getByRole('button', { name: /^save$/i }).click();
-    await expect(page.locator('tr', { hasText: 'Cairo Moto Imports' })).toContainText('Egypt (Cairo)', { timeout: 10000 });
+    await expect(page.locator('tr', { hasText: 'Cairo Moto Imports' })).toContainText('India', { timeout: 10000 });
     await expect(page.locator('tr', { hasText: 'Cairo Moto Imports' })).toContainText('+20-2-5550100');
 
     // Delete

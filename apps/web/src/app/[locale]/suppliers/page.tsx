@@ -19,7 +19,7 @@ import { useApiError } from '../../../lib/api-error';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
-import { useCountryLabel } from './country';
+import { countryMatches, useCountryLabel } from '../../../lib/countries';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { LatinText } from '@/components/ui/latin-text';
@@ -152,7 +152,7 @@ export default function SuppliersPage() {
     const c = contactOf(s);
     return (
       s.name?.toLowerCase().includes(q) ||
-      s.country?.toLowerCase().includes(q) ||
+      countryMatches(s.country, search) ||
       c.phone?.toLowerCase().includes(q) ||
       c.email?.toLowerCase().includes(q)
     );
