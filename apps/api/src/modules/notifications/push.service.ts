@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as webpush from 'web-push';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { badRequest } from '../../common/api-error';
 
 /**
  * Delivering a notification to a device that is not looking at the app.
@@ -28,7 +29,8 @@ export class PushService {
   ) {
     const publicKey = config.get<string>('VAPID_PUBLIC_KEY');
     const privateKey = config.get<string>('VAPID_PRIVATE_KEY');
-    const subject = config.get<string>('VAPID_SUBJECT') ?? 'mailto:admin@motoparts.local';
+    const subject =
+      config.get<string>('VAPID_SUBJECT') ?? 'mailto:admin@motoparts.local';
 
     if (publicKey && privateKey) {
       webpush.setVapidDetails(subject, publicKey, privateKey);
@@ -38,7 +40,9 @@ export class PushService {
       // Not fatal. The app must run without push configured — otherwise a
       // missing key stops the whole API, and the notifications people actually
       // read are the ones in the bell.
-      this.log.warn('VAPID keys are not set; web push is disabled and the bell still works.');
+      this.log.warn(
+        'VAPID keys are not set; web push is disabled and the bell still works.',
+      );
     }
   }
 
@@ -83,7 +87,9 @@ export class PushService {
   async unsubscribe(userId: string, endpoint: string) {
     // Scoped to the caller: an endpoint is a long opaque string, but it is not
     // a secret, and nobody should be able to silence someone else's phone.
-    await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
+    await this.prisma.pushSubscription.deleteMany({
+      where: { userId, endpoint },
+    });
     return { data: { subscribed: false } };
   }
 
@@ -101,14 +107,19 @@ export class PushService {
   ): Promise<{ sent: number; removed: number }> {
     if (!this.vapidPublicKey) return { sent: 0, removed: 0 };
 
-    const subs = await this.prisma.pushSubscription.findMany({ where: { userId } });
+    const subs = await this.prisma.pushSubscription.findMany({
+      where: { userId },
+    });
     let sent = 0;
     let removed = 0;
 
     for (const sub of subs) {
       try {
         await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
           JSON.stringify(payload),
         );
         sent += 1;
@@ -128,11 +139,69 @@ export class PushService {
             where: { id: sub.id },
             data: { failureCount: { increment: 1 } },
           });
-          this.log.warn(`push to ${sub.id} failed with ${status ?? 'no status'}`);
+          this.log.warn(
+            `push to ${sub.id} failed with ${status ?? 'no status'}`,
+          );
         }
       }
     }
 
     return { sent, removed };
+  }
+
+  /**
+   * One alert to the signed-in person's own devices, so they can see alerts
+   * work (owner, 2026-10-16: "I need to test it"). The words come from the
+   * client, translated into the reader's language; only their own devices are
+   * reached, so there is nobody else to spam. Each way it cannot arrive is a
+   * coded refusal, never a quiet success.
+   */
+  async sendTest(
+    userId: string,
+    text: { title?: unknown; body?: unknown },
+  ): Promise<{ sent: number; removed: number; devices: number }> {
+    const title = typeof text.title === 'string' ? text.title.trim() : '';
+    const body = typeof text.body === 'string' ? text.body.trim() : '';
+    if (!title || !body || title.length > 120 || body.length > 300) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'A test alert needs a title (up to 120) and a body (up to 300).',
+        {
+          fields: 'title, body',
+        },
+      );
+    }
+    if (!this.vapidPublicKey) {
+      throw badRequest(
+        'PUSH_NOT_CONFIGURED',
+        'Alerts are not set up on the server.',
+      );
+    }
+    const devices = await this.prisma.pushSubscription.count({
+      where: { userId },
+    });
+    if (devices === 0) {
+      throw badRequest(
+        'NO_PUSH_DEVICE',
+        'No device of yours has alerts turned on.',
+      );
+    }
+    const { sent, removed } = await this.sendToUser(userId, {
+      title,
+      body,
+      url: '/settings',
+      tag: 'test-alert',
+    });
+    if (sent === 0) {
+      throw badRequest(
+        'PUSH_TEST_NOT_DELIVERED',
+        'The test alert could not be delivered to any of your devices.',
+        {
+          devices,
+          removed,
+        },
+      );
+    }
+    return { sent, removed, devices };
   }
 }

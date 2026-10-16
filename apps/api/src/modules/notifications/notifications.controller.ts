@@ -77,9 +77,23 @@ export class NotificationsController {
     return this.push.subscribe(user.id, body, req.headers['user-agent']);
   }
 
+  // Owner, 2026-10-16: a way to see alerts reach this phone. Any signed-in
+  // office user, to their own devices only.
+  @Post('push-test')
+  @ApiOperation({ summary: "Send one test alert to the caller's own devices" })
+  pushTest(
+    @CurrentUser() user: { id: string },
+    @Body() body: { title?: unknown; body?: unknown },
+  ) {
+    return this.push.sendTest(user.id, body ?? {}).then((data) => ({ data }));
+  }
+
   @Delete('push-subscriptions')
   @ApiOperation({ summary: 'Stop alerts on this browser' })
-  unsubscribe(@CurrentUser() user: { id: string }, @Body() body: { endpoint: string }) {
+  unsubscribe(
+    @CurrentUser() user: { id: string },
+    @Body() body: { endpoint: string },
+  ) {
     return this.push.unsubscribe(user.id, body.endpoint);
   }
 }
