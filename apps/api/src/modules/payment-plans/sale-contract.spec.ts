@@ -463,6 +463,9 @@ describe('GET /sales/orders/:id/contract — built live from the sale and its pl
     const { data } = await service.saleContract(SALE);
 
     expect(data.number).toBe('CT-ORD-2026-00001');
+    // Dated the day it was agreed in Cairo, not the server's local midnight
+    // read back as the day before (seen at 16/10 printing 15/10).
+    expect(data.date).toBe(businessToday());
     expect(data.customer).toMatchObject({
       displayName: 'Al Nour Motors',
       phone: '01125550198',

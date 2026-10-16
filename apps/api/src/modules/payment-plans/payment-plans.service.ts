@@ -306,7 +306,9 @@ export class PaymentPlansService {
       {
         customer: sale.customer,
         instalments: dto.instalments,
-        agreedOn: startOfToday(),
+        // Cairo's today as the calendar day it is: a local midnight is the
+        // day before in UTC, and a date column keeps only the UTC day.
+        agreedOn: new Date(`${today}T00:00:00Z`),
         note: dto.note,
         saleOrderId: sale.id,
         // A cancelled plan lets go of its sale, so the sale can have another.
