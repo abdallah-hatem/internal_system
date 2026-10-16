@@ -15,6 +15,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { CostingService } from '../../costing/costing.service';
 import { LendersService } from '../../lenders/lenders.service';
+import { LedgerService } from '../../ledger/ledger.service';
+import { distributeCycleProfit } from '../../settlements/settlement-math';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import { AssistantServer } from '../assistant-server';
 import { ConfirmationService } from '../confirmation.service';
@@ -171,6 +173,7 @@ class FakeDb {
         return value === cond || (cond === null && value === undefined);
       const c = cond as Row;
       if ('in' in c) return (c.in as unknown[]).includes(value);
+      if ('notIn' in c) return !(c.notIn as unknown[]).includes(value);
       if ('gt' in c) return D(value ?? 0).gt(D(c.gt));
       if ('not' in c) return value !== c.not;
       if ('equals' in c) {
@@ -741,8 +744,10 @@ describe('record_lender_financing — "Mahmoud paid 30,000 AED for PO-2026-0004"
 
   it('too much, the wrong currency, zero, more decimals than money has, a future day and an unknown order are each refused with a code, nothing written', async () => {
     const before = db.counts();
-    expect(codeOf(await finance({ ...paid30k, amount: 30000.01 }))).toBe(
-      'FINANCING_EXCEEDS_ORDER',
+    // The cap is the cycle's cost less what friends paid (§18, 2026-10-16):
+    // 673,000 − Sami's 130,000 = 543,000 EGP, 41,769.23 AED at 13.
+    expect(codeOf(await finance({ ...paid30k, amount: 41769.24 }))).toBe(
+      'FINANCING_EXCEEDS_CYCLE_COST',
     );
     // His own currency is allowed (§18, 2026-10-16) — one with no rate on
     // file is not.
@@ -1258,29 +1263,34 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
     ]).toEqual(['6950.00', 'EGP', '13.9000', '500.00', 'AED']);
   });
 
-  it('the cap is in pounds: a second friend over the order’s 10,000 EGP → FINANCING_EXCEEDS_ORDER with the figures in EGP; nothing written', async () => {
+  it('the cap is in pounds, over the whole cycle: a second friend past what is left of its 673,000 EGP → FINANCING_EXCEEDS_CYCLE_COST with the figures in EGP; nothing written', async () => {
     await inAed(500, 13.9);
     const before = db.counts();
-    const r = await refusalOf(inAed(300, 13.9, ids.sami));
+    // 673,000 − 130,000 (Sami) − 6,950 = 536,050 left; 38,565 AED is 536,053.50.
+    const r = await refusalOf(inAed(38565, 13.9, ids.sami));
     expect(r).toEqual({
-      code: 'FINANCING_EXCEEDS_ORDER',
+      code: 'FINANCING_EXCEEDS_CYCLE_COST',
       params: {
-        amount: '4,170.00',
-        currency: 'EGP',
-        reference: 'PO-2026-0006',
-        total: '10,000.00',
-        financed: '6,950.00',
+        amount: '536,053.50',
+        cycle: 'CYC-2026-0007',
+        cost: '673,000.00',
+        financed: '136,950.00',
+        available: '536,050.00',
       },
     });
     expect(db.counts()).toEqual(before);
-    // Up to the cap exactly is fine: 3,050 EGP is 219.4245 AED — at 13.9,
-    // 219.42 AED is 3,049.94 EGP.
-    await inAed(219.42, 13.9, ids.sami);
+    // Up to the cap is fine: 38,564.74 AED at 13.9 is 536,049.886 EGP.
+    await inAed(38564.74, 13.9, ids.sami);
   });
 
   it('two friends paying exactly what is left in the order’s currency are not refused by rounding (13.86 + 13.86 of a 27.71 order)', async () => {
+    // A cycle of its own, so the order is all it cost.
+    const cycleId = db.insert('importCycle', {
+      code: 'CYC-2026-0008',
+      status: 'PURCHASING',
+    }).id as string;
     const po = db.insert('purchaseOrder', {
-      cycleId: ids.cycle,
+      cycleId,
       reference: 'PO-2026-0007',
       currency: 'USD',
       fxRateToEgp: D('13.8567'),
@@ -1288,7 +1298,7 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
     }).id as string;
     db.insert('purchaseOrderItem', {
       purchaseOrderId: po,
-      productId: randomUUID(),
+      productId: db.insert('product', { name: 'Bolt', unitWeightKg: null }).id,
       orderedQty: D(2),
       lineTotal: D(2),
     });
@@ -1308,7 +1318,7 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
         partner.id,
       ),
     );
-    expect(r.code).toBe('FINANCING_EXCEEDS_ORDER');
+    expect(r.code).toBe('FINANCING_EXCEEDS_CYCLE_COST');
   });
 
   it('half up to the piastre, never to even: 10.15 at 1.5 is 15.225 → 15.23 EGP', async () => {
@@ -1429,7 +1439,7 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
     expect(before.toFund.sub(after.toFund).toFixed(2)).toBe('6950.00');
   });
 
-  it('the order’s summary is told in pounds: its total and what friends paid, whatever their currencies', async () => {
+  it('the order’s summary is told in pounds: its total and what friends paid, whatever their currencies — and what is available is the cycle’s', async () => {
     await inAed(500, 13.9);
     await lendersService.finance(
       ids.po6,
@@ -1443,7 +1453,11 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
       orderTotal: '5000.00',
       orderTotalEgp: '10000.00',
       financedEgp: '8950.00',
-      availableEgp: '1050.00',
+      // The cap is the cycle's cost (§18, 2026-10-16): 673,000 less every
+      // friend's payment on the cycle (130,000 + 6,950 + 2,000).
+      cycleCostEgp: '673000.00',
+      cycleFinancedEgp: '138950.00',
+      availableEgp: '534050.00',
     });
   });
 
@@ -1515,16 +1529,335 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
       expect(preview.text).toContain("the order's own rate");
     });
 
-    it('more than the order in pounds → FINANCING_EXCEEDS_ORDER in the preview; nothing to confirm', async () => {
+    it('more than is left of the cycle in pounds → FINANCING_EXCEEDS_CYCLE_COST in the preview; nothing to confirm', async () => {
       db.insert('currencyRate', { code: 'USD', rateToEgp: D(50) });
+      // 11,000 USD at 50 is 550,000 EGP; 543,000 is left of the cycle.
       const r = await finance({
         lender: 'Mahmoud',
         order: 'PO-2026-0004',
-        amount: 8000,
+        amount: 11000,
         currency: 'USD',
       });
-      expect(codeOf(r)).toBe('FINANCING_EXCEEDS_ORDER');
+      expect(codeOf(r)).toBe('FINANCING_EXCEEDS_CYCLE_COST');
       expect(r.s.confirmationToken).toBeUndefined();
     });
+  });
+});
+
+describe('a friend’s payment covers the cycle’s shipping and fees too (§18, owner 2026-10-16)', () => {
+  /**
+   * The owner's case: Mohammed paid an Alibaba order by card, in AED — the
+   * goods, the China→UAE shipping and the card fee in one sum. Here: the
+   * order 6,509.86 AED, the leg 1,551.74 AED and a bank_fees expense of
+   * 241.07 AED charged to the cycle, all at 13.85 — 114,991.98 EGP in all
+   * (90,161.56 + 21,491.60 + 3,338.82).
+   */
+  let cycle: string;
+  let po: string;
+  let leg: string;
+  let costing: CostingService;
+  let ledger: LedgerService;
+
+  const at = 13.85;
+  const pay = (amount: number, lenderId = ids.mahmoud, currency = 'AED') =>
+    lendersService.finance(
+      po,
+      {
+        lenderId,
+        amount,
+        currency,
+        ...(currency === 'EGP' ? {} : { fxRateToEgp: at }),
+        paidOn: daysAgo(3),
+      },
+      partner.id,
+    );
+
+  async function refusalOf(p: Promise<unknown>) {
+    try {
+      await p;
+    } catch (e) {
+      const body = (e as { getResponse(): any }).getResponse();
+      return { code: body.code as string, params: body.params };
+    }
+    throw new Error('expected a refusal');
+  }
+
+  beforeEach(async () => {
+    const prisma = db as unknown as PrismaService;
+    costing = new CostingService(prisma);
+    ledger = new LedgerService(prisma, new AuditService(prisma));
+    cycle = db.insert('importCycle', {
+      code: 'CYC-2026-0010',
+      status: 'PURCHASING',
+    }).id as string;
+    const product = db.insert('product', {
+      name: 'Chain kit',
+      unitWeightKg: null,
+    }).id as string;
+    po = db.insert('purchaseOrder', {
+      cycleId: cycle,
+      reference: 'PO-2026-0010',
+      currency: 'AED',
+      fxRateToEgp: D(at),
+      orderedOn: day(daysAgo(10)),
+    }).id as string;
+    db.insert('purchaseOrderItem', {
+      purchaseOrderId: po,
+      productId: product,
+      orderedQty: D(50),
+      lineTotal: D('6509.86'),
+    });
+    leg = db.insert('shippingLeg', {
+      cycleId: cycle,
+      sequence: 1,
+      origin: 'Guangzhou, China',
+      destination: 'Dubai, UAE',
+      costBasis: 'FLAT',
+      amount: D('1551.74'),
+      fxRateToEgp: D(at),
+      ratePerUnit: null,
+      chargeablePieces: null,
+      chargeableWeightKg: null,
+    }).id as string;
+    // The card fee, recorded in the ledger as an expense on the cycle — the
+    // office's own method, so a bank_fees row with a cycle is what it saves.
+    await ledger.create(
+      {
+        kind: 'EXPENSE',
+        category: 'bank_fees',
+        amount: 241.07,
+        currency: 'AED',
+        fxRateToEgp: at,
+        cycleId: cycle,
+        occurredOn: daysAgo(3),
+      } as any,
+      partner.id,
+    );
+  });
+
+  it('a bank_fees expense saved with a cycleId is counted in the cycle’s cost', async () => {
+    const fee = db.tables.financialTransaction.find(
+      (t) => t.category === 'bank_fees',
+    )!;
+    expect([fee.cycleId, D(fee.amount).toFixed(2), fee.direction]).toEqual([
+      cycle,
+      '3338.82',
+      'OUTFLOW',
+    ]);
+    const cost = await costing.cycleCost(cycle);
+    expect([
+      cost.goodsEgp.toFixed(2),
+      cost.shippingEgp.toFixed(2),
+      cost.expensesEgp.toFixed(2),
+      cost.totalEgp.toFixed(2),
+    ]).toEqual(['90161.56', '21491.60', '3338.82', '114991.98']);
+  });
+
+  it('the real case: 8,302.67 AED — goods, shipping and the card fee together — is accepted on the order, and the partners fund nothing', async () => {
+    const { data } = await pay(8302.67);
+    expect([data.amount, data.amountEgp]).toEqual(['8302.67', '114991.98']);
+    const funding = await costing.fundingFor(cycle);
+    expect([
+      funding.cycleCost.toFixed(2),
+      funding.financed.toFixed(2),
+      funding.toFund.toFixed(2),
+      funding.fundedByLenders,
+    ]).toEqual(['114991.98', '114991.98', '0.00', true]);
+  });
+
+  it('one fils more than the cycle cost is refused with FINANCING_EXCEEDS_CYCLE_COST, figures in EGP; nothing written', async () => {
+    const before = db.counts();
+    const r = await refusalOf(pay(8302.68));
+    expect(r).toEqual({
+      code: 'FINANCING_EXCEEDS_CYCLE_COST',
+      params: {
+        amount: '114,992.12',
+        cycle: 'CYC-2026-0010',
+        cost: '114,991.98',
+        financed: '0.00',
+        available: '114,991.98',
+      },
+    });
+    expect(db.counts()).toEqual(before);
+  });
+
+  it('two friends share the cost: the second may pay exactly what is left, and a third fils from anyone is refused', async () => {
+    await pay(5000);
+    const { data: summary } = await lendersService.forOrder(po);
+    expect(summary).toMatchObject({
+      cycleCostEgp: '114991.98',
+      cycleFinancedEgp: '69250.00',
+      availableEgp: '45741.98',
+    });
+    await pay(3302.67, ids.sami);
+    expect((await costing.fundingFor(cycle)).toFund.toFixed(2)).toBe('0.00');
+    const r = await refusalOf(pay(0.01, ids.mahmoudHassan));
+    expect(r.code).toBe('FINANCING_EXCEEDS_CYCLE_COST');
+    expect(r.params.financed).toBe('114,991.98');
+  });
+
+  it('an expense NOT charged to this cycle — a running cost, or another cycle’s — does not raise the cap', async () => {
+    db.insert('financialTransaction', {
+      type: 'EXPENSE',
+      category: 'bank_fees',
+      direction: 'OUTFLOW',
+      amount: D(5000),
+      currency: 'EGP',
+      cycleId: null,
+      reversalOfId: null,
+    });
+    db.insert('financialTransaction', {
+      type: 'EXPENSE',
+      category: 'customs_clearance',
+      direction: 'OUTFLOW',
+      amount: D(5000),
+      currency: 'EGP',
+      cycleId: ids.cycle,
+      reversalOfId: null,
+    });
+    expect((await costing.cycleCost(cycle)).totalEgp.toFixed(2)).toBe(
+      '114991.98',
+    );
+    expect((await refusalOf(pay(8302.68))).code).toBe(
+      'FINANCING_EXCEEDS_CYCLE_COST',
+    );
+  });
+
+  it('a reversed fee no longer counts: the cap falls back to goods and shipping', async () => {
+    const fee = db.tables.financialTransaction.find(
+      (t) => t.category === 'bank_fees',
+    )!;
+    db.insert('financialTransaction', {
+      type: 'EXPENSE',
+      category: 'bank_fees',
+      direction: 'INFLOW',
+      amount: fee.amount,
+      currency: 'EGP',
+      cycleId: cycle,
+      reversalOfId: fee.id,
+    });
+    expect((await costing.cycleCost(cycle)).totalEgp.toFixed(2)).toBe(
+      '111653.16',
+    );
+    expect((await refusalOf(pay(8302.67))).code).toBe(
+      'FINANCING_EXCEEDS_CYCLE_COST',
+    );
+  });
+
+  it('a leg cost added after he paid: nothing breaks — the partners fund the new cost, and another friend may cover exactly it', async () => {
+    await pay(8302.67);
+    db.insert('shippingLeg', {
+      cycleId: cycle,
+      sequence: 2,
+      origin: 'Dubai, UAE',
+      destination: 'Cairo, Egypt',
+      costBasis: 'FLAT',
+      amount: D(1000),
+      fxRateToEgp: D(1),
+      ratePerUnit: null,
+      chargeablePieces: null,
+      chargeableWeightKg: null,
+    });
+    const funding = await costing.fundingFor(cycle);
+    expect([funding.toFund.toFixed(2), funding.fundedByLenders]).toEqual([
+      '1000.00',
+      false,
+    ]);
+    const { data: summary } = await lendersService.forCycle(cycle);
+    expect(summary.availableEgp).toBe('1000.00');
+    expect((await refusalOf(pay(1000.01, ids.sami, 'EGP'))).code).toBe(
+      'FINANCING_EXCEEDS_CYCLE_COST',
+    );
+    await pay(1000, ids.sami, 'EGP');
+    expect((await costing.fundingFor(cycle)).toFund.toFixed(2)).toBe('0.00');
+  });
+
+  it('a leg corrected down after he paid: cost to fund and what is available stop at zero, never negative', async () => {
+    await pay(8302.67);
+    const i = db.tables.shippingLeg.findIndex((l) => l.id === leg);
+    db.tables.shippingLeg[i] = { ...db.tables.shippingLeg[i], amount: D(1000) };
+    const funding = await costing.fundingFor(cycle);
+    expect(funding.toFund.toFixed(2)).toBe('0.00');
+    const { data: summary } = await lendersService.forOrder(po);
+    expect(summary.availableEgp).toBe('0.00');
+    expect((await refusalOf(pay(1, ids.sami, 'EGP'))).code).toBe(
+      'FINANCING_EXCEEDS_CYCLE_COST',
+    );
+  });
+
+  it('settlement: a cycle a friend paid for whole, fees included, splits equally among the core partners; with the fee unpaid it still refuses CYCLE_NOT_FUNDED', async () => {
+    const partners = ['a', 'b', 'c'].map((id) => ({
+      id,
+      type: 'CORE_PARTNER' as const,
+      contribution: D(0),
+      customProfitPct: null,
+      investorFeePct: null,
+    }));
+    // Goods and shipping only (8,061.60 AED = 111,653.16 EGP): the fee is
+    // still the partners' to fund, so there is no basis to split on.
+    const { data: part } = await pay(8061.6);
+    const short = await costing.fundingFor(cycle);
+    expect([short.toFund.toFixed(2), short.fundedByLenders]).toEqual([
+      '3338.82',
+      false,
+    ]);
+    expect(() =>
+      distributeCycleProfit(partners, D(90000), {
+        fundedByLenders: short.fundedByLenders,
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        response: expect.objectContaining({ code: 'CYCLE_NOT_FUNDED' }),
+      }),
+    );
+
+    // Removed (only while nothing is repaid) and recorded again at the whole
+    // sum — what the owner will do with his 6,509.86 once this ships.
+    await lendersService.removeFinancing(
+      part.id,
+      'he paid the fee too',
+      partner.id,
+    );
+    await pay(8302.67);
+    const whole = await costing.fundingFor(cycle);
+    expect(whole.fundedByLenders).toBe(true);
+    const split = distributeCycleProfit(partners, D(90000), {
+      fundedByLenders: whole.fundedByLenders,
+    });
+    expect(split.lines.map((l) => l.netProfit.toFixed(2))).toEqual([
+      '30000.00',
+      '30000.00',
+      '30000.00',
+    ]);
+  });
+
+  it('the assistant’s preview names the cycle cost, what friends paid of it and what is available', async () => {
+    const preview = await finance({
+      lender: 'Mahmoud',
+      order: 'PO-2026-0010',
+      amount: 8302.67,
+      currency: 'AED',
+      fxRateToEgp: at,
+    });
+    expect(preview.s.status).toBe('preview');
+    expect(preview.s.data).toMatchObject({
+      cycleCostEgp: '114991.98',
+      cycleExpensesEgp: '3338.82',
+      cycleFinancedBeforeEgp: '0.00',
+      availableBeforeEgp: '114991.98',
+      partnersFundBeforeEgp: '114991.98',
+      partnersFundAfterEgp: '0.00',
+    });
+    expect(preview.text).toContain(
+      'Cycle CYC-2026-0010 cost 114,991.98 EGP (goods 90,161.56, shipping 21,491.60, expenses charged to it 3,338.82); friends had already paid 0.00 EGP of it, so 114,991.98 EGP was available.',
+    );
+    const over = await finance({
+      lender: 'Mahmoud',
+      order: 'PO-2026-0010',
+      amount: 8302.68,
+      currency: 'AED',
+      fxRateToEgp: at,
+    });
+    expect(codeOf(over)).toBe('FINANCING_EXCEEDS_CYCLE_COST');
   });
 });

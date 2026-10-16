@@ -180,18 +180,24 @@ export function orderTotalEgp(
 }
 
 /**
- * Would this payment take what friends paid of an order past the order
- * (§18, 2026-10-16)? Compared in pounds, since friends may pay in different
- * currencies — and compared **exactly**, before any rounding: two friends
- * paying 1.00 each of a 2.00 order at 13.8567 are 13.86 + 13.86 rounded but
- * 27.7134 together, which is the order to the last digit. Rounding each first
- * would refuse a payment of exactly what is left.
+ * Would this payment take what friends paid towards a cycle past the cycle's
+ * cost (§18, owner 2026-10-16)? A friend who paid the supplier by card paid
+ * the goods, the shipping to the UAE and the card fee in one sum, so his
+ * payment may cover any of the cycle's cost — every order's goods, every leg,
+ * every expense charged to it — less what friends already paid towards it.
  *
- * The figures returned are the rounded ones people read.
+ * Compared in pounds, since friends may pay in different currencies, and
+ * **exactly**, before any rounding: two friends paying 1.00 each of a 2.00
+ * order at 13.8567 are 13.86 + 13.86 rounded but 27.7134 together, which is
+ * the order to the last digit. Rounding each first would refuse a payment of
+ * exactly what is left.
+ *
+ * `cost` is `CostingService.cycleCost` — the one definition of a cycle's
+ * cost. The figures returned are the rounded ones people read.
  */
 export function financingCap(input: {
-  lineTotals: readonly Prisma.Decimal.Value[];
-  orderRate: Prisma.Decimal.Value;
+  cost: { totalEgp: Prisma.Decimal.Value; exactEgp: Prisma.Decimal.Value };
+  /** Every friend's payment standing on the cycle, this one excluded. */
   standing: readonly {
     amount: Prisma.Decimal.Value;
     rate: Prisma.Decimal.Value;
@@ -199,30 +205,44 @@ export function financingCap(input: {
   adding: { amount: Prisma.Decimal.Value; rate: Prisma.Decimal.Value };
 }): {
   exceeds: boolean;
-  totalEgp: Prisma.Decimal;
+  costEgp: Prisma.Decimal;
   financedEgp: Prisma.Decimal;
+  availableEgp: Prisma.Decimal;
   addingEgp: Prisma.Decimal;
 } {
   const exact = (f: {
     amount: Prisma.Decimal.Value;
     rate: Prisma.Decimal.Value;
   }) => D(f.amount).mul(D(f.rate));
-  const totalExact = input.lineTotals
-    .reduce<Prisma.Decimal>((s, t) => s.add(D(t)), ZERO)
-    .mul(D(input.orderRate));
   const financedExact = input.standing.reduce<Prisma.Decimal>(
     (s, f) => s.add(exact(f)),
     ZERO,
   );
+  const financedEgp = input.standing.reduce<Prisma.Decimal>(
+    (s, f) => s.add(financingAmountEgp(f.amount, f.rate)),
+    ZERO,
+  );
   return {
-    exceeds: financedExact.add(exact(input.adding)).gt(totalExact),
-    totalEgp: orderTotalEgp(input.lineTotals, input.orderRate),
-    financedEgp: input.standing.reduce<Prisma.Decimal>(
-      (s, f) => s.add(financingAmountEgp(f.amount, f.rate)),
-      ZERO,
-    ),
+    exceeds: financedExact
+      .add(exact(input.adding))
+      .gt(D(input.cost.exactEgp)),
+    costEgp: D(input.cost.totalEgp),
+    financedEgp,
+    availableEgp: availableToFinanceEgp(input.cost.totalEgp, financedEgp),
     addingEgp: financingAmountEgp(input.adding.amount, input.adding.rate),
   };
+}
+
+/**
+ * What friends may still pay towards a cycle, in pounds: its cost less what
+ * they already paid, never below zero — a leg corrected down or an expense
+ * reversed after he paid leaves nothing more to pay, not a negative.
+ */
+export function availableToFinanceEgp(
+  costEgp: Prisma.Decimal.Value,
+  financedEgp: Prisma.Decimal.Value,
+): Prisma.Decimal {
+  return Prisma.Decimal.max(D(costEgp).sub(D(financedEgp)), ZERO);
 }
 
 /** What he paid, in pounds at his rate: amount × rate, half up. */
