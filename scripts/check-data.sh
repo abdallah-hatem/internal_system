@@ -301,8 +301,8 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
            WHERE r.financing_id = f.id AND r.reversed_at IS NULL) > f.amount
   -- Compared in pounds, exactly (2026-10-16): friends may pay in different
-  -- currencies, each at the rate on the day he paid. The cap is the cycle's
-  -- cost (§18, owner 2026-10-16): every order's goods, every leg, and the
+  -- currencies, each at the rate on the day he paid. The cap is the cycle
+  -- cost (§18, owner 2026-10-16): every orders goods, every leg, and the
   -- manual expenses charged to the cycle (type EXPENSE, a reversal taking
   -- its row back off). A leg corrected down or a fee reversed after he paid
   -- can trip this legitimately — look at that cycle, do not "fix" the payment.
@@ -450,7 +450,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 23, 'product whose Arabic search key is not its Arabic name',
          count(*) FROM products
    WHERE name_ar_search IS DISTINCT FROM NULLIF(arabic_search_key(name_ar), '')
-  -- A supplier's country is an ISO code (section 21, 2026-10-16). The API
+  -- A suppliers country is an ISO code (section 21, 2026-10-16). The API
   -- refuses anything else; a row here is free text from before the codes that
   -- the migration could not read ("Egypt (Cairo)"). Open the supplier on the
   -- Suppliers page and choose its country: the picker will not save it until
