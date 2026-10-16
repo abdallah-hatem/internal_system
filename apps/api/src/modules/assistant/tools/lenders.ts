@@ -668,10 +668,10 @@ export function registerLenderTools(
       title: 'Record what a friend paid a supplier',
       description:
         'A friend (lender) paid all or part of a purchase order for us — "Mahmoud paid 30,000 AED for PO-2026-0004". The amount is in the currency he paid in — not necessarily the order\'s — at the rate on the day he paid, and we then owe him that amount in that currency, repaid in pounds later. ' +
-        'It is recorded against the order he paid, but it may cover more than the order\'s goods: the cycle\'s shipping legs and the expenses charged to the cycle in the ledger (a card or bank fee, customs) too — "he paid 8,302.60 AED by card: goods, shipping to the UAE and the card fee". Record the fee as a ledger expense on the cycle first, so the cycle\'s cost includes it. ' +
+        "It is recorded against the order he paid, but it may cover more than the order's goods: the cycle's shipping legs and the expenses charged to the cycle in the ledger (a card or bank fee, customs) too — \"he paid 8,302.60 AED by card: goods, shipping to the UAE and the card fee\". Record the fee as a ledger expense on the cycle first, so the cycle's cost includes it. " +
         'The friend is matched by exact name or id; a close or unknown name comes back as a question with nothing to confirm — a new friend is added only with newLender: true after the partner agreed. ' +
-        'Refused when it is more than is left of the cycle\'s cost — goods, shipping and expenses charged to it, less what friends already paid (compared in pounds) — the currency has no rate on the exchange-rate page, the day is in the future, he already paid for that order, or the cycle is being settled, closed or cancelled. ' +
-        'The preview shows the cycle\'s cost, what friends already paid of it, what is available, and what the partners will still have to fund afterwards. Call without a confirmationToken to preview.',
+        "Refused when it is more than is left of the cycle's cost — goods, shipping and expenses charged to it, less what friends already paid (compared in pounds) — the currency has no rate on the exchange-rate page, the day is in the future, he already paid for that order, or the cycle is being settled, closed or cancelled. " +
+        "The preview shows the cycle's cost, what friends already paid of it, what is available, and what the partners will still have to fund afterwards. Call without a confirmationToken to preview.",
       inputSchema: financingShape,
     },
     {

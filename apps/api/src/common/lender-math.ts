@@ -223,9 +223,7 @@ export function financingCap(input: {
     ZERO,
   );
   return {
-    exceeds: financedExact
-      .add(exact(input.adding))
-      .gt(D(input.cost.exactEgp)),
+    exceeds: financedExact.add(exact(input.adding)).gt(D(input.cost.exactEgp)),
     costEgp: D(input.cost.totalEgp),
     financedEgp,
     availableEgp: availableToFinanceEgp(input.cost.totalEgp, financedEgp),

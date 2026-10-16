@@ -324,7 +324,7 @@ function AddFinancingForm({
             </p>
           )}
           {room && pounds !== null && pounds > Number(room.availableEgp) && (
-            <p data-testid="financing-over" className="mt-1 text-xs text-amber-700">
+            <p data-testid="financing-over" className="mt-1 text-xs text-destructive">
               {t('financingOverAvailable')}
             </p>
           )}

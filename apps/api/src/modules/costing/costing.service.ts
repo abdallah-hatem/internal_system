@@ -97,10 +97,7 @@ export class CostingService {
     } = {},
   ) {
     const landed = await this.computeCycleLandedCosts(cycleId, opts);
-    const expensesEgp = await cycleExpensesEgp(
-      opts.db ?? this.prisma,
-      cycleId,
-    );
+    const expensesEgp = await cycleExpensesEgp(opts.db ?? this.prisma, cycleId);
     return {
       goodsEgp: landed.totalGoodsEgp,
       shippingEgp: landed.totalShippingEgp,

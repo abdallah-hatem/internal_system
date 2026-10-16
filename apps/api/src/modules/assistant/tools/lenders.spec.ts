@@ -1630,7 +1630,7 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
         fxRateToEgp: at,
         cycleId: cycle,
         occurredOn: daysAgo(3),
-      } as any,
+      },
       partner.id,
     );
   });
@@ -1801,15 +1801,14 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
       '3338.82',
       false,
     ]);
-    expect(() =>
-      distributeCycleProfit(partners, D(90000), {
-        fundedByLenders: short.fundedByLenders,
-      }),
-    ).toThrow(
-      expect.objectContaining({
-        response: expect.objectContaining({ code: 'CYCLE_NOT_FUNDED' }),
-      }),
+    const refused = await refusalOf(
+      Promise.resolve().then(() =>
+        distributeCycleProfit(partners, D(90000), {
+          fundedByLenders: short.fundedByLenders,
+        }),
+      ),
     );
+    expect(refused.code).toBe('CYCLE_NOT_FUNDED');
 
     // Removed (only while nothing is repaid) and recorded again at the whole
     // sum — what the owner will do with his 6,509.86 once this ships.
