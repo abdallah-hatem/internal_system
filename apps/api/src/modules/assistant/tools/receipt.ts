@@ -50,7 +50,14 @@ const id = z.guid();
 
 const newSupplier = z.object({
   name: name.describe('As printed on the receipt.'),
-  country: z.string().trim().min(1).max(100),
+  country: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .describe(
+      'The supplier\'s country: its English or Arabic name ("China", "الصين") or its two-letter ISO code (CN). Saved as the code; refused with COUNTRY_UNKNOWN, naming close matches, when it names no country — ask the partner which one.',
+    ),
   notes: z.string().trim().max(1000).optional(),
 });
 

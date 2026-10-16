@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { api } from '../../lib/api';
@@ -9,6 +9,7 @@ import { TextareaField } from '../ui/textarea-field';
 import { InputField, FieldLabel } from '../ui/fields';
 import { FieldWithQuickCreate } from '../ui/quick-create';
 import { localName, otherName } from '../../lib/localized-name';
+import { countryOptions, isCountryCode } from '../../lib/countries';
 
 /**
  * What each record's create form is, in one place.
@@ -229,11 +230,27 @@ function ProductFields({ record }: { record?: any }) {
 function SupplierFields({ record }: { record?: any }) {
   const t = useTranslations('suppliers');
   const tph = useTranslations('placeholders');
+  const locale = useLocale();
   const contact = record?.contactJson ?? {};
+  // One of a fixed set, so a picker, never a text box (§21, 2026-10-16): the
+  // value is the ISO code the API checks, the label the reader's own name for
+  // it. A supplier still holding free text from before the codes opens with
+  // nothing chosen, so saving it asks for a real country instead of resending
+  // the text the server would refuse.
+  const countries = useMemo(() => countryOptions(locale), [locale]);
   return (
     <>
       <InputField label={t('name')} name="name" defaultValue={record?.name} required placeholder={tph('supplierName')} />
-      <InputField label={t('country')} name="country" defaultValue={record?.country} required placeholder={tph('country')} />
+      <FieldLabel label={t('country')} required>
+        <Select
+          name="country"
+          required
+          defaultValue={isCountryCode(record?.country) ? record.country : ''}
+          placeholder={tph('chooseCountry')}
+          searchPlaceholder={tph('searchCountries')}
+          options={countries}
+        />
+      </FieldLabel>
       <div className="field-row grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={t('phone')} name="phone" type="tel" defaultValue={contact.phone} placeholder={tph('supplierPhone')} />
         <InputField label={t('email')} name="email" type="email" defaultValue={contact.email} placeholder={tph('email')} />

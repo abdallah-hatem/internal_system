@@ -97,7 +97,7 @@ test.describe('Stock through the deployed app', () => {
     const product = await mk('products', {
       sku: `${RUN}-SKU`, name: `${RUN} Test Part`, categoryId: category.id, minStock: 0,
     });
-    const supplier = await mk('suppliers', { name: `${RUN} Supplier`, country: 'UAE' });
+    const supplier = await mk('suppliers', { name: `${RUN} Supplier`, country: 'AE' });
     const customer = await mk('customers', { displayName: `${RUN} Shop`, type: 'B2B' });
 
     const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'AED' });

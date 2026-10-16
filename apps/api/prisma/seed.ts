@@ -558,7 +558,7 @@ async function main() {
       create: {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Alibaba Supplier - Hangzhou Parts Co.',
-        country: 'China',
+        country: 'CN',
         contactJson: { phone: '+86-571-12345678', wechat: 'hzparts' },
       },
     }),
@@ -568,7 +568,7 @@ async function main() {
       create: {
         id: '00000000-0000-4000-8000-000000000002',
         name: 'Gulf Trading - Dubai',
-        country: 'UAE',
+        country: 'AE',
         contactJson: { phone: '+971-4-1234567', whatsapp: '+971501234567' },
       },
     }),
