@@ -40,6 +40,8 @@ interface OrderRow {
   status: string;
   outstanding: number | string;
   createdAt: string;
+  /** The day it was sold (§4, 2026-10-16) — earlier than createdAt when back-dated. */
+  orderedAt?: string;
 }
 
 /**
@@ -61,12 +63,19 @@ export function canTakePayment(order: { status: string; outstanding: number | st
 
 /**
  * Oldest unpaid orders first — what a shop paying down its balance expects,
- * and the rule the instalment logic already follows (§7).
+ * and the rule the instalment logic already follows (§7). Oldest means sold
+ * first, then written first: the server's order (`applyOldestFirst`), so a
+ * back-dated sale is paid before one typed in earlier for a later day.
  */
-export function oldestFirst(orders: OrderRow[]): OrderRow[] {
+export function oldestFirst<T extends OrderRow>(orders: T[]): T[] {
+  const soldAt = (o: OrderRow) => Date.parse(o.orderedAt ?? o.createdAt);
   return orders
     .filter(canTakePayment)
-    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+    .sort(
+      (a, b) =>
+        soldAt(a) - soldAt(b) ||
+        Date.parse(a.createdAt) - Date.parse(b.createdAt),
+    );
 }
 
 /**

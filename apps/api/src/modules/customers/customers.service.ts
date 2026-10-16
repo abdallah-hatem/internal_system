@@ -153,7 +153,8 @@ export class CustomersService {
       where: { id },
       include: {
         saleOrders: {
-          orderBy: { createdAt: 'desc' },
+          // The latest sales by the day they were made (§4, 2026-10-16).
+          orderBy: [{ orderedAt: 'desc' }, { createdAt: 'desc' }],
           take: 10,
           include: { items: true },
         },
