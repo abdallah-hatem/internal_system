@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, BellOff, Info, Loader2 } from 'lucide-react';
+import { Bell, BellOff, BellRing, Info, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -53,6 +53,8 @@ export function PushAlerts() {
   const [status, setStatus] = useState<Status>('checking');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -159,6 +161,24 @@ export function PushAlerts() {
     }
   };
 
+  // One alert to this person's own devices, so they can see alerts arrive
+  // (owner, 2026-10-16: "I need to test it"). The words are translated here;
+  // the API only delivers them.
+  const sendTest = async () => {
+    setTesting(true);
+    setError(null);
+    setTestResult(null);
+    try {
+      const res = await api.post('/notifications/push-test', { title: t('testTitle'), body: t('testBody') });
+      const sent = Number(res.data?.data?.sent ?? 0);
+      setTestResult(t('testSent', { count: sent }));
+    } catch (err) {
+      setError(describe(err, apiError, t('testFailed')));
+    } finally {
+      setTesting(false);
+    }
+  };
+
   // Nothing to offer: still checking, or push was never configured on the API.
   if (status === 'checking' || publicKey === null || publicKey === undefined) return null;
 
@@ -200,7 +220,26 @@ export function PushAlerts() {
         ) : (
           <>
             <p className="text-sm text-gray-600">{status === 'on' ? t('on') : t('intro')}</p>
-            {button}
+            <div className="flex flex-wrap gap-2">
+              {button}
+              {status === 'on' && (
+                <button
+                  type="button"
+                  onClick={() => void sendTest()}
+                  disabled={testing || busy}
+                  data-testid="push-test"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+                >
+                  {testing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <BellRing className="h-4 w-4" aria-hidden />}
+                  {t('sendTest')}
+                </button>
+              )}
+            </div>
+            {testResult ? (
+              <p role="status" className="text-sm text-muted-foreground" data-testid="push-test-result">
+                {testResult}
+              </p>
+            ) : null}
           </>
         )}
 

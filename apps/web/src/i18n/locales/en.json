@@ -1174,6 +1174,9 @@
     "emptyHint": "Instalments agreed with a customer, with what is due and when."
   },
   "errors": {
+    "PUSH_NOT_CONFIGURED": "Alerts are not set up on the server yet.",
+    "NO_PUSH_DEVICE": "None of your devices has alerts turned on. Turn them on above first.",
+    "PUSH_TEST_NOT_DELIVERED": "The test alert could not reach your devices ({devices}). Turn alerts off and on again on this device, then try again.",
     "NOT_FOUND": "{entity} not found",
     "entity": {
       "auditLog": "Audit log",
@@ -1490,6 +1493,11 @@
     "emptyHint": "When a shop asks for a part we do not stock, the request lands here."
   },
   "push": {
+    "sendTest": "Send a test alert",
+    "testTitle": "S&F System",
+    "testBody": "Test alert: alerts are working on this device.",
+    "testSent": "{count, plural, =0 {Sent, but no device received it.} one {Sent to 1 device. It should arrive in a few seconds.} other {Sent to # devices. It should arrive in a few seconds.}}",
+    "testFailed": "The test alert could not be sent.",
     "title": "Alerts on this device",
     "deviceScope": "A subscription belongs to one browser on one device. Turning alerts on here does nothing for your other devices, and turning them off does not silence them either.",
     "intro": "Get an alert when a shop asks to buy or asks for an import, even when this app is closed.",
