@@ -430,6 +430,27 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 23, 'product whose Arabic search key is not its Arabic name',
          count(*) FROM products
    WHERE name_ar_search IS DISTINCT FROM NULLIF(arabic_search_key(name_ar), '')
+  -- A sale carries its own day (section 4, 2026-10-16). A day that has not
+  -- arrived is revenue in a period that has not happened.
+  UNION ALL SELECT 24, 'sale dated on a day that has not arrived',
+         count(*) FROM sale_orders
+   WHERE (ordered_at AT TIME ZONE 'Africa/Cairo')::date > (now() AT TIME ZONE 'Africa/Cairo')::date
+  -- A sale dated before the day it was entered draws only stock received by
+  -- the end of its own day. A row here sold goods that had not arrived yet.
+  UNION ALL SELECT 24.1, 'back-dated sale drew stock received after its day',
+         count(*) FROM sale_item_allocations a
+         JOIN sale_items i ON i.id = a.sale_item_id
+         JOIN sale_orders o ON o.id = i.sale_order_id
+         JOIN inventory_batches b ON b.id = a.inventory_batch_id
+   WHERE (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date < (o.created_at AT TIME ZONE 'Africa/Cairo')::date
+     AND (b.created_at AT TIME ZONE 'Africa/Cairo')::date > (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date
+  -- Money cannot pay for a sale that had not happened yet (section 7a,
+  -- 2026-10-16).
+  UNION ALL SELECT 24.2, 'payment allocated to a sale made after it was received',
+         count(*) FROM payment_allocations a
+         JOIN payments p ON p.id = a.payment_id
+         JOIN sale_orders o ON o.id = a.sale_order_id
+   WHERE p.received_on < (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date
 SQL
 )
 

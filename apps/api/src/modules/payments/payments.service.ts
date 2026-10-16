@@ -3,8 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   assertNotFuture,
+  businessDay,
   businessToday,
   calendarRange,
+  endOfBusinessDay,
 } from '../../common/dates';
 import { AuditService } from '../audit/audit.service';
 
@@ -12,6 +14,27 @@ import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { OWED_STATUSES, owedBy } from '../../common/customer-balance';
 import type { Prisma } from '@prisma/client';
+
+/** A payment's day: `receivedOn` is a date column, UTC midnight of the day. */
+const paymentDay = (receivedOn: Date) => receivedOn.toISOString().slice(0, 10);
+
+/**
+ * Money cannot pay for a sale that had not happened yet (BUSINESS_LOGIC §7a,
+ * 2026-10-16): with sales dated in the past, a payment received on the 3rd
+ * against an order made on the 10th would say the shop paid before it bought.
+ */
+function paymentBeforeOrder(
+  order: { orderNo: string; orderedAt: Date },
+  receivedOn: Date,
+) {
+  const orderedOn = businessDay(order.orderedAt);
+  const received = paymentDay(receivedOn);
+  return badRequest(
+    'PAYMENT_BEFORE_ORDER',
+    `A payment received on ${received} cannot pay ${order.orderNo}, which was sold on ${orderedOn}.`,
+    { order: order.orderNo, orderedOn, receivedOn: received },
+  );
+}
 
 @Injectable()
 export class PaymentsService {
@@ -274,23 +297,32 @@ export class PaymentsService {
       customerId: string;
       amount: Prisma.Decimal | number;
       status: string;
+      receivedOn: Date;
     },
     amount: number,
   ) {
+    // Oldest means sold first — the sale's own day, which can be earlier than
+    // the day it was typed in (§4, 2026-10-16) — then created first.
     const open = await tx.saleOrder.findMany({
       where: {
         customerId: payment.customerId,
         status: { in: [...OWED_STATUSES] },
         outstanding: { gt: 0 },
       },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true, outstanding: true },
+      orderBy: [{ orderedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, outstanding: true, orderNo: true, orderedAt: true },
     });
+    // Only orders sold on or before the day the money came in (§7a).
+    const until = endOfBusinessDay(paymentDay(payment.receivedOn));
     const done: { audit: unknown }[] = [];
     // In cents, so 0.1 + 0.2 never leaves a 0.0000001 to allocate.
     let left = Math.round(amount * 100);
     for (const order of open) {
       if (left <= 0) break;
+      if (order.orderedAt >= until) {
+        // What is left could only go on a sale made after this payment.
+        throw paymentBeforeOrder(order, payment.receivedOn);
+      }
       const take = Math.min(left, Math.round(Number(order.outstanding) * 100));
       if (take <= 0) continue;
       done.push(
@@ -379,6 +411,7 @@ export class PaymentsService {
       customerId: string;
       amount: Prisma.Decimal | number;
       status: string;
+      receivedOn: Date;
     },
     saleOrderId: string,
     amount: number,
@@ -434,6 +467,12 @@ export class PaymentsService {
         { order: order.orderNo },
       );
     }
+    // Not before the sale itself (§7a, 2026-10-16), whichever way the money
+    // reaches the order: chosen, oldest first, or the Allocate action.
+    if (paymentDay(payment.receivedOn) < businessDay(order.orderedAt)) {
+      throw paymentBeforeOrder(order, payment.receivedOn);
+    }
+
     const outstanding = Number(order.outstanding);
     if (
       !(OWED_STATUSES as readonly string[]).includes(order.status) ||

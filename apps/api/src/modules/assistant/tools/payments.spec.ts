@@ -254,6 +254,8 @@ function seed() {
       total: D(total),
       outstanding: D(total),
       createdAt: new Date(createdAt),
+      // The day it was sold defaults to when it was written (§4, 2026-10-16).
+      orderedAt: new Date(createdAt),
     }).id as string;
 
   const sayed = customer('El-Sayed Motors');

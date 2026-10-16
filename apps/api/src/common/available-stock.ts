@@ -21,7 +21,10 @@ import { Prisma } from '@prisma/client';
  */
 
 /** Anything that can run these queries — the client or a transaction. */
-type Db = Pick<Prisma.TransactionClient, 'inventoryBatch' | 'inventoryReservation'>;
+type Db = Pick<
+  Prisma.TransactionClient,
+  'inventoryBatch' | 'inventoryReservation'
+>;
 
 const zero = () => new Prisma.Decimal(0);
 
@@ -37,8 +40,14 @@ export async function availableQty(
   db: Db,
   productId: string,
   exclude?: { orderRequestId?: string; saleOrderId?: string },
+  receivedBefore?: Date,
 ): Promise<Prisma.Decimal> {
-  const byProduct = await availableByProduct(db, [productId], exclude);
+  const byProduct = await availableByProduct(
+    db,
+    [productId],
+    exclude,
+    receivedBefore,
+  );
   return byProduct.get(productId) ?? zero();
 }
 
@@ -53,15 +62,25 @@ export async function availableByProduct(
   db: Db,
   productIds: string[],
   exclude?: { orderRequestId?: string; saleOrderId?: string },
+  /**
+   * Only batches received before this instant — what a sale dated in the past
+   * could have drawn (BUSINESS_LOGIC §4, 2026-10-16). Left out, every batch.
+   */
+  receivedBefore?: Date,
 ): Promise<Map<string, Prisma.Decimal>> {
   const result = new Map<string, Prisma.Decimal>();
   if (productIds.length === 0) return result;
+  const received = receivedBefore ? { createdAt: { lt: receivedBefore } } : {};
 
   // Only verified batches. Stock that has arrived but not been checked is not
   // on the shelf, and the catalogue must not offer it.
   const batches = await db.inventoryBatch.groupBy({
     by: ['productId'],
-    where: { productId: { in: productIds }, verificationStatus: 'VERIFIED' },
+    where: {
+      productId: { in: productIds },
+      verificationStatus: 'VERIFIED',
+      ...received,
+    },
     _sum: { saleableQty: true },
   });
   for (const row of batches) {
@@ -74,10 +93,18 @@ export async function availableByProduct(
   const held = await db.inventoryReservation.findMany({
     where: {
       status: 'ACTIVE',
-      batch: { productId: { in: productIds }, verificationStatus: 'VERIFIED' },
+      batch: {
+        productId: { in: productIds },
+        verificationStatus: 'VERIFIED',
+        ...received,
+      },
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      ...(exclude?.orderRequestId ? { orderRequestId: { not: exclude.orderRequestId } } : {}),
-      ...(exclude?.saleOrderId ? { saleOrderId: { not: exclude.saleOrderId } } : {}),
+      ...(exclude?.orderRequestId
+        ? { orderRequestId: { not: exclude.orderRequestId } }
+        : {}),
+      ...(exclude?.saleOrderId
+        ? { saleOrderId: { not: exclude.saleOrderId } }
+        : {}),
     },
     select: { qty: true, batch: { select: { productId: true } } },
   });

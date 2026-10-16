@@ -1429,7 +1429,9 @@
     "NAME_AR_TOO_LONG": "الاسم بالعربية لا يتجاوز {max} حرفًا.",
     "RUNNING_COST_CHARGED": "هذه المصروفات العامة خُصمت بالفعل من توزيع أرباح ({cycles}). اعكس تلك التسوية أولًا، ثم هذا القيد.",
     "PRODUCT_INACTIVE": "المنتج {product} موقوف، لذا لا يمكن طلب المزيد منه. أعِد تفعيله لتشتري المزيد.",
-    "PRODUCT_STATUS_INVALID": "حالة المنتج إما نشط أو غير نشط."
+    "PRODUCT_STATUS_INVALID": "حالة المنتج إما نشط أو غير نشط.",
+    "NOT_ENOUGH_STOCK_ON_DATE": "لم يكن قد استُلم من {product} حتى {day} سوى {available}، لذا لا يمكن أن يكون قد بيع {wanted} في ذلك اليوم.",
+    "PAYMENT_BEFORE_ORDER": "دفعة استُلمت في {receivedOn} لا يمكن أن تسدد {order}، فقد بيع في {orderedOn}."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
@@ -1702,7 +1704,9 @@
       "LENDER_PAID": "تاريخ دفع الصديق للمورد",
       "LENDER_REPAID": "تاريخ السداد للصديق",
       "LEDGER_ENTRY": "تاريخ قيد في الدفتر",
-      "STOCK_MOVED": "تاريخ نقل البضاعة المتبقية"
+      "STOCK_MOVED": "تاريخ نقل البضاعة المتبقية",
+      "SALE_MADE": "تاريخ البيع",
+      "STOCK_RECEIVED": "تاريخ استلام البضاعة"
     },
     "country": {
       "CN": "الصين",

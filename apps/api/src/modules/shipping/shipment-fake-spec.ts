@@ -693,6 +693,9 @@ export function fakePrisma(db: Store) {
         const order = {
           id: randomUUID(),
           version: 1,
+          // The columns' defaults, now(), as Postgres fills them.
+          createdAt: new Date(),
+          orderedAt: new Date(),
           ...rest,
           subtotal: D(rest.subtotal),
           total: D(rest.total),

@@ -9,7 +9,14 @@ import { isUniqueViolation } from '../../prisma/unique-violation';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { availableQty } from '../../common/available-stock';
-import { businessDay, businessToday, instantRange } from '../../common/dates';
+import {
+  businessDay,
+  businessToday,
+  chosenDay,
+  endOfBusinessDay,
+  instantOfDay,
+  instantRange,
+} from '../../common/dates';
 import { isUuid } from '../../common/uuid';
 import { OWED_STATUSES } from '../../common/customer-balance';
 import {
@@ -69,12 +76,20 @@ export interface CreateSaleOrderInput {
   walkIn?: boolean;
   /** How a walk-in sale was paid. Only with `walkIn`; cash when unsaid. */
   payment?: { method?: string };
+  /**
+   * The Cairo day the sale was made, YYYY-MM-DD (BUSINESS_LOGIC §4,
+   * 2026-10-16). Today when left out; never a day that has not arrived. A
+   * sale dated in the past draws only stock received on or before that day.
+   */
+  orderedOn?: string;
 }
 
 /** What the price check is asked: the lines as they stand on a form. */
 export interface PriceCheckInput {
   /** The sale's currency. Only EGP is compared — the cost is in pounds. */
   currency?: string;
+  /** The sale's day: a past day is costed from the stock there was then. */
+  orderedOn?: string;
   items: {
     productId: string;
     quantity: number | string;
@@ -115,15 +130,56 @@ const PRICE_CHECK_MAX_LINES = 200;
 export function fifoBatches(
   db: Pick<Prisma.TransactionClient, 'inventoryBatch'>,
   productId: string,
+  /** Only batches received before this instant (a sale dated in the past). */
+  receivedBefore?: Date,
 ) {
   return db.inventoryBatch.findMany({
     where: {
       productId,
       verificationStatus: 'VERIFIED',
       saleableQty: { gt: 0 },
+      ...(receivedBefore ? { createdAt: { lt: receivedBefore } } : {}),
     },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
+}
+
+/**
+ * The stock a sale on `day` may draw (BUSINESS_LOGIC §4, 2026-10-16): only
+ * batches received on or before that day — a batch's `createdAt` is the
+ * instant it was received (§3).
+ *
+ * Only a sale dated **before the day it was entered** (`enteredOn`, today for
+ * a new one) is cut off. A sale entered for its own day draws the whole shelf,
+ * exactly as before the day could be chosen — and so does a draft saved on
+ * Monday for Monday and confirmed on Wednesday: it was never back-dated, and
+ * confirming is when the goods leave (§3).
+ */
+export function receivedCutoff(
+  day: string,
+  enteredOn: string = businessToday(),
+): Date | undefined {
+  return day < enteredOn ? endOfBusinessDay(day) : undefined;
+}
+
+/** The stock a sale on `day` had was short: names the day and what there was. */
+function notEnoughOnDay(
+  product: string,
+  day: string,
+  available: Prisma.Decimal,
+  wanted: Prisma.Decimal,
+) {
+  return badRequest(
+    'NOT_ENOUGH_STOCK_ON_DATE',
+    `Only ${available.toFixed(3)} of ${product} had been received by ${day}, ` +
+      `so ${wanted.toFixed(3)} cannot have been sold that day.`,
+    {
+      product,
+      day,
+      available: available.toFixed(3),
+      wanted: wanted.toFixed(3),
+    },
+  );
 }
 
 const refuseShape = (field: string, message: string) =>
@@ -549,7 +605,9 @@ export class SalesService {
    * line) rolls back the order, the stock, the payment and, on the first
    * walk-in sale ever, the walk-in record itself.
    *
-   * Dated today in Cairo (§7a), not in UTC: a sale at 00:30 is that day's.
+   * Dated the sale's day in Cairo (§7a), not in UTC: a sale at 00:30 is that
+   * day's, and a walk-in sale entered later for an earlier day (§4,
+   * 2026-10-16) was paid that earlier day.
    * An order worth nothing (every line free) owes nothing and takes no
    * payment — a zero payment would say money moved when none did.
    */
@@ -590,7 +648,8 @@ export class SalesService {
               customerId: walkIn.id,
               amount: Number(order.total),
               currency: order.currency,
-              receivedOn: new Date(businessToday()),
+              // Paid on the spot: the day of the sale (§4).
+              receivedOn: new Date(businessDay(order.orderedAt)),
               method,
               reference: order.orderNo,
               orderId: order.id,
@@ -645,6 +704,10 @@ export class SalesService {
     idempotencyKey?: string,
     { walkIn = false }: { walkIn?: boolean } = {},
   ) {
+    // The day it was sold (§4, 2026-10-16): checked before anything is read.
+    const day = chosenDay(data?.orderedOn, 'SALE_MADE');
+    const cutoff = receivedCutoff(day);
+
     // Validate customer exists
     if (!data?.customerId) {
       throw badRequest('CUSTOMER_REQUIRED', 'customerId is required');
@@ -683,7 +746,11 @@ export class SalesService {
     // about the same shelf, which shows up as a wrong figure on one screen and
     // a right one on the other. `availableQty` subtracts live holds and is read
     // by the catalogue, the request flow and this, all three.
-    const availableFor = (productId: string) => availableQty(db, productId);
+    //
+    // A sale dated in the past counts only the stock received by the end of
+    // that day: goods that arrived afterwards cannot have been sold then.
+    const availableFor = (productId: string) =>
+      availableQty(db, productId, undefined, cutoff);
 
     // Summed per product, not checked line by line: two lines of 40 against 60
     // in stock is 80, and checking each alone would wave it through.
@@ -745,6 +812,14 @@ export class SalesService {
           where: { id: productId },
           select: { name: true },
         });
+        if (cutoff) {
+          throw notEnoughOnDay(
+            product?.name ?? 'that product',
+            day,
+            available,
+            wanted,
+          );
+        }
         throw badRequest(
           'NOT_ENOUGH_STOCK',
           `Only ${available.toFixed(3)} of ${product?.name ?? 'that product'} ` +
@@ -803,6 +878,7 @@ export class SalesService {
       channel: data.channel,
       currency: data.currency,
       status: 'DRAFT' as const,
+      orderedAt: instantOfDay(day),
       subtotal,
       discount: 0,
       total: subtotal,
@@ -849,12 +925,14 @@ export class SalesService {
 
     const currency = input.currency ?? 'EGP';
     const compared = currency === 'EGP';
+    // Costed from the stock there was on the sale's day, as confirming draws.
+    const cutoff = receivedCutoff(chosenDay(input.orderedOn, 'SALE_MADE'));
 
     const layers = new Map<string, CostLayer[]>();
     if (compared) {
       for (const productId of new Set(lines.map((l) => l.productId))) {
         if (!productId) continue;
-        const batches = await fifoBatches(db, productId);
+        const batches = await fifoBatches(db, productId, cutoff);
         layers.set(
           productId,
           batches.map((b) => ({
@@ -976,6 +1054,12 @@ export class SalesService {
         'Version conflict — order was modified',
       );
 
+    // A sale dated before the day it was entered draws only what had been
+    // received by the end of its own day (§4, 2026-10-16); any other sale
+    // draws the whole shelf, as before.
+    const saleDay = businessDay(order.orderedAt);
+    const cutoff = receivedCutoff(saleDay, businessDay(order.createdAt));
+
     const allocations: unknown[] = [];
     let totalCogs = new Prisma.Decimal(0);
     /** How much of each product this sale took, for the low-stock check. */
@@ -993,7 +1077,7 @@ export class SalesService {
 
       // FIFO: oldest verified receipt first, batch id breaking any tie —
       // the same query the price check reads (`fifoBatches`).
-      const batches = await fifoBatches(tx, item.productId);
+      const batches = await fifoBatches(tx, item.productId, cutoff);
 
       for (const batch of batches) {
         if (remainingQty.lte(0)) break;
@@ -1050,6 +1134,15 @@ export class SalesService {
         remainingQty = remainingQty.sub(allocQty);
       }
 
+      if (remainingQty.gt(0) && cutoff) {
+        const wanted = new Prisma.Decimal(item.quantity);
+        throw notEnoughOnDay(
+          item.product.name,
+          saleDay,
+          wanted.sub(remainingQty),
+          wanted,
+        );
+      }
       if (remainingQty.gt(0)) {
         throw badRequest(
           'INSUFFICIENT_STOCK',

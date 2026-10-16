@@ -10,7 +10,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { businessToday } from '../../common/dates';
+import { businessToday, instantOfDay } from '../../common/dates';
 import { PaymentPlansService } from '../payment-plans/payment-plans.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
@@ -53,6 +53,9 @@ function order(over: Record<string, unknown>) {
     createdAt: new Date(2026, 0, 1),
     version: 1,
     ...over,
+    // The sale's day (§4, 2026-10-16); the column defaults to the moment the
+    // order was written, as `createdAt` does.
+    orderedAt: over.orderedAt ?? over.createdAt ?? new Date(2026, 0, 1),
     ...(over.outstanding !== undefined
       ? { outstanding: D(over.outstanding as number) }
       : {}),
@@ -113,6 +116,25 @@ function fakePrisma(initial: Store) {
         const o = db.store.orders.find((x) => x.id === where.id);
         return o ? { ...o } : null;
       },
+      // Oldest first's query: this shop's owed orders with something left,
+      // in the `orderBy` given — each key compared in turn, as SQL does.
+      findMany: async ({ where, orderBy }: any) =>
+        db.store.orders
+          .filter(
+            (o) =>
+              o.customerId === where.customerId &&
+              where.status.in.includes(o.status) &&
+              o.outstanding.gt(where.outstanding.gt),
+          )
+          .sort((a, b) => {
+            for (const key of orderBy as Record<string, 'asc'>[]) {
+              const [field] = Object.keys(key);
+              if (a[field] < b[field]) return -1;
+              if (a[field] > b[field]) return 1;
+            }
+            return 0;
+          })
+          .map((o) => ({ ...o })),
       update: async ({ where, data }: any) => {
         const o = db.store.orders.find((x) => x.id === where.id);
         o.outstanding = D(data.outstanding);
@@ -598,5 +620,119 @@ describe('POST /payments with no date', () => {
 
     expect(r.code).toBe('DATE_IN_FUTURE');
     nothingSaved(db);
+  });
+});
+
+describe('a payment cannot be dated before the sale it pays (§7a, 2026-10-16)', () => {
+  /** An order sold on `day` (Cairo), written today — a back-dated sale. */
+  const soldOn = (day: string, outstanding: number) =>
+    order({
+      orderedAt: instantOfDay(day),
+      createdAt: new Date(),
+      outstanding,
+      total: D(outstanding),
+    });
+
+  it('on a chosen order: received the 5th against a sale of the 10th → PAYMENT_BEFORE_ORDER, nothing saved', async () => {
+    const sale = soldOn('2026-03-10', 800);
+    const { service, db } = build([sale]);
+    const r = await refused(
+      service.create(
+        pay(100, sale.id, { receivedOn: '2026-03-05' }),
+        'actor-1',
+      ),
+    );
+    expect(r).toEqual({
+      status: 400,
+      code: 'PAYMENT_BEFORE_ORDER',
+      params: {
+        order: sale.orderNo,
+        orderedOn: '2026-03-10',
+        receivedOn: '2026-03-05',
+      },
+    });
+    nothingSaved(db);
+  });
+
+  it('received on the day of the sale is fine', async () => {
+    const sale = soldOn('2026-03-10', 800);
+    const { service, db } = build([sale]);
+    await service.create(
+      pay(100, sale.id, { receivedOn: '2026-03-10' }),
+      'actor-1',
+    );
+    expect(db.store.allocations).toHaveLength(1);
+  });
+
+  it('the Allocate action refuses it too, and leaves the money where it was', async () => {
+    const early = soldOn('2026-03-01', 300);
+    const late = soldOn('2026-03-10', 800);
+    const { service, db } = build([early, late]);
+    // Recorded on no order, then put on one by hand.
+    const p: any = await service.create(
+      pay(100, undefined, { receivedOn: '2026-03-05' }),
+      'actor-1',
+    );
+    const r = await refused(
+      service.allocateToOrder(p.data.id, late.id, 50, 'actor-1'),
+    );
+    expect(r.code).toBe('PAYMENT_BEFORE_ORDER');
+    expect(db.store.allocations).toHaveLength(0);
+    await service.allocateToOrder(p.data.id, early.id, 50, 'actor-1');
+    expect(db.store.allocations).toHaveLength(1);
+    expect(Number(db.store.orders[1].outstanding)).toBe(800);
+  });
+
+  it('oldest first means sold first: a back-dated sale entered today is paid before an older entry of a later day', async () => {
+    // Typed in first, sold on the 8th.
+    const typedFirst = order({
+      createdAt: new Date('2026-03-08T10:00:00Z'),
+      orderedAt: instantOfDay('2026-03-08'),
+      outstanding: 500,
+      total: D(500),
+    });
+    // Typed in today, sold on the 1st.
+    const soldFirst = soldOn('2026-03-01', 500);
+    const { service, db } = build([typedFirst, soldFirst]);
+    await service.create(
+      pay(300, undefined, { receivedOn: '2026-03-12', applyOldestFirst: true }),
+      'actor-1',
+    );
+    expect(
+      db.store.allocations.map((a) => [a.saleOrderId, Number(a.amount)]),
+    ).toEqual([[soldFirst.id, 300]]);
+  });
+
+  it('oldest first stops at the payment day: money left over would pay a later sale → PAYMENT_BEFORE_ORDER, nothing saved', async () => {
+    const before = soldOn('2026-03-01', 500);
+    const after = soldOn('2026-03-08', 800);
+    const { service, db } = build([before, after]);
+    const r = await refused(
+      service.create(
+        pay(900, undefined, {
+          receivedOn: '2026-03-05',
+          applyOldestFirst: true,
+        }),
+        'actor-1',
+      ),
+    );
+    expect(r).toMatchObject({
+      code: 'PAYMENT_BEFORE_ORDER',
+      params: { order: after.orderNo, orderedOn: '2026-03-08' },
+    });
+    nothingSaved(db);
+  });
+
+  it('oldest first that fits within the sales made by its day goes through', async () => {
+    const before = soldOn('2026-03-01', 500);
+    const after = soldOn('2026-03-08', 800);
+    const { service, db } = build([before, after]);
+    await service.create(
+      pay(500, undefined, { receivedOn: '2026-03-05', applyOldestFirst: true }),
+      'actor-1',
+    );
+    expect(
+      db.store.allocations.map((a) => [a.saleOrderId, Number(a.amount)]),
+    ).toEqual([[before.id, 500]]);
   });
 });

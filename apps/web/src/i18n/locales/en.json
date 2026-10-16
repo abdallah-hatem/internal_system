@@ -1429,7 +1429,9 @@
     "NAME_AR_TOO_LONG": "The Arabic name can be at most {max} characters.",
     "RUNNING_COST_CHARGED": "This running cost was already taken from a payout ({cycles}). Reverse that settlement first, then this entry.",
     "PRODUCT_INACTIVE": "{product} is deactivated, so no more of it can be ordered. Reactivate it to buy more.",
-    "PRODUCT_STATUS_INVALID": "A product is either active or inactive."
+    "PRODUCT_STATUS_INVALID": "A product is either active or inactive.",
+    "NOT_ENOUGH_STOCK_ON_DATE": "Only {available} of {product} had been received by {day}, so {wanted} cannot have been sold that day.",
+    "PAYMENT_BEFORE_ORDER": "A payment received on {receivedOn} cannot pay {order}, which was sold on {orderedOn}."
   },
   "orderRequests": {
     "title": "Order requests",
@@ -1702,7 +1704,9 @@
       "LENDER_PAID": "The date a friend paid a supplier",
       "LENDER_REPAID": "The date a friend was repaid",
       "LEDGER_ENTRY": "The date of a ledger entry",
-      "STOCK_MOVED": "The date leftover stock was moved"
+      "STOCK_MOVED": "The date leftover stock was moved",
+      "SALE_MADE": "The date a sale was made",
+      "STOCK_RECEIVED": "The date stock was received"
     },
     "country": {
       "CN": "China",

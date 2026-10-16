@@ -18,7 +18,10 @@ import { cycleLossesEgp } from '../../common/cycle-losses';
 import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { owedToLenders } from '../../common/lenders-owed';
 import { countLowStock } from '../../common/low-stock';
-import { monthBuckets, monthBucketsSince } from '../../common/month-buckets';
+import {
+  businessMonthBuckets,
+  businessMonthOf,
+} from '../../common/month-buckets';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 
 /**
@@ -323,9 +326,9 @@ export class AnalyticsService {
     // current month from the chart on 24 days of 2026.
     const now = new Date();
     // `months` buckets ending with the current one, so 12 means this month and
-    // the eleven before it — not thirteen.
-    const keys = monthBuckets(now, months);
-    const since = monthBucketsSince(now, months);
+    // the eleven before it — not thirteen. Months are Cairo's (§4,
+    // 2026-10-16): a sale belongs to the month of its own day there.
+    const { keys, since } = businessMonthBuckets(now, months);
 
     const orders = await this.prisma.saleOrder.findMany({
       where: {
@@ -341,7 +344,7 @@ export class AnalyticsService {
     // Group by month
     const revenueByMonth: Record<string, number> = {};
     for (const order of orders) {
-      const monthKey = order.orderedAt.toISOString().slice(0, 7); // YYYY-MM
+      const monthKey = businessMonthOf(order.orderedAt); // YYYY-MM, Cairo
       revenueByMonth[monthKey] =
         (revenueByMonth[monthKey] || 0) + Number(order.total);
     }
