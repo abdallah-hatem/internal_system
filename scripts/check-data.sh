@@ -300,14 +300,28 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM lender_financings f
    WHERE (SELECT coalesce(sum(r.cleared), 0) FROM lender_repayments r
            WHERE r.financing_id = f.id AND r.reversed_at IS NULL) > f.amount
-  -- Compared in pounds, exactly (2026-10-16): friends may pay one order in
-  -- different currencies, each at the rate on the day he paid.
-  UNION ALL SELECT 19.1, 'friends paid more of an order than its total',
-         count(*) FROM purchase_orders o
+  -- Compared in pounds, exactly (2026-10-16): friends may pay in different
+  -- currencies, each at the rate on the day he paid. The cap is the cycle's
+  -- cost (§18, owner 2026-10-16): every order's goods, every leg, and the
+  -- manual expenses charged to the cycle (type EXPENSE, a reversal taking
+  -- its row back off). A leg corrected down or a fee reversed after he paid
+  -- can trip this legitimately — look at that cycle, do not "fix" the payment.
+  UNION ALL SELECT 19.1, 'friends paid more towards a cycle than its cost',
+         count(*) FROM import_cycles c
    WHERE (SELECT coalesce(sum(f.amount * f.fx_rate_to_egp), 0) FROM lender_financings f
-           WHERE f.purchase_order_id = o.id AND f.removed_at IS NULL)
-       > (SELECT coalesce(sum(i.line_total), 0) FROM purchase_order_items i
-           WHERE i.purchase_order_id = o.id) * o.fx_rate_to_egp
+           WHERE f.cycle_id = c.id AND f.removed_at IS NULL)
+       > (SELECT coalesce(sum(i.line_total * o.fx_rate_to_egp), 0)
+            FROM purchase_orders o JOIN purchase_order_items i ON i.purchase_order_id = o.id
+           WHERE o.cycle_id = c.id)
+       + (SELECT coalesce(sum(CASE l.cost_basis
+                                WHEN 'PER_PIECE' THEN coalesce(l.rate_per_unit, 0) * coalesce(l.chargeable_pieces, 0)
+                                WHEN 'PER_WEIGHT' THEN coalesce(l.rate_per_unit, 0) * coalesce(l.chargeable_weight_kg, 0)
+                                ELSE coalesce(l.amount, 0) END * l.fx_rate_to_egp), 0)
+            FROM shipping_legs l WHERE l.cycle_id = c.id)
+       + (SELECT coalesce(sum(CASE WHEN t.direction = 'OUTFLOW' THEN t.amount ELSE -t.amount END), 0)
+            FROM financial_transactions t
+           WHERE t.cycle_id = c.id AND t.type = 'EXPENSE'
+             AND (t.direction = 'OUTFLOW' OR t.reversal_of_id IS NOT NULL))
   -- What he paid in pounds is his amount at his own rate, half up.
   UNION ALL SELECT 19.6, 'friend''s payment whose pounds are not its amount at its rate',
          count(*) FROM lender_financings
