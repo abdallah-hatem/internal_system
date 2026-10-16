@@ -69,6 +69,9 @@ export const ACTION_ROLES = {
   // Leftovers moved to another cycle at cost (§8, L5) — CycleTransfersController, StockTransfersController
   'stockTransfer.create': PARTNERS, //    POST /cycles/:id/transfers
   'stockTransfer.undo': PARTNERS, //      POST /stock-transfers/:id/undo
+  // The exchange-rate page (§21) — CurrencyRatesController
+  'fxRate.edit': PARTNERS, //             PUT  /currency-rates/:code
+  'fxRate.add': PARTNERS, //              POST /currency-rates
   // Reads a page makes on the side — UsersController
   'users.list': BOOKS_READERS, //         GET /users (the participant picker)
 } as const satisfies Record<string, readonly string[]>;

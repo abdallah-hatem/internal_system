@@ -105,7 +105,8 @@
       "inventory": "Inventory",
       "cycles": "Cycles"
     },
-    "lenders": "Lenders"
+    "lenders": "Lenders",
+    "fxRates": "Exchange rates"
   },
   "auth": {
     "login": "Login",
@@ -2173,6 +2174,30 @@
     "searchOrders": "Search by order number",
     "searchProviders": "Search by provider name",
     "searchLenders": "Search by lender name",
-    "searchTypes": "Search by type"
+    "searchTypes": "Search by type",
+    "currencyCode": "GBP"
+  },
+  "fxRates": {
+    "title": "Exchange rates",
+    "subtitle": "What one unit of each currency is worth in Egyptian pounds",
+    "prefillOnly": "These rates only prefill forms. Every order, payment and receipt keeps the rate it was recorded at, so changing one here changes nothing already recorded.",
+    "currency": "Currency",
+    "rate": "Rate to EGP",
+    "lastChanged": "Last changed",
+    "actions": "Actions",
+    "base": "Base currency",
+    "noRate": "No rate yet",
+    "editTitle": "{currency} rate",
+    "add": "Add currency",
+    "addTitle": "Add a currency",
+    "code": "Currency code",
+    "codeHint": "Three letters, such as GBP or SAR",
+    "rateFor": "Rate ({currency} → EGP)",
+    "rateHint": "Above zero, at most four decimals",
+    "saved": "{currency} rate saved",
+    "added": "{currency} added",
+    "saveFailed": "The rate could not be saved",
+    "emptyTitle": "No currencies yet",
+    "emptyHint": "Add the currencies you buy and pay in, with their rate to the pound."
   }
 }

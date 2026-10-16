@@ -10,6 +10,7 @@ import { ToastProvider, ToastBridge } from '../ui/toast';
 import { NotificationBell } from './notification-bell';
 import { AccountMenu } from './account-menu';
 import {
+  ArrowLeftRight,
   BadgePercent,
   BarChart3,
   Bell,
@@ -79,6 +80,7 @@ const NAV_ICONS: Record<string, Icon> = {
   settlements: Scale,
   notifications: Bell,
   auditLogs: ShieldCheck,
+  fxRates: ArrowLeftRight,
   settings: Settings,
 };
 
