@@ -1207,7 +1207,8 @@
       "lenderFinancing": "ما دفعه الصديق",
       "lenderRepayment": "السداد",
       "lenderPlan": "خطة السداد",
-      "shipmentDeparture": "المغادرة"
+      "shipmentDeparture": "المغادرة",
+      "currencyRate": "العملة"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -1434,7 +1435,8 @@
     "RECEIVED_BEFORE_ARRIVAL": "لا يمكن استلام البضاعة في {day}: فقد وصلت الشحنة إلى مصر في {arrivedOn}.",
     "FINANCING_RATE_REQUIRED": "دفع بـ {currency} وهي ليست عملة {reference}: اذكر سعر {currency} بالجنيه في يوم الدفع.",
     "RATE_TOO_PRECISE": "السعر لا يتجاوز {decimals} أرقام عشرية؛ {rate} فيه أكثر من ذلك.",
-    "CURRENCY_CODE_INVALID": "{value} ليس رمز عملة: ثلاثة أحرف لاتينية مثل AED."
+    "CURRENCY_CODE_INVALID": "{value} ليس رمز عملة: ثلاثة أحرف لاتينية مثل AED.",
+    "CURRENCY_EXISTS": "{currency} موجودة بالفعل في صفحة أسعار الصرف؛ غيّر سعرها من هناك."
   },
   "orderRequests": {
     "title": "طلبات الشراء",
