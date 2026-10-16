@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument -- the fake database's rows are untyped records, as Prisma's argument objects are */
 import { ExecutionContext, HttpException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; the rows here are built by hand
 import { Prisma } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import type { PaymentsService } from '../payments/payments.service';
@@ -70,7 +70,11 @@ function world(): World {
             unitPrice: D('1250'),
             discount: D('0'),
             lineTotal: D('12500'),
-            product: { name: 'Q58 Max Intercom', nameAr: 'إنتركم Q58', sku: 'Q58' },
+            product: {
+              name: 'Q58 Max Intercom',
+              nameAr: 'إنتركم Q58',
+              sku: 'Q58',
+            },
           },
           {
             id: 'line-2',
@@ -89,12 +93,16 @@ function world(): World {
 
 function fakePrisma(w: World) {
   const customerOf = (id: string) => w.customers.find((c) => c.id === id);
-  const planOfSale = (id: string) => w.plans.find((p) => p.saleOrderId === id) ?? null;
+  const planOfSale = (id: string) =>
+    w.plans.find((p) => p.saleOrderId === id) ?? null;
   const withRelations = (p: any) => ({
     ...p,
     customer: customerOf(p.customerId),
     saleOrder: p.saleOrderId
-      ? { id: p.saleOrderId, orderNo: w.sales.find((s) => s.id === p.saleOrderId)?.orderNo }
+      ? {
+          id: p.saleOrderId,
+          orderNo: w.sales.find((s) => s.id === p.saleOrderId)?.orderNo,
+        }
       : null,
   });
 
@@ -112,7 +120,11 @@ function fakePrisma(w: World) {
       }),
       aggregate: jest.fn(({ where }: any) => {
         const sum = w.sales
-          .filter((s) => s.customerId === where.customerId && where.status.in.includes(s.status))
+          .filter(
+            (s) =>
+              s.customerId === where.customerId &&
+              where.status.in.includes(s.status),
+          )
           .reduce((t, s) => t.add(s.outstanding), D(0));
         return Promise.resolve({ _sum: { outstanding: sum } });
       }),
@@ -124,11 +136,15 @@ function fakePrisma(w: World) {
             .map((p) => p.reference)
             .filter((r: string) => r.startsWith(where.reference.startsWith))
             .sort();
-          return Promise.resolve(refs.length ? { reference: refs[refs.length - 1] } : null);
+          return Promise.resolve(
+            refs.length ? { reference: refs[refs.length - 1] } : null,
+          );
         }
         return Promise.resolve(
-          w.plans.find((p) => p.customerId === where.customerId && p.status === where.status) ??
-            null,
+          w.plans.find(
+            (p) =>
+              p.customerId === where.customerId && p.status === where.status,
+          ) ?? null,
         );
       }),
       create: jest.fn(({ data }: any) => {
@@ -159,7 +175,7 @@ function setup(w = world()) {
   const prisma = fakePrisma(w);
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const service = new PaymentPlansService(
-    prisma as unknown as PrismaService,
+    prisma,
     audit as unknown as AuditService,
     {} as NotificationsService,
   );
@@ -167,14 +183,20 @@ function setup(w = world()) {
 }
 
 const three = (amounts = ['8400.00', '8400.00', '8400.00']) =>
-  amounts.map((amount, i) => ({ dueOn: day(30 * (i + 1)), amount: Number(amount) }));
+  amounts.map((amount, i) => ({
+    dueOn: day(30 * (i + 1)),
+    amount: Number(amount),
+  }));
 
 async function refusal(p: Promise<unknown>) {
   try {
     await p;
   } catch (e) {
     const err = e as HttpException;
-    const body = err.getResponse() as { code: string; params?: Record<string, unknown> };
+    const body = err.getResponse() as {
+      code: string;
+      params?: Record<string, unknown>;
+    };
     return { status: err.getStatus(), code: body.code, params: body.params };
   }
   throw new Error('expected a refusal');
@@ -194,25 +216,29 @@ describe('POST /sales/orders/:id/contract-plan — the plan is agreed for the sa
     expect(plan.saleOrderId).toBe(SALE);
     expect(plan.customerId).toBe(SHOP);
     expect(plan.totalEgp.toFixed(2)).toBe('25200.00');
-    expect(plan.instalments.map((i: any) => [i.sequence, i.amount.toFixed(2)])).toEqual([
+    expect(
+      plan.instalments.map((i: any) => [i.sequence, i.amount.toFixed(2)]),
+    ).toEqual([
       [1, '8400.00'],
       [2, '8400.00'],
       [3, '8400.00'],
     ]);
-    expect(plan.instalments.map((i: any) => i.dueOn.toISOString().slice(0, 10))).toEqual([
-      day(30),
-      day(60),
-      day(90),
-    ]);
+    expect(
+      plan.instalments.map((i: any) => i.dueOn.toISOString().slice(0, 10)),
+    ).toEqual([day(30), day(60), day(90)]);
     expect(res.data.saleOrder).toEqual({ id: SALE, orderNo: 'ORD-2026-00001' });
     expect(audit.log).toHaveBeenCalledWith(
-      expect.objectContaining({ afterJson: expect.objectContaining({ saleOrderId: SALE }) }),
+      expect.objectContaining({
+        afterJson: expect.objectContaining({ saleOrderId: SALE }),
+      }),
     );
   });
 
   it('unequal amounts are fine as long as they add up to what is outstanding', async () => {
     const { w, service } = setup();
-    await service.createForSale(SALE, { instalments: three(['10000', '10000', '5200']) });
+    await service.createForSale(SALE, {
+      instalments: three(['10000', '10000', '5200']),
+    });
     expect(w.plans[0].totalEgp.toFixed(2)).toBe('25200.00');
   });
 
@@ -231,12 +257,18 @@ describe('POST /sales/orders/:id/contract-plan — the plan is agreed for the sa
 describe('a sale contract plan is refused, with a code', () => {
   it('a sale that does not exist, or an id that cannot be one → NOT_FOUND, never a 500', async () => {
     const { service } = setup();
-    expect(await refusal(service.createForSale(OTHER_SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(
+        service.createForSale(OTHER_SALE, { instalments: three() }),
+      ),
+    ).toMatchObject({
       status: 404,
       code: 'NOT_FOUND',
       params: { entity: 'saleOrder' },
     });
-    expect(await refusal(service.createForSale('abc', { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale('abc', { instalments: three() })),
+    ).toMatchObject({
       status: 404,
       code: 'NOT_FOUND',
     });
@@ -248,7 +280,9 @@ describe('a sale contract plan is refused, with a code', () => {
       const w = world();
       w.sales[0].status = status;
       const { service } = setup(w);
-      expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+      expect(
+        await refusal(service.createForSale(SALE, { instalments: three() })),
+      ).toMatchObject({
         status: 400,
         code: 'SALE_CONTRACT_NOT_OPEN',
         params: { order: 'ORD-2026-00001', status },
@@ -260,7 +294,9 @@ describe('a sale contract plan is refused, with a code', () => {
     const w = world();
     w.sales[0].currency = 'USD';
     const { service } = setup(w);
-    expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale(SALE, { instalments: three() })),
+    ).toMatchObject({
       code: 'SALE_CONTRACT_NOT_EGP',
       params: { currency: 'USD' },
     });
@@ -271,7 +307,9 @@ describe('a sale contract plan is refused, with a code', () => {
     w.sales[0].status = 'CONFIRMED';
     w.sales[0].outstanding = D('0');
     const { service } = setup(w);
-    expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale(SALE, { instalments: three() })),
+    ).toMatchObject({
       code: 'SALE_CONTRACT_NOTHING_OWED',
     });
   });
@@ -280,7 +318,9 @@ describe('a sale contract plan is refused, with a code', () => {
     const w = world();
     w.customers[0].isWalkIn = true;
     const { service } = setup(w);
-    expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale(SALE, { instalments: three() })),
+    ).toMatchObject({
       code: 'SALE_CONTRACT_NOTHING_OWED',
     });
   });
@@ -288,10 +328,18 @@ describe('a sale contract plan is refused, with a code', () => {
   it('instalments adding up to less than what is outstanding → CONTRACT_SUM_MISMATCH', async () => {
     const { w, service } = setup();
     expect(
-      await refusal(service.createForSale(SALE, { instalments: three(['8400', '8400', '8399.99']) })),
+      await refusal(
+        service.createForSale(SALE, {
+          instalments: three(['8400', '8400', '8399.99']),
+        }),
+      ),
     ).toMatchObject({
       code: 'CONTRACT_SUM_MISMATCH',
-      params: { total: '25,199.99', owed: '25,200.00', order: 'ORD-2026-00001' },
+      params: {
+        total: '25,199.99',
+        owed: '25,200.00',
+        order: 'ORD-2026-00001',
+      },
     });
     expect(w.plans).toHaveLength(0);
   });
@@ -299,7 +347,11 @@ describe('a sale contract plan is refused, with a code', () => {
   it('instalments adding up to more than what is outstanding → CONTRACT_SUM_MISMATCH', async () => {
     const { service } = setup();
     expect(
-      await refusal(service.createForSale(SALE, { instalments: three(['9000', '9000', '9000']) })),
+      await refusal(
+        service.createForSale(SALE, {
+          instalments: three(['9000', '9000', '9000']),
+        }),
+      ),
     ).toMatchObject({ code: 'CONTRACT_SUM_MISMATCH' });
   });
 
@@ -314,14 +366,19 @@ describe('a sale contract plan is refused, with a code', () => {
           ],
         }),
       ),
-    ).toMatchObject({ code: 'INSTALMENT_DUE_IN_PAST', params: { day: day(-1) } });
+    ).toMatchObject({
+      code: 'INSTALMENT_DUE_IN_PAST',
+      params: { day: day(-1) },
+    });
     expect(w.plans).toHaveLength(0);
   });
 
   it('the second time — the sale already has its plan → SALE_HAS_PLAN, and no second plan', async () => {
     const { w, service } = setup();
     await service.createForSale(SALE, { instalments: three() });
-    expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale(SALE, { instalments: three() })),
+    ).toMatchObject({
       code: 'SALE_HAS_PLAN',
       params: { order: 'ORD-2026-00001', reference: w.plans[0].reference },
     });
@@ -339,7 +396,9 @@ describe('a sale contract plan is refused, with a code', () => {
       instalments: [],
     });
     const { service } = setup(w);
-    expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale(SALE, { instalments: three() })),
+    ).toMatchObject({
       code: 'CUSTOMER_HAS_ACTIVE_PLAN',
       params: { reference: 'PLAN-2026-0007' },
     });
@@ -349,7 +408,9 @@ describe('a sale contract plan is refused, with a code', () => {
     const w = world();
     w.customers[0].verificationStatus = 'UNVERIFIED';
     const { service } = setup(w);
-    expect(await refusal(service.createForSale(SALE, { instalments: three() }))).toMatchObject({
+    expect(
+      await refusal(service.createForSale(SALE, { instalments: three() })),
+    ).toMatchObject({
       code: 'CUSTOMER_NOT_VERIFIED',
     });
   });
@@ -359,7 +420,9 @@ describe('a sale contract plan is refused, with a code', () => {
     await service.createForSale(SALE, { instalments: three() });
     w.plans[0].status = 'CANCELLED';
 
-    await service.createForSale(SALE, { instalments: three(['12600', '12600']) });
+    await service.createForSale(SALE, {
+      instalments: three(['12600', '12600']),
+    });
     expect(w.plans).toHaveLength(2);
     expect(w.plans[0].saleOrderId).toBeNull();
     expect(w.plans[1].saleOrderId).toBe(SALE);
@@ -367,16 +430,23 @@ describe('a sale contract plan is refused, with a code', () => {
   });
 
   it('no instalments, or more than 36, is refused by the body rules', async () => {
-    const none = await validate(plainToInstance(CreateSaleContractPlanDto, { instalments: [] }));
+    const none = await validate(
+      plainToInstance(CreateSaleContractPlanDto, { instalments: [] }),
+    );
     expect(none).not.toHaveLength(0);
     const many = await validate(
       plainToInstance(CreateSaleContractPlanDto, {
-        instalments: Array.from({ length: 37 }, (_, i) => ({ dueOn: day(i + 1), amount: 1 })),
+        instalments: Array.from({ length: 37 }, (_, i) => ({
+          dueOn: day(i + 1),
+          amount: 1,
+        })),
       }),
     );
     expect(many.map((e) => e.property)).toContain('instalments');
     const zero = await validate(
-      plainToInstance(CreateSaleContractPlanDto, { instalments: [{ dueOn: day(1), amount: 0 }] }),
+      plainToInstance(CreateSaleContractPlanDto, {
+        instalments: [{ dueOn: day(1), amount: 0 }],
+      }),
     );
     expect(zero).not.toHaveLength(0);
     const ok = await validate(
@@ -393,8 +463,19 @@ describe('GET /sales/orders/:id/contract — built live from the sale and its pl
     const { data } = await service.saleContract(SALE);
 
     expect(data.number).toBe('CT-ORD-2026-00001');
-    expect(data.customer).toMatchObject({ displayName: 'Al Nour Motors', phone: '01125550198' });
-    expect(data.lines.map((l) => [l.product, l.productAr, l.quantity, l.unitPrice, l.lineTotal])).toEqual([
+    expect(data.customer).toMatchObject({
+      displayName: 'Al Nour Motors',
+      phone: '01125550198',
+    });
+    expect(
+      data.lines.map((l) => [
+        l.product,
+        l.productAr,
+        l.quantity,
+        l.unitPrice,
+        l.lineTotal,
+      ]),
+    ).toEqual([
       ['Q58 Max Intercom', 'إنتركم Q58', '10', '1250.00', '12500.00'],
       ['Y20 Headset', null, '15', '980.00', '14700.00'],
     ]);
@@ -403,7 +484,9 @@ describe('GET /sales/orders/:id/contract — built live from the sale and its pl
       '10000.00',
       '25200.00',
     ]);
-    expect(data.plan.instalments.map((i) => [i.sequence, i.dueOn, i.amount])).toEqual([
+    expect(
+      data.plan.instalments.map((i) => [i.sequence, i.dueOn, i.amount]),
+    ).toEqual([
       [1, day(30), '8400.00'],
       [2, day(60), '8400.00'],
       [3, day(90), '8400.00'],
@@ -415,7 +498,10 @@ describe('GET /sales/orders/:id/contract — built live from the sale and its pl
     await service.createForSale(SALE, { instalments: three() });
     w.sales[0].outstanding = D('16800.00'); // an instalment came in
     const { data } = await service.saleContract(SALE);
-    expect([data.paidAtSigning, data.remaining]).toEqual(['10000.00', '25200.00']);
+    expect([data.paidAtSigning, data.remaining]).toEqual([
+      '10000.00',
+      '25200.00',
+    ]);
   });
 
   it('a sale with no plan, or only a cancelled one → SALE_HAS_NO_PLAN', async () => {
@@ -426,15 +512,19 @@ describe('GET /sales/orders/:id/contract — built live from the sale and its pl
     });
     await service.createForSale(SALE, { instalments: three() });
     w.plans[0].status = 'CANCELLED';
-    expect(await refusal(service.saleContract(SALE))).toMatchObject({ code: 'SALE_HAS_NO_PLAN' });
-    expect(await refusal(service.saleContract('nope'))).toMatchObject({ code: 'NOT_FOUND' });
+    expect(await refusal(service.saleContract(SALE))).toMatchObject({
+      code: 'SALE_HAS_NO_PLAN',
+    });
+    expect(await refusal(service.saleContract('nope'))).toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });
 
 describe('GET /sales/orders/:id says whether the sale has its plan', () => {
   function sales(w: World) {
     return new SalesService(
-      fakePrisma(w) as unknown as PrismaService,
+      fakePrisma(w),
       { log: jest.fn() } as unknown as AuditService,
       {} as PaymentsService,
       {} as NotificationsService,
@@ -478,9 +568,17 @@ describe('who may agree a sale contract plan, and who may read the contract', ()
   }
 
   it('agreeing the plan: a core partner only — the same roles as POST /payment-plans', () => {
-    expect(outcome(SaleContractController, 'createPlan', 'CORE_PARTNER')).toBe('allowed');
-    for (const role of ['ADMIN_SUPPORT', 'TEMP_INVESTOR', 'SHOP_OWNER_PORTAL']) {
-      expect(outcome(SaleContractController, 'createPlan', role)).toBe('403 ROLE_NOT_ALLOWED');
+    expect(outcome(SaleContractController, 'createPlan', 'CORE_PARTNER')).toBe(
+      'allowed',
+    );
+    for (const role of [
+      'ADMIN_SUPPORT',
+      'TEMP_INVESTOR',
+      'SHOP_OWNER_PORTAL',
+    ]) {
+      expect(outcome(SaleContractController, 'createPlan', role)).toBe(
+        '403 ROLE_NOT_ALLOWED',
+      );
     }
     for (const role of ['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR']) {
       expect(outcome(SaleContractController, 'createPlan', role)).toBe(
@@ -490,11 +588,17 @@ describe('who may agree a sale contract plan, and who may read the contract', ()
   });
 
   it('reading the contract: the sales roles; an investor or a shop is refused', () => {
-    expect(outcome(SaleContractController, 'contract', 'CORE_PARTNER')).toBe('allowed');
-    expect(outcome(SaleContractController, 'contract', 'ADMIN_SUPPORT')).toBe('allowed');
-    expect(outcome(SaleContractController, 'contract', 'TEMP_INVESTOR')).toBe('403 ROLE_NOT_ALLOWED');
-    expect(outcome(SaleContractController, 'contract', 'SHOP_OWNER_PORTAL')).toBe(
+    expect(outcome(SaleContractController, 'contract', 'CORE_PARTNER')).toBe(
+      'allowed',
+    );
+    expect(outcome(SaleContractController, 'contract', 'ADMIN_SUPPORT')).toBe(
+      'allowed',
+    );
+    expect(outcome(SaleContractController, 'contract', 'TEMP_INVESTOR')).toBe(
       '403 ROLE_NOT_ALLOWED',
     );
+    expect(
+      outcome(SaleContractController, 'contract', 'SHOP_OWNER_PORTAL'),
+    ).toBe('403 ROLE_NOT_ALLOWED');
   });
 });

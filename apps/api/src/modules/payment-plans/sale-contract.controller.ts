@@ -28,7 +28,7 @@ export class SaleContractController {
   @Roles('CORE_PARTNER')
   @ApiOperation({
     summary:
-      "Agree the instalment plan for what is outstanding on a confirmed or partly paid EGP sale. The instalments must add up to the outstanding amount and fall due today or later; the shop may have no other active plan.",
+      'Agree the instalment plan for what is outstanding on a confirmed or partly paid EGP sale. The instalments must add up to the outstanding amount and fall due today or later; the shop may have no other active plan.',
   })
   createPlan(
     @Param('id') id: string,
