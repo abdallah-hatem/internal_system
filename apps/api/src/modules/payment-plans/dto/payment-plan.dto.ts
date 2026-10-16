@@ -7,10 +7,14 @@ import {
   IsUUID,
   MinLength,
   ArrayMinSize,
+  ArrayMaxSize,
   ValidateNested,
   IsPositive,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+/** Three years of monthly instalments — more than any sale is spread over. */
+export const MAX_CONTRACT_INSTALMENTS = 36;
 
 export class InstalmentDto {
   /** Usually a Sunday; an upfront payment is just the first one, dated today. */
@@ -57,4 +61,24 @@ export class CancelPaymentPlanDto {
     message: 'reason must explain why the plan is being cancelled',
   })
   reason: string;
+}
+
+/**
+ * The plan behind a sale's contract (BUSINESS_LOGIC §7, 2026-10-16). The sale
+ * comes from the path; the instalments must add up to what is outstanding on
+ * it, each falling due today or later.
+ */
+export class CreateSaleContractPlanDto {
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'a plan needs at least one instalment' })
+  @ArrayMaxSize(MAX_CONTRACT_INSTALMENTS, {
+    message: `a contract has at most ${MAX_CONTRACT_INSTALMENTS} instalments`,
+  })
+  @ValidateNested({ each: true })
+  @Type(() => InstalmentDto)
+  instalments: InstalmentDto[];
 }

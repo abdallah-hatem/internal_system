@@ -118,9 +118,9 @@ model Category {
 }
 
 model Product {
-  id           String   @id @default(uuid()) @db.Uuid
-  sku          String   @unique
-  name         String
+  id            String   @id @default(uuid()) @db.Uuid
+  sku           String   @unique
+  name          String
   // Optional Arabic name and description (BUSINESS_LOGIC §3, owner
   // 2026-10-14). Shown to an Arabic reader when present, the English otherwise.
   nameAr        String?  @map("name_ar")
@@ -130,16 +130,16 @@ model Product {
   // query result by PrismaService. Postgres's `arabic_search_key()` is the
   // same rule for the backfill and check-data.
   nameArSearch  String?  @map("name_ar_search")
-  categoryId   String?  @map("category_id") @db.Uuid
-  description  String?
-  descriptionAr String? @map("description_ar")
-  barcode      String?
-  status       String   @default("ACTIVE")
-  minStock     Decimal? @map("min_stock") @db.Decimal(18, 3)
-  unitWeightKg Decimal? @map("unit_weight_kg") @db.Decimal(18, 3)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  version      Int      @default(1)
+  categoryId    String?  @map("category_id") @db.Uuid
+  description   String?
+  descriptionAr String?  @map("description_ar")
+  barcode       String?
+  status        String   @default("ACTIVE")
+  minStock      Decimal? @map("min_stock") @db.Decimal(18, 3)
+  unitWeightKg  Decimal? @map("unit_weight_kg") @db.Decimal(18, 3)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  version       Int      @default(1)
 
   category           Category?              @relation(fields: [categoryId], references: [id])
   suppliers          ProductSupplier[]
@@ -535,8 +535,16 @@ model PaymentPlan {
   createdBy  String?           @map("created_by") @db.Uuid
   updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
 
+  /**
+   * The sale this plan was agreed for, when it came from the sale's Contract
+   * button (BUSINESS_LOGIC §7, 2026-10-16). Null for a plan agreed against the
+   * shop's whole balance. One plan per sale; a cancelled plan lets go of it.
+   */
+  saleOrderId String? @unique @map("sale_order_id") @db.Uuid
+
   customer    Customer                @relation(fields: [customerId], references: [id])
   creator     User?                   @relation("CreatedPaymentPlanUser", fields: [createdBy], references: [id])
+  saleOrder   SaleOrder?              @relation(fields: [saleOrderId], references: [id])
   instalments PaymentPlanInstalment[]
 
   @@map("payment_plans")
@@ -970,6 +978,8 @@ model SaleOrder {
   returns SaleReturn[]
 
   orderRequest OrderRequest?
+  /// The instalment plan agreed from this sale's Contract button (§7, 2026-10-16).
+  paymentPlan  PaymentPlan?
 
   @@unique([createdBy, idempotencyKey])
   @@map("sale_orders")

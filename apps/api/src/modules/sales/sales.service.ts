@@ -259,10 +259,17 @@ export class SalesService {
           },
         },
         paymentAllocations: { include: { payment: true } },
+        paymentPlan: { select: { id: true, reference: true, status: true } },
       },
     });
     if (!order) throw notFound('saleOrder');
-    return { data: order };
+    // Whether the sale has its instalment plan (§7, 2026-10-16), so the
+    // popup's Contract button opens the contract instead of a new plan. A
+    // cancelled plan has let go of the sale.
+    const { paymentPlan, ...rest } = order;
+    const contractPlan =
+      paymentPlan && paymentPlan.status !== 'CANCELLED' ? paymentPlan : null;
+    return { data: { ...rest, contractPlan } };
   }
 
   /**

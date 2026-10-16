@@ -9,7 +9,12 @@ import {
   cursorPage,
 } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
-import { CreatePaymentPlanDto } from './dto/payment-plan.dto';
+import {
+  CreatePaymentPlanDto,
+  CreateSaleContractPlanDto,
+} from './dto/payment-plan.dto';
+import { isUuid } from '../../common/uuid';
+import { businessDay, businessToday } from '../../common/dates';
 import { formatMoney } from '../../common/money';
 import { dayOf, evaluateSchedule } from '../../common/instalment-schedule';
 
@@ -29,6 +34,9 @@ export type { InstalmentState } from '../../common/instalment-schedule';
 const PLAN_INCLUDE = {
   customer: { select: { id: true, displayName: true, phone: true } },
   instalments: { orderBy: { sequence: 'asc' } },
+  // The sale a contract plan was agreed for (§7, 2026-10-16), so the plans
+  // list can name it and open its contract.
+  saleOrder: { select: { id: true, orderNo: true } },
 } satisfies Prisma.PaymentPlanInclude;
 
 /** Midnight today, for anything that needs a Date rather than a day. */
@@ -182,10 +190,151 @@ export class PaymentPlansService {
       select: { id: true, displayName: true, verificationStatus: true },
     });
     if (!customer) throw notFound('customer');
+
+    return this.agree(
+      {
+        customer,
+        instalments: dto.instalments,
+        agreedOn: dto.agreedOn ? new Date(dto.agreedOn) : startOfToday(),
+        note: dto.note,
+      },
+      actorId,
+    );
+  }
+
+  /**
+   * The plan behind a sale's contract (BUSINESS_LOGIC §7, 2026-10-16): the
+   * Contract button on the sale order popup schedules what is still owed on
+   * that one sale, and the plan names the sale.
+   *
+   * The plan is an ordinary plan in every other way — the same rules below
+   * (verified shop, one active plan per shop, never more than the shop owes)
+   * and the same cumulative reading of who is behind. On top of those, a sale
+   * contract must schedule exactly the sale's outstanding amount, in EGP, from
+   * today on.
+   */
+  async createForSale(
+    saleOrderId: string,
+    dto: CreateSaleContractPlanDto,
+    actorId?: string,
+  ) {
+    if (!isUuid(saleOrderId)) throw notFound('saleOrder');
+    const sale = await this.prisma.saleOrder.findUnique({
+      where: { id: saleOrderId },
+      select: {
+        id: true,
+        orderNo: true,
+        status: true,
+        currency: true,
+        outstanding: true,
+        customer: {
+          select: {
+            id: true,
+            displayName: true,
+            verificationStatus: true,
+            isWalkIn: true,
+          },
+        },
+        paymentPlan: { select: { id: true, reference: true, status: true } },
+      },
+    });
+    if (!sale) throw notFound('saleOrder');
+
+    // A draft owes nothing yet, a paid sale has nothing left, and a cancelled
+    // or returned one is not a debt (§4).
+    if (sale.status !== 'CONFIRMED' && sale.status !== 'PARTIALLY_PAID') {
+      throw badRequest(
+        'SALE_CONTRACT_NOT_OPEN',
+        `Order ${sale.orderNo} is ${sale.status}; only a confirmed or partly paid sale can be sold on instalments.`,
+        { order: sale.orderNo, status: sale.status },
+      );
+    }
+    // Plans are kept in EGP (totalEgp, and the payments they are read against).
+    if (sale.currency !== 'EGP') {
+      throw badRequest(
+        'SALE_CONTRACT_NOT_EGP',
+        `Order ${sale.orderNo} is in ${sale.currency}; instalment contracts are in EGP.`,
+        { order: sale.orderNo, currency: sale.currency },
+      );
+    }
+    const owed = money(D(sale.outstanding));
+    // A walk-in paid as it was sold and has no account to owe on (§4).
+    if (owed.lte(0) || sale.customer.isWalkIn) {
+      throw badRequest(
+        'SALE_CONTRACT_NOTHING_OWED',
+        `Nothing is outstanding on order ${sale.orderNo}, so there is nothing to put on instalments.`,
+        { order: sale.orderNo },
+      );
+    }
+    const existing = sale.paymentPlan;
+    if (existing && existing.status !== 'CANCELLED') {
+      throw badRequest(
+        'SALE_HAS_PLAN',
+        `Order ${sale.orderNo} already has its instalment plan (${existing.reference}).`,
+        { order: sale.orderNo, reference: existing.reference },
+      );
+    }
+
+    // A promise to pay is about the days to come. Today is allowed: an
+    // instalment taken at signing is the first one, dated today.
+    const today = businessToday();
+    for (const i of dto.instalments) {
+      const day = businessDay(i.dueOn);
+      if (day < today) {
+        throw badRequest(
+          'INSTALMENT_DUE_IN_PAST',
+          `An instalment cannot fall due in the past (${day}).`,
+          { day },
+        );
+      }
+    }
+
+    const total = dto.instalments.reduce((s, i) => s.add(D(i.amount)), D(0));
+    if (!money(total).eq(owed)) {
+      throw badRequest(
+        'CONTRACT_SUM_MISMATCH',
+        `The instalments total ${formatMoney(total)} EGP but ${formatMoney(owed)} EGP is outstanding on order ${sale.orderNo}.`,
+        {
+          order: sale.orderNo,
+          total: formatMoney(total),
+          owed: formatMoney(owed),
+        },
+      );
+    }
+
+    return this.agree(
+      {
+        customer: sale.customer,
+        instalments: dto.instalments,
+        agreedOn: startOfToday(),
+        note: dto.note,
+        saleOrderId: sale.id,
+        // A cancelled plan lets go of its sale, so the sale can have another.
+        releasePlanId: existing?.id,
+      },
+      actorId,
+    );
+  }
+
+  /**
+   * The rules every plan is agreed under, whichever door it came through.
+   */
+  private async agree(
+    input: {
+      customer: { id: string; displayName: string; verificationStatus: string };
+      instalments: CreatePaymentPlanDto['instalments'];
+      agreedOn: Date;
+      note?: string;
+      saleOrderId?: string;
+      releasePlanId?: string;
+    },
+    actorId?: string,
+  ) {
+    const { customer } = input;
     assertVerified(customer);
 
     const active = await this.prisma.paymentPlan.findFirst({
-      where: { customerId: dto.customerId, status: 'ACTIVE' },
+      where: { customerId: customer.id, status: 'ACTIVE' },
       select: { id: true, reference: true },
     });
     if (active) {
@@ -197,8 +346,7 @@ export class PaymentPlansService {
       );
     }
 
-    const agreedOn = dto.agreedOn ? new Date(dto.agreedOn) : startOfToday();
-    const sorted = [...dto.instalments].sort(
+    const sorted = [...input.instalments].sort(
       (a, b) => new Date(a.dueOn).getTime() - new Date(b.dueOn).getTime(),
     );
     const total = sorted.reduce((s, i) => s.add(D(i.amount)), D(0));
@@ -206,7 +354,7 @@ export class PaymentPlansService {
     // What the shop actually owes across its open sales. The plan may cover
     // less (a part payment arrangement) but promising more than is owed is
     // almost always a typo.
-    const owed = D(await owedBy(this.prisma, dto.customerId));
+    const owed = D(await owedBy(this.prisma, customer.id));
 
     /**
      * A plan schedules a debt, so there has to be one.
@@ -239,6 +387,12 @@ export class PaymentPlansService {
     }
 
     const plan = await this.prisma.$transaction(async (tx) => {
+      if (input.releasePlanId) {
+        await tx.paymentPlan.update({
+          where: { id: input.releasePlanId },
+          data: { saleOrderId: null },
+        });
+      }
       const year = new Date().getFullYear();
       const last = await tx.paymentPlan.findFirst({
         where: { reference: { startsWith: `PLAN-${year}` } },
@@ -247,12 +401,13 @@ export class PaymentPlansService {
       });
       return tx.paymentPlan.create({
         data: {
-          customerId: dto.customerId,
+          customerId: customer.id,
           reference: `PLAN-${year}-${pad(nextReferenceNumber(last?.reference, 4), 4)}`,
           totalEgp: money(total),
-          agreedOn,
-          note: dto.note,
+          agreedOn: input.agreedOn,
+          note: input.note,
           createdBy: actorId,
+          ...(input.saleOrderId ? { saleOrderId: input.saleOrderId } : {}),
           instalments: {
             create: sorted.map((i, idx) => ({
               sequence: idx + 1,
@@ -276,10 +431,103 @@ export class PaymentPlansService {
         customer: customer.displayName,
         totalEgp: total.toFixed(2),
         instalments: sorted.length,
+        ...(input.saleOrderId ? { saleOrderId: input.saleOrderId } : {}),
       },
     });
 
     return { data: { ...plan, ...this.evaluate(plan.instalments, D(0)) } };
+  }
+
+  /**
+   * A sale's instalment contract, built live from the sale and its plan
+   * (BUSINESS_LOGIC §7, 2026-10-16) — nothing about the contract is stored.
+   *
+   * "Remaining in instalments" is the plan's total, the amount agreed at
+   * signing, and "paid at signing" is the sale's total less it. Neither moves
+   * as instalments come in: a reprinted contract says what was signed.
+   */
+  async saleContract(saleOrderId: string) {
+    if (!isUuid(saleOrderId)) throw notFound('saleOrder');
+    const sale = await this.prisma.saleOrder.findUnique({
+      where: { id: saleOrderId },
+      select: {
+        id: true,
+        orderNo: true,
+        currency: true,
+        total: true,
+        customer: { select: { id: true, displayName: true, phone: true } },
+        items: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            quantity: true,
+            unitPrice: true,
+            discount: true,
+            lineTotal: true,
+            product: { select: { name: true, nameAr: true, sku: true } },
+          },
+        },
+        paymentPlan: {
+          select: {
+            id: true,
+            reference: true,
+            status: true,
+            agreedOn: true,
+            totalEgp: true,
+            instalments: {
+              orderBy: { sequence: 'asc' },
+              select: { id: true, sequence: true, dueOn: true, amount: true },
+            },
+          },
+        },
+      },
+    });
+    if (!sale) throw notFound('saleOrder');
+    const plan = sale.paymentPlan;
+    if (!plan || plan.status === 'CANCELLED') {
+      throw badRequest(
+        'SALE_HAS_NO_PLAN',
+        `Order ${sale.orderNo} has no instalment plan, so it has no contract.`,
+        { order: sale.orderNo },
+      );
+    }
+
+    const total = money(D(sale.total));
+    const remaining = money(D(plan.totalEgp));
+    return {
+      data: {
+        saleId: sale.id,
+        orderNo: sale.orderNo,
+        number: `CT-${sale.orderNo}`,
+        date: dayOf(plan.agreedOn),
+        currency: sale.currency,
+        customer: sale.customer,
+        lines: sale.items.map((i) => ({
+          id: i.id,
+          product: i.product.name,
+          productAr: i.product.nameAr,
+          sku: i.product.sku,
+          quantity: D(i.quantity).toString(),
+          unitPrice: money(D(i.unitPrice)).toFixed(2),
+          discount: money(D(i.discount)).toFixed(2),
+          lineTotal: money(D(i.lineTotal)).toFixed(2),
+        })),
+        total: total.toFixed(2),
+        paidAtSigning: total.sub(remaining).toFixed(2),
+        remaining: remaining.toFixed(2),
+        plan: {
+          id: plan.id,
+          reference: plan.reference,
+          status: plan.status,
+          instalments: plan.instalments.map((i) => ({
+            id: i.id,
+            sequence: i.sequence,
+            dueOn: dayOf(i.dueOn),
+            amount: money(D(i.amount)).toFixed(2),
+          })),
+        },
+      },
+    };
   }
 
   async cancel(id: string, reason: string, actorId?: string) {
