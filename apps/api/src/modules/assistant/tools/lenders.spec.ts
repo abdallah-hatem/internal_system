@@ -669,6 +669,70 @@ describe('record_lender_financing — "Mahmoud paid 30,000 AED for PO-2026-0004"
     ).toBe(true);
   });
 
+  // Owner, 2026-10-16: a payment entered weeks after he paid sat in the ledger
+  // on the day it was typed in. The ledger dates a row by occurredOn.
+  it('the ledger row is dated the day he paid, not the day it was entered — and a repayment the day it was made', async () => {
+    const paidOn = daysAgo(40);
+    const preview = await finance({ ...paid30k, paidOn });
+    const done = await finance({
+      ...paid30k,
+      paidOn,
+      confirmationToken: preview.s.confirmationToken,
+    });
+    expect(done.s.status).toBe('committed');
+    const financing = db.tables.lenderFinancing.find(
+      (f) => f.lenderId === ids.mahmoud,
+    )!;
+    const inflow = db.tables.financialTransaction.find(
+      (t) => t.relatedId === financing.id && t.direction === 'INFLOW',
+    )!;
+    expect(new Date(inflow.occurredOn as Date).toISOString().slice(0, 10)).toBe(
+      paidOn,
+    );
+
+    const repaidOn = daysAgo(10);
+    await lendersService.repay(
+      financing.id as string,
+      { amountEgp: 13000, rateToEgp: 13, paidOn: repaidOn },
+      partner.id,
+    );
+    const outflow = db.tables.financialTransaction.find(
+      (t) => t.type === 'LENDER_REPAYMENT' && t.direction === 'OUTFLOW',
+    )!;
+    expect(
+      new Date(outflow.occurredOn as Date).toISOString().slice(0, 10),
+    ).toBe(repaidOn);
+
+    // Undoing either lands on the day of what it undoes, so that day nets to
+    // nothing rather than one month showing it and another taking it back.
+    const repayment = db.tables.lenderRepayment.find(
+      (r) => r.financingId === financing.id,
+    )!;
+    await lendersService.reverseRepayment(
+      repayment.id as string,
+      'typed twice',
+      partner.id,
+    );
+    const undoRepay = db.tables.financialTransaction.find(
+      (t) => t.type === 'LENDER_REPAYMENT' && t.direction === 'INFLOW',
+    )!;
+    expect(
+      new Date(undoRepay.occurredOn as Date).toISOString().slice(0, 10),
+    ).toBe(repaidOn);
+
+    await lendersService.removeFinancing(
+      financing.id as string,
+      'entered wrong',
+      partner.id,
+    );
+    const undoPay = db.tables.financialTransaction.find(
+      (t) => t.relatedId === financing.id && t.direction === 'OUTFLOW',
+    )!;
+    expect(
+      new Date(undoPay.occurredOn as Date).toISOString().slice(0, 10),
+    ).toBe(paidOn);
+  });
+
   it('a confirmation with a changed amount is refused, and nothing is recorded', async () => {
     const preview = await finance(paid30k);
     const r = await finance({
