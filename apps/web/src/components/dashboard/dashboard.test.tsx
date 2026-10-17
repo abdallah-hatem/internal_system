@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
+import { ToastProvider } from '@/components/ui/toast';
 
 // ── Doubles ──────────────────────────────────────────────────────────
 // The locale-aware Link needs Next's router; an anchor with the same href is
@@ -25,7 +26,8 @@ vi.mock('@/lib/auth-context', () => ({
 
 const responses = vi.hoisted(() => ({ cycles: [] as unknown[] }));
 const get = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/api', () => ({ api: { get } }));
+const post = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/api', () => ({ api: { get, post } }));
 
 import DashboardPage from '@/app/[locale]/dashboard/page';
 
@@ -39,7 +41,11 @@ beforeEach(() => {
   auth.role = 'CORE_PARTNER';
   responses.cycles = [];
   get.mockReset();
+  post.mockReset();
   get.mockImplementation((url: string) => {
+    // What the Fuel form reads when it opens.
+    if (url.startsWith('/cycles')) return Promise.resolve({ data: { data: [] } });
+    if (url.startsWith('/currency-rates')) return Promise.resolve({ data: { data: {} } });
     if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: KPIS } });
     if (url.startsWith('/analytics/top-products')) return Promise.resolve({ data: { data: [] } });
     if (url.startsWith('/customers/to-collect')) {
@@ -58,7 +64,9 @@ function renderPage(locale: 'en' | 'ar' = 'en') {
   return render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale={locale} messages={locale === 'en' ? en : ar} timeZone="Africa/Cairo">
-        <DashboardPage />
+        <ToastProvider>
+          <DashboardPage />
+        </ToastProvider>
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -176,12 +184,13 @@ describe('a temporary investor sees only their own cycles (R1)', () => {
 
 // ── Quick actions ────────────────────────────────────────────────────
 describe('quick actions follow the API roles', () => {
-  it('a core partner sees all three, each opening the existing form', async () => {
+  it('a core partner sees all four, each opening the existing form', async () => {
     renderPage();
     await tile('revenue');
     expect(screen.getByTestId('quick-action-newSale').getAttribute('href')).toBe('/sales?new=1');
     expect(screen.getByTestId('quick-action-recordPayment').getAttribute('href')).toBe('/payments?new=1');
     expect(screen.getByTestId('quick-action-newCycle').getAttribute('href')).toBe('/cycles/new');
+    expect(screen.getByTestId('quick-action-recordFuel').textContent).toContain('Fuel');
   });
 
   it('support staff may sell and take payments but not start a cycle', async () => {
@@ -191,6 +200,8 @@ describe('quick actions follow the API roles', () => {
     expect(screen.getByTestId('quick-action-newSale')).toBeTruthy();
     expect(screen.getByTestId('quick-action-recordPayment')).toBeTruthy();
     expect(screen.queryByTestId('quick-action-newCycle')).toBeNull();
+    // POST /ledger is core partners only: a button support staff could not save from is a dead end.
+    expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
   });
 
   it.each(['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL'])('%s sees no quick actions at all', async (role) => {
@@ -201,6 +212,7 @@ describe('quick actions follow the API roles', () => {
     expect(screen.queryByText('New sale')).toBeNull();
     expect(screen.queryByText('Record payment')).toBeNull();
     expect(screen.queryByText('New cycle')).toBeNull();
+    expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
   });
 });
 
@@ -233,3 +245,65 @@ describe('every dashboard key exists in both languages', () => {
   });
 });
 
+
+// ── Fuel, recorded from the dashboard (owner 2026-10-17) ─────────────
+describe('the Fuel quick action', () => {
+  const fuelButton = async () => {
+    renderPage();
+    await tile('revenue');
+    return screen.getByTestId('quick-action-recordFuel');
+  };
+  const dialog = () => document.querySelector('[data-ledger-entry-dialog]');
+  const amount = () => document.querySelector<HTMLInputElement>('#ledger-amount')!;
+  const save = () => screen.getByRole('button', { name: en.common.save });
+
+  it('opens the ledger form here, on Expense → Fuel, without leaving the dashboard', async () => {
+    fireEvent.click(await fuelButton());
+    expect(dialog()).toBeTruthy();
+    expect(document.querySelector<HTMLInputElement>('input[type="hidden"][name="category"]')?.value).toBe('fuel');
+    expect(screen.getByRole('radio', { name: new RegExp(en.ledger.kindExpense) }).getAttribute('aria-checked')).toBe('true');
+    expect(amount().value).toBe('');
+    expect(screen.getByTestId('tile-revenue')).toBeTruthy();
+  });
+
+  it('saves a fuel expense with no cycle, then closes', async () => {
+    post.mockResolvedValue({ data: { data: { id: 'tx' } } });
+    fireEvent.click(await fuelButton());
+    fireEvent.focus(amount());
+    fireEvent.change(amount(), { target: { value: '650' } });
+    fireEvent.blur(amount());
+    fireEvent.click(save());
+    await waitFor(() => expect(dialog()).toBeNull());
+    expect(post).toHaveBeenCalledTimes(1);
+    const body = post.mock.calls[0][1] as Record<string, unknown>;
+    expect(body).toMatchObject({ kind: 'EXPENSE', direction: 'OUTFLOW', category: 'fuel', amount: 650 });
+    expect(body).not.toHaveProperty('cycleId');
+  });
+
+  it('the second time opens a fresh form: Cancel leaves nothing behind', async () => {
+    fireEvent.click(await fuelButton());
+    fireEvent.focus(amount());
+    fireEvent.change(amount(), { target: { value: '300' } });
+    fireEvent.blur(amount());
+    fireEvent.click(screen.getByRole('button', { name: en.common.cancel }));
+    expect(dialog()).toBeNull();
+    fireEvent.click(screen.getByTestId('quick-action-recordFuel'));
+    expect(amount().value).toBe('');
+    expect(document.querySelector<HTMLInputElement>('input[type="hidden"][name="category"]')?.value).toBe('fuel');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('with no amount, Save sends nothing and the form stays open', async () => {
+    fireEvent.click(await fuelButton());
+    fireEvent.click(save());
+    expect(await screen.findByTestId('ledger-refusal')).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+    expect(dialog()).toBeTruthy();
+  });
+
+  it('reads Fuel in Arabic', async () => {
+    renderPage('ar');
+    await tile('revenue');
+    expect(screen.getByTestId('quick-action-recordFuel').textContent).toContain('بنزين');
+  });
+});

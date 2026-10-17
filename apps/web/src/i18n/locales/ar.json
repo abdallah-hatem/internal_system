@@ -136,7 +136,8 @@
     "actions": {
       "newSale": "بيع جديد",
       "recordPayment": "تسجيل دفعة",
-      "newCycle": "دورة جديدة"
+      "newCycle": "دورة جديدة",
+      "recordFuel": "بنزين"
     },
     "topProducts": "المنتجات الأكثر مبيعًا",
     "topProductsEmpty": "لا توجد مبيعات بعد",
@@ -734,7 +735,6 @@
     "entryReversed": "تم عكس القيد",
     "emptyTitle": "لا توجد قيود بعد",
     "emptyHint": "حركة الأموال داخلاً وخارجاً — المدفوعات والمصروفات والمساهمات تُسجَّل هنا.",
-    "recordFuel": "بنزين",
     "recordTitle": "تسجيل مال داخل أو خارج",
     "whatIsIt": "ما هذا؟",
     "kindExpense": "مصروف",

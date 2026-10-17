@@ -1357,8 +1357,9 @@ profit or a settlement. Now "Record money in or out":
   a test fails if they differ).
   - Expense: rent, salaries, utilities, transport and delivery, fuel, packaging,
     marketing, bank fees, customs and clearance, extra freight (for a cycle), other.
-  - **Fuel** (added 2026-10-17, owner: fuelling the delivery car is a regular expense). The ledger's header has
-    a **Fuel** button that opens this same form already on Expense → Fuel, dated today, no cycle; only the amount
+  - **Fuel** (added 2026-10-17, owner: fuelling the delivery car is a regular expense). The dashboard's quick
+    actions have a **Fuel** button (core partners, who alone may write the ledger; moved there from the ledger's
+    header the same day — owner: quick access belongs on the dashboard) that opens this same form in place already on Expense → Fuel, dated today, no cycle; only the amount
     (and a note, if wanted) is typed. No cycle means it is a running cost, shared by the partners at settlement
     like rent (§8, L7); charge it to a cycle by picking one. Not automatic: fuel is a different amount each time,
     so a schedule would record figures nobody paid.

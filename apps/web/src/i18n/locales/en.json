@@ -136,7 +136,8 @@
     "actions": {
       "newSale": "New sale",
       "recordPayment": "Record payment",
-      "newCycle": "New cycle"
+      "newCycle": "New cycle",
+      "recordFuel": "Fuel"
     },
     "topProducts": "Top products",
     "topProductsEmpty": "No sales yet",
@@ -734,7 +735,6 @@
     "entryReversed": "Entry reversed successfully",
     "emptyTitle": "No ledger entries yet",
     "emptyHint": "Money in and out — payments, expenses and contributions land here.",
-    "recordFuel": "Fuel",
     "recordTitle": "Record money in or out",
     "whatIsIt": "What is it?",
     "kindExpense": "An expense",

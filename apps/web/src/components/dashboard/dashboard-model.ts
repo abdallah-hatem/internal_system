@@ -10,6 +10,7 @@
  *   the business-wide figures, top products,
  *   customers, analytics                      → CORE_PARTNER, ADMIN_SUPPORT (R1)
  *   creating a cycle                          → CORE_PARTNER
+ *   writing the ledger (the Fuel action)      → CORE_PARTNER
  *   inventory, cycles, cycle profitability    → any signed-in role, scoped by
  *                                               the API to an investor's cycles
  */
@@ -18,6 +19,8 @@
 export const SELLING_ROLES = ['CORE_PARTNER', 'ADMIN_SUPPORT'] as const;
 /** May start a cycle. */
 export const CYCLE_ROLES = ['CORE_PARTNER'] as const;
+/** May record an expense by hand — POST /ledger. */
+export const LEDGER_WRITE_ROLES = ['CORE_PARTNER'] as const;
 
 export type TileKey =
   | 'revenue'
@@ -62,12 +65,16 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
   owedToLenders: { href: '/lenders', roles: SELLING_ROLES },
 };
 
-export type QuickActionKey = 'newSale' | 'recordPayment' | 'newCycle';
+export type QuickActionKey = 'newSale' | 'recordPayment' | 'newCycle' | 'recordFuel';
 
 export interface QuickAction {
   key: QuickActionKey;
-  /** Opens the list's own create form on arrival — no second copy of the form. */
-  href: string;
+  /**
+   * Opens the list's own create form on arrival — no second copy of the form.
+   * None for Fuel, which opens the ledger's own form right here (owner
+   * 2026-10-17: fuel is quick access, recorded without leaving the dashboard).
+   */
+  href?: string;
   roles: readonly string[];
 }
 
@@ -75,6 +82,7 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
   { key: 'newSale', href: '/sales?new=1', roles: SELLING_ROLES },
   { key: 'recordPayment', href: '/payments?new=1', roles: SELLING_ROLES },
   { key: 'newCycle', href: '/cycles/new', roles: CYCLE_ROLES },
+  { key: 'recordFuel', roles: LEDGER_WRITE_ROLES },
 ];
 
 export function allows(roles: readonly string[] | undefined, role: string | undefined): boolean {
