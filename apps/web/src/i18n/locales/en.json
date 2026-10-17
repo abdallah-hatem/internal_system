@@ -91,8 +91,7 @@
       "system": "System"
     },
     "suppliers": "Suppliers",
-    "orderRequests": "Order requests",
-    "importRequests": "Import requests",
+    "requests": "Requests",
     "more": "More",
     "phoneBar": "Main navigation",
     "openMenu": "Open menu",
@@ -1487,6 +1486,11 @@
     "CONTRACT_SUM_MISMATCH": "The instalments total {total} EGP but {owed} EGP is outstanding on order {order}.",
     "INSTALMENT_DUE_IN_PAST": "An instalment cannot fall due in the past ({day}).",
     "SALE_HAS_NO_PLAN": "Order {order} has no instalment plan, so it has no contract."
+  },
+  "requests": {
+    "tabs": {
+      "label": "Requests views"
+    }
   },
   "orderRequests": {
     "title": "Order requests",

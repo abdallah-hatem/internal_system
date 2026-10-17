@@ -23,8 +23,11 @@ import {
 
 const API = join(dirname(fileURLToPath(import.meta.url)), '../../api/src/modules');
 const keys = (items) => items.map((i) => i.key);
-const menuKeys = (role) => [
-  ...navForRole(role).flatMap((g) => keys(g.items)),
+// The menu with every switchable page on (lib/features.ts) — the most any
+// build shows, which is what the role rules are about.
+const ALL_FEATURES = ['requests'];
+const menuKeys = (role, features = ALL_FEATURES) => [
+  ...navForRole(role, NAV_GROUPS, features).flatMap((g) => keys(g.items)),
   ...keys(systemForRole(role)),
 ];
 const ALL = [...NAV_GROUPS.flatMap((g) => g.items), ...SYSTEM_ITEMS];
@@ -104,8 +107,9 @@ const SOURCES = {
   products: ['products/products.controller.ts', 'ProductsController', ''],
   categories: ['products/products.controller.ts', 'CategoriesController', ''],
   inventory: ['inventory/inventory.controller.ts', 'InventoryController', 'inventory'],
-  orderRequests: ['portal/order-requests.controller.ts', 'OrderRequestsController', 'pending'],
-  importRequests: ['portal/order-requests-imports.controller.ts', 'ImportRequestsAdminController', ''],
+  // One page, two tabs (owner, 2026-10-17): the order requests tab lists from
+  // here; the import requests tab's endpoint is checked to agree, below.
+  requests: ['portal/order-requests.controller.ts', 'OrderRequestsController', 'pending'],
   sales: ['sales/sales.controller.ts', 'SalesController', ''],
   customers: ['customers/customers.controller.ts', 'CustomersController', ''],
   payments: ['payments/payments.controller.ts', 'PaymentsController', ''],
@@ -136,11 +140,22 @@ for (const item of ALL) {
 
 // ─── What each role is offered ──────────────────────────────────────────
 
-test('a core partner sees all 23 entries', () => {
-  assert.equal(menuKeys('CORE_PARTNER').length, 23);
+test('both tabs of Requests list from endpoints that let in exactly the roles the entry names', () => {
+  const entry = ALL.find((i) => i.key === 'requests');
+  const imports = endpointRoles('portal/order-requests-imports.controller.ts', 'ImportRequestsAdminController', '');
+  assert.deepEqual([...entry.roles].sort(), imports);
 });
 
-test('admin support sees all 23 entries — every restricted endpoint lets them read', () => {
+test('a core partner sees all 22 entries', () => {
+  assert.equal(menuKeys('CORE_PARTNER').length, 22);
+});
+
+test('with Requests switched off (production, for now) a core partner sees 21', () => {
+  assert.equal(menuKeys('CORE_PARTNER', []).length, 21);
+  assert.ok(!menuKeys('CORE_PARTNER', []).includes('requests'));
+});
+
+test('admin support sees all 22 entries — every restricted endpoint lets them read', () => {
   assert.deepEqual(menuKeys('ADMIN_SUPPORT'), menuKeys('CORE_PARTNER'));
 });
 
@@ -165,7 +180,7 @@ test('a temporary investor sees only the entries whose endpoints let them in', (
 
 test('a temporary investor is not offered analytics, customers, sales, money, partners or the audit log', () => {
   const seen = menuKeys('TEMP_INVESTOR');
-  for (const k of ['analytics', 'orderRequests', 'importRequests', 'sales', 'customers',
+  for (const k of ['analytics', 'requests', 'sales', 'customers',
     'payments', 'paymentPlans', 'lenders', 'ledger', 'partners', 'auditLogs']) {
     assert.ok(!seen.includes(k), k);
   }

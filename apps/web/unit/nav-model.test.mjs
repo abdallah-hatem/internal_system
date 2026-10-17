@@ -35,10 +35,10 @@ test('every phone-bar key is a real menu entry — a renamed key cannot vanish s
 });
 
 test('"More" holds the whole menu, grouped as the sidebar is, bar entries included', () => {
-  const groups = navForRole('CORE_PARTNER');
+  const groups = navForRole('CORE_PARTNER', NAV_GROUPS, ['requests']);
   assert.deepEqual(groups.map((g) => g.key), NAV_GROUPS.map((g) => g.key));
-  assert.equal(allKeys(groups).length, 23 - SYSTEM_ITEMS.length);
-  assert.equal(allKeys(groups).length + systemForRole('CORE_PARTNER').length, 23);
+  assert.equal(allKeys(groups).length, 22 - SYSTEM_ITEMS.length);
+  assert.equal(allKeys(groups).length + systemForRole('CORE_PARTNER').length, 22);
 });
 
 const restricted = [
@@ -100,4 +100,43 @@ test('no menu lists Payment Plans; Payments is still there for the roles that re
     assert.ok(!allKeys(navForRole(role)).includes('paymentPlans'), role);
   }
   assert.ok(allKeys(navForRole('CORE_PARTNER')).includes('payments'));
+});
+
+// Order requests and import requests are two tabs of one Requests page (owner,
+// 2026-10-17), hidden in production for now (lib/features.ts).
+test('with Requests switched on, the menu has one Requests entry and neither of the two it replaced', () => {
+  const menu = allKeys(navForRole('CORE_PARTNER', NAV_GROUPS, ['requests']));
+  assert.deepEqual(menu.filter((k) => /requests/i.test(k)), ['requests']);
+  const hrefs = NAV_GROUPS.flatMap((g) => g.items).map((i) => i.href);
+  assert.ok(!hrefs.some((h) => h.startsWith('/order-requests') || h.startsWith('/import-requests')), hrefs.join(' '));
+  // First in Sales & Customers, where Order requests stood.
+  const selling = navForRole('CORE_PARTNER', NAV_GROUPS, ['requests']).find((g) => g.key === 'selling');
+  assert.equal(selling.items[0].key, 'requests');
+  assert.equal(selling.items[0].href, '/requests');
+});
+
+test('with Requests switched off, no role is offered it', () => {
+  for (const role of ['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR', undefined]) {
+    assert.ok(!allKeys(navForRole(role, NAV_GROUPS, [])).includes('requests'), String(role));
+  }
+});
+
+test('a caller that passes no features gets the switched-off menu, not the full one', () => {
+  // Forgetting the features must hide a page production is meant not to have,
+  // never show it.
+  assert.ok(!allKeys(navForRole('CORE_PARTNER')).includes('requests'));
+  assert.ok(!keys(phoneBarItems('CORE_PARTNER')).includes('requests'));
+});
+
+test('switching Requests on does not lift its role restriction: an investor still does not see it', () => {
+  assert.ok(!allKeys(navForRole('TEMP_INVESTOR', NAV_GROUPS, ['requests'])).includes('requests'));
+});
+
+test('switching Requests on or off leaves the phone bar alone', () => {
+  assert.deepEqual(keys(phoneBarItems('CORE_PARTNER', NAV_GROUPS, ['requests'])), keys(phoneBarItems('CORE_PARTNER')));
+});
+
+test('the Requests entry is lit on its page, whichever tab is open', () => {
+  assert.ok(isActiveHref('/requests', '/requests'));
+  assert.ok(!isActiveHref('/requestsx', '/requests'));
 });

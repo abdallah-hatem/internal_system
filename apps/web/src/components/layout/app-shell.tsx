@@ -27,7 +27,6 @@ import {
   LogOut,
   Menu,
   Package,
-  PackageSearch,
   Route,
   Scale,
   Settings,
@@ -42,7 +41,9 @@ import {
 } from 'lucide-react';
 
 import { PhoneBar } from './phone-bar';
+import { ENABLED_FEATURES } from '../../lib/features';
 import {
+  NAV_GROUPS,
   isActiveHref,
   navForRole,
   phoneBarItems,
@@ -68,8 +69,7 @@ const NAV_ICONS: Record<string, Icon> = {
   products: Package,
   categories: Tag,
   inventory: Boxes,
-  orderRequests: Store,
-  importRequests: PackageSearch,
+  requests: Store,
   sales: BadgePercent,
   customers: Users,
   payments: CreditCard,
@@ -137,9 +137,9 @@ export function AppShell({
   // One reading of the role for every surface, so the sidebar, "More" and the
   // phone bar cannot disagree about what this person may open.
   const drawnRole = useDrawnRole();
-  const groups = navForRole(drawnRole);
+  const groups = navForRole(drawnRole, NAV_GROUPS, ENABLED_FEATURES);
   const systemItems = systemForRole(drawnRole);
-  const barItems = phoneBarItems(drawnRole);
+  const barItems = phoneBarItems(drawnRole, NAV_GROUPS, ENABLED_FEATURES);
 
   const isLoginPage = pathname.includes('/login');
 

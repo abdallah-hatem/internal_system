@@ -76,7 +76,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/import-requests/page.tsx": {
+  "src/components/requests/import-requests-list.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -139,7 +139,7 @@
       "count": 13
     }
   },
-  "src/app/[locale]/order-requests/page.tsx": {
+  "src/components/requests/order-requests-list.tsx": {
     "@typescript-eslint/no-floating-promises": {
       "count": 3
     },

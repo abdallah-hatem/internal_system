@@ -22,7 +22,18 @@ export type NavItem = {
    * entry here narrows it in the sidebar, the phone bar and "More" at once.
    */
   roles?: readonly string[];
+  /**
+   * A page that is switched off in some builds (lib/features.ts). The entry
+   * shows only when the caller passes this feature as on — so a caller that
+   * forgets to pass the features hides it, rather than showing a page that
+   * production is meant not to have.
+   */
+  feature?: Feature;
 };
+
+/** Switchable pages. The values come from `ENABLED_FEATURES` in lib/features.ts;
+ *  this file imports nothing, so the caller hands them in. */
+export type Feature = 'requests';
 
 export type NavGroup = { key: string; items: readonly NavItem[] };
 
@@ -81,13 +92,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       // First in this group on purpose: every pending request is holding stock
       // on a clock, so it is the one thing here that goes stale if it waits.
-      // GET /order-requests/pending — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
-      { key: 'orderRequests', href: '/order-requests', roles: BOOKS_READERS },
-      // Beside order requests, because they are the same conversation from the
-      // shop's side: one asks for what is on the shelf, the other for what is
-      // not.
-      // GET /import-requests — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
-      { key: 'importRequests', href: '/import-requests', roles: BOOKS_READERS },
+      // Order requests and import requests are two tabs of one page (owner,
+      // 2026-10-17): the same conversation from the shop's side — one asks for
+      // what is on the shelf, the other for what is not. Hidden in production
+      // for now (`feature`, lib/features.ts).
+      // GET /order-requests/pending and GET /import-requests — both
+      // @Roles(CORE_PARTNER, ADMIN_SUPPORT)
+      { key: 'requests', href: '/requests', roles: BOOKS_READERS, feature: 'requests' },
       // GET /sales/orders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
       { key: 'sales', href: '/sales', roles: BOOKS_READERS },
       // GET /customers — @Roles(CORE_PARTNER, ADMIN_SUPPORT) since R1
@@ -137,6 +148,11 @@ export const SYSTEM_ITEMS: readonly NavItem[] = [
  */
 export const PHONE_BAR_KEYS = ['dashboard', 'sales', 'customers', 'inventory', 'cycles'] as const;
 
+/** An entry with no `feature` is always on; one with a feature needs it passed. */
+export function isSwitchedOn(item: NavItem, features: readonly Feature[]): boolean {
+  return !item.feature || features.includes(item.feature);
+}
+
 export function canSee(item: NavItem, role: string | undefined): boolean {
   if (!item.roles) return true;
   return role !== undefined && item.roles.includes(role);
@@ -147,9 +163,13 @@ export function canSee(item: NavItem, role: string | undefined): boolean {
 export function navForRole(
   role: string | undefined,
   groups: readonly NavGroup[] = NAV_GROUPS,
+  features: readonly Feature[] = [],
 ): NavGroup[] {
   return groups
-    .map((g) => ({ key: g.key, items: g.items.filter((i) => canSee(i, role)) }))
+    .map((g) => ({
+      key: g.key,
+      items: g.items.filter((i) => canSee(i, role) && isSwitchedOn(i, features)),
+    }))
     .filter((g) => g.items.length > 0);
 }
 
@@ -168,8 +188,9 @@ export function systemForRole(
 export function phoneBarItems(
   role: string | undefined,
   groups: readonly NavGroup[] = NAV_GROUPS,
+  features: readonly Feature[] = [],
 ): NavItem[] {
-  const visible = new Map(navForRole(role, groups).flatMap((g) => g.items.map((i) => [i.key, i])));
+  const visible = new Map(navForRole(role, groups, features).flatMap((g) => g.items.map((i) => [i.key, i])));
   return PHONE_BAR_KEYS.flatMap((k) => {
     const item = visible.get(k);
     return item ? [item] : [];
