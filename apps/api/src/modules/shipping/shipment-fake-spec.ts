@@ -458,6 +458,10 @@ export function fakePrisma(db: Store) {
         const b = db.batches.find((x) => x.id === where.id)!;
         b.saleableQty = decrement(b.saleableQty, data.saleableQty);
         b.remainingQty = decrement(b.remainingQty, data.remainingQty);
+        // A leg's cost corrected after receipt re-costs the batch (§2).
+        if (data.landedUnitCostEgp !== undefined) {
+          b.landedUnitCostEgp = D(data.landedUnitCostEgp);
+        }
         return after(b);
       },
       // L5: the guarded take off the shelf, and removing a moved batch.
@@ -492,9 +496,22 @@ export function fakePrisma(db: Store) {
     },
     inventoryMovement: {
       create: ({ data }: Row) => {
-        db.movements.push({ id: randomUUID(), ...data });
+        db.movements.push({
+          id: randomUUID(),
+          occurredAt: new Date(Date.now() + db.movements.length),
+          ...data,
+        });
         return after(data);
       },
+      // The re-cost's receipt order (`costing/leg-recost.ts`).
+      findMany: ({ where }: Row) =>
+        after(
+          db.movements.filter(
+            (m) =>
+              (!where.batchId?.in || where.batchId.in.includes(m.batchId)) &&
+              (!where.movementType || m.movementType === where.movementType),
+          ),
+        ),
       deleteMany: ({ where }: Row) => {
         const keep = db.movements.filter((m) => m.batchId !== where.batchId);
         const count = db.movements.length - keep.length;
@@ -585,9 +602,20 @@ export function fakePrisma(db: Store) {
     },
     financialTransaction: {
       create: ({ data }: Row) => {
-        const row = { id: randomUUID(), ...data, amount: D(data.amount) };
+        const row = {
+          id: randomUUID(),
+          createdAt: new Date(Date.now() + db.ledger.length),
+          ...data,
+          amount: D(data.amount),
+        };
         db.ledger.push(row);
         return after(row);
+      },
+      // The re-cost rewrites a receipt's purchase row (§2, 2026-10-17).
+      update: ({ where, data }: Row) => {
+        const t = db.ledger.find((x) => x.id === where.id)!;
+        Object.assign(t, data, data.amount ? { amount: D(data.amount) } : {});
+        return after(t);
       },
       findMany: ({ where }: Row) =>
         after(db.ledger.filter((t) => ledgerMatches(t, where))),
@@ -738,13 +766,21 @@ export function fakePrisma(db: Store) {
         db.allocations.push(row);
         return after(row);
       },
+      update: ({ where, data }: Row) => {
+        const a = db.allocations.find((x) => x.id === where.id)!;
+        Object.assign(a, data);
+        return after(a);
+      },
       findMany: ({ where }: Row) =>
         after(
           db.allocations
-            .filter(
-              (a) =>
-                db.batches.find((b) => b.id === a.inventoryBatchId)?.cycleId ===
-                  where.inventoryBatch.cycleId && realised(a),
+            .filter((a) =>
+              // One batch's allocations, whatever their sale (the re-cost),
+              // or a cycle's realised ones (settlement).
+              where.inventoryBatchId !== undefined
+                ? a.inventoryBatchId === where.inventoryBatchId
+                : db.batches.find((b) => b.id === a.inventoryBatchId)
+                    ?.cycleId === where.inventoryBatch.cycleId && realised(a),
             )
             .map((a) => ({
               ...a,

@@ -30,6 +30,7 @@ import { planRecost, recost, refuseCostChange } from '../costing/leg-recost';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { parseRateToEgp } from '../../common/fx-rate';
 /**
  * A leg's status is what its dates say, not a field anyone sets.
  *
@@ -584,7 +585,31 @@ export class ShippingService {
     const ratePerUnit = dec(data.ratePerUnit);
     const chargeablePieces = dec(data.chargeablePieces);
     const chargeableWeightKg = dec(data.chargeableWeightKg);
-    const fxRateToEgp = dec(data.fxRateToEgp) ?? new Prisma.Decimal(1);
+
+    // The form's DTO says Min(0), and nothing else did: the assistant and any
+    // other caller reached this with a negative cost, or a rate of zero that
+    // turned a USD bill into 0 EGP (CLAUDE.md rule 3).
+    const negative = (
+      [
+        ['ratePerUnit', ratePerUnit],
+        ['chargeablePieces', chargeablePieces],
+        ['chargeableWeightKg', chargeableWeightKg],
+        ['amount', dec(data.amount)],
+      ] as const
+    ).find(([, v]) => v !== null && (!v.isFinite() || v.isNegative()));
+    if (negative) {
+      throw badRequest(
+        'LEG_COST_NEGATIVE',
+        `A shipping leg's ${negative[0]} cannot be negative.`,
+        { field: negative[0] },
+      );
+    }
+    const fxRateToEgp =
+      parseRateToEgp(
+        Prisma.Decimal.isDecimal(data.fxRateToEgp)
+          ? data.fxRateToEgp.toString()
+          : data.fxRateToEgp,
+      ) ?? new Prisma.Decimal(1);
 
     if (basis === 'PER_PIECE' && (!ratePerUnit || !chargeablePieces)) {
       throw badRequest(
