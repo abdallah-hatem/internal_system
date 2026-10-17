@@ -91,8 +91,7 @@
       "system": "النظام"
     },
     "suppliers": "المورّدون",
-    "orderRequests": "طلبات الشراء",
-    "importRequests": "طلبات الاستيراد",
+    "requests": "طلبات المحلات",
     "more": "المزيد",
     "phoneBar": "التنقل الرئيسي",
     "openMenu": "فتح القائمة",
@@ -1481,6 +1480,11 @@
     "CONTRACT_SUM_MISMATCH": "مجموع الأقساط {total} ج.م بينما المتبقي على الطلب {order} هو {owed} ج.م.",
     "INSTALMENT_DUE_IN_PAST": "لا يمكن أن يكون موعد قسط في الماضي ({day}).",
     "SALE_HAS_NO_PLAN": "لا توجد خطة تقسيط للطلب {order}، فلا يوجد له عقد."
+  },
+  "requests": {
+    "tabs": {
+      "label": "عرض طلبات المحلات"
+    }
   },
   "orderRequests": {
     "title": "طلبات الشراء",

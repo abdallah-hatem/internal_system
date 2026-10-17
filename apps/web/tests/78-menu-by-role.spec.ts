@@ -35,8 +35,10 @@ const INVESTOR_HREFS = [
   '/settlements',
   '/notifications', '/settings',
 ];
+// Order requests and import requests are two tabs of /requests (owner,
+// 2026-10-17); the local stack shows it, production hides it for now.
 const PARTNER_ONLY_HREFS = [
-  '/analytics', '/order-requests', '/import-requests', '/sales', '/customers',
+  '/analytics', '/requests', '/sales', '/customers',
   '/payments', '/lenders', '/ledger', '/partners', '/audit-logs',
 ];
 
@@ -107,8 +109,8 @@ test.describe('The menu by role', () => {
     const headers = { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
     const endpoints: Record<string, string> = {
       '/analytics': '/analytics/revenue-by-month',
-      '/order-requests': '/order-requests/pending',
-      '/import-requests': '/import-requests',
+      // Both tabs' endpoints: the import requests tab is checked after the loop.
+      '/requests': '/order-requests/pending',
       '/sales': '/sales/orders',
       '/customers': '/customers',
       '/payments': '/payments',
@@ -122,6 +124,8 @@ test.describe('The menu by role', () => {
       expect(res.status(), href).toBe(403);
       expect((await res.json()).error.code, href).toBe('ROLE_NOT_ALLOWED');
     }
+    const imports = await request.get(`${API}/import-requests`, { headers });
+    expect(imports.status(), '/requests?view=imports').toBe(403);
   });
 
   test('TC-MENU-04: the audit log refuses an investor with a code, and lets a partner and support in', async ({ request }) => {

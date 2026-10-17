@@ -1607,6 +1607,31 @@ notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added
 to their home screen.
 
+**Requests in the office: one page, hidden in production for now.** DECIDED
+2026-10-17 (owner: "import requests and order requests can be in one tab, and I
+want them to be hidden in prod for now"). Order requests and import requests are
+two tabs of one office page, Requests (`/requests`, `?view=imports` for the
+second), with one menu entry in place of the two. The old addresses
+`/order-requests` and `/import-requests` land on their tab.
+
+In a production build the page is switched off: no menu entry, a request's
+notification is plain text rather than a link, and `/requests` or either old
+address goes to the dashboard. Local dev shows it. **Nothing about requests
+themselves changes**: the API and the storefront are untouched, so shops can
+still send order and import requests, an order request still holds its stock
+for 48 hours (and releases it when unanswered), and the notifications are still
+written. They wait, unanswered, and are all there when the page is switched
+back on.
+
+One flag, `apps/web/src/lib/features.ts` (`REQUESTS_ENABLED`):
+`NEXT_PUBLIC_FEATURE_REQUESTS=on` on the web project in Vercel turns it on in
+production (a redeploy applies it), `off` hides it everywhere, and unset means
+off when `NEXT_PUBLIC_VERCEL_ENV` is `production` and on otherwise. **GUESSED,
+not asked:** the old addresses keep working in dev rather than being removed;
+the push alert the API still sends for a new request points at
+`/order-requests`/`/import-requests`, which in production now lands on the
+dashboard.
+
 ---
 
 ## Still open

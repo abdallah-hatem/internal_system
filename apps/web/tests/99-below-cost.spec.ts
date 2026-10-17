@@ -419,7 +419,7 @@ test.describe("Selling below cost — the confirm step, approval and price list 
     const req = (await made.json()).data;
 
     await login(page);
-    await openNav(page, messages("en").nav.orderRequests);
+    await openNav(page, messages("en").nav.requests);
     const card = page
       .getByTestId("order-request-card")
       .filter({ hasText: req.requestNo });

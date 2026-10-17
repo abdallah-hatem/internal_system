@@ -7,6 +7,8 @@ import { useTranslations } from 'next-intl';
 import { api } from './api';
 import { useCodeLabel, type CodeKind } from './labels';
 import { useDateFormat } from './dates';
+import { REQUESTS_ENABLED } from './features';
+import { requestsPath } from './requests-route';
 
 /**
  * The notifications query, defined once.
@@ -76,16 +78,22 @@ export function useNotifications(limit = 50) {
  * text rather than a link that lands on a dashboard and leaves the person
  * hunting for what the message was about.
  */
-export function notificationHref(notification: Notification): string | null {
+export function notificationHref(
+  notification: Notification,
+  /** Whether this build shows the Requests page (lib/features.ts). Where it is
+   *  switched off a request's notification is plain text, not a link that
+   *  would only bounce to the dashboard. */
+  requestsEnabled: boolean = REQUESTS_ENABLED,
+): string | null {
   const payload = (notification.payloadJson ?? {}) as Record<string, string | undefined>;
 
   switch (notification.eventType) {
     case 'ORDER_REQUEST_SUBMITTED':
     case 'HOLD_EXPIRING':
-      return '/order-requests';
+      return requestsEnabled ? requestsPath('orders') : null;
 
     case 'IMPORT_REQUEST_SUBMITTED':
-      return '/import-requests';
+      return requestsEnabled ? requestsPath('imports') : null;
 
     case 'SHOP_SIGNED_UP':
       // Straight to the tab they are waiting in, not the whole customer list.

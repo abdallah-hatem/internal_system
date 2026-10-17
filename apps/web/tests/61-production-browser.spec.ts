@@ -29,11 +29,13 @@ const PASSWORD = 'password123';
 const COLD_START = 90_000;
 test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
-/** Every destination in the sidebar, which is every flow the office has. */
+/** Every destination in the sidebar, which is every flow the office has.
+ *  Requests (order and import requests) is hidden in production for now
+ *  (owner, 2026-10-17, lib/features.ts), so it is not swept here. */
 const SCREENS = [
   'dashboard', 'analytics', 'cycles', 'purchases', 'suppliers', 'shipments',
-  'providers', 'products', 'categories', 'inventory', 'order-requests',
-  'import-requests', 'sales', 'customers', 'payments', 'payment-plans',
+  'providers', 'products', 'categories', 'inventory',
+  'sales', 'customers', 'payments', 'payment-plans',
   'ledger', 'partners', 'settlements', 'notifications', 'audit-logs', 'settings',
 ];
 

@@ -16,6 +16,18 @@ vi.mock('@/i18n/navigation', () => ({
   ),
 }));
 
+// The Requests page is hidden in production for now (lib/features.ts); a
+// request's notification must not link to a page that is not there.
+const flags = vi.hoisted(() => ({ requests: true }));
+vi.mock('@/lib/features', () => ({
+  get REQUESTS_ENABLED() {
+    return flags.requests;
+  },
+  get ENABLED_FEATURES() {
+    return flags.requests ? ['requests'] : [];
+  },
+}));
+
 const stored = vi.hoisted(() => ({ items: [] as unknown[] }));
 vi.mock('@/lib/api', () => ({
   api: {
@@ -35,7 +47,10 @@ beforeAll(() => {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  flags.requests = true;
+});
 
 const NEW = {
   id: 'n-new',
@@ -145,5 +160,49 @@ describe('where a notification the API actually raises takes you', () => {
 
   it('low stock (eventType LOW_STOCK_DETECTED, after a receipt or a sale) opens the stock page', () => {
     expect(href('LOW_STOCK_DETECTED', { products: [{ productId: 'x' }] })).toBe('/inventory');
+  });
+});
+
+describe('a notification about a shop’s request (Requests page, owner 2026-10-17)', () => {
+  const href = (eventType: string, enabled?: boolean) =>
+    notificationHref({ ...NEW, eventType, payloadJson: {} } as Parameters<typeof notificationHref>[0], enabled);
+
+  it('opens the tab it is about when the page is switched on', () => {
+    expect(href('ORDER_REQUEST_SUBMITTED', true)).toBe('/requests');
+    expect(href('HOLD_EXPIRING', true)).toBe('/requests');
+    expect(href('IMPORT_REQUEST_SUBMITTED', true)).toBe('/requests?view=imports');
+  });
+
+  it('is not a link at all when the page is switched off', () => {
+    for (const e of ['ORDER_REQUEST_SUBMITTED', 'HOLD_EXPIRING', 'IMPORT_REQUEST_SUBMITTED']) {
+      expect([e, href(e, false)]).toEqual([e, null]);
+    }
+  });
+
+  it('no notification links to the old addresses any more', () => {
+    for (const e of ['ORDER_REQUEST_SUBMITTED', 'HOLD_EXPIRING', 'IMPORT_REQUEST_SUBMITTED']) {
+      expect(href(e, true)).not.toMatch(/order-requests|import-requests/);
+    }
+  });
+
+  it('switched off, switching it off does not take the links off anything else', () => {
+    expect(href('SALE_CONFIRMED', false)).toBe('/sales');
+  });
+
+  it('in the bell, switched off, the request still shows but as plain text — not a link', async () => {
+    flags.requests = false;
+    await openBellInArabic([
+      { ...NEW, id: 'n-req', eventType: 'IMPORT_REQUEST_SUBMITTED', code: 'SOMETHING_NEW', title: 'Shop asked for a part' },
+    ]);
+    const line = await screen.findByText('Shop asked for a part');
+    expect(line.closest('a')).toBeNull();
+  });
+
+  it('in the bell, switched on, the same request links to its tab', async () => {
+    await openBellInArabic([
+      { ...NEW, id: 'n-req', eventType: 'IMPORT_REQUEST_SUBMITTED', code: 'SOMETHING_NEW', title: 'Shop asked for a part' },
+    ]);
+    const line = await screen.findByText('Shop asked for a part');
+    expect(line.closest('a')?.getAttribute('href')).toBe('/requests?view=imports');
   });
 });
