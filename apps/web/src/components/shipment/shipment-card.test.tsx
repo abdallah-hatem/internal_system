@@ -238,3 +238,32 @@ describe('the rules, on their own', () => {
     expect(shipmentProgress({ ordered: 10, received: 12, lost: 0, onTheWay: 0, waiting: 0 })).toBe(100);
   });
 });
+
+describe('the status sits on the title line, coloured by what happened (owner 2026-10-17)', () => {
+  it.each([
+    ['ARRIVED', 'text-success'],
+    ['IN_TRANSIT', 'text-primary'],
+    ['PARTLY_ARRIVED', 'text-accent-600'],
+    ['PENDING', 'text-muted-foreground'],
+  ])('%s → %s, as a dot and a word, no pill', async (status, tone) => {
+    state.shipment = shipment([leg({ status })]);
+    wrap(<ShipmentPanel cycle={cycle([{ id: 'leg-2', amountEgp: '1' }])} />);
+    const el = await block();
+    const mark = within(el).getByTestId('leg-status');
+    expect(mark.textContent).toBe(en.codes.legStatus[status as keyof typeof en.codes.legStatus]);
+    const wrapper = mark.parentElement!;
+    expect(wrapper.className).toContain(tone);
+    expect(wrapper.className).not.toMatch(/rounded-full|bg-muted/);
+    expect(wrapper.querySelector('[aria-hidden="true"]')?.className).toContain('rounded-full');
+  });
+
+  it('beside the heading, not in the dates line under it', async () => {
+    state.shipment = shipment([leg()]);
+    wrap(<ShipmentPanel cycle={cycle([{ id: 'leg-2', amountEgp: '1' }])} />);
+    const el = await block();
+    const heading = within(el).getByRole('heading', { level: 3 });
+    const mark = within(el).getByTestId('leg-status');
+    expect(heading.parentElement!.contains(mark)).toBe(true);
+    expect(mark.closest('p')).toBeNull();
+  });
+});

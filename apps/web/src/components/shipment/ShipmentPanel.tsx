@@ -582,21 +582,21 @@ function LegBlock({
         <div className="min-w-0">
           {/* The leg number and the route are separate flex items, so a Latin
               route cannot run into the number in Arabic (UI audit #11). */}
-          <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-foreground">
-            <span className="whitespace-nowrap">{t('legHeading', { leg: leg.sequence })}</span>
-            <LegRoute origin={leg.origin} destination={leg.destination} className="font-normal text-muted-foreground" />
-          </h3>
-          <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span data-testid="leg-status" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
-              {codeLabel('legStatus', leg.status)}
-            </span>
+          {/* The status sits on the title's line as a coloured dot and word
+              (owner 2026-10-17: a grey pill under the title read oddly). */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-foreground">
+              <span className="whitespace-nowrap">{t('legHeading', { leg: leg.sequence })}</span>
+              <LegRoute origin={leg.origin} destination={leg.destination} className="font-normal text-muted-foreground" />
+            </h3>
+            <LegStatusMark testId="leg-status" status={leg.status} label={codeLabel('legStatus', leg.status)} />
             {/* Partly arrived and partly departed at once: the status says
                 the furthest thing that happened, this says the rest (L8). */}
             {leg.status === 'PARTLY_ARRIVED' && hasWaitingToLeave(leg) && (
-              <span data-testid="leg-partly-departed" className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
-                {t('partlyDeparted')}
-              </span>
+              <LegStatusMark testId="leg-partly-departed" status="PARTLY_DEPARTED" label={t('partlyDeparted')} />
             )}
+          </div>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {/* A leg that has not left is said once, by the badge — the date
                 slot only appears with a date in it. */}
             {leg.departedOn && (
@@ -923,6 +923,25 @@ function LegBlock({
       </div>
       )}
     </div>
+  );
+}
+
+/** A leg's status: what happened, by colour — arrived green, moving blue, half-way orange, not left grey. */
+const STATUS_TONE: Record<string, { dot: string; text: string }> = {
+  ARRIVED: { dot: 'bg-success', text: 'text-success' },
+  IN_TRANSIT: { dot: 'bg-primary', text: 'text-primary' },
+  PARTLY_ARRIVED: { dot: 'bg-accent-600', text: 'text-accent-600' },
+  PARTLY_DEPARTED: { dot: 'bg-accent-600', text: 'text-accent-600' },
+  PENDING: { dot: 'bg-muted-foreground', text: 'text-muted-foreground' },
+};
+
+function LegStatusMark({ status, label, testId }: { status: string; label: string; testId: string }) {
+  const tone = STATUS_TONE[status] ?? STATUS_TONE.PENDING;
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold', tone.text)}>
+      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', tone.dot)} />
+      <span data-testid={testId} data-status={status}>{label}</span>
+    </span>
   );
 }
 
