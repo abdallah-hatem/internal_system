@@ -15,6 +15,19 @@
  * page").
  */
 
+/**
+ * The faces a printed document draws with: Plex Arabic and Plex Latin, their
+ * Arabic and basic Latin subsets, and Plex Mono's Latin for the numbers set in
+ * it (an invoice number) — a face left out is drawn in a wider fallback and
+ * wraps where the page did not.
+ */
+export const DOCUMENT_FONT_FACES = [
+  { family: 'IBM Plex Sans Arabic', ranges: ['U+600', 'U+0-FF'] },
+  { family: 'IBM Plex Sans', ranges: ['U+0-FF'] },
+  { family: 'IBM Plex Mono', ranges: ['U+0-FF'] },
+];
+export const DOCUMENT_CANVAS_FONT = "'IBM Plex Sans Arabic', 'IBM Plex Sans', sans-serif";
+
 /** A4 at the CSS reference 96 dpi: 210 × 297 mm. */
 export const SHEET_WIDTH_PX = 794;
 export const SHEET_HEIGHT_PX = Math.round((SHEET_WIDTH_PX * 297) / 210);
@@ -128,7 +141,11 @@ export function restoreFontSizes(svg: string, pageSizes: Iterable<number>): stri
  * height overlaps whatever wrapped. Without them the drawing lays itself out
  * the way the page did, from the same fonts at the same sizes.
  */
-const SIZES = new Set(['width', 'inline-size', 'height', 'block-size', 'min-height', 'min-block-size']);
+// A grid's rows too: the browser writes them back as the pixel heights it
+// measured, and a label that wraps in the drawing then overlaps the row below.
+const SIZES = new Set([
+  'width', 'inline-size', 'height', 'block-size', 'min-height', 'min-block-size', 'grid-template-rows',
+]);
 function stylesWithoutSizes(doc: HTMLElement): string[] {
   const style = getComputedStyle(doc);
   return Array.from({ length: style.length }, (_, i) => style.item(i)).filter((p) => !SIZES.has(p));

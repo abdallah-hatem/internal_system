@@ -540,7 +540,8 @@
       "notAvailable": "No invoice for this order",
       "printedOn": "Printed {date}",
       "credited": "Returns credited",
-      "returnedInFull": "Returned in full — nothing is owed on it."
+      "returnedInFull": "Returned in full — nothing is owed on it.",
+      "page": "Page {n} of {total}"
     },
     "inactiveTag": "Inactive",
     "saleDate": "Sale date",
@@ -569,10 +570,7 @@
       "createFailed": "Could not create the contract",
       "back": "Back to sales",
       "notAvailable": "No contract for this sale",
-      "language": "Contract language",
-      "downloadPdf": "Download PDF",
-      "sharePdf": "Share PDF",
-      "pdfFailed": "Could not make the PDF. Try again."
+      "language": "Contract language"
     }
   },
   "customers": {
@@ -2249,5 +2247,10 @@
     "saveFailed": "The rate could not be saved",
     "emptyTitle": "No currencies yet",
     "emptyHint": "Add the currencies you buy and pay in, with their rate to the pound."
+  },
+  "documents": {
+    "downloadPdf": "Download PDF",
+    "sharePdf": "Share PDF",
+    "pdfFailed": "Could not make the PDF. Try again."
   }
 }

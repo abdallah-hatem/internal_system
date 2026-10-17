@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { FileX, Printer } from 'lucide-react';
+import { FileX } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -16,6 +16,7 @@ import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRegion, SkeletonText } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { DocumentActions } from '@/components/ui/document-actions';
 
 /** `GET /sales/orders/:id/invoice` (api SalesService.invoice). */
 interface Invoice {
@@ -89,7 +90,7 @@ function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
             </p>
             <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{line.sku}</LatinText></p>
             {/* On a phone, price and discount sit under the name. */}
-            <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden">
+            <p className="text-xs text-muted-foreground tabular-nums sm:hidden print:hidden sheet:hidden">
               <bdi dir="ltr">{formatAmount(line.unitPrice)}</bdi>
               {Number(line.discount) > 0 && (
                 <>
@@ -197,18 +198,18 @@ const noon = (day: string) => `${day}T12:00:00Z`;
 
 /**
  * A confirmed sale as an invoice / delivery note (BUSINESS_LOGIC §4, I2
- * 2026-10-11), in the reader's language and direction. "Print" is the
- * browser's own print through the app's print stylesheet (globals.css): the
- * menu, the top bar and these buttons stay off the paper, and the page is A4.
+ * 2026-10-11), in the reader's language and direction. Download PDF, Share
+ * PDF and Print are the shared DocumentActions, as on the contract (owner,
+ * 2026-10-17); where the browser prints the page itself, the print
+ * stylesheet (globals.css) keeps the menu, the top bar and the buttons off
+ * the paper.
  *
  * A draft or a cancelled order has no invoice: the server refuses it, and the
  * refusal is what this page shows.
  */
 export default function InvoicePage() {
   const t = useTranslations('sales.invoice');
-  const tc = useTranslations('common');
   const apiError = useApiError();
-  const { formatDate } = useDateFormat();
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
 
@@ -259,135 +260,158 @@ export default function InvoicePage() {
     );
   }
 
-  const walkIn = data.customer.isWalkIn;
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         {/* BackLink pulls itself up 12px for its tap target; give it back
-            here so it centres on the Print button beside it. */}
+            here so it centres on the buttons beside it. */}
         <div className="mt-3">
           <BackLink onClick={back} label={t('back')} />
         </div>
-        <button
-          type="button"
-          data-testid="invoice-print"
-          onClick={() => window.print()}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:min-h-0"
-        >
-          <Printer className="h-4 w-4" />
-          {tc('print')}
-        </button>
-      </div>
-
-      <article
-        data-testid="invoice"
-        data-print-doc
-        className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8"
-      >
-        {/* Who and what */}
-        <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between" data-print-keep>
-          <div>
-            <p className="text-lg font-bold text-foreground">{tc('brand')}</p>
-            <h1 className="mt-1 text-xl font-semibold text-foreground">{t('title')}</h1>
-          </div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm sm:text-end">
-            <dt className="text-muted-foreground">{t('number')}</dt>
-            <dd className="font-mono font-semibold text-foreground" data-testid="invoice-number">
-              <bdi dir="ltr">{data.orderNo}</bdi>
-            </dd>
-            <dt className="text-muted-foreground">{t('date')}</dt>
-            <dd className="text-foreground">{formatDate(noon(data.date))}</dd>
-          </dl>
-        </header>
-
-        <section className="border-b border-border py-4 text-sm" data-print-keep>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('billTo')}</p>
-          <p className="mt-1 text-base font-semibold text-foreground" data-testid="invoice-customer">
-            {walkIn ? t('walkIn') : <LatinText>{data.customer.displayName}</LatinText>}
-          </p>
-          {!walkIn && data.customer.phone && (
-            <p className="text-muted-foreground" data-testid="invoice-phone">
-              {t('phone')}: <LatinText dir="ltr">{data.customer.phone}</LatinText>
-            </p>
-          )}
-        </section>
-
-        {/* The lines */}
-        <div className="py-4">
-          <DataTable
-            frame="none"
-            density="compact"
-            autoMin="10rem"
-            tableTestId="invoice-lines"
-            rows={data.lines}
-            rowKey={(line) => line.id}
-            rowProps={() => ({ 'data-testid': 'invoice-line' })}
-            columns={columns}
+        <div className="flex flex-wrap items-center gap-2">
+          <DocumentActions
+            testIdPrefix="invoice"
+            filename={`${data.orderNo}.pdf`}
+            title={`${t('title')} ${data.orderNo}`}
+            pageLabel={(n, total) => t('page', { n, total })}
+            dir={locale === 'ar' ? 'rtl' : 'ltr'}
+            sheet={() => <InvoiceDocument data={data} columns={columns} sheet />}
           />
         </div>
+      </div>
 
-        {/* Totals, and the shop's account beside them */}
-        <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2 print:grid-cols-2" data-print-keep>
-          <div className="order-2 sm:order-1 print:order-1">
-            {walkIn ? (
-              <p className="text-sm text-muted-foreground" data-testid="invoice-paid-in-full">{t('paidInFull')}</p>
-            ) : data.account ? (
-              <div className="rounded-lg border border-border p-3 text-sm" data-testid="invoice-account">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('account')}</p>
-                <dl>
-                <Figure label={t('balanceBefore')} value={<Money value={data.account.balanceBefore} />} />
-                <Figure label={t('thisInvoice')} value={<Money value={data.total} currency={data.currency} />} />
-                <Figure
-                  testId="invoice-balance-after"
-                  label={t('balanceAfter')}
-                  value={<Money value={data.account.balanceAfter} />}
-                  strong
-                />
-                </dl>
-              </div>
-            ) : null}
-          </div>
-          <dl className="order-1 space-y-1 text-sm sm:order-2 print:order-2">
-            <Figure label={t('subtotal')} value={<Money value={data.subtotal} currency={data.currency} />} />
-            {Number(data.discount) > 0 && (
-              <Figure
-                label={t('discountTotal')}
-                value={<bdi dir="ltr">- <Money value={data.discount} currency={data.currency} /></bdi>}
-              />
-            )}
-            <Figure testId="invoice-total" label={t('total')} value={<Money value={data.total} currency={data.currency} />} strong />
-            <Figure testId="invoice-paid" label={t('paid')} value={<Money value={data.paid} currency={data.currency} />} />
-            {Number(data.credited) > 0 && (
-              <Figure
-                testId="invoice-credited"
-                label={t('credited')}
-                value={<bdi dir="ltr">- <Money value={data.credited} currency={data.currency} /></bdi>}
-              />
-            )}
-            {data.returned && <p className="text-xs text-muted-foreground" data-testid="invoice-returned">{t('returnedInFull')}</p>}
-            <Figure
-              testId="invoice-owes"
-              label={t('owes')}
-              value={<Money value={data.owes} currency={data.currency} />}
-              strong
-            />
-          </dl>
-        </div>
-
-        {/* A delivery note is signed for. */}
-        <footer className="mt-10 grid grid-cols-2 gap-8 text-sm text-muted-foreground" data-print-keep>
-          <div className="border-t border-border pt-2">{t('receivedBy')}</div>
-          <div className="border-t border-border pt-2">{t('deliveredBy')}</div>
-        </footer>
-        <p className="mt-6 hidden text-xs text-muted-foreground print:block">
-          {t('printedOn', { date: formatDate(new Date().toISOString()) })}
-        </p>
-      </article>
+      <InvoiceDocument data={data} columns={columns} />
     </div>
   );
 }
 
+
+/**
+ * The invoice itself. `sheet` lays it out flat for the PDF (DocumentActions):
+ * no card border, shadow or padding, and — through the `sheet:` variant — the
+ * printed layout whatever the screen it is made on.
+ */
+function InvoiceDocument({
+  data,
+  columns,
+  sheet = false,
+}: {
+  data: Invoice;
+  columns: Column<InvoiceLine>[];
+  sheet?: boolean;
+}) {
+  const t = useTranslations('sales.invoice');
+  const tc = useTranslations('common');
+  const { formatDate } = useDateFormat();
+  const walkIn = data.customer.isWalkIn;
+
+  return (
+  <article
+    data-testid={sheet ? undefined : 'invoice'}
+    data-print-doc
+    className={sheet ? 'bg-card' : 'mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8'}
+  >
+    {/* Who and what */}
+    <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between sheet:flex-row sheet:items-start sheet:justify-between" data-print-keep>
+      <div>
+        <p className="text-lg font-bold text-foreground">{tc('brand')}</p>
+        <h1 className="mt-1 text-xl font-semibold text-foreground">{t('title')}</h1>
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 whitespace-nowrap text-sm sm:text-end sheet:text-end">
+        <dt className="text-muted-foreground">{t('number')}</dt>
+        <dd className="whitespace-nowrap font-mono font-semibold text-foreground" data-testid="invoice-number">
+          <bdi dir="ltr">{data.orderNo}</bdi>
+        </dd>
+        <dt className="text-muted-foreground">{t('date')}</dt>
+        <dd className="text-foreground">{formatDate(noon(data.date))}</dd>
+      </dl>
+    </header>
+
+    <section className="border-b border-border py-4 text-sm" data-print-keep>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('billTo')}</p>
+      <p className="mt-1 text-base font-semibold text-foreground" data-testid="invoice-customer">
+        {walkIn ? t('walkIn') : <LatinText>{data.customer.displayName}</LatinText>}
+      </p>
+      {!walkIn && data.customer.phone && (
+        <p className="text-muted-foreground" data-testid="invoice-phone">
+          {t('phone')}: <LatinText dir="ltr">{data.customer.phone}</LatinText>
+        </p>
+      )}
+    </section>
+
+    {/* The lines */}
+    <div className="py-4">
+      <DataTable
+        frame="none"
+        density="compact"
+        autoMin="10rem"
+        tableTestId="invoice-lines"
+        rows={data.lines}
+        rowKey={(line) => line.id}
+        rowProps={() => ({ 'data-testid': 'invoice-line' })}
+        columns={columns}
+      />
+    </div>
+
+    {/* Totals, and the shop's account beside them */}
+    <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2 print:grid-cols-2 sheet:grid-cols-2" data-print-keep>
+      <div className="order-2 sm:order-1 print:order-1 sheet:order-1">
+        {walkIn ? (
+          <p className="text-sm text-muted-foreground" data-testid="invoice-paid-in-full">{t('paidInFull')}</p>
+        ) : data.account ? (
+          <div className="rounded-lg border border-border p-3 text-sm" data-testid="invoice-account">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('account')}</p>
+            <dl>
+            <Figure label={t('balanceBefore')} value={<Money value={data.account.balanceBefore} />} />
+            <Figure label={t('thisInvoice')} value={<Money value={data.total} currency={data.currency} />} />
+            <Figure
+              testId="invoice-balance-after"
+              label={t('balanceAfter')}
+              value={<Money value={data.account.balanceAfter} />}
+              strong
+            />
+            </dl>
+          </div>
+        ) : null}
+      </div>
+      <dl className="order-1 space-y-1 text-sm sm:order-2 print:order-2 sheet:order-2">
+        <Figure label={t('subtotal')} value={<Money value={data.subtotal} currency={data.currency} />} />
+        {Number(data.discount) > 0 && (
+          <Figure
+            label={t('discountTotal')}
+            value={<bdi dir="ltr">- <Money value={data.discount} currency={data.currency} /></bdi>}
+          />
+        )}
+        <Figure testId="invoice-total" label={t('total')} value={<Money value={data.total} currency={data.currency} />} strong />
+        <Figure testId="invoice-paid" label={t('paid')} value={<Money value={data.paid} currency={data.currency} />} />
+        {Number(data.credited) > 0 && (
+          <Figure
+            testId="invoice-credited"
+            label={t('credited')}
+            value={<bdi dir="ltr">- <Money value={data.credited} currency={data.currency} /></bdi>}
+          />
+        )}
+        {data.returned && <p className="text-xs text-muted-foreground" data-testid="invoice-returned">{t('returnedInFull')}</p>}
+        <Figure
+          testId="invoice-owes"
+          label={t('owes')}
+          value={<Money value={data.owes} currency={data.currency} />}
+          strong
+        />
+      </dl>
+    </div>
+
+    {/* A delivery note is signed for. */}
+    <footer className="mt-10 grid grid-cols-2 gap-8 text-sm text-muted-foreground" data-print-keep>
+      <div className="border-t border-border pt-2">{t('receivedBy')}</div>
+      <div className="border-t border-border pt-2">{t('deliveredBy')}</div>
+    </footer>
+    <p className="mt-6 hidden text-xs text-muted-foreground print:block sheet:block">
+      {t('printedOn', { date: formatDate(new Date().toISOString()) })}
+    </p>
+  </article>
+  );
+}
 function Figure({
   label,
   value,

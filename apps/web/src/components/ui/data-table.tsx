@@ -149,8 +149,15 @@ const HEAD = {
 
 // Written out whole, so Tailwind sees each class. Paper always has the room:
 // a column hidden on a phone is printed.
-const HIDDEN_CELL = { sm: 'hidden sm:table-cell print:table-cell', md: 'hidden md:table-cell print:table-cell' } as const;
-const HIDDEN_COL = { sm: 'hidden sm:table-column print:table-column', md: 'hidden md:table-column print:table-column' } as const;
+// On paper and in a PDF's sheet every column shows, whatever the screen it was made on.
+const HIDDEN_CELL = {
+  sm: 'hidden sm:table-cell print:table-cell sheet:table-cell',
+  md: 'hidden md:table-cell print:table-cell sheet:table-cell',
+} as const;
+const HIDDEN_COL = {
+  sm: 'hidden sm:table-column print:table-column sheet:table-column',
+  md: 'hidden md:table-column print:table-column sheet:table-column',
+} as const;
 
 const KIND_CLASS: Record<ColumnKind, string> = {
   name: '',

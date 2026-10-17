@@ -540,7 +540,8 @@
       "notAvailable": "لا توجد فاتورة لهذا الطلب",
       "printedOn": "طُبعت في {date}",
       "credited": "مرتجعات مخصومة",
-      "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه."
+      "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه.",
+      "page": "صفحة {n} من {total}"
     },
     "inactiveTag": "غير نشط",
     "saleDate": "تاريخ البيع",
@@ -569,10 +570,7 @@
       "createFailed": "تعذر إنشاء العقد",
       "back": "العودة إلى المبيعات",
       "notAvailable": "لا يوجد عقد لهذا البيع",
-      "language": "لغة العقد",
-      "downloadPdf": "تنزيل PDF",
-      "sharePdf": "مشاركة PDF",
-      "pdfFailed": "تعذر إنشاء ملف PDF. حاول مرة أخرى."
+      "language": "لغة العقد"
     }
   },
   "customers": {
@@ -2249,5 +2247,10 @@
     "saveFailed": "تعذّر حفظ السعر",
     "emptyTitle": "لا توجد عملات بعد",
     "emptyHint": "أضف العملات التي تشتري وتدفع بها مع سعرها بالجنيه."
+  },
+  "documents": {
+    "downloadPdf": "تنزيل PDF",
+    "sharePdf": "مشاركة PDF",
+    "pdfFailed": "تعذر إنشاء ملف PDF. حاول مرة أخرى."
   }
 }

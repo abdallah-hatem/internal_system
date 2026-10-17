@@ -4,7 +4,6 @@ import { formatMoney, formatNumber } from '@/lib/numbers';
 import { localName } from '@/lib/localized-name';
 import { LatinText } from '@/components/ui/latin-text';
 import { BrandMark } from '@/components/layout/brand-mark';
-import { SHEET_MARGIN_PX, SHEET_WIDTH_PX } from '@/lib/document-pdf';
 import { CONTRACT_TEXT, contractDay, type ContractLanguage } from './contract-text';
 
 /** `GET /sales/orders/:id/contract` (api PaymentPlansService.saleContract). */
@@ -56,8 +55,8 @@ export function ContractDocument({
   contract: SaleContract;
   lang: ContractLanguage;
   /**
-   * Laid out as one A4 sheet's width with its side margins, flat (no card
-   * border or shadow), for the PDF to draw — see lib/document-pdf.ts.
+   * Flat — no card border, shadow or padding — for the PDF to draw inside
+   * DocumentActions' A4 sheet (components/ui/document-actions.tsx).
    */
   sheet?: boolean;
 }) {
@@ -80,11 +79,7 @@ export function ContractDocument({
           ? 'bg-card text-start text-[12.5px] leading-relaxed text-foreground'
           : 'mx-auto max-w-[794px] rounded-xl border border-border bg-card px-6 py-8 text-start text-[12.5px] leading-relaxed text-foreground shadow-sm sm:px-12'
       }
-      style={
-        sheet
-          ? { fontFamily: DOCUMENT_FONT, width: SHEET_WIDTH_PX, paddingInline: SHEET_MARGIN_PX }
-          : { fontFamily: DOCUMENT_FONT }
-      }
+      style={{ fontFamily: DOCUMENT_FONT }}
     >
       <header className="flex items-start justify-between gap-4 border-b-2 border-foreground pb-3" data-print-keep>
         <div className="flex items-center gap-3">

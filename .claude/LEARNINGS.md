@@ -103,6 +103,11 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   leaves the VM and a dozen helper processes running for nothing. Check nothing is
   mid-flight first — no `node.*playwright` — because the servers may belong to another
   session. — 2026-09-02
+- `npm run dev` is for the owner: it opens a visible Terminal window per server. When the stack is only for my own
+  check (headless screenshots, a PDF), start the servers in the background with no windows (`scripts/agent-servers.sh`,
+  or each app's dev command as a background task) and stop them and Docker when the check ends. On 2026-10-17 I opened
+  the windows to check the invoice PDF and he asked "why did you open the terminals i did not tell you that i will test
+  locally this time ?". — 2026-10-17
 - Do not test for Docker with `pgrep -x Docker`. The exact-name match hits nothing while
   `Docker Desktop`, `com.docker.backend` and the rest are all running, so it reports a
   clean shutdown that did not happen. Ask the engine (`docker info`) or match the bundle
@@ -319,6 +324,7 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   copy to the page's measured width and height and shrinks every font size to `floor(size) - 0.1`; together they made
   the contract number wrap over the date, a blank line in the terms, and page breaks in the wrong place. The helper
   restores the sizes (both `font-size` and the `font:` shorthand), leaves sizes out of the copied styles, and pins
-  full-width tables. Check a PDF by opening the PDF itself at 36 instalments in both languages, not the screen.
+  full-width tables, and leaves out grid row sizes; every face the document uses must be in DOCUMENT_FONT_FACES (an
+  invoice number in Plex Mono drew in a wider fallback and wrapped). Check a PDF by opening the PDF itself at 36 instalments in both languages, not the screen.
   Timings from a hidden browser pane are meaningless: it paused `requestAnimationFrame` and made a 0.3 s PDF take 30 s.
   — 2026-10-17
