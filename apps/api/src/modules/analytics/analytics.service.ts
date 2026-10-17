@@ -39,6 +39,10 @@ export const ACTIVE_CYCLE_WHERE = {
   status: { notIn: [...CLOSED_CYCLE_STATUSES] as CycleStatus[] },
 } satisfies Prisma.ImportCycleWhereInput;
 
+/** How the top products are ranked. */
+export const TOP_PRODUCTS_BY = ['revenue', 'units'] as const;
+export type TopProductsBy = (typeof TOP_PRODUCTS_BY)[number];
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
@@ -347,7 +351,14 @@ export class AnalyticsService {
     return { data: result };
   }
 
-  async getTopProducts(limit: number = 10) {
+  /**
+   * The best sellers, net of returns. `by` picks the ranking: what each brought
+   * in (the default, and what the Analytics table and the dashboard showed
+   * first), or how many units went out (owner 2026-10-18: "a chart for the top
+   * 5 sold products, as in qty not revenue"). Ties fall to the other measure,
+   * then the name, so the order never depends on the database's.
+   */
+  async getTopProducts(limit: number = 10, by: TopProductsBy = 'revenue') {
     const D = (v: unknown) =>
       new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
@@ -420,7 +431,15 @@ export class AnalyticsService {
             : null,
         };
       })
-      .sort((a, b) => b.revenueEgp - a.revenueEgp)
+      .sort((a, b) =>
+        by === 'units'
+          ? b.totalQuantitySold - a.totalQuantitySold ||
+            b.revenueEgp - a.revenueEgp ||
+            a.name.localeCompare(b.name)
+          : b.revenueEgp - a.revenueEgp ||
+            b.totalQuantitySold - a.totalQuantitySold ||
+            a.name.localeCompare(b.name),
+      )
       .slice(0, limit);
 
     return { data: ranked };

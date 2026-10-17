@@ -1,7 +1,12 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AnalyticsService } from './analytics.service';
+import {
+  AnalyticsService,
+  TOP_PRODUCTS_BY,
+  type TopProductsBy,
+} from './analytics.service';
+import { badRequest } from '../../common/api-error';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Viewer } from '../../common/investor-scope';
@@ -39,10 +44,21 @@ export class AnalyticsController {
   @Get('top-products')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
-  @ApiOperation({ summary: 'Get top products by quantity sold' })
-  getTopProducts(@Query('limit') limit?: string) {
+  @ApiOperation({ summary: 'Top products, by revenue (default) or units sold' })
+  getTopProducts(@Query('limit') limit?: string, @Query('by') by?: string) {
+    if (by !== undefined && !TOP_PRODUCTS_BY.includes(by as TopProductsBy)) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        `by must be one of ${TOP_PRODUCTS_BY.join(', ')}, not "${by}".`,
+        {
+          fields: 'by',
+        },
+      );
+    }
+    const n = limit ? parseInt(limit, 10) : 10;
     return this.analyticsService.getTopProducts(
-      limit ? parseInt(limit, 10) : 10,
+      Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 10,
+      (by as TopProductsBy | undefined) ?? 'revenue',
     );
   }
 

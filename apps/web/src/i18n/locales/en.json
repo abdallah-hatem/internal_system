@@ -168,7 +168,9 @@
     "toCollectError": "Could not load who owes you. Refresh to try again.",
     "seeMore": "See more ({count})",
     "seeLess": "See less",
-    "topProductsBy": "By revenue"
+    "topProductsRankedBy": "Rank top products by",
+    "byUnits": "Units",
+    "byRevenue": "Revenue"
   },
   "products": {
     "title": "Products",

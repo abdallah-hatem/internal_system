@@ -374,31 +374,98 @@ describe('a phone shows six figures, then See more', () => {
   });
 });
 
-// Owner 2026-10-18: "how is 21 sold on top of 28?" — the list is ranked by
-// revenue but showed only units. Each row now shows its revenue first.
-describe('top products show what they are ranked by', () => {
-  it('revenue first and units under it, in the server\'s order, with "By revenue" in the heading', async () => {
+// Owner 2026-10-18: "how is 21 sold on top of 28?", then "a chart for the
+// top 5 sold products, as in qty not revenue". The card ranks by units (the
+// default) or revenue, shows the ranked figure first with a bar, and remembers
+// the choice on this device.
+describe('top products: units or revenue, with bars', () => {
+  const ROWS = {
+    units: [
+      { productId: 'p4', name: 'Y20 FM', sku: 'PRD-000004', totalQuantitySold: 28, revenueEgp: 25000 },
+      { productId: 'p1', name: 'Y30 Headset', sku: 'PRD-000001', totalQuantitySold: 21, revenueEgp: 25200 },
+      { productId: 'p5', name: 'Y12 PRO', sku: 'PRD-000005', totalQuantitySold: 0, revenueEgp: 0 },
+    ],
+    revenue: [
+      { productId: 'p1', name: 'Y30 Headset', sku: 'PRD-000001', totalQuantitySold: 21, revenueEgp: 25200 },
+      { productId: 'p4', name: 'Y20 FM', sku: 'PRD-000004', totalQuantitySold: 28, revenueEgp: 25000 },
+    ],
+  };
+  const topUrls = () => get.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith('/analytics/top-products'));
+
+  beforeEach(() => {
+    window.localStorage.removeItem('topProductsBy');
     get.mockImplementation((url: string) => {
       if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: KPIS } });
       if (url.startsWith('/analytics/top-products')) {
-        return Promise.resolve({
-          data: {
-            data: [
-              { productId: 'p1', name: 'Y30 Headset', sku: 'PRD-000001', totalQuantitySold: 21, revenueEgp: 25200 },
-              { productId: 'p4', name: 'Y20 FM', sku: 'PRD-000004', totalQuantitySold: 28, revenueEgp: 25000 },
-            ],
-          },
-        });
+        return Promise.resolve({ data: { data: url.includes('by=revenue') ? ROWS.revenue : ROWS.units } });
       }
       if (url.startsWith('/customers/to-collect')) {
         return Promise.resolve({ data: { data: { totalOwed: '0.00', totalOverdue: '0.00', customers: 0, rows: [] } } });
       }
       return Promise.resolve({ data: { data: [] } });
     });
+  });
+
+  const rows = async () => {
+    const card = await screen.findByTestId('top-products');
+    await within(card).findAllByTestId('top-product');
+    return within(card).getAllByTestId('top-product');
+  };
+  const bar = (row: HTMLElement) => within(row).getByTestId('top-product-bar').style.width;
+
+  it('units by default: asks the server for units, 28 before 21, units first, bars against the top seller', async () => {
     renderPage();
-    const revenues = await screen.findAllByTestId('top-product-revenue');
-    expect(revenues.map((r) => r.textContent)).toEqual([expect.stringContaining('25,200.00'), expect.stringContaining('25,000.00')]);
-    expect(screen.getAllByTestId('top-product-units').map((u) => u.textContent)).toEqual(['21 sold', '28 sold']);
-    expect(screen.getByText('By revenue')).toBeTruthy();
+    const [a, b, c] = await rows();
+    expect(topUrls().at(-1)).toContain('by=units');
+    expect(a.textContent).toContain('Y20 FM');
+    expect(a.firstElementChild!.textContent).toContain('28 sold');
+    expect(within(a).getByTestId('top-product-revenue').textContent).toContain('25,000.00');
+    expect([bar(a), bar(b), bar(c)]).toEqual(['100%', '75%', '0%']);
+    expect(screen.getByRole('radio', { name: 'Units' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('Revenue re-asks the server, puts revenue first, and the bar follows it', async () => {
+    renderPage();
+    await rows();
+    fireEvent.click(screen.getByRole('radio', { name: 'Revenue' }));
+    await waitFor(() => expect(topUrls().at(-1)).toContain('by=revenue'));
+    await waitFor(async () => expect((await rows())[0].textContent).toContain('Y30 Headset'));
+    const [a, b] = await rows();
+    expect(a.firstElementChild!.textContent).toContain('25,200.00');
+    expect(bar(a)).toBe('100%');
+    expect(bar(b)).toBe('99%');
+  });
+
+  it('the choice is remembered on this device — the second visit opens on Revenue', async () => {
+    renderPage();
+    await rows();
+    fireEvent.click(screen.getByRole('radio', { name: 'Revenue' }));
+    await waitFor(() => expect(topUrls().at(-1)).toContain('by=revenue'));
+    cleanup();
+    get.mockClear();
+    renderPage();
+    await rows();
+    expect(topUrls().every((u) => u.includes('by=revenue'))).toBe(true);
+    expect(screen.getByRole('radio', { name: 'Revenue' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('storage that refuses (a private window) breaks nothing: the switch still works', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    renderPage();
+    await rows();
+    fireEvent.click(screen.getByRole('radio', { name: 'Revenue' }));
+    await waitFor(() => expect(topUrls().at(-1)).toContain('by=revenue'));
+    setItem.mockRestore();
+    // Back to units so the next test starts clean.
+    fireEvent.click(screen.getByRole('radio', { name: 'Units' }));
+  });
+
+  it('reads in Arabic', async () => {
+    renderPage('ar');
+    await rows();
+    expect(screen.getByRole('radio', { name: 'الكمية' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'الإيراد' })).toBeTruthy();
   });
 });

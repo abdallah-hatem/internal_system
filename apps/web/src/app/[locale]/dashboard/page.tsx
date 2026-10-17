@@ -9,8 +9,10 @@ import { useNumberFormat } from '@/lib/numbers';
 import { useAuth } from '../../../lib/auth-context';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { QuickActions } from '../../../components/dashboard/quick-actions';
+import { useTopProductsBy } from '../../../components/dashboard/top-products-by';
+import { Segmented } from '@/components/ui/segmented';
 import { StatTile, StatTileSkeleton } from '../../../components/dashboard/stat-tile';
-import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '../../../components/ui/skeleton';
+import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '../../../components/ui/skeleton';
 import {
   dashboardView,
   tileHref,
@@ -87,17 +89,17 @@ function StatTilesSkeleton() {
   );
 }
 
-/** One top-product line, traced: name over SKU, revenue over units sold at the end. */
+/** One top-product line, traced: name and the ranked figure, then the bar and the other figure. */
 function TopProductRowSkeleton() {
   return (
-    <li data-testid="skeleton-row" className="flex items-center justify-between gap-3 py-2.5">
-      <div className="min-w-0">
-        <SkeletonText className="w-36" />
-        <SkeletonText size="xs" className="w-20" />
+    <li data-testid="skeleton-row" className="py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <SkeletonText className="w-40" />
+        <SkeletonText className="w-16" />
       </div>
-      <div className="flex flex-col items-end">
-        <SkeletonText className="w-24" />
-        <SkeletonText size="xs" className="w-14" />
+      <div className="mt-1.5 flex items-center gap-3">
+        <Skeleton className="h-1.5 flex-1 rounded-full" />
+        <SkeletonText size="xs" className="w-20" />
       </div>
     </li>
   );
@@ -123,9 +125,11 @@ export default function DashboardPage() {
     enabled: view === 'business',
   });
 
+  // Units or revenue, as the person last chose (units by default).
+  const [topBy, setTopBy] = useTopProductsBy();
   const { data: topProducts = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ['analytics', 'top-products', 'dashboard'],
-    queryFn: () => api.get('/analytics/top-products?limit=5').then((r) => r.data.data ?? r.data),
+    queryKey: ['analytics', 'top-products', 'dashboard', topBy],
+    queryFn: () => api.get(`/analytics/top-products?limit=5&by=${topBy}`).then((r) => r.data.data ?? r.data),
     enabled: view === 'business',
   });
 
@@ -277,12 +281,22 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ToCollect />
 
-        <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-card-foreground">
+        <section data-testid="top-products" className="relative rounded-xl border border-border bg-card p-4 sm:p-6">
+          <h3 className="mb-4 flex items-center gap-2 pe-36 text-lg font-semibold text-card-foreground">
             <Route aria-hidden="true" className="size-5 text-muted-foreground" />
             {t('topProducts')}
-            <span className="ms-auto text-xs font-normal text-muted-foreground">{t('topProductsBy')}</span>
           </h3>
+          <Segmented
+            testId="top-products-by"
+            label={t('topProductsRankedBy')}
+            value={topBy}
+            onChange={setTopBy}
+            options={[
+              { value: 'units', label: t('byUnits') },
+              { value: 'revenue', label: t('byRevenue') },
+            ]}
+            className="absolute end-4 top-4 sm:end-6 sm:top-6"
+          />
           {loadingProducts ? (
             <SkeletonGroup as="ul" className="divide-y divide-border">
               {repeat(5, (i) => <TopProductRowSkeleton key={i} />)}
@@ -291,25 +305,37 @@ export default function DashboardPage() {
             <EmptyState icon={Package} title={t('topProductsEmpty')} className="py-6" />
           ) : (
             <ul className="divide-y divide-border">
-              {productList.map((item) => (
-                <li key={item.productId} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <LatinText truncate className="text-sm font-medium text-card-foreground">{item.name}</LatinText>
-                    <p className="text-xs text-muted-foreground" dir="ltr">{item.sku}</p>
-                  </div>
-                  {/* Ranked by what each product brought in, so that is the
-                      figure shown first — showing only units made 21 sold read
-                      as out of order above 28 (owner 2026-10-18). */}
-                  <span className="flex-shrink-0 text-end">
-                    <span data-testid="top-product-revenue" className="block text-sm font-semibold text-card-foreground">
-                      <Money value={item.revenueEgp} />
-                    </span>
-                    <span data-testid="top-product-units" className="block text-xs text-muted-foreground">
-                      {t('sold', { count: item.totalQuantitySold })}
-                    </span>
-                  </span>
-                </li>
-              ))}
+              {productList.map((item) => {
+                // The figure the list is ranked by comes first and sets the
+                // bar; the other sits beside it, smaller (owner 2026-10-18:
+                // "how is 21 sold on top of 28?").
+                const measure = (p: TopProduct) => (topBy === 'units' ? p.totalQuantitySold : p.revenueEgp);
+                const top = Math.max(...productList.map(measure), 0);
+                const share = top > 0 ? Math.round((measure(item) / top) * 100) : 0;
+                const units = <span data-testid="top-product-units">{t('sold', { count: item.totalQuantitySold })}</span>;
+                const revenue = <span data-testid="top-product-revenue"><Money value={item.revenueEgp} /></span>;
+                return (
+                  <li key={item.productId} data-testid="top-product" className="py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <LatinText truncate className="min-w-0 text-sm font-medium text-card-foreground">{item.name}</LatinText>
+                      <span className="flex-shrink-0 text-sm font-semibold text-card-foreground">{topBy === 'units' ? units : revenue}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <div
+                        role="progressbar"
+                        aria-label={item.name}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={share}
+                        className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted"
+                      >
+                        <div data-testid="top-product-bar" className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+                      </div>
+                      <span className="flex-shrink-0 text-xs text-muted-foreground">{topBy === 'units' ? revenue : units}</span>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

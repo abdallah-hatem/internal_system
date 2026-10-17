@@ -168,7 +168,9 @@
     "toCollectError": "تعذّر تحميل المستحقات. حدّث الصفحة للمحاولة مجددًا.",
     "seeMore": "عرض المزيد ({count})",
     "seeLess": "عرض أقل",
-    "topProductsBy": "حسب الإيراد"
+    "topProductsRankedBy": "ترتيب المنتجات حسب",
+    "byUnits": "الكمية",
+    "byRevenue": "الإيراد"
   },
   "products": {
     "title": "المنتجات",

@@ -1,6 +1,8 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import { useTopProductsBy } from '@/components/dashboard/top-products-by';
+import { Segmented } from '@/components/ui/segmented';
 import { localName } from '@/lib/localized-name';
 import { useEffect, useRef } from 'react';
 import { Money } from '../../../components/ui/money';
@@ -114,6 +116,7 @@ export default function AnalyticsPage() {
   const locale = useLocale();
   const codeLabel = useCodeLabel();
   const t = useTranslations('analytics');
+  const td = useTranslations('dashboard');
   const { formatNumber, formatMoney } = useNumberFormat();
   const pct = (v: number) => `${formatNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 
@@ -122,9 +125,11 @@ export default function AnalyticsPage() {
     queryFn: () => api.get(`/analytics/revenue-by-month?months=${MONTHS}`).then((r) => r.data.data ?? r.data),
   });
 
+  // Units or revenue — the same choice the dashboard's card keeps (owner 2026-10-18).
+  const [topBy, setTopBy] = useTopProductsBy();
   const { data: topProducts = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ['analytics', 'top-products'],
-    queryFn: () => api.get(`/analytics/top-products?limit=${TOP_PRODUCTS}`).then((r) => r.data.data ?? r.data),
+    queryKey: ['analytics', 'top-products', topBy],
+    queryFn: () => api.get(`/analytics/top-products?limit=${TOP_PRODUCTS}&by=${topBy}`).then((r) => r.data.data ?? r.data),
   });
 
   const { data: cycleProfitability = [], isLoading: loadingCycles } = useQuery({
@@ -250,10 +255,22 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Products */}
             <section className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Package className="h-5 w-5 text-gray-400" />
-                {t('topProducts')}
-              </h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-gray-400" />
+                  {t('topProducts')}
+                </h2>
+                <Segmented
+                  testId="analytics-top-products-by"
+                  label={td('topProductsRankedBy')}
+                  value={topBy}
+                  onChange={setTopBy}
+                  options={[
+                    { value: 'units', label: td('byUnits') },
+                    { value: 'revenue', label: td('byRevenue') },
+                  ]}
+                />
+              </div>
               {!loadingProducts && productList.length === 0 ? (
                 <EmptyState size="compact" icon={Package} title={t('noData')} description={t('noTopProductsHint')} />
               ) : (
