@@ -124,7 +124,7 @@ export function notificationHref(notification: Notification): string | null {
     case 'PAYMENT_OVERDUE':
     case 'PAYMENT_PLAN_OVERDUE':
     case 'PAYMENT_PLAN_CREATED':
-      return '/payments?view=plans';
+      return '/payments?view=contracts';
 
     case 'SETTLEMENT_CREATED':
     case 'SETTLEMENT_APPROVED':

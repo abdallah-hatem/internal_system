@@ -621,9 +621,6 @@
     "notFoundTitle": "This customer could not be found",
     "notFoundHint": "They may have been removed, or the link is wrong.",
     "backToCustomers": "Back to customers",
-    "noPlanTitle": "No payment plan for this customer",
-    "noPlanHint": "A plan splits what they owe on a sale into instalments. Agree one from the sale's Contract button.",
-    "openPlans": "Open payment plans",
     "statement": {
       "title": "Statement",
       "heading": "Statement of account",
@@ -699,7 +696,7 @@
     "tabs": {
       "label": "Payments views",
       "payments": "Payments",
-      "plans": "Instalment plans"
+      "contracts": "Contracts"
     }
   },
   "ledger": {
@@ -1180,32 +1177,28 @@
     "wouldBePaid": "To be paid",
     "runningCostsDay": "Share of running costs ({day})"
   },
-  "paymentPlans": {
-    "title": "Instalment plans",
-    "subtitle": "Agreed schedules for clearing shop balances",
-    "cancelled": "Plan cancelled",
-    "cancelFailed": "Could not cancel the plan",
-    "cancelPlan": "Cancel plan",
-    "cancelReason": "Why is this plan being cancelled?",
-    "noData": "No payment plans yet",
-    "overdue": "Overdue",
-    "behind": "behind",
-    "paidSoFar": "paid so far",
-    "overdueBanner": "Behind across all plans:",
-    "nextDue": "Next due",
-    "remaining": "Remaining",
-    "of": "of",
-    "dueOn": "Due",
-    "amount": "Amount",
+  "contracts": {
+    "title": "Contracts",
+    "subtitle": "Every sale signed on instalments: what it comes to, what has been paid, and what falls due next",
+    "shop": "Shop",
+    "contract": "Contract",
+    "total": "Contract total",
     "paid": "Paid",
-    "cumulativeNote": "Payments clear the earliest instalment first, so paying early covers what comes next.",
-    "paid_": "Paid",
-    "due": "Due",
-    "upcoming": "Upcoming",
-    "emptyHint": "Plans are created from a sale's Contract button: open a confirmed sale on Sales and press Contract.",
-    "sale": "Sale",
-    "openContract": "Open contract",
-    "goToSales": "Go to Sales"
+    "of": "of",
+    "nextDue": "Next due",
+    "allPaid": "All paid",
+    "overdue": "Overdue",
+    "noContract": "No contract (older plan)",
+    "overdueBanner": "Behind across all contracts:",
+    "none": "No contracts yet",
+    "noneForShop": "No contracts for this shop",
+    "emptyHint": "A contract is made from a sale's Contract button: open a confirmed sale on Sales and press Contract.",
+    "goToSales": "Go to Sales",
+    "loadFailed": "Could not load the contracts",
+    "cancelPlan": "Cancel the instalment plan",
+    "cancelReason": "Why is this instalment plan being cancelled?",
+    "cancelled": "Instalment plan cancelled",
+    "cancelFailed": "Could not cancel the instalment plan"
   },
   "errors": {
     "PUSH_NOT_CONFIGURED": "Alerts are not set up on the server yet.",

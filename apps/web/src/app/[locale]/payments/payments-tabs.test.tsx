@@ -8,13 +8,15 @@ import PaymentsPage from './page';
 import PaymentPlansRedirect from '../payment-plans/page';
 
 /**
- * Payments and Instalment plans, two tabs of one page (owner, 2026-10-16). The
- * open tab is in the URL; the old /payment-plans address lands on it.
+ * Payments and Contracts, two tabs of one page (owner, 2026-10-16; the second
+ * was Instalment plans until 2026-10-17). The open tab is in the URL; the old
+ * `?view=plans` and /payment-plans addresses land on Contracts.
  */
 
 const nav = vi.hoisted(() => ({
   query: '',
   push: vi.fn(),
+  replace: vi.fn(),
   redirect: vi.fn(),
 }));
 
@@ -22,7 +24,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
   useSearchParams: () => new URLSearchParams(nav.query),
   usePathname: () => '/en/payments',
-  useRouter: () => ({ push: nav.push, replace: vi.fn() }),
+  useRouter: () => ({ push: nav.push, replace: nav.replace }),
   useParams: () => ({ locale: 'en' }),
   redirect: nav.redirect,
 }));
@@ -35,9 +37,9 @@ vi.mock('@/lib/api', () => ({
     post: vi.fn(),
   },
 }));
-// The plans view is its own component with its own tests; here only which view shows.
-vi.mock('@/components/payments/payment-plans-list', () => ({
-  PaymentPlansList: () => <div data-testid="plans-view" />,
+// The contracts list is its own component with its own tests; here only which view shows.
+vi.mock('@/components/payments/contracts-list', () => ({
+  ContractsList: () => <div data-testid="contracts-view" />,
 }));
 
 beforeAll(() => {
@@ -65,48 +67,67 @@ function renderPage() {
 beforeEach(() => {
   nav.query = '';
   nav.push.mockReset();
+  nav.replace.mockReset();
   nav.redirect.mockReset();
 });
 afterEach(() => cleanup());
 
 describe('the Payments page tabs', () => {
-  it('opens on Payments, with the two tabs named', async () => {
+  it('opens on Payments, with the two tabs named Payments and Contracts', async () => {
     renderPage();
     const tabs = await screen.findAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['Payments', 'Instalment plans']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Payments', 'Contracts']);
     expect(screen.getByTestId('tab-payments').getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('heading', { level: 1, name: 'Payments' })).toBeTruthy();
-    expect(screen.queryByTestId('plans-view')).toBeNull();
+    expect(screen.queryByTestId('contracts-view')).toBeNull();
   });
 
-  it('the Instalment plans tab writes ?view=plans without moving the page', async () => {
+  it('the Contracts tab writes ?view=contracts without moving the page', async () => {
     renderPage();
-    fireEvent.click(await screen.findByTestId('tab-plans'));
-    expect(nav.push).toHaveBeenCalledWith('/en/payments?view=plans', { scroll: false });
+    fireEvent.click(await screen.findByTestId('tab-contracts'));
+    expect(nav.push).toHaveBeenCalledWith('/en/payments?view=contracts', { scroll: false });
   });
 
-  it('opened with ?view=plans it shows the plans, and Payments takes the parameter off again', async () => {
-    nav.query = 'view=plans';
+  it('opened with ?view=contracts it shows the contracts, and Payments takes the parameter off again', async () => {
+    nav.query = 'view=contracts';
     renderPage();
-    expect(await screen.findByTestId('plans-view')).toBeTruthy();
-    expect(screen.getByTestId('tab-plans').getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByTestId('contracts-view')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Contracts' })).toBeTruthy();
+    expect(screen.getByTestId('tab-contracts').getAttribute('aria-selected')).toBe('true');
     expect(screen.queryByRole('heading', { level: 1, name: 'Payments' })).toBeNull();
+    expect(nav.replace).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId('tab-payments'));
     expect(nav.push).toHaveBeenCalledWith('/en/payments', { scroll: false });
   });
 
-  it('the tab already open does nothing', async () => {
-    nav.query = 'view=plans';
+  it('the old ?view=plans opens Contracts and swaps the address for the new one, keeping the rest', async () => {
+    nav.query = 'view=plans&x=1';
     renderPage();
-    fireEvent.click(await screen.findByTestId('tab-plans'));
+    expect(await screen.findByTestId('contracts-view')).toBeTruthy();
+    expect(screen.getByTestId('tab-contracts').getAttribute('aria-selected')).toBe('true');
+    expect(nav.replace).toHaveBeenCalledWith('/en/payments?view=contracts&x=1', { scroll: false });
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it('an unknown view opens Payments', async () => {
+    nav.query = 'view=nonsense';
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Payments' })).toBeTruthy();
+    expect(screen.queryByTestId('contracts-view')).toBeNull();
+  });
+
+  it('the tab already open does nothing', async () => {
+    nav.query = 'view=contracts';
+    renderPage();
+    fireEvent.click(await screen.findByTestId('tab-contracts'));
     expect(nav.push).not.toHaveBeenCalled();
   });
 });
 
 describe('/payment-plans', () => {
-  it.each(['en', 'ar'])('redirects to the plans tab of Payments (%s)', async (locale) => {
+  it.each(['en', 'ar'])('redirects to the Contracts tab of Payments (%s)', async (locale) => {
     await PaymentPlansRedirect({ params: Promise.resolve({ locale }) });
-    expect(nav.redirect).toHaveBeenCalledWith(`/${locale}/payments?view=plans`);
+    expect(nav.redirect).toHaveBeenCalledWith(`/${locale}/payments?view=contracts`);
   });
 });
