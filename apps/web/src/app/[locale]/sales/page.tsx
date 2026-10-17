@@ -424,7 +424,8 @@ function SalesPageContent() {
     {
       key: 'customer', header: t('customer'), width: 'auto', kind: 'name', className: 'text-gray-900',
       title: (order) => (order.customer?.isWalkIn ? t('walkInCustomer') : order.customer?.displayName),
-      cellProps: () => ({ onClick: (e) => e.stopPropagation() }),
+      // Only the name itself leaves for the customer's page (its link stops the
+      // click); the rest of the cell opens the order like the rest of the row.
       cell: (order) => customerCell(order),
     },
     {
@@ -680,7 +681,7 @@ function SalesPageContent() {
                   <span className="font-mono text-sm font-bold text-primary-600">{order.orderNo}</span>
                   {statusBadge(order.status)}
                 </div>
-                <p className="text-sm text-gray-700" onClick={(e) => e.stopPropagation()}>
+                <p className="text-sm text-gray-700">
                   {customerCell(order)}
                 </p>
                 <div className="flex items-center gap-3 mt-2 text-sm">
