@@ -20,7 +20,7 @@ import { TextareaField } from '../../../components/ui/textarea-field';
 import { LedgerEntryDialog } from '@/components/ledger/LedgerEntryDialog';
 import { MANUAL_CATEGORIES, manualKindOf } from '@/lib/ledger-categories';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
-import { Download } from 'lucide-react';
+import { Download, Fuel } from 'lucide-react';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCodeLabel } from '@/lib/labels';
@@ -141,6 +141,12 @@ export default function LedgerPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // The Fuel shortcut opens the same form on the Fuel category (§9, 2026-10-17).
+  const [presetCategory, setPresetCategory] = useState<string | undefined>();
+  const openCreate = (category?: string) => {
+    setPresetCategory(category);
+    setShowCreateModal(true);
+  };
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [viewingEntry, setViewingEntry] = useState<LedgerEntry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
@@ -197,7 +203,7 @@ export default function LedgerPage() {
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
-        action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
+        action={{ label: t('create'), onClick: () => openCreate() }}
       />
     ) : (
       <NoMatch filtered={!!(directionFilter || typeFilter || categoryFilter)} onClear={() => { setSearch(''); setDirectionFilter(''); setTypeFilter(''); setCategoryFilter(''); }} />
@@ -283,7 +289,7 @@ export default function LedgerPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         {/* Whatever the filters currently show, not the whole table — the
             filtered view is the question being asked. Amount goes out as a
             number so the spreadsheet can total it. */}
@@ -307,7 +313,17 @@ export default function LedgerPage() {
           {tc('export')}
         </button>
         <button
-          onClick={() => setShowCreateModal(true)}
+          type="button"
+          data-testid="ledger-fuel"
+          onClick={() => openCreate('fuel')}
+          className="bg-background inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
+        >
+          <Fuel className="h-4 w-4" />
+          {t('recordFuel')}
+        </button>
+        <button
+          type="button"
+          onClick={() => openCreate()}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -443,7 +459,7 @@ export default function LedgerPage() {
       )}
 
       {/* ─── Record money in or out (L6) ───────────────────────────── */}
-      <LedgerEntryDialog open={showCreateModal} onClose={() => setShowCreateModal(false)} />
+      <LedgerEntryDialog open={showCreateModal} presetCategory={presetCategory} onClose={() => setShowCreateModal(false)} />
 
       {/* ─── Reverse Modal ─────────────────────────────────────────── */}
       {showReverseModal && selectedEntry && (

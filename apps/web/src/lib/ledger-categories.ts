@@ -12,6 +12,7 @@ export const MANUAL_EXPENSE_CATEGORIES = [
   'salaries',
   'utilities',
   'transport_delivery',
+  'fuel',
   'packaging',
   'marketing',
   'bank_fees',

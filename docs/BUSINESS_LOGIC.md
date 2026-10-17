@@ -1355,8 +1355,13 @@ profit or a settlement. Now "Record money in or out":
   which the API validates against and the web form and the ledger's category
   filter offer (the web holds a copy only because Next cannot import across apps;
   a test fails if they differ).
-  - Expense: rent, salaries, utilities, transport and delivery, packaging,
+  - Expense: rent, salaries, utilities, transport and delivery, fuel, packaging,
     marketing, bank fees, customs and clearance, extra freight (for a cycle), other.
+  - **Fuel** (added 2026-10-17, owner: fuelling the delivery car is a regular expense). The ledger's header has
+    a **Fuel** button that opens this same form already on Expense → Fuel, dated today, no cycle; only the amount
+    (and a note, if wanted) is typed. No cycle means it is a running cost, shared by the partners at settlement
+    like rent (§8, L7); charge it to a cycle by picking one. Not automatic: fuel is a different amount each time,
+    so a schedule would record figures nobody paid.
   - Other income: other income, interest, other.
 - **Refused by the server**, each with a code in both languages: any other
   category (`LEDGER_CATEGORY_NOT_MANUAL` — every system category, free text,

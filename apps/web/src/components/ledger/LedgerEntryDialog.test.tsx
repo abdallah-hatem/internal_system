@@ -52,14 +52,14 @@ beforeAll(() => {
   Element.prototype.scrollIntoView ??= () => {};
 });
 
-function renderDialog() {
+function renderDialog(presetCategory?: string) {
   const onClose = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
       <QueryClientProvider client={client}>
         <ToastProvider>
-          <LedgerEntryDialog open onClose={onClose} />
+          <LedgerEntryDialog open onClose={onClose} presetCategory={presetCategory} />
         </ToastProvider>
       </QueryClientProvider>
     </NextIntlClientProvider>,
@@ -321,5 +321,48 @@ describe('no native controls (LEARNINGS: interface)', () => {
     const rel = './LedgerEntryDialog.tsx';
     const src = readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
     expect(src).not.toMatch(/<select|type="date"|type="radio"/);
+  });
+});
+
+describe('the Fuel shortcut (§9, 2026-10-17)', () => {
+  it('opens as an expense on Fuel, with the amount, cycle and note left empty', () => {
+    renderDialog('fuel');
+    expect(card(L.kindExpense).getAttribute('aria-checked')).toBe('true');
+    expect(hidden('category')?.value).toBe('fuel');
+    expect(combo('ledger-category').textContent).toContain(en.codes.ledgerCategory.fuel);
+    expect(amountInput().value).toBe('');
+    expect(hidden('cycleId')?.value ?? '').toBe('');
+  });
+
+  it('saves a fuel expense as money out, as a running cost with no cycle', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'tx' } } });
+    const { onClose } = renderDialog('fuel');
+    typeAmount('600');
+    fireEvent.click(save());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const body = post.mock.calls[0][1] as Record<string, unknown>;
+    expect(body).toMatchObject({ kind: 'EXPENSE', direction: 'OUTFLOW', category: 'fuel', amount: 600, currency: 'EGP' });
+    expect(body).not.toHaveProperty('cycleId');
+  });
+
+  it('still needs an amount: Save with none sends nothing', async () => {
+    renderDialog('fuel');
+    fireEvent.click(save());
+    expect((await screen.findByTestId('ledger-refusal')).textContent).toBe(en.errors.LEDGER_AMOUNT_NOT_POSITIVE);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('switching to other income drops Fuel rather than sending an expense category as income', () => {
+    renderDialog('fuel');
+    fireEvent.click(card(L.kindIncome));
+    expect(hidden('category')?.value ?? '').toBe('');
+  });
+
+  it('a category that is not a manual expense is not taken: the form opens empty', () => {
+    renderDialog('purchase');
+    expect(hidden('category')?.value ?? '').toBe('');
+    cleanup();
+    renderDialog('interest');
+    expect(hidden('category')?.value ?? '').toBe('');
   });
 });

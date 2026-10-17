@@ -55,17 +55,28 @@ export function LedgerEntryDialog({
   open,
   onClose,
   onRecorded,
+  presetCategory,
 }: {
   open: boolean;
   onClose: () => void;
   onRecorded?: () => void;
+  /** An expense category to open on — the ledger's Fuel shortcut (§9, 2026-10-17). */
+  presetCategory?: string;
 }) {
   if (!open) return null;
   // Mounted fresh on every open, so nothing typed last time survives a close.
-  return <LedgerEntryForm onClose={onClose} onRecorded={onRecorded} />;
+  return <LedgerEntryForm onClose={onClose} onRecorded={onRecorded} presetCategory={presetCategory} />;
 }
 
-function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecorded?: () => void }) {
+function LedgerEntryForm({
+  onClose,
+  onRecorded,
+  presetCategory,
+}: {
+  onClose: () => void;
+  onRecorded?: () => void;
+  presetCategory?: string;
+}) {
   const t = useTranslations('ledger');
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
@@ -77,7 +88,11 @@ function LedgerEntryForm({ onClose, onRecorded }: { onClose: () => void; onRecor
   const rates = useCurrencyRates();
 
   const [kind, setKind] = useState<ManualEntryKind>('EXPENSE');
-  const [category, setCategory] = useState('');
+  // Only an expense category is taken, the kind the form opens on; anything
+  // else would be refused by the server, so it opens empty instead.
+  const [category, setCategory] = useState(() =>
+    presetCategory && MANUAL_ENTRY_KINDS.EXPENSE.categories.includes(presetCategory) ? presetCategory : '',
+  );
   const [amount, setAmount] = useState('');
   const [occurredOn, setOccurredOn] = useState(() => businessToday());
   const [cycleId, setCycleId] = useState('');
