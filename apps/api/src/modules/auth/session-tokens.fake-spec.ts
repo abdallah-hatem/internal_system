@@ -42,6 +42,11 @@ export function fakeSessionTable() {
       const row = rows.find((r) => matches(r, where));
       return row ? { ...row } : null;
     },
+    findFirst: async ({ where }: { where: Where }) => {
+      await tick();
+      const row = rows.find((r) => matches(r, where));
+      return row ? { ...row } : null;
+    },
     create: async ({ data }: { data: Partial<SessionRow> }) => {
       await tick();
       if (rows.some((r) => r.tokenHash === data.tokenHash)) {

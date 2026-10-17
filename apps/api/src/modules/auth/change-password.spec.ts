@@ -108,6 +108,11 @@ let app: INestApplication;
 let base: string;
 let store: ReturnType<typeof fakeDb>;
 const jwt = new JwtService({ secret: SECRET });
+/** Moves the refresh-token clock forward; tokens' own exp stay on real time. */
+let skew = 0;
+afterEach(() => {
+  skew = 0;
+});
 
 async function addUser(role = 'CORE_PARTNER', password = START) {
   const row: FakeUser = {
@@ -132,7 +137,7 @@ beforeAll(async () => {
       AuthService,
       JwtStrategy,
       SessionTokensService,
-      { provide: SESSION_CLOCK, useValue: () => new Date() },
+      { provide: SESSION_CLOCK, useValue: () => new Date(Date.now() + skew) },
       { provide: PrismaService, useValue: store.db },
       { provide: JwtService, useValue: jwt },
       {
@@ -487,11 +492,22 @@ describe('POST /auth/refresh and /auth/logout (owner, 2026-10-17)', () => {
     );
   });
 
-  it('a spent token presented again is refused with a code', async () => {
+  it('a spent token presented again within 30 seconds still works (the app racing itself)', async () => {
     const { refresh } = await signedIn();
     expect(
       (await post('/auth/refresh', { refreshToken: refresh })).status,
     ).toBe(200);
+    expect(
+      (await post('/auth/refresh', { refreshToken: refresh })).status,
+    ).toBe(200);
+  });
+
+  it('a spent token presented again after 30 seconds is refused with a code', async () => {
+    const { refresh } = await signedIn();
+    expect(
+      (await post('/auth/refresh', { refreshToken: refresh })).status,
+    ).toBe(200);
+    skew = 31_000;
     const again = await post('/auth/refresh', { refreshToken: refresh });
     expect(again.status).toBe(401);
     expect(again.body.error?.code).toBe('SESSION_EXPIRED');

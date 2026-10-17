@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { fakeSessionTable } from './session-tokens.fake-spec';
 import {
   REFRESH_IDLE_MS,
+  REUSE_GRACE_MS,
   SessionTokensService,
 } from './session-tokens.service';
 
@@ -134,22 +135,49 @@ describe('rotation', () => {
     );
   });
 
-  it('of two refreshes racing on one token, exactly one wins', async () => {
+  it('two refreshes racing on one token both succeed, in the same sign-in, and it is spent once', async () => {
     const u = addUser();
     const token = await sessions.issue(u.id);
 
-    const results = await Promise.allSettled([
+    const [a, b] = await Promise.all([
       sessions.rotate(token),
       sessions.rotate(token),
     ]);
 
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
-    const lost = results.find(
-      (r) => r.status === 'rejected',
-    ) as PromiseRejectedResult;
-    expect((lost.reason as HttpException).getStatus()).toBe(401);
-    // The loser's new token rolled back: one live token, not two.
-    expect(live({ familyId: rowOf(token).familyId })).toHaveLength(1);
+    expect(a.refreshToken).not.toBe(b.refreshToken);
+    const family = rowOf(token).familyId;
+    expect(rowOf(a.refreshToken).familyId).toBe(family);
+    expect(rowOf(b.refreshToken).familyId).toBe(family);
+    expect(live({ familyId: family })).toHaveLength(2);
+    // The original points at exactly one successor.
+    expect([rowOf(a.refreshToken).id, rowOf(b.refreshToken).id]).toContain(
+      rowOf(token).replacedById,
+    );
+  });
+
+  it('a sign-out landing in the middle of a refresh: the refresh gets nothing', async () => {
+    const u = addUser();
+    const token = await sessions.issue(u.id);
+    // The user is read between the token check and the write; sign out there.
+    const users = db.user as { findUnique: (a: unknown) => Promise<unknown> };
+    const read = users.findUnique;
+    users.findUnique = async (a) => {
+      await sessions.revokeFamilyOf(token);
+      return read(a);
+    };
+
+    expect(await refusal(sessions.rotate(token))).toBe('SESSION_EXPIRED');
+    expect(live({ userId: u.id })).toHaveLength(0);
+  });
+
+  it('a race that lands after a sign-out gets nothing', async () => {
+    const u = addUser();
+    const token = await sessions.issue(u.id);
+    const { refreshToken: next } = await sessions.rotate(token);
+    await sessions.revokeFamilyOf(next);
+
+    expect(await refusal(sessions.rotate(token))).toBe('SESSION_EXPIRED');
+    expect(live({ userId: u.id })).toHaveLength(0);
   });
 });
 
@@ -172,11 +200,31 @@ describe('expiry', () => {
   });
 });
 
+/** Past the window in which a spent token is still the same holder racing. */
+const afterGrace = () => {
+  now = new Date(now.getTime() + REUSE_GRACE_MS + 1000);
+};
+
 describe('reuse of a spent token', () => {
+  it('within 30 seconds: the same app racing itself, given a pair in the same sign-in', async () => {
+    const u = addUser();
+    const first = await sessions.issue(u.id);
+    const { refreshToken: winner } = await sessions.rotate(first);
+    now = new Date(now.getTime() + REUSE_GRACE_MS);
+
+    const late = await sessions.rotate(first);
+
+    expect(rowOf(late.refreshToken).familyId).toBe(rowOf(first).familyId);
+    // Neither copy was punished: both successors still work.
+    await expect(sessions.rotate(winner)).resolves.toBeDefined();
+    await expect(sessions.rotate(late.refreshToken)).resolves.toBeDefined();
+  });
+
   it('ends the whole sign-in — the thief and the app both sign in again', async () => {
     const u = addUser();
     const stolen = await sessions.issue(u.id);
     const { refreshToken: appToken } = await sessions.rotate(stolen);
+    afterGrace();
 
     expect(await refusal(sessions.rotate(stolen))).toBe('SESSION_EXPIRED');
     // The app's perfectly good successor is dead too.
@@ -199,6 +247,7 @@ describe('reuse of a spent token', () => {
     const phone = await sessions.issue(u.id);
     const laptop = await sessions.issue(u.id);
     await sessions.rotate(phone);
+    afterGrace();
     await refusal(sessions.rotate(phone));
 
     await expect(sessions.rotate(laptop)).resolves.toBeDefined();

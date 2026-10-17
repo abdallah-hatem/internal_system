@@ -24,6 +24,15 @@ export const OFFICE_ACCESS_TTL = '1h';
  */
 export const REFRESH_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long a spent token is still honoured. Opening the app fires several
+ * requests at once, and two tabs (or a tab and the installed app) can each
+ * refresh with the same token a moment apart. Inside this window that is the
+ * same holder racing itself, and gets a pair in the same sign-in; after it,
+ * a spent token coming back is treated as stolen.
+ */
+export const REUSE_GRACE_MS = 30 * 1000;
+
 /** Who a refresh token belongs to, as the access token needs them. */
 export interface SessionUserRow {
   id: string;
@@ -40,9 +49,9 @@ const expired = (english: string) => unauthorized('SESSION_EXPIRED', english);
  *
  * Random, stored hashed, spent on every use. Each sign-in starts a family;
  * every token refreshed from it inherits the family. A token that was already
- * spent coming back means two holders — the app and whoever copied it — and
- * which is which cannot be told, so the whole family ends and both sign in
- * again. Only the office: a portal or assistant token is never issued here,
+ * spent coming back after `REUSE_GRACE_MS` means two holders — the app and
+ * whoever copied it — and which is which cannot be told, so the whole family
+ * ends and both sign in again. Only the office: a portal or assistant token is never issued here,
  * and nothing issued anywhere else is in this table.
  */
 @Injectable()
@@ -73,8 +82,10 @@ export class SessionTokensService {
    * Spend the presented token and hand back its successor.
    *
    * The checks run before anything is written, in the order that matters:
-   * a reused token ends its family even if it has since expired or been
-   * revoked, because reuse is the alarm and the rest are only reasons.
+   * a token reused after the grace window ends its family even if it has
+   * since expired, because reuse is the alarm and the rest are only reasons.
+   * Reused inside the window, it gets a successor of its own in the same
+   * family — unless the family was ended meanwhile (signed out).
    */
   async rotate(
     presented: unknown,
@@ -91,18 +102,23 @@ export class SessionTokensService {
         familyId: true,
         expiresAt: true,
         revokedAt: true,
+        lastUsedAt: true,
         replacedById: true,
       },
     });
     if (!row) throw expired('The sign-in is not recognised.');
 
-    if (row.replacedById) {
+    const racing = row.replacedById !== null;
+    if (racing && !this.withinGrace(row.lastUsedAt)) {
       await this.revokeFamily(row.familyId);
       throw expired(
         'The sign-in was already used; it has been ended everywhere.',
       );
     }
-    if (row.revokedAt) throw expired('The sign-in was ended.');
+    if (racing && !(await this.familyAlive(row.familyId))) {
+      throw expired('The sign-in was ended.');
+    }
+    if (!racing && row.revokedAt) throw expired('The sign-in was ended.');
     if (row.expiresAt <= this.now()) throw expired('The sign-in has expired.');
 
     const user = await this.prisma.user.findUnique({
@@ -138,13 +154,23 @@ export class SessionTokensService {
         },
         select: { id: true },
       });
+      if (racing) return;
       // Conditional, so of two refreshes racing on one token exactly one
-      // spends it; the other matches nothing and its new token rolls back.
+      // spends it. The other matches nothing; it keeps its new token only if
+      // the winner spent it just now (the grace window), never if the family
+      // was ended in between.
       const spent = await tx.sessionRefreshToken.updateMany({
         where: { id: row.id, revokedAt: null, replacedById: null },
         data: { revokedAt: now, lastUsedAt: now, replacedById: next.id },
       });
-      if (spent.count !== 1) throw expired('The sign-in was already used.');
+      if (spent.count === 1) return;
+      const winner = await tx.sessionRefreshToken.findUnique({
+        where: { id: row.id },
+        select: { replacedById: true, lastUsedAt: true },
+      });
+      if (!winner?.replacedById || !this.withinGrace(winner.lastUsedAt)) {
+        throw expired('The sign-in was already used.');
+      }
     });
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- status was only for the check above
@@ -172,6 +198,22 @@ export class SessionTokensService {
       data: { revokedAt: this.now() },
     });
     return count;
+  }
+
+  private withinGrace(spentAt: Date | null): boolean {
+    return (
+      spentAt !== null &&
+      this.now().getTime() - spentAt.getTime() <= REUSE_GRACE_MS
+    );
+  }
+
+  /** Does any token of this sign-in still work? None after a sign-out. */
+  private async familyAlive(familyId: string): Promise<boolean> {
+    const live = await this.prisma.sessionRefreshToken.findFirst({
+      where: { familyId, revokedAt: null },
+      select: { id: true },
+    });
+    return live !== null;
   }
 
   private async revokeFamily(familyId: string): Promise<void> {
