@@ -365,6 +365,14 @@ last one. A late or corrected freight charge after that point is a cycle expense
 recorded in the ledger. *Amended 2026-10-17, below: a correction now re-costs the
 whole cycle instead, within limits.*
 
+**DECIDED 2026-10-17 (owner) — a per-piece leg is charged for the pieces that went on it.** Once the
+shipment knows what entered a leg (leg 1: what was ordered; a later leg: what reached it), a `PER_PIECE` cost's
+piece count IS that number: the server sets it on every save, from the office form, the assistant's
+`update_leg_cost` or any caller, and the form shows it read-only. A typed count is still checked (negative is
+refused) but never kept. Before any goods are on a later leg, the typed count stands. Why: leg 2 of
+CYC-2026-0001 was saved at 20 AED × 100 pieces while 230 travelled on it ("why not force the 230?").
+Forwarders that bill by carton: use a flat amount.
+
 **2026-10-17, owner: per-product cost matters — a leg's cost can be corrected after
 arrival, and the whole cycle is re-costed. The limits are a guess — OPEN.** *Built
 2026-10-17.* The owner's case: CYC-2026-0001's Dubai → Cairo leg was entered at 0

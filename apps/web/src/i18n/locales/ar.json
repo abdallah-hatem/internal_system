@@ -2004,9 +2004,7 @@
     "currency": "العملة",
     "fxRate": "سعر الصرف إلى الجنيه",
     "legTotal": "إجمالي المرحلة",
-    "legHasPieces": "شُحنت {count} قطعة في هذه المرحلة.",
-    "legPiecesDiffer": "شُحنت {count} قطعة في هذه المرحلة، لكن المُدخل {entered}.",
-    "useCount": "استخدم {count}"
+    "legHasPieces": "شُحنت {count} قطعة في هذه المرحلة، فالتكلفة عليها."
   },
   "validation": {
     "required": "يرجى ملء الحقول المطلوبة.",

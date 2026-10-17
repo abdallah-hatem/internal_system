@@ -357,9 +357,10 @@ describe('Edit leg — the cost, while it can still change', () => {
 });
 
 // Owner 2026-10-17: leg 2 was saved at 20 AED × 100 pieces while 230 units went
-// on it, and the form gave no hint. The leg's own count (what entered it — 40
-// here) now fills an empty field and is set beside a count that disagrees.
-describe('a per-piece cost is checked against what travelled on the leg', () => {
+// on it ("why not force the 230?"). Once the shipment knows what went on the
+// leg (40 here), that is the count: shown, not typed. The server sets it the
+// same way (deliveries.service.spec), so no caller can save another.
+describe('a per-piece cost is for the pieces that travelled on the leg', () => {
   const openPerPiece = async (pieces: number | null) => {
     state.received = 40;
     state.cost = { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: true };
@@ -371,31 +372,20 @@ describe('a per-piece cost is checked against what travelled on the leg', () => 
     return f;
   };
 
-  it('a count that disagrees says how many travelled, and one click uses it', async () => {
+  it('a stored count that disagrees is shown as what travelled, read-only, with the reason', async () => {
     const f = await openPerPiece(100);
-    const note = await within(f).findByTestId('leg-pieces-differ');
-    expect(note.textContent).toContain('40 pieces travelled on this leg, but 100 are entered.');
-    expect(field(f, 'chargeablePieces')!.value).toBe('100');
-    fireEvent.click(within(f).getByTestId('use-leg-pieces'));
-    expect(field(f, 'chargeablePieces')!.value).toBe('40');
-    expect(within(f).queryByTestId('leg-pieces-differ')).toBeNull();
-    expect(within(f).getByTestId('leg-pieces-match').textContent).toBe('40 pieces travelled on this leg.');
+    await waitFor(() => expect(field(f, 'chargeablePieces')!.value).toBe('40'));
+    expect(field(f, 'chargeablePieces')!.readOnly).toBe(true);
+    expect(within(f).getByTestId('leg-pieces-note').textContent).toBe(en.shippingCost.legHasPieces.replace('{count}', '40'));
   });
 
-  it('an empty count is filled with what travelled, and saving sends it', async () => {
+  it('typing into it changes nothing, and saving sends the leg\'s count', async () => {
     const f = await openPerPiece(null);
     await waitFor(() => expect(field(f, 'chargeablePieces')!.value).toBe('40'));
-    expect(within(f).getByTestId('leg-pieces-match')).toBeTruthy();
+    fireEvent.change(field(f, 'chargeablePieces')!, { target: { value: '100' } });
+    expect(field(f, 'chargeablePieces')!.value).toBe('40');
     fireEvent.click(within(f).getByRole('button', { name: en.common.save }));
     await waitFor(() => expect(state.writes).toHaveLength(1));
     expect(state.writes[0].body).toEqual(expect.objectContaining({ costBasis: 'PER_PIECE', chargeablePieces: 40, ratePerUnit: 20 }));
-  });
-
-  it('the count stays editable — a forwarder may bill by carton — and a typed one is never overwritten', async () => {
-    const f = await openPerPiece(null);
-    await waitFor(() => expect(field(f, 'chargeablePieces')!.value).toBe('40'));
-    fireEvent.change(field(f, 'chargeablePieces')!, { target: { value: '12' } });
-    expect(field(f, 'chargeablePieces')!.value).toBe('12');
-    expect(within(f).getByTestId('leg-pieces-differ').textContent).toContain('but 12 are entered');
   });
 });

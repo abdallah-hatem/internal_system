@@ -2004,9 +2004,7 @@
     "currency": "Currency",
     "fxRate": "FX rate to EGP",
     "legTotal": "Leg total",
-    "legHasPieces": "{count} pieces travelled on this leg.",
-    "legPiecesDiffer": "{count} pieces travelled on this leg, but {entered} are entered.",
-    "useCount": "Use {count}"
+    "legHasPieces": "{count} pieces travelled on this leg, so the cost is per these."
   },
   "validation": {
     "required": "Fill in the required fields.",

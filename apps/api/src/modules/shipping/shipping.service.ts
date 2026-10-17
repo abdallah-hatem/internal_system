@@ -392,7 +392,8 @@ export class ShippingService {
       // Merged too: an edit that left the currency out reset a USD leg to EGP.
       currency: data.currency ?? existing.currency,
     };
-    const costFields = this.buildCostFields(merged);
+    // Built inside the transaction, once the leg's own piece count is known.
+    let costFields!: ReturnType<ShippingService['buildCostFields']>;
 
     // Merged, because a partial update that sets only the arrival date still
     // has to be judged against the departure date already on the leg.
@@ -410,6 +411,28 @@ export class ShippingService {
         let shipmentNews = false;
         const loaded = await loadShipment(tx, existing.cycleId);
         if (!loaded) throw notFound('cycle');
+
+        // A per-piece cost is for the pieces that went on the leg. Once the
+        // shipment knows that count, it is the count — never one typed beside
+        // it (owner 2026-10-17: leg 2 was billed for 100 pieces while 230
+        // travelled on it). Before any goods are on the leg, the typed count
+        // stands: there is nothing to check it against yet.
+        const travelled =
+          loaded.position.legs.find((l) => l.legId === id)?.entered ?? 0;
+        // A typed count is still checked (a negative one is nonsense, refused
+        // as before) even where the leg's own count replaces it.
+        if (
+          merged.costBasis === 'PER_PIECE' &&
+          travelled > 0 &&
+          merged.chargeablePieces != null
+        ) {
+          this.buildCostFields(merged);
+        }
+        costFields = this.buildCostFields(
+          merged.costBasis === 'PER_PIECE' && travelled > 0
+            ? { ...merged, chargeablePieces: travelled }
+            : merged,
+        );
 
         const costMoved =
           costFields.costBasis !== existing.costBasis ||

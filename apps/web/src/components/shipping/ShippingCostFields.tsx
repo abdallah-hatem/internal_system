@@ -59,8 +59,8 @@ export function ShippingCostFields({
    * them — editing a leg whose goods have left. Fills an empty piece count,
    * and a typed count that disagrees is called out with the real one beside
    * it (owner 2026-10-17: leg 2 was billed for 100 pieces while 230 went on
-   * it, and nothing on the form said so). Still editable: some forwarders
-   * bill by carton.
+   * it, and nothing on the form said so). When known it IS the count: shown,
+   * not typed — the server sets it the same way for every caller.
    */
   legPieces?: number;
 }) {
@@ -72,16 +72,11 @@ export function ShippingCostFields({
   const n = (field: string) => `${namePrefix}${field}`;
   const [basis, setBasis] = useState<CostBasis>(defaults?.costBasis ?? 'PER_PIECE');
   const [rate, setRate] = useState(String(defaults?.ratePerUnit ?? ''));
-  const [pieces, setPieces] = useState(
-    String(defaults?.chargeablePieces || (legPieces ? legPieces : orderedPieces ? orderedPieces : '')),
+  const [typedPieces, setPieces] = useState(
+    String(defaults?.chargeablePieces ?? (orderedPieces ? orderedPieces : '')),
   );
-  // The shipment may arrive after the form opened: fill a piece count still
-  // empty, never one already typed. Adjusted while rendering, not in an effect.
-  const [seenLegPieces, setSeenLegPieces] = useState(legPieces);
-  if (legPieces !== seenLegPieces) {
-    setSeenLegPieces(legPieces);
-    if (legPieces && pieces === '') setPieces(String(legPieces));
-  }
+  // The leg's own count, when the shipment knows it, is the count.
+  const pieces = legPieces ? String(legPieces) : typedPieces;
   const [weight, setWeight] = useState(String(defaults?.chargeableWeightKg ?? ''));
   const [amount, setAmount] = useState(String(defaults?.amount ?? ''));
   const [currency, setCurrency] = useState(defaults?.currency ?? 'EGP');
@@ -162,26 +157,14 @@ export function ShippingCostFields({
             <input
               type="number" step="0.001" min="0" required
               {...{ name: n('chargeablePieces') }} value={pieces} onChange={(e) => setPieces(e.target.value)}
-              placeholder={tph('pieces')} className={input}
+              readOnly={!!legPieces}
+              aria-describedby={legPieces ? n('leg-pieces-note') : undefined}
+              placeholder={tph('pieces')} className={`${input} ${legPieces ? 'cursor-default bg-muted text-muted-foreground' : ''}`}
             />
             {legPieces ? (
-              num(pieces) === legPieces ? (
-                <p data-testid="leg-pieces-match" className="mt-1 text-xs text-muted-foreground">
-                  {t('legHasPieces', { count: legPieces })}
-                </p>
-              ) : (
-                <p data-testid="leg-pieces-differ" role="status" className="mt-1 text-xs font-medium text-accent-700">
-                  {t('legPiecesDiffer', { count: legPieces, entered: formatNumber(num(pieces), { maximumFractionDigits: 3 }) })}{' '}
-                  <button
-                    type="button"
-                    data-testid="use-leg-pieces"
-                    onClick={() => setPieces(String(legPieces))}
-                    className="cursor-pointer font-semibold text-primary underline underline-offset-2"
-                  >
-                    {t('useCount', { count: legPieces })}
-                  </button>
-                </p>
-              )
+              <p id={n('leg-pieces-note')} data-testid="leg-pieces-note" className="mt-1 text-xs text-muted-foreground">
+                {t('legHasPieces', { count: legPieces })}
+              </p>
             ) : orderedPieces ? (
               <p className="mt-1 text-xs text-gray-500">
                 {num(pieces) === orderedPieces ? (

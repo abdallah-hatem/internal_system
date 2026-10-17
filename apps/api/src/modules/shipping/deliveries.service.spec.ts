@@ -686,6 +686,40 @@ describe('PUT /shipping/legs/:id', () => {
     );
   });
 
+  // Owner 2026-10-17: leg 2 was saved at 20 × 100 pieces while 230 went on it.
+  // Once the shipment knows what is on the leg, a per-piece cost is for that.
+  it('A per-piece cost is for the pieces on the leg: a typed count that disagrees is replaced by it, before and after a receipt', async () => {
+    const { leg } = oneLeg();
+    const onLeg = legRow(leg.id);
+    await shipping.updateLeg(
+      leg.id,
+      { costBasis: 'PER_PIECE', ratePerUnit: 20, chargeablePieces: 100 },
+      ACTOR,
+    );
+    expect(Number(legRow(leg.id).chargeablePieces)).toBe(40);
+    expect(legRow(leg.id).amount.toFixed(2)).toBe('800.00');
+    expect(legRow(leg.id).amountEgp.toFixed(2)).toBe('800.00');
+    expect(onLeg.id).toBe(leg.id);
+
+    // No count at all: the same.
+    const b = oneLeg();
+    await shipping.updateLeg(
+      b.leg.id,
+      { costBasis: 'PER_PIECE', ratePerUnit: 20 },
+      ACTOR,
+    );
+    expect(Number(legRow(b.leg.id).chargeablePieces)).toBe(40);
+    expect(legRow(b.leg.id).amountEgp.toFixed(2)).toBe('800.00');
+
+    // A flat bill is untouched by it.
+    await shipping.updateLeg(
+      b.leg.id,
+      { costBasis: 'FLAT', amount: 1000 },
+      ACTOR,
+    );
+    expect(legRow(b.leg.id).amountEgp.toFixed(2)).toBe('1000.00');
+  });
+
   it('A USD leg edited without a currency keeps its currency (it used to reset to EGP)', async () => {
     const { leg } = oneLeg();
     legRow(leg.id).currency = 'USD';

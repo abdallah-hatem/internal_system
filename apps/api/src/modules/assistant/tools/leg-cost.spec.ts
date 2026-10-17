@@ -655,7 +655,9 @@ describe('a cost that is never a cost is refused, nothing written', () => {
     expect(snapshot()).toBe(before);
   });
 
-  it('PER_PIECE without a piece count → PER_PIECE_FIELDS_REQUIRED, the service refusing', async () => {
+  // Owner 2026-10-17: a per-piece cost is for the pieces on the leg, which the
+  // shipment knows — so none is asked for, and a different one is not taken.
+  it("PER_PIECE without a piece count → the leg's own 40 pieces, no refusal", async () => {
     const { cycle } = await receivedAndSold();
     const r = await call({
       cycle: cycle.code,
@@ -663,6 +665,21 @@ describe('a cost that is never a cost is refused, nothing written', () => {
       costBasis: 'PER_PIECE',
       ratePerUnit: 10,
     });
-    expect(codeOf(r)).toBe('PER_PIECE_FIELDS_REQUIRED');
+    expect(codeOf(r)).toBeUndefined();
+    expect(textOf(r)).toContain('10.00 × 40 pieces');
+  });
+
+  it("PER_PIECE with a count that is not what travelled → previewed and saved at the leg's 40", async () => {
+    const { cycle } = await receivedAndSold();
+    const r = await call({
+      cycle: cycle.code,
+      sequence: 1,
+      costBasis: 'PER_PIECE',
+      ratePerUnit: 10,
+      chargeablePieces: 100,
+    });
+    expect(codeOf(r)).toBeUndefined();
+    expect(textOf(r)).toContain('10.00 × 40 pieces');
+    expect(textOf(r)).not.toContain('× 100 pieces');
   });
 });
