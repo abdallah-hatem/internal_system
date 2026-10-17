@@ -308,3 +308,13 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   shop page) was approved on paper and rejected on use: "This is too much and too complicated — just on the sale order
   popup add a button Contract, it shows another popup to create the plan, then it creates the contract". Propose the
   one-button version first; add settings, records and lists only when he asks for them. — 2026-10-16
+
+## Documents as PDF
+
+- A printed document gets its PDF from `lib/document-pdf.ts`, never a second copy of that code. html-to-image pins each
+  copy to the page's measured width and height and shrinks every font size to `floor(size) - 0.1`; together they made
+  the contract number wrap over the date, a blank line in the terms, and page breaks in the wrong place. The helper
+  restores the sizes (both `font-size` and the `font:` shorthand), leaves sizes out of the copied styles, and pins
+  full-width tables. Check a PDF by opening the PDF itself at 36 instalments in both languages, not the screen.
+  Timings from a hidden browser pane are meaningless: it paused `requestAnimationFrame` and made a 0.3 s PDF take 30 s.
+  — 2026-10-17
