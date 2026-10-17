@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import { ToastProvider } from '@/components/ui/toast';
-import ShipmentsPage from '@/app/[locale]/shipments/page';
+import ShipmentsPage from '@/components/views/shipments-view';
 
 /**
  * L8 — the Shipments page's leg forms record a leg's first departure the way

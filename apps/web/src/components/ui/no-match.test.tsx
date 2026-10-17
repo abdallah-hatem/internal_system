@@ -103,6 +103,9 @@ describe('NoMatch', () => {
       }
     };
     walk(appDir);
+    // Pages shown as tabs of another page live as views (lib/page-views.ts).
+    const viewsDir = join(process.cwd(), 'src', 'components', 'views');
+    for (const name of readdirSync(viewsDir)) if (name.endsWith('-view.tsx')) pages.push(join(viewsDir, name));
     const searching = pages.filter((p) => /const \[search, setSearch\]/.test(readFileSync(p, 'utf8')));
     expect(searching.length).toBeGreaterThan(10);
     for (const p of searching) {

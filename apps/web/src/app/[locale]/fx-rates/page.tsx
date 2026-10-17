@@ -1,8 +1,14 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { movedViewLanding } from '@/lib/page-views';
 
-import { ExchangeRates } from '@/components/fx-rates/exchange-rates';
-
-/** The exchange-rate page (BUSINESS_LOGIC §22). */
-export default function FxRatesPage() {
-  return <ExchangeRates />;
+/** Now a tab of another page (owner, 2026-10-18). The old address still lands on it, parameters kept. */
+export default async function MovedView({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { locale } = await params;
+  redirect(movedViewLanding(locale, 'fx-rates', await searchParams));
 }

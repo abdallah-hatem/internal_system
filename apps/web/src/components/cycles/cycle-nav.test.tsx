@@ -12,7 +12,7 @@ import { CycleStatusButton, canChangeStatus } from './cycle-status-button';
 import { WIZARD_STATUSES } from './wizard-walk';
 import { RowAction } from '@/components/ui/fields';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
-import CyclesPage from '@/app/[locale]/cycles/page';
+import CyclesPage from '@/components/views/cycles-view';
 import CycleDetailsPage from '@/app/[locale]/cycles/[cycleId]/details/page';
 
 /**

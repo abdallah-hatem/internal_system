@@ -4,7 +4,7 @@
       "count": 35
     }
   },
-  "src/app/[locale]/audit-logs/page.tsx": {
+  "src/components/views/audit-logs-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -15,7 +15,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/categories/page.tsx": {
+  "src/components/views/categories-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
     },
@@ -65,7 +65,7 @@
       "count": 47
     }
   },
-  "src/app/[locale]/cycles/page.tsx": {
+  "src/components/views/cycles-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
     },
@@ -150,7 +150,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/partners/page.tsx": {
+  "src/components/views/partners-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -189,7 +189,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/products/page.tsx": {
+  "src/components/views/products-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 10
     },
@@ -203,7 +203,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/providers/page.tsx": {
+  "src/components/views/providers-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
     },
@@ -217,7 +217,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/purchases/page.tsx": {
+  "src/components/views/purchases-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 13
     },
@@ -245,12 +245,12 @@
       "count": 2
     }
   },
-  "src/app/[locale]/settings/page.tsx": {
+  "src/components/views/settings-view.tsx": {
     "local/no-raw-colors": {
       "count": 39
     }
   },
-  "src/app/[locale]/settlements/page.tsx": {
+  "src/components/views/settlements-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
     },
@@ -261,7 +261,7 @@
       "count": 29
     }
   },
-  "src/app/[locale]/shipments/page.tsx": {
+  "src/components/views/shipments-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -272,7 +272,7 @@
       "count": 1
     }
   },
-  "src/app/[locale]/suppliers/page.tsx": {
+  "src/components/views/suppliers-view.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 6
     },

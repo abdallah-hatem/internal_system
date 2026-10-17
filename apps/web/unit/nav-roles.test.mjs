@@ -100,12 +100,8 @@ const SOURCES = {
   dashboard: ['analytics/analytics.controller.ts', 'AnalyticsController', 'cycle-profitability'],
   analytics: ['analytics/analytics.controller.ts', 'AnalyticsController', 'revenue-by-month'],
   cycles: ['cycles/cycles.controller.ts', 'CyclesController', ''],
-  purchases: ['purchases/purchases.controller.ts', 'PurchasesController', ''],
   suppliers: ['suppliers/suppliers.controller.ts', 'SuppliersController', ''],
-  shipments: ['shipping/shipping.controller.ts', 'ShippingController', 'legs'],
-  providers: ['providers/providers.controller.ts', 'ProvidersController', ''],
   products: ['products/products.controller.ts', 'ProductsController', ''],
-  categories: ['products/products.controller.ts', 'CategoriesController', ''],
   inventory: ['inventory/inventory.controller.ts', 'InventoryController', 'inventory'],
   // One page, two tabs (owner, 2026-10-17): the order requests tab lists from
   // here; the import requests tab's endpoint is checked to agree, below.
@@ -116,10 +112,6 @@ const SOURCES = {
   lenders: ['lenders/lenders.controller.ts', 'LendersController', ''],
   ledger: ['ledger/ledger.controller.ts', 'LedgerController', ''],
   partners: ['users/users.controller.ts', 'UsersController', 'participation'],
-  settlements: ['settlements/settlements.controller.ts', 'SettlementsController', ''],
-  notifications: ['notifications/notifications.controller.ts', 'NotificationsController', ''],
-  auditLogs: ['audit/audit.controller.ts', 'AuditController', ''],
-  fxRates: ['currency-rates/currency-rates.controller.ts', 'CurrencyRatesController', ''],
   settings: ['auth/auth.controller.ts', 'AuthController', 'profile'],
 };
 
@@ -146,16 +138,17 @@ test('both tabs of Requests list from endpoints that let in exactly the roles th
   assert.deepEqual([...entry.roles].sort(), imports);
 });
 
-test('a core partner sees all 22 entries', () => {
-  assert.equal(menuKeys('CORE_PARTNER').length, 22);
+test('a core partner sees all 14 entries', () => {
+  // Thirteen plus Requests, after merging pages into tabs (owner, 2026-10-18).
+  assert.equal(menuKeys('CORE_PARTNER').length, 14);
 });
 
-test('with Requests switched off (production, for now) a core partner sees 21', () => {
-  assert.equal(menuKeys('CORE_PARTNER', []).length, 21);
+test('with Requests switched off (production, for now) a core partner sees 13', () => {
+  assert.equal(menuKeys('CORE_PARTNER', []).length, 13);
   assert.ok(!menuKeys('CORE_PARTNER', []).includes('requests'));
 });
 
-test('admin support sees all 22 entries — every restricted endpoint lets them read', () => {
+test('admin support sees all 14 entries — every restricted endpoint lets them read', () => {
   assert.deepEqual(menuKeys('ADMIN_SUPPORT'), menuKeys('CORE_PARTNER'));
 });
 
@@ -164,15 +157,15 @@ test('admin support sees all 22 entries — every restricted endpoint lets them 
 // settlements. No analytics, customers or payment plans.
 const INVESTOR_MENU = [
   'dashboard',
-  'cycles', 'purchases', 'suppliers', 'shipments', 'providers',
-  'products', 'categories', 'inventory',
-  'settlements',
-  // Exchange rates: every role reads what its forms prefill from (§21).
-  'notifications', 'fxRates', 'settings',
+  'cycles', 'suppliers',
+  'products', 'inventory',
+  // Purchases, shipments, providers, categories and exchange rates are tabs
+  // of these pages now (owner, 2026-10-18).
+  'settings',
 ];
 
 /** What any signed-in role is offered: the entries naming no roles. */
-const OPEN_MENU = INVESTOR_MENU.filter((k) => k !== 'settlements');
+const OPEN_MENU = INVESTOR_MENU;
 
 test('a temporary investor sees only the entries whose endpoints let them in', () => {
   assert.deepEqual(menuKeys('TEMP_INVESTOR'), INVESTOR_MENU);
@@ -186,9 +179,7 @@ test('a temporary investor is not offered analytics, customers, sales, money, pa
   }
 });
 
-test('the partners group keeps only Settlements for an investor, and no group is left empty', () => {
-  const partners = navForRole('TEMP_INVESTOR').find((g) => g.key === 'partners');
-  assert.deepEqual(keys(partners.items), ['settlements']);
+test('no group is left empty for an investor', () => {
   for (const g of navForRole('TEMP_INVESTOR')) assert.ok(g.items.length > 0, g.key);
 });
 

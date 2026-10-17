@@ -47,6 +47,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
 import { splitAcrossPartners } from '@/lib/funding-split';
+import { viewPath } from '@/lib/page-views';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -227,7 +228,7 @@ export default function CycleDetailsPage() {
           <MoveLeftoversButton cycleId={cycle.id} cycleCode={cycle.code} status={cycle.status} />
           <button
             type="button"
-            onClick={() => router.push(`/${locale}/settlements`)}
+            onClick={() => router.push(`/${locale}${viewPath('settlements')}`)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <Scale className="h-4 w-4" /> {t('settlement')}
@@ -360,7 +361,7 @@ export default function CycleDetailsPage() {
             icon={ShoppingCart}
             title={t('noPurchasesTitle')}
             description={t('noPurchasesHint')}
-            action={canAddPurchase && !isClosed ? { label: t('goToPurchases'), href: '/purchases' } : undefined}
+            action={canAddPurchase && !isClosed ? { label: t('goToPurchases'), href: viewPath('purchases') } : undefined}
           />
         ) : (
           <Rows>

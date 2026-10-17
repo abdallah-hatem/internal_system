@@ -7,7 +7,7 @@ import en from '@/i18n/locales/en.json';
 import { ToastProvider } from '@/components/ui/toast';
 import { ShipmentPanel, type PanelCycle } from '@/components/shipment/ShipmentPanel';
 import type { Shipment } from '@/components/shipment/shipment-model';
-import SettlementsPage from '@/app/[locale]/settlements/page';
+import SettlementsPage from '@/components/views/settlements-view';
 import CycleDetailsPage from '@/app/[locale]/cycles/[cycleId]/details/page';
 
 /**

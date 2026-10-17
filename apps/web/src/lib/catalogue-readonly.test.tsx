@@ -5,13 +5,13 @@ import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import { ToastProvider } from '@/components/ui/toast';
-import ProductsPage from '@/app/[locale]/products/page';
+import ProductsPage from '@/components/views/products-view';
 import ProductDetailPage from '@/app/[locale]/products/[id]/page';
-import CategoriesPage from '@/app/[locale]/categories/page';
-import SuppliersPage from '@/app/[locale]/suppliers/page';
-import ProvidersPage from '@/app/[locale]/providers/page';
-import PurchasesPage from '@/app/[locale]/purchases/page';
-import ShipmentsPage from '@/app/[locale]/shipments/page';
+import CategoriesPage from '@/components/views/categories-view';
+import SuppliersPage from '@/components/views/suppliers-view';
+import ProvidersPage from '@/components/views/providers-view';
+import PurchasesPage from '@/components/views/purchases-view';
+import ShipmentsPage from '@/components/views/shipments-view';
 
 /**
  * R1c — the catalogue pages an investor can open (products, categories,

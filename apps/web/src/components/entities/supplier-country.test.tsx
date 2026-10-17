@@ -7,7 +7,7 @@ import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
 import { ENTITY_FORMS } from './entity-forms';
-import SuppliersPage from '@/app/[locale]/suppliers/page';
+import SuppliersPage from '@/components/views/suppliers-view';
 
 /**
  * A supplier's country is a picker, not a text box (owner 2026-10-16, §21):

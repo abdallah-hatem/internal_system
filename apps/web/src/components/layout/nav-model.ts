@@ -49,9 +49,6 @@ export type NavGroup = { key: string; items: readonly NavItem[] };
  * When a controller's `@Roles` changes, the entry here changes with it.
  */
 const BOOKS_READERS = ['CORE_PARTNER', 'ADMIN_SUPPORT'] as const;
-/** The settlement reads also let an investor in, scoped to their own cycles
- *  and their own payout line (R1, owner 2026-10-10). */
-const SETTLEMENT_READERS = ['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR'] as const;
 
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
@@ -68,22 +65,19 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     key: 'importing',
     items: [
+      // Purchases and shipments are tabs of Cycles: every one belongs to a
+      // cycle (owner, 2026-10-18; lib/page-views.ts).
       { key: 'cycles', href: '/cycles' },
-      { key: 'purchases', href: '/purchases' },
-      // Suppliers sit with purchases — they are who the goods are bought from,
-      // as distinct from providers below, who move them.
+      // Suppliers, who the goods are bought from, with the shipping providers
+      // who move them as a second tab.
       { key: 'suppliers', href: '/suppliers' },
-      { key: 'shipments', href: '/shipments' },
-      // Providers are the shipping companies, so they belong beside the
-      // shipments rather than with suppliers.
-      { key: 'providers', href: '/providers' },
     ],
   },
   {
     key: 'catalogue',
     items: [
+      // Categories are a tab of Products: they exist only to group them.
       { key: 'products', href: '/products' },
-      { key: 'categories', href: '/categories' },
       { key: 'inventory', href: '/inventory' },
     ],
   },
@@ -121,10 +115,9 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     key: 'partners',
     items: [
+      // Partners, with Settlements as a tab (owner, 2026-10-18).
       // GET /users/participation — @Roles(CORE_PARTNER, ADMIN_SUPPORT)
       { key: 'partners', href: '/partners', roles: BOOKS_READERS },
-      // GET /settlements — @Roles(CORE_PARTNER, ADMIN_SUPPORT, TEMP_INVESTOR)
-      { key: 'settlements', href: '/settlements', roles: SETTLEMENT_READERS },
     ],
   },
 ];
@@ -132,12 +125,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
 /** Pinned to the foot of the sidebar — reached occasionally, not part of the
  *  daily flow, and better out of the way than padding the list above. */
 export const SYSTEM_ITEMS: readonly NavItem[] = [
-  { key: 'notifications', href: '/notifications' },
-  // GET /audit-logs — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
-  { key: 'auditLogs', href: '/audit-logs', roles: BOOKS_READERS },
-  // GET /currency-rates — no @Roles: every office role reads the rates its
-  // forms prefill from; changing one is a core partner's (§22, 2026-10-16).
-  { key: 'fxRates', href: '/fx-rates' },
+  // Exchange rates and the audit log are tabs of Settings (owner, 2026-10-18);
+  // notifications open from the bell in the top bar.
   { key: 'settings', href: '/settings' },
 ];
 

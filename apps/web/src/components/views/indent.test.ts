@@ -23,7 +23,7 @@ describe('categoryIndent (UI #10)', () => {
   });
 
   it('the categories page uses it and no physical padding', () => {
-    const src = readFileSync(join(process.cwd(), 'src/app/[locale]/categories/page.tsx'), 'utf8');
+    const src = readFileSync(join(process.cwd(), 'src/components/views/categories-view.tsx'), 'utf8');
     expect(src).toContain('categoryIndent(cat.depth)');
     expect(src).not.toMatch(/paddingLeft|paddingRight/);
   });

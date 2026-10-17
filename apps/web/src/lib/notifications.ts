@@ -9,6 +9,7 @@ import { useCodeLabel, type CodeKind } from './labels';
 import { useDateFormat } from './dates';
 import { REQUESTS_ENABLED } from './features';
 import { requestsPath } from './requests-route';
+import { viewPath } from './page-views';
 
 /**
  * The notifications query, defined once.
@@ -105,11 +106,11 @@ export function notificationHref(
       return payload.cycleId ? `/cycles/${payload.cycleId}/details` : '/cycles';
 
     case 'PURCHASE_ORDER_CREATED':
-      return payload.cycleId ? `/cycles/${payload.cycleId}/details` : '/purchases';
+      return payload.cycleId ? `/cycles/${payload.cycleId}/details` : viewPath('purchases');
 
     case 'SHIPMENT_CREATED':
     case 'SHIPMENT_STATUS_CHANGED':
-      return '/shipments';
+      return viewPath('shipments');
 
     case 'STOCK_RECEIVED':
     case 'LOW_STOCK':
@@ -137,7 +138,7 @@ export function notificationHref(
     case 'SETTLEMENT_CREATED':
     case 'SETTLEMENT_APPROVED':
     case 'SETTLEMENT_PAID':
-      return '/settlements';
+      return viewPath('settlements');
 
     default:
       return null;

@@ -1,0 +1,588 @@
+'use client';
+import { useAllRecords } from '@/lib/list-all';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { Select } from '@/components/ui/select';
+
+import { useLocale, useTranslations } from 'next-intl';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { api } from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
+import { Money } from '@/components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
+import {
+  Scale, Loader2, TrendingUp, TrendingDown,
+  CheckCircle2, Wallet, RotateCcw, Calculator, 
+} from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+
+import { useApiError } from '@/lib/api-error';
+import { useCodeLabel } from '@/lib/labels';
+import { useCan } from '@/lib/can';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { SettlementWarnings, type SettlementWarning } from '@/components/settlements/settlement-warnings';
+import {
+  SettlementParticipants,
+  participantRows,
+  type SettlementLine,
+} from '@/components/settlements/settlement-participants';
+import { PayoutBreakdownSkeleton, PayoutBreakdownView, type PayoutBreakdown } from '@/components/settlements/payout-breakdown';
+import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
+import { UnsoldStockPrompt } from '@/components/settlements/unsold-stock-prompt';
+import { Dialog } from '@/components/ui/dialog';
+// ─── Types ────────────────────────────────────────────────────────────
+interface Settlement {
+  id: string;
+  status: string;
+  cycle?: { id: string; code: string; status: string };
+  revenueEgp?: string | null;
+  cogsEgp?: string | null;
+  expensesEgp?: string | null;
+  grossProfitEgp?: string | null;
+  unsoldValueEgp?: string | null;
+  unitsSold?: string | null;
+  unitsRemaining?: string | null;
+  calculatedAt?: string | null;
+  lines: SettlementLine[];
+  /** The payout line by line, from the settlement's own figures (§8, L7). */
+  breakdown?: PayoutBreakdown;
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  APPROVED: 'bg-blue-100 text-blue-700',
+  PAID: 'bg-green-100 text-green-700',
+  REVERSED: 'bg-red-100 text-red-700',
+};
+
+const isBlank = (v: unknown) =>
+  v === null || v === undefined || !Number.isFinite(Number(v));
+
+type SettlementPermissions = { calculate: boolean; approve: boolean; pay: boolean; reverse: boolean };
+
+// ─── Page ─────────────────────────────────────────────────────────────
+export default function SettlementsPage() {
+  const codeLabel = useCodeLabel();
+  const apiError = useApiError();
+  const t = useTranslations('settlementsPage');
+  const tph = useTranslations('placeholders');
+  const tc = useTranslations('common');
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  const [selectedCycle, setSelectedCycle] = useState('');
+  const [warnings, setWarnings] = useState<SettlementWarning[]>([]);
+  // An investor reads their cycles' settlements and their own line; every
+  // write here is a partner's (R1b). Each flag mirrors its endpoint's @Roles.
+  const may: SettlementPermissions = {
+    calculate: useCan('settlement.calculate'),
+    approve: useCan('settlement.approve'),
+    pay: useCan('settlement.pay'),
+    reverse: useCan('settlement.reverse'),
+  };
+
+  const { items: settlements, capped, isLoading } = useAllRecords(['settlements'], '/settlements');
+
+  // The default page size hid older cycles, which are exactly the ones ready
+  // to settle. Every cycle, the same list the cycles page reads.
+  const { items: cycles } = useAllRecords(['cycles'], '/cycles', undefined, {
+    enabled: may.calculate,
+  });
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ['settlements'] });
+
+  const onError = (e: any) =>
+    addToast(
+      apiError(e, tc('operationFailed')),
+      'error',
+    );
+
+  const calcMutation = useMutation({
+    mutationFn: (cycleId: string) =>
+      api.post(`/settlements/calculate/${cycleId}`).then((r) => r.data),
+    onSuccess: (data: any) => {
+      setWarnings(data?.warnings ?? []);
+      refresh();
+      addToast(t('calculated'), 'success');
+    },
+    onError,
+  });
+
+  // Reversing needs a reason from the person doing it; paying sometimes needs
+  // an explicit decision about stock still on the shelf. Both are held here
+  // while the dialog is open.
+  const [reversing, setReversing] = useState<string | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
+  // `attempt` keys the prompt, so a second refusal after moving only some of
+  // the leftovers opens it fresh rather than still saying "moved, try again".
+  const [stockPrompt, setStockPrompt] = useState<{
+    id: string;
+    message: string;
+    cycleId?: string;
+    cycleCode?: string;
+    attempt: number;
+  } | null>(null);
+
+  const actionMutation = useMutation({
+    // Each endpoint takes its OWN body, and the API rejects anything else
+    // outright (`property reason should not exist`). Sending one shape to all
+    // three made Mark paid fail every time it was pressed.
+    mutationFn: ({ id, action, body }: { id: string; action: string; body?: unknown }) =>
+      api.post(`/settlements/${id}/${action}`, body ?? {}),
+    onSuccess: () => {
+      refresh();
+      setReversing(null);
+      setReverseReason('');
+      setStockPrompt(null);
+      addToast(t('updated'), 'success');
+    },
+    onError,
+  });
+
+  const payMutation = useMutation({
+    mutationFn: ({ id, acceptRemainingStock }: { id: string; acceptRemainingStock?: boolean }) =>
+      api.post(`/settlements/${id}/pay`, acceptRemainingStock ? { acceptRemainingStock } : {}),
+    onSuccess: () => {
+      refresh();
+      setStockPrompt(null);
+      addToast(t('paid'), 'success');
+    },
+    onError: (e: any, variables) => {
+      // Closing a cycle that still holds stock writes that cost off, so the API
+      // refuses until it is asked for deliberately. Ask, rather than showing a
+      // refusal the person cannot act on.
+      //
+      // Matched on the error code, not on the message. This used to test the
+      // message against /still holds|remaining/, which stops matching the
+      // moment the message is read in Arabic — and the prompt this opens is
+      // the only way to complete the close, so the reader would have been
+      // stuck with a refusal and no way past it.
+      const code = e?.response?.data?.error?.code;
+      if (!variables.acceptRemainingStock && code === 'CYCLE_HAS_UNSOLD_STOCK') {
+        // The cycle, so the prompt can offer to move its leftovers instead (L5).
+        const params = e?.response?.data?.error?.params ?? {};
+        const settlement = list.find((x) => x.id === variables.id);
+        setStockPrompt((prev) => ({
+          id: variables.id,
+          message: apiError(e, tc('error')),
+          cycleId: typeof params.cycleId === 'string' ? params.cycleId : settlement?.cycle?.id,
+          cycleCode: typeof params.cycle === 'string' ? params.cycle : settlement?.cycle?.code,
+          attempt: (prev?.attempt ?? 0) + 1,
+        }));
+        return;
+      }
+      onError(e);
+    },
+  });
+
+  const onAction = (id: string, action: string) => {
+    if (action === 'pay') return payMutation.mutate({ id });
+    if (action === 'reverse') {
+      setReverseReason('');
+      setReversing(id);
+      return;
+    }
+    actionMutation.mutate({ id, action });
+  };
+
+  const list: Settlement[] = Array.isArray(settlements) ? settlements : [];
+  const cycleList: any[] = Array.isArray(cycles) ? cycles : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Scale className="h-6 w-6 text-primary-600" /> {t('title')}
+        </h1>
+
+        {may.calculate && (
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+          <label htmlFor="cycle-select" className="sr-only">
+            {t('selectCycle')}
+          </label>
+          <Select
+            id="cycle-select"
+            className="min-w-0 flex-1 sm:w-64 sm:flex-none"
+            value={selectedCycle}
+            onChange={setSelectedCycle}
+            placeholder={t('selectCycle')}
+            searchPlaceholder={tph('searchCycles')}
+            options={cycleList.map((c: any) => ({
+              value: c.id,
+              label: c.code,
+              hint: [c.originType && codeLabel('originType', c.originType), c.status && codeLabel('cycleStatus', c.status)].filter(Boolean).join(' · '),
+            }))}
+          />
+          <button
+            type="button"
+            onClick={() => calcMutation.mutate(selectedCycle)}
+            disabled={!selectedCycle || calcMutation.isPending}
+            className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {calcMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Calculator className="h-4 w-4" />
+            )}
+            {t('calculate')}
+          </button>
+        </div>
+        )}
+      </div>
+
+      <SettlementWarnings warnings={warnings} />
+
+      <ListCapNotice capped={capped} count={settlements.length} />
+
+      {isLoading ? (
+        <SkeletonRegion className="space-y-5">
+          {repeat(SKELETON_CARDS, (i) => <SettlementCardSkeleton key={i} />)}
+        </SkeletonRegion>
+      ) : list.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState icon={Scale} title={t('empty')} description={t('emptyHint')} />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {list.map((s) => (
+            <SettlementCard
+              key={s.id}
+              settlement={s}
+              t={t}
+              may={may}
+              onAction={(action) => onAction(s.id, action)}
+              busy={actionMutation.isPending || payMutation.isPending}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Reversing writes balancing ledger entries; the reason travels with them
+          and into the audit log, so it has to come from the person reversing. */}
+      {reversing && (
+        <Dialog
+          title={t('reverse')}
+          onClose={() => setReversing(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setReversing(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                form="settlements-1-form"
+                disabled={actionMutation.isPending}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {actionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('reverse')}
+              </button>
+            </>
+          }
+        >
+          <ValidatedForm id="settlements-1-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              actionMutation.mutate({
+                id: reversing,
+                action: 'reverse',
+                body: { reason: reverseReason.trim() },
+              });
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label htmlFor="reverse-reason" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('reverseReason')}<span className="text-red-500 ms-1">*</span>
+              </label>
+              <textarea
+                id="reverse-reason"
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                required
+                minLength={3}
+                rows={3}
+                placeholder={t('reverseReasonHint')}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </ValidatedForm>
+        </Dialog>
+      )}
+
+      {/* Unsold stock keeps its cost with the cycle, so closing writes it off —
+          or its leftovers move to another cycle at their cost (L5). */}
+      {stockPrompt && (
+        <UnsoldStockPrompt
+          key={stockPrompt.attempt}
+          message={stockPrompt.message}
+          cycleId={stockPrompt.cycleId}
+          cycleCode={stockPrompt.cycleCode}
+          paying={payMutation.isPending}
+          onPay={(accept) =>
+            payMutation.mutate({ id: stockPrompt.id, acceptRemainingStock: accept || undefined })
+          }
+          onClose={() => setStockPrompt(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────
+/** Cards the list shows while it loads: each is tall, so two fill the screen. */
+const SKELETON_CARDS = 2;
+
+/**
+ * The top of `SettlementCard` below, traced: the cycle code and status over
+ * its 28px actions, the four-figure P&L strip, the participants (a table from
+ * md, cards below it) and the footnote. The breakdown under them depends on
+ * the settlement and is left out. Change the card, change this.
+ */
+function SettlementCardSkeleton() {
+  // Arabic words are shorter: on a phone the actions fit beside the code, and the footnote takes two lines, not three.
+  const english = useLocale() !== 'ar';
+  return (
+    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-muted">
+        <div className="flex min-w-0 items-center gap-3">
+          <SkeletonText className="w-24" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className={`h-7 rounded-lg ${english ? 'w-20' : 'w-14'}`} />
+          <Skeleton className={`h-7 rounded-lg ${english ? 'w-20' : 'w-14'}`} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-muted border-b border-muted">
+        {repeat(4, (i) => (
+          <div key={i} className="min-w-0 px-4 py-3 sm:px-5">
+            <SkeletonText size="xs" className="w-16" lineClassName="mb-0.5" />
+            <SkeletonText className="w-24" />
+            {/* Unsold stock's unit count (11px), on the last figure. */}
+            {i === 3 && <SkeletonText size="xs" className="h-2 w-12" lineClassName="mt-0.5 h-[16.5px]" />}
+          </div>
+        ))}
+      </div>
+
+      {/* The unsold-stock warning: a settlement worked out while some of the cycle is still on the shelf. */}
+      <div className="px-5 py-2 border-b border-muted">
+        <SkeletonText size="xs" className="w-2/3" />
+        <SkeletonText size="xs" className="w-1/3" lineClassName="sm:hidden" />
+      </div>
+
+      <div className="divide-y divide-muted md:hidden">
+        {repeat(3, (i) => (
+          <div key={i} className="px-4 py-3">
+            <SkeletonText size="base" className="w-32" />
+            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+              {repeat(5, (c) => (
+                <div key={c} className="min-w-0">
+                  <SkeletonText size="xs" className="w-14" />
+                  <SkeletonText className="w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden md:block">
+        <Skeleton className="h-8 w-full rounded-none" />
+        <div className="divide-y divide-muted">
+          {repeat(3, (i) => (
+            <div key={i} className="flex items-center justify-between gap-4 px-5 py-3">
+              <SkeletonText className="w-32" />
+              <div className="flex gap-8">
+                {repeat(5, (c) => <SkeletonText key={c} className="w-16" />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-border">
+        <PayoutBreakdownSkeleton />
+      </div>
+
+      <div className="px-5 py-2 border-t border-muted">
+        {/* One line on a desktop; three on a phone in English, two in Arabic. */}
+        <SkeletonText size="xs" className="w-2/3 h-2" lineClassName="h-[16.5px]" />
+        <SkeletonText size="xs" className="w-full h-2" lineClassName="h-[16.5px] sm:hidden" />
+        {english && <SkeletonText size="xs" className="w-1/2 h-2" lineClassName="h-[16.5px] sm:hidden" />}
+      </div>
+    </div>
+  );
+}
+
+function SettlementCard({
+  settlement: s,
+  may,
+  onAction,
+  busy,
+  t,
+}: {
+  settlement: Settlement;
+  may: SettlementPermissions;
+  onAction: (action: string) => void;
+  busy: boolean;
+  t: (key: string, values?: Record<string, string | number | Date>) => string;
+}) {
+  const codeLabel = useCodeLabel();
+  const { formatNumber } = useNumberFormat();
+  const profit = Number(s.grossProfitEgp ?? 0);
+  const remaining = Number(s.unitsRemaining ?? 0);
+
+  return (
+    <div data-testid="settlement-card" data-cycle={s.cycle?.code} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-100">
+        <div className="flex min-w-0 items-center gap-3">
+          <span dir="ltr" className="font-mono text-sm text-gray-700 whitespace-nowrap">
+            {s.cycle?.code ?? '—'}
+          </span>
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              STATUS_STYLE[s.status] ?? 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {codeLabel('settlementStatus', s.status)}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {may.approve && s.status === 'DRAFT' && (
+            <ActionButton onClick={() => onAction('approve')} busy={busy} icon={CheckCircle2}>
+              {t('approve')}
+            </ActionButton>
+          )}
+          {may.pay && s.status === 'APPROVED' && (
+            <ActionButton onClick={() => onAction('pay')} busy={busy} icon={Wallet}>
+              {t('markPaid')}
+            </ActionButton>
+          )}
+          {may.reverse && s.status !== 'REVERSED' && (
+            <ActionButton
+              onClick={() => onAction('reverse')}
+              busy={busy}
+              icon={RotateCcw}
+              tone="danger"
+            >
+              {t('reverse')}
+            </ActionButton>
+          )}
+        </div>
+      </div>
+
+      {/* P&L strip. No lump "Expenses": the costs are itemised in the
+          breakdown below (§8 "a payout explains itself", L7). */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 border-b border-gray-100">
+        <Metric label={t('revenue')} value={s.revenueEgp} />
+        <Metric label={t('cogs')} value={s.cogsEgp} />
+        <Metric
+          label={t('profit')}
+          value={s.grossProfitEgp}
+          tone={profit >= 0 ? 'good' : 'bad'}
+          icon={profit >= 0 ? TrendingUp : TrendingDown}
+        />
+        <Metric
+          label={t('unsoldStock')}
+          value={s.unsoldValueEgp}
+          hint={remaining > 0 ? t('unitsCount', { units: formatNumber(remaining) }) : undefined}
+        />
+      </div>
+
+      {/* A cycle cannot settle while a friend is owed (§18): who, and how much. */}
+      {s.cycle && s.status === 'DRAFT' && <LenderDebtNotice cycleId={s.cycle.id} />}
+
+      {remaining > 0 && (
+        <p className="px-5 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
+          {t('unsoldWarning', { units: formatNumber(remaining) })}
+        </p>
+      )}
+
+      {/* Participants */}
+      <SettlementParticipants
+        lines={s.lines ?? []}
+        cycleCode={s.cycle?.code}
+        projectedRunningCosts={
+          s.status === 'DRAFT' || s.status === 'APPROVED'
+            ? Object.fromEntries(
+                (s.breakdown?.participants ?? []).map((p) => [p.participantId, Number(p.runningCostsEgp)]),
+              )
+            : undefined
+        }
+      />
+
+      {/* Line by line, before approving, approved and paid (§8, L7). */}
+      {s.breakdown && (
+        <div className="border-t border-border">
+          <PayoutBreakdownView
+            breakdown={s.breakdown}
+            status={s.status}
+            names={Object.fromEntries(
+              participantRows(s.lines ?? []).map((r) => [r.key, r.name ?? '']),
+            )}
+          />
+        </div>
+      )}
+
+      <p className="px-5 py-2 text-[11px] text-gray-400 border-t border-gray-100">
+        {t('footnote')}
+      </p>
+    </div>
+  );
+}
+
+function Metric({
+  label, value, tone, icon: Icon, hint,
+}: {
+  label: string;
+  value: number | string | null | undefined;
+  tone?: 'good' | 'bad';
+  icon?: React.ComponentType<{ className?: string }>;
+  hint?: string;
+}) {
+  const color =
+    tone === 'good' ? 'text-green-700' : tone === 'bad' ? 'text-red-600' : 'text-gray-900';
+  return (
+    <div className="min-w-0 px-4 py-3 sm:px-5">
+      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+      <p className={`text-sm font-semibold tabular-nums flex items-center gap-1 whitespace-nowrap ${color}`}>
+        {Icon && <Icon className="h-3.5 w-3.5" />}
+        {isBlank(value) ? '—' : <Money value={value as number} />}
+      </p>
+      {hint && <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p>}
+    </div>
+  );
+}
+
+function ActionButton({
+  onClick, busy, icon: Icon, children, tone,
+}: {
+  onClick: () => void;
+  busy: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  tone?: 'danger';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+        tone === 'danger'
+          ? 'text-red-600 hover:bg-red-50'
+          : 'text-primary-700 hover:bg-primary-50'
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {children}
+    </button>
+  );
+}
