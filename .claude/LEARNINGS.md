@@ -300,3 +300,7 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - The same for dialogs: about 20 pages each carried a local `Modal`, none had `scrollbar-clean`, and the New Product
   dialog's bar ran over the rounded edge with Create scrolling away (owner, 2026-10-15). One shared dialog in
   `components/ui`; only its body scrolls, inset from the card's sides; title and actions fixed. — 2026-10-15
+
+- `scripts/ship-prod.sh` exits 1 with no output in a worktree: `.vercel/` is untracked, so `vercel env pull` has no
+  project link and `set -e` stops the script before it can say so. Copy `apps/api/.vercel/project.json` from the main
+  checkout into the worktree's `apps/api/.vercel/` (it stays ignored), then run `status`. — 2026-10-17
