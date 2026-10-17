@@ -21,13 +21,15 @@ export interface StatTileProps {
   testId?: string;
   /** A second line under the figure — what it is made of. */
   sub?: React.ReactNode;
+  /** Extra classes for the frame — a grid span, say. */
+  className?: string;
 }
 
 /**
  * One dashboard figure. With an `href` the whole tile is the link, so the
  * target is the full card on a phone rather than a small "view" word.
  */
-export function StatTile({ label, value, icon: Icon, color, href, testId, sub }: StatTileProps) {
+export function StatTile({ label, value, icon: Icon, color, href, testId, sub, className = '' }: StatTileProps) {
   const figure = <TileFigure value={value} />;
   const body = (
     <div className="flex items-start justify-between gap-2">
@@ -42,7 +44,7 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub }:
     </div>
   );
 
-  const frame = 'block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6';
+  const frame = `block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6 ${className}`;
 
   if (!href) {
     return (
@@ -69,9 +71,9 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub }:
  * (`p-3` round a `size-6` icon, 48px) that sets the height from `sm` up.
  * `sub` adds the second line the owed-to-lenders tile carries.
  */
-export function StatTileSkeleton({ sub = false }: { sub?: boolean }) {
+export function StatTileSkeleton({ sub = false, className = '' }: { sub?: boolean; className?: string }) {
   return (
-    <div data-testid="skeleton-row" className="block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6">
+    <div data-testid="skeleton-row" className={`block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6 ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />

@@ -35,8 +35,9 @@ const PAGE_SIZE = 10;
  * The skeleton rows a detail screen or the dashboard holds: the sum of its
  * sections' `repeat(n, …RowSkeleton)` — the tiles, lists and tables each
  * section normally shows. A list screen holds a page, PAGE_SIZE.
- * - Dashboard: figure tiles, the attention list, top products, your cycles and
- *   recent activity (dashboard/page.tsx, components/dashboard/*);
+ * - Dashboard: figure tiles, the attention list, top products and your cycles
+ *   (dashboard/page.tsx, components/dashboard/*) — recent activity's ten rows
+ *   went with the panel (owner, 2026-10-17);
  * - a customer: three rows each in Sales Orders and Payments, two plan rows,
  *   and the statement's lines on this width (customers/[id], customer-statement);
  * - a cycle: the place cards of Where the goods are (four: the fixture is a
@@ -44,7 +45,7 @@ const PAGE_SIZE = 10;
  *   Participants, Purchases and Inventory, and the
  *   Shipment panel's two product lines (cycles/[cycleId]/details, ShipmentPanel).
  */
-const DASHBOARD_ROWS = 28;
+const DASHBOARD_ROWS = 18;
 const CUSTOMER_ROWS = 10;
 const CYCLE_ROWS = 15;
 const stamp = Date.now().toString(36).toUpperCase();

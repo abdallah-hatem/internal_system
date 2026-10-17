@@ -8,11 +8,9 @@ import { useNumberFormat } from '@/lib/numbers';
 import { useAuth } from '../../../lib/auth-context';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { QuickActions } from '../../../components/dashboard/quick-actions';
-import { RecentActivity } from '../../../components/dashboard/recent-activity';
 import { StatTile, StatTileSkeleton } from '../../../components/dashboard/stat-tile';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '../../../components/ui/skeleton';
 import {
-  canSeeRecentActivity,
   dashboardView,
   tileHref,
   type TileKey,
@@ -64,13 +62,25 @@ interface TopProduct {
 const TILE_COUNT = 13;
 
 /**
+ * Thirteen tiles leave one alone on the last row in two columns and in three,
+ * so the last tile — the one with a second line — takes the whole row.
+ */
+const LAST_TILE_SPAN = 'col-span-2 lg:col-span-3';
+
+/**
  * The tile grid before the figures arrive — the same grid, one skeleton per
  * tile. The page renders the one "Loading" announcement beside it.
  */
 function StatTilesSkeleton() {
   return (
     <SkeletonGroup className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-      {repeat(TILE_COUNT, (i) => <StatTileSkeleton key={i} sub={i === TILE_COUNT - 1} />)}
+      {repeat(TILE_COUNT, (i) => (
+        <StatTileSkeleton
+          key={i}
+          sub={i === TILE_COUNT - 1}
+          className={i === TILE_COUNT - 1 ? LAST_TILE_SPAN : ''}
+        />
+      ))}
     </SkeletonGroup>
   );
 }
@@ -224,7 +234,7 @@ export default function DashboardPage() {
         <StatTilesSkeleton />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          {stats.map((stat) => (
+          {stats.map((stat, i) => (
             <StatTile
               key={stat.key}
               testId={`tile-${stat.key}`}
@@ -234,13 +244,13 @@ export default function DashboardPage() {
               color={stat.color}
               href={tileHref(stat.key, role)}
               sub={stat.sub}
+              className={i === stats.length - 1 ? LAST_TILE_SPAN : ''}
             />
           ))}
         </div>
       )}
 
-      {/* Who to chase beside what sells (owner, 2026-10-15); recent activity
-          takes its own row below. */}
+      {/* Who to chase beside what sells (owner, 2026-10-15). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ToCollect />
 
@@ -272,8 +282,6 @@ export default function DashboardPage() {
           )}
         </section>
       </div>
-
-      {canSeeRecentActivity(role) && <RecentActivity />}
     </div>
   );
 }
