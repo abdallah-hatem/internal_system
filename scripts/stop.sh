@@ -5,7 +5,7 @@ set -uo pipefail
 TAG="motoparts-dev"
 
 echo "==> Stopping servers on :3000 and :3001"
-lsof -ti:3000,3001 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+lsof -ti tcp:3000,3001 -sTCP:LISTEN 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 
 echo "==> Closing dev Terminal windows"
 "$(dirname "${BASH_SOURCE[0]}")/close-dev-windows.sh" || true

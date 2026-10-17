@@ -73,7 +73,7 @@ start() {
     done < "$other"
   done
   for p in $API_PORT $STORE_PORT $WEB_PORT; do
-    port_busy "$p" && die "Port $p is in use (pid $(lsof -ti:"$p" | tr '\n' ' ')). Not starting over somebody else's server."
+    port_busy "$p" && die "Port $p is in use (pid $(lsof -ti:"$p" -sTCP:LISTEN | tr '\n' ' ')). Not starting over somebody else's server."
   done
   for app in api web storefront; do
     [ -d "$ROOT/apps/$app/node_modules" ] || die "apps/$app has no node_modules. Run: (cd apps/$app && npm ci)"

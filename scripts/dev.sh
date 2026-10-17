@@ -49,7 +49,7 @@ sleep 1
 
 # ── 4. Free the ports ────────────────────────────────────────────────────
 for port in $API_PORT $WEB_PORT $STORE_PORT; do
-  pids=$(lsof -ti:"$port" 2>/dev/null || true)
+  pids=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true)
   if [ -n "$pids" ]; then
     warn "Port $port held by PID(s) $pids — stopping them"
     echo "$pids" | xargs kill -9 2>/dev/null || true
