@@ -34,10 +34,10 @@
   },
   "src/app/[locale]/customers/[id]/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 2
+      "count": 1
     },
     "local/no-raw-colors": {
-      "count": 36
+      "count": 33
     }
   },
   "src/app/[locale]/customers/page.tsx": {

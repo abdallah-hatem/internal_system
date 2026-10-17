@@ -139,8 +139,8 @@ describe('where a notification the API actually raises takes you', () => {
   const href = (eventType: string, payloadJson: Record<string, unknown> = {}) =>
     notificationHref({ ...NEW, eventType, payloadJson } as Parameters<typeof notificationHref>[0]);
 
-  it('an overdue instalment (eventType PAYMENT_OVERDUE) opens the payment plans', () => {
-    expect(href('PAYMENT_OVERDUE', { planId: 'p', instalmentId: 'i' })).toBe('/payments?view=plans');
+  it('an overdue instalment (eventType PAYMENT_OVERDUE) opens the contracts', () => {
+    expect(href('PAYMENT_OVERDUE', { planId: 'p', instalmentId: 'i' })).toBe('/payments?view=contracts');
   });
 
   it('low stock (eventType LOW_STOCK_DETECTED, after a receipt or a sale) opens the stock page', () => {

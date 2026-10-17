@@ -987,6 +987,30 @@ customer fields, a button on the shop page) was rejected as too much and removed
   an older plan shows neither. The old `/payment-plans` address redirects to the
   tab, the menu entry is gone, and an overdue-instalment notification opens the
   tab. `POST /payment-plans` stays in the API (the assistant and older callers).
+- **Contracts replace payment plans — owner, 2026-10-17.** *"Remove payment plans
+  and replace it with contracts, where I can see the contract for this shop."*
+  Approved recommendation:
+  - The Payments tab is now **Contracts** (`/payments?view=contracts`). The old
+    `?view=plans` opens it and swaps the address for the new one; `/payment-plans`
+    and the overdue notification land on it too. One row per contract: the shop,
+    the order number, the contract total (the plan's total), paid so far against
+    it, and the next due date and amount — or **Overdue** with the amount behind,
+    or **All paid** when nothing remains. Whoever is behind comes first. The row
+    opens that contract's page (`/sales/[id]/contract`, where it is printed,
+    downloaded and shared). Cancelling the plan stays on the row.
+  - Each shop's page has a **Contracts** section: the same list, that shop's only,
+    each row opening its contract; "No contracts for this shop" when there are none.
+    It replaces the old payment-plan section there.
+  - **Plans with no sale.** Since 2026-10-16 nothing in the office or the
+    assistant creates a plan without a sale; `POST /payment-plans` is still in the
+    API, so one can be made by calling it directly, and plans agreed before
+    contracts existed have no sale. *Decided (2026-10-17):* such a plan is **still
+    listed** — it is money owed, and hiding it would hide a debt — labelled **"No
+    contract (older plan)"**, with its figures, and its row opens nothing because
+    there is no contract page to open. Production had no plans of any kind on that
+    day, so today this case is empty.
+  - Nothing on the server changed: `GET /payment-plans` (with `customerId` for a
+    shop) already returned each plan's sale, totals and standing.
 - *OPEN:* a plan reads every payment the shop makes from the agreed day on
   (cumulative, above) — so money paid on the day of signing, or on another of the
   shop's sales, counts toward the instalments. With one active plan per shop that

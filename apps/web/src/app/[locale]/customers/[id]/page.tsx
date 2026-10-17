@@ -32,12 +32,13 @@ import {
   oldestFirst,
 } from '../../../../components/payments/RecordPaymentDialog';
 import {
-  Wallet, ShoppingCart, CalendarClock, AlertTriangle, Plus,
+  Wallet, ShoppingCart, FileSignature, AlertTriangle, Plus,
 } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 import { BackLink } from '../../../../components/ui/back-link';
 import { CustomerStatement } from '../../../../components/customers/customer-statement';
+import { ContractsList } from '@/components/payments/contracts-list';
 interface SaleOrder {
   id: string;
   orderNo: string;
@@ -67,7 +68,7 @@ export default function CustomerPage() {
   const t = useTranslations('customers');
   const tp = useTranslations('payments');
   const ts = useTranslations('sales');
-  const tpl = useTranslations('paymentPlans');
+  const tk = useTranslations('contracts');
   const tc = useTranslations('common');
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
@@ -172,7 +173,7 @@ export default function CustomerPage() {
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 print:hidden">
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
           <p className="text-sm text-red-800">
-            {tpl('overdue')} — <Money value={num(plan.overdueEgp)} className="font-semibold" />
+            {tk('overdue')} — <Money value={num(plan.overdueEgp)} className="font-semibold" />
           </p>
         </div>
       )}
@@ -280,32 +281,10 @@ export default function CustomerPage() {
         )}
       </Card>
 
-      <Card title={tpl('title')} icon={<CalendarClock className="h-4 w-4 text-gray-400" />}>
-        {plansLoading ? (
-          <SkeletonGroup className="divide-y divide-muted">
-            {repeat(2, (i) => <PlanRowSkeleton key={i} />)}
-          </SkeletonGroup>
-        ) : !plan ? (
-          <EmptyState
-            size="compact"
-            icon={CalendarClock}
-            title={t('noPlanTitle')}
-            description={t('noPlanHint')}
-            action={owed > 0 ? { label: t('openPlans'), href: '/payments?view=plans' } : undefined}
-          />
-        ) : (
-          <Rows>
-            {plan.instalments.map((i: any) => (
-              <Row key={i.id}>
-                <span className="text-xs text-gray-400">{formatDate(i.dueOn)}</span>
-                <span className="text-sm"><Money value={num(i.amount)} /></span>
-                <span className="text-xs text-gray-500">{i.state}</span>
-                <span className="text-xs text-gray-400">{i.note ?? ''}</span>
-                <span />
-              </Row>
-            ))}
-          </Rows>
-        )}
+      {/* This shop's contracts, each opening its own (owner, 2026-10-17). The
+          same list as Payments' Contracts tab, narrowed to the shop. */}
+      <Card title={tk('title')} icon={<FileSignature className="h-4 w-4 text-gray-400" />} testId="customer-contracts">
+        <ContractsList customerId={id} />
       </Card>
 
       {/* Fetches its own figures, so it starts alongside the customer rather
@@ -389,18 +368,6 @@ function RowsSkeleton({ headers, numeric }: { headers: string[]; numeric: number
   );
 }
 
-/** One instalment of a plan: four short values in a `Row`. */
-function PlanRowSkeleton() {
-  return (
-    <div className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">
-      <SkeletonText size="xs" className="w-20" />
-      <SkeletonText className="w-20" />
-      <SkeletonText size="xs" className="w-14" />
-      <SkeletonText size="xs" className="w-16" />
-    </div>
-  );
-}
-
 function Tile({ label, value, tone, testId }: { label: string; value: React.ReactNode; tone?: 'red' | 'green'; testId?: string }) {
   return (
     <div data-testid={testId} className="rounded-xl border border-gray-200 bg-white p-4">
@@ -412,9 +379,9 @@ function Tile({ label, value, tone, testId }: { label: string; value: React.Reac
   );
 }
 
-function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Card({ title, icon, children, testId }: { title: string; icon: React.ReactNode; children: React.ReactNode; testId?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 print:hidden">
+    <div data-testid={testId} className="rounded-xl border border-gray-200 bg-white p-5 print:hidden">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">{icon}{title}</h2>
       {children}
     </div>

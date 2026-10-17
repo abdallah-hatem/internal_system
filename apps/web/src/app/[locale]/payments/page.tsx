@@ -36,7 +36,7 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { TabBar } from '@/components/ui/tab-bar';
-import { PaymentPlansList } from '@/components/payments/payment-plans-list';
+import { ContractsList } from '@/components/payments/contracts-list';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
@@ -107,29 +107,50 @@ export default function PaymentsPage() {
   );
 }
 
-/** The two views of the page; `?view=plans` opens the second. */
-type PaymentsView = 'payments' | 'plans';
+/**
+ * The two views of the page; `?view=contracts` opens the second. `?view=plans`
+ * was its address before plans became contracts (2026-10-17) and still opens
+ * it — a bookmark, an old notification — swapped for the new one in place.
+ */
+type PaymentsView = 'payments' | 'contracts';
+
+const LEGACY_VIEW = 'plans';
+
+const viewOf = (param: string | null): PaymentsView =>
+  param === 'contracts' || param === LEGACY_VIEW ? 'contracts' : 'payments';
+
+/** The page's address with `view` set for a tab, every other parameter kept. */
+function viewHref(pathname: string, current: URLSearchParams, next: PaymentsView) {
+  const params = new URLSearchParams(current.toString());
+  if (next === 'contracts') params.set('view', 'contracts');
+  else params.delete('view');
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
 
 /**
- * Payments, and the instalment plans being followed up, as two tabs of one
- * page (owner, 2026-10-16) — plans no longer have a menu entry of their own.
- * The open tab lives in the URL, so a refresh or the back button returns to
- * it, and switching does not move the page (`scroll: false`).
+ * Payments, and the contracts being followed up, as two tabs of one page
+ * (owner, 2026-10-16; instalment plans became Contracts 2026-10-17). The open
+ * tab lives in the URL, so a refresh or the back button returns to it, and
+ * switching does not move the page (`scroll: false`).
  */
 function PaymentsViews() {
   const t = useTranslations('payments.tabs');
+  const tk = useTranslations('contracts');
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const view: PaymentsView = searchParams.get('view') === 'plans' ? 'plans' : 'payments';
+  const view = viewOf(searchParams.get('view'));
+
+  // The old address is replaced, so Back does not land on it again.
+  const legacy = searchParams.get('view') === LEGACY_VIEW;
+  useEffect(() => {
+    if (legacy) router.replace(viewHref(pathname, searchParams, 'contracts'), { scroll: false });
+  }, [legacy, pathname, router, searchParams]);
 
   const show = (next: PaymentsView) => {
     if (next === view) return;
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === 'plans') params.set('view', 'plans');
-    else params.delete('view');
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.push(viewHref(pathname, searchParams, next), { scroll: false });
   };
 
   return (
@@ -140,11 +161,21 @@ function PaymentsViews() {
         onChange={show}
         tabs={[
           { key: 'payments', label: t('payments') },
-          { key: 'plans', label: t('plans') },
+          { key: 'contracts', label: t('contracts') },
         ]}
       />
       <div role="tabpanel" aria-labelledby={`tab-${view}`}>
-        {view === 'plans' ? <PaymentPlansList /> : <PaymentsPageContent />}
+        {view === 'contracts' ? (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{tk('title')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{tk('subtitle')}</p>
+            </div>
+            <ContractsList />
+          </div>
+        ) : (
+          <PaymentsPageContent />
+        )}
       </div>
     </div>
   );

@@ -73,9 +73,9 @@ async function build(request: APIRequestContext) {
     phone: '+971 50 123 4567',
     email: `operations.desk.${stamp.toLowerCase()}@gulf-mediterranean-freight.example.com`,
   });
-  await mk('payment-plans', {
-    customerId: customer.id,
-    agreedOn: daysAgo(0),
+  // A contract on the order: its plan is what the 23,456 still owed comes to
+  // (123,456 less the 100,000 paid above), so it lists on Payments' Contracts.
+  await mk(`sales/orders/${order.id}/contract-plan`, {
     instalments: [{ dueOn: daysAgo(-7), amount: 10_000, note: 'First of the agreed weekly instalments' }, { dueOn: daysAgo(-14), amount: 13_456 }],
   });
   // A friend who paid for part of the order, repaid once.
@@ -367,13 +367,12 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
     },
   },
   {
-    name: "a plan's instalments",
+    name: 'the contracts',
     open: async (page, locale) => {
-      // Instalment plans are the second tab of Payments (2026-10-16).
+      // Contracts are the second tab of Payments (2026-10-16; Instalment plans until 2026-10-17).
       await openNav(page, messages(locale).nav.payments);
-      await page.getByTestId('tab-plans').click();
-      await page.getByRole('main').getByRole('button').filter({ hasText: stamp }).first().click();
-      await expect(page.locator('main table')).toBeVisible();
+      await page.getByTestId('tab-contracts').click();
+      await expect(page.getByTestId('contract-row').filter({ hasText: orderNo }).first()).toBeVisible();
     },
   },
 ];

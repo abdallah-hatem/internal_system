@@ -99,8 +99,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       // GET /payments — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
       { key: 'payments', href: '/payments', roles: BOOKS_READERS },
-      // Instalment plans are a tab of Payments (`/payments?view=plans`, owner
-      // 2026-10-16), not an entry of their own.
+      // Contracts are a tab of Payments (`/payments?view=contracts`, owner
+      // 2026-10-16, renamed from Instalment plans 2026-10-17), not an entry of their own.
       // GET /lenders — @Roles(CORE_PARTNER, ADMIN_SUPPORT) (§18)
       { key: 'lenders', href: '/lenders', roles: BOOKS_READERS },
       // GET /ledger — @Roles(CORE_PARTNER, ADMIN_SUPPORT) on the controller
