@@ -76,9 +76,9 @@ export class ProductsService {
         // to see how many in stock"), by the one stock-on-hand rule the
         // low-stock check uses (common/low-stock.ts). Office only: an
         // investor's view of the catalogue is not a view of the stock.
-        inventoryBatches: seesEveryCycle(viewer)
-          ? { select: { remainingQty: true } }
-          : false,
+        ...(seesEveryCycle(viewer)
+          ? { inventoryBatches: { select: { remainingQty: true } } }
+          : {}),
       },
     });
 

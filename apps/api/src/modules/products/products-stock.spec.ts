@@ -3,6 +3,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import { ProductsService } from './products.service';
+import type { ScopeViewer } from '../../common/investor-scope';
 
 /**
  * How many of each product are in stock, on the office's products list (owner,
@@ -60,11 +61,12 @@ describe('stock on the products list', () => {
 
   it('an investor sees the catalogue without stock', async () => {
     const { svc, findMany } = service();
-    const { data } = await svc.findAll({}, {
+    const investor = {
       role: 'TEMPORARY_INVESTOR',
       cycleIds: [],
-    } as any);
-    expect(findMany.mock.calls[0][0].include.inventoryBatches).toBe(false);
+    } as unknown as ScopeViewer;
+    const { data } = await svc.findAll({}, investor);
+    expect(findMany.mock.calls[0][0].include.inventoryBatches).toBeUndefined();
     expect(data.every((p: any) => p.onHand === undefined)).toBe(true);
   });
 });

@@ -644,8 +644,11 @@ describe('Reference data an investor needs for their cycle pages — the least t
     const forInvestor = (await products.findAll({}, investor)).data as any[];
     expect(forInvestor.map((p) => p.id)).toEqual([PROD]);
     expect(forInvestor[0].suppliers).toBeUndefined();
+    // Nor how many are in stock (2026-10-17): the stock is the business's.
+    expect(forInvestor[0].onHand).toBeUndefined();
     const forPartner = (await products.findAll({}, partner)).data as any[];
     expect(forPartner[0].suppliers).toHaveLength(1);
+    expect(forPartner[0].onHand).toBe(24);
   });
 
   it("GET /files/download: a product photo → served; a shop's request photo → 404 for an investor", async () => {

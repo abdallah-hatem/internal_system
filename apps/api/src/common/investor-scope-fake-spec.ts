@@ -68,6 +68,7 @@ const REL: Record<string, Record<string, Rel>> = {
     suppliers: many('supplierProduct', 'productId'),
     prices: many('productPrice', 'productId'),
     compatibilities: many('compatibility', 'productId'),
+    inventoryBatches: many('inventoryBatch', 'productId'),
   },
 };
 
