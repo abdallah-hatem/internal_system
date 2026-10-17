@@ -82,6 +82,12 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
+    /* What the phone bar leaves under its buttons on an iPhone. The whole home
+       indicator inset (34pt) looked like an empty band under the bar (owner
+       2026-10-17); the indicator itself is a 5pt line 8pt from the edge, so
+       the bar keeps clear of it with 1rem less. The page's own bottom padding
+       reads the same value, so content never hides under the bar. */
+    --phone-bar-inset: max(0.25rem, calc(env(safe-area-inset-bottom, 0px) - 1rem));
   }
 
   * {

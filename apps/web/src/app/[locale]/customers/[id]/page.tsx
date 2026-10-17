@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { BackLink } from '../../../../components/ui/back-link';
 import { CustomerStatement } from '../../../../components/customers/customer-statement';
 import { ContractsList } from '@/components/payments/contracts-list';
@@ -109,6 +110,64 @@ export default function CustomerPage() {
   const paid = paymentList
     .filter((p) => p.status === 'RECORDED')
     .reduce((s, p) => s + num(p.amount), 0);
+
+  /** What an order still owes: a draft owes nothing (§4) — a dash and why, not a red number. */
+  const outstandingOf = (o: SaleOrder) =>
+    o.status === 'DRAFT' ? (
+      <span className="text-sm text-muted-foreground" data-testid="outstanding">
+        — <span className="text-xs">({ts('notConfirmed')})</span>
+      </span>
+    ) : (
+      <span
+        data-testid="outstanding"
+        className={`text-sm font-medium ${num(o.outstanding) > 0 ? 'text-destructive' : 'text-success'}`}
+      >
+        <Money value={num(o.outstanding)} currency={o.currency} />
+      </span>
+    );
+  /** Money from a payment not yet applied to any order — a credit. */
+  const unappliedOf = (p: PaymentRecord) =>
+    num(p.amount) - (p.allocations ?? []).reduce((s, a) => s + num(a.amount), 0);
+
+  // Order #, date, status, total, outstanding — the amounts end-aligned
+  // together (re-audit N8), through the one table (components/ui/data-table).
+  const orderColumns: Column<SaleOrder>[] = [
+    {
+      key: 'orderNo', header: ts('orderNo'), width: '9rem', skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (o) => <bdi dir="ltr" className="font-mono text-xs text-muted-foreground">{o.orderNo}</bdi>,
+    },
+    {
+      key: 'date', header: ts('date'), width: '8rem', kind: 'value', className: 'text-xs text-muted-foreground',
+      cell: (o) => formatDate(o.orderedAt ?? o.createdAt),
+    },
+    { key: 'status', header: tc('status'), width: 'auto', kind: 'label', cell: (o) => codeLabel('orderStatus', o.status) },
+    {
+      key: 'total', header: ts('total'), width: '9.5rem', kind: 'value', align: 'end',
+      cell: (o) => <Money value={num(o.total)} currency={o.currency} />,
+    },
+    { key: 'outstanding', header: ts('outstanding'), width: '9.5rem', kind: 'value', align: 'end', cell: outstandingOf },
+  ];
+  // Date, method, status, amount, unapplied — status before the amount, so
+  // the two money columns sit together (re-audit N8).
+  const paymentColumns: Column<PaymentRecord>[] = [
+    {
+      key: 'receivedOn', header: tp('receivedOn'), width: '8rem', kind: 'value', className: 'text-xs text-muted-foreground',
+      cell: (p) => formatDate(p.receivedOn),
+    },
+    { key: 'method', header: tp('method'), width: 'auto', kind: 'label', cell: (p) => codeLabel('paymentMethod', p.method) },
+    {
+      key: 'status', header: tp('status'), width: '8rem', kind: 'label', className: 'text-xs text-muted-foreground',
+      cell: (p) => codeLabel('paymentStatus', p.status),
+    },
+    {
+      key: 'amount', header: tp('amount'), width: '9.5rem', kind: 'value', align: 'end', className: 'font-medium',
+      cell: (p) => <Money value={num(p.amount)} currency={p.currency} />,
+    },
+    {
+      key: 'unapplied', header: t('unappliedColumn'), width: '9rem', kind: 'value', align: 'end', className: 'text-xs text-muted-foreground',
+      cell: (p) => (unappliedOf(p) > 0 ? <Money value={unappliedOf(p)} currency={p.currency} /> : '—'),
+    },
+  ];
 
   if (!isLoading && !customer) {
     return (
@@ -192,92 +251,89 @@ export default function CustomerPage() {
 
       <Card title={ts('title')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
         <ListCapNotice capped={ordersCapped} count={orderList.length} />
-        {ordersLoading ? (
-          <RowsSkeleton
-            headers={[ts('orderNo'), ts('date'), tc('status'), ts('total'), ts('outstanding')]}
-            numeric={[3, 4]}
-          />
-        ) : orderList.length === 0 ? (
+        {!ordersLoading && orderList.length === 0 ? (
           <EmptyState
             title={t('noOrders')}
             description={t('noOrdersHint')}
             action={{ label: ts('create'), onClick: () => router.push(`/${locale}/sales?customer=${id}`) }}
           />
         ) : (
-          <Rows
-            headers={[ts('orderNo'), ts('date'), tc('status'), ts('total'), ts('outstanding')]}
-            numeric={[3, 4]}
-          >
-            {orderList.map((o) => (
-              <Row key={o.id}>
-                <Cell label={ts('orderNo')}>
-                  <bdi dir="ltr" className="font-mono text-xs text-gray-500">{o.orderNo}</bdi>
-                </Cell>
-                <Cell label={ts('date')} className="text-xs text-gray-400">{formatDate(o.orderedAt ?? o.createdAt)}</Cell>
-                <Cell label={tc('status')} className="text-sm">{codeLabel('orderStatus', o.status)}</Cell>
-                <Cell label={ts('total')} numeric className="text-sm">
-                  <Money value={num(o.total)} currency={o.currency} />
-                </Cell>
-                {/* A draft owes nothing (§4): a dash and why, not a red number. */}
-                <Cell label={ts('outstanding')} numeric>
-                  {o.status === 'DRAFT' ? (
-                    <span className="text-sm text-gray-400" data-testid="outstanding">
-                      — <span className="text-xs">({ts('notConfirmed')})</span>
-                    </span>
-                  ) : (
-                    <span
-                      data-testid="outstanding"
-                      className={`text-sm font-medium ${num(o.outstanding) > 0 ? 'text-red-600' : 'text-green-600'}`}
-                    >
-                      <Money value={num(o.outstanding)} currency={o.currency} />
-                    </span>
-                  )}
-                </Cell>
-              </Row>
-            ))}
-          </Rows>
+          <>
+            {/* Desktop: the shared table. Phone: a card per order — order and
+                status, then date and total, then what is owed (owner
+                2026-10-17: five values in a two-column grid left one alone). */}
+            <DataTable
+              className="hidden md:block"
+              frame="none"
+              density="compact"
+              isLoading={ordersLoading}
+              skeletonRows={SECTION_SKELETON_ROWS}
+              columns={orderColumns}
+              rows={orderList}
+              rowKey={(o) => o.id}
+              rowProps={() => ({ 'data-testid': 'customer-order-row' })}
+            />
+            <ul className="space-y-2 md:hidden" aria-busy={ordersLoading}>
+              {ordersLoading
+                ? repeat(SECTION_SKELETON_ROWS, (i) => <PhoneCardSkeleton key={i} />)
+                : orderList.map((o) => (
+                    <PhoneCard
+                      key={o.id}
+                      testId="customer-order-card"
+                      topStart={<bdi dir="ltr" className="font-mono text-xs text-muted-foreground">{o.orderNo}</bdi>}
+                      topEnd={<span className="text-sm text-foreground">{codeLabel('orderStatus', o.status)}</span>}
+                      midStart={<span className="text-xs text-muted-foreground">{formatDate(o.orderedAt ?? o.createdAt)}</span>}
+                      midEnd={<span className="text-sm font-medium text-foreground"><Money value={num(o.total)} currency={o.currency} /></span>}
+                      bottomLabel={ts('outstanding')}
+                      bottom={outstandingOf(o)}
+                    />
+                  ))}
+            </ul>
+          </>
         )}
       </Card>
 
       <Card title={tp('title')} icon={<Wallet className="h-4 w-4 text-gray-400" />}>
         <ListCapNotice capped={paymentsCapped} count={paymentList.length} />
-        {paymentsLoading ? (
-          <RowsSkeleton
-            headers={[tp('receivedOn'), tp('method'), tp('status'), tp('amount'), t('unappliedColumn')]}
-            numeric={[3, 4]}
-          />
-        ) : paymentList.length === 0 ? (
+        {!paymentsLoading && paymentList.length === 0 ? (
           <EmptyState
             title={t('noPayments')}
             description={t('noPaymentsHint')}
             action={{ label: tp('create'), onClick: () => setShowPay(true) }}
           />
         ) : (
-          <Rows
-            // Status before the amount, so the two money columns sit together
-            // and an end-aligned amount never runs into a start-aligned status
-            // (re-audit N8), as the orders table above already reads.
-            headers={[tp('receivedOn'), tp('method'), tp('status'), tp('amount'), t('unappliedColumn')]}
-            numeric={[3, 4]}
-          >
-            {paymentList.map((p) => {
-              const allocated = (p.allocations ?? []).reduce((s, a) => s + num(a.amount), 0);
-              const credit = num(p.amount) - allocated;
-              return (
-                <Row key={p.id}>
-                  <Cell label={tp('receivedOn')} className="text-xs text-gray-400">{formatDate(p.receivedOn)}</Cell>
-                  <Cell label={tp('method')} className="text-sm">{codeLabel('paymentMethod', p.method)}</Cell>
-                  <Cell label={tp('status')} className="text-xs text-gray-500">{codeLabel('paymentStatus', p.status)}</Cell>
-                  <Cell label={tp('amount')} numeric className="text-sm font-medium">
-                    <Money value={num(p.amount)} currency={p.currency} />
-                  </Cell>
-                  <Cell label={t('unappliedColumn')} numeric className="text-xs text-gray-400">
-                    {credit > 0 ? <Money value={credit} currency={p.currency} /> : '—'}
-                  </Cell>
-                </Row>
-              );
-            })}
-          </Rows>
+          <>
+            <DataTable
+              className="hidden md:block"
+              frame="none"
+              density="compact"
+              isLoading={paymentsLoading}
+              skeletonRows={SECTION_SKELETON_ROWS}
+              columns={paymentColumns}
+              rows={paymentList}
+              rowKey={(p) => p.id}
+              rowProps={() => ({ 'data-testid': 'customer-payment-row' })}
+            />
+            <ul className="space-y-2 md:hidden" aria-busy={paymentsLoading}>
+              {paymentsLoading
+                ? repeat(SECTION_SKELETON_ROWS, (i) => <PhoneCardSkeleton key={i} />)
+                : paymentList.map((p) => {
+                    const credit = unappliedOf(p);
+                    return (
+                      <PhoneCard
+                        key={p.id}
+                        testId="customer-payment-card"
+                        topStart={<span className="text-sm text-foreground">{codeLabel('paymentMethod', p.method)}</span>}
+                        topEnd={<span className="text-sm font-medium text-foreground"><Money value={num(p.amount)} currency={p.currency} /></span>}
+                        midStart={<span className="text-xs text-muted-foreground">{formatDate(p.receivedOn)}</span>}
+                        midEnd={<span className="text-xs text-muted-foreground">{codeLabel('paymentStatus', p.status)}</span>}
+                        bottomLabel={credit > 0 ? t('unappliedColumn') : undefined}
+                        bottom={credit > 0 ? <Money value={credit} currency={p.currency} /> : undefined}
+                      />
+                    );
+                  })}
+            </ul>
+          </>
         )}
       </Card>
 
@@ -304,7 +360,7 @@ export default function CustomerPage() {
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // Each traces the real piece beside it: the heading block and its two
-// buttons, a tile, a row of `Rows`. Change one, change the other.
+// buttons, a tile, a phone card. Change one, change the other.
 
 /** The name, the type · phone line, and the two actions (44px on a phone). */
 function CustomerHeaderSkeleton() {
@@ -337,37 +393,6 @@ function TileSkeleton({ label }: { label: string }) {
 /** Rows a section shows while its list loads. */
 const SECTION_SKELETON_ROWS = 3;
 
-/**
- * `Rows` with its real header over skeleton rows. A row is `Row` of five
- * `Cell`s: a 24px line on a wide screen, an 11px label over it on a phone.
- */
-function RowsSkeleton({ headers, numeric }: { headers: string[]; numeric: number[] }) {
-  return (
-    <Rows headers={headers} numeric={numeric}>
-      <SkeletonGroup className="divide-y divide-muted">
-      {repeat(SECTION_SKELETON_ROWS, (i) => (
-        <div key={i} data-testid="skeleton-row" className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">
-          {repeat(5, (c) => (
-            <div key={c} className="min-w-0">
-              <SkeletonText
-                size="xs"
-                className="h-2 w-12"
-                lineClassName={`h-[16.5px] sm:hidden ${numeric.includes(c) ? 'justify-end' : ''}`}
-              />
-              <SkeletonText
-                size="base"
-                className={`h-3 ${c < 2 ? 'w-20' : 'w-16'}`}
-                lineClassName={numeric.includes(c) ? 'justify-end' : ''}
-              />
-            </div>
-          ))}
-        </div>
-      ))}
-      </SkeletonGroup>
-    </Rows>
-  );
-}
-
 function Tile({ label, value, tone, testId }: { label: string; value: React.ReactNode; tone?: 'red' | 'green'; testId?: string }) {
   return (
     <div data-testid={testId} className="rounded-xl border border-gray-200 bg-white p-4">
@@ -389,59 +414,56 @@ function Card({ title, icon, children, testId }: { title: string; icon: React.Re
 }
 
 /**
- * A list that reads as a table from `sm` up — one header row, money
- * end-aligned under its header — and as labelled pairs on a phone, where a
- * header row would sit too far from the amounts it names (UI audit #31).
+ * One order or payment on a phone: two pairs, each start and end of its line,
+ * then an optional labelled amount under a hairline. A five-column row folded
+ * into a two-column grid left the fifth value alone in the middle.
  */
-function Rows({
-  headers,
-  numeric = [],
-  children,
+function PhoneCard({
+  testId,
+  topStart,
+  topEnd,
+  midStart,
+  midEnd,
+  bottomLabel,
+  bottom,
 }: {
-  headers?: string[];
-  /** Column indexes holding amounts: end-aligned, like money everywhere else. */
-  numeric?: number[];
-  children: React.ReactNode;
+  testId: string;
+  topStart: React.ReactNode;
+  topEnd: React.ReactNode;
+  midStart: React.ReactNode;
+  midEnd: React.ReactNode;
+  bottomLabel?: string;
+  bottom?: React.ReactNode;
 }) {
   return (
-    <div className="divide-y divide-gray-100">
-      {headers && (
-        <div className="hidden grid-cols-5 gap-2 pb-2 sm:grid">
-          {headers.map((h, i) => (
-            <span
-              key={h}
-              className={`text-xs font-medium text-muted-foreground ${numeric.includes(i) ? 'text-end' : 'text-start'}`}
-            >
-              {h}
-            </span>
-          ))}
+    <li data-testid={testId} className="rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate">{topStart}</span>
+        <span className="shrink-0">{topEnd}</span>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="min-w-0">{midStart}</span>
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{midEnd}</span>
+      </div>
+      {bottomLabel && (
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+          <span className="text-xs text-muted-foreground">{bottomLabel}</span>
+          <span className="whitespace-nowrap tabular-nums">{bottom}</span>
         </div>
       )}
-      {children}
-    </div>
+    </li>
   );
 }
 
-const Row = ({ children }: { children: React.ReactNode }) => (
-  <div className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-5">{children}</div>
-);
-
-/** One value, with its column's name above it on a phone only. */
-function Cell({
-  label,
-  numeric,
-  className = '',
-  children,
-}: {
-  label: string;
-  numeric?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
+/** The card above while its list loads. */
+function PhoneCardSkeleton() {
   return (
-    <div className={`min-w-0 ${numeric ? 'text-end' : 'text-start'}`}>
-      <span className="block text-[11px] text-muted-foreground sm:hidden">{label}</span>
-      <span className={`${numeric ? 'whitespace-nowrap tabular-nums' : ''} ${className}`}>{children}</span>
-    </div>
+    <li data-testid="skeleton-row" className="rounded-lg border border-border p-3">
+      <SkeletonGroup>
+        <div className="flex justify-between"><SkeletonText className="w-28" /><SkeletonText className="w-16" /></div>
+        <div className="mt-1 flex justify-between"><SkeletonText size="xs" className="w-20" /><SkeletonText className="w-24" /></div>
+        <div className="mt-2 flex justify-between border-t border-border pt-2"><SkeletonText size="xs" className="w-16" /><SkeletonText className="w-24" /></div>
+      </SkeletonGroup>
+    </li>
   );
 }

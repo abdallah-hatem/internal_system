@@ -312,11 +312,14 @@ export function SaleOrderForm({
       // inside it.
       cardProps={{ 'data-testid': 'sale-order-form' }}
       footer={
-            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-3">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row sm:justify-end sm:gap-3">
+              {/* On a phone: the sale on its own row, Cancel and the draft side
+                  by side under it — three full-width rows took a third of the
+                  screen from the form (owner 2026-10-17). */}
               <button
                 type="button"
                 onClick={onCancel}
-                className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0"
+                className={`min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0 ${walkIn ? 'col-span-2' : ''}`}
               >
                 {tc('cancel')}
               </button>
@@ -340,7 +343,7 @@ export function SaleOrderForm({
                   form={formId}
                 onClick={() => (mode.current = 'confirm')}
                 disabled={pending}
-                className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+                className="order-first col-span-2 inline-flex min-h-11 cursor-pointer sm:order-none items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
               >
                 {pending && confirming ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

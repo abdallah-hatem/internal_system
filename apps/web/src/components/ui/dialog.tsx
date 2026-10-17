@@ -153,7 +153,7 @@ export function Dialog({
       {footer && (
         <div
           data-dialog-footer=""
-          className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-border px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
+          className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-border px-6 py-4"
         >
           {footer}
         </div>
@@ -165,7 +165,14 @@ export function Dialog({
     <div
       data-dialog=""
       {...outer}
-      className={cn('fixed inset-0 z-[60] flex items-center justify-center overflow-hidden p-4', className)}
+      // The card floats inside the screen's safe area: the margin, or the
+      // notch and home indicator when they are larger. The footer used to add
+      // the home indicator's height under its buttons on a card that never
+      // reached the bottom edge — an empty strip on every phone (owner 2026-10-17).
+      className={cn(
+        'fixed inset-0 z-[60] flex items-center justify-center overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))]',
+        className,
+      )}
     >
       {/* A scrim is black in either theme; a token would invert it in dark mode. */}
       <div
@@ -185,7 +192,7 @@ export function Dialog({
         ref={card}
         data-dialog-card=""
         className={cn(
-          'relative flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-2rem)] flex-col rounded-2xl bg-card text-card-foreground shadow-xl outline-none',
+          'relative flex max-h-full w-full max-w-[calc(100vw-2rem)] flex-col rounded-2xl bg-card text-card-foreground shadow-xl outline-none',
           SIZES[size],
           cardProps?.className,
         )}

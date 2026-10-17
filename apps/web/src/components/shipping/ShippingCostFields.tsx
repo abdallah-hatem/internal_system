@@ -115,9 +115,13 @@ export function ShippingCostFields({
           placeholder={tph('chooseCostBasis')}
           onChange={(v) => setBasis(v as CostBasis)}
           options={[
+            // A shipping bill is often one total (owner 2026-10-17: "why am I
+            // entering the number of pieces?"), so the flat amount is offered
+            // first. A new leg still starts per piece: the wizard fills the
+            // piece count in from the orders.
+            { value: 'FLAT', label: codeLabel('costBasis', 'FLAT') },
             { value: 'PER_PIECE', label: codeLabel('costBasis', 'PER_PIECE') },
             { value: 'PER_WEIGHT', label: t('perWeightKg') },
-            { value: 'FLAT', label: codeLabel('costBasis', 'FLAT') },
           ]}
         />
       </div>
