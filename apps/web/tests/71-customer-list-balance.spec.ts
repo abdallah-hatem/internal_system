@@ -56,16 +56,16 @@ async function openCustomers(page: Page) {
   await expect(page).toHaveURL(/\/en\/customers$/);
 }
 
-/** The balance cell of the row for this shop — the fifth column, "Balance". */
+/** The balance cell of the row for this shop — the fifth column, "Owes us". */
 async function listBalance(page: Page, name: string) {
   const row = page.locator('tbody tr').filter({ hasText: name });
   await expect(row).toHaveCount(1);
   return row.locator('td').nth(4);
 }
 
-/** The Balance tile on the customer's own page. */
+/** The "Owes us" tile on the customer's own page. */
 function pageBalance(page: Page) {
-  return page.locator('div.rounded-xl').filter({ has: page.getByText('Balance', { exact: true }) }).first();
+  return page.locator('div.rounded-xl').filter({ has: page.getByText('Owes us', { exact: true }) }).first();
 }
 
 test.describe('Customers list balance', () => {
