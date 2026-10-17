@@ -24,6 +24,7 @@ import { Surface } from '../../common/surface';
 import { validationRefusal } from '../../common/validation-error';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { SessionTokensService } from '../auth/session-tokens.service';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { AssistantConnectionsController } from './assistant-connections.controller';
 import { OAuthController, WellKnownController } from './oauth.controller';
@@ -261,6 +262,8 @@ beforeAll(async () => {
       { provide: JwtService, useValue: jwt },
       { provide: ConfigService, useValue: { get: (k: string) => config[k] } },
       { provide: OAUTH_CLOCK, useValue: () => now },
+      // Office sign-ins are not exercised here; AuthService only needs one.
+      { provide: SessionTokensService, useValue: {} },
       { provide: APP_GUARD, useClass: SurfaceGuard },
     ],
   }).compile();

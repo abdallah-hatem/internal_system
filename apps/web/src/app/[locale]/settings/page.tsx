@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { api } from '../../../lib/api';
+import { api, REFRESH_KEY } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
 import { useToast } from '../../../components/ui/toast';
 import { useState } from 'react';
@@ -64,8 +64,12 @@ export default function SettingsPage() {
   const passwordMutation = useMutation({
     mutationFn: (data: { currentPassword: string; newPassword: string }) =>
       api.post('/auth/change-password', data),
-    onSuccess: () => {
-      // Only now. The session is kept: nothing is signed out by this.
+    onSuccess: (res) => {
+      // Every other device is signed out by this; this one is handed a new
+      // refresh token so it stays signed in (BUSINESS_LOGIC §23).
+      const refreshToken = res.data?.data?.refreshToken;
+      if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+      // Only now.
       setPw({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setPasswordSuccess(true);
       setTimeout(() => setPasswordSuccess(false), 3000);

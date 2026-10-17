@@ -9,11 +9,17 @@ import { PortalLoginDto } from './dto/portal-login.dto';
 
 import { badRequest, conflict, unauthorized } from '../../common/api-error';
 import { assertStrongPassword } from '../../common/assert-password';
+import {
+  OFFICE_ACCESS_TTL,
+  SessionTokensService,
+  type SessionUserRow,
+} from './session-tokens.service';
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private sessions: SessionTokensService,
   ) {}
 
   /**
@@ -67,19 +73,49 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    const refreshToken = await this.sessions.issue(user.id);
+    return { data: this.officeSession(user, refreshToken) };
+  }
+
+  /**
+   * Keep an office sign-in going (owner, 2026-10-17): spend the refresh token,
+   * get a new one and a fresh access token. Public, because the access token
+   * has usually expired by the time this is called — holding the refresh token
+   * is the proof. Who the user is now is re-read, so a role changed since the
+   * sign-in is the role the new token carries.
+   */
+  async refresh(refreshToken: unknown) {
+    const next = await this.sessions.rotate(refreshToken);
+    return { data: this.officeSession(next.user, next.refreshToken) };
+  }
+
+  /** End this sign-in on the server. Always succeeds; says nothing. */
+  async logout(refreshToken: unknown) {
+    await this.sessions.revokeFamilyOf(refreshToken);
+    return { data: { signedOut: true } };
+  }
+
+  /**
+   * What the office keeps after signing in or refreshing.
+   *
+   * `audience` is what SurfaceGuard reads. A token without one reaches
+   * nothing, which is the point: every token names the system it was issued
+   * for. An hour, not `JWT_EXPIRATION`: the refresh token is what makes the
+   * sign-in last, and this is the part that cannot be taken back.
+   */
+  private officeSession(user: SessionUserRow, refreshToken: string) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     return {
-      data: {
-        // `audience` is what SurfaceGuard reads. A token without one reaches
-        // nothing, which is the point: every token now names the system it
-        // was issued for.
-        accessToken: this.jwtService.sign(payload, { audience: 'internal' }),
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          displayName: user.partner?.displayName,
-        },
+      accessToken: this.jwtService.sign(payload, {
+        audience: 'internal',
+        expiresIn: OFFICE_ACCESS_TTL,
+      }),
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.partner?.displayName,
       },
     };
   }
@@ -232,9 +268,10 @@ export class AuthService {
    * "not the same as now", which only means anything once the current one is
    * known to be right. Nothing is written unless all three pass.
    *
-   * The session is kept. Tokens are stateless and carry no password, so the
-   * one that made this request goes on working until it expires — the person
-   * who just proved they know both passwords is not sent back to the login.
+   * Every other sign-in ends (owner, 2026-10-17): all of this person's
+   * refresh tokens are revoked, so a lost phone stops working within the
+   * hour its access token has left. This device is handed a new refresh
+   * token, so the person who just proved both passwords stays signed in.
    */
   async changePassword(
     userId: string,
@@ -268,6 +305,13 @@ export class AuthService {
       data: { passwordHash },
     });
 
-    return { data: { message: 'Password changed successfully' } };
+    await this.sessions.revokeAllForUser(userId);
+    // Portal accounts have no office sign-in to continue.
+    const refreshToken =
+      user.role === 'SHOP_OWNER_PORTAL'
+        ? undefined
+        : await this.sessions.issue(userId);
+
+    return { data: { message: 'Password changed successfully', refreshToken } };
   }
 }

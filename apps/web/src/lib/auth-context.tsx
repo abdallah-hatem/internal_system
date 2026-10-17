@@ -3,7 +3,16 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useLocale } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, authApi } from './api';
+import {
+  api,
+  authApi,
+  clearSession,
+  revokeSession,
+  storeSession,
+  SESSION_REFRESHED_EVENT,
+  TOKEN_KEY,
+  USER_KEY,
+} from './api';
 import { pushSupported } from './push';
 import { useCycleWizardDraft } from '../stores/cycle-wizard-draft';
 import { encodeSessionUser, readSessionCookie, writeSessionCookie, type SessionUser } from './session-cookie';
@@ -28,7 +37,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/** How long sign-out waits for the push unsubscribe before going anyway. */
+/** How long sign-out waits for the server calls before going anyway. */
 const PUSH_RELEASE_MS = 2000;
 
 /**
@@ -51,8 +60,8 @@ async function releasePush() {
 }
 
 function readStoredSession(): { token: string; user: User } | null {
-  const savedToken = localStorage.getItem('token');
-  const savedUser = localStorage.getItem('user');
+  const savedToken = localStorage.getItem(TOKEN_KEY);
+  const savedUser = localStorage.getItem(USER_KEY);
   if (!savedToken || !savedUser) return null;
   try {
     return { token: savedToken, user: JSON.parse(savedUser) };
@@ -113,24 +122,31 @@ export function AuthProvider({
       if (e.persisted) resync();
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'token' || e.key === null) resync();
+      if (e.key === TOKEN_KEY || e.key === null) resync();
+    };
+    // lib/api.ts renewed the session behind a request: hold the new token, and
+    // the user as the API now describes them (a changed role or name).
+    const onRefreshed = (e: Event) => {
+      const next = (e as CustomEvent<{ accessToken: string; user: User }>).detail;
+      setToken(next.accessToken);
+      setUser(next.user);
     };
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('storage', onStorage);
+    window.addEventListener(SESSION_REFRESHED_EVENT, onRefreshed);
     return () => {
       window.removeEventListener('pageshow', onPageShow);
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener(SESSION_REFRESHED_EVENT, onRefreshed);
     };
   }, [queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password);
-    const { accessToken, user: userData } = res.data.data;
+    const { accessToken, refreshToken, user: userData } = res.data.data;
     // Whatever the last session left in the cache is not this person's.
     queryClient.clear();
-    localStorage.setItem('token', accessToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    writeSessionCookie(userData);
+    storeSession({ accessToken, refreshToken, user: userData });
     setToken(accessToken);
     setUser(userData);
   }, [queryClient]);
@@ -138,10 +154,12 @@ export function AuthProvider({
   /**
    * Sign out of this browser (owner, 2026-10-14).
    *
-   * There is no server call to revoke the token: the API's tokens are
-   * stateless JWTs and it keeps no session to end (BUSINESS_LOGIC §19). What
-   * this browser remembers is what gets cleared — the cached data, the token
-   * and user, the unsaved cycle draft, the push subscription.
+   * The sign-in is ended on the server too (2026-10-17): the refresh token is
+   * revoked, so a copy of it taken from this browser stops working. The access
+   * token is a signed JWT and cannot be taken back; it lapses within the hour
+   * (BUSINESS_LOGIC §23). Then what this browser remembers is cleared — the
+   * cached data, the tokens and user, the unsaved cycle draft, the push
+   * subscription.
    *
    * Lands on the login page of the language being read (it was hard-coded to
    * /en/login), and replaces the history entry so Back does not return to the
@@ -155,18 +173,16 @@ export function AuthProvider({
     }
     signingOut.current = true;
     try {
-      // While the token is still there to authorise it.
+      // While the tokens are still there to authorise them.
       await Promise.race([
-        releasePush().catch(() => undefined),
+        Promise.all([releasePush().catch(() => undefined), revokeSession()]),
         new Promise((resolve) => setTimeout(resolve, PUSH_RELEASE_MS)),
       ]);
 
       await queryClient.cancelQueries();
       queryClient.clear();
 
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      writeSessionCookie(null);
+      clearSession();
       // A half-built cycle belongs to whoever typed it; the next partner on
       // this browser should not be offered it as theirs.
       useCycleWizardDraft.getState().clear();

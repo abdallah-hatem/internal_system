@@ -5,6 +5,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import {
+  SESSION_CLOCK,
+  SessionTokensService,
+  type SessionClock,
+} from './session-tokens.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { readJwtSecret } from '../../common/jwt-secret';
 
@@ -16,13 +21,23 @@ import { readJwtSecret } from '../../common/jwt-secret';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: readJwtSecret(configService.get<string>('JWT_SECRET')),
-        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRATION', '24h') as any },
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRATION', '24h') as any,
+        },
       }),
       inject: [ConfigService],
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtModule],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    SessionTokensService,
+    {
+      provide: SESSION_CLOCK,
+      useValue: (() => new Date()) satisfies SessionClock,
+    },
+  ],
+  exports: [AuthService, JwtModule, SessionTokensService],
 })
 export class AuthModule {}

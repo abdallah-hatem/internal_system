@@ -1294,6 +1294,7 @@
     "REVERSAL_REASON_REQUIRED": "اذكر سبب عكس هذا القيد.",
     "SALE_ITEM_NOT_IN_ORDER": "هذا البند لا ينتمي إلى الطلب {order}.",
     "SESSION_INVALID": "انتهت صلاحية الجلسة. سجّل الدخول من جديد.",
+    "SESSION_EXPIRED": "انتهى تسجيل دخولك. سجّل الدخول من جديد.",
     "SETTLEMENT_ALREADY_REVERSED": "تم عكس هذه التسوية بالفعل.",
     "SETTLEMENT_LOCKED": "هذه الدورة لديها تسوية بحالة {status}. اعكسها قبل إعادة الاحتساب.",
     "SETTLEMENT_REASON_REQUIRED": "اذكر سبب عكس هذه التسوية.",

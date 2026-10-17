@@ -14,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PortalLoginDto } from './dto/portal-login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Surface } from '../../common/surface';
@@ -29,6 +30,31 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  /**
+   * Keep an office sign-in going: a refresh token in, a new pair out. Public,
+   * since the access token has usually expired by now; the refresh token is
+   * the credential.
+   */
+  @Surface('public')
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Exchange an office refresh token for a new pair' })
+  async refresh(@Body() dto: RefreshDto) {
+    return this.authService.refresh(dto.refreshToken);
+  }
+
+  /**
+   * End this sign-in on the server. Public for the same reason as refresh:
+   * signing out must work after the access token has expired.
+   */
+  @Surface('public')
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Revoke an office refresh token and its family' })
+  async logout(@Body() dto: RefreshDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 
   /**

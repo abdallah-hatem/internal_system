@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { SettlementsService } from '../settlements/settlements.service';
+import { SessionTokensService } from '../auth/session-tokens.service';
 import * as bcrypt from 'bcrypt';
 import {
   PaginationDto,
@@ -16,6 +17,7 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private settlements: SettlementsService,
+    private sessions: SessionTokensService,
   ) {}
 
   async findAll(
@@ -355,6 +357,12 @@ export class UsersService {
       },
       include: { partner: true },
     });
+    // Someone who may no longer come in holds no sign-in that would let them
+    // (owner, 2026-10-17). Their access token still lasts its hour on paper,
+    // but JwtStrategy re-reads the status and refuses it on the next request.
+    if (updated.status !== 'ACTIVE') {
+      await this.sessions.revokeAllForUser(id);
+    }
     const { passwordHash, ...result } = updated;
     return { data: result };
   }

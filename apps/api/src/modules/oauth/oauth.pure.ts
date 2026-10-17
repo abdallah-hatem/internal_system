@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 /**
  * The rules of the OAuth door that need nothing but their arguments.
@@ -117,15 +117,11 @@ export function verifierMatches(verifier: string, challenge: string): boolean {
   return s256(verifier) === challenge;
 }
 
-/** A fresh refresh token: 256 random bits, handed out once and never stored. */
-export function newRefreshToken(): string {
-  return randomBytes(32).toString('base64url');
-}
-
-/** What is stored in its place. A leaked table yields no usable token. */
-export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
+/**
+ * Refresh tokens are made and hashed the same way as the office's sign-in
+ * tokens. One definition, in `common/opaque-token.ts`.
+ */
+export { newRefreshToken, hashToken } from '../../common/opaque-token';
 
 /**
  * Client ids are UUID columns. Asking Postgres for `'abc'` fails the cast and

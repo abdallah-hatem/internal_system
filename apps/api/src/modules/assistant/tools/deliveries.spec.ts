@@ -13,6 +13,7 @@ import { SurfaceGuard } from '../../../common/guards/surface.guard';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { AuthService } from '../../auth/auth.service';
+import { SessionTokensService } from '../../auth/session-tokens.service';
 import { CostingService } from '../../costing/costing.service';
 import { CyclesService } from '../../cycles/cycles.service';
 import { InventoryController } from '../../inventory/inventory.controller';
@@ -892,6 +893,7 @@ describe('marking goods lost is office-app only (§16)', () => {
     const mcpToken = new AuthService(
       {} as PrismaService,
       jwt,
+      {} as SessionTokensService,
     ).issueAssistantToken({ id: partner.id });
 
     /** The guard on a real handler, its surface read from its decorators. */

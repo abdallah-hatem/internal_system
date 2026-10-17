@@ -5,6 +5,7 @@ import { SurfaceGuard } from './surface.guard';
 import { SURFACE_KEY } from '../surface';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../../modules/auth/auth.service';
+import { SessionTokensService } from '../../modules/auth/session-tokens.service';
 
 /**
  * The decision table of the fence.
@@ -162,7 +163,11 @@ describe('SurfaceGuard', () => {
   describe('an mcp route', () => {
     // Minted exactly as the API mints it, so these tests break if the token
     // AuthService issues ever stops fitting the guard.
-    const auth = new AuthService({} as PrismaService, jwt);
+    const auth = new AuthService(
+      {} as PrismaService,
+      jwt,
+      {} as SessionTokensService,
+    );
     const assistant = (id = 'p1') => auth.issueAssistantToken({ id });
     const partner: FakeUser = {
       id: 'p1',
