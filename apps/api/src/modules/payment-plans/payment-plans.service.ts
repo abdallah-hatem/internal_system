@@ -36,7 +36,8 @@ const PLAN_INCLUDE = {
   instalments: { orderBy: { sequence: 'asc' } },
   // The sale a contract plan was agreed for (§7, 2026-10-16), so the plans
   // list can name it and open its contract.
-  saleOrder: { select: { id: true, orderNo: true } },
+  // Its outstanding is what a contract plan's progress is read from (paidToward).
+  saleOrder: { select: { id: true, orderNo: true, outstanding: true } },
 } satisfies Prisma.PaymentPlanInclude;
 
 /** Midnight today, for anything that needs a Date rather than a day. */
@@ -108,6 +109,31 @@ export class PaymentPlansService {
     };
   }
 
+  /**
+   * What has been paid toward a plan.
+   *
+   * A contract plan (§7, tied to a sale) covers exactly what the sale still
+   * owed when it was signed, so what has been paid toward it is its total less
+   * what the sale owes now. Reading the shop's payments since the agreed day
+   * instead counted a down payment made that same day, before the contract, as
+   * paying it (a demo contract read "All paid" on 2,200 still owed), and gave
+   * each of a shop's contracts all of the shop's payments (owner, 2026-10-17).
+   * A plan with no sale (made before contracts) keeps the old reading.
+   */
+  private async paidToward(plan: {
+    customerId: string;
+    agreedOn: Date;
+    instalments: { amount: Prisma.Decimal }[];
+    saleOrder: { outstanding: Prisma.Decimal } | null;
+  }) {
+    if (plan.saleOrder) {
+      const total = plan.instalments.reduce((s, i) => s.add(i.amount), D(0));
+      const paid = total.sub(D(plan.saleOrder.outstanding));
+      return Prisma.Decimal.max(paid, D(0));
+    }
+    return this.paidSince(plan.customerId, plan.agreedOn);
+  }
+
   /** Everything this customer has paid since the plan was agreed. */
   private async paidSince(customerId: string, since: Date) {
     const agg = await this.prisma.payment.aggregate({
@@ -139,10 +165,7 @@ export class PaymentPlansService {
     const data = await Promise.all(
       page.map(async (plan) => ({
         ...plan,
-        ...this.evaluate(
-          plan.instalments,
-          await this.paidSince(plan.customerId, plan.agreedOn),
-        ),
+        ...this.evaluate(plan.instalments, await this.paidToward(plan)),
       })),
     );
 
@@ -170,10 +193,7 @@ export class PaymentPlansService {
     return {
       data: {
         ...plan,
-        ...this.evaluate(
-          plan.instalments,
-          await this.paidSince(plan.customerId, plan.agreedOn),
-        ),
+        ...this.evaluate(plan.instalments, await this.paidToward(plan)),
       },
     };
   }
@@ -569,10 +589,7 @@ export class PaymentPlansService {
     return Promise.all(
       plans.map(async (plan) => ({
         plan,
-        ...this.evaluate(
-          plan.instalments,
-          await this.paidSince(plan.customerId, plan.agreedOn),
-        ),
+        ...this.evaluate(plan.instalments, await this.paidToward(plan)),
       })),
     );
   }

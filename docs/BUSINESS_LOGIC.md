@@ -945,6 +945,12 @@ customer fields, a button on the shop page) was rejected as too much and removed
   date (same-day rows in the order on screen) and allows same-day rows, as the
   server does. Nothing on the server changed: 1–36 rows, each above 0, today or
   later, adding up to what is outstanding, all as before.
+- **What has been paid toward a contract — 2026-10-17.** A contract covers exactly what its sale still owed
+  when it was signed, so what has been paid toward it is its total less what the sale owes now — the same
+  figure everywhere a plan is read (the Contracts list, a shop's page, overdue alerts, the assistant).
+  It read the shop's payments since the agreed day before: a down payment made the same day, before the
+  contract, was counted as paying it, and each of a shop's contracts was given all the shop's payments. A
+  plan with no sale (made before contracts) keeps that older reading.
 - **The popup's default — owner, 2026-10-17.** *"Make the default 2 installments on
   the next 2 saturdays."* The popup opens on two weekly instalments, the first on
   the first Saturday after today (Cairo) — never today itself, so a sale made on a
