@@ -1976,7 +1976,15 @@
     "addLeg": "أضف المرحلة {leg}",
     "editLeg": "تعديل المرحلة",
     "editLegTitle": "تعديل المرحلة {leg}",
-    "receivedOn": "تاريخ الاستلام"
+    "receivedOn": "تاريخ الاستلام",
+    "shippingTotal": "إجمالي الشحن",
+    "inStock": "<b>{received}</b> من {ordered} في المخزون",
+    "notLeftCount": "{count} لم تغادر بعد",
+    "toReceiveCount": "{count} بانتظار الاستلام",
+    "lostCount": "{count} مفقودة",
+    "noCostYet": "لا تكلفة بعد",
+    "showDetails": "عرض التفاصيل",
+    "hideDetails": "إخفاء التفاصيل"
   },
   "shippingCost": {
     "title": "تكلفة الشحن",

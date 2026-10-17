@@ -315,3 +315,52 @@ export function parseQty(text: string): number | null {
   const n = Number(trimmed);
   return Number.isFinite(n) ? n : null;
 }
+
+/**
+ * A leg still asking for something: goods waiting to leave or on the way, a
+ * last-leg delivery not yet received, or a loss not yet paid back. The cycle
+ * page opens these and folds the rest, so a finished leg is one line
+ * (owner 2026-10-17: the card was hard to read).
+ */
+export function legNeedsAttention(leg: ShipmentLeg): boolean {
+  if (leg.status !== 'ARRIVED') return true;
+  if (leg.onTheWay > 0 || hasWaitingToLeave(leg)) return true;
+  if (leg.isLast && (num(leg.waiting) > 0 || leg.lines.some((l) => num(l.waiting) > 0))) return true;
+  return (leg.losses ?? []).some((loss) => lossRecovery(loss).unrecovered > 0);
+}
+
+/** The count columns a leg's product table can show, in order. */
+export type LegCount = 'ordered' | 'atOrigin' | 'delivered' | 'received' | 'waiting' | 'lost' | 'onTheWay';
+
+/**
+ * Which counts a leg's table shows. Ordered and delivered always; received
+ * on the last leg, where goods are received; the rest only while some product
+ * has one, so an arrived leg is not a row of zeros.
+ */
+export function legCounts(leg: ShipmentLeg): LegCount[] {
+  const any = (pick: (l: ShipmentLegLine) => unknown) => leg.lines.some((l) => num(pick(l)) > 0);
+  return (['ordered', 'atOrigin', 'delivered', 'received', 'waiting', 'lost', 'onTheWay'] as const).filter((c) => {
+    switch (c) {
+      case 'ordered':
+      case 'delivered':
+        return true;
+      case 'received':
+        return leg.isLast;
+      case 'waiting':
+        return leg.isLast && any((l) => l.waiting);
+      case 'atOrigin':
+        return any((l) => l.atOrigin);
+      case 'lost':
+        return any((l) => l.lost);
+      case 'onTheWay':
+        return any((l) => l.onTheWay);
+    }
+  });
+}
+
+/** How much of the order is accounted for — received or lost — as a whole percentage. */
+export function shipmentProgress(totals: Shipment['totals']): number {
+  const ordered = num(totals.ordered);
+  if (ordered <= 0) return 0;
+  return Math.min(100, Math.round(((num(totals.received) + num(totals.lost)) / ordered) * 100));
+}

@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
-import { PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Pencil } from 'lucide-react';
+import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Pencil } from 'lucide-react';
 import { nextLegToAdd } from '@/components/cycles/leg-plan';
 import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
@@ -35,11 +35,15 @@ import {
   RECEIVING_STATUSES,
   hasWaitingToLeave,
   isWaiting,
+  legCounts,
   legLineProgress,
+  legNeedsAttention,
   losableByLine,
   lossRecovery,
   num,
   refundStands,
+  shipmentProgress,
+  type LegCount,
   type Shipment,
   type ShipmentLeg,
 } from './shipment-model';
@@ -56,6 +60,9 @@ export interface PanelCycle {
     provider?: string | null;
     /** The leg's cost in EGP, shown in its header. */
     amountEgp?: number | string | null;
+    /** The cost as entered, in its own currency — shown first when it is not pounds. */
+    amount?: number | string | null;
+    currency?: string;
   })[];
   purchaseOrders?: {
     supplierId?: string | null;
@@ -125,7 +132,12 @@ type LegLine = ShipmentLeg['lines'][number];
  * two lines — then a count per stage and the progress bar. Each count column
  * fits its title in English and Arabic ("بانتظار الاستلام" sets Waiting's).
  */
-function useLegColumns(productNames: Record<string, string>, ordered: Map<string, number>): Column<LegLine>[] {
+function useLegColumns(
+  productNames: Record<string, string>,
+  ordered: Map<string, number>,
+  /** The counts this leg shows (`legCounts`); every one when absent — the placeholder. */
+  counts?: LegCount[],
+): Column<LegLine>[] {
   const t = useTranslations('shipment');
   const { formatNumber } = useNumberFormat();
   const count = (key: string, id: string, header: string, width: string, value: (l: LegLine) => number | null): Column<LegLine> => ({
@@ -136,7 +148,7 @@ function useLegColumns(productNames: Record<string, string>, ordered: Map<string
       return v === null ? '—' : formatNumber(v, { maximumFractionDigits: 3 });
     },
   });
-  return [
+  const columns: Column<LegLine>[] = [
     {
       key: 'product', header: t('product'), width: 'auto', kind: 'name', className: 'font-medium text-foreground',
       title: (line) => productNames[line.purchaseOrderItemId], skeleton: { kind: 'text', share: 'w-2/3' },
@@ -155,6 +167,7 @@ function useLegColumns(productNames: Record<string, string>, ordered: Map<string
       cell: (line) => <Progress value={legLineProgress(line)} label={t('progressLabel')} />,
     },
   ];
+  return counts ? columns.filter((c) => c.key === 'product' || c.key === 'progress' || counts.includes(c.key as LegCount)) : columns;
 }
 
 /**
@@ -317,11 +330,21 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
 
   return (
     <section data-testid="shipment-panel" className="rounded-xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Truck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           {t('title')}
         </h2>
+        <div className="flex flex-wrap items-center gap-3">
+        {legs.length > 0 && (
+          <p data-testid="shipping-total" className="text-xs text-muted-foreground">
+            {t('shippingTotal')}{' '}
+            <span className="font-semibold text-foreground">
+              <Money value={(cycle.shippingLegs ?? []).reduce((sum, l) => sum + num(l.amountEgp), 0)} />
+            </span>
+          </p>
+        )}
         {canAddLeg && legs.length > 0 && (
           <button
             type="button"
@@ -332,16 +355,28 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
             <Plus className="h-4 w-4" aria-hidden="true" /> {t('addLeg', { leg: nextLeg!.sequence })}
           </button>
         )}
-        <p data-testid="shipment-totals" className="text-xs text-muted-foreground">
-          {t('totals', {
-            ordered: shipment.totals.ordered,
-            received: shipment.totals.received,
-            waiting: shipment.totals.waiting,
-            lost: shipment.totals.lost,
-            atOrigin: shipment.totals.atOrigin ?? 0,
-            onTheWay: shipment.totals.onTheWay,
-          })}
-        </p>
+        </div>
+      </div>
+      {/* One bar and one line for the whole order: how much is in stock, and
+          only the counts that are not settled — the old line listed six. */}
+      {shipment.totals.ordered > 0 && (
+        <>
+          <Progress className="h-2" value={shipmentProgress(shipment.totals)} label={t('progressLabel')} />
+          <p data-testid="shipment-totals" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>
+              {t.rich('inStock', {
+                received: shipment.totals.received,
+                ordered: shipment.totals.ordered,
+                b: (chunks) => <span className="font-semibold text-foreground">{chunks}</span>,
+              })}
+            </span>
+            {(shipment.totals.atOrigin ?? 0) > 0 && <span>{t('notLeftCount', { count: shipment.totals.atOrigin ?? 0 })}</span>}
+            <span>{t('onTheWayCount', { count: shipment.totals.onTheWay })}</span>
+            {shipment.totals.waiting > 0 && <span>{t('toReceiveCount', { count: shipment.totals.waiting })}</span>}
+            <span>{t('lostCount', { count: shipment.totals.lost })}</span>
+          </p>
+        </>
+      )}
       </div>
 
       {canWalkToEgypt && (
@@ -371,7 +406,7 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
       ) : shipment.lines.length === 0 ? (
         <EmptyState title={t('nothingOrdered')} icon={Truck} />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {legs.map((leg) => (
             <LegBlock
               key={leg.legId}
@@ -526,11 +561,24 @@ function LegBlock({
   const { formatDate } = useDateFormat();
   const losable = Object.values(losableByLine(leg)).some((q) => q > 0);
   const losses = leg.losses ?? [];
-  const columns = useLegColumns(productNames, ordered);
+  const counts = legCounts(leg);
+  const shows = (c: LegCount) => counts.includes(c);
+  const columns = useLegColumns(productNames, ordered, counts);
+  // A leg still asking for something opens; a finished one is one line until asked.
+  const [expanded, setExpanded] = useState(() => legNeedsAttention(leg));
+  const detailsId = `leg-details-${leg.legId}`;
+  const amountEgp = num(meta?.amountEgp);
+  const ownCurrency = meta?.currency && meta.currency !== 'EGP' && meta.amount != null ? meta.currency : null;
 
   return (
-    <div data-testid="shipment-leg" data-leg-id={leg.legId} data-leg-sequence={leg.sequence} className="space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div
+      data-testid="shipment-leg"
+      data-leg-id={leg.legId}
+      data-leg-sequence={leg.sequence}
+      data-expanded={expanded}
+      className="rounded-lg border border-border"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 p-3">
         <div className="min-w-0">
           {/* The leg number and the route are separate flex items, so a Latin
               route cannot run into the number in Arabic (UI audit #11). */}
@@ -555,19 +603,29 @@ function LegBlock({
               <span data-testid="leg-departure">{t('departedOn', { date: formatDate(leg.departedOn) })}</span>
             )}
             {leg.arrivedOn && <span>{t('arrivedOn', { date: formatDate(leg.arrivedOn) })}</span>}
-            {/* Who carries it and what it costs — the old Shipping card's columns (I3). */}
+            {/* Who carries it — the old Shipping card's column (I3). */}
             {meta?.provider && (
               <span data-testid="leg-provider">
                 <LatinText>{meta.provider}</LatinText>
               </span>
             )}
-            {meta && (
-              <span data-testid="leg-cost">
-                <Money value={num(meta.amountEgp)} />
-              </span>
-            )}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+        {/* What it cost, where the eye lands: a cost of nothing on a leg
+            that carried goods is a bill still to come, and says so. */}
+        {meta && (
+          <div data-testid="leg-cost" className="text-end">
+            {amountEgp === 0 ? (
+              <p data-testid="leg-no-cost" className="text-sm font-semibold text-accent-600">{t('noCostYet')}</p>
+            ) : ownCurrency ? (
+              <p className="text-sm font-semibold text-foreground"><Money value={num(meta.amount)} currency={ownCurrency} /></p>
+            ) : null}
+            <p className={cn(amountEgp === 0 || ownCurrency ? 'text-xs text-muted-foreground' : 'text-sm font-semibold text-foreground')}>
+              <Money value={amountEgp} />
+            </p>
+          </div>
+        )}
         {!frozen && (
           <div className="flex flex-wrap gap-2">
             {/* While anything waits at the leg's origin, another departure
@@ -615,8 +673,23 @@ function LegBlock({
             )}
           </div>
         )}
+        <button
+          type="button"
+          data-testid="leg-toggle"
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          aria-label={expanded ? t('hideDetails') : t('showDetails')}
+          title={expanded ? t('hideDetails') : t('showDetails')}
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-9 sm:min-w-9"
+        >
+          <ChevronDown className={cn('h-4 w-4 transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
+        </button>
+        </div>
       </div>
 
+      {expanded && (
+      <div id={detailsId} data-testid="leg-details" className="space-y-3 border-t border-border p-3">
       {/* Desktop: a table. Phone: a card per product. */}
       <DataTable
         className="hidden md:block"
@@ -639,12 +712,12 @@ function LegBlock({
             <p className="break-words text-sm font-medium text-foreground">{productNames[line.purchaseOrderItemId]}</p>
             <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
               <Stat id="line-ordered" label={t('ordered')} value={ordered.get(line.purchaseOrderItemId) ?? 0} />
-              <Stat id="line-at-origin" label={t('atOriginCol')} value={num(line.atOrigin)} />
+              {shows('atOrigin') && <Stat id="line-at-origin" label={t('atOriginCol')} value={num(line.atOrigin)} />}
               <Stat id="line-delivered" label={t('delivered')} value={line.delivered} />
-              <Stat id="line-on-the-way" label={t('onTheWay')} value={line.onTheWay} />
-              {leg.isLast && <Stat id="line-received" label={t('receivedCol')} value={line.received} />}
-              {leg.isLast && <Stat id="line-waiting" label={t('waiting')} value={line.waiting} />}
-              <Stat id="line-lost" label={t('lost')} value={line.lost} />
+              {shows('onTheWay') && <Stat id="line-on-the-way" label={t('onTheWay')} value={line.onTheWay} />}
+              {shows('received') && <Stat id="line-received" label={t('receivedCol')} value={line.received} />}
+              {shows('waiting') && <Stat id="line-waiting" label={t('waiting')} value={line.waiting} />}
+              {shows('lost') && <Stat id="line-lost" label={t('lost')} value={line.lost} />}
             </dl>
             <Progress className="mt-2" value={legLineProgress(line)} label={t('progressLabel')} />
           </li>
@@ -846,6 +919,8 @@ function LegBlock({
             })}
           </ul>
         </div>
+      )}
+      </div>
       )}
     </div>
   );

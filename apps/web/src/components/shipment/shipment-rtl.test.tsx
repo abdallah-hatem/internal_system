@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ar from '@/i18n/locales/ar.json';
@@ -175,9 +175,13 @@ describe('Shipment panel in Arabic', () => {
     expect(routeParts(route)).toEqual(['leg-route-origin', 'leg-route-arrow', 'leg-route-destination']);
   });
 
+  /** The fixture's leg has arrived and its loss is paid back, so it starts folded: open it as a person would. */
+  const openLeg = async () => fireEvent.click(await screen.findByTestId('leg-toggle'));
+
   it('a delivery lists each product as its own item with the Latin name isolated', async () => {
     state.shipment = shipment();
     wrap(<ShipmentPanel cycle={cycle} />);
+    await openLeg();
     const summary = await screen.findByTestId('delivery-summary');
     const items = within(summary).getAllByRole('listitem');
     expect(items).toHaveLength(1);
@@ -189,6 +193,7 @@ describe('Shipment panel in Arabic', () => {
   it('the refund line shows its amount through Money, never a hardcoded "ج.م"', async () => {
     state.shipment = shipment();
     wrap(<ShipmentPanel cycle={cycle} />);
+    await openLeg();
     const line = await screen.findByTestId('loss-refund-line');
     expect(line.textContent).not.toContain('ج.م');
     // Money: an LTR-isolated run with grouping, two decimals and the currency.
@@ -201,6 +206,7 @@ describe('Shipment panel in Arabic', () => {
   it('the same line in English still reads as a sentence', async () => {
     state.shipment = shipment();
     wrap(<ShipmentPanel cycle={cycle} />, 'en');
+    await openLeg();
     const line = await screen.findByTestId('loss-refund-line');
     expect(line.textContent).toMatch(/^1,234\.50 EGP from Gulf Freight, received /);
   });

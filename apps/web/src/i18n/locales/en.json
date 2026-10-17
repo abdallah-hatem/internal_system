@@ -1976,7 +1976,15 @@
     "addLeg": "Add leg {leg}",
     "editLeg": "Edit leg",
     "editLegTitle": "Edit leg {leg}",
-    "receivedOn": "Received on"
+    "receivedOn": "Received on",
+    "shippingTotal": "Shipping total",
+    "inStock": "<b>{received}</b> of {ordered} in stock",
+    "notLeftCount": "{count} not left yet",
+    "toReceiveCount": "{count} waiting to be received",
+    "lostCount": "{count} lost",
+    "noCostYet": "No cost yet",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details"
   },
   "shippingCost": {
     "title": "Shipment cost",
