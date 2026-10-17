@@ -182,7 +182,7 @@ export function AppShell({
   return (
     <ToastProvider>
       <ToastBridge />
-      <div data-app-frame className="flex h-dvh overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+      <div data-app-frame className="relative flex h-dvh overflow-hidden bg-gray-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {/* Mobile overlay. Starts below the 4rem header, so nothing dark ever
           touches the top edge: iPhone Safari tints the status bar from a fixed
           element there and kept it dark after the drawer closed (owner,
@@ -326,7 +326,7 @@ export function AppShell({
         {/* Below md the page is padded by the phone bar's height and the
             home-indicator inset, so the last row and a page's own buttons
             can always be scrolled clear of the bar. */}
-        <main className="scrollbar-clean flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-6 md:pb-6">
+        <main className="scrollbar-clean relative flex-1 overflow-y-auto px-4 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-6 md:pb-6">
           {children}
         </main>
       </div>
