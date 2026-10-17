@@ -27,7 +27,12 @@ import { useToast } from '@/components/ui/toast';
 
 /** The most instalments a contract may have — the API's MAX_CONTRACT_INSTALMENTS. */
 export const MAX_INSTALMENTS = 36;
-const DEFAULT_COUNT = 3;
+/**
+ * The plan the popup opens with: two weekly instalments on the next two
+ * Saturdays (owner, 2026-10-17: "make the default 2 installments on the next
+ * 2 saturdays"). Every field stays editable.
+ */
+const DEFAULT_COUNT = 2;
 
 /** What the button and the popup read off the sale. */
 export interface ContractSale {
@@ -82,7 +87,18 @@ export const PLAN_INTERVALS = {
 } as const;
 export type PlanInterval = keyof typeof PLAN_INTERVALS;
 const INTERVAL_KEYS = Object.keys(PLAN_INTERVALS) as PlanInterval[];
-const DEFAULT_INTERVAL: PlanInterval = 'month';
+const DEFAULT_INTERVAL: PlanInterval = 'week';
+
+/**
+ * The first Saturday after `day` (YYYY-MM-DD) — never `day` itself, so a sale
+ * made on a Saturday is first due the Saturday after.
+ */
+export function nextSaturday(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  const ahead = ((6 - d.getUTCDay() + 7) % 7) || 7;
+  d.setUTCDate(d.getUTCDate() + ahead);
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * The date of the instalment `n` intervals after `first` (n = 0 is `first`).
@@ -189,7 +205,7 @@ export function ContractPlanDialog({
 
   const [countText, setCountText] = useState(String(DEFAULT_COUNT));
   const [interval, setIntervalKey] = useState<PlanInterval>(DEFAULT_INTERVAL);
-  const [firstDue, setFirstDue] = useState(() => addMonths(businessToday(), 1));
+  const [firstDue, setFirstDue] = useState(() => nextSaturday(businessToday()));
   const [held, setHeld] = useState<PlanRow[]>(() =>
     splitEqually(remaining, DEFAULT_COUNT).map((a) => newRow(a)),
   );

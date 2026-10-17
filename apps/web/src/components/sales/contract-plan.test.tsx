@@ -11,6 +11,7 @@ import {
   ContractPlanDialog,
   addMonths,
   canAgreeContract,
+  nextSaturday,
   splitEqually,
   stepDate,
   type ContractSale,
@@ -154,6 +155,21 @@ describe('the Contract button', () => {
   });
 });
 
+describe('the first Saturday after a day', () => {
+  it('is never the day itself: a Saturday is first due the Saturday after', () => {
+    expect(nextSaturday('2026-10-17')).toBe('2026-10-24'); // Saturday
+    expect(nextSaturday('2026-10-16')).toBe('2026-10-17'); // Friday
+    expect(nextSaturday('2026-10-18')).toBe('2026-10-24'); // Sunday
+  });
+
+  it('crosses a month and a year end', () => {
+    expect(nextSaturday('2026-10-29')).toBe('2026-10-31');
+    expect(nextSaturday('2026-10-31')).toBe('2026-11-07');
+    expect(nextSaturday('2026-12-31')).toBe('2027-01-02');
+    expect(nextSaturday('2028-02-28')).toBe('2028-03-04');
+  });
+});
+
 describe('the rows: one a month, equal amounts', () => {
   it('months are counted from the first date, clamped to the month end, never drifting', () => {
     expect([0, 1, 2, 3].map((i) => addMonths('2026-01-31', i))).toEqual([
@@ -171,6 +187,24 @@ describe('the rows: one a month, equal amounts', () => {
   });
 });
 
+async function pickInterval(label: string) {
+  const dialog = screen.getByTestId('contract-plan-dialog');
+  fireEvent.click(within(dialog).getByRole('combobox'));
+  fireEvent.click(await screen.findByRole('option', { name: label }));
+}
+
+/**
+ * The popup set to three monthly rows from a month today, through its own
+ * fields — the starting point most of these tests were written against before
+ * the default became two Saturdays (owner, 2026-10-17).
+ */
+async function openMonthlyPlan(sale: ContractSale = SALE, onClose: () => void = vi.fn(), locale: 'en' | 'ar' = 'en') {
+  wrap(<ContractPlanDialog sale={sale} onClose={onClose} />, locale);
+  await pickInterval(locale === 'ar' ? 'شهر' : 'Month');
+  fireEvent.change(screen.getByTestId('contract-count'), { target: { value: '3' } });
+  fireEvent.change(screen.getByTestId('date-contract-first-due'), { target: { value: addMonths(businessToday(), 1) } });
+}
+
 const amount = (i: number) => screen.getByTestId(`contract-amount-${i}`) as HTMLInputElement;
 const dateOf = (i: number) => screen.getByTestId(`date-contract-due-${i}`) as HTMLInputElement;
 const createBtn = () => screen.getByTestId('contract-create') as HTMLButtonElement;
@@ -181,23 +215,27 @@ function typeInto(input: HTMLInputElement, value: string) {
 }
 
 describe('the plan popup', () => {
-  it('shows the total, paid so far and remaining, and three equal rows a month apart from a month from today', () => {
+  it('opens on two weekly instalments on the next two Saturdays, the remaining split between them', () => {
     wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
     const dialog = screen.getByTestId('contract-plan-dialog');
     expect(dialog.textContent).toContain('35,200.00');
     expect(dialog.textContent).toContain('10,000.00');
     expect(screen.getByTestId('contract-remaining').textContent).toContain('25,200.00');
 
-    const first = addMonths(businessToday(), 1);
+    const first = nextSaturday(businessToday());
+    expect(new Date(`${first}T00:00:00Z`).getUTCDay()).toBe(6);
+    expect(first > businessToday()).toBe(true);
+    expect((screen.getByTestId('contract-count') as HTMLInputElement).value).toBe('2');
+    expect(within(dialog).getByRole('combobox').textContent).toContain('Week');
     expect((screen.getByTestId('date-contract-first-due') as HTMLInputElement).value).toBe(first);
-    expect([0, 1, 2].map((i) => amount(i).value)).toEqual(['8,400.00', '8,400.00', '8,400.00']);
-    expect([0, 1, 2].map((i) => dateOf(i).value)).toEqual([first, addMonths(first, 1), addMonths(first, 2)]);
-    expect(screen.queryByTestId('contract-amount-3')).toBeNull();
+    expect([0, 1].map((i) => amount(i).value)).toEqual(['12,600.00', '12,600.00']);
+    expect([0, 1].map((i) => dateOf(i).value)).toEqual([first, stepDate(first, 'week', 1)]);
+    expect(screen.queryByTestId('contract-amount-2')).toBeNull();
     expect(createBtn().disabled).toBe(false);
   });
 
-  it('blocks Create while the rows do not add up, saying by how much, and allows it once they do', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('blocks Create while the rows do not add up, saying by how much, and allows it once they do', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     typeInto(amount(1), '9000');
     expect(screen.getByTestId('contract-difference').textContent).toBe('600.00 EGP more than the remaining amount');
     expect(createBtn().disabled).toBe(true);
@@ -211,8 +249,8 @@ describe('the plan popup', () => {
     expect(createBtn().disabled).toBe(false);
   });
 
-  it("keeps the user's edits when the first date moves: only untouched rows are re-dated", () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it("keeps the user's edits when the first date moves: only untouched rows are re-dated", async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     const later = addMonths(businessToday(), 5);
     typeInto(amount(1), '9000');
     fireEvent.change(dateOf(2), { target: { value: later } });
@@ -226,8 +264,8 @@ describe('the plan popup', () => {
     expect(dateOf(2).value).toBe(later);
   });
 
-  it('a new number of instalments re-splits the amounts equally and keeps hand-typed dates', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('a new number of instalments re-splits the amounts equally and keeps hand-typed dates', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     const later = addMonths(businessToday(), 6);
     typeInto(amount(0), '1000');
     fireEvent.change(dateOf(0), { target: { value: later } });
@@ -238,8 +276,8 @@ describe('the plan popup', () => {
     expect(createBtn().disabled).toBe(false);
   });
 
-  it('no instalments, more than 36, or letters: no rows, a reason, and Create disabled', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('no instalments, more than 36, or letters: no rows, a reason, and Create disabled', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     for (const v of ['0', '37', '']) {
       fireEvent.change(screen.getByTestId('contract-count'), { target: { value: v } });
       expect(screen.getByTestId('contract-count-error').textContent).toBe('Between 1 and 36 instalments');
@@ -250,8 +288,8 @@ describe('the plan popup', () => {
     expect((screen.getByTestId('contract-count') as HTMLInputElement).value).toBe('');
   });
 
-  it('a row dated in the past blocks Create; the server would refuse it', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('a row dated in the past blocks Create; the server would refuse it', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     expect(createBtn().disabled).toBe(false);
     fireEvent.change(dateOf(0), { target: { value: '2020-01-01' } });
     expect(createBtn().disabled).toBe(true);
@@ -260,7 +298,7 @@ describe('the plan popup', () => {
   it('posts exactly the rows on screen to the sale, then closes and opens the contract', async () => {
     state.answer = () => Promise.resolve({ data: { data: { id: 'plan-1' } } });
     const onClose = vi.fn();
-    wrap(<ContractPlanDialog sale={SALE} onClose={onClose} />);
+    await openMonthlyPlan(SALE, onClose);
     typeInto(amount(0), '10000');
     typeInto(amount(2), '6800');
     const days = [0, 1, 2].map((i) => dateOf(i).value);
@@ -283,7 +321,7 @@ describe('the plan popup', () => {
   });
 
   it('busy while saving: Create disabled, so a second click sends nothing', async () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.click(createBtn());
     await waitFor(() => expect(createBtn().disabled).toBe(true));
     fireEvent.click(createBtn());
@@ -296,7 +334,7 @@ describe('the plan popup', () => {
         response: { data: { error: { code: 'CUSTOMER_HAS_ACTIVE_PLAN', message: 'x', params: { customer: 'Al Nour', reference: 'PLAN-2026-0003' } } } },
       });
     const onClose = vi.fn();
-    wrap(<ContractPlanDialog sale={SALE} onClose={onClose} />);
+    await openMonthlyPlan(SALE, onClose);
     typeInto(amount(0), '10000');
     typeInto(amount(2), '6800');
     await act(async () => {
@@ -343,17 +381,12 @@ const splitBtn = () => screen.getByTestId('contract-split') as HTMLButtonElement
 const removeBtn = (i: number) => screen.getByTestId(`contract-remove-${i}`) as HTMLButtonElement;
 const shownAmounts = () => screen.queryAllByTestId(/^contract-amount-\d+$/).map((el) => (el as HTMLInputElement).value);
 const firstDueField = () => screen.getByTestId('date-contract-first-due') as HTMLInputElement;
-async function pickInterval(label: string) {
-  const dialog = screen.getByTestId('contract-plan-dialog');
-  fireEvent.click(within(dialog).getByRole('combobox'));
-  fireEvent.click(await screen.findByRole('option', { name: label }));
-}
 
 describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
-  it('the interval defaults to a month and offers week, 2 weeks, month, 2 months and 3 months', async () => {
+  it('the interval defaults to a week and offers week, 2 weeks, month, 2 months and 3 months', async () => {
     wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
     const dialog = screen.getByTestId('contract-plan-dialog');
-    expect(within(dialog).getByRole('combobox').textContent).toContain('Month');
+    expect(within(dialog).getByRole('combobox').textContent).toContain('Week');
     fireEvent.click(within(dialog).getByRole('combobox'));
     const options = (await screen.findAllByRole('option')).map((o) => o.textContent);
     expect(options).toEqual(['Week', '2 weeks', 'Month', '2 months', '3 months']);
@@ -363,7 +396,7 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
   });
 
   it('a weekly plan dates untouched rows a week apart; a hand-typed date and amount stay put', async () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+    await openMonthlyPlan(SALE, vi.fn());
     const first = firstDueField().value;
     const handDate = addMonths(businessToday(), 9);
     fireEvent.change(dateOf(1), { target: { value: handDate } });
@@ -379,7 +412,7 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
   });
 
   it('a typed amount is never overwritten by moving the first date, a second time or by the interval', async () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+    await openMonthlyPlan(SALE, vi.fn());
     typeInto(amount(0), '12000');
     fireEvent.change(firstDueField(), { target: { value: addMonths(businessToday(), 2) } });
     fireEvent.change(firstDueField(), { target: { value: addMonths(businessToday(), 3) } });
@@ -387,8 +420,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(amount(0).value).toBe('12,000');
   });
 
-  it('Add instalment appends a row one interval after the last, amount 0, raises the count and blocks Create', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('Add instalment appends a row one interval after the last, amount 0, raises the count and blocks Create', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     const first = firstDueField().value;
     fireEvent.click(addBtn());
     expect(countField().value).toBe('4');
@@ -399,16 +432,16 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(screen.getByTestId('contract-difference').textContent).toBe('Matches the remaining amount');
   });
 
-  it('then Split remaining equally spreads the remaining amount over all the rows and allows Create', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('then Split remaining equally spreads the remaining amount over all the rows and allows Create', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.click(addBtn());
     fireEvent.click(splitBtn());
     expect(shownAmounts()).toEqual(['6,300.00', '6,300.00', '6,300.00', '6,300.00']);
     expect(createBtn().disabled).toBe(false);
   });
 
-  it('Split remaining equally puts the rounding on the last row and overwrites amounts only when asked', () => {
-    wrap(<ContractPlanDialog sale={{ ...SALE, outstanding: '100.00', total: '100.00' }} onClose={vi.fn()} />);
+  it('Split remaining equally puts the rounding on the last row and overwrites amounts only when asked', async () => {
+    await openMonthlyPlan({ ...SALE, outstanding: '100.00', total: '100.00' }, vi.fn());
     typeInto(amount(0), '90');
     expect(amount(0).value).toBe('90');
     fireEvent.click(splitBtn());
@@ -417,7 +450,7 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
   });
 
   it('after a hand-dated last row, the new row falls one interval after that date and keeps it', async () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.change(dateOf(2), { target: { value: '2030-01-31' } });
     await pickInterval('2 weeks');
     fireEvent.click(addBtn());
@@ -426,8 +459,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(dateOf(3).value).toBe('2030-02-14');
   });
 
-  it('removing a middle row renumbers the rest, lowers the count and re-dates only untouched rows', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('removing a middle row renumbers the rest, lowers the count and re-dates only untouched rows', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     const first = firstDueField().value;
     typeInto(amount(2), '1234');
     fireEvent.click(removeBtn(1));
@@ -442,16 +475,16 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(createBtn().disabled).toBe(true);
   });
 
-  it('a removed hand-dated row takes its date with it; the row that moves up is dated by position', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('a removed hand-dated row takes its date with it; the row that moves up is dated by position', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     const first = firstDueField().value;
     fireEvent.change(dateOf(1), { target: { value: '2030-06-01' } });
     fireEvent.click(removeBtn(1));
     expect(dateOf(1).value).toBe(addMonths(first, 1));
   });
 
-  it('removing every row leaves no rows, the count at 0 with its reason, and Create disabled; Add starts again', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('removing every row leaves no rows, the count at 0 with its reason, and Create disabled; Add starts again', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.click(removeBtn(2));
     fireEvent.click(removeBtn(1));
     fireEvent.click(removeBtn(0));
@@ -469,8 +502,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(createBtn().disabled).toBe(false);
   });
 
-  it('no more than 36: Add is disabled at 36, and 37 typed is refused', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('no more than 36: Add is disabled at 36, and 37 typed is refused', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.change(countField(), { target: { value: '36' } });
     expect(shownAmounts()).toHaveLength(36);
     expect(addBtn().disabled).toBe(true);
@@ -482,8 +515,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(createBtn().disabled).toBe(true);
   });
 
-  it('a new count after adding re-splits every row equally', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('a new count after adding re-splits every row equally', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.click(addBtn());
     typeInto(amount(0), '5');
     fireEvent.change(countField(), { target: { value: '2' } });
@@ -491,8 +524,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(createBtn().disabled).toBe(false);
   });
 
-  it('typing 12 passes through 1 without losing the dates typed for later rows', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('typing 12 passes through 1 without losing the dates typed for later rows', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.change(dateOf(2), { target: { value: '2030-03-03' } });
     fireEvent.change(countField(), { target: { value: '1' } });
     fireEvent.change(countField(), { target: { value: '12' } });
@@ -500,8 +533,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(shownAmounts()).toHaveLength(12);
   });
 
-  it('an amount of 0 blocks Create with a reason; a minus sign cannot be typed', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('an amount of 0 blocks Create with a reason; a minus sign cannot be typed', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     typeInto(amount(0), '0');
     typeInto(amount(1), '16800');
     expect(screen.getByTestId('contract-difference').textContent).toBe('Matches the remaining amount');
@@ -513,8 +546,8 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(amount(0).value).toBe('500');
   });
 
-  it('a sum off by 0.01 either way keeps Create disabled', () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it('a sum off by 0.01 either way keeps Create disabled', async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     typeInto(amount(2), '8400.01');
     expect(screen.getByTestId('contract-difference').textContent).toBe('0.01 EGP more than the remaining amount');
     expect(createBtn().disabled).toBe(true);
@@ -523,15 +556,15 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(createBtn().disabled).toBe(true);
   });
 
-  it("a row dated in the past says so in the server's words", () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+  it("a row dated in the past says so in the server's words", async () => {
+    await openMonthlyPlan(SALE, vi.fn());
     fireEvent.change(dateOf(1), { target: { value: '2020-01-01' } });
     expect(screen.getByTestId('contract-row-error').textContent).toBe('An instalment cannot fall due in the past (2020-01-01).');
     expect(createBtn().disabled).toBe(true);
   });
 
   it('rows out of date order are sent in date order; two on the same day are both sent', async () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+    await openMonthlyPlan(SALE, vi.fn());
     const first = firstDueField().value;
     fireEvent.change(dateOf(0), { target: { value: '2030-05-05' } });
     fireEvent.change(dateOf(2), { target: { value: first } });
@@ -550,7 +583,7 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
   });
 
   it('a double click on Create sends one request, even before the button has re-rendered disabled', async () => {
-    wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />);
+    await openMonthlyPlan(SALE, vi.fn());
     const button = createBtn();
     // Both clicks inside one task: nothing has had a chance to repaint.
     act(() => {
@@ -564,10 +597,10 @@ describe('the plan popup: a plan for each contract (§7, 2026-10-17)', () => {
     expect(state.posts).toHaveLength(1);
   });
 
-  it('in Arabic: every label, the interval and the buttons are Arabic, the dialog laid out right to left', () => {
+  it('in Arabic: every label, the interval and the buttons are Arabic, the dialog laid out right to left', async () => {
     document.documentElement.dir = 'rtl';
     try {
-      wrap(<ContractPlanDialog sale={SALE} onClose={vi.fn()} />, 'ar');
+      await openMonthlyPlan(SALE, vi.fn(), 'ar');
       const dialog = screen.getByTestId('contract-plan-dialog');
       expect(within(dialog).getByRole('combobox').textContent).toContain('شهر');
       expect(screen.getByTestId('contract-hint').textContent).toBe('غيّر أي تاريخ أو مبلغ في الجدول، أو أضف واحذف أقساطًا.');

@@ -929,8 +929,8 @@ customer fields, a button on the shop page) was rejected as too much and removed
   dates *(guess)*.
 - **A plan for each contract — owner, 2026-10-17.** *"In the installment plan popup
   I want to customize for each contract not a fixed 3 month plan."* Approved from a
-  mock: beside the count and the first date, **Every** — week, 2 weeks, month
-  (default), 2 months, 3 months. Weeks are 7 days each; months are calendar months
+  mock: beside the count and the first date, **Every** — week, 2 weeks, month,
+  2 months, 3 months. Weeks are 7 days each; months are calendar months
   counted from the first date, clamped as above. Each row can be removed (the count
   drops to match) and **Add instalment** appends one dated one interval after the
   last row, amount 0 (a row after a hand-dated last row is dated from that date and
@@ -945,6 +945,11 @@ customer fields, a button on the shop page) was rejected as too much and removed
   date (same-day rows in the order on screen) and allows same-day rows, as the
   server does. Nothing on the server changed: 1–36 rows, each above 0, today or
   later, adding up to what is outstanding, all as before.
+- **The popup's default — owner, 2026-10-17.** *"Make the default 2 installments on
+  the next 2 saturdays."* The popup opens on two weekly instalments, the first on
+  the first Saturday after today (Cairo) — never today itself, so a sale made on a
+  Saturday is first due the Saturday after — the remaining split between them.
+  Every field stays editable.
 - **The plan.** An ordinary plan (`PaymentPlansService`, the same rules above —
   verified shop, one active plan per shop, never more than the shop owes, the
   cumulative reading of who is behind) that names the sale (`saleOrderId`, one
