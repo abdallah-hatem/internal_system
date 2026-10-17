@@ -6,11 +6,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { AuthProvider, useAuth } from './auth-context';
+import { revokeSession, SESSION_REFRESHED_EVENT } from './api';
 
-vi.mock('./api', () => ({
-  authApi: { login: vi.fn() },
-  api: { delete: vi.fn(() => Promise.resolve({})) },
-}));
+vi.mock('./api', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./api')>();
+  return {
+    ...real,
+    authApi: { login: vi.fn() },
+    api: { delete: vi.fn(() => Promise.resolve({})) },
+    revokeSession: vi.fn(() => Promise.resolve()),
+  };
+});
 
 /**
  * Signing out (owner, 2026-10-14). The old logout() hard-coded /en/login, so
@@ -29,6 +35,7 @@ beforeEach(() => {
   });
   localStorage.clear();
   localStorage.setItem('token', 'partner-a-token');
+  localStorage.setItem('refreshToken', 'partner-a-refresh');
   localStorage.setItem('user', JSON.stringify({ id: 'a', email: 'a@x.y', role: 'CORE_PARTNER' }));
   localStorage.setItem('cycle-wizard-draft', JSON.stringify({ state: { draft: { currentStep: 2 } } }));
 });
@@ -103,6 +110,51 @@ describe('logout()', () => {
     expect(localStorage.getItem('cycle-wizard-draft')).toBeNull();
     expect(seen.current!.user).toBeNull();
     expect(seen.current!.token).toBeNull();
+  });
+
+  it('ends the sign-in on the server while the refresh token is still there, then forgets it (2026-10-17)', async () => {
+    let heldAtRevoke: string | null = 'unset';
+    vi.mocked(revokeSession).mockImplementationOnce(async () => {
+      heldAtRevoke = localStorage.getItem('refreshToken');
+    });
+    renderWith('en', new QueryClient());
+
+    await act(async () => {
+      await seen.current!.logout();
+    });
+
+    expect(revokeSession).toHaveBeenCalled();
+    expect(heldAtRevoke).toBe('partner-a-refresh');
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+  });
+
+  it('a revoke that never answers does not keep anybody signed in', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(revokeSession).mockImplementationOnce(() => new Promise(() => {}));
+    renderWith('en', new QueryClient());
+
+    await act(async () => {
+      const out = seen.current!.logout();
+      await vi.advanceTimersByTimeAsync(2500);
+      await out;
+    });
+
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(replace).toHaveBeenLastCalledWith('/en/login');
+    vi.useRealTimers();
+  });
+
+  it('follows a refresh made behind a request: new token, user as the API now has them', async () => {
+    renderWith('en', new QueryClient());
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(SESSION_REFRESHED_EVENT, {
+          detail: { accessToken: 'fresh', user: { id: 'a', email: 'a@x.y', role: 'ADMIN_SUPPORT' } },
+        }),
+      );
+    });
+    expect(seen.current!.token).toBe('fresh');
+    expect(seen.current!.user?.role).toBe('ADMIN_SUPPORT');
   });
 
   it('signing out twice does not throw and still lands on the login page', async () => {

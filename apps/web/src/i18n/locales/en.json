@@ -1318,6 +1318,7 @@
     "REVERSAL_REASON_REQUIRED": "Give a reason for reversing this entry.",
     "SALE_ITEM_NOT_IN_ORDER": "That item is not part of order {order}.",
     "SESSION_INVALID": "Your session is no longer valid. Please sign in again.",
+    "SESSION_EXPIRED": "Your sign-in has ended. Please sign in again.",
     "SETTLEMENT_ALREADY_REVERSED": "This settlement is already reversed.",
     "SETTLEMENT_LOCKED": "This cycle already has a {status} settlement. Reverse it before recalculating.",
     "SETTLEMENT_REASON_REQUIRED": "Give a reason for reversing this settlement.",

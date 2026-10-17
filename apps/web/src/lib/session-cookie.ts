@@ -17,7 +17,10 @@
  */
 export const SESSION_COOKIE = 'sf_session_user';
 
-/** Thirty days: longer than a token lives, so storage expires first. */
+/**
+ * Thirty days, rewritten at every sign-in and refresh, so it rolls with the
+ * refresh token (BUSINESS_LOGIC §23) and storage ends first.
+ */
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export interface SessionUser {
