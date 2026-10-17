@@ -112,6 +112,15 @@
     color: theme(colors.gray.900);
   }
 
+  /* The app frame is exactly one screen tall and scrolls inside <main>, so
+     the window itself has nothing to scroll. Without this, reaching the end of
+     a page carried the scroll on to the window, which in Safari and the
+     installed app bounced past the frame into blank grey (owner, 2026-10-17). */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
   /* Money and quantities are read in columns and compared down the page, so
      digits must occupy identical width. Proportional figures make a total of
      1,111.00 look narrower than 8,888.00 and the column stops aligning. */
@@ -413,9 +422,13 @@ form [aria-invalid="true"][data-validated] {
  * The direction stays the page's: an Arabic invoice prints right to left,
  * because nothing here touches `dir`. */
 @media print {
+  /* No page margin: the browser draws its own header and footer (the date,
+   * the tab title, the address, "1/1") in the margin, so with none it has
+   * nowhere to put them (owner, 2026-10-17). The 12 mm comes back as the
+   * document's own padding below, cloned onto every sheet it runs onto. */
   @page {
     size: A4;
-    margin: 12mm;
+    margin: 0;
   }
 
   html,
@@ -455,9 +468,12 @@ form [aria-invalid="true"][data-validated] {
   }
   [data-print-doc] {
     border: 0 !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 12mm !important;
     max-width: none !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 }
 /* print:end */

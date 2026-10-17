@@ -569,7 +569,10 @@
       "createFailed": "تعذر إنشاء العقد",
       "back": "العودة إلى المبيعات",
       "notAvailable": "لا يوجد عقد لهذا البيع",
-      "language": "لغة العقد"
+      "language": "لغة العقد",
+      "downloadPdf": "تنزيل PDF",
+      "sharePdf": "مشاركة PDF",
+      "pdfFailed": "تعذر إنشاء ملف PDF. حاول مرة أخرى."
     }
   },
   "customers": {

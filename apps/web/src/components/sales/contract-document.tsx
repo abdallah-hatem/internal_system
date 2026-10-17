@@ -4,6 +4,7 @@ import { formatMoney, formatNumber } from '@/lib/numbers';
 import { localName } from '@/lib/localized-name';
 import { LatinText } from '@/components/ui/latin-text';
 import { BrandMark } from '@/components/layout/brand-mark';
+import { SHEET_MARGIN_PX, SHEET_WIDTH_PX } from '@/lib/document-pdf';
 import { CONTRACT_TEXT, contractDay, type ContractLanguage } from './contract-text';
 
 /** `GET /sales/orders/:id/contract` (api PaymentPlansService.saleContract). */
@@ -47,7 +48,19 @@ const DOCUMENT_FONT =
   "'IBM Plex Sans Arabic', 'IBM Plex Sans', var(--font-plex-arabic), var(--font-plex-sans), sans-serif";
 
 /** The sheet itself, in the contract's language and direction. */
-export function ContractDocument({ contract: c, lang }: { contract: SaleContract; lang: ContractLanguage }) {
+export function ContractDocument({
+  contract: c,
+  lang,
+  sheet = false,
+}: {
+  contract: SaleContract;
+  lang: ContractLanguage;
+  /**
+   * Laid out as one A4 sheet's width with its side margins, flat (no card
+   * border or shadow), for the PDF to draw — see lib/document-pdf.ts.
+   */
+  sheet?: boolean;
+}) {
   const w = CONTRACT_TEXT[lang];
   const money = (v: string) => <bdi dir="ltr" className="tabular-nums">{formatMoney(v, { locale: lang, currency: c.currency })}</bdi>;
   const num = (v: string | number) => <bdi dir="ltr" className="tabular-nums">{formatNumber(v, { locale: lang })}</bdi>;
@@ -62,8 +75,16 @@ export function ContractDocument({ contract: c, lang }: { contract: SaleContract
       data-print-doc
       lang={lang}
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
-      style={{ fontFamily: DOCUMENT_FONT }}
-      className="mx-auto max-w-[794px] rounded-xl border border-border bg-card px-6 py-8 text-start text-[12.5px] leading-relaxed text-foreground shadow-sm sm:px-12"
+      className={
+        sheet
+          ? 'bg-card text-start text-[12.5px] leading-relaxed text-foreground'
+          : 'mx-auto max-w-[794px] rounded-xl border border-border bg-card px-6 py-8 text-start text-[12.5px] leading-relaxed text-foreground shadow-sm sm:px-12'
+      }
+      style={
+        sheet
+          ? { fontFamily: DOCUMENT_FONT, width: SHEET_WIDTH_PX, paddingInline: SHEET_MARGIN_PX }
+          : { fontFamily: DOCUMENT_FONT }
+      }
     >
       <header className="flex items-start justify-between gap-4 border-b-2 border-foreground pb-3" data-print-keep>
         <div className="flex items-center gap-3">
@@ -76,7 +97,7 @@ export function ContractDocument({ contract: c, lang }: { contract: SaleContract
         <dl className="shrink-0 text-xs text-muted-foreground">
           <div>
             <dt className="inline">{w.number}: </dt>
-            <dd className="inline font-semibold text-foreground" data-testid="contract-number">
+            <dd className="inline whitespace-nowrap font-semibold text-foreground" data-testid="contract-number">
               <bdi dir="ltr">{c.number}</bdi>
             </dd>
           </div>
@@ -175,23 +196,26 @@ export function ContractDocument({ contract: c, lang }: { contract: SaleContract
         </ol>
       </Section>
 
-      <div className="mt-7 grid grid-cols-2 gap-10 text-xs" data-print-keep>
-        <div className="border-t border-foreground pt-1.5">
-          {w.sellerSigns}
-          <br />
-          {w.nameAndSignature}
+      {/* The signatures and the copies line are one block: a sheet never ends
+          between them, leaving the line alone on a sheet of its own. */}
+      <div data-print-keep>
+        <div className="mt-7 grid grid-cols-2 gap-10 text-xs">
+          <div className="border-t border-foreground pt-1.5">
+            {w.sellerSigns}
+            <br />
+            {w.nameAndSignature}
+          </div>
+          <div className="border-t border-foreground pt-1.5">
+            {w.buyerSigns}
+            <br />
+            {w.nameAndSignature}
+          </div>
         </div>
-        <div className="border-t border-foreground pt-1.5">
-          {w.buyerSigns}
-          <br />
-          {w.nameAndSignature}
-        </div>
-      </div>
 
-      <footer className="mt-5 flex justify-between gap-4 text-[10.5px] text-muted-foreground">
-        <span>{w.copies}</span>
-        <span className="shrink-0">{w.page}</span>
-      </footer>
+        {/* Sheet numbers are not part of the document: the PDF draws them, and
+            only when there is more than one sheet. */}
+        <footer className="mt-5 text-[10.5px] text-muted-foreground">{w.copies}</footer>
+      </div>
     </article>
   );
 }
@@ -209,8 +233,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Blank({ label }: { label: string }) {
   return (
     <p className="flex items-end gap-1.5">
-      <span className="shrink-0">{label}:</span>
-      <span className="mb-1 min-w-20 flex-1 border-b border-dotted border-muted-foreground" />
+      <span className="min-w-0 sm:shrink-0">{label}:</span>
+      <span className="mb-1 min-w-6 flex-1 border-b border-dotted border-muted-foreground sm:min-w-20" />
     </p>
   );
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
@@ -17,6 +17,30 @@ const state = vi.hoisted(() => ({
   locale: 'en',
   contract: null as unknown,
   refuse: false,
+}));
+
+const pdf = vi.hoisted(() => ({
+  canShare: false,
+  canPrint: true,
+  documentToPdf: vi.fn(),
+  downloadBlob: vi.fn(),
+  sharePdf: vi.fn(),
+  printPdf: vi.fn(),
+  toastError: vi.fn(),
+}));
+
+vi.mock('@/lib/document-pdf', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/document-pdf')>()),
+  canSharePdf: () => pdf.canShare,
+  canPrintPdf: () => pdf.canPrint,
+  documentToPdf: pdf.documentToPdf,
+  downloadBlob: pdf.downloadBlob,
+  sharePdf: pdf.sharePdf,
+  printPdf: pdf.printPdf,
+}));
+vi.mock('@/components/ui/toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/ui/toast')>()),
+  toast: { error: pdf.toastError, success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock('next/navigation', async (importOriginal) => ({
@@ -92,8 +116,17 @@ function renderPage(locale: 'en' | 'ar') {
 beforeEach(() => {
   state.contract = CONTRACT;
   state.refuse = false;
+  pdf.canShare = false;
+  pdf.canPrint = true;
+  for (const fn of [pdf.documentToPdf, pdf.downloadBlob, pdf.sharePdf, pdf.printPdf, pdf.toastError]) fn.mockReset();
+  pdf.documentToPdf.mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }));
+  pdf.sharePdf.mockResolvedValue(true);
+  pdf.printPdf.mockResolvedValue(undefined);
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const text = (id: string) => screen.getByTestId(id).textContent;
 
@@ -167,14 +200,98 @@ describe('the contract page', () => {
     expect(CONTRACT_TEXT.ar.clauses).toHaveLength(5);
   });
 
-  it('Print is the browser print, and the buttons stay off the paper', async () => {
+  it('Print prints the PDF where the browser can — no browser header or footer on the sheet', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    renderPage('en');
+    await screen.findByTestId('contract');
+    fireEvent.click(screen.getByTestId('contract-print'));
+    await waitFor(() => expect(pdf.printPdf).toHaveBeenCalledOnce());
+    expect(pdf.printPdf.mock.calls[0][0]).toBeInstanceOf(Blob);
+    expect(print).not.toHaveBeenCalled();
+    expect(screen.getByTestId('contract-print').closest('.print\\:hidden')).not.toBeNull();
+    expect(screen.getByTestId('contract').hasAttribute('data-print-doc')).toBe(true);
+  });
+
+  it('Print falls back to the page print where a PDF cannot be printed (Safari, phones)', async () => {
+    pdf.canPrint = false;
     const print = vi.spyOn(window, 'print').mockImplementation(() => {});
     renderPage('en');
     await screen.findByTestId('contract');
     fireEvent.click(screen.getByTestId('contract-print'));
     expect(print).toHaveBeenCalledOnce();
-    expect(screen.getByTestId('contract-print').closest('.print\\:hidden')).not.toBeNull();
-    expect(screen.getByTestId('contract').hasAttribute('data-print-doc')).toBe(true);
+    expect(pdf.documentToPdf).not.toHaveBeenCalled();
+  });
+
+  it('Download PDF: drawn from an A4-wide sheet in the chosen language, saved under the contract number', async () => {
+    renderPage('ar');
+    await screen.findByTestId('contract');
+    fireEvent.click(screen.getByTestId('contract-lang-en'));
+    fireEvent.click(screen.getByTestId('contract-download'));
+
+    await waitFor(() => expect(pdf.downloadBlob).toHaveBeenCalledOnce());
+    const [sheet, options] = pdf.documentToPdf.mock.calls[0] as [HTMLElement, { dir: string; pageLabel: (n: number, t: number) => string }];
+    expect(sheet.getAttribute('dir')).toBe('ltr');
+    expect(sheet.style.width).toBe('794px');
+    expect(sheet.textContent).toContain('Instalment Sale Contract');
+    expect(options.dir).toBe('ltr');
+    expect(options.pageLabel(2, 3)).toBe('Page 2 of 3');
+    expect(pdf.downloadBlob.mock.calls[0][1]).toBe('CT-ORD-2026-00001.pdf');
+    // The sheet exists only while the PDF is being made, so the page never holds two contracts.
+    await waitFor(() => expect(screen.getAllByTestId('contract')).toHaveLength(1));
+  });
+
+  it('a second press while the PDF is being made does nothing — every button is busy until it is done', async () => {
+    let release!: () => void;
+    pdf.documentToPdf.mockImplementationOnce(() => new Promise<Blob>((r) => (release = () => r(new Blob(['%PDF'])))));
+    renderPage('en');
+    await screen.findByTestId('contract');
+    fireEvent.click(screen.getByTestId('contract-download'));
+    await waitFor(() => expect(pdf.documentToPdf).toHaveBeenCalledOnce());
+
+    expect(screen.getByTestId('contract-download').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('contract-print').hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByTestId('contract-download'));
+    fireEvent.click(screen.getByTestId('contract-print'));
+    expect(pdf.documentToPdf).toHaveBeenCalledOnce();
+
+    release();
+    await waitFor(() => expect(screen.getByTestId('contract-download').hasAttribute('disabled')).toBe(false));
+    expect(pdf.downloadBlob).toHaveBeenCalledOnce();
+    expect(pdf.printPdf).not.toHaveBeenCalled();
+  });
+
+  it('Share PDF appears only where the browser can share a file, and hands over the PDF', async () => {
+    renderPage('en');
+    await screen.findByTestId('contract');
+    expect(screen.queryByTestId('contract-share')).toBeNull();
+    cleanup();
+
+    pdf.canShare = true;
+    renderPage('en');
+    await screen.findByTestId('contract');
+    fireEvent.click(screen.getByTestId('contract-share'));
+    await waitFor(() => expect(pdf.sharePdf).toHaveBeenCalledOnce());
+    expect(pdf.sharePdf.mock.calls[0][1]).toBe('CT-ORD-2026-00001.pdf');
+    expect(pdf.sharePdf.mock.calls[0][2]).toBe('عقد بيع بالتقسيط CT-ORD-2026-00001');
+  });
+
+  it('a PDF that cannot be made says so, and the buttons come back', async () => {
+    pdf.documentToPdf.mockRejectedValueOnce(new Error('canvas'));
+    renderPage('en');
+    await screen.findByTestId('contract');
+    fireEvent.click(screen.getByTestId('contract-download'));
+    await waitFor(() => expect(pdf.toastError).toHaveBeenCalledWith('Could not make the PDF. Try again.'));
+    expect(pdf.downloadBlob).not.toHaveBeenCalled();
+    expect(screen.getByTestId('contract-download').hasAttribute('disabled')).toBe(false);
+  });
+
+  it('the sheet carries no page number of its own — "1 of 1" is never printed', async () => {
+    renderPage('en');
+    const doc = await screen.findByTestId('contract');
+    expect(doc.textContent).not.toContain('صفحة');
+    fireEvent.click(screen.getByTestId('contract-lang-en'));
+    expect(screen.getByTestId('contract').textContent).not.toContain('Page');
+    expect(CONTRACT_TEXT.ar.page(1, 2)).toBe('صفحة 1 من 2');
   });
 
   it('a sale with no plan: the refusal in words, no document', async () => {

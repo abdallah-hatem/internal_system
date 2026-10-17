@@ -569,7 +569,10 @@
       "createFailed": "Could not create the contract",
       "back": "Back to sales",
       "notAvailable": "No contract for this sale",
-      "language": "Contract language"
+      "language": "Contract language",
+      "downloadPdf": "Download PDF",
+      "sharePdf": "Share PDF",
+      "pdfFailed": "Could not make the PDF. Try again."
     }
   },
   "customers": {

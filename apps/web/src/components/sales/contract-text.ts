@@ -45,7 +45,8 @@ export interface ContractText {
   buyerSigns: string;
   nameAndSignature: string;
   copies: string;
-  page: string;
+  /** A sheet's number, drawn on the PDF only when there are several. */
+  page: (n: number, total: number) => string;
 }
 
 export const CONTRACT_TEXT: Record<ContractLanguage, ContractText> = {
@@ -88,7 +89,7 @@ export const CONTRACT_TEXT: Record<ContractLanguage, ContractText> = {
     buyerSigns: 'الطرف الثاني (المشتري)',
     nameAndSignature: 'الاسم والتوقيع',
     copies: 'حُرر هذا العقد من نسختين بيد كل طرف نسخة للعمل بموجبها.',
-    page: 'صفحة 1 من 1',
+    page: (n, total) => `صفحة ${n} من ${total}`,
   },
   en: {
     title: 'Instalment Sale Contract',
@@ -129,7 +130,7 @@ export const CONTRACT_TEXT: Record<ContractLanguage, ContractText> = {
     buyerSigns: 'Second party (buyer)',
     nameAndSignature: 'Name and signature',
     copies: 'This contract is made in two copies, one held by each party to act upon.',
-    page: 'Page 1 of 1',
+    page: (n, total) => `Page ${n} of ${total}`,
   },
 };
 
