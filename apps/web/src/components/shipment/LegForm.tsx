@@ -452,6 +452,9 @@ export function LegEditForm({
               currency: leg.currency ?? 'EGP',
               fxRateToEgp: leg.fxRateToEgp ?? 1,
             }}
+            // What actually went on this leg, so a per-piece count is checked
+            // against it rather than trusted as typed.
+            legPieces={shipment?.legs?.find((l) => l.legId === leg.id)?.entered || undefined}
           />
         )}
         {cost.recosts && (

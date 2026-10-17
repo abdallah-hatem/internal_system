@@ -32,6 +32,8 @@ const state = vi.hoisted(() => ({
     costChangeRecosts: boolean;
   },
   writes: [] as Array<{ method: string; url: string; body?: Record<string, unknown> }>,
+  /** The leg row's cost, over the flat 400 every leg has by default. */
+  legCost: {} as Record<string, unknown>,
 }));
 
 vi.mock('@/lib/auth-context', () => ({
@@ -115,6 +117,7 @@ beforeEach(() => {
   state.received = 0;
   state.cost = { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: false };
   state.writes = [];
+  state.legCost = {};
 });
 afterEach(() => cleanup());
 
@@ -132,6 +135,7 @@ const panelCycle = (): PanelCycle => ({
     amountEgp: 400,
     currency: 'EGP',
     fxRateToEgp: 1,
+    ...state.legCost,
   })),
   purchaseOrders: [],
 });
@@ -349,5 +353,49 @@ describe('Edit leg — the cost, while it can still change', () => {
     fireEvent.click(await screen.findByTestId('edit-leg'));
     const note = await within(form('edit-leg')!).findByTestId('leg-cost-locked');
     expect(note.textContent).toContain(en.shipments.costLocked);
+  });
+});
+
+// Owner 2026-10-17: leg 2 was saved at 20 AED × 100 pieces while 230 units went
+// on it, and the form gave no hint. The leg's own count (what entered it — 40
+// here) now fills an empty field and is set beside a count that disagrees.
+describe('a per-piece cost is checked against what travelled on the leg', () => {
+  const openPerPiece = async (pieces: number | null) => {
+    state.received = 40;
+    state.cost = { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: true };
+    state.legCost = { costBasis: 'PER_PIECE', ratePerUnit: 20, chargeablePieces: pieces, amount: pieces ? 20 * pieces : 0 };
+    wrap();
+    fireEvent.click(await screen.findByTestId('edit-leg'));
+    const f = form('edit-leg')!;
+    await waitFor(() => expect(field(f, 'chargeablePieces')).toBeTruthy());
+    return f;
+  };
+
+  it('a count that disagrees says how many travelled, and one click uses it', async () => {
+    const f = await openPerPiece(100);
+    const note = await within(f).findByTestId('leg-pieces-differ');
+    expect(note.textContent).toContain('40 pieces travelled on this leg, but 100 are entered.');
+    expect(field(f, 'chargeablePieces')!.value).toBe('100');
+    fireEvent.click(within(f).getByTestId('use-leg-pieces'));
+    expect(field(f, 'chargeablePieces')!.value).toBe('40');
+    expect(within(f).queryByTestId('leg-pieces-differ')).toBeNull();
+    expect(within(f).getByTestId('leg-pieces-match').textContent).toBe('40 pieces travelled on this leg.');
+  });
+
+  it('an empty count is filled with what travelled, and saving sends it', async () => {
+    const f = await openPerPiece(null);
+    await waitFor(() => expect(field(f, 'chargeablePieces')!.value).toBe('40'));
+    expect(within(f).getByTestId('leg-pieces-match')).toBeTruthy();
+    fireEvent.click(within(f).getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(state.writes).toHaveLength(1));
+    expect(state.writes[0].body).toEqual(expect.objectContaining({ costBasis: 'PER_PIECE', chargeablePieces: 40, ratePerUnit: 20 }));
+  });
+
+  it('the count stays editable — a forwarder may bill by carton — and a typed one is never overwritten', async () => {
+    const f = await openPerPiece(null);
+    await waitFor(() => expect(field(f, 'chargeablePieces')!.value).toBe('40'));
+    fireEvent.change(field(f, 'chargeablePieces')!, { target: { value: '12' } });
+    expect(field(f, 'chargeablePieces')!.value).toBe('12');
+    expect(within(f).getByTestId('leg-pieces-differ').textContent).toContain('but 12 are entered');
   });
 });

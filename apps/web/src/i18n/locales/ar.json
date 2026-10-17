@@ -2003,7 +2003,10 @@
     "totalCost": "إجمالي تكلفة الشحن",
     "currency": "العملة",
     "fxRate": "سعر الصرف إلى الجنيه",
-    "legTotal": "إجمالي المرحلة"
+    "legTotal": "إجمالي المرحلة",
+    "legHasPieces": "شُحنت {count} قطعة في هذه المرحلة.",
+    "legPiecesDiffer": "شُحنت {count} قطعة في هذه المرحلة، لكن المُدخل {entered}.",
+    "useCount": "استخدم {count}"
   },
   "validation": {
     "required": "يرجى ملء الحقول المطلوبة.",

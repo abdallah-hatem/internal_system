@@ -2003,7 +2003,10 @@
     "totalCost": "Total shipment cost",
     "currency": "Currency",
     "fxRate": "FX rate to EGP",
-    "legTotal": "Leg total"
+    "legTotal": "Leg total",
+    "legHasPieces": "{count} pieces travelled on this leg.",
+    "legPiecesDiffer": "{count} pieces travelled on this leg, but {entered} are entered.",
+    "useCount": "Use {count}"
   },
   "validation": {
     "required": "Fill in the required fields.",

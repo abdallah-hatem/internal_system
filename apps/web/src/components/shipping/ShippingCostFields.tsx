@@ -38,6 +38,7 @@ export function ShippingCostFields({
   namePrefix = '',
   title,
   orderedPieces,
+  legPieces,
 }: {
   defaults?: ShippingCostDefaults;
   /** Namespace for field names so several legs can share one form. */
@@ -53,6 +54,15 @@ export function ShippingCostFields({
    * no sense making someone retype a number the order already carries.
    */
   orderedPieces?: number;
+  /**
+   * The units that actually travelled on this leg, when the shipment knows
+   * them — editing a leg whose goods have left. Fills an empty piece count,
+   * and a typed count that disagrees is called out with the real one beside
+   * it (owner 2026-10-17: leg 2 was billed for 100 pieces while 230 went on
+   * it, and nothing on the form said so). Still editable: some forwarders
+   * bill by carton.
+   */
+  legPieces?: number;
 }) {
   const t = useTranslations('shippingCost');
   const tw = useTranslations('wizard');
@@ -63,8 +73,15 @@ export function ShippingCostFields({
   const [basis, setBasis] = useState<CostBasis>(defaults?.costBasis ?? 'PER_PIECE');
   const [rate, setRate] = useState(String(defaults?.ratePerUnit ?? ''));
   const [pieces, setPieces] = useState(
-    String(defaults?.chargeablePieces ?? (orderedPieces ? orderedPieces : '')),
+    String(defaults?.chargeablePieces || (legPieces ? legPieces : orderedPieces ? orderedPieces : '')),
   );
+  // The shipment may arrive after the form opened: fill a piece count still
+  // empty, never one already typed. Adjusted while rendering, not in an effect.
+  const [seenLegPieces, setSeenLegPieces] = useState(legPieces);
+  if (legPieces !== seenLegPieces) {
+    setSeenLegPieces(legPieces);
+    if (legPieces && pieces === '') setPieces(String(legPieces));
+  }
   const [weight, setWeight] = useState(String(defaults?.chargeableWeightKg ?? ''));
   const [amount, setAmount] = useState(String(defaults?.amount ?? ''));
   const [currency, setCurrency] = useState(defaults?.currency ?? 'EGP');
@@ -147,7 +164,25 @@ export function ShippingCostFields({
               {...{ name: n('chargeablePieces') }} value={pieces} onChange={(e) => setPieces(e.target.value)}
               placeholder={tph('pieces')} className={input}
             />
-            {orderedPieces ? (
+            {legPieces ? (
+              num(pieces) === legPieces ? (
+                <p data-testid="leg-pieces-match" className="mt-1 text-xs text-muted-foreground">
+                  {t('legHasPieces', { count: legPieces })}
+                </p>
+              ) : (
+                <p data-testid="leg-pieces-differ" role="status" className="mt-1 text-xs font-medium text-accent-700">
+                  {t('legPiecesDiffer', { count: legPieces, entered: formatNumber(num(pieces), { maximumFractionDigits: 3 }) })}{' '}
+                  <button
+                    type="button"
+                    data-testid="use-leg-pieces"
+                    onClick={() => setPieces(String(legPieces))}
+                    className="cursor-pointer font-semibold text-primary underline underline-offset-2"
+                  >
+                    {t('useCount', { count: legPieces })}
+                  </button>
+                </p>
+              )
+            ) : orderedPieces ? (
               <p className="mt-1 text-xs text-gray-500">
                 {num(pieces) === orderedPieces ? (
                   <>{t('piecesPrefilled', { ordered: orderedPieces })}</>
