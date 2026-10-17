@@ -53,6 +53,8 @@ interface TopProduct {
   name: string;
   sku: string;
   totalQuantitySold: number;
+  /** What it brought in, net of returns — the order the list is in. */
+  revenueEgp: number;
 }
 
 // ─── Skeletons ────────────────────────────────────────────────────────
@@ -85,7 +87,7 @@ function StatTilesSkeleton() {
   );
 }
 
-/** One top-product line, traced: name over SKU, the units sold at the end. */
+/** One top-product line, traced: name over SKU, revenue over units sold at the end. */
 function TopProductRowSkeleton() {
   return (
     <li data-testid="skeleton-row" className="flex items-center justify-between gap-3 py-2.5">
@@ -93,7 +95,10 @@ function TopProductRowSkeleton() {
         <SkeletonText className="w-36" />
         <SkeletonText size="xs" className="w-20" />
       </div>
-      <SkeletonText className="w-14" />
+      <div className="flex flex-col items-end">
+        <SkeletonText className="w-24" />
+        <SkeletonText size="xs" className="w-14" />
+      </div>
     </li>
   );
 }
@@ -276,6 +281,7 @@ export default function DashboardPage() {
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-card-foreground">
             <Route aria-hidden="true" className="size-5 text-muted-foreground" />
             {t('topProducts')}
+            <span className="ms-auto text-xs font-normal text-muted-foreground">{t('topProductsBy')}</span>
           </h3>
           {loadingProducts ? (
             <SkeletonGroup as="ul" className="divide-y divide-border">
@@ -291,8 +297,16 @@ export default function DashboardPage() {
                     <LatinText truncate className="text-sm font-medium text-card-foreground">{item.name}</LatinText>
                     <p className="text-xs text-muted-foreground" dir="ltr">{item.sku}</p>
                   </div>
-                  <span className="flex-shrink-0 text-sm font-medium text-card-foreground">
-                    {t('sold', { count: item.totalQuantitySold })}
+                  {/* Ranked by what each product brought in, so that is the
+                      figure shown first — showing only units made 21 sold read
+                      as out of order above 28 (owner 2026-10-18). */}
+                  <span className="flex-shrink-0 text-end">
+                    <span data-testid="top-product-revenue" className="block text-sm font-semibold text-card-foreground">
+                      <Money value={item.revenueEgp} />
+                    </span>
+                    <span data-testid="top-product-units" className="block text-xs text-muted-foreground">
+                      {t('sold', { count: item.totalQuantitySold })}
+                    </span>
                   </span>
                 </li>
               ))}

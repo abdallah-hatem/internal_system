@@ -373,3 +373,32 @@ describe('a phone shows six figures, then See more', () => {
     expect(screen.queryByTestId('tiles-toggle')).toBeNull();
   });
 });
+
+// Owner 2026-10-18: "how is 21 sold on top of 28?" — the list is ranked by
+// revenue but showed only units. Each row now shows its revenue first.
+describe('top products show what they are ranked by', () => {
+  it('revenue first and units under it, in the server\'s order, with "By revenue" in the heading', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: KPIS } });
+      if (url.startsWith('/analytics/top-products')) {
+        return Promise.resolve({
+          data: {
+            data: [
+              { productId: 'p1', name: 'Y30 Headset', sku: 'PRD-000001', totalQuantitySold: 21, revenueEgp: 25200 },
+              { productId: 'p4', name: 'Y20 FM', sku: 'PRD-000004', totalQuantitySold: 28, revenueEgp: 25000 },
+            ],
+          },
+        });
+      }
+      if (url.startsWith('/customers/to-collect')) {
+        return Promise.resolve({ data: { data: { totalOwed: '0.00', totalOverdue: '0.00', customers: 0, rows: [] } } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    const revenues = await screen.findAllByTestId('top-product-revenue');
+    expect(revenues.map((r) => r.textContent)).toEqual([expect.stringContaining('25,200.00'), expect.stringContaining('25,000.00')]);
+    expect(screen.getAllByTestId('top-product-units').map((u) => u.textContent)).toEqual(['21 sold', '28 sold']);
+    expect(screen.getByText('By revenue')).toBeTruthy();
+  });
+});
