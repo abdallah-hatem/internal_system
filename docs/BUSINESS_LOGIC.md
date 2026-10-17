@@ -1664,6 +1664,16 @@ dashboard"). The panel and its endpoint (`GET /analytics/recent-activity`) are
 gone; the office dashboard is the figure tiles, then To collect beside Top
 products. Each kind of event still has its own list: Sales, Payments, Inventory.
 
+**The dashboard, 2026-10-17/18 (owner).** Quick actions: New sale, Record payment, New cycle, and **Fuel**
+(core partners) — the ledger's expense form opened in place on Expense → Fuel, no cycle (a running cost, §9).
+On a phone every figure tile keeps its icon, and only six show — Revenue, Collected, Receivables, Net profit,
+Cash on hand, Inventory value — with "See more" for the rest; wider screens show every tile.
+**Top products** rank by **units sold** (default) or **revenue**, a switch on the dashboard card and on
+Analytics' table, remembered on the device; `GET /analytics/top-products?by=units|revenue` (default revenue
+for other callers), returns netted out, ties broken by the other measure then the name. The card shows the
+ranked figure first with a bar against the top seller ("how is 21 sold on top of 28?" — it was ranked by
+revenue while showing units).
+
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added
