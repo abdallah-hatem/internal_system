@@ -927,6 +927,24 @@ customer fields, a button on the shop page) was rejected as too much and removed
   difference shows as it is typed. Moving the first date re-dates only rows
   nobody touched; changing the count re-splits the amounts and keeps hand-typed
   dates *(guess)*.
+- **A plan for each contract — owner, 2026-10-17.** *"In the installment plan popup
+  I want to customize for each contract not a fixed 3 month plan."* Approved from a
+  mock: beside the count and the first date, **Every** — week, 2 weeks, month
+  (default), 2 months, 3 months. Weeks are 7 days each; months are calendar months
+  counted from the first date, clamped as above. Each row can be removed (the count
+  drops to match) and **Add instalment** appends one dated one interval after the
+  last row, amount 0 (a row after a hand-dated last row is dated from that date and
+  keeps it). **Split remaining equally** re-splits the remaining amount over the rows
+  there are, the last absorbing the rounding; adding or removing a row never
+  re-splits on its own. Changing the interval, like the first date, re-dates only
+  rows nobody re-dated. Create stays disabled until every row has a date, an amount
+  above 0 and the rows add up exactly; a past date shows the server's own
+  `INSTALMENT_DUE_IN_PAST` wording. *Decided (2026-10-17):* the server already
+  sorts instalments by date and numbers them in that order, and does not mind two
+  on the same day, so no rule was added there — the popup sends the rows sorted by
+  date (same-day rows in the order on screen) and allows same-day rows, as the
+  server does. Nothing on the server changed: 1–36 rows, each above 0, today or
+  later, adding up to what is outstanding, all as before.
 - **The plan.** An ordinary plan (`PaymentPlansService`, the same rules above —
   verified shop, one active plan per shop, never more than the shop owes, the
   cumulative reading of who is behind) that names the sale (`saleOrderId`, one
