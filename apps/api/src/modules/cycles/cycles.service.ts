@@ -26,6 +26,8 @@ import {
 } from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
 import { departureUndoBlock } from '../shipping/departure-rules';
+import { CostingService } from '../costing/costing.service';
+import { planRecost } from '../costing/leg-recost';
 import {
   assertInScope,
   cyclesVisibleTo,
@@ -59,6 +61,11 @@ export class CyclesService {
     private prisma: PrismaService,
     private audit: AuditService,
     private notifications: NotificationsService,
+    /**
+     * Whether a leg's cost may still change (§2, 2026-10-17). Stateless over
+     * the same database, so a caller constructing this by hand need not pass it.
+     */
+    private costing: CostingService = new CostingService(prisma),
   ) {}
 
   async findAll(
@@ -208,6 +215,7 @@ export class CyclesService {
     const { cycle, position } = loaded;
 
     const legMeta = new Map(cycle.shippingLegs.map((l) => [l.id, l]));
+    const cost = await planRecost(this.prisma, this.costing, cycle, position);
     const losses = await lossesWithRefunds(
       this.prisma,
       cycle.shippingLegs.flatMap((l) => l.losses),
@@ -240,6 +248,16 @@ export class CyclesService {
         }),
         /** Every loss on the cycle, with what has been refunded on it (§6). */
         losses,
+        /**
+         * Whether the legs' cost can be changed now, and the refusal's code
+         * when not (§2, 2026-10-17) — the server's own check, so the edit form
+         * offers the fields exactly when a save would be accepted.
+         */
+        costEditable: cost.state.editable,
+        costLockedReason: cost.state.reason,
+        costLockedParams: cost.state.params,
+        /** A cost change now re-prices the cycle's received units, sold ones too. */
+        costChangeRecosts: cost.state.recosts,
       },
     };
   }

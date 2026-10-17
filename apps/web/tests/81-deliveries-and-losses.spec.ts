@@ -349,14 +349,15 @@ test.describe('The old leg form and the cycle gates', () => {
     expect((await res.json()).error.code).toBe('DELIVERY_BEFORE_DEPARTURE');
   });
 
-  test("TC-DL-43: Changing a leg's cost after a loss → LEG_COST_LOCKED", async ({ request }) => {
+  test("TC-DL-43: Changing a leg's cost after a loss → LEG_COST_LOCKED_LOSSES", async ({ request }) => {
     const { headers, leg, item } = await departedCycle(request);
     await lose(request, headers, leg.id, item, 1);
     const res = await request.put(`${API}/shipping/legs/${leg.id}`, { headers, data: { amount: 500 } });
-    expect((await res.json()).error.code).toBe('LEG_COST_LOCKED');
+    // §2, 2026-10-17: a loss was booked at the old cost, so no re-cost.
+    expect((await res.json()).error.code).toBe('LEG_COST_LOCKED_LOSSES');
   });
 
-  test('TC-DL-LATE-FREIGHT: A late freight charge after the cost lock → an ordinary ledger expense on the cycle, counted once; no batch cost changes', async ({ request }) => {
+  test('TC-DL-LATE-FREIGHT: After receipt, correcting the leg re-costs the batch (§2, 2026-10-17); a late charge recorded as a cycle expense instead is counted once and changes no batch cost', async ({ request }) => {
     const { headers, mk, cycle, leg, item, product } = await departedCycle(request);
     await deliver(request, headers, leg.id, item, 40);
     for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
@@ -371,10 +372,12 @@ test.describe('The old leg form and the cycle gates', () => {
       const row = (body.data ?? []).find((i: { productId: string }) => i.productId === product.id);
       return (row?.batches ?? []).map((b: { landedUnitCostEgp: string | number }) => b.landedUnitCostEgp);
     };
+    // 40 ordered for 4,000 and a 400 leg: 110 a unit. Corrected to 650 → 116.25.
+    expect((await batchCost()).map(Number)).toEqual([110]);
+    const corrected = await request.put(`${API}/shipping/legs/${leg.id}`, { headers, data: { amount: 650 } });
+    expect(corrected.ok(), await corrected.text()).toBeTruthy();
+    expect((await batchCost()).map(Number)).toEqual([116.25]);
     const costBefore = await batchCost();
-
-    const locked = await request.put(`${API}/shipping/legs/${leg.id}`, { headers, data: { amount: 650 } });
-    expect((await locked.json()).error.code).toBe('LEG_COST_LOCKED');
 
     const preview = async () =>
       (await (await request.get(`${API}/settlements/preview/${cycle.id}`, { headers })).json()).data;

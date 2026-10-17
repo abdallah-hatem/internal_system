@@ -392,7 +392,8 @@
     "departuresOnCyclePage": "Later departures, and undoing one, are on the cycle page.",
     "departurePickCycle": "Choose the cycle to see what is waiting to leave.",
     "costLocked": "The cost of this leg is fixed: goods of this cycle have already been received or marked lost, so a changed cost would price the next delivery differently from the last. Record a late or corrected charge as a cycle expense instead.",
-    "costLockedLedger": "Open the ledger"
+    "costLockedLedger": "Open the ledger",
+    "costRecostWarning": "Changing the cost re-prices every unit of this cycle, including units already sold."
   },
   "inventory": {
     "title": "Inventory",
@@ -1389,6 +1390,11 @@
     "DELIVERY_EXCEEDS_IN_TRANSIT": "Only {onTheWay} of {line} are on the way, so a delivery of {asked} cannot be recorded.",
     "DELIVERY_IN_USE": "This delivery cannot be deleted: stock was received from it, a later leg carried its goods on, or the cycle has moved on because of it.",
     "LEG_COST_LOCKED": "Goods of cycle {cycle} have already been received or marked lost, so this leg’s cost is fixed. Record a late or corrected charge as a cycle expense.",
+    "LEG_COST_LOCKED_SETTLEMENT": "Cycle {cycle} has a settlement, or is being settled, closed or cancelled, so this leg’s cost can no longer be recalculated. Record a late or corrected charge as a cycle expense.",
+    "LEG_COST_LOCKED_LOSSES": "Goods of cycle {cycle} were marked lost at the current cost, so this leg’s cost can no longer be recalculated. Record a late or corrected charge as a cycle expense.",
+    "LEG_COST_LOCKED_TRANSFERS": "Stock was moved into or out of cycle {cycle} at the current cost, so this leg’s cost can no longer be recalculated. Record a late or corrected charge as a cycle expense.",
+    "LEG_COST_LOCKED_OVERRIDE": "{product} in cycle {cycle} was received at a cost entered by hand, which recalculating would replace, so this leg’s cost is fixed. Record a late or corrected charge as a cycle expense.",
+    "LEG_COST_LOCKED_LEDGER": "The purchase entries for {product} in cycle {cycle} do not match its received stock, so this leg’s cost cannot be recalculated. Record a late or corrected charge as a cycle expense.",
     "LOSS_EXCEEDS_IN_TRANSIT": "Only {onTheWay} of {line} are still to come, so {asked} cannot be marked lost.",
     "LOSS_REFUNDED": "This loss has a refund standing against it, so it cannot be taken back: the goods would be counted twice. Undo the refund first.",
     "AMOUNT_NOT_POSITIVE": "A payment must be more than zero.",

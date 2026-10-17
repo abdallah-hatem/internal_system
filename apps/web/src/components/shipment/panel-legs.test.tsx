@@ -24,6 +24,13 @@ const state = vi.hoisted(() => ({
   originType: 'CHINA' as 'CHINA' | 'UAE_DIRECT',
   legs: [1] as number[],
   received: 0,
+  /** What the server says of the legs' cost (§2, 2026-10-17). */
+  cost: { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: false } as {
+    costEditable: boolean;
+    costLockedReason: string | null;
+    costLockedParams: Record<string, string>;
+    costChangeRecosts: boolean;
+  },
   writes: [] as Array<{ method: string; url: string; body?: Record<string, unknown> }>,
 }));
 
@@ -70,6 +77,7 @@ const shipment = () => ({
   lines: [{ purchaseOrderItemId: 'poi-1', productId: 'p1', productName: 'Brake pad', ordered: 40, received: 0, lost: 0, onTheWay: 40, waiting: 0, accounted: false }],
   legs: state.legs.map(legPosition),
   nextLeg: [{ purchaseOrderItemId: 'poi-1', waiting: 0 }],
+  ...state.cost,
 });
 
 vi.mock('@/lib/api', () => {
@@ -105,6 +113,7 @@ beforeEach(() => {
   state.originType = 'CHINA';
   state.legs = [1];
   state.received = 0;
+  state.cost = { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: false };
   state.writes = [];
 });
 afterEach(() => cleanup());
@@ -273,18 +282,72 @@ describe('Edit leg — the cost, while it can still change', () => {
     expect(state.writes[0]).toMatchObject({ method: 'put', url: '/shipping/legs/leg-1', body: expect.objectContaining({ amount: 900, costBasis: 'FLAT' }) });
   });
 
-  it('once anything was received: no cost fields, the reason and the ledger instead — and saving sends no cost at all', async () => {
-    state.received = 5;
+  it('nothing received: no re-pricing warning', async () => {
     wrap();
     fireEvent.click(await screen.findByTestId('edit-leg'));
     const f = form('edit-leg')!;
-    const note = await within(f).findByTestId('leg-cost-locked');
-    expect(note.textContent).toContain(en.shipments.costLocked);
-    expect(within(note).getByRole('link', { name: en.shipments.costLockedLedger }).getAttribute('href')).toBe('/ledger');
-    expect(field(f, 'amount')).toBeNull();
+    await waitFor(() => expect(field(f, 'amount')).toBeTruthy());
+    expect(within(f).queryByTestId('leg-cost-recost-warning')).toBeNull();
+  });
+
+  it('received, and the server says the cost can still be corrected: the fields, one warning that it re-prices sold units, and saving sends the cost', async () => {
+    state.received = 5;
+    state.cost = { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: true };
+    wrap();
+    fireEvent.click(await screen.findByTestId('edit-leg'));
+    const f = form('edit-leg')!;
+    const warning = await within(f).findByTestId('leg-cost-recost-warning');
+    expect(warning.textContent).toBe(en.shipments.costRecostWarning);
+    expect(within(f).queryByTestId('leg-cost-locked')).toBeNull();
+    fireEvent.change(f.querySelector<HTMLInputElement>('input[data-field="amount"]')!, { target: { value: '1000' } });
     fireEvent.click(within(f).getByRole('button', { name: en.common.save }));
     await waitFor(() => expect(state.writes).toHaveLength(1));
-    const body = state.writes[0].body!;
-    for (const k of ['amount', 'costBasis', 'ratePerUnit', 'currency', 'fxRateToEgp']) expect(body, k).not.toHaveProperty(k);
+    expect(state.writes[0].body).toEqual(expect.objectContaining({ amount: 1000, costBasis: 'FLAT' }));
+  });
+
+  // Each refusal the server can name, said in its own words (rule 9), the
+  // same sentence the toast would say — and no cost sent with the save.
+  const reasons: Array<[string, Record<string, string>, string]> = [
+    ['LEG_COST_LOCKED_SETTLEMENT', { cycle: 'CYC-1' }, en.errors.LEG_COST_LOCKED_SETTLEMENT.replace('{cycle}', 'CYC-1')],
+    ['LEG_COST_LOCKED_LOSSES', { cycle: 'CYC-1' }, en.errors.LEG_COST_LOCKED_LOSSES.replace('{cycle}', 'CYC-1')],
+    ['LEG_COST_LOCKED_TRANSFERS', { cycle: 'CYC-1' }, en.errors.LEG_COST_LOCKED_TRANSFERS.replace('{cycle}', 'CYC-1')],
+    [
+      'LEG_COST_LOCKED_OVERRIDE',
+      { cycle: 'CYC-1', product: 'Brake pad' },
+      en.errors.LEG_COST_LOCKED_OVERRIDE.replace('{cycle}', 'CYC-1').replace('{product}', 'Brake pad'),
+    ],
+    [
+      'LEG_COST_LOCKED_LEDGER',
+      { cycle: 'CYC-1', product: 'Brake pad' },
+      en.errors.LEG_COST_LOCKED_LEDGER.replace('{cycle}', 'CYC-1').replace('{product}', 'Brake pad'),
+    ],
+    ['LEG_COST_LOCKED', { cycle: 'CYC-1' }, en.errors.LEG_COST_LOCKED.replace('{cycle}', 'CYC-1')],
+  ];
+  for (const [code, params, text] of reasons) {
+    it(`locked by ${code}: no cost fields, that reason and the ledger instead — and saving sends no cost at all`, async () => {
+      state.received = 5;
+      state.cost = { costEditable: false, costLockedReason: code, costLockedParams: params, costChangeRecosts: false };
+      wrap();
+      fireEvent.click(await screen.findByTestId('edit-leg'));
+      const f = form('edit-leg')!;
+      const note = await within(f).findByTestId('leg-cost-locked');
+      expect(note.textContent).toContain(text);
+      expect(within(note).getByRole('link', { name: en.shipments.costLockedLedger }).getAttribute('href')).toBe('/ledger');
+      expect(field(f, 'amount')).toBeNull();
+      expect(within(f).queryByTestId('leg-cost-recost-warning')).toBeNull();
+      fireEvent.click(within(f).getByRole('button', { name: en.common.save }));
+      await waitFor(() => expect(state.writes).toHaveLength(1));
+      const body = state.writes[0].body!;
+      for (const k of ['amount', 'costBasis', 'ratePerUnit', 'currency', 'fxRateToEgp']) expect(body, k).not.toHaveProperty(k);
+    });
+  }
+
+  it('received, but the server sent no reason (an older API): the general note, still no cost sent', async () => {
+    state.received = 5;
+    state.cost = { costEditable: false, costLockedReason: null, costLockedParams: {}, costChangeRecosts: false };
+    wrap();
+    fireEvent.click(await screen.findByTestId('edit-leg'));
+    const note = await within(form('edit-leg')!).findByTestId('leg-cost-locked');
+    expect(note.textContent).toContain(en.shipments.costLocked);
   });
 });

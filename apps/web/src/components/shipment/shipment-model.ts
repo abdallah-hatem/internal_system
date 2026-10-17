@@ -125,6 +125,13 @@ export interface Shipment {
   legs: ShipmentLeg[];
   /** What a leg added after the last recorded one would find waiting at its origin (L8). */
   nextLeg?: { purchaseOrderItemId: string; waiting: number }[];
+  /** Whether the legs' cost can be changed now (§2, 2026-10-17) — the server's own check. */
+  costEditable?: boolean;
+  /** The refusal's code when it cannot (`errors.LEG_COST_LOCKED_*`), and what it names. */
+  costLockedReason?: string | null;
+  costLockedParams?: Record<string, string>;
+  /** A change now re-prices the cycle's received units, sold ones included. */
+  costChangeRecosts?: boolean;
 }
 
 export const num = (v: unknown): number => {

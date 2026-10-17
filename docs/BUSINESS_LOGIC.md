@@ -362,7 +362,43 @@ units (the final receipt or loss) takes the rounding residual.
 **A leg's cost is fixed once any unit of the cycle has been received or marked
 lost.** Changing it after that would cost the next delivery differently from the
 last one. A late or corrected freight charge after that point is a cycle expense,
-recorded in the ledger.
+recorded in the ledger. *Amended 2026-10-17, below: a correction now re-costs the
+whole cycle instead, within limits.*
+
+**2026-10-17, owner: per-product cost matters — a leg's cost can be corrected after
+arrival, and the whole cycle is re-costed. The limits are a guess — OPEN.** *Built
+2026-10-17.* The owner's case: CYC-2026-0001's Dubai → Cairo leg was entered at 0
+and the real fee comes later. As a cycle expense it keeps the cycle's profit right
+but leaves every product's landed cost, every sale's COGS and every per-product
+margin without the freight, and "per-product cost is very important".
+
+So after goods were received a leg's cost may still be changed, and the change
+re-costs everything of the cycle in one go, as if the right figure had been there
+at every receipt: every batch's unit cost (each order line's batches replayed in
+the order they were received, so the last carries the rounding residual exactly as
+a fresh receipt would), every purchase row the receipts booked, every sale
+allocation drawn from those batches (and so the dashboard's COGS, the cycle's
+profit and the per-product margins), and every return of them. **Units already
+sold are re-priced** — the edit form says so before it is saved. This is the one
+exception to "a sale's cost is never changed after the fact" (§3): the sale's cost
+was wrong, not changed.
+
+It is refused, each with its own reason, when a re-cost would undo or silently
+overwrite something that already stands — and then the late charge goes in as a
+cycle expense, as before:
+
+| Refused when | Code | Why |
+|---|---|---|
+| The cycle has a settlement in draft, approved or paid (a reversed one is ignored), or is being settled, closed or cancelled | `LEG_COST_LOCKED_SETTLEMENT` | The figures were agreed on the old cost. Recalculating is not possible once a settlement exists; record it as a cycle expense. |
+| Anything of the cycle was marked lost | `LEG_COST_LOCKED_LOSSES` | The loss was booked at the old unit cost, and refunds may hang off it. |
+| Stock was moved into or out of the cycle and the transfer stands | `LEG_COST_LOCKED_TRANSFERS` | The other cycle took the units at the old cost (§8). Undoing the transfer lifts it. |
+| A batch is not at the cost the legs compute today | `LEG_COST_LOCKED_OVERRIDE` | That is a cost typed by hand at receipt, which a re-cost would silently replace. |
+| An order line's purchase rows do not pair one-to-one with its batches, at their costs | `LEG_COST_LOCKED_LEDGER` | Re-costing would have to guess which row is which. |
+
+Nothing received or lost: the cost moves freely, exactly as before. Open: whether
+the owner wants any of these limits lifted (a loss re-costed with its batches, a
+draft settlement recalculated automatically), and whether sold units should be
+re-priced at all after some date — the guess is yes, always, until a settlement.
 
 ---
 
@@ -375,7 +411,9 @@ batch keeps its own landed cost forever.
 **FIFO.** A sale draws from the oldest verified batch first. A sale spanning two
 batches records a separate allocation per batch, each with the cost that batch
 was bought at. That allocation is the COGS for that sale and is never
-re-priced — not by a later purchase, not by a supplier refund, not by anything.
+re-priced — not by a later purchase, not by a supplier refund, not by anything —
+except by correcting the cycle's own leg cost before it is settled (§2,
+2026-10-17), which re-costs the batch and every sale drawn from it together.
 
 **DECIDED 2026-08-21 — confirming a sale is when the goods leave.** These are
 counter sales to shops and marketplace sales; there is no separate dispatch

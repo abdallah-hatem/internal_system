@@ -270,6 +270,8 @@ test.describe('The leg forms record the first departure, and add the next leg', 
     await leg(page, legs[0].id).getByTestId('edit-leg').click();
     const form = page.locator('[data-leg-form="edit-leg"]');
     await expect(form.getByTestId('leg-cost-locked')).toBeVisible({ timeout: 15000 });
+    // The reason is the server's (§2, 2026-10-17): a loss was booked at the old cost.
+    await expect(form.getByTestId('leg-cost-locked')).toHaveAttribute('data-reason', 'LEG_COST_LOCKED_LOSSES');
     await expect(form.locator('input[data-field="amount"]')).toHaveCount(0);
     await shot(page, 'cycle-edit-leg-cost-locked-en-1440');
   });

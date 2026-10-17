@@ -1102,7 +1102,11 @@ export class SalesService {
         // value and unsold-stock-at-close were overstated by everything ever
         // sold, and a returned unit could push a batch above the quantity
         // that arrived.
-        await tx.inventoryBatch.update({
+        // The cost is read from the row this update returns, not from the
+        // FIFO list read before it: a leg's cost corrected at the same moment
+        // re-costs the batch (§2, 2026-10-17), and the update waits for that
+        // to commit, so the allocation is written at the cost that stands.
+        const taken = await tx.inventoryBatch.update({
           where: { id: batch.id },
           data: {
             saleableQty: { decrement: allocQty },
@@ -1122,7 +1126,7 @@ export class SalesService {
           },
         });
 
-        const unitCost = new Prisma.Decimal(batch.landedUnitCostEgp);
+        const unitCost = new Prisma.Decimal(taken.landedUnitCostEgp);
         const cogs = allocQty.mul(unitCost).toDecimalPlaces(2);
         totalCogs = totalCogs.add(cogs);
 

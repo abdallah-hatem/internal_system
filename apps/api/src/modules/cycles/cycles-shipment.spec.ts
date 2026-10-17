@@ -11,7 +11,14 @@ import { CyclesService } from './cycles.service';
  */
 
 function makeService(findUnique: jest.Mock) {
-  const prisma = { importCycle: { findUnique } };
+  // A draft settlement stands, so the leg-cost check (§2, 2026-10-17) stops
+  // there and reads nothing else.
+  const prisma = {
+    importCycle: { findUnique },
+    settlement: {
+      findFirst: jest.fn().mockResolvedValue({ status: 'DRAFT' }),
+    },
+  };
   return new CyclesService(prisma as never, {} as never, {} as never);
 }
 
@@ -163,5 +170,8 @@ describe('GET /cycles/:id/shipment', () => {
       }),
     );
     expect(data.lines[0].productName).toBe('Brake pad');
+    // Received and a settlement drafted: the form is told why, by code.
+    expect(data.costEditable).toBe(false);
+    expect(data.costLockedReason).toBe('LEG_COST_LOCKED_SETTLEMENT');
   });
 });

@@ -26,6 +26,7 @@ import {
   cursorPage,
 } from '../../common/dto/pagination.dto';
 import { CostingService } from '../costing/costing.service';
+import { planRecost, recost, refuseCostChange } from '../costing/leg-recost';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
@@ -341,9 +342,13 @@ export class ShippingService {
    *   the way, on that day. With nothing on the way it writes nothing, and a
    *   null is ignored — an arrival is taken back by deleting its delivery.
    * - Moving the departure after a delivery already recorded is refused.
-   * - A leg's cost is fixed once any unit of the cycle was received or lost
-   *   (§2): the next delivery would cost differently from the last. A late
-   *   freight charge is a ledger expense on the cycle instead.
+   * - A leg's cost moves freely until anything of the cycle is received or
+   *   lost. After that a change re-costs the whole cycle — batches, purchase
+   *   rows, sale allocations, returns — in this transaction, unless a
+   *   settlement, a loss, a transfer, a hand-typed batch cost or unmatched
+   *   purchase rows stand in the way, each refused with its own code
+   *   (§2, 2026-10-17; `costing/leg-recost.ts`). A late charge on a cycle
+   *   that cannot be re-costed is a ledger expense on it instead.
    */
   async updateLeg(
     id: string,
@@ -408,12 +413,16 @@ export class ShippingService {
         const costMoved =
           costFields.costBasis !== existing.costBasis ||
           !costFields.amountEgp.equals(existing.amountEgp ?? 0);
-        const { received, lost } = loaded.position.totals;
-        if (costMoved && (received > 0 || lost > 0)) {
-          throw badRequest(
-            'LEG_COST_LOCKED',
-            `Goods of cycle ${loaded.cycle.code} have already been received or marked lost, so the cost of ${existing.origin} → ${existing.destination} is fixed. Record a late or corrected charge as a cycle expense.`,
-            { cycle: loaded.cycle.code },
+        // Once goods of the cycle were received, a cost change re-costs every
+        // unit of it — or is refused for the reason it cannot (§2, 2026-10-17).
+        const recostPlan = costMoved
+          ? await planRecost(tx, this.costing, loaded.cycle, loaded.position)
+          : null;
+        if (recostPlan && !recostPlan.state.editable) {
+          refuseCostChange(
+            recostPlan.state.reason!,
+            recostPlan.state.params,
+            `${existing.origin} → ${existing.destination}`,
           );
         }
 
@@ -476,6 +485,12 @@ export class ShippingService {
             ...costFields,
           },
         });
+        // Every batch, purchase row, sale and return of the cycle, at the
+        // cost the legs give now — inside this transaction, under the lock.
+        const recosted =
+          recostPlan?.state.recosts === true
+            ? await recost(tx, this.costing, existing.cycleId, recostPlan)
+            : [];
 
         if (departure?.replaces) {
           await this.deliveries.moveDepartureIn(
@@ -523,7 +538,17 @@ export class ShippingService {
             entityType: 'ShippingLeg',
             entityId: id,
             beforeJson: existing,
-            afterJson: updated,
+            afterJson:
+              recosted.length > 0
+                ? {
+                    ...updated,
+                    recost: {
+                      oldAmountEgp: existing.amountEgp?.toFixed(2) ?? null,
+                      newAmountEgp: updated.amountEgp?.toFixed(2) ?? null,
+                      batches: recosted,
+                    },
+                  }
+                : updated,
           },
           tx,
         );

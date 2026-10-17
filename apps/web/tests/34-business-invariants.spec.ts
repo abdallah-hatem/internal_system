@@ -18,7 +18,7 @@
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
-import { psqlStdin } from './support/database';
+import { psqlQuery, psqlStdin } from './support/database';
 import { leftoverWorld } from './support/leftovers';
 import { approved, cents, recordCost, runningCosts, settlement, settlementRows, soldOutCycle, usersByEmail, waitingFor } from './support/running-costs';
 import { API } from './support/env';
@@ -2125,5 +2125,57 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
     const ok = await request.post(`${API}/settlements/${id}/reverse`, { headers, data: { reason: 'the partner undoes it' } });
     expect(ok.ok(), await ok.text()).toBeTruthy();
     expect((await settlement(request, headers, id)).status).toBe('REVERSED');
+  });
+});
+
+test.describe('A corrected leg cost re-costs the cycle, and nothing disagrees afterwards (§2, 2026-10-17)', () => {
+  /** A UAE-direct cycle: 10 ordered at 10, a leg at 0, everything received, 4 sold. */
+  async function soldWithLegAtZero(request: APIRequestContext) {
+    const { headers, mk, product, supplier, customer } = await ctx(request);
+    const cycle = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await mk(`cycles/${cycle.id}/purchases`, {
+      supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: dayFromNow(-30),
+      items: [{ productId: product.id, orderedQty: 10, unitPrice: 10 }],
+    });
+    const leg = await mk(`cycles/${cycle.id}/shipping-legs`, {
+      sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', provider: 'Inv Freight',
+      costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+      departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
+    });
+    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+      await mk(`cycles/${cycle.id}/transition`, { status });
+    }
+    const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+    const poItem = (full.data ?? full).purchaseOrders[0].items[0];
+    await mk('receipts/verify', { cycleId: cycle.id, items: [{ purchaseOrderItemId: poItem.id, productId: product.id, receivedQty: 10 }] });
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity: 4, unitPrice: 50, discount: 0 }],
+    });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+    return { headers, cycle, leg, poItem };
+  }
+
+  test('TC-INV-70: after a correction every sale of the cycle costs what its batch now costs, and the purchase rows re-sum to the landed cost', async ({ request }) => {
+    const { headers, cycle, leg } = await soldWithLegAtZero(request);
+    const res = await request.put(`${API}/shipping/legs/${leg.id}`, { headers, data: { costBasis: 'FLAT', amount: 50 } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    const disagreeing = psqlQuery(`
+      SELECT count(*) FROM sale_item_allocations a JOIN inventory_batches b ON b.id = a.inventory_batch_id
+       WHERE b.cycle_id = '${cycle.id}' AND (a.unit_cost_egp <> b.landed_unit_cost_egp OR a.cogs_egp <> round(a.qty * b.landed_unit_cost_egp, 2))`);
+    expect(Number(disagreeing.trim())).toBe(0);
+    const purchases = psqlQuery(`SELECT sum(amount) FROM financial_transactions WHERE cycle_id = '${cycle.id}' AND type = 'PURCHASE_COST'`);
+    // 100 of goods and the 50 fee.
+    expect(Number(purchases.trim())).toBe(150);
+  });
+
+  test('TC-INV-71: a correction once a settlement is drafted is refused by its code and moves nothing', async ({ request }) => {
+    const { headers, cycle, leg } = await soldWithLegAtZero(request);
+    psqlStdin(`INSERT INTO settlements (id, cycle_id, status, updated_at) VALUES (gen_random_uuid(), '${cycle.id}', 'DRAFT', now());`);
+    const res = await request.put(`${API}/shipping/legs/${leg.id}`, { headers, data: { costBasis: 'FLAT', amount: 50 } });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error.code).toBe('LEG_COST_LOCKED_SETTLEMENT');
+    const unit = psqlQuery(`SELECT landed_unit_cost_egp FROM inventory_batches WHERE cycle_id = '${cycle.id}'`);
+    expect(Number(unit.trim())).toBe(10);
   });
 });

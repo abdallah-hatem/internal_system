@@ -139,6 +139,12 @@ function fakePrisma(db: Db) {
     },
     product: { findMany: findMany(() => db.products) },
     inventoryBatch: { findMany: findMany(() => db.batches) },
+    // The shipment read says whether a leg's cost can change (§2,
+    // 2026-10-17): nothing is settled or moved in these worlds.
+    settlement: { findFirst: jest.fn(() => Promise.resolve(null)) },
+    stockTransfer: { findMany: findMany(() => []) },
+    inventoryMovement: { findMany: findMany(() => []) },
+    financialTransaction: { findMany: findMany(() => []) },
     // B5: the shipment read asks for refunds per loss; this fixture has none.
     supplierRefund: { findMany: findMany(() => []) },
     supplier: { findMany: findMany(() => db.suppliers) },

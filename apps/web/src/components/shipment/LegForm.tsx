@@ -3,7 +3,7 @@
 import { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useDateFormat } from '@/lib/dates';
@@ -20,6 +20,7 @@ import { SHIPMENT_QUERY_KEYS } from './ShipmentDialog';
 import { useAnnounceStatusMove } from './status-move';
 import { LegDepartureFields, useLegDeparture } from './LegDepartureFields';
 import { useShipment } from './ShipmentPanel';
+import type { Shipment } from './shipment-model';
 
 /**
  * A shipping leg's create and edit forms — defined once (CLAUDE.md §13) and
@@ -92,12 +93,23 @@ function useProviders() {
 }
 
 /**
- * A leg's cost is fixed once any unit of its cycle was received or marked lost
- * (§2) — the server's rule (`LEG_COST_LOCKED`), read from the same shipment
- * figures the server checks: received and lost totals.
+ * Whether a leg's cost can be changed now, as the server says it on the
+ * cycle's shipment (§2, 2026-10-17): its own check, so the form offers the
+ * fields exactly when a save would be accepted, names the refusal's reason by
+ * its code when not, and warns when a change re-prices units already received.
+ * While the shipment is loading nothing is locked; a save then is the server's
+ * to refuse.
  */
-export function legCostLocked(totals: { received: number; lost: number } | undefined): boolean {
-  return !!totals && (totals.received > 0 || totals.lost > 0);
+export function legCostState(
+  shipment: Pick<Shipment, 'costEditable' | 'costLockedReason' | 'costLockedParams' | 'costChangeRecosts'> | undefined,
+): { locked: boolean; reason: string | null; params: Record<string, string>; recosts: boolean } {
+  const locked = shipment?.costEditable === false;
+  return {
+    locked,
+    reason: locked ? (shipment.costLockedReason ?? null) : null,
+    params: (locked && shipment.costLockedParams) || {},
+    recosts: !locked && shipment?.costChangeRecosts === true,
+  };
 }
 
 /** The leg dialog's actions, in its fixed footer; `form` ties the submit to the form above. */
@@ -121,11 +133,14 @@ function FormButtons({ pending, onCancel, label, form }: { pending: boolean; onC
   );
 }
 
-function CostLockedNote() {
+/** Why the cost is fixed — the refusal's own sentence, by its code (rule 9) — and where a late charge goes. */
+function CostLockedNote({ reason, params }: { reason: string | null; params: Record<string, string> }) {
   const t = useTranslations('shipments');
+  const apiError = useApiError();
+  const said = reason ? apiError({ response: { data: { error: { code: reason, params } } } }, t('costLocked')) : t('costLocked');
   return (
-    <p data-testid="leg-cost-locked" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
-      {t('costLocked')}{' '}
+    <p data-testid="leg-cost-locked" data-reason={reason ?? undefined} className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
+      {said}{' '}
       <Link href="/ledger" className="cursor-pointer font-medium text-primary hover:underline">
         {t('costLockedLedger')}
       </Link>
@@ -292,8 +307,9 @@ export function LegCreateForm({
 
 /**
  * Edit a leg: its departure (the first, while it has not left; its day, while
- * it left once), provider, tracking and cost. The cost is shown only while it
- * can still change (§2); once anything of the cycle was received or lost, the
+ * it left once), provider, tracking and cost. The cost is shown while the
+ * server says it can change (§2, 2026-10-17) — after a receipt with a warning
+ * that a change re-prices the cycle, sold units included; when it cannot, the
  * form says why and where a late charge goes instead, and sends no cost.
  */
 export function LegEditForm({
@@ -325,7 +341,8 @@ export function LegEditForm({
   const providers = useProviders();
   const departure = useLegDeparture(leg.cycleId, leg.id);
   const { data: shipment } = useShipment(leg.cycleId);
-  const locked = legCostLocked(shipment?.totals);
+  const cost = legCostState(shipment);
+  const locked = cost.locked;
   const [providerId, setProviderId] = useState('');
 
   const formId = useId();
@@ -423,7 +440,7 @@ export function LegEditForm({
         </div>
 
         {locked ? (
-          <CostLockedNote />
+          <CostLockedNote reason={cost.reason} params={cost.params} />
         ) : (
           <ShippingCostFields
             defaults={{
@@ -436,6 +453,12 @@ export function LegEditForm({
               fxRateToEgp: leg.fxRateToEgp ?? 1,
             }}
           />
+        )}
+        {cost.recosts && (
+          <p role="status" data-testid="leg-cost-recost-warning" className="flex items-start gap-1.5 rounded-lg border border-accent-200 bg-accent-50 px-2.5 py-1.5 text-sm text-accent-800">
+            <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0">{t('costRecostWarning')}</span>
+          </p>
         )}
 
       </ValidatedForm>

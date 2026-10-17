@@ -613,20 +613,28 @@ describe('PUT /shipping/legs/:id', () => {
     await shipping.updateLeg(leg.id, { departedOn: '2026-09-10' }, ACTOR);
   });
 
-  it("Changing a leg's cost after a receipt or loss → LEG_COST_LOCKED", async () => {
+  // §2, 2026-10-17: after a receipt the cost can be corrected and the cycle is
+  // re-costed (leg-recost.db.spec.ts) — unless something stands in the way,
+  // each with its own code.
+  it("Changing a leg's cost after a loss → LEG_COST_LOCKED_LOSSES; after a receipt with a settlement drafted → LEG_COST_LOCKED_SETTLEMENT", async () => {
     // After a loss.
     const a = oneLeg();
     await lose(a.leg, a.item, 1);
     const afterLoss = await refusal(
       shipping.updateLeg(a.leg.id, { amount: 500 }, ACTOR),
     );
-    expect(afterLoss.code).toBe('LEG_COST_LOCKED');
+    expect(afterLoss.code).toBe('LEG_COST_LOCKED_LOSSES');
     expect(legRow(a.leg.id).amountEgp.toFixed(2)).toBe('400.00');
 
-    // After a receipt.
+    // After a receipt, on a cycle with a settlement drafted.
     const b = oneLeg('SELLING');
     const { data } = await deliver(b.leg, b.item, 10);
     receive(db, b.cycle, data.lines[0], 10);
+    db.settlements.push({
+      id: randomUUID(),
+      cycleId: b.cycle.id,
+      status: 'DRAFT',
+    });
     const afterReceipt = await refusal(
       shipping.updateLeg(
         b.leg.id,
@@ -634,7 +642,7 @@ describe('PUT /shipping/legs/:id', () => {
         ACTOR,
       ),
     );
-    expect(afterReceipt.code).toBe('LEG_COST_LOCKED');
+    expect(afterReceipt.code).toBe('LEG_COST_LOCKED_SETTLEMENT');
 
     // Not a cost change: the same amount sent again, or a tracking number.
     await shipping.updateLeg(
@@ -651,16 +659,21 @@ describe('PUT /shipping/legs/:id', () => {
     expect(legRow(c.leg.id).amountEgp.toFixed(2)).toBe('500.00');
   });
 
-  it("A late freight charge after the cost lock → recorded as an ordinary ledger expense on the cycle; counted once in settlement and analytics; no batch's cost changes", async () => {
+  it("A late freight charge once a settlement stands → recorded as an ordinary ledger expense on the cycle; counted once in settlement and analytics; no batch's cost changes", async () => {
     const { cycle, item, leg } = oneLeg('SELLING');
     const { data } = await deliver(leg, item, 40);
     receive(db, cycle, data.lines[0], 40);
+    db.settlements.push({
+      id: randomUUID(),
+      cycleId: cycle.id,
+      status: 'APPROVED',
+    });
     const batch = db.batches[0];
 
     // The leg cannot absorb it…
     expect(
       (await refusal(shipping.updateLeg(leg.id, { amount: 650 }, ACTOR))).code,
-    ).toBe('LEG_COST_LOCKED');
+    ).toBe('LEG_COST_LOCKED_SETTLEMENT');
     // …so nothing about the goods moved: the batch keeps its cost and the
     // losses figure (which settlement and analytics add to the ledger's
     // expenses) carries nothing of it. The charge itself goes in as a ledger
@@ -842,6 +855,8 @@ describe('roles', () => {
     'deleteDelivery',
     'recordLoss',
     'takeBackLoss',
+    // Correcting a leg's cost re-costs every sale of the cycle (§2, 2026-10-17).
+    'updateLeg',
   ] as const;
 
   const contextFor = (handler: string, role: string) =>
