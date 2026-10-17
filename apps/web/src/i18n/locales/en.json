@@ -165,7 +165,9 @@
     "toCollectOverdueWord": "overdue",
     "toCollectEmpty": "Nobody owes you anything right now",
     "toCollectEmptyHint": "Confirmed sales that are not fully paid show here, overdue first.",
-    "toCollectError": "Could not load who owes you. Refresh to try again."
+    "toCollectError": "Could not load who owes you. Refresh to try again.",
+    "seeMore": "See more ({count})",
+    "seeLess": "See less"
   },
   "products": {
     "title": "Products",

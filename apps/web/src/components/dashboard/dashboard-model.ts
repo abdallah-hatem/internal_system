@@ -65,6 +65,20 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
   owedToLenders: { href: '/lenders', roles: SELLING_ROLES },
 };
 
+/**
+ * The figures a phone shows before "See more" (owner 2026-10-18): what was
+ * sold, collected and is owed, the profit, the cash, the stock's worth — three
+ * rows. The rest are a tap away; a wider screen shows every tile.
+ */
+export const PHONE_FIRST_TILES: readonly TileKey[] = [
+  'revenue',
+  'collected',
+  'receivables',
+  'netProfit',
+  'cashOnHand',
+  'inventoryValue',
+];
+
 export type QuickActionKey = 'newSale' | 'recordPayment' | 'newCycle' | 'recordFuel';
 
 export interface QuickAction {

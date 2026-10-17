@@ -1,6 +1,7 @@
 'use client';
 import { LatinText } from '@/components/ui/latin-text';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
@@ -13,16 +14,14 @@ import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '../../../com
 import {
   dashboardView,
   tileHref,
-  type TileKey,
-} from '../../../components/dashboard/dashboard-model';
+  type TileKey, PHONE_FIRST_TILES } from '../../../components/dashboard/dashboard-model';
 import { YourCycles } from '../../../components/dashboard/your-cycles';
 import { ToCollect } from '../../../components/dashboard/to-collect';
 import { Money } from '../../../components/ui/money';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
   Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins, Boxes,
-  type LucideIcon,
-} from 'lucide-react';
+  type LucideIcon, ChevronDown } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -78,7 +77,8 @@ function StatTilesSkeleton() {
         <StatTileSkeleton
           key={i}
           sub={i === TILE_COUNT - 1}
-          className={i === TILE_COUNT - 1 ? LAST_TILE_SPAN : ''}
+          // A phone shows the first six until "See more".
+          className={`${i === TILE_COUNT - 1 ? LAST_TILE_SPAN : ''} ${i >= PHONE_FIRST_TILES.length ? 'max-sm:hidden' : ''}`}
         />
       ))}
     </SkeletonGroup>
@@ -109,6 +109,8 @@ export default function DashboardPage() {
   // A temporary investor sees only their own cycles (R1): the business-wide
   // figures are refused them, so they are neither fetched nor shown.
   const view = dashboardView(role);
+  // A phone shows PHONE_FIRST_TILES until this is opened; wider screens, all.
+  const [allTiles, setAllTiles] = useState(false);
 
   const { data: dashData, isLoading: loadingDash } = useQuery({
     queryKey: ['analytics', 'dashboard'],
@@ -246,9 +248,23 @@ export default function DashboardPage() {
               color={stat.color}
               href={tileHref(stat.key, role)}
               sub={stat.sub}
-              className={i === stats.length - 1 ? LAST_TILE_SPAN : ''}
+              className={`${i === stats.length - 1 ? LAST_TILE_SPAN : ''} ${
+                allTiles || PHONE_FIRST_TILES.includes(stat.key) ? '' : 'max-sm:hidden'
+              }`}
             />
           ))}
+          {stats.length > PHONE_FIRST_TILES.length && (
+            <button
+              type="button"
+              data-testid="tiles-toggle"
+              aria-expanded={allTiles}
+              onClick={() => setAllTiles((v) => !v)}
+              className="col-span-2 inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-sm font-medium text-primary hover:bg-muted sm:hidden"
+            >
+              {allTiles ? t('seeLess') : t('seeMore', { count: stats.length - PHONE_FIRST_TILES.length })}
+              <ChevronDown aria-hidden="true" className={`size-4 transition-transform ${allTiles ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </div>
       )}
 

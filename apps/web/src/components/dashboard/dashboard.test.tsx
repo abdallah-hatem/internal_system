@@ -328,3 +328,48 @@ describe('every tile shows its icon on a phone too', () => {
     expect(body.lastElementChild?.getAttribute('data-testid')).toBe('tile-icon');
   });
 });
+
+// Owner 2026-10-18: "maybe show some, then a see more?" — a phone shows six
+// figures, the rest behind See more; a wider screen shows every tile.
+describe('a phone shows six figures, then See more', () => {
+  const FIRST = ['revenue', 'collected', 'receivables', 'netProfit', 'cashOnHand', 'inventoryValue'];
+  const phoneHidden = (key: string) => screen.getByTestId(`tile-${key}`).className.split(/\s+/).includes('max-sm:hidden');
+
+  it('the six show, the other seven wait — on a phone only', async () => {
+    renderPage();
+    await tile('revenue');
+    for (const key of FIRST) expect(phoneHidden(key), key).toBe(false);
+    for (const key of ['cogs', 'expenses', 'cashOut', 'activeCycles', 'unitsInStock', 'lowStockAlerts', 'owedToLenders']) {
+      expect(phoneHidden(key), key).toBe(true);
+    }
+    const toggle = screen.getByTestId('tiles-toggle');
+    expect(toggle.textContent).toContain('See more (7)');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.className.split(/\s+/)).toContain('sm:hidden');
+  });
+
+  it('See more shows them all; See less folds them again', async () => {
+    renderPage();
+    await tile('revenue');
+    fireEvent.click(screen.getByTestId('tiles-toggle'));
+    expect(phoneHidden('cogs')).toBe(false);
+    expect(phoneHidden('owedToLenders')).toBe(false);
+    expect(screen.getByTestId('tiles-toggle').textContent).toContain('See less');
+    expect(screen.getByTestId('tiles-toggle').getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByTestId('tiles-toggle'));
+    expect(phoneHidden('cogs')).toBe(true);
+  });
+
+  it('reads in Arabic', async () => {
+    renderPage('ar');
+    await tile('revenue');
+    expect(screen.getByTestId('tiles-toggle').textContent).toContain('عرض المزيد (7)');
+  });
+
+  it('an investor, who has no business tiles, gets no toggle', async () => {
+    auth.role = 'TEMP_INVESTOR';
+    renderPage();
+    await screen.findByTestId('your-cycles');
+    expect(screen.queryByTestId('tiles-toggle')).toBeNull();
+  });
+});
