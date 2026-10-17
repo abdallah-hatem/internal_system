@@ -252,7 +252,8 @@
     "statusChangeFailed": "Could not change the product's status",
     "inactiveNotice": "Deactivated — no more can be bought. What is on the shelf can still be sold; once it is gone, it leaves the sale form and the store.",
     "filterAll": "All",
-    "statusFilter": "Show products"
+    "statusFilter": "Show products",
+    "inStock": "In stock"
   },
   "cycles": {
     "title": "Import Cycles",

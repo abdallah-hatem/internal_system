@@ -29,6 +29,7 @@ import { localName, matchesName } from '@/lib/localized-name';
 import { namedOption } from '@/components/entities/entity-forms';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { useNumberFormat } from '@/lib/numbers';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -45,6 +46,8 @@ interface ProductRaw {
   description?: string;
   barcode?: string;
   minStock?: number | string;
+  /** Units in stock across its batches (office only; absent for an investor). */
+  onHand?: number;
   status?: string;
   prices?: any[];
 }
@@ -65,6 +68,8 @@ interface Product {
   description?: string;
   barcode?: string;
   minStock: number;
+  /** Null when the list was not sent stock (an investor's view). */
+  onHand: number | null;
   status?: string;
   isActive: boolean;
   b2bPrice?: number;
@@ -120,6 +125,7 @@ function ProductCardSkeleton() {
 export default function ProductsPage() {
   const apiError = useApiError();
   const t = useTranslations('products');
+  const { formatNumber } = useNumberFormat();
   const tc = useTranslations('common');
   const tph = useTranslations('placeholders');
   const queryClient = useQueryClient();
@@ -197,6 +203,7 @@ export default function ProductsPage() {
     description: raw.description,
     barcode: raw.barcode,
     minStock: Number(raw.minStock ?? 0),
+    onHand: raw.onHand == null ? null : Number(raw.onHand),
     status: raw.status,
     isActive: raw.status === 'ACTIVE',
     b2bPrice: raw.prices?.find((p: any) => p.channel === 'B2B' && !p.effectiveTo)?.amount
@@ -268,9 +275,9 @@ export default function ProductsPage() {
   };
 
   // ── Columns ───────────────────────────────────────────────────────
-  // SKU, name, category, B2B, B2C, min stock, status, actions. Each fixed
-  // column fits its title in English and Arabic ("الحد الأدنى للمخزون" sets
-  // Min Stock's); the prices fit "123,456.00 EGP"; the name takes what is left.
+  // SKU, name, category, B2B, B2C, in stock, status, actions. Each fixed
+  // column fits its title in English and Arabic; the prices fit
+  // "123,456.00 EGP"; the name takes what is left.
   const columns: Column<Product>[] = [
     {
       key: 'sku', header: t('sku'), width: '7rem', kind: 'label', title: (p) => p.sku,
@@ -306,9 +313,20 @@ export default function ProductsPage() {
       cell: (p) => (p.b2cPrice != null ? <Money value={p.b2cPrice} /> : '—'),
     },
     {
-      key: 'minStock', header: t('minStock'), width: '8rem', kind: 'value', className: 'text-gray-700',
-      skeleton: { kind: 'text', share: 'w-1/4' },
-      cell: (p) => p.minStock,
+      // In place of Min stock (owner, 2026-10-17): how many are on the shelf,
+      // red at or under the product's minimum — the low-stock rule's own test.
+      key: 'onHand', header: t('inStock'), width: '7rem', kind: 'value', skeleton: { kind: 'text', share: 'w-1/4' },
+      cell: (p) =>
+        p.onHand == null ? (
+          '—'
+        ) : (
+          <span
+            data-testid="product-on-hand"
+            className={p.minStock > 0 && p.onHand <= p.minStock ? 'font-medium text-destructive' : 'text-foreground'}
+          >
+            {formatNumber(p.onHand, { maximumFractionDigits: 3 })}
+          </span>
+        ),
     },
     {
       key: 'status', header: t('status'), width: '6.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },

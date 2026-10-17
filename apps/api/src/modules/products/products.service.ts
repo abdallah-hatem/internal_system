@@ -14,6 +14,7 @@ import { badRequest, conflict, notFound } from '../../common/api-error';
 import { skuKey } from '../assistant/receipt/name-matching';
 import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
+import { stockOnHand } from '../../common/low-stock';
 import {
   arabicText,
   bilingualProductSearch,
@@ -71,15 +72,27 @@ export class ProductsService {
           ? { include: { supplier: true } }
           : false,
         prices: true,
+        // How many are in stock (owner, 2026-10-17: "in products table I need
+        // to see how many in stock"), by the one stock-on-hand rule the
+        // low-stock check uses (common/low-stock.ts). Office only: an
+        // investor's view of the catalogue is not a view of the stock.
+        inventoryBatches: seesEveryCycle(viewer)
+          ? { select: { remainingQty: true } }
+          : false,
       },
     });
 
     const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
+    const page = hasMore ? items.slice(0, limit) : items;
+    const data = page.map(({ inventoryBatches, ...product }) =>
+      inventoryBatches
+        ? { ...product, onHand: stockOnHand(inventoryBatches) }
+        : product,
+    );
     return {
       data,
       meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
+        nextCursor: hasMore ? page[page.length - 1].id : null,
         limit,
       },
     };
