@@ -328,3 +328,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   invoice number in Plex Mono drew in a wider fallback and wrapped). Check a PDF by opening the PDF itself at 36 instalments in both languages, not the screen.
   Timings from a hidden browser pane are meaningless: it paused `requestAnimationFrame` and made a 0.3 s PDF take 30 s.
   — 2026-10-17
+
+## Numbers the system already knows
+
+- Never ask for a number the system already holds; show it and use it. A per-piece leg asked for "number of pieces"
+  while the shipment knew 230 went on it: the owner typed 100, the cycle was re-costed on 100, and a hint was not
+  enough ("why not force the 230?"). Derive it on the server for every caller and show it read-only. Check every
+  count, total or date in a form against what the records already say before making it a field. — 2026-10-17
