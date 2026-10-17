@@ -391,13 +391,13 @@ export function ContractPlanDialog({
           <p className="mb-2 text-sm font-medium text-foreground">{t('schedule')}</p>
           {rows.length > 0 && (
             <div
-              className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-x-2 gap-y-2 text-sm"
+              className="grid grid-cols-[1.25rem_minmax(0,3fr)_minmax(0,2fr)_2.25rem] items-center gap-x-1.5 gap-y-2 text-sm sm:grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] sm:gap-x-2"
               data-testid="contract-rows"
             >
-              <span className="text-xs text-muted-foreground">{t('line')}</span>
-              <span className="text-xs text-muted-foreground">{t('dueOn')}</span>
-              <span className="text-xs text-muted-foreground">{t('amount')}</span>
-              <span aria-hidden="true" />
+              <span className="text-xs text-muted-foreground max-[359px]:hidden">{t('line')}</span>
+              <span className="text-xs text-muted-foreground max-[359px]:hidden">{t('dueOn')}</span>
+              <span className="text-xs text-muted-foreground max-[359px]:hidden">{t('amount')}</span>
+              <span aria-hidden="true" className="max-[359px]:hidden" />
               {rows.map((row, i) => (
                 <ContractRow
                   key={row.key}
@@ -494,10 +494,20 @@ function ContractRow({
   const t = useTranslations('sales.contract');
   const tph = useTranslations('placeholders');
   const { formatNumber } = useNumberFormat();
+  // Below 360px a row is two lines — the date over the amount — or both fields
+  // truncate, and an amount of 733.33 read as "33.33". Wider, the row's cells
+  // sit straight in the table's columns.
+  const narrow = 'max-[359px]:col-start-2';
   return (
-    <>
-      <span className="text-muted-foreground tabular-nums">{formatNumber(index + 1)}</span>
+    <div
+      data-testid={`contract-row-${index}`}
+      className="contents max-[359px]:col-span-full max-[359px]:grid max-[359px]:grid-cols-[1.25rem_minmax(0,1fr)_2.25rem] max-[359px]:items-center max-[359px]:gap-x-1.5 max-[359px]:gap-y-1.5"
+    >
+      <span className="text-muted-foreground tabular-nums max-[359px]:row-span-2 max-[359px]:row-start-1">
+        {formatNumber(index + 1)}
+      </span>
       <DatePicker
+        className={`${narrow} max-[359px]:row-start-1`}
         id={`contract-due-${index}`}
         value={row.dueOn}
         min={min}
@@ -512,7 +522,7 @@ function ContractRow({
         value={row.amount}
         onChange={onAmount}
         placeholder={tph('money')}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm"
+        className={`w-full rounded-lg border border-border bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring md:text-sm ${narrow} max-[359px]:row-start-2`}
       />
       <button
         type="button"
@@ -520,11 +530,11 @@ function ContractRow({
         aria-label={t('removeLabel', { n: index + 1 })}
         onClick={onRemove}
         disabled={disabled}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50 max-[359px]:col-start-3 max-[359px]:row-span-2 max-[359px]:row-start-1"
       >
         <Trash2 className="h-4 w-4" />
       </button>
-    </>
+    </div>
   );
 }
 
