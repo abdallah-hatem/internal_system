@@ -30,14 +30,6 @@ test.describe('Dashboard & Analytics Flow', () => {
     expect(body).toMatch(/Revenue|Profit|Cycle|Orders|Stock|Total|Active/i);
   });
 
-  test('TC-DASH-02: Dashboard shows recent activity', async ({ page }) => {
-    await login(page);
-    await page.goto(`${BASE}/en/dashboard`);
-    await page.waitForTimeout(2000);
-    const body = await page.textContent('body');
-    expect(body).toMatch(/Recent|Activity|Audit|Log/i);
-  });
-
   test('TC-DASH-03: Dashboard shows top products section', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/dashboard`);

@@ -171,7 +171,7 @@ test.describe('Quick actions open the existing forms', () => {
 });
 
 test.describe('Roles', () => {
-  test('TC-DASH-10: a temporary investor sees no quick actions and no activity panel', async ({
+  test('TC-DASH-10: a temporary investor sees no quick actions', async ({
     page,
     request,
   }) => {
@@ -192,7 +192,6 @@ test.describe('Roles', () => {
     await expect(page.getByTestId('quick-action-newSale')).toHaveCount(0);
     await expect(page.getByTestId('quick-action-recordPayment')).toHaveCount(0);
     await expect(page.getByTestId('quick-action-newCycle')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Recent activity' })).toHaveCount(0);
     // A list the API refuses them is not a link.
     await expect(page.locator('a[data-testid="tile-revenue"]')).toHaveCount(0);
   });

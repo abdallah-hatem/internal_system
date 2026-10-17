@@ -23,7 +23,7 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ user: auth.role ? { id: 'u1', email: 'x@y.z', role: auth.role } : null }),
 }));
 
-const responses = vi.hoisted(() => ({ recent: [] as unknown[], fail: false, cycles: [] as unknown[] }));
+const responses = vi.hoisted(() => ({ cycles: [] as unknown[] }));
 const get = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api', () => ({ api: { get } }));
 
@@ -37,8 +37,6 @@ const KPIS = {
 
 beforeEach(() => {
   auth.role = 'CORE_PARTNER';
-  responses.recent = [];
-  responses.fail = false;
   responses.cycles = [];
   get.mockReset();
   get.mockImplementation((url: string) => {
@@ -49,11 +47,6 @@ beforeEach(() => {
     }
     if (url.startsWith('/analytics/cycle-profitability')) {
       return Promise.resolve({ data: { data: responses.cycles } });
-    }
-    if (url.startsWith('/analytics/recent-activity')) {
-      return responses.fail
-        ? Promise.reject(new Error('boom'))
-        : Promise.resolve({ data: { data: responses.recent } });
     }
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
@@ -119,6 +112,13 @@ describe('dashboard tiles lead to their lists', () => {
     expect(within(el).getByTestId('owed-to-lenders-lines').textContent).toContain('20,000.00 AED');
   });
 
+  it('thirteen tiles leave no lone tile: the last one takes the whole row, in two columns and in three', async () => {
+    renderPage();
+    const last = await tile('owedToLenders');
+    expect(last.className.split(/\s+/)).toEqual(expect.arrayContaining(['col-span-2', 'lg:col-span-3']));
+    expect((await tile('lowStockAlerts')).className).not.toMatch(/col-span/);
+  });
+
   it('admin support gets the same business figures', async () => {
     auth.role = 'ADMIN_SUPPORT';
     renderPage();
@@ -146,7 +146,7 @@ describe('a temporary investor sees only their own cycles (R1)', () => {
     expect(screen.queryByTestId('tile-revenue')).toBeNull();
     expect(screen.queryByText('Top products')).toBeNull();
     const urls = get.mock.calls.map((c) => String(c[0]));
-    for (const refused of ['/analytics/dashboard', '/analytics/top-products', '/analytics/recent-activity']) {
+    for (const refused of ['/analytics/dashboard', '/analytics/top-products']) {
       expect(urls.some((u) => u.startsWith(refused)), refused).toBe(false);
     }
   });
@@ -204,86 +204,22 @@ describe('quick actions follow the API roles', () => {
   });
 });
 
-// ── Recent activity ──────────────────────────────────────────────────
-describe('recent activity', () => {
-  it('reads the activity endpoint, not the audit log', async () => {
+// ── No activity feed (removed 2026-10-17, owner) ─────────────────────
+describe('the dashboard carries no recent-activity feed', () => {
+  it('no panel, and no feed is asked for', async () => {
     renderPage();
-    await screen.findByText('Nothing has happened yet');
-    const urls = get.mock.calls.map((c) => c[0] as string);
-    expect(urls.some((u) => u.startsWith('/analytics/recent-activity'))).toBe(true);
+    await tile('revenue');
+    await screen.findByText('Top products');
+    expect(screen.queryByText('Recent activity')).toBeNull();
+    const urls = get.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.startsWith('/analytics/recent-activity'))).toBe(false);
     expect(urls.some((u) => u.startsWith('/audit-logs'))).toBe(false);
   });
 
-  it('an investor is not shown the panel and the endpoint (403 for them) is never called', async () => {
-    auth.role = 'TEMP_INVESTOR';
-    renderPage();
-    await screen.findByTestId('your-cycles');
-    expect(screen.queryByText('Recent activity')).toBeNull();
-    expect(get.mock.calls.some((c) => String(c[0]).startsWith('/analytics/recent-activity'))).toBe(false);
-  });
-
-  it('an empty feed shows the empty state, not a blank box', async () => {
-    renderPage();
-    expect(await screen.findByText('Nothing has happened yet')).toBeTruthy();
-  });
-
-  it('a failed request says so instead of claiming nothing happened', async () => {
-    responses.fail = true;
-    renderPage();
-    expect(await screen.findByText('Recent activity could not be loaded.')).toBeTruthy();
-    expect(screen.queryByText('Nothing has happened yet')).toBeNull();
-  });
-
-  it('lists each kind with its reference, party and the day it happened', async () => {
-    responses.recent = [
-      {
-        kind: 'SALE', id: 's1', occurredAt: '2026-10-09T10:00:00.000Z', recordedAt: '2026-10-09T10:00:00.000Z',
-        reference: 'SO-2026-0042', status: 'CONFIRMED', amount: 410, currency: 'EGP',
-        customer: { id: 'c1', displayName: 'Delta Motors' },
-      },
-      {
-        kind: 'PAYMENT', id: 'p1', occurredAt: '2026-10-08T00:00:00.000Z', recordedAt: '2026-10-08T09:00:00.000Z',
-        reference: 'CASH', amount: 150, currency: 'EGP', customer: { id: 'c1', displayName: 'Delta Motors' },
-      },
-      {
-        kind: 'RECEIPT', id: 'b1', occurredAt: '2026-10-07T12:00:00.000Z', recordedAt: '2026-10-07T12:00:00.000Z',
-        reference: 'SKU-1', quantity: 1284, product: { id: 'pr1', name: 'Brake pad', sku: 'SKU-1' },
-      },
-    ];
-    renderPage();
-    const panel = (await screen.findByText('SO-2026-0042')).closest('section')!;
-    const p = within(panel);
-    expect(p.getByText('Sale')).toBeTruthy();
-    expect(p.getByText('Payment')).toBeTruthy();
-    expect(p.getByText('Stock received')).toBeTruthy();
-    expect(p.getByText('Cash')).toBeTruthy(); // the method code, translated
-    expect(p.getByText('Confirmed')).toBeTruthy();
-    expect(p.getByText('Brake pad')).toBeTruthy();
-    expect(p.getByText('1,284 units')).toBeTruthy();
-    expect(p.getByText('Oct 9, 2026')).toBeTruthy(); // occurredAt, not the missing createdAt
-  });
-
-  it('renders in Arabic: kinds and dates translated, no English left over', async () => {
-    responses.recent = [
-      {
-        kind: 'SALE', id: 's1', occurredAt: '2026-10-09T10:00:00.000Z', recordedAt: '2026-10-09T10:00:00.000Z',
-        reference: 'SO-1', status: 'CONFIRMED', amount: 410, currency: 'EGP',
-        customer: { id: 'c1', displayName: 'دلتا موتورز' },
-      },
-    ];
+  it('renders in Arabic', async () => {
     renderPage('ar');
-    const panel = (await screen.findByText('SO-1')).closest('section')!;
-    expect(within(panel).getByText('بيع')).toBeTruthy();
-    expect(within(panel).queryByText('Sale')).toBeNull();
+    await tile('revenue');
     expect(screen.getByTestId('quick-action-newSale').textContent).toContain('بيع جديد');
-  });
-
-  it('an unknown kind from a newer API still shows something readable', async () => {
-    responses.recent = [
-      { kind: 'REFUND', id: 'r1', occurredAt: '2026-10-09T10:00:00.000Z', recordedAt: '2026-10-09T10:00:00.000Z', reference: null },
-    ];
-    renderPage();
-    expect(await screen.findByText('REFUND')).toBeTruthy();
   });
 });
 

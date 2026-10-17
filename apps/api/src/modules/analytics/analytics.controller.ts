@@ -46,24 +46,6 @@ export class AnalyticsController {
     );
   }
 
-  /**
-   * Latest confirmed sales, payments and stock receipts. Restricted to the
-   * roles that may list sales and payments themselves — a temporary investor
-   * or a shop could otherwise read every customer's orders through the
-   * dashboard instead of the sales page that refuses them.
-   */
-  @Get('recent-activity')
-  @UseGuards(RolesGuard)
-  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
-  @ApiOperation({
-    summary: 'Latest confirmed sales, payments and stock receipts',
-  })
-  getRecentActivity(@Query('limit') limit?: string) {
-    return this.analyticsService.getRecentActivity(
-      limit === undefined ? undefined : Number(limit),
-    );
-  }
-
   /** Every role; an investor gets only the cycles they participate in. */
   @Get('cycle-profitability')
   @ApiOperation({

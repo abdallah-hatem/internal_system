@@ -20,11 +20,10 @@ import { WEB as BASE } from './support/env';
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
 
-/** The dashboard's recent-activity panel still reads /audit-logs until U4
- *  switches it to /analytics/recent-activity — and both refuse an investor by
- *  design (U4b, U4c). U4 hides the panel for that role; until then its 403 is
- *  the one expected refusal. Nothing else may 403. */
-const EXPECTED_REFUSALS = [/\/audit-logs\?limit=5/, /\/analytics\/recent-activity/];
+/** The dashboard's activity feed was the one expected refusal (an investor
+ *  may not read it, U4b, U4c); it was removed (owner, 2026-10-17), so nothing
+ *  may 403 now. */
+const EXPECTED_REFUSALS: RegExp[] = [];
 
 // R1 (owner, 2026-10-10): an investor sees only their own cycles — no
 // analytics, customers or payment plans; their cycles' settlements, scoped.

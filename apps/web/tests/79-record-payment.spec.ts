@@ -38,10 +38,11 @@ async function openNav(page: Page, name: string) {
   await link().click();
   // Wait until the route has actually changed. The click only starts a client
   // navigation; until it lands, the page on screen is still the one we left —
-  // and the dashboard's recent activity names the very shop a test has just
-  // made. TC-RP-06 flaked exactly so (I1, 2026-10-11): late in a full run the
-  // route change is slow, the next getByText found the shop's name on the
-  // dashboard, clicked that plain text, and the customer list arrived after.
+  // and the dashboard can name the very shop a test has just made (who to
+  // collect from). TC-RP-06 flaked exactly so (I1, 2026-10-11): late in a
+  // full run the route change is slow, the next getByText found the shop's
+  // name on the dashboard, clicked that plain text, and the customer list
+  // arrived after.
   if (href) await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 15000 });
 }
 

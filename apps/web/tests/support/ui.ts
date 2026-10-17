@@ -33,8 +33,8 @@ export async function openNav(page: Page, name: string) {
   const href = await link().getAttribute('href');
   await link().click();
   // Wait for the route itself: a click only starts a client navigation, and
-  // the dashboard's recent activity names the very shop a test just made
-  // (LEARNINGS, 2026-10-11).
+  // the dashboard can name the very shop a test just made (who to collect
+  // from; LEARNINGS, 2026-10-11).
   if (href) await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 15000 });
 }
 

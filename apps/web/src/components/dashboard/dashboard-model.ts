@@ -6,7 +6,7 @@
  * would refuse is a dead end with a 403 at the bottom of it (rule 12). If a
  * guard changes, change the matching list here.
  *
- *   sales, payments, ledger, recent activity → CORE_PARTNER, ADMIN_SUPPORT
+ *   sales, payments, ledger                  → CORE_PARTNER, ADMIN_SUPPORT
  *   the business-wide figures, top products,
  *   customers, analytics                      → CORE_PARTNER, ADMIN_SUPPORT (R1)
  *   creating a cycle                          → CORE_PARTNER
@@ -14,7 +14,7 @@
  *                                               the API to an investor's cycles
  */
 
-/** May list and record sales and payments, read the ledger and the activity feed. */
+/** May list and record sales and payments, and read the ledger. */
 export const SELLING_ROLES = ['CORE_PARTNER', 'ADMIN_SUPPORT'] as const;
 /** May start a cycle. */
 export const CYCLE_ROLES = ['CORE_PARTNER'] as const;
@@ -92,14 +92,10 @@ export function quickActionsFor(role: string | undefined): QuickAction[] {
   return QUICK_ACTIONS.filter((a) => allows(a.roles, role));
 }
 
-export function canSeeRecentActivity(role: string | undefined): boolean {
-  return allows(SELLING_ROLES, role);
-}
-
 /**
  * Which dashboard a role gets (R1, owner 2026-10-10).
  *
- *   'business' — the figures, top products and activity: the API's
+ *   'business' — the figures, top products and who to collect from: the API's
  *                /analytics/dashboard and /top-products let these roles in.
  *   'cycles'   — a temporary investor, or any role the business-wide reads
  *                refuse: their own cycles' profitability, which the API scopes.

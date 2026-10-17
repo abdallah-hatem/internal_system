@@ -1233,7 +1233,7 @@ Settled while building it (L5, autonomous run 2026-10-11) — **guesses, each OP
 | "None of the moved units has sold in B" | Strict: undo is refused once any sale ever drew from the moved batch — even one since cancelled — or any hold, return, or onward move touched it. The taking cycle must also not be settling, closed or cancelled. | The batch then has history of its own; undoing would erase it. |
 | What undo does | Units back on the giving cycle's batches (movement `TRANSFER_IN`), the moved batch and its movements removed (nothing depends on them — the gate above), two balancing ledger rows pointing at the originals, the transfer kept and marked undone with who, when and why. | §9: history is never rewritten; the record stays. |
 | Cancelling the taking cycle | Refused while it holds stock moved in (`CYCLE_HAS_TRANSFERS_IN`); undo the move first. | A cancelled cycle "never ordered anything" (§15). |
-| Where the goods are | The giving cycle gains a **Moved to another cycle** place, so its units still add up to what it ordered; the taking cycle lists **From CYC-A** apart, with how many are still on its shelf, sold, or moved on — not inside its own ordered total. Recent activity does not list a moved batch as a receipt. | §8. |
+| Where the goods are | The giving cycle gains a **Moved to another cycle** place, so its units still add up to what it ordered; the taking cycle lists **From CYC-A** apart, with how many are still on its shelf, sold, or moved on — not inside its own ordered total. Recent activity did not list a moved batch as a receipt (the feed was removed 2026-10-17). | §8. |
 | "Start a new cycle for them" | Opens the cycle wizard (`?leftoversFrom=`); once the new cycle exists, a link goes back to the giving cycle's page with Move leftovers open and the new cycle chosen. There is one Move form. | A cycle has no honest minimal form (CLAUDE.md §13). |
 | The dialog's default | Every product starts at all of it on the shelf; a number typed is never overwritten. | The usual case is moving everything. |
 
@@ -1601,6 +1601,10 @@ newest first: confirmed sales (dated by their order date — no confirmation tim
 is stored), payments that were not reversed, and stock received. Drafts never
 appear; cancelled and fully returned orders do not either. Core partners and
 support see it; an investor's dashboard shows their own cycles instead.
+Removed 2026-10-17 (owner: "remove the recent activities table from
+dashboard"). The panel and its endpoint (`GET /analytics/recent-activity`) are
+gone; the office dashboard is the figure tiles, then To collect beside Top
+products. Each kind of event still has its own list: Sales, Payments, Inventory.
 
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
