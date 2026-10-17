@@ -1395,6 +1395,8 @@
     "LEG_COST_LOCKED_TRANSFERS": "Stock was moved into or out of cycle {cycle} at the current cost, so this leg’s cost can no longer be recalculated. Record a late or corrected charge as a cycle expense.",
     "LEG_COST_LOCKED_OVERRIDE": "{product} in cycle {cycle} was received at a cost entered by hand, which recalculating would replace, so this leg’s cost is fixed. Record a late or corrected charge as a cycle expense.",
     "LEG_COST_LOCKED_LEDGER": "The purchase entries for {product} in cycle {cycle} do not match its received stock, so this leg’s cost cannot be recalculated. Record a late or corrected charge as a cycle expense.",
+    "LEG_COST_UNCHANGED": "The cost given is what {leg} of cycle {cycle} costs already, so nothing would change.",
+    "LEG_COST_NEGATIVE": "A shipping leg’s cost, rate, pieces or weight cannot be negative.",
     "LOSS_EXCEEDS_IN_TRANSIT": "Only {onTheWay} of {line} are still to come, so {asked} cannot be marked lost.",
     "LOSS_REFUNDED": "This loss has a refund standing against it, so it cannot be taken back: the goods would be counted twice. Undo the refund first.",
     "AMOUNT_NOT_POSITIVE": "A payment must be more than zero.",

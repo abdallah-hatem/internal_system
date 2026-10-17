@@ -695,6 +695,55 @@ describe('PUT /shipping/legs/:id', () => {
     expect(legRow(leg.id).currency).toBe('USD');
   });
 
+  // CLAUDE.md rule 3: the form's DTO said Min(0) and the service said
+  // nothing, so any other caller — the assistant's update_leg_cost among
+  // them (2026-10-17) — could write a negative cost or a zero rate that made a
+  // USD bill cost nothing in pounds.
+  it.each([
+    ['a negative amount', { amount: -100 }, 'LEG_COST_NEGATIVE'],
+    [
+      'a negative rate',
+      { costBasis: 'PER_PIECE', ratePerUnit: -2, chargeablePieces: 40 },
+      'LEG_COST_NEGATIVE',
+    ],
+    [
+      'negative pieces',
+      { costBasis: 'PER_PIECE', ratePerUnit: 2, chargeablePieces: -40 },
+      'LEG_COST_NEGATIVE',
+    ],
+    [
+      'a rate to EGP of zero',
+      { currency: 'USD', amount: 10, fxRateToEgp: 0 },
+      'RATE_NOT_POSITIVE',
+    ],
+    [
+      'a negative rate to EGP',
+      { currency: 'USD', amount: 10, fxRateToEgp: -50 },
+      'RATE_NOT_POSITIVE',
+    ],
+  ] as const)(
+    'Editing a leg to %s is refused, the cost kept',
+    async (_, cost, code) => {
+      const { leg } = oneLeg();
+      expect(
+        (await refusal(shipping.updateLeg(leg.id, cost, ACTOR))).code,
+      ).toBe(code);
+      expect(legRow(leg.id).amountEgp.toFixed(2)).toBe('400.00');
+    },
+  );
+
+  it('Creating a leg with a negative amount → LEG_COST_NEGATIVE, no leg', async () => {
+    const { cycle } = cycleWithOrder(db, { status: 'PURCHASING' });
+    expect(
+      (
+        await refusal(
+          shipping.createLeg(cycle.id, { sequence: 1, amount: -1 }, ACTOR),
+        )
+      ).code,
+    ).toBe('LEG_COST_NEGATIVE');
+    expect(db.legs).toHaveLength(0);
+  });
+
   // I3: the cycle page records a departure with this endpoint. §1 says no
   // departure is recorded on a cancelled or closed cycle; the button is hidden
   // there, and the server says so too (CLAUDE.md §3).

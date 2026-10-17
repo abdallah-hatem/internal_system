@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CycleStatus } from '@prisma/client';
 import { z } from 'zod';
 
-import { notFound } from '../../../common/api-error';
+import { badRequest, forbidden, notFound } from '../../../common/api-error';
 import { CYCLE_ROUTES, expectedLegs } from '../../../common/cycle-routes';
 import { formatMoney, formatQty } from '../../../common/money';
 import { loadShipment } from '../../../common/shipment-load';
@@ -14,13 +14,15 @@ import { CyclesService } from '../../cycles/cycles.service';
 import { InventoryService } from '../../inventory/inventory.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { DeliveriesService } from '../../shipping/deliveries.service';
+import { LEG_EDIT_ROLES } from '../../shipping/leg-roles';
 import { ShippingService } from '../../shipping/shipping.service';
 import { previewByRollback, rollingBack } from '../dry-run';
 import { writeTool, type AssistantContext } from '../tool-kit';
 
 /**
- * The cycle tools: create_cycle, add_shipping_leg, transition_cycle,
- * record_departure (L8), record_delivery, verify_stock. Each changes something, so each is a
+ * The cycle tools: create_cycle, add_shipping_leg, update_leg_cost (§2,
+ * 2026-10-17), transition_cycle, record_departure (L8), record_delivery,
+ * verify_stock. Each changes something, so each is a
  * `writeTool`. There is no tool for marking goods lost: that books a loss, and
  * a partner decides it on a screen in the office app (BUSINESS_LOGIC §16).
  *
@@ -74,6 +76,112 @@ const cycleId = z
   .describe('The cycle id (a UUID) — get_cycle or list_cycles gives it.');
 
 const route = (from: string, to: string) => `${from} → ${to}`;
+
+/**
+ * What a leg costs — add_shipping_leg's and update_leg_cost's one definition
+ * (CLAUDE.md rule 11). The checks behind it are `ShippingService`'s; these
+ * only describe the fields and turn away what is never a cost.
+ */
+const legCostShape = {
+  costBasis: z
+    .enum(['PER_PIECE', 'PER_WEIGHT', 'FLAT'])
+    .optional()
+    .describe(
+      "FLAT (one agreed amount), PER_PIECE or PER_WEIGHT. A new leg defaults to FLAT; a correction left without it keeps the leg's.",
+    ),
+  ratePerUnit: z
+    .number()
+    .nonnegative()
+    .optional()
+    .describe('Per piece, or per kg for PER_WEIGHT.'),
+  chargeablePieces: z.number().nonnegative().optional(),
+  chargeableWeightKg: z.number().nonnegative().optional(),
+  amount: z
+    .number()
+    .nonnegative()
+    .optional()
+    .describe('FLAT only; rate-based legs derive their total.'),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, 'a three-letter currency code')
+    .optional()
+    .describe(
+      "A new leg defaults to EGP; a correction left without it keeps the leg's.",
+    ),
+  fxRateToEgp: z
+    .number()
+    .positive()
+    .optional()
+    .describe('Required for a currency other than EGP.'),
+};
+
+/** The cost fields a leg row carries — what a correction compares. */
+const LEG_COST_FIELDS = [
+  'costBasis',
+  'ratePerUnit',
+  'chargeablePieces',
+  'chargeableWeightKg',
+  'amount',
+  'currency',
+  'fxRateToEgp',
+  'amountEgp',
+] as const;
+
+type Numeric = { toString(): string } | number | string | null | undefined;
+type LegCostRow = {
+  costBasis: string;
+  ratePerUnit: Numeric;
+  chargeablePieces: Numeric;
+  chargeableWeightKg: Numeric;
+  amount: Numeric;
+  currency: string;
+  fxRateToEgp: Numeric;
+  amountEgp: Numeric;
+};
+
+const num = (v: Numeric) =>
+  v === null || v === undefined ? 0 : Number(v.toString());
+
+/** Two stored values the same: a Decimal and its text alike, a word as itself. */
+function same(a: Numeric, b: Numeric): boolean {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return (a ?? null) === (b ?? null);
+  }
+  const [x, y] = [num(a), num(b)];
+  return Number.isNaN(x) || Number.isNaN(y)
+    ? a.toString() === b.toString()
+    : x === y;
+}
+
+/** A leg's cost as the partner says it: "100.00 USD × 50 = 5,000.00 EGP". */
+function legCost(l: LegCostRow): string {
+  const rate =
+    l.costBasis === 'PER_PIECE'
+      ? ` (${formatMoney(num(l.ratePerUnit))} × ${formatQty(num(l.chargeablePieces))} pieces)`
+      : l.costBasis === 'PER_WEIGHT'
+        ? ` (${formatMoney(num(l.ratePerUnit))} × ${formatQty(num(l.chargeableWeightKg))} kg)`
+        : '';
+  const native = `${formatMoney(num(l.amount))} ${l.currency}${rate}`;
+  return l.currency === 'EGP'
+    ? `${native} ${l.costBasis}`
+    : `${native} ${l.costBasis} × ${String(l.fxRateToEgp)} = ${formatMoney(num(l.amountEgp))} EGP`;
+}
+
+/** The same, as facts. */
+function legCostData(l: LegCostRow) {
+  const text = (v: Numeric) =>
+    v === null || v === undefined ? null : v.toString();
+  return {
+    costBasis: l.costBasis,
+    ratePerUnit: text(l.ratePerUnit),
+    chargeablePieces: text(l.chargeablePieces),
+    chargeableWeightKg: text(l.chargeableWeightKg),
+    amount: text(l.amount),
+    currency: l.currency,
+    fxRateToEgp: text(l.fxRateToEgp),
+    amountEgp: text(l.amountEgp),
+  };
+}
 
 export function registerCycleTools(
   server: McpServer,
@@ -215,32 +323,7 @@ export function registerCycleTools(
     arrivedOn: day
       .optional()
       .describe('Needs departedOn. Neither date may be in the future.'),
-    costBasis: z
-      .enum(['PER_PIECE', 'PER_WEIGHT', 'FLAT'])
-      .optional()
-      .describe('Defaults to FLAT (one agreed amount).'),
-    ratePerUnit: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe('Per piece, or per kg for PER_WEIGHT.'),
-    chargeablePieces: z.number().nonnegative().optional(),
-    chargeableWeightKg: z.number().nonnegative().optional(),
-    amount: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe('FLAT only; rate-based legs derive their total.'),
-    currency: z
-      .string()
-      .regex(/^[A-Z]{3}$/, 'a three-letter currency code')
-      .optional()
-      .describe('Defaults to EGP.'),
-    fxRateToEgp: z
-      .number()
-      .positive()
-      .optional()
-      .describe('Required for a currency other than EGP.'),
+    ...legCostShape,
   };
 
   writeTool(
@@ -384,6 +467,268 @@ export function registerCycleTools(
         product: name(l.purchaseOrderItemId),
         qty: formatQty(l.qty),
       })),
+    };
+  }
+
+  // ─── update_leg_cost ────────────────────────────────────────────────────
+  writeTool(
+    server,
+    ctx,
+    'update_leg_cost',
+    {
+      title: "Correct a shipping leg's cost",
+      description:
+        "Change what a shipping leg that was already added costs: its cost basis, amount or rate, currency and rate to EGP — nothing else about the leg. Name the leg by its id, or by its cycle and sequence number. Only the fields given change; the rest stay as the leg has them. Once goods of the cycle were received, a correction re-costs the whole cycle: every received batch, its purchase entry, and the cost of goods of every sale already made from it. The preview shows the leg's cost before and after, and per product the landed cost per unit before and after with how many units were received and sold. A cost that can no longer change — a settlement, goods marked lost, stock moved between cycles, a cost typed in at receipt — is refused with its reason; a late or corrected charge then goes in as a cycle expense in the office app.",
+      inputSchema: {
+        legId: z
+          .string()
+          .optional()
+          .describe(
+            'The shipping leg (get_cycle lists each leg with its id). Or give cycle and sequence instead.',
+          ),
+        cycle: z
+          .string()
+          .optional()
+          .describe('The cycle code as the partner said it, or its id.'),
+        sequence: z
+          .number()
+          .int()
+          .optional()
+          .describe(
+            'The leg within the cycle. CHINA: 1 = China → UAE, 2 = UAE → Egypt. UAE_DIRECT: 1 = UAE → Egypt.',
+          ),
+        ...legCostShape,
+      },
+    },
+    {
+      async preview(input) {
+        const seen = await dryRunLegCost(input);
+        const { cycle, legRow, before, after, totals } = seen;
+        const where = route(legRow.origin, legRow.destination);
+        const name = `leg ${legRow.sequence} of ${cycle.code} (${where})`;
+        if (LEG_COST_FIELDS.every((f) => same(before.leg[f], after.leg[f]))) {
+          throw badRequest(
+            'LEG_COST_UNCHANGED',
+            `The cost given is what ${name} costs already (${legCost(before.leg)}), so nothing would change.`,
+            { cycle: cycle.code, leg: where },
+          );
+        }
+        const products = before.costs.items.map((line) => {
+          const now = after.costs.items.find(
+            (i) => i.purchaseOrderItemId === line.purchaseOrderItemId,
+          );
+          return {
+            purchaseOrderItemId: line.purchaseOrderItemId,
+            product: line.productName,
+            unitBefore: line.landedUnitCostEgp.toFixed(4),
+            unitAfter: (
+              now?.landedUnitCostEgp ?? line.landedUnitCostEgp
+            ).toFixed(4),
+            received: formatQty(
+              seen.position.lines.find(
+                (l) => l.purchaseOrderItemId === line.purchaseOrderItemId,
+              )?.received ?? 0,
+            ),
+            sold: formatQty(seen.sold.get(line.purchaseOrderItemId) ?? 0),
+          };
+        });
+        const recosts = totals.received > 0;
+        return {
+          summary: [
+            `Correct the cost of ${name}:`,
+            `${legCost(before.leg)} → ${legCost(after.leg)}.`,
+            recosts
+              ? `Goods of ${cycle.code} were already received (${formatQty(totals.received)} units), so this re-costs the whole cycle: every received batch, its purchase entry, and the cost of goods of every sale already made from it.`
+              : `Nothing of ${cycle.code} has been received yet, so nothing already booked changes; receipts will book the new landed cost.`,
+            ...(totals.waiting > 0
+              ? [
+                  `${formatQty(totals.waiting)} units delivered to Egypt and not yet received will be received at the new cost.`,
+                ]
+              : []),
+            'Landed cost per unit, per product:',
+            ...products.map(
+              (p) =>
+                `- ${p.product}: ${p.unitBefore} → ${p.unitAfter} EGP` +
+                (recosts
+                  ? `; ${p.received} received ${p.received === '1' ? 'is' : 'are'} re-costed, ${p.sold} of them already sold`
+                  : ''),
+            ),
+          ].join('\n'),
+          data: {
+            cycle: cycle.code,
+            legId: legRow.id,
+            leg: legRow.sequence,
+            route: where,
+            before: legCostData(before.leg),
+            after: legCostData(after.leg),
+            recostsCycle: recosts,
+            received: formatQty(totals.received),
+            waitingToBeReceived: formatQty(totals.waiting),
+            products,
+          },
+        };
+      },
+      // The cost it starts from, the cost it lands on, and every product's
+      // landed cost and sold units: a correction, receipt or sale made by
+      // someone else in between would re-cost what the partner never saw.
+      binds: (preview) => {
+        const shown = preview.data as {
+          before: unknown;
+          after: unknown;
+          recostsCycle: boolean;
+          products: unknown;
+        };
+        return [shown.before, shown.after, shown.recostsCycle, shown.products];
+      },
+      async commit(input) {
+        const { legId, cycle: _cycle, sequence: _sequence, ...cost } = input;
+        const legRow = await findLeg({
+          legId,
+          cycle: _cycle,
+          sequence: _sequence,
+        });
+        const { data } = await shipping().updateLeg(
+          legRow.id,
+          cost,
+          ctx.user.id,
+        );
+        const loaded = await loadShipment(prisma(), legRow.cycleId);
+        const code = loaded?.cycle.code ?? '';
+        const received = loaded?.position.totals.received ?? 0;
+        return {
+          summary: [
+            `Leg ${data.sequence} of ${code} (${route(data.origin, data.destination)}) now costs ${legCost(data)}.`,
+            received > 0
+              ? `${code} was re-costed: its received stock, purchase entries and the cost of goods of its sales carry the new landed cost.`
+              : 'Nothing had been received, so only future receipts are affected.',
+          ].join('\n'),
+          data: {
+            cycle: code,
+            legId: data.id,
+            leg: data.sequence,
+            cost: legCostData(data),
+            recostedCycle: received > 0,
+          },
+        };
+      },
+    },
+  );
+
+  /** The office endpoint's roles (CLAUDE.md §12), not a list of its own. */
+  function assertMayEditLeg() {
+    if (!(LEG_EDIT_ROLES as readonly string[]).includes(ctx.user.role)) {
+      throw forbidden(
+        'ROLE_NOT_ALLOWED',
+        'Your role does not allow this action.',
+        { role: ctx.user.role },
+      );
+    }
+  }
+
+  /**
+   * The leg the partner named: by its id, or by its cycle (code or id) and
+   * sequence. Anything that names no leg, or a leg of another cycle, is "no
+   * such leg" — never a 500.
+   */
+  async function findLeg(ref: {
+    legId?: string;
+    cycle?: string;
+    sequence?: number;
+  }) {
+    assertMayEditLeg();
+    if (ref.legId === undefined) {
+      if (ref.cycle === undefined || ref.sequence === undefined) {
+        throw badRequest(
+          'VALIDATION_FAILED',
+          'Name the leg: its id, or its cycle and its sequence number.',
+          { fields: 'legId' },
+        );
+      }
+      const { data: c } = await cycles().findByRef(ref.cycle);
+      const leg = await prisma().shippingLeg.findUnique({
+        where: { cycleId_sequence: { cycleId: c.id, sequence: ref.sequence } },
+      });
+      if (!leg) throw notFound('shippingLeg');
+      return leg;
+    }
+    if (!isUuid(ref.legId)) throw notFound('shippingLeg');
+    const leg = await prisma().shippingLeg.findUnique({
+      where: { id: ref.legId },
+    });
+    if (!leg) throw notFound('shippingLeg');
+    if (ref.sequence !== undefined && ref.sequence !== leg.sequence) {
+      throw notFound('shippingLeg');
+    }
+    if (ref.cycle !== undefined) {
+      const { data: c } = await cycles().findByRef(ref.cycle);
+      if (c.id !== leg.cycleId) throw notFound('shippingLeg');
+    }
+    return leg;
+  }
+
+  /**
+   * The correction as `updateLeg` makes it — every guard, the re-cost of the
+   * whole cycle — rolled back (`dry-run.ts`), and the leg and the cycle's
+   * landed costs read before it and inside it.
+   */
+  async function dryRunLegCost(input: {
+    legId?: string;
+    cycle?: string;
+    sequence?: number;
+    costBasis?: 'PER_PIECE' | 'PER_WEIGHT' | 'FLAT';
+    ratePerUnit?: number;
+    chargeablePieces?: number;
+    chargeableWeightKg?: number;
+    amount?: number;
+    currency?: string;
+    fxRateToEgp?: number;
+  }) {
+    const { legId, cycle: ref, sequence, ...cost } = input;
+    const legRow = await findLeg({ legId, cycle: ref, sequence });
+    const costing = ctx.resolve(CostingService);
+    const loaded = await loadShipment(prisma(), legRow.cycleId);
+    if (!loaded) throw notFound('cycle');
+    const before = {
+      leg: legRow,
+      costs: await costing.computeCycleLandedCosts(legRow.cycleId),
+    };
+    // Units already sold from each order line's batches: what a re-cost
+    // gives a new cost of goods.
+    const batches = await prisma().inventoryBatch.findMany({
+      where: { cycleId: legRow.cycleId },
+      select: { id: true, sourcePoItemId: true },
+    });
+    const allocations = await prisma().saleItemAllocation.findMany({
+      where: { inventoryBatch: { cycleId: legRow.cycleId } },
+      select: { inventoryBatchId: true, qty: true },
+    });
+    const sold = new Map<string, number>();
+    for (const a of allocations) {
+      const line = batches.find(
+        (b) => b.id === a.inventoryBatchId,
+      )?.sourcePoItemId;
+      if (line) sold.set(line, (sold.get(line) ?? 0) + Number(a.qty));
+    }
+
+    const dry = rollingBack(prisma(), async (tx) => ({
+      leg: await tx.shippingLeg.findUniqueOrThrow({
+        where: { id: legRow.id },
+      }),
+      costs: await costing.computeCycleLandedCosts(legRow.cycleId, {
+        db: tx,
+      }),
+    }));
+    const after = await previewByRollback<typeof before>(() =>
+      dryShipping(dry).updateLeg(legRow.id, cost, ctx.user.id),
+    );
+    return {
+      cycle: loaded.cycle,
+      position: loaded.position,
+      totals: loaded.position.totals,
+      legRow,
+      before,
+      after,
+      sold,
     };
   }
 

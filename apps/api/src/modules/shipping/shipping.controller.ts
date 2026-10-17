@@ -28,6 +28,7 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
+import { LEG_EDIT_ROLES } from './leg-roles';
 
 @ApiTags('Shipping')
 @ApiBearerAuth()
@@ -53,7 +54,7 @@ export class ShippingController {
 
   @Put('legs/:id')
   @UseGuards(RolesGuard)
-  @Roles('CORE_PARTNER')
+  @Roles(...LEG_EDIT_ROLES)
   @ApiOperation({ summary: 'Update a shipping leg' })
   updateLeg(
     @Param('id') id: string,

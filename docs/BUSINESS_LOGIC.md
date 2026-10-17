@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -399,6 +399,12 @@ Nothing received or lost: the cost moves freely, exactly as before. Open: whethe
 the owner wants any of these limits lifted (a loss re-costed with its batches, a
 draft settlement recalculated automatically), and whether sold units should be
 re-priced at all after some date — the guess is yes, always, until a settlement.
+
+The same correction is the assistant's `update_leg_cost` (2026-10-17, §16), through the same
+`updateLeg`. Since 2026-10-17 the service itself also refuses a negative cost, rate, piece count or
+weight (`LEG_COST_NEGATIVE`) and a rate to EGP of zero or less (`RATE_NOT_POSITIVE`) — only the
+form's DTO said so before, so any other caller could write a negative leg or turn a USD bill into
+0 EGP (CLAUDE.md rule 3).
 
 ---
 
@@ -1916,8 +1922,8 @@ shop with no plan has nothing overdue, because no date was ever promised — and
 still owed after a return). Reading it notifies nobody.
 
 **What it may change.** Only the intake path, from receipt to sellable stock:
-suppliers, products, purchase orders and their lines, cycles, shipping legs,
-cycle status, and verifying stock in — and, since 2026-10-11, recording a sale, recording a payment a shop
+suppliers, products, purchase orders and their lines, cycles, shipping legs (and,
+since 2026-10-17, correcting a leg's cost — below), cycle status, and verifying stock in — and, since 2026-10-11, recording a sale, recording a payment a shop
 made, and recording what a friend paid a supplier for us and our repayments to him (below) — and, since
 2026-10-15, creating a product category (below). It cannot change,
 reverse or re-allocate sales or payments, nor touch instalments, settlements, returns or the ledger — those stay
@@ -2077,6 +2083,24 @@ it). The confirmation binds the lines, what still waits after them, and the stat
 departure or a delivery into the origin in between is `PREVIEW_CHANGED`. `get_cycle` shows, per
 leg and product, what waits at the origin and each departure. Undoing a departure stays in the
 office app.
+
+**Correcting a leg's cost (2026-10-17, owner: "did we add it to the assistant as well?"; §2).**
+`update_leg_cost` changes only a leg's cost — basis, amount or rate, pieces or weight, currency, rate
+to EGP, the same fields `add_shipping_leg` takes (one definition) — on a leg named by its id or by
+its cycle (code or id) and sequence. It calls `ShippingService.updateLeg`, the office's
+`PUT /shipping/legs/:id`, so every guard and the re-cost of the whole cycle are the office's; roles
+are that endpoint's (`shipping/leg-roles.ts`: core partners). The preview is that write rolled back:
+the leg's route, its cost before → after (in its currency and in EGP), whether goods were already
+received so the whole cycle is re-costed (and how many delivered units wait to be received at the
+new cost), and per product the landed cost per unit before → after with how many units were
+received and how many of them already sold. A locked cost comes back as its refusal
+(`LEG_COST_LOCKED_*`) with no confirmation; the cost the leg already has is `LEG_COST_UNCHANGED`.
+The confirmation binds the cost before and after and every product's figures and sold units, so a
+correction, receipt or sale in between is `PREVIEW_CHANGED`. The re-cost rewrites the receipts'
+purchase entries exactly as the office's edit does; the assistant still adds or reverses no ledger
+entry of its own, and a late charge on a locked cycle is still a cycle expense entered in the
+office app. *Guess:* the assistant refuses a
+correction that changes nothing rather than offering an empty confirmation.
 **Planned — moving leftovers between cycles (§8, L5).** Out of scope for the first build
 (2026-10-11): the office app only. When it comes, the tool calls `StockTransfersService.create`
 and `undo` with the same roles (`stock-transfers/stock-transfer-roles.ts`), previews the cost and

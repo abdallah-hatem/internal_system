@@ -1217,6 +1217,8 @@ const INTAKE_WRITES = new Set([
   // L8, 2026-10-12: goods leave in parts too, and a later part is intake.
   'record_departure',
   'verify_stock',
+  // §2/§16, 2026-10-17: correcting a leg's cost, which re-costs the cycle.
+  'update_leg_cost',
   // §16, 2026-10-15: the owner asked for categories, the catalogue beside create_product.
   'create_category',
 ]);

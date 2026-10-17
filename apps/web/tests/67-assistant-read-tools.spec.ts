@@ -173,6 +173,8 @@ test.describe('Assistant read tools', () => {
     const intake = new Set([
       'create_supplier', 'create_product', 'create_purchase_order',
       'create_cycle', 'add_shipping_leg', 'transition_cycle', 'record_departure', 'record_delivery', 'verify_stock',
+      // update_leg_cost added 2026-10-17: the owner asked for the leg-cost correction in the assistant too (§2, §16).
+      'update_leg_cost',
       // record_sale added 2026-10-11 (W3): the owner asked the assistant to record sales (§16).
       'record_sale',
       // create_category added 2026-10-15: the owner asked the assistant to create categories (§16).
