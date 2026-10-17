@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { FileX } from 'lucide-react';
 
 import { DocumentActions } from '@/components/ui/document-actions';
+import { DEFAULT_DOCUMENT_LANGUAGE, DocumentLanguageSwitch } from '@/components/ui/document-language';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { BackLink } from '@/components/ui/back-link';
@@ -28,7 +29,7 @@ export default function SaleContractPage() {
   const apiError = useApiError();
   const router = useRouter();
   const { id, locale } = useParams<{ id: string; locale: string }>();
-  const [lang, setLang] = useState<ContractLanguage>('ar');
+  const [lang, setLang] = useState<ContractLanguage>(DEFAULT_DOCUMENT_LANGUAGE);
 
   const { data, isLoading, error } = useQuery<SaleContract>({
     queryKey: ['sale', id, 'contract'],
@@ -81,22 +82,7 @@ export default function SaleContractPage() {
           <BackLink onClick={back} label={t('back')} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label={t('language')} className="inline-flex rounded-lg border border-border p-0.5">
-            {(['ar', 'en'] as const).map((l) => (
-              <button
-                key={l}
-                type="button"
-                data-testid={`contract-lang-${l}`}
-                aria-pressed={lang === l}
-                onClick={() => setLang(l)}
-                className={`rounded-md px-3 py-1.5 text-sm ${
-                  lang === l ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
-                }`}
-              >
-                {l === 'ar' ? 'العربية' : 'English'}
-              </button>
-            ))}
-          </div>
+          <DocumentLanguageSwitch testIdPrefix="contract" value={lang} onChange={setLang} />
           <DocumentActions
             testIdPrefix="contract"
             filename={`${data.number}.pdf`}

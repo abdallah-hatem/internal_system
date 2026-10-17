@@ -4,6 +4,7 @@ import { formatMoney, formatNumber } from '@/lib/numbers';
 import { localName } from '@/lib/localized-name';
 import { LatinText } from '@/components/ui/latin-text';
 import { BrandMark } from '@/components/layout/brand-mark';
+import { DOCUMENT_FONT } from '@/components/ui/document-language';
 import { CONTRACT_TEXT, contractDay, type ContractLanguage } from './contract-text';
 
 /** `GET /sales/orders/:id/contract` (api PaymentPlansService.saleContract). */
@@ -37,14 +38,6 @@ export interface SaleContract {
   };
 }
 
-/**
- * IBM Plex Sans Arabic named first, by name. The app's `font-sans` puts the
- * Latin Plex first, and next/font gives that face an Arial fallback — which
- * has Arabic glyphs, so Arabic text drew in Arial before it ever reached Plex
- * Arabic. The CSS variables follow as the fallback (next/font's own names).
- */
-const DOCUMENT_FONT =
-  "'IBM Plex Sans Arabic', 'IBM Plex Sans', var(--font-plex-arabic), var(--font-plex-sans), sans-serif";
 
 /** The sheet itself, in the contract's language and direction. */
 export function ContractDocument({

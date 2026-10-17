@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
 import { useTranslations } from 'next-intl';
@@ -17,6 +18,15 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRegion, SkeletonText } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { DocumentActions } from '@/components/ui/document-actions';
+import {
+  DEFAULT_DOCUMENT_LANGUAGE,
+  DOCUMENT_FONT,
+  DocumentLanguageSwitch,
+  DocumentLocale,
+  documentDir,
+  documentTranslator,
+  type DocumentLanguage,
+} from '@/components/ui/document-language';
 
 /** `GET /sales/orders/:id/invoice` (api SalesService.invoice). */
 interface Invoice {
@@ -225,7 +235,7 @@ export default function InvoicePage() {
     refetchOnMount: 'always',
   });
 
-  const columns = useInvoiceColumns(data?.currency);
+  const [lang, setLang] = useState<DocumentLanguage>(DEFAULT_DOCUMENT_LANGUAGE);
   const back = () => router.push(`/${locale}/sales`);
 
   if (isLoading) {
@@ -260,6 +270,9 @@ export default function InvoicePage() {
     );
   }
 
+  // The file name, share title and page numbers are in the document's language.
+  const doc = documentTranslator(lang, 'sales.invoice');
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -269,18 +282,19 @@ export default function InvoicePage() {
           <BackLink onClick={back} label={t('back')} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <DocumentLanguageSwitch testIdPrefix="invoice" value={lang} onChange={setLang} />
           <DocumentActions
             testIdPrefix="invoice"
             filename={`${data.orderNo}.pdf`}
-            title={`${t('title')} ${data.orderNo}`}
-            pageLabel={(n, total) => t('page', { n, total })}
-            dir={locale === 'ar' ? 'rtl' : 'ltr'}
-            sheet={() => <InvoiceDocument data={data} columns={columns} sheet />}
+            title={`${doc('title')} ${data.orderNo}`}
+            pageLabel={(n, total) => doc('page', { n, total })}
+            dir={documentDir(lang)}
+            sheet={() => <InvoiceDocument data={data} lang={lang} sheet />}
           />
         </div>
       </div>
 
-      <InvoiceDocument data={data} columns={columns} />
+      <InvoiceDocument data={data} lang={lang} />
     </div>
   );
 }
@@ -291,16 +305,18 @@ export default function InvoicePage() {
  * no card border, shadow or padding, and — through the `sheet:` variant — the
  * printed layout whatever the screen it is made on.
  */
-function InvoiceDocument({
-  data,
-  columns,
-  sheet = false,
-}: {
-  data: Invoice;
-  columns: Column<InvoiceLine>[];
-  sheet?: boolean;
-}) {
+function InvoiceDocument({ data, lang, sheet = false }: { data: Invoice; lang: DocumentLanguage; sheet?: boolean }) {
+  return (
+    <DocumentLocale lang={lang}>
+      <InvoiceSheet data={data} lang={lang} sheet={sheet} />
+    </DocumentLocale>
+  );
+}
+
+/** Inside DocumentLocale: every word, date and number here is in `lang`. */
+function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLanguage; sheet: boolean }) {
   const t = useTranslations('sales.invoice');
+  const columns = useInvoiceColumns(data.currency);
   const tc = useTranslations('common');
   const { formatDate } = useDateFormat();
   const walkIn = data.customer.isWalkIn;
@@ -309,7 +325,10 @@ function InvoiceDocument({
   <article
     data-testid={sheet ? undefined : 'invoice'}
     data-print-doc
-    className={sheet ? 'bg-card' : 'mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8'}
+    lang={lang}
+    dir={documentDir(lang)}
+    style={{ fontFamily: DOCUMENT_FONT }}
+    className={`text-start ${sheet ? 'bg-card' : 'mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8'}`}
   >
     {/* Who and what */}
     <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between sheet:flex-row sheet:items-start sheet:justify-between" data-print-keep>

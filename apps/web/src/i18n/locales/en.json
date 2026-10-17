@@ -582,8 +582,7 @@
       "created": "Contract created",
       "createFailed": "Could not create the contract",
       "back": "Back to sales",
-      "notAvailable": "No contract for this sale",
-      "language": "Contract language"
+      "notAvailable": "No contract for this sale"
     }
   },
   "customers": {
@@ -2264,6 +2263,7 @@
   "documents": {
     "downloadPdf": "Download PDF",
     "sharePdf": "Share PDF",
-    "pdfFailed": "Could not make the PDF. Try again."
+    "pdfFailed": "Could not make the PDF. Try again.",
+    "language": "Contract language"
   }
 }

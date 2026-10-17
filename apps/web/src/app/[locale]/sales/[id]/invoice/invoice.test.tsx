@@ -106,10 +106,51 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('the invoice as a PDF', () => {
-  it('Download PDF: an A4-wide sheet of this invoice, saved under the order number', async () => {
+describe('the invoice in Arabic or English, Arabic first (owner, 2026-10-17)', () => {
+  for (const appLocale of ['en', 'ar'] as const) {
+    it(`opens in Arabic, right to left, even when the app is in ${appLocale}`, async () => {
+      renderPage(appLocale);
+      const doc = await screen.findByTestId('invoice');
+      expect(doc.getAttribute('lang')).toBe('ar');
+      expect(doc.getAttribute('dir')).toBe('rtl');
+      expect(doc.textContent).toContain(ar.sales.invoice.title);
+      expect(screen.getByTestId('invoice-lang-ar').getAttribute('aria-pressed')).toBe('true');
+    });
+  }
+
+  it('the switch turns the invoice — its words, dates and numbers — to English and back, the app around it unchanged', async () => {
+    renderPage('ar');
+    await screen.findByTestId('invoice');
+    fireEvent.click(screen.getByTestId('invoice-lang-en'));
+    const doc = screen.getByTestId('invoice');
+    expect(doc.getAttribute('dir')).toBe('ltr');
+    expect(doc.className).toContain('text-start');
+    expect(doc.textContent).toContain(en.sales.invoice.title);
+    expect(doc.textContent).toContain('Oct 13, 2026');
+    // The back link is the app's, still in the app's language.
+    expect(screen.getByText(ar.sales.invoice.back)).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('invoice-lang-ar'));
+    expect(screen.getByTestId('invoice').getAttribute('dir')).toBe('rtl');
+  });
+
+  it('the PDF follows the switch: Arabic sheet and page numbers by default', async () => {
     renderPage('en');
     await screen.findByTestId('invoice');
+    fireEvent.click(screen.getByTestId('invoice-download'));
+    await waitFor(() => expect(pdf.documentToPdf).toHaveBeenCalledOnce());
+    const [sheet, options] = pdf.documentToPdf.mock.calls[0] as [HTMLElement, { dir: string; pageLabel: (n: number, t: number) => string }];
+    expect(sheet.getAttribute('dir')).toBe('rtl');
+    expect(sheet.textContent).toContain(ar.sales.invoice.title);
+    expect(options.pageLabel(1, 2)).toBe('صفحة 1 من 2');
+  });
+});
+
+describe('the invoice as a PDF', () => {
+  it('Download PDF: an A4-wide sheet of this invoice in the chosen language, saved under the order number', async () => {
+    renderPage('ar');
+    await screen.findByTestId('invoice');
+    fireEvent.click(screen.getByTestId('invoice-lang-en'));
     fireEvent.click(screen.getByTestId('invoice-download'));
 
     await waitFor(() => expect(pdf.downloadBlob).toHaveBeenCalledOnce());
