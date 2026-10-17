@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, type CycleStatus } from '@prisma/client';
 import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
@@ -14,6 +14,7 @@ import {
   transferNetEgp,
 } from '../../common/ledger-categories';
 import { cashPosition } from '../../common/cash-position';
+import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import { cycleLossesEgp } from '../../common/cycle-losses';
 import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { owedToLenders } from '../../common/lenders-owed';
@@ -65,6 +66,11 @@ export type RecentActivityItem = {
   product?: { id: string; name: string; nameAr: string | null; sku: string };
   cycleId?: string;
 };
+
+/** A cycle still running: anything but closed or cancelled (CLOSED_CYCLE_STATUSES). */
+export const ACTIVE_CYCLE_WHERE = {
+  status: { notIn: [...CLOSED_CYCLE_STATUSES] as CycleStatus[] },
+} satisfies Prisma.ImportCycleWhereInput;
 
 @Injectable()
 export class AnalyticsService {
@@ -216,11 +222,11 @@ export class AnalyticsService {
     const totalExpenses = money(operatingExpenses);
     const totalCashOut = money(cashOut);
 
-    // Active cycles: status NOT IN ('CLOSED', 'CANCELLED')
+    // Active cycles: neither closed nor cancelled — through the one definition
+    // of a finished cycle (rule 11). This read 'CLOSED' alone, so a cancelled
+    // cycle stayed "active" on the dashboard for good (owner, 2026-10-17).
     const activeCycles = await this.prisma.importCycle.count({
-      where: {
-        status: { notIn: ['CLOSED'] },
-      },
+      where: ACTIVE_CYCLE_WHERE,
     });
 
     // Inventory value: sum of remainingQty * landedUnitCostEgp from InventoryBatch

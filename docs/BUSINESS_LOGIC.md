@@ -1382,6 +1382,8 @@ return's rows carry no cycle.
 
 **FIXED 2026-10-12 (L7) — cash on hand counts only cash handed back.** The sale undone (`SALE_RETURN`) moves no money, so cash on hand, cash in and cash out leave it out (`NOT_CASH_TYPES`, through `common/cash-position.ts`); the cash refund (`REFUND_PAID`) is still cash out. A 300 cash refund lowers cash by 300, a credit-note return by nothing. By type, not category: `revenue` is also a customer's payment coming in, which is cash.
 
+**FIXED 2026-10-17 — an entry that was undone is not cash, and neither is its undo.** A lender's payment entered at 6,509.86 AED, undone and entered again at 8,302.60 AED put 90,161.56 into both cash in and cash paid out (cash on hand, where the pair cancels, was right). An undone entry and the row that undoes it record a mistake and its correction, not money moving, so cash in and cash out leave both out (`common/cash-position.ts`). Every undo mirrors its entry's full amount, so cash on hand is unchanged. Any later correction is covered by the same rule. Active cycles counts neither closed nor cancelled cycles (`CLOSED_CYCLE_STATUSES`); it read closed alone.
+
 Guesses made while building it (2026-10-11, open until confirmed):
 
 - **Foreign money is stored in pounds.** `amount` is the pounds figure (amount ×
