@@ -50,7 +50,7 @@ import {
   systemForRole,
   type NavItem,
 } from './nav-model';
-import { BrandMark } from './brand-mark';
+import { BRAND_NAME, BrandMark } from './brand-mark';
 
 type Icon = React.ComponentType<{ className?: string }>;
 
@@ -286,6 +286,17 @@ export function AppShell({
           >
             <Menu className="h-6 w-6" />
           </button>
+
+          {/* Below lg the sidebar is hidden, and its logo with it: the bar
+              carries it instead (owner 2026-10-17), leading home like any logo. */}
+          <Link
+            href="/dashboard"
+            data-testid="topbar-brand"
+            className="flex items-center gap-2 lg:hidden"
+          >
+            <BrandMark size={32} />
+            <span className="text-sm font-bold text-foreground">{BRAND_NAME}</span>
+          </Link>
 
           <div className="ms-auto flex items-center gap-3">
             {/* Language Switcher */}
