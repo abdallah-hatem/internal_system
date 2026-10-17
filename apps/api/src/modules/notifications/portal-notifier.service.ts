@@ -156,7 +156,7 @@ export class PortalNotifier {
       code: 'ORDER_REQUEST_SUBMITTED',
       params: { shopName: args.shopName, requestNo: args.requestNo },
       payload: { ...args },
-      url: '/order-requests',
+      url: '/requests',
       tag: `order-request-${args.requestId}`,
     });
   }
@@ -171,7 +171,7 @@ export class PortalNotifier {
       code: 'IMPORT_REQUEST_SUBMITTED',
       params: { shopName: args.shopName, productName: args.productName },
       payload: { ...args },
-      url: '/import-requests',
+      url: '/requests?view=imports',
       tag: `import-request-${args.requestId}`,
     });
   }
@@ -204,7 +204,7 @@ export class PortalNotifier {
       code: 'HOLD_EXPIRING',
       params: { requestNo: args.requestNo, shopName: args.shopName },
       payload: { ...args },
-      url: '/order-requests',
+      url: '/requests',
       tag: `order-request-${args.requestId}`,
     });
   }
