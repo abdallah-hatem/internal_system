@@ -32,14 +32,17 @@ export interface StatTileProps {
 export function StatTile({ label, value, icon: Icon, color, href, testId, sub, className = '' }: StatTileProps) {
   const figure = <TileFigure value={value} />;
   const body = (
-    <div className="flex items-start justify-between gap-2">
+    // Phone: the icon sits above the label, smaller; from sm up, beside the
+    // figure as before. The phone used to drop it, and the dashboard read as a
+    // wall of grey numbers (owner 2026-10-18, option A).
+    <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
         <p className="mt-1 break-words text-base font-bold text-card-foreground sm:text-2xl">{figure}</p>
         {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
-      <div className={`${color} hidden flex-shrink-0 rounded-lg p-3 sm:block`} aria-hidden="true">
-        <Icon className="size-6 text-primary-foreground" />
+      <div data-testid="tile-icon" className={`${color} flex-shrink-0 rounded-lg p-1.5 sm:p-3`} aria-hidden="true">
+        <Icon className="size-4 text-primary-foreground sm:size-6" />
       </div>
     </div>
   );
@@ -74,13 +77,13 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, c
 export function StatTileSkeleton({ sub = false, className = '' }: { sub?: boolean; className?: string }) {
   return (
     <div data-testid="skeleton-row" className={`block min-h-11 rounded-xl border border-border bg-card p-3 sm:p-6 ${className}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
+        <div className="min-w-0 w-full flex-1">
           <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
           <SkeletonText size="base" lineClassName="mt-1 sm:h-8" className="w-24 sm:h-5 sm:w-36" />
           {sub && <SkeletonText size="xs" lineClassName="mt-1" className="w-28" />}
         </div>
-        <Skeleton className="hidden size-12 flex-shrink-0 rounded-lg sm:block" />
+        <Skeleton className="size-7 flex-shrink-0 rounded-lg sm:size-12" />
       </div>
     </div>
   );

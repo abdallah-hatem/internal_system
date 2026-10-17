@@ -307,3 +307,24 @@ describe('the Fuel quick action', () => {
     expect(screen.getByTestId('quick-action-recordFuel').textContent).toContain('بنزين');
   });
 });
+
+// Owner 2026-10-18: on a phone the tiles dropped their icons and the dashboard
+// read as grey numbers. Option A: every tile keeps its icon at every width —
+// small above the label on a phone, beside the figure from sm up.
+describe('every tile shows its icon on a phone too', () => {
+  it('no tile hides its icon below sm, and the icon sits above the label there', async () => {
+    renderPage();
+    const el = await tile('revenue');
+    const icons = screen.getAllByTestId('tile-icon');
+    expect(icons.length).toBeGreaterThanOrEqual(13);
+    for (const icon of icons) {
+      expect(icon.className.split(/\s+/)).not.toContain('hidden');
+      expect(icon.querySelector('svg')).toBeTruthy();
+    }
+    // Icon after the text in the DOM, so flex-col-reverse puts it on top on a phone.
+    const body = el.firstElementChild as HTMLElement;
+    expect(body.className).toContain('flex-col-reverse');
+    expect(body.className).toContain('sm:flex-row');
+    expect(body.lastElementChild?.getAttribute('data-testid')).toBe('tile-icon');
+  });
+});
