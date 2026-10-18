@@ -4,7 +4,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useTopProductsBy } from '@/components/dashboard/top-products-by';
 import { Segmented } from '@/components/ui/segmented';
 import { localName } from '@/lib/localized-name';
-import { useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
+import { ProfitAndLossSection, ProfitAndLossSkeleton } from '@/components/analytics/profit-and-loss-section';
 import { Money } from '../../../components/ui/money';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
@@ -199,6 +200,19 @@ export default function AnalyticsPage() {
 
       {/* Loading: every section keeps its frame and heading; its body is traced. */}
       {isLoading && <LoadingStatus />}
+
+      {/* Profit and loss for a period, above the rest (owner 2026-10-18). It
+          reads its period from the address, and `useSearchParams` cannot be
+          prerendered, so it sits in a Suspense boundary traced in its shape. */}
+      <Suspense
+        fallback={
+          <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+            <ProfitAndLossSkeleton />
+          </section>
+        }
+      >
+        <ProfitAndLossSection />
+      </Suspense>
 
         <>
           {/* Revenue by Month — CSS Bar Chart */}

@@ -31,6 +31,20 @@ export class AnalyticsController {
     return this.analyticsService.getDashboardKPIs();
   }
 
+  /**
+   * Sales, cost of goods sold, expenses and net profit for a run of Cairo
+   * days (`from`, `to`, both included, YYYY-MM-DD, either left out; none is
+   * all time) — the dashboard's own computation, cut to the period — with
+   * expenses by category and net profit by month (owner 2026-10-18).
+   */
+  @Get('profit-and-loss')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({ summary: 'Profit and loss for a period of days' })
+  getProfitAndLoss(@Query('from') from?: unknown, @Query('to') to?: unknown) {
+    return this.analyticsService.getProfitAndLoss(from, to);
+  }
+
   @Get('revenue-by-month')
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')

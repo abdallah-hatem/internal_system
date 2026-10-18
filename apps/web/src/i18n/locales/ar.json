@@ -862,7 +862,36 @@
     "noRevenueInPeriod": "لا توجد مبيعات مسجلة في هذه الفترة بعد.",
     "noRevenueHint": "تُعرض هنا إيرادات المبيعات المؤكدة شهراً بشهر.",
     "noTopProductsHint": "تظهر هنا المنتجات الأكثر مبيعاً بعد تأكيد المبيعات.",
-    "noCycleProfitHint": "تظهر هنا أرباح كل دورة بعد استلام مخزونها."
+    "noCycleProfitHint": "تظهر هنا أرباح كل دورة بعد استلام مخزونها.",
+    "pnl": {
+      "title": "الأرباح والخسائر",
+      "period": "الفترة",
+      "periods": {
+        "month": "هذا الشهر",
+        "lastMonth": "الشهر الماضي",
+        "year": "هذا العام",
+        "all": "كل الوقت",
+        "custom": "مخصص"
+      },
+      "today": "اليوم",
+      "nothingYet": "لم يُسجَّل شيء بعد",
+      "netProfit": "صافي الربح",
+      "ofSales": "<n>{pct}</n> من المبيعات",
+      "summary": "الملخص",
+      "sales": "المبيعات",
+      "cogs": "تكلفة البضاعة المباعة",
+      "grossProfit": "إجمالي الربح",
+      "expenses": "المصروفات",
+      "recovered": "مبالغ مستردة",
+      "otherIncome": "إيرادات أخرى",
+      "exchangeDifference": "فرق سعر الصرف",
+      "expensesByCategory": "المصروفات حسب الفئة",
+      "netProfitByMonth": "صافي الربح حسب الشهر",
+      "goodsLost": "بضاعة فُقدت في الطريق",
+      "noExpenses": "لا توجد مصروفات في هذه الفترة.",
+      "noMonths": "لم يُسجَّل شيء بعد.",
+      "loadFailed": "تعذّر تحميل الأرباح والخسائر."
+    }
   },
   "notifications": {
     "title": "الإشعارات",
@@ -1596,7 +1625,8 @@
     "CONTRACT_SUM_MISMATCH": "مجموع الأقساط {total} ج.م بينما المتبقي على الطلب {order} هو {owed} ج.م.",
     "INSTALMENT_DUE_IN_PAST": "لا يمكن أن يكون موعد قسط في الماضي ({day}).",
     "SALE_HAS_NO_PLAN": "لا توجد خطة تقسيط للطلب {order}، فلا يوجد له عقد.",
-    "LENDER_HAS_FINANCINGS": "ما زال لديه {count} دفعة مسجّلة. أزِلها أولًا، ثم احذفه."
+    "LENDER_HAS_FINANCINGS": "ما زال لديه {count} دفعة مسجّلة. أزِلها أولًا، ثم احذفه.",
+    "PERIOD_NOT_STARTED": "تبدأ الفترة في {from}، ولم يأتِ هذا اليوم بعد."
   },
   "requests": {
     "tabs": {

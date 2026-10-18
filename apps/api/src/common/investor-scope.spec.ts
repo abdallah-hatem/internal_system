@@ -448,6 +448,7 @@ describe("An investor on /analytics/* business-wide figures → refused; their o
     ['GET /analytics/dashboard', 'getDashboardKPIs'],
     ['GET /analytics/revenue-by-month', 'getRevenueByMonth'],
     ['GET /analytics/top-products', 'getTopProducts'],
+    ['GET /analytics/profit-and-loss', 'getProfitAndLoss'],
   ];
   it.each(businessWide)('%s: investor → 403 ROLE_NOT_ALLOWED', (_n, m) => {
     expect(canCall(AnalyticsController, m, 'TEMP_INVESTOR')).toEqual(

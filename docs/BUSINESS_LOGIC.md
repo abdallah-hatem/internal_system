@@ -1677,6 +1677,34 @@ for other callers), returns netted out, ties broken by the other measure then th
 ranked figure first with a bar against the top seller ("how is 21 sold on top of 28?" — it was ranked by
 revenue while showing units).
 
+**Profit and loss on Analytics — DECIDED 2026-10-18 (owner, mockup approved), dates GUESSED from how the
+dashboard already counts.** "A proper place to see total net profit, with time, and with expenses and sales as
+summary, not details." At the top of Analytics: a period (This month · Last month · This year · All time, the
+default · Custom days, kept in the address as `?period=` / `?from=&to=`), net profit large with its share of
+sales, the summary Sales − Cost of goods sold = Gross profit, − Expenses, then Recovered, Other income and
+Exchange difference only when not zero, = Net profit; expenses by category (one total each, largest first,
+goods lost on the way as its own line); net profit by month. `GET /analytics/profit-and-loss?from=&to=`
+(core partners and support, as the dashboard).
+- **One computation** (rule 11): `AnalyticsService.profitFigures(period?)` is the dashboard's revenue, COGS,
+  expenses and net profit, query for query; the dashboard calls it with no period, Analytics with one. All
+  time is therefore the dashboard's figures exactly. Each month's bar is the same computation for that
+  month's days, so the bars add up to the period; the category split reads the same rows as the Expenses line
+  (`expenseWhere`) through the same signed reading, so it adds up to it.
+- **Which day each figure belongs to** (Cairo days, both ends included):
+  - a sale's revenue and the cost of what it sold: the sale's day (`orderedAt`), as Revenue by month and the
+    sales list read it;
+  - a return's refund and the cost it reversed: the day it came back (`returnedOn`) — as Revenue by month
+    already does, so a reported month does not change;
+  - a ledger row (expenses, recoveries, other income): the day the money moved (`occurred_on`), else the Cairo
+    day it was entered — as running costs read it (§8); an undo is dated the day it is undone, so a September
+    expense undone in October lowers October;
+  - goods lost on the way: the day they were marked lost (the record's only date);
+  - an exchange difference: the day of the repayment (`paidOn`).
+- GUESSED: a `to` after today is today; a `from` after today is refused (`PERIOD_NOT_STARTED`) rather than
+  answered with zeros; a reversed range `DATE_RANGE_REVERSED`, a malformed day `BAD_DATE`. All time's months
+  start at the first day anything that counts was recorded. The share of sales is shown only when sales are
+  above zero.
+
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
 notification, and a shop on an iPhone gets no push at all until the app is added

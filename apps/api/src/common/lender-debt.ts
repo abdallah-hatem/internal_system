@@ -118,10 +118,13 @@ export async function cycleFinancedEgp(
 export async function exchangeDifferenceEgp(
   db: Pick<Db, 'lenderRepayment'>,
   cycleId: string | null,
+  /** Only repayments made on these days (`paidOn`; Analytics' profit and loss). */
+  paidOn?: { gte?: Date; lte?: Date },
 ): Promise<Prisma.Decimal> {
   const { _sum } = await db.lenderRepayment.aggregate({
     where: {
       ...STANDING_REPAYMENT,
+      ...(paidOn ? { paidOn } : {}),
       financing: {
         ...STANDING_FINANCING,
         ...(cycleId === null ? {} : { cycleId }),
