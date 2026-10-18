@@ -37,6 +37,10 @@ export function PaidByFriend({
   purchaseOrder,
   orders,
   closed,
+  lockedReason,
+  open,
+  onOpenChange,
+  prefillRemaining,
 }: {
   /** The cycle page: every order of the cycle, with an order picker. */
   cycleId?: string;
@@ -46,10 +50,25 @@ export function PaidByFriend({
   orders?: FinanceableOrder[];
   /** A cycle being settled, settled or cancelled takes no new payment. */
   closed?: boolean;
+  /** Why it takes none, said where the button would be (2026-10-18). */
+  lockedReason?: string;
+  /**
+   * The form, opened from outside — the cycle page's funding note (owner
+   * 2026-10-18). Left out, the section opens and closes it itself.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Start the amount at what friends have still to pay of the cycle. */
+  prefillRemaining?: boolean;
 }) {
   const t = useTranslations('lenders');
   const mayAdd = useCan('lender.finance');
-  const [adding, setAdding] = useState(false);
+  const [ownAdding, setOwnAdding] = useState(false);
+  const adding = open ?? ownAdding;
+  const setAdding = (next: boolean) => {
+    setOwnAdding(next);
+    onOpenChange?.(next);
+  };
 
   const key = cycleId ? ['financing', 'cycle', cycleId] : ['financing', 'order', purchaseOrder?.id];
   const { data } = useQuery<{ financings: FinancingView[] } & Partial<CycleRoom>>({
@@ -80,6 +99,11 @@ export function PaidByFriend({
           </button>
         )}
       </div>
+      {mayAdd && closed && lockedReason && (
+        <p data-testid="financing-locked" className="text-xs text-muted-foreground">
+          {lockedReason}
+        </p>
+      )}
 
       {financings.length === 0 ? (
         <p className="text-sm text-muted-foreground">{cycleId ? t('noneYetCycle') : t('noneYet')}</p>
@@ -108,10 +132,11 @@ export function PaidByFriend({
         </ul>
       )}
 
-      {adding && (
+      {adding && !closed && (
         <AddFinancingForm
           orders={pickable}
           room={data?.availableEgp !== undefined ? (data as CycleRoom) : undefined}
+          prefillRemaining={prefillRemaining}
           onDone={() => setAdding(false)}
         />
       )}
@@ -140,6 +165,21 @@ export interface FinanceableOrder {
   fxRateToEgp?: number | string;
 }
 
+/**
+ * What is left for friends to pay of the cycle — the server's `availableEgp`,
+ * never worked out here — in the currency he paid in: pounds as they are,
+ * another currency at the rate typed, rounded down to the piastre so the
+ * prefilled amount is never more than the cap the server checks. Blank when
+ * nothing is left or there is no rate yet.
+ */
+export function remainingIn(availableEgp: string | number | undefined, rate: string): string {
+  const available = Number(availableEgp);
+  const r = Number(rate);
+  if (!(available > 0) || !(r > 0)) return '';
+  const cents = Math.floor((available / r) * 100 + 1e-7);
+  return cents > 0 ? (cents / 100).toFixed(2) : '';
+}
+
 /** amount × rate to the piastre, half up — the figure the server stores. */
 function poundsOf(amount: string, rate: string): number | null {
   const a = Number(amount);
@@ -161,11 +201,14 @@ function poundsOf(amount: string, rate: string): number | null {
 function AddFinancingForm({
   orders,
   room,
+  prefillRemaining,
   onDone,
 }: {
   orders: FinanceableOrder[];
   /** What is left of the cycle's cost; the server refuses more. */
   room?: CycleRoom;
+  /** Start the amount at what is left (the funding note's "Paid by a lender"). */
+  prefillRemaining?: boolean;
   onDone: () => void;
 }) {
   const t = useTranslations('lenders');
@@ -180,7 +223,8 @@ function AddFinancingForm({
   const { items: lenders } = useAllRecords(['lenders', 'picker'], '/lenders');
   const [orderId, setOrderId] = useState(orders.length === 1 ? orders[0].id : '');
   const [lenderId, setLenderId] = useState('');
-  const [amount, setAmount] = useState('');
+  /** null until he types one; a typed amount is never overwritten. */
+  const [typedAmount, setTypedAmount] = useState<string | null>(null);
   /** '' follows the order's currency. */
   const [chosenCurrency, setChosenCurrency] = useState('');
   /** null until he types one. */
@@ -197,6 +241,7 @@ function AddFinancingForm({
         ? String(rates[currency])
         : '';
   const rate = isEgp ? '1' : (typedRate ?? prefilledRate);
+  const amount = typedAmount ?? (prefillRemaining ? remainingIn(room?.availableEgp, rate) : '');
   const pounds = poundsOf(amount, rate);
 
   // EGP, the order's currency, and every currency with a rate on file.
@@ -312,7 +357,7 @@ function AddFinancingForm({
             name="amount"
             required
             value={amount}
-            onChange={setAmount}
+            onChange={setTypedAmount}
             placeholder={tph('money')}
             className="w-full rounded-lg border border-border px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />

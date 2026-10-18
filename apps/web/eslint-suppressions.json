@@ -56,13 +56,13 @@
   },
   "src/app/[locale]/cycles/[cycleId]/details/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 10
+      "count": 9
     },
     "@typescript-eslint/no-floating-promises": {
-      "count": 4
+      "count": 2
     },
     "local/no-raw-colors": {
-      "count": 47
+      "count": 45
     }
   },
   "src/components/views/cycles-view.tsx": {
@@ -288,16 +288,16 @@
   },
   "src/components/cycles/CycleWizard.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 42
+      "count": 28
     },
     "@typescript-eslint/no-misused-promises": {
       "count": 1
     },
     "local/no-raw-colors": {
-      "count": 102
+      "count": 72
     },
     "react-hooks/set-state-in-effect": {
-      "count": 4
+      "count": 3
     }
   },
   "src/components/entities/entity-forms.tsx": {
@@ -583,11 +583,6 @@
   "tests/46-accrued-profit.spec.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 15
-    }
-  },
-  "tests/48-cycle-funding.spec.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 8
     }
   },
   "tests/49-roles-and-cash.spec.ts": {

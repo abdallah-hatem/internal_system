@@ -146,9 +146,9 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await expect(page.getByTestId('wizard-leg-1')).toBeVisible({ timeout: 15000 });
     await choose(page, 'leg1_providerId', `F1b Freight ${stamp}`);
     await page.locator('[data-field="leg1_ratePerUnit"]').fill('5');
-    await page.getByRole('button', { name: /save & continue/i }).click();
 
-    // Step 4 — the money, then finish. No "Receive Inventory" anywhere.
+    // The shipping step is the last (owner 2026-10-18): Finish saves it. No
+    // "Receive Inventory" and no Funding step anywhere.
     const finish = page.getByRole('button', { name: /^finish$/i });
     await expect(finish).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/receive inventory/i)).toHaveCount(0);
@@ -184,7 +184,6 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await page.getByRole('button', { name: 'Shipping Leg' }).click();
     await expect(page.getByTestId('wizard-leg-1')).toBeVisible({ timeout: 15000 });
     await pickDate(page, 'leg1_departedOn', daysAgo(3));
-    await page.getByRole('button', { name: /save & continue/i }).click();
     await page.getByRole('button', { name: /^finish$/i }).click();
 
     await expect(page).toHaveURL(new RegExp(`/cycles/${cycle.id}/details`), { timeout: 15000 });
@@ -211,7 +210,6 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await pickDate(page, 'leg1_arrivedOn', daysAgo(12));
     await pickDate(page, 'leg2_departedOn', daysAgo(10));
     await pickDate(page, 'leg2_arrivedOn', daysAgo(2));
-    await page.getByRole('button', { name: /save & continue/i }).click();
     await page.getByRole('button', { name: /^finish$/i }).click();
 
     await expect(page).toHaveURL(new RegExp(`/cycles/${cycle.id}/details`), { timeout: 15000 });

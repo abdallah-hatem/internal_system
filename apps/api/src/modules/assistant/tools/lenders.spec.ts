@@ -55,6 +55,7 @@ const TABLES = [
   'financialTransaction',
   'auditLog',
   'usedNonce',
+  'settlement',
 ] as const;
 type Table = (typeof TABLES)[number];
 

@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CostingService } from '../costing/costing.service';
+import { assertFundingOpen } from '../../common/funding-lock';
 import { badRequest, notFound } from '../../common/api-error';
 import { formatMoney } from '../../common/money';
 import { isUuid } from '../../common/uuid';
@@ -524,6 +525,10 @@ export class LendersService {
           { cycle: order.cycle.code, status: order.cycle.status },
         );
       }
+      // A friend's payment changes what the profit is split on (§8: a cycle
+      // a friend paid for entirely splits equally), so it is locked with the
+      // rest of the funding once the settlement is approved (owner 2026-10-18).
+      await assertFundingOpen(tx, order.cycle.id);
       if (order.lenderFinancings.some((f) => f.lenderId === lender.id)) {
         throw badRequest(
           'LENDER_ALREADY_FINANCES_ORDER',
@@ -688,6 +693,9 @@ export class LendersService {
           "This friend's payment was already removed.",
         );
       }
+      // Removing it after the payout would change the basis the profit was
+      // split on (§8, owner 2026-10-18).
+      await assertFundingOpen(tx, now.cycleId);
       if (now.repayments.length > 0) {
         throw badRequest(
           'FINANCING_HAS_REPAYMENTS',

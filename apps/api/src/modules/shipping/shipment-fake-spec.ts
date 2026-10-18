@@ -993,6 +993,8 @@ export function fakePrisma(db: Store) {
     lenderFinancing: {
       count: () => Promise.resolve(0),
       findMany: () => Promise.resolve([]),
+      // No friend's payment, so none recorded or removed after a calculation.
+      findFirst: () => Promise.resolve(null),
       aggregate: () => Promise.resolve({ _sum: { amountEgp: null } }),
     },
     lenderRepayment: {
@@ -1060,6 +1062,9 @@ export function fakePrisma(db: Store) {
     cycleParticipant: {
       findMany: ({ where }: Row) =>
         after(db.participants.filter((p) => p.cycleId === where.cycleId)),
+      // Funding changed after a draft was calculated (owner 2026-10-18): the
+      // fake's participants are never edited after one.
+      findFirst: () => after(null),
     },
     purchaseOrder: {
       // Only the status-filtered read leaving PURCHASING makes (L3): which of

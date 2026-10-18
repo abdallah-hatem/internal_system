@@ -124,12 +124,13 @@ test.describe('Cycle wizard translations', () => {
     await expect(page.locator('form')).toBeVisible({ timeout: 15000 });
 
     const bar = await page.locator('main').first().innerText();
-    // Step 4 is the money now; receiving moved to the cycle page (F1b).
+    // Three steps: receiving moved to the cycle page (F1b), and the funding
+    // is asked for there too (owner 2026-10-18).
     for (const title of ['Cycle Info', 'Purchase Order', 'Shipping Leg', 'Funding']) {
       expect(bar).not.toContain(title);
     }
     expect(bar).toContain(ar.wizard.step1Title);
-    expect(bar).toContain(ar.wizard.step4Title);
+    expect(bar).toContain(ar.wizard.step3Title);
   });
 
   test('TC-I18N-06: a draft survives a change of language', async ({ page }) => {

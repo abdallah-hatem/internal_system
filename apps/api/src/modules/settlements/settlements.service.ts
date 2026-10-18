@@ -10,12 +10,14 @@ import { AuditService } from '../audit/audit.service';
 import { CostingService } from '../costing/costing.service';
 import {
   distributeCycleProfit,
+  profitBasisOf,
   summarizeCyclePnl,
   ParticipantInput,
 } from './settlement-math';
 import { formatMoney, formatQty } from '../../common/money';
 
 import { badRequest, notFound } from '../../common/api-error';
+import { fundingChangedSince } from '../../common/funding-lock';
 import {
   COST_RECOVERY_CATEGORIES,
   NOT_OPERATING_EXPENSE,
@@ -470,9 +472,7 @@ export class SettlementsService {
     // stated rule is a cycle a friend paid for entirely (§8, §18 — owner
     // 2026-10-11), split equally among the core partners. Asked only then,
     // so every other cycle settles exactly as before.
-    const noBasis =
-      participantInputs.every((p) => p.contribution.lte(0)) &&
-      participantInputs.every((p) => p.customProfitPct === null);
+    const noBasis = profitBasisOf(participantInputs) === 'NONE';
     const fundedByLenders = noBasis
       ? (await this.costing.fundingFor(cycleId)).fundedByLenders
       : false;
@@ -755,6 +755,21 @@ export class SettlementsService {
       // the same gate the plain transition to SETTLEMENT runs, under the
       // cycle's lock so a loss taken back cannot slip in between.
       await lockCycle(tx, settlement.cycleId);
+      // Funding changed after this draft was calculated (owner 2026-10-18):
+      // its split is no longer the cycle's. Calculating again supersedes it.
+      if (
+        settlement.calculatedAt &&
+        (await fundingChangedSince(
+          tx,
+          settlement.cycleId,
+          settlement.calculatedAt,
+        ))
+      ) {
+        throw badRequest(
+          'SETTLEMENT_STALE_FUNDING',
+          'The funding changed after this settlement was calculated. Calculate it again before approving.',
+        );
+      }
       await assertShipmentAccounted(tx, settlement.cycleId);
       // And no friend still owed (§18) — the gate the transition runs too.
       const cycle = await tx.importCycle.findUnique({

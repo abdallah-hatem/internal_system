@@ -1,6 +1,8 @@
 /**
  * How far finishing the wizard moves a cycle: only as far as its recorded dates
- * allow (BUSINESS_LOGIC §1 and §15, 2026-10-10).
+ * allow (BUSINESS_LOGIC §1 and §15, 2026-10-10). Finishing is saving its last
+ * step, the shipping legs — the Funding step after it was removed (owner
+ * 2026-10-18) — so the walk runs straight after the legs are saved.
  *
  * The wizard used to walk every cycle to VERIFICATION in one click and receive
  * its stock, which only worked when every leg had already arrived — and refused

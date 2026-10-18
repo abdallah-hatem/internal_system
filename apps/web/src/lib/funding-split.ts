@@ -11,8 +11,8 @@
  * partner absorbs the residual and the parts re-sum exactly. Left uneven,
  * capital returned at settlement would not match capital put in.
  *
- * One definition for the wizard's funding step and the cycle page's button,
- * which each had their own copy.
+ * One definition for the cycle page's button and its funding note (the
+ * wizard's funding step, which had its own copy, was removed 2026-10-18).
  */
 export function splitAcrossPartners(
   toFundEgp: number,

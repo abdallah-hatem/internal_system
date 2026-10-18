@@ -12,6 +12,7 @@ import { isUuid } from '../../common/uuid';
 import { cycleFinancedEgp } from '../../common/lender-debt';
 import { cycleTransfersInEgp, toFundEgp } from '../../common/stock-transfers';
 import { cycleExpensesEgp } from '../../common/cycle-expenses';
+import { profitBasisOf } from '../settlements/settlement-math';
 const D = (v: Prisma.Decimal.Value | null | undefined) =>
   new Prisma.Decimal(v ?? 0);
 
@@ -139,6 +140,39 @@ export class CostingService {
       /** A friend paid something and the partners are asked for nothing. */
       fundedByLenders: financed.gt(0) && rest.lte(0),
     };
+  }
+
+  /**
+   * What settling this cycle would split its profit on, or `NONE` when it
+   * would be refused as `CYCLE_NOT_FUNDED` (§8) — the settlement's own
+   * reading (`profitBasisOf`, with `fundingFor`'s `fundedByLenders`), so the
+   * cycle page's "Funding not entered yet" note shows exactly then (owner
+   * 2026-10-18, CLAUDE.md §11).
+   */
+  async profitBasis(cycleId: string, funding?: { fundedByLenders: boolean }) {
+    const participants = await this.prisma.cycleParticipant.findMany({
+      where: { cycleId },
+      select: {
+        participantType: true,
+        contributionAmount: true,
+        customProfitPct: true,
+      },
+    });
+    const { fundedByLenders } = funding ?? (await this.fundingFor(cycleId));
+    return profitBasisOf(
+      participants.map((p) => ({
+        type:
+          p.participantType === 'TEMP_INVESTOR'
+            ? ('TEMP_INVESTOR' as const)
+            : ('CORE_PARTNER' as const),
+        contribution: new Prisma.Decimal(p.contributionAmount),
+        customProfitPct:
+          p.customProfitPct === null
+            ? null
+            : new Prisma.Decimal(p.customProfitPct),
+      })),
+      { fundedByLenders },
+    );
   }
 
   /**
