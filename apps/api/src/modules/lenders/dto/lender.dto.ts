@@ -31,6 +31,9 @@ export class CreateLenderDto {
   notes?: string;
 }
 
+/** PUT /lenders/:id — the same three fields, all sent (owner, 2026-10-18). */
+export class UpdateLenderDto extends CreateLenderDto {}
+
 /**
  * POST /purchases/:id/financings — he paid this much of the order, in his
  * currency at that day's rate (§18, 2026-10-16). Both left out: the order's

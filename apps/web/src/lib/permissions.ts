@@ -60,6 +60,8 @@ export const ACTION_ROLES = {
   'shippingLeg.edit': PARTNERS, //        PUT  /shipping/legs/:id
   // A friend who paid a supplier (§18) — LendersController and its siblings
   'lender.create': PARTNERS, //           POST /lenders
+  'lender.edit': PARTNERS, //             PUT  /lenders/:id
+  'lender.delete': PARTNERS, //           DELETE /lenders/:id
   'lender.finance': PARTNERS, //          POST /purchases/:id/financings
   'lender.removeFinancing': PARTNERS, //  POST /lender-financings/:id/remove
   'lender.repay': PARTNERS, //            POST /lender-financings/:id/repayments

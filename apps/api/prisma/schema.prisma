@@ -1107,6 +1107,9 @@ model Lender {
   createdBy String?  @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  /// Set when he was deleted (owner, 2026-10-18): hidden from every list and
+  /// picker; kept so a removed payment's history still names him.
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   financings LenderFinancing[]
 

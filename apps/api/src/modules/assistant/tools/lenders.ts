@@ -311,6 +311,7 @@ export function registerLenderTools(
 
   async function allLenders(): Promise<Named[]> {
     const rows = await prisma().lender.findMany({
+      where: { deletedAt: null },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });

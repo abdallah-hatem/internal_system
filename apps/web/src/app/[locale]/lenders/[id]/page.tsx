@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
-import { CalendarClock, HandCoins, RotateCcw, Trash2, Wallet } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarClock, Edit, HandCoins, Loader2, RotateCcw, Trash2, Wallet } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useCan } from '@/lib/can';
 import { useDateFormat } from '@/lib/dates';
@@ -15,6 +15,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { LatinText } from '@/components/ui/latin-text';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { Dialog as Modal } from '@/components/ui/dialog';
+import { FormActions } from '@/components/ui/fields';
+import { ValidatedForm } from '@/components/ui/validated-form';
+import { ENTITY_FORMS } from '@/components/entities/entity-forms';
+import { useToast } from '@/components/ui/toast';
+import { useApiError } from '@/lib/api-error';
 import {
   PlanDialog,
   ReasonDialog,
@@ -41,7 +47,9 @@ type Dialog =
   | { kind: 'plan'; financing: FinancingView }
   | { kind: 'reverse'; repaymentId: string }
   | { kind: 'remove'; financingId: string }
-  | { kind: 'cancelPlan'; planId: string };
+  | { kind: 'cancelPlan'; planId: string }
+  | { kind: 'edit' }
+  | { kind: 'delete' };
 
 const STATE_STYLE: Record<string, string> = {
   PAID: 'bg-primary-50 text-primary-700',
@@ -60,6 +68,36 @@ export default function LenderPage() {
   // (owner, 2026-10-16).
   const [showRemoved, setShowRemoved] = useState(false);
   const close = () => setDialog(null);
+  const tc = useTranslations('common');
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  const apiError = useApiError();
+  const mayEdit = useCan('lender.edit');
+  const mayDelete = useCan('lender.delete');
+
+  // Correcting his name or phone (owner, 2026-10-18); the money is untouched.
+  const updateMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.put(`/lenders/${id}`, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['lender', id] });
+      void queryClient.invalidateQueries({ queryKey: ['lenders'] });
+      close();
+      addToast(t('updateSuccess'), 'success');
+    },
+    onError: (e) => addToast(apiError(e, t('updateFailed')), 'error'),
+  });
+
+  // Only while nothing he paid still stands; the API says so if it does.
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/lenders/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['lenders'] });
+      queryClient.removeQueries({ queryKey: ['lender', id] });
+      addToast(t('deleteSuccess'), 'success');
+      router.push(`/${locale}/lenders`);
+    },
+    onError: (e) => addToast(apiError(e, t('deleteFailed')), 'error'),
+  });
 
   const { data, isLoading, isError } = useQuery<LenderDetail>({
     queryKey: ['lender', id],
@@ -96,9 +134,35 @@ export default function LenderPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-foreground">
-            <LatinText>{data.name}</LatinText>
-          </h1>
+          <div className="flex items-center gap-1">
+            <h1 className="text-2xl font-bold text-foreground">
+              <LatinText>{data.name}</LatinText>
+            </h1>
+            {mayEdit && (
+              <button
+                type="button"
+                data-testid="edit-action"
+                onClick={() => setDialog({ kind: 'edit' })}
+                className="p-1.5 text-muted-foreground hover:text-accent-600 hover:bg-accent-50 rounded-lg transition-colors"
+                title={tc('edit')}
+                aria-label={tc('edit')}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            )}
+            {mayDelete && (
+              <button
+                type="button"
+                data-testid="delete-action"
+                onClick={() => setDialog({ kind: 'delete' })}
+                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                title={tc('delete')}
+                aria-label={tc('delete')}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
           {(data.phone || data.notes) && (
             <p className="mt-1 text-sm text-muted-foreground">
               {data.phone && <span dir="ltr">{data.phone}</span>}
@@ -183,6 +247,74 @@ export default function LenderPage() {
           successMessage={t('planCancelled')}
           onClose={close}
         />
+      )}
+
+      {dialog?.kind === 'edit' && (
+        <Modal
+          title={t('edit')}
+          onClose={close}
+          footer={
+            <FormActions
+              form="lender-edit-form"
+              onCancel={close}
+              cancelLabel={tc('cancel')}
+              submitLabel={tc('save')}
+              busy={updateMutation.isPending}
+            />
+          }
+        >
+          <ValidatedForm
+            id="lender-edit-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateMutation.mutate(ENTITY_FORMS.lender.toPayload(new FormData(e.currentTarget)));
+            }}
+            className="space-y-4"
+          >
+            <ENTITY_FORMS.lender.Fields record={data} />
+          </ValidatedForm>
+        </Modal>
+      )}
+
+      {dialog?.kind === 'delete' && (
+        <Modal
+          title={t('delete')}
+          onClose={close}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={close}
+                className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-lg"
+              >
+                {standing.length > 0 ? tc('close') : tc('cancel')}
+              </button>
+              {standing.length === 0 && (
+                <button
+                  type="button"
+                  data-testid="confirm-delete"
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  className="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {tc('delete')}
+                </button>
+              )}
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm font-medium text-foreground"><LatinText>{data.name}</LatinText></p>
+            {standing.length > 0 ? (
+              <p className="text-sm text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">
+                {t('deleteBlocked', { count: standing.length })}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('confirmDelete')}</p>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );

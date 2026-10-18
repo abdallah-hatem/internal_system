@@ -335,3 +335,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   while the shipment knew 230 went on it: the owner typed 100, the cycle was re-costed on 100, and a hint was not
   enough ("why not force the 230?"). Derive it on the server for every caller and show it read-only. Check every
   count, total or date in a form against what the records already say before making it a field. — 2026-10-17
+
+## Who uses the office app
+
+- Only the three partners use the office app; no investor or other role signs in. Don't build role-based visibility
+  (hidden tabs, per-role menus, investor-only views) into new features. The tab merge got per-tab role checks so "an
+  investor sees only Settlements", and the owner: "no investor can access the system, its only the 3 of us, no roles
+  needed". The existing API guards stay (rule 12); this is about not adding more UI for roles nobody has. — 2026-10-18

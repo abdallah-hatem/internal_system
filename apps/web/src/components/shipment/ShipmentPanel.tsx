@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Pencil } from 'lucide-react';
+import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Edit } from 'lucide-react';
 import { nextLegToAdd } from '@/components/cycles/leg-plan';
 import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
@@ -658,7 +658,7 @@ function LegBlock({
                 onClick={() => onOpen({ kind: 'editLeg', legId: leg.legId })}
                 className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted sm:min-h-0"
               >
-                <Pencil className="h-4 w-4" aria-hidden="true" /> {t('editLeg')}
+                <Edit className="h-4 w-4" aria-hidden="true" /> {t('editLeg')}
               </button>
             )}
             {may.markLost && losable && (

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftRight, Info, Pencil, Plus } from 'lucide-react';
+import { ArrowLeftRight, Edit, Info, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -73,9 +73,9 @@ export function ExchangeRates() {
         aria-label={t('editTitle', { currency: r.code })}
         title={t('editTitle', { currency: r.code })}
         onClick={() => setEditing(r)}
-        className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="p-1.5 text-muted-foreground hover:text-accent-600 hover:bg-accent-50 rounded-lg transition-colors"
       >
-        <Pencil className="h-4 w-4" />
+        <Edit className="h-4 w-4" />
       </button>
     ) : r.code === BASE ? (
       <span className="text-xs text-muted-foreground">{t('base')}</span>

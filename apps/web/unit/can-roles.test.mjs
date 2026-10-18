@@ -115,6 +115,8 @@ const ENDPOINTS = {
   'shippingLeg.create': ['shipping/shipping.controller.ts', 'CycleShippingController', 'Post', ':cycleId/shipping-legs'],
   'shippingLeg.edit': ['shipping/shipping.controller.ts', 'ShippingController', 'Put', 'legs/:id'],
   'lender.create': ['lenders/lenders.controller.ts', 'LendersController', 'Post', ''],
+  'lender.edit': ['lenders/lenders.controller.ts', 'LendersController', 'Put', ':id'],
+  'lender.delete': ['lenders/lenders.controller.ts', 'LendersController', 'Delete', ':id'],
   'lender.finance': ['lenders/lenders.controller.ts', 'PurchaseFinancingController', 'Post', ':id/financings'],
   'lender.removeFinancing': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-financings/:id/remove'],
   'lender.repay': ['lenders/lenders.controller.ts', 'LenderMoneyController', 'Post', 'lender-financings/:id/repayments'],

@@ -41,6 +41,7 @@ import { overdueNotificationsToSend } from '../../common/overdue-notifications';
 import type {
   CreateFinancingDto,
   CreateLenderDto,
+  UpdateLenderDto,
   CreateLenderPlanDto,
   CreateRepaymentDto,
 } from './dto/lender.dto';
@@ -202,6 +203,7 @@ export class LendersService {
 
   async list() {
     const lenders = await this.prisma.lender.findMany({
+      where: { deletedAt: null },
       orderBy: { name: 'asc' },
       include: {
         financings: {
@@ -238,7 +240,7 @@ export class LendersService {
         },
       },
     });
-    if (!lender) throw notFound('lender');
+    if (!lender || lender.deletedAt) throw notFound('lender');
     const financings = lender.financings.map((f) => this.view(f));
     return {
       data: {
@@ -378,6 +380,80 @@ export class LendersService {
     return { data: lender };
   }
 
+  /** His name, phone and notes, corrected (owner, 2026-10-18). Money is untouched. */
+  async update(id: string, dto: UpdateLenderDto, actorId: string) {
+    if (!isUuid(id)) throw notFound('lender');
+    const name = dto.name?.trim();
+    if (!name) {
+      throw badRequest('LENDER_NAME_REQUIRED', 'A lender needs a name.');
+    }
+    const before = await this.prisma.lender.findUnique({ where: { id } });
+    if (!before || before.deletedAt) throw notFound('lender');
+    const lender = await this.prisma.lender.update({
+      where: { id },
+      data: {
+        name,
+        phone: dto.phone?.trim() || null,
+        notes: dto.notes?.trim() || null,
+      },
+    });
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'UPDATE',
+      entityType: 'Lender',
+      entityId: id,
+      beforeJson: {
+        name: before.name,
+        phone: before.phone,
+        notes: before.notes,
+      },
+      afterJson: {
+        name: lender.name,
+        phone: lender.phone,
+        notes: lender.notes,
+      },
+    });
+    return { data: lender };
+  }
+
+  /**
+   * Delete a lender added by mistake (owner, 2026-10-18). Refused while any
+   * payment of his still stands: deleting him would erase a debt and the cost
+   * it carries on the cycle. Remove those payments first (each with its
+   * reason), then delete him. He is hidden, not erased, so a removed payment's
+   * history still says whose it was.
+   */
+  async remove(id: string, actorId: string) {
+    if (!isUuid(id)) throw notFound('lender');
+    const lender = await this.prisma.lender.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { financings: { where: STANDING_FINANCING } } },
+      },
+    });
+    if (!lender || lender.deletedAt) throw notFound('lender');
+    const standing = lender._count.financings;
+    if (standing > 0) {
+      throw badRequest(
+        'LENDER_HAS_FINANCINGS',
+        `${lender.name} still has ${standing} payment(s) on record. Remove them first.`,
+        { count: standing, name: lender.name },
+      );
+    }
+    await this.prisma.lender.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'DELETE',
+      entityType: 'Lender',
+      entityId: id,
+      beforeJson: { name: lender.name },
+    });
+    return { data: { id } };
+  }
+
   /**
    * A friend paid all or part of this order (§18). His money paying our
    * supplier comes into the ledger at his own rate — the rate on the day he
@@ -417,8 +493,8 @@ export class LendersService {
         where: { id: purchaseOrderId },
         select: { id: true, cycleId: true },
       }),
-      this.prisma.lender.findUnique({
-        where: { id: dto.lenderId },
+      this.prisma.lender.findFirst({
+        where: { id: dto.lenderId, deletedAt: null },
         select: { id: true, name: true },
       }),
     ]);

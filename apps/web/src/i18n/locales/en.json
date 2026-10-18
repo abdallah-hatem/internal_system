@@ -1483,7 +1483,8 @@
     "SALE_HAS_PLAN": "Order {order} already has its instalment plan ({reference}).",
     "CONTRACT_SUM_MISMATCH": "The instalments total {total} EGP but {owed} EGP is outstanding on order {order}.",
     "INSTALMENT_DUE_IN_PAST": "An instalment cannot fall due in the past ({day}).",
-    "SALE_HAS_NO_PLAN": "Order {order} has no instalment plan, so it has no contract."
+    "SALE_HAS_NO_PLAN": "Order {order} has no instalment plan, so it has no contract.",
+    "LENDER_HAS_FINANCINGS": "He still has {count} payment(s) on record. Remove them first, then delete him."
   },
   "requests": {
     "tabs": {
@@ -2123,7 +2124,15 @@
     "worthInPounds": "Worth <egp></egp> at this rate",
     "availableToFinance": "Up to <available></available> is left to pay of this cycle's cost: its goods, shipping and the expenses charged to it come to <cost></cost>, and friends have paid <financed></financed>.",
     "financingCoversHint": "His payment may cover the order's goods, the cycle's shipping and the fees charged to the cycle. Record a card fee as a ledger expense on this cycle first, so it counts.",
-    "financingOverAvailable": "That is more than is left of the cycle's cost — it will be refused."
+    "financingOverAvailable": "That is more than is left of the cycle's cost — it will be refused.",
+    "edit": "Edit lender",
+    "delete": "Delete lender",
+    "updateSuccess": "Lender updated",
+    "updateFailed": "Couldn't update the lender",
+    "deleteSuccess": "Lender deleted",
+    "deleteFailed": "Couldn't delete the lender",
+    "confirmDelete": "He'll be removed from the lenders list and from every picker. Payments that were removed stay in their history.",
+    "deleteBlocked": "He still has {count, plural, one {# payment} other {# payments}} on record. Remove each one from the list below first, then delete him."
   },
   "transfers": {
     "title": "Transfers",

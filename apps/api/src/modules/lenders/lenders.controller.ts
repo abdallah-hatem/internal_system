@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +18,7 @@ import {
   CreateLenderPlanDto,
   CreateRepaymentDto,
   ReasonDto,
+  UpdateLenderDto,
 } from './dto/lender.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -57,6 +60,24 @@ export class LendersController {
   @ApiOperation({ summary: 'Add a lender' })
   create(@Body() body: CreateLenderDto, @CurrentUser() user: Viewer) {
     return this.lenders.create(body, user.id);
+  }
+
+  @Put(':id')
+  @Roles(...LENDER_WRITE_ROLES)
+  @ApiOperation({ summary: "Correct a lender's name, phone or notes" })
+  update(
+    @Param('id') id: string,
+    @Body() body: UpdateLenderDto,
+    @CurrentUser() user: Viewer,
+  ) {
+    return this.lenders.update(id, body, user.id);
+  }
+
+  @Delete(':id')
+  @Roles(...LENDER_WRITE_ROLES)
+  @ApiOperation({ summary: 'Delete a lender with no payment still on record' })
+  remove(@Param('id') id: string, @CurrentUser() user: Viewer) {
+    return this.lenders.remove(id, user.id);
   }
 }
 
