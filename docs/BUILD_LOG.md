@@ -101,6 +101,8 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- Later (owner, 2026-10-19): Profit and loss on Analytics opens on **This month** by default instead of All time
+  (a URL `?period=` still wins); update §12 and the section's tests.
 - Later (owner, 2026-10-19): no investor account can sign in to the office app — refuse TEMP_INVESTOR at the office
   login (and on refresh), like shop accounts (`auth.service.ts`); only the three partners use it. Tidy the
   investor-only UI and specs that would then be unreachable.
