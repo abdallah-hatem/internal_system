@@ -118,23 +118,16 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` at `f231309` (2026-10-18): everything up to the
-audit log's Who filter. How to ship: `docs/deployment.md` "Shipping a release".
+Production runs `origin/master` at `415ccf9` (shipped 2026-10-19; migration
+`20261018200000_samples_at_shops` applied first). That batch added: samples at
+shops (rounds 1 and 2); default price = landed cost + 20% (B2B and B2C); the cycle
+wizard ending at step 3 with a funding note on the cycle page and funding locked
+once the settlement is approved; a cancelled order owes nothing; Profit and loss
+redesigned (Option A, weeks on a phone); Analytics' top five; the Partners tab
+refreshing after a settlement action; `db:seed:history` (local only). Nothing is
+merged locally and waiting. How to ship: `docs/deployment.md` "Shipping a release".
 
-### Merged locally, waiting on the owner's test (not in production)
-
-Local `master` at `299fba9`. Ships after the owner tests it locally and the full
-e2e suite has run, with **one migration first**, `20261018200000_samples_at_shops`:
-
-- samples at shops (rounds 1 and 2);
-- default price = landed cost + 20%;
-- the cycle wizard ends at step 3, a funding note on the cycle page, funding
-  locked once the settlement is approved;
-- a cancelled order owes nothing;
-- Profit and loss redesigned (Option A);
-- `db:seed:history`, six months of local trading history for Analytics (local only).
-
-### The data in production (2026-10-18)
+### The data in production (2026-10-18, checked again 2026-10-19)
 
 Real, small, and entered partly after the fact. Production was emptied by the
 owner on 2026-10-14 (`scripts/prod-reset-partners.sh`; logins abdallah@, shady@,
@@ -150,7 +143,9 @@ the owner's test sales were deleted.
 - **Lenders**: Ahmad Eraiby is recorded (renamed 2026-10-17). Mohamed Abu Setta,
   the second lender, is not recorded yet.
 - **Ledger checked 2026-10-18**: receipts = goods + legs to the piastre;
-  collected + receivables = revenue; cash on hand 34,800 = collected. The
+  collected + receivables = revenue; cash on hand 34,800 = collected. On 2026-10-19
+  collected read 39,800: a 5,000 payment on Koshary's ORD-2026-00002 was recorded
+  on 2026-10-18 (presumably his first cash payment). The
   partners' capital of 64,400.97 (21,466.99 / 21,466.99 / 21,467 by Split equally)
   is a **stand-in** for leg 2's cost until Mohamed Abu Setta's payment is recorded;
   the partners actually paid nothing.

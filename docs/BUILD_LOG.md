@@ -2,45 +2,43 @@
 
 Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The MCP run before it was
 fully autonomous too, chosen 2026-09-19.
-Goal (current, 2026-10-19): the owner tests today's batch locally (samples, default price, wizard + funding lock,
-P&L Option A), the full e2e suite runs, then it ships. The goal before it — walk-in sales + the assistant records
-sales (plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`) — shipped 2026-10-11.
+Goal (current, 2026-10-19): the 2026-10-18/19 batch is live. Next: the assistant gets the samples flow (Next up),
+then the full e2e run before the next big ship. The goal before it — walk-in sales + the assistant records sales (plan
+`docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`) — shipped 2026-10-11.
 
 ## Current stage
-2026-10-19 — production runs `origin/master` (`f231309`, the 2026-10-18 batch). Today's batch is merged into local
-`master` (`299fba9`) and **waits for the owner's local test**, then the full e2e run, then a ship with one migration.
-Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep flows small.
-State of the product and of production's data: `docs/where-things-stand.md`.
-
-## Merged locally — awaiting the owner's test (not in production)
-Ship order when he says go (`docs/deployment.md` "Shipping a release"): `scripts/ship-prod.sh migrate` **on its own**
-for `20261018200000_samples_at_shops` (additive: order statuses `SAMPLES`, `SAMPLES_RETURNED`, `SAMPLES_WRITTEN_OFF`;
-movement types `SAMPLE_OUT`, `SAMPLE_BACK`; three nullable `sale_orders` dates), then `ship-prod.sh status` must print
-"Database schema is up to date!", then push `master`. The code reads the new enum values, so it must not go first.
-- Profit and loss redesigned as Option A (`7834f4e`): four tiles, "How it adds up", one sales/net chart in day, week
-  (Saturday–Friday) or month buckets by the period's length, top four expense categories; the Revenue by month card
-  is gone (§12 "Profit and loss on Analytics"; `common/period-buckets.ts`).
-- Cycle wizard ends at step 3, Shipping leg; a funding note on the cycle page (Split equally / Enter amounts / Paid by
-  a lender); funding locks once the settlement is approved, `FUNDING_LOCKED_AFTER_SETTLEMENT`; a stale draft is
-  refused at approval, `SETTLEMENT_STALE_FUNDING` (`1dfb963`; §8; `common/funding-lock.ts`).
-- Six months of trading history for Analytics, `cd apps/api && npm run db:seed:history` (`caf2e1f`; local only,
-  refuses a non-local database; CLAUDE.md §8).
-- A cancelled order owes nothing — outstanding goes to 0, the total stays (`2a45571`; §4). Production's own
-  cancelled orders, if any, are what check-data 12.2 finds; run it after the ship.
-- Samples at shops, rounds 1 and 2 (`1062e28`, `c59486d`; §4 "Samples at shops"): the New Order popup's samples
-  switch, "They're buying" opens the New Order popup pre-filled, Returned, Write off, the 14-day reminder, the
-  Samples column on Inventory and the Samples card on a product's page, settlement refused while samples are out.
-- 2026-10-19: Analytics' Top products and Cycle profitability show the top five; products that sold nothing are
-  dropped, cycles ranked by profit (§12 "Analytics shows the top five").
-- A product's default price is landed cost + 20% where no price is set (`22c0856`; §3; `common/default-price.ts`).
-  2026-10-19: the product page's B2C field shows it too (it only did for B2B).
+2026-10-19 — production runs `origin/master` (`415ccf9`): the whole 2026-10-18/19 batch shipped after the owner's local
+test; migration `20261018200000_samples_at_shops` applied first (status "up to date"), then pushed. Nothing is merged
+locally and waiting. Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep
+flows small; docs move with the code. State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-19 — shipped (`415ccf9`; migration `20261018200000_samples_at_shops` first):
+  - Profit and loss redesigned as Option A (`7834f4e`): four tiles, "How it adds up", one sales/net chart in day, week
+    (Saturday–Friday) or month buckets by the period's length, top four expense categories; the Revenue by month card
+    is gone (§12 "Profit and loss on Analytics"; `common/period-buckets.ts`).
+  - Cycle wizard ends at step 3, Shipping leg; a funding note on the cycle page (Split equally / Enter amounts / Paid by
+    a lender); funding locks once the settlement is approved, `FUNDING_LOCKED_AFTER_SETTLEMENT`; a stale draft is
+    refused at approval, `SETTLEMENT_STALE_FUNDING` (`1dfb963`; §8; `common/funding-lock.ts`).
+  - Six months of trading history for Analytics, `cd apps/api && npm run db:seed:history` (`caf2e1f`; local only,
+    refuses a non-local database; CLAUDE.md §8).
+  - A cancelled order owes nothing — outstanding goes to 0, the total stays (`2a45571`; §4). Production's own
+    cancelled orders, if any, are what check-data 12.2 finds; run it after the ship.
+  - Samples at shops, rounds 1 and 2 (`1062e28`, `c59486d`; §4 "Samples at shops"): the New Order popup's samples
+    switch, "They're buying" opens the New Order popup pre-filled, Returned, Write off, the 14-day reminder, the
+    Samples column on Inventory and the Samples card on a product's page, settlement refused while samples are out.
+  - 2026-10-19: Analytics' Top products and Cycle profitability show the top five; products that sold nothing are
+    dropped, cycles ranked by profit (§12 "Analytics shows the top five").
+  - A product's default price is landed cost + 20% where no price is set (`22c0856`; §3; `common/default-price.ts`).
+    2026-10-19: the product page's B2C field shows it too (it only did for B2B).
+  - On a phone, a period drawn by day shows Saturday–Friday weeks; tapping a week lists its days (`e4e6435`; §9).
+  - Fixes from the targeted test pass: the Partners tab refreshes after a settlement is approved, paid or reversed
+    (`24c7442`); the default-price hint wraps inside its column (`97f1fc7`); invariants TC-INV-72..83 (`3e3cc91`).
 - 2026-10-18 — the audit log names the record and lists what changed; a Who filter (by partner name) and a
   record-type filter that offers what the API writes (`3e9b748`, `07cb929`, `f231309`).
 - 2026-10-18 — every office notification is pushed to the reader's phone, in Arabic (`18d52be`; §10).
-- 2026-10-18 — Profit and loss v1 on Analytics, from the dashboard's own computation (`225be8f`; redesigned locally,
+- 2026-10-18 — Profit and loss v1 on Analytics, from the dashboard's own computation (`225be8f`; redesigned 2026-10-19,
   above).
 - 2026-10-18 — one search-and-filters toolbar (`ListToolbar`) on every office list (`51b4cf9`).
 - 2026-10-18 — Fuel quick action on the Ledger page only, gone from the dashboard (`22c1de6`, `54791b9`; §9).
