@@ -7,9 +7,10 @@ import { useTranslations } from 'next-intl';
 import { api } from './api';
 import { useCodeLabel, type CodeKind } from './labels';
 import { useDateFormat } from './dates';
-import { REQUESTS_ENABLED } from './features';
-import { requestsPath } from './requests-route';
-import { viewPath } from './page-views';
+// Where a notification takes you lives apart from the hooks, with no 'use
+// client', so the page a push opens (`/notifications/open`) can ask the same
+// question on the server.
+export { notificationHref } from './notification-href';
 
 /**
  * The notifications query, defined once.
@@ -66,83 +67,6 @@ export function useNotifications(limit = 50) {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
-}
-
-/**
- * Where a notification takes you.
- *
- * A notification you cannot act on is a notification that wastes the reading of
- * it. Every event here names the thing it happened to, and the payload already
- * carries the id — it was only ever a matter of using it.
- *
- * Returns null when there is nowhere sensible to go, and the row is then plain
- * text rather than a link that lands on a dashboard and leaves the person
- * hunting for what the message was about.
- */
-export function notificationHref(
-  notification: Notification,
-  /** Whether this build shows the Requests page (lib/features.ts). Where it is
-   *  switched off a request's notification is plain text, not a link that
-   *  would only bounce to the dashboard. */
-  requestsEnabled: boolean = REQUESTS_ENABLED,
-): string | null {
-  const payload = (notification.payloadJson ?? {}) as Record<string, string | undefined>;
-
-  switch (notification.eventType) {
-    case 'ORDER_REQUEST_SUBMITTED':
-    case 'HOLD_EXPIRING':
-      return requestsEnabled ? requestsPath('orders') : null;
-
-    case 'IMPORT_REQUEST_SUBMITTED':
-      return requestsEnabled ? requestsPath('imports') : null;
-
-    case 'SHOP_SIGNED_UP':
-      // Straight to the tab they are waiting in, not the whole customer list.
-      return '/customers?verification=UNVERIFIED';
-
-    case 'CYCLE_CREATED':
-    case 'CYCLE_STATUS_CHANGED':
-    case 'ADDED_TO_CYCLE':
-      return payload.cycleId ? `/cycles/${payload.cycleId}/details` : '/cycles';
-
-    case 'PURCHASE_ORDER_CREATED':
-      return payload.cycleId ? `/cycles/${payload.cycleId}/details` : viewPath('purchases');
-
-    case 'SHIPMENT_CREATED':
-    case 'SHIPMENT_STATUS_CHANGED':
-      return viewPath('shipments');
-
-    case 'STOCK_RECEIVED':
-    case 'LOW_STOCK':
-      return payload.productId ? `/products/${payload.productId}` : '/inventory';
-
-    // What the API raises, after a receipt or a sale (§3): the stock page,
-    // which marks every low product. LOW_STOCK above was never raised.
-    case 'LOW_STOCK_DETECTED':
-      return '/inventory';
-
-    case 'SALE_CREATED':
-    case 'SALE_CONFIRMED':
-      return '/sales';
-
-    case 'PAYMENT_RECEIVED':
-      return '/payments';
-
-    // PAYMENT_OVERDUE is what the API raises (per instalment since 2026-10-11);
-    // PAYMENT_PLAN_OVERDUE was never raised, and kept the link from working.
-    case 'PAYMENT_OVERDUE':
-    case 'PAYMENT_PLAN_OVERDUE':
-    case 'PAYMENT_PLAN_CREATED':
-      return '/payments?view=contracts';
-
-    case 'SETTLEMENT_CREATED':
-    case 'SETTLEMENT_APPROVED':
-    case 'SETTLEMENT_PAID':
-      return viewPath('settlements');
-
-    default:
-      return null;
-  }
 }
 
 /**

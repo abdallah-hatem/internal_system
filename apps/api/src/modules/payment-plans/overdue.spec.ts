@@ -9,6 +9,12 @@ import { JobsController } from '../portal/jobs.controller';
 import type { HoldsScheduler } from '../portal/holds.scheduler';
 import { PaymentPlansService } from './payment-plans.service';
 import type { LendersService } from '../lenders/lenders.service';
+import type { PushService } from '../notifications/push.service';
+
+/** No phones in this suite: what is written is what is checked. */
+const NO_PUSH = {
+  sendToUsers: () => Promise.resolve({ sent: 0, removed: 0 }),
+} as unknown as PushService;
 
 /**
  * The daily overdue check (BUSINESS_LOGIC §7, DECIDED 2026-10-11): every
@@ -123,7 +129,7 @@ function service(w: World) {
   return new PaymentPlansService(
     prisma,
     { log: jest.fn() } as unknown as AuditService,
-    new NotificationsService(prisma),
+    new NotificationsService(prisma, NO_PUSH),
   );
 }
 

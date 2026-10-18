@@ -1518,6 +1518,32 @@ takes a product into low stock — §3), a shipment arriving, a cycle created or
 changing state, a purchase order created, a partner added to a cycle, and an
 instalment falling behind (checked daily since 2026-10-11 — §7).
 
+**Every office notification is also pushed to the reader's phone** — built
+2026-10-18, after the owner's test sale took a product below its minimum, the
+bell rang on the desktop and his phone (alerts on, test alert arriving) stayed
+silent. Until then only the storefront's requests were ever pushed; every other
+notification was only a row.
+
+- DECIDED (as before): the row is the record, the push an attempt. It is
+  written first; a push that fails, times out or finds no device loses nothing
+  and never fails or rolls back what raised it. It is sent after the commit,
+  never inside a transaction.
+- The words are the bell's own (`renderNotification` for the stored code), and
+  a tap opens the page the bell links to (`/notifications/open`, which asks the
+  bell's mapping). A device the push service calls gone (404/410) is forgotten.
+- Bounded: every device is tried at once, each gets 2.5 s, the whole delivery
+  3 s, so a slow push service cannot hold a sale's response for longer.
+- **GUESS 2026-10-18, not asked — the language.** Nothing records which language
+  a partner reads (no user, session or device stores one), so a push with no
+  stored language goes out in **Arabic**, the business's language — the office's
+  included, and the storefront's office alerts too, which were English before.
+  The office app itself still opens in English. When a tap opens the app it uses
+  the language of a window already open, else the push's. If a partner wants
+  English pushes, the fix is to store the language with the device when alerts
+  are turned on (the page knows it then).
+- GUESSED: a new alert about the same thing (same event and ids) replaces the
+  earlier one on the phone rather than stacking.
+
 ---
 
 ## 11. Money and rounding
@@ -1732,9 +1758,9 @@ One flag, `apps/web/src/lib/features.ts` (`REQUESTS_ENABLED`):
 production (a redeploy applies it), `off` hides it everywhere, and unset means
 off when `NEXT_PUBLIC_VERCEL_ENV` is `production` and on otherwise. **GUESSED,
 not asked:** the old addresses keep working in dev rather than being removed;
-the push alert the API still sends for a new request points at
-`/order-requests`/`/import-requests`, which in production now lands on the
-dashboard.
+the push alert the API still sends for a new request opens what the bell
+would (since 2026-10-18, §10): the tab when the page is on, the notifications
+list when it is off.
 
 ---
 
