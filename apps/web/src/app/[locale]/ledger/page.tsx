@@ -18,6 +18,8 @@ import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { LedgerEntryDialog } from '@/components/ledger/LedgerEntryDialog';
+import { LedgerQuickActions } from '@/components/dashboard/quick-actions';
+import { useAuth } from '@/lib/auth-context';
 import { MANUAL_CATEGORIES, manualKindOf } from '@/lib/ledger-categories';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
 import { Download } from 'lucide-react';
@@ -124,6 +126,7 @@ export default function LedgerPage() {
   const t = useTranslations('ledger');
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
+  const { user } = useAuth();
 
   // `type` is a free-form column: fall back to the raw value rather than
   // asking next-intl for a message key that does not exist.
@@ -283,7 +286,11 @@ export default function LedgerPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+          {/* A quick action, not a toolbar button (owner 2026-10-18). */}
+          <LedgerQuickActions role={user?.role} />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
         {/* Whatever the filters currently show, not the whole table — the
             filtered view is the question being asked. Amount goes out as a
