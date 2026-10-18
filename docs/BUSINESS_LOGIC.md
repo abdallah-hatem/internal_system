@@ -1984,6 +1984,11 @@ goods lost on the way as its own line); net profit by month. `GET /analytics/pro
     week each; longer a calendar month each (this year from February, all time). GUESSED, with the
     **week Saturday to Friday** — the week as an Egyptian calendar prints it, Friday its last day. Edge
     weeks and months are cut to the period. Every bucket is present; a quiet one is zero. Days are Cairo's.
+  - **On a phone (below 640px) a by-day period is drawn by week** (owner 2026-10-19, mockup "Option 1"):
+    the app adds the API's day buckets into the same Saturday–Friday weeks, cut at the period's edges,
+    summed in piastres, so the weeks equal their days and the totals. The week still running is labelled
+    "today". Tapping a week opens its days (sales and net profit each, losses red, the week's total). The
+    desktop keeps the days; by-week and by-month periods are the same on both. No second server path.
   - **The buckets add up to the totals exactly**, because both are the same parts: `profitParts` reads every
     source once for the period (twelve queries however many buckets — asking `profitFigures` per bucket had
     cost twelve per bucket, 26 for a month by month, would have been 372 by day), each row put on its day by

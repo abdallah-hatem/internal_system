@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ar from '@/i18n/locales/ar.json';
@@ -459,5 +459,233 @@ describe('the section in its place', () => {
     const chart = await screen.findByTestId('pnl-chart');
     const left = (key: string) => parseFloat((chart.querySelector(`[data-point="${key}"]`) as HTMLElement).style.left);
     expect(left('2026-09')).toBeLessThan(left('2026-10'));
+  });
+});
+
+/**
+ * A phone-width screen, switchable mid-test as a rotation is: `matchMedia`
+ * answers the app's phone query (below Tailwind's `sm`, 640px) from `width`,
+ * and `resize(w)` tells every listener, as the browser does.
+ */
+const screenWidth = { width: 1440, listeners: new Set<() => void>() };
+function installMatchMedia() {
+  window.matchMedia = ((query: string) => {
+    const max = Number(/max-width:\s*([\d.]+)px/.exec(query)?.[1] ?? Infinity);
+    return {
+      get matches() {
+        return screenWidth.width <= max;
+      },
+      media: query,
+      addEventListener: (_: string, fn: () => void) => screenWidth.listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => screenWidth.listeners.delete(fn),
+      addListener: () => {},
+      removeListener: () => {},
+      onchange: null,
+      dispatchEvent: () => false,
+    } as unknown as MediaQueryList;
+  }) as typeof window.matchMedia;
+}
+function resize(width: number) {
+  screenWidth.width = width;
+  act(() => screenWidth.listeners.forEach((fn) => fn()));
+}
+
+/** This month to today (Sun Oct 18, 2026) by day, as the API sends it: every day, quiet ones too. */
+function octoberDays(): PnlBucket[] {
+  return Array.from({ length: 18 }, (_, i) => {
+    const d = `2026-10-${String(i + 1).padStart(2, '0')}`;
+    // Cents everywhere, a loss on the 4th and the 12th, nothing on the 7th.
+    const sales = i === 6 ? 0 : 1_000 + i * 100.15;
+    const net = i === 3 ? -2_500.5 : i === 11 ? -0.05 : i === 6 ? 0 : 150.1 + i;
+    return { key: d, from: d, to: d, salesEgp: sales, grossProfitEgp: Math.round(sales * 38) / 100, expensesEgp: 10.01 * i, netProfitEgp: net };
+  });
+}
+const DAY_PNL = (): ProfitAndLoss => ({ ...PNL, from: '2026-10-01', to: '2026-10-18', granularity: 'day', buckets: octoberDays() });
+
+describe('the chart on a phone: a by-day period is drawn by week (owner 2026-10-19, Option 1)', () => {
+  const realMatchMedia = window.matchMedia;
+  beforeEach(() => {
+    screenWidth.listeners.clear();
+    screenWidth.width = 390;
+    installMatchMedia();
+    nav.query = 'period=month';
+    reply = () => Promise.resolve(DAY_PNL());
+  });
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+  });
+
+  const axisSpans = (chart: HTMLElement) => [...chart.querySelectorAll('[data-axis-label]')];
+  const axis = (chart: HTMLElement) => axisSpans(chart).map((s) => s.textContent);
+
+  it('at 390px: four Saturday–Friday weeks cut to the month and today, a point each, short labels, "by week"', async () => {
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    expect(chart.getAttribute('data-folded')).toBe('week');
+    expect(chart.getAttribute('data-granularity')).toBe('week');
+    expect([...chart.querySelectorAll('[data-bucket]')].map((b) => b.getAttribute('data-bucket'))).toEqual([
+      '2026-09-26', // Thu–Fri Oct 1–2, cut at the month's start
+      '2026-10-03',
+      '2026-10-10',
+      '2026-10-17', // Sat–Sun Oct 17–18, cut at today
+    ]);
+    expect(chart.querySelectorAll('[data-bar]')).toHaveLength(4);
+    expect(chart.querySelectorAll('[data-point]')).toHaveLength(4);
+    expect(screen.getByTestId('pnl-line').getAttribute('points')!.split(' ')).toHaveLength(4);
+    expect(axis(chart)).toEqual(['Oct 1', 'Oct 3', 'Oct 10', 'today']);
+    // Every label is shown on a phone: none hidden below sm.
+    expect(axisSpans(chart).every((s) => s.classList.contains('block'))).toBe(true);
+    expect(chart.querySelector('h3')!.textContent).toBe('Sales and net profit · by week');
+    // The week of the 4th lost money overall: its point is red.
+    expect(chart.querySelector('[data-point="2026-10-03"]')!.getAttribute('data-loss')).toBe('true');
+    expect(chart.querySelector('[data-point="2026-10-10"]')!.getAttribute('data-loss')).toBeNull();
+  });
+
+  it('a week’s column says its exact totals — the sum of its days, to the piastre', async () => {
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    // Oct 3–9 (i = 2..8): sales 1000 + i * 100.15, the 7th (i = 6) quiet.
+    const sales = [2, 3, 4, 5, 7, 8].reduce((s, i) => s + Math.round((1_000 + i * 100.15) * 100), 0) / 100;
+    const net = [2, 4, 5, 7, 8].reduce((s, i) => s + Math.round((150.1 + i) * 100), 0) / 100 - 2_500.5;
+    expect(sales).toBe(8_904.35);
+    expect(Math.round(net * 100) / 100).toBe(-1_724);
+    expect(chart.querySelector('[data-bucket="2026-10-03"]')!.getAttribute('aria-label')).toBe(
+      'Oct 3 – Oct 9, 2026: Sales 8,904.35 EGP, Net profit -1,724.00 EGP',
+    );
+  });
+
+  it('tapping a week opens its own days: sales and net profit each, losses red, the week’s total under them', async () => {
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    expect(screen.queryByTestId('pnl-week')).toBeNull();
+    fireEvent.pointerDown(chart.querySelector('[data-bucket="2026-10-03"]')!);
+    fireEvent.click(chart.querySelector('[data-bucket="2026-10-03"]')!);
+    const week = screen.getByTestId('pnl-week');
+    expect(week.getAttribute('role')).toBe('dialog');
+    expect(within(week).getByRole('heading').textContent).toBe('Oct 3 – Oct 9, 2026');
+    const days = [...within(week).getByTestId('pnl-week-days').querySelectorAll('li')];
+    expect(days.map((d) => d.getAttribute('data-day'))).toEqual([
+      '2026-10-03',
+      '2026-10-04',
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+      '2026-10-08',
+      '2026-10-09',
+    ]);
+    const cell = (d: Element, id: string) => d.querySelector(`[data-testid="${id}"]`)!;
+    expect(days[0].textContent).toContain('Sat, Oct 3');
+    expect(days[6].textContent).toContain('Fri, Oct 9');
+    expect(cell(days[0], 'pnl-day-sales').textContent).toBe('1,200.30');
+    expect(cell(days[1], 'pnl-day-net').textContent).toBe('-2,500.50');
+    expect(cell(days[1], 'pnl-day-net').className).toContain('text-destructive');
+    expect(days[1].getAttribute('data-loss')).toBe('true');
+    expect(cell(days[0], 'pnl-day-net').className).toContain('text-success');
+    // The quiet day is there, at zero, not missing.
+    expect(cell(days[4], 'pnl-day-sales').textContent).toBe('0.00');
+    // The total is the days added up, and equals the column's.
+    expect(within(week).getByTestId('pnl-week-sales').textContent).toBe('8,904.35');
+    expect(within(week).getByTestId('pnl-week-net').textContent).toBe('-1,724.00');
+    expect(within(week).getByTestId('pnl-week-net').className).toContain('text-destructive');
+    // No tooltip over the dialog: the tap answered with the days.
+    expect(screen.queryByTestId('pnl-tooltip')).toBeNull();
+
+    // Closed, and opened again on another week: that week's days, not the last ones.
+    fireEvent.click(within(week).getByRole('button', { name: en.common.close }));
+    expect(screen.queryByTestId('pnl-week')).toBeNull();
+    fireEvent.click(chart.querySelector('[data-bucket="2026-10-17"]')!);
+    const last = screen.getByTestId('pnl-week');
+    expect([...last.querySelectorAll('li')].map((d) => d.getAttribute('data-day'))).toEqual(['2026-10-17', '2026-10-18']);
+    // Today is named as today.
+    expect(last.querySelectorAll('li')[1].textContent).toContain('today');
+  });
+
+  it('the first, cut week opens only the days inside the period', async () => {
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    fireEvent.click(chart.querySelector('[data-bucket="2026-09-26"]')!);
+    const week = screen.getByTestId('pnl-week');
+    expect(within(week).getByRole('heading').textContent).toBe('Oct 1 – Oct 2, 2026');
+    expect([...week.querySelectorAll('li')].map((d) => d.getAttribute('data-day'))).toEqual(['2026-10-01', '2026-10-02']);
+  });
+
+  it('at 1440px the same period keeps its 18 day columns, its tooltip and "by day"; a tap opens nothing', async () => {
+    screenWidth.width = 1440;
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    expect(chart.getAttribute('data-folded')).toBeNull();
+    expect(chart.getAttribute('data-granularity')).toBe('day');
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(18);
+    expect(chart.querySelector('h3')!.textContent).toBe('Sales and net profit · by day');
+    expect(axis(chart)[17]).toBe('Oct 18');
+    fireEvent.pointerDown(chart.querySelector('[data-bucket="2026-10-04"]')!);
+    fireEvent.click(chart.querySelector('[data-bucket="2026-10-04"]')!);
+    expect(screen.getByTestId('pnl-tooltip-net').textContent).toBe('-2,500.50 EGP');
+    expect(screen.queryByTestId('pnl-week')).toBeNull();
+  });
+
+  it('640px is already the wide layout; 639px is a phone', async () => {
+    screenWidth.width = 640;
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(18);
+    resize(639);
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(4);
+  });
+
+  it('rotating or resizing switches between weeks and days without asking the API again, and closes an open week', async () => {
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    const asked = () => get.mock.calls.filter(([url]) => url === '/analytics/profit-and-loss').length;
+    const before = asked();
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(4);
+    fireEvent.click(chart.querySelector('[data-bucket="2026-10-10"]')!);
+    expect(screen.getByTestId('pnl-week')).toBeTruthy();
+
+    resize(900);
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(18);
+    expect(screen.queryByTestId('pnl-week')).toBeNull();
+    resize(390);
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(4);
+    // The week left open before the rotation does not spring back.
+    expect(screen.queryByTestId('pnl-week')).toBeNull();
+    expect(asked()).toBe(before);
+  });
+
+  it.each([
+    ['week', 9, 'by week, Saturday to Friday'],
+    ['month', 10, 'by month'],
+  ] as const)('a period the API draws by %s is the same on a phone: its own buckets, nothing to open', async (granularity, n, says) => {
+    reply = () => Promise.resolve({ ...PNL, granularity, buckets: bucketsOf(granularity, n) });
+    renderIn();
+    const chart = await screen.findByTestId('pnl-chart');
+    expect(chart.getAttribute('data-folded')).toBeNull();
+    expect(chart.getAttribute('data-granularity')).toBe(granularity);
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(n);
+    expect(chart.textContent).toContain(says);
+    fireEvent.click(chart.querySelector('[data-bucket]')!);
+    expect(screen.queryByTestId('pnl-week')).toBeNull();
+  });
+
+  it('in Arabic: the weeks run right to left, the subtitle and the opened days are Arabic, minus signs kept', async () => {
+    renderIn('ar');
+    const chart = await screen.findByTestId('pnl-chart');
+    expect(chart.querySelectorAll('[data-bucket]')).toHaveLength(4);
+    expect(chart.querySelector('h3')!.textContent).toBe(`${ar.analytics.pnl.chartTitle} · ${ar.analytics.pnl.byWeekShort}`);
+    const left = (key: string) => parseFloat((chart.querySelector(`[data-point="${key}"]`) as HTMLElement).style.left);
+    // The older week sits to the right.
+    expect(left('2026-09-26')).toBeGreaterThan(left('2026-10-03'));
+    expect(left('2026-10-03')).toBeGreaterThan(left('2026-10-17'));
+    expect(axis(chart)[3]).toBe(ar.analytics.pnl.today);
+
+    fireEvent.click(chart.querySelector('[data-bucket="2026-10-03"]')!);
+    const week = screen.getByTestId('pnl-week');
+    expect(week.textContent).toContain(ar.analytics.pnl.weekTotal);
+    expect(week.textContent).toContain(ar.analytics.pnl.netProfit);
+    const net = week.querySelectorAll('li')[1].querySelector('[data-testid="pnl-day-net"]')!;
+    expect(net.textContent).toBe('-2,500.50');
+    // The minus stays with the digits: they are one LTR run inside the cell.
+    expect(net.querySelector('bdi[dir="ltr"]')!.textContent).toBe('-2,500.50');
+    expect(week.querySelectorAll('li')[0].textContent).toContain('السبت');
   });
 });

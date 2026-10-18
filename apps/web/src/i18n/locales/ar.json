@@ -956,7 +956,11 @@
       "noExpenses": "لا توجد مصروفات في هذه الفترة.",
       "noMonths": "لم يُسجَّل شيء بعد.",
       "loadFailed": "تعذّر تحميل الأرباح والخسائر.",
-      "samplesWrittenOff": "عينات مشطوبة"
+      "samplesWrittenOff": "عينات مشطوبة",
+      "byWeekShort": "أسبوعيًا",
+      "day": "اليوم",
+      "weekTotal": "الأسبوع",
+      "weekDaysNote": "كل يوم من الأسبوع، بالجنيه المصري."
     }
   },
   "notifications": {
