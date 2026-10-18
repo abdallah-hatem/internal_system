@@ -23,7 +23,7 @@ import { psqlStdin } from './support/database';
 import { DB_CONTAINER, DB_NAME } from './support/env';
 import { API, apiCtx, PASSWORD, refusedCallers } from './support/fixtures';
 import { leftoverWorld } from './support/leftovers';
-import { BASE, login, messages, type Locale } from './support/ui';
+import { BASE, login, messages, openView, type Locale } from './support/ui';
 
 const INVESTOR_EMAIL = 'investor@motoparts.com';
 const SHOTS = process.env.L5_SHOTS === '1';
@@ -182,8 +182,7 @@ test.describe('The settlement’s unsold-stock refusal offers the move', () => {
     await mk(`settlements/${draft.id}/approve`, {});
 
     await login(page);
-    await page.locator('aside a[href="/en/settlements"]').filter({ visible: true }).first().click();
-    await expect(page).toHaveURL(/\/en\/settlements$/);
+    await openView(page, 'settlements');
     const card = page.locator(`[data-testid="settlement-card"][data-cycle="${a.code}"]`);
     await card.getByRole('button', { name: en.settlementsPage.markPaid }).click();
 

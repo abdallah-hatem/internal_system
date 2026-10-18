@@ -29,7 +29,7 @@ import {
   usersByEmail,
   waitingFor,
 } from './support/running-costs';
-import { login, messages, openNav, type Locale } from './support/ui';
+import { login, messages, openNav, openView, type Locale } from './support/ui';
 
 const SHOTS = process.env.L7_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l7';
@@ -82,15 +82,22 @@ async function aWorld(request: any, label: string) {
 }
 
 /** Through the menu: the sidebar on a desktop, the menu button on a phone (as spec 99-leftover-transfer). */
+/** Partners, or its Settlements tab (a tab since 2026-10-18), by clicking. */
 async function go(page: Page, path: 'settlements' | 'partners', locale: Locale = 'en') {
   if ((page.viewportSize()?.width ?? 1440) < 768) {
     await hideDevBadge(page);
     await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
-    await page.locator(`a[href="/${locale}/${path}"]`).filter({ visible: true }).first().click();
+    await page.locator(`a[href="/${locale}/partners"]`).filter({ visible: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/${locale}/partners$`), { timeout: 15000 });
+    if (path === 'settlements') {
+      await page.getByRole('main').getByRole('tab', { name: messages(locale).nav.settlements, exact: true }).click();
+    }
+  } else if (path === 'settlements') {
+    await openView(page, 'settlements', locale);
   } else {
-    await openNav(page, path === 'settlements' ? messages(locale).nav.settlements : messages(locale).nav.partners);
+    await openNav(page, messages(locale).nav.partners);
   }
-  await expect(page).toHaveURL(new RegExp(`/${locale}/${path}$`), { timeout: 15000 });
+  await expect(page).toHaveURL(new RegExp(`/${locale}/partners${path === 'settlements' ? '\\?view=settlements' : ''}$`), { timeout: 15000 });
 }
 const openSettlements = (page: Page, locale: Locale = 'en') => go(page, 'settlements', locale);
 
@@ -124,6 +131,10 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
 
     // The Partners page: nothing of A's waits, and his payout opens to the same lines.
     await openNav(page, m.nav.partners);
+    // Wait for the partner cards: while the page is its skeleton the
+    // running-costs section is drawn inside it and replaced when they land,
+    // taking an open period picker with it.
+    await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible();
     const section = page.getByTestId('running-costs');
     await section.getByRole('combobox').click();
     await page.getByRole('option', { name: m.partners.periodAll }).click();
@@ -181,6 +192,9 @@ test.describe('Screens, line by line, in both languages (L7)', () => {
         await shot(page, `settlement-paid-${tag}`, card(page, w.cycle.code));
 
         await go(page, 'partners', locale);
+        // The partner cards have landed: until then the page is its skeleton,
+        // and the running-costs section drawn inside it is replaced when they do.
+        await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible();
         const rc = page.getByTestId('running-costs');
         await expect(rc).toContainText(m.partners.runningCostsTitle);
         await expect(rc.getByTestId('running-costs-residual')).toBeVisible();

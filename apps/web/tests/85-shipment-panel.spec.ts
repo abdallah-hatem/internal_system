@@ -16,6 +16,7 @@
  */
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { API, EMAIL, PASSWORD, apiCtx, daysAgo } from './support/fixtures';
+import { openView } from './support/ui';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE } from './support/env';
@@ -187,7 +188,9 @@ test.describe('Shipment panel (F1a)', () => {
     // And back on the cycle by clicking, the panel already knows.
     await openCycle(page, cycle.code);
     await expect(cell(page, product.name, 'line-received')).toHaveText('15');
-    await expect(cell(page, product.name, 'line-waiting')).toHaveText('0');
+    // Nothing waits any more, so the leg shows no Waiting column at all (legCounts:
+    // an arrived leg is not a row of zeros).
+    await expect(cell(page, product.name, 'line-waiting')).toHaveCount(0);
     expect((await batchesOf(request, headers, product.id)).map((b) => Number(b.receivedQty))).toEqual([14, 1]);
   });
 
@@ -293,7 +296,8 @@ test.describe('Shipment panel (F1a)', () => {
     await shipmentDialog(page, 'take-back-loss').getByRole('button', { name: en.shipment.takeBack }).click();
     await expect(shipmentDialog(page, 'take-back-loss')).toBeHidden();
     await expect(cell(page, product.name, 'line-on-the-way')).toHaveText('40');
-    await expect(cell(page, product.name, 'line-lost')).toHaveText('0');
+    // Nothing lost any more: the Lost column is gone, not a zero.
+    await expect(cell(page, product.name, 'line-lost')).toHaveCount(0);
   });
 
   test('TC-SHP-08: a refund larger than the loss → REFUND_EXCEEDS_LOSS translated, values kept', async ({ page, request }) => {
@@ -400,7 +404,8 @@ test.describe('Shipment panel (F1a)', () => {
   test('TC-SHP-12: the shipments edit form sends no status and no arrival, and points at the panel', async ({ page, request }) => {
     const { cycle } = await cycleOnTheWay(request, 'SHP12');
     await login(page);
-    await openNav(page, en.nav.shipments);
+    // Shipments is a tab of Cycles (2026-10-18).
+    await openView(page, 'shipments');
     await page.getByPlaceholder(en.shipments.search).fill(cycle.code);
     await page.locator('tr', { hasText: cycle.code }).filter({ visible: true }).getByRole('button', { name: en.common.edit }).click();
     await expect(page.getByTestId('leg-arrival')).toContainText(en.codes.legStatus.IN_TRANSIT);

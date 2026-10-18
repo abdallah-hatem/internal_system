@@ -20,7 +20,7 @@
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { API, apiCtx, daysAgo, PASSWORD, today } from './support/fixtures';
-import { BASE, login, messages, type Locale } from './support/ui';
+import { BASE, login, messages, openView, type Locale } from './support/ui';
 
 const INVESTOR_EMAIL = 'investor@motoparts.com';
 const SHOTS = process.env.L8_SHOTS === '1';
@@ -217,8 +217,8 @@ test.describe('The leg forms record the first departure, and add the next leg', 
   test('TC-L8-03: the Shipments page edit form of a leg that has not left records its first departure, per product', async ({ page, request }) => {
     const { headers, cycle, legs, padItem, chainItem } = await cycleWithLegs(request, 'UAE_DIRECT');
     await login(page);
-    await page.locator('aside a[href="/en/shipments"]').filter({ visible: true }).first().click();
-    await expect(page).toHaveURL(/\/en\/shipments$/, { timeout: 15000 });
+    // Shipments is a tab of Cycles (2026-10-18).
+    await openView(page, 'shipments');
     await page.getByPlaceholder(en.shipments.search).fill(cycle.code);
     await page.getByRole('main').locator('tr', { hasText: cycle.code }).getByTestId('edit-action').click();
     const fields = page.getByTestId('leg-departure-fields');

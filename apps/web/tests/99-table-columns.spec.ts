@@ -39,7 +39,8 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { aCorePartnerUser, apiCtx, daysAgo, owedOrder, stockedProduct } from './support/fixtures';
 import { API } from './support/env';
-import { login, messages, openCustomer, openNav, type Locale } from './support/ui';
+import { login, messages, openCustomer, openNav, openView, type Locale } from './support/ui';
+import { PAGE_VIEWS } from '../src/lib/page-views';
 import { gateApi, go } from './support/gate';
 import { recordCost, soldOutCycle } from './support/running-costs';
 
@@ -66,7 +67,8 @@ async function build(request: APIRequestContext) {
   cycleCode = cycle.code;
   const order = await owedOrder(mk, customer.id, product.id, 123_456);
   orderNo = order.orderNo;
-  await mk('payments', { customerId: customer.id, amount: 100_000, currency: 'EGP', method: 'BANK_TRANSFER', reference: `TRANSFER-REF-${stamp}-000123456789` });
+  // Put on the shop's orders, as Record payment does: a contract's plan is what the sale still owes (2026-10-17).
+  await mk('payments', { customerId: customer.id, amount: 100_000, currency: 'EGP', method: 'BANK_TRANSFER', reference: `TRANSFER-REF-${stamp}-000123456789`, applyOldestFirst: true });
   await mk('providers', {
     name: `Gulf and Mediterranean International Shipping and Freight Forwarding ${stamp}`,
     contactPerson: 'Mohamed Abdel-Rahman El-Sayed',
@@ -227,7 +229,8 @@ const shot = async (page: Page, name: string) => {
 type NavKey = keyof ReturnType<typeof messages>['nav'];
 const LISTS: { name: string; nav: NavKey; columns: number }[] = [
   { name: 'Products', nav: 'products', columns: 8 },
-  { name: 'Inventory', nav: 'inventory', columns: 6 },
+  // On the shelf, At shops and All since samples (2026-10-18), with the expander and the product.
+  { name: 'Inventory', nav: 'inventory', columns: 8 },
   { name: 'Sales', nav: 'sales', columns: 8 },
   { name: 'Customers', nav: 'customers', columns: 6 },
   { name: 'Ledger', nav: 'ledger', columns: 7 },
@@ -253,7 +256,11 @@ for (const locale of ['en', 'ar'] as const) {
         const gate = await gateApi(page);
         await login(page, locale);
         gate.hold();
-        await openNav(page, m.nav[list.nav] as string);
+        // Purchases, shipments, providers and the audit log are tabs since
+        // 2026-10-18: their page from the menu, then the tab.
+        const view = Object.values(PAGE_VIEWS).flatMap((v) => v.slice(1) as readonly { slug: string; navKey: string }[]).find((v) => v.navKey === list.nav);
+        if (view) await openView(page, view.slug, locale);
+        else await openNav(page, m.nav[list.nav] as string);
         await expect(page.locator('main table tr[data-testid="skeleton-row"]').filter({ visible: true }).first()).toBeVisible();
         const index = await skeletonTableIndex(page);
         expect(index).toBeGreaterThanOrEqual(0);
@@ -314,7 +321,7 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
     name: "a purchase order's lines",
     open: async (page, locale) => {
       const m = messages(locale);
-      await openNav(page, m.nav.purchases);
+      await openView(page, 'purchases', locale);
       await page.getByPlaceholder(m.purchases.search).fill(cycleCode);
       await page.getByRole('main').locator('tr', { hasText: cycleCode }).getByRole('button', { name: m.common.view }).click();
       await expect(page.getByRole('dialog').locator('table')).toBeVisible();
@@ -338,13 +345,16 @@ const DETAILS: { name: string; open: (page: Page, locale: Locale) => Promise<voi
       await page.getByPlaceholder(m.cycles.search).fill(cycleCode);
       await page.getByTestId('cycle-row').filter({ hasText: cycleCode }).locator('td').first().click();
       await expect(page.getByTestId('location-table')).toBeVisible();
+      // A finished leg starts folded (2026-10-18): open each, as a person would to see its lines.
+      await expect(page.getByTestId('leg-toggle').first()).toBeVisible();
+      for (const toggle of await page.locator('[data-testid="leg-toggle"][aria-expanded="false"]').all()) await toggle.click();
       await expect(page.getByTestId('shipment-line').filter({ visible: true }).first()).toBeVisible();
     },
   },
   {
     name: "a settlement's participants",
     open: async (page, locale) => {
-      await openNav(page, messages(locale).nav.settlements);
+      await openView(page, 'settlements', locale);
       const card = page.locator(`[data-testid="settlement-card"][data-cycle="${settledCode}"]`);
       await expect(card.locator('table')).toBeVisible();
     },

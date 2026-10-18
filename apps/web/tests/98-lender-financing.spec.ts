@@ -12,7 +12,7 @@
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { API, apiCtx, daysAgo, refusedCallers } from './support/fixtures';
-import { login, messages, type Locale } from './support/ui';
+import { login, messages, openView, type Locale } from './support/ui';
 
 const SHOTS = process.env.L1_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l1';
@@ -123,8 +123,11 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     expect(costing.totals.landedEgp).toBe('403000.00');
     expect(costing.totals.lenderFinancedEgp).toBe('390000.00');
     expect(costing.totals.toFundEgp).toBe('13000.00');
-    await page.getByRole('main').getByRole('button', { name: en.cycles.splitEqually, exact: true }).click();
+    // The funding note asks for it at the top of the page (2026-10-18); the
+    // participants card's own Split equally does the same.
+    await page.getByTestId('funding-note').getByTestId('funding-note-split').click();
     await expect(page.getByText('Split equally — 13,000 EGP')).toBeVisible();
+    await expect(page.getByTestId('funding-note')).toHaveCount(0);
     const after = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
     const funded = ((after.data ?? after).participants as { contributionAmount: string }[])
       .reduce((s, p) => s + Number(p.contributionAmount), 0);
@@ -167,8 +170,7 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     await expect(card.getByTestId('repayment-row').nth(1).getByTestId('reverse-repayment')).toHaveCount(0);
 
     // ── The settlement waits for him ───────────────────────────────────
-    await page.locator('aside a[href="/en/settlements"]').filter({ visible: true }).first().click();
-    await expect(page).toHaveURL(/\/en\/settlements$/, { timeout: 15000 });
+    await openView(page, 'settlements');
     await page.locator('#cycle-select').click();
     const list = page.getByRole('listbox');
     const search = list.locator('[cmdk-input]');
@@ -189,8 +191,7 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     await expect(page).toHaveURL(/\/lenders\/[0-9a-f-]{36}$/, { timeout: 15000 });
     await repay(page, page.getByTestId('financing-card'), '13', 'all');
     await expect(page.getByTestId('financing-card').getByTestId('financing-owed')).toHaveText('0.00 AED');
-    await page.locator('aside a[href="/en/settlements"]').filter({ visible: true }).first().click();
-    await expect(page).toHaveURL(/\/en\/settlements$/, { timeout: 15000 });
+    await openView(page, 'settlements');
     await page.locator('#cycle-select').click();
     const again = page.getByRole('listbox');
     if (await again.locator('[cmdk-input]').count()) await again.locator('[cmdk-input]').fill(cycle.code);

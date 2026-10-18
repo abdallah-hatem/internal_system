@@ -26,6 +26,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiCtx, API } from './support/fixtures';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
 
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
@@ -516,8 +517,7 @@ test.describe('Quick create', () => {
     const [products, categories, orders] = [await count('products'), await count('categories'), await count('purchase-orders')];
 
     await login(page);
-    await page.locator('aside a[href="/en/purchases"]').click();
-    await expect(page).toHaveURL(/\/en\/purchases$/);
+    await openView(page, 'purchases');
     await page.getByRole('button', { name: /new purchase|create/i }).first().click();
     await page.getByRole('button', { name: /add item/i }).first().click();
 
@@ -551,8 +551,7 @@ test.describe('Quick create', () => {
     page,
   }) => {
     await login(page);
-    await page.locator('aside a[href="/en/purchases"]').click();
-    await expect(page).toHaveURL(/\/en\/purchases$/);
+    await openView(page, 'purchases');
     await page.getByRole('button', { name: /new purchase|create/i }).first().click();
     await page.getByRole('button', { name: /add item/i }).first().click();
 

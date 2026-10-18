@@ -11,6 +11,7 @@ import { EMAIL, PASSWORD } from './fixtures';
 import { WEB as BASE } from './env';
 import en from '../../src/i18n/locales/en.json';
 import ar from '../../src/i18n/locales/ar.json';
+import { PAGE_VIEWS, pageOfView, type ViewDef } from '../../src/lib/page-views';
 
 export { BASE };
 export type Locale = 'en' | 'ar';
@@ -36,6 +37,22 @@ export async function openNav(page: Page, name: string) {
   // the dashboard can name the very shop a test just made (who to collect
   // from; LEARNINGS, 2026-10-11).
   if (href) await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 15000 });
+}
+
+/**
+ * A view that is a tab of a page (lib/page-views.ts, 2026-10-18) — Shipments
+ * under Cycles, Settlements under Partners, Audit log under Settings: the
+ * page's entry in the menu, then its tab, as a person clicks them.
+ */
+export async function openView(page: Page, slug: string, locale: Locale = 'en') {
+  const host = pageOfView(slug);
+  if (!host) throw new Error(`Not a page view: ${slug}`);
+  const nav = messages(locale).nav as unknown as Record<string, string>;
+  const first = PAGE_VIEWS[host][0];
+  await openNav(page, nav[first.navKey]);
+  if (first.slug === slug) return;
+  await page.getByRole('main').getByRole('tab', { name: nav[(PAGE_VIEWS[host] as readonly ViewDef[]).find((v) => v.slug === slug)!.navKey], exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${host}\\?(.*&)?view=${slug}(&|$)`), { timeout: 15000 });
 }
 
 /** A shop's own page, from the Customers list, by its name. */

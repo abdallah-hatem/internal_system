@@ -90,7 +90,10 @@ function PriceCell({ price }: { price: ListPrice | null }) {
   return (
     <span>
       <Money value={Number(price.amount)} currency={price.currency} />
-      <DefaultPriceHint price={price} />
+      {/* Wraps rather than runs past the column: a price column is sized for
+          "123,456.00 EGP", and "Default (landed + 20%)" is wider in both
+          languages (TC-COL-03). */}
+      <DefaultPriceHint price={price} className="block whitespace-normal text-[11px] font-normal leading-tight text-muted-foreground" />
     </span>
   );
 }

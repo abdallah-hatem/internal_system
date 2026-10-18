@@ -140,7 +140,10 @@ for (const locale of ['en', 'ar'] as Locale[]) {
       await expect(sale).toHaveCount(0);
 
       // Purchases → New Purchase Order.
-      await go(page, locale, m.nav.purchases, phone);
+      // Purchases is a tab of Cycles (2026-10-18).
+      await go(page, locale, m.nav.cycles, phone);
+      await page.getByRole('main').getByRole('tab', { name: m.nav.purchases, exact: true }).click();
+      await expect(page).toHaveURL(/\?view=purchases$/, { timeout: 15000 });
       await page.getByTestId('create-action').filter({ visible: true }).first().click();
       // The modal is the only place on this page with numeric fields.
       const po = page.locator('body');

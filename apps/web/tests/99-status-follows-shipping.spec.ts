@@ -16,7 +16,7 @@
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { API, apiCtx, daysAgo } from './support/fixtures';
-import { day, login, messages, openNav, pickDate } from './support/ui';
+import { day, login, messages, openView, pickDate } from './support/ui';
 
 const en = messages('en');
 type Headers = Record<string, string>;
@@ -125,7 +125,7 @@ test.describe('L3 — the Shipments page', () => {
   test('TC-L3-07: setting a departure in the leg\'s edit form → "Shipping leg updated — cycle is now In transit to Egypt"', async ({ page, request }) => {
     const { headers, cycle } = await cycleWithLegs(request, 'UAE_DIRECT', { status: ['FUNDING', 'PURCHASING'] });
     await login(page);
-    await openNav(page, en.nav.shipments);
+    await openView(page, 'shipments');
     const main = page.getByRole('main');
     await main.getByPlaceholder(en.shipments.search).fill(cycle.code);
     await main.locator('tr', { hasText: cycle.code }).getByTestId('edit-action').click();

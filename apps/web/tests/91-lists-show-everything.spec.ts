@@ -26,6 +26,8 @@ import { test, expect, Page } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder, today, EMAIL, PASSWORD } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
+import { pageOfView } from '../src/lib/page-views';
 
 /** One more than the old default page of 20, with room for rows made in parallel. */
 const PAST_20 = 25;
@@ -44,9 +46,14 @@ async function login(page: Page) {
 
 /** From the menu to a list, by clicking, then type into its search box. */
 async function searchList(page: Page, href: string, placeholder: string, text: string) {
-  await page.locator(`aside a[href="/en${href}"]`).click();
-  await expect(page).toHaveURL(new RegExp(`/en${href}$`));
-  await page.getByPlaceholder(placeholder).fill(text);
+  // Purchases is a tab of Cycles since 2026-10-18.
+  if (pageOfView(href.slice(1))) {
+    await openView(page, href.slice(1));
+  } else {
+    await page.locator(`aside a[href="/en${href}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/en${href}$`));
+  }
+  await page.getByRole('main').getByPlaceholder(placeholder).fill(text);
 }
 
 /** `n` rows made `batch` at a time — sequential is minutes for 201. */

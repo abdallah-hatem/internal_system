@@ -14,6 +14,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE, API } from './support/env';
+import { openView } from './support/ui';
 
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
@@ -57,8 +58,8 @@ test.describe('Arabic everywhere', () => {
   test('TC-AR-01: a status chip and a date read in Arabic (audit log)', async ({ page, request }) => {
     await createCycle(request);
     await loginArabic(page);
-    await openFromMenu(page, ar.nav.auditLogs);
-    await expect(page).toHaveURL(/\/ar\/audit-logs/);
+    // The audit log is a tab of Settings (2026-10-18).
+    await openView(page, 'audit-logs', 'ar');
 
     const firstRow = page.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
@@ -80,7 +81,8 @@ test.describe('Arabic everywhere', () => {
 
     const form = page.locator('form').filter({ has: page.locator('input[name="displayName"]') });
     await expect(form).toHaveAttribute('novalidate', '');
-    await form.getByRole('button', { name: ar.common.create }).click();
+    // The shared dialog's actions sit outside its scrolling <form> (2026-10-15).
+    await page.getByRole('dialog').getByRole('button', { name: ar.common.create, exact: true }).click();
 
     await expect(form.getByRole('alert')).toHaveText(
       ar.validation.requiredNamed.replace('{fields}', ar.customers.name),
@@ -95,7 +97,8 @@ test.describe('Arabic everywhere', () => {
 
     const form = page.locator('form').filter({ has: page.locator('input[name="displayName"]') });
     await form.locator('input[name="displayName"]').fill(`محل الاختبار ${Date.now()}`);
-    await form.getByRole('button', { name: ar.common.create }).click();
+    // The shared dialog's actions sit outside its scrolling <form> (2026-10-15).
+    await page.getByRole('dialog').getByRole('button', { name: ar.common.create, exact: true }).click();
 
     await expect(page.getByText(ar.customers.createSuccess)).toBeVisible();
     await expect(page.getByText('Customer created successfully')).toHaveCount(0);

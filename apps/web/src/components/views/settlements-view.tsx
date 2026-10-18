@@ -89,8 +89,18 @@ export default function SettlementsPage() {
     enabled: may.calculate,
   });
 
+  // Settlements is a tab of Partners (2026-10-18), so the Partners tab's
+  // figures — payouts, profit earned, running costs taken — are usually in
+  // the cache already, and they change with every approve, pay and reverse.
+  // Refreshing the settlements alone left that tab showing "Nothing paid out
+  // yet" for a minute after a payout.
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ['settlements'] });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['settlements'] }),
+      queryClient.invalidateQueries({ queryKey: ['users', 'participation'] }),
+      queryClient.invalidateQueries({ queryKey: ['running-costs'] }),
+      queryClient.invalidateQueries({ queryKey: ['cycles'] }),
+    ]);
 
   const onError = (e: any) =>
     addToast(

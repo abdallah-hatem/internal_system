@@ -130,7 +130,19 @@ const viaNav = (label: string): Screen['open'] => async (page, gate) => {
 
 const SCREENS: Screen[] = [
   { name: 'Products', rows: PAGE_SIZE, open: viaNav(m.nav.products) },
-  { name: 'Categories', rows: PAGE_SIZE, open: viaNav(m.nav.categories) },
+  {
+    // A tab of Products since 2026-10-18, opened while Products is still
+    // loading: the products page reads the categories for its filter, so once
+    // it has landed the tab opens from the cache with no skeleton at all.
+    name: 'Categories',
+    rows: PAGE_SIZE,
+    open: async (page, gate) => {
+      gate.hold();
+      await go(page, m.nav.products);
+      await page.getByRole('main').getByRole('tab', { name: m.nav.categories, exact: true }).click();
+      await expect(page).toHaveURL(/\?view=categories$/);
+    },
+  },
   { name: 'Inventory', rows: PAGE_SIZE, open: viaNav(m.nav.inventory) },
   { name: 'Sales', rows: PAGE_SIZE, open: viaNav(m.nav.sales) },
   { name: 'Customers', rows: PAGE_SIZE, open: viaNav(m.nav.customers) },
@@ -212,7 +224,7 @@ for (const viewport of [
       gate.release();
 
       // Away and back: the cached list is shown at once while it refreshes.
-      await go(page, m.nav.categories);
+      await go(page, m.nav.inventory);
       await expect(page.getByTestId('skeleton')).toHaveCount(0);
       gate.hold();
       await go(page, m.nav.products);
