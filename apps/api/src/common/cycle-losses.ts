@@ -2,6 +2,37 @@
 import { Prisma } from '@prisma/client';
 
 /**
+ * The losses `cycleLossesEgp` sums, as a filter: one definition for the sum
+ * and for Analytics' profit and loss, which reads the same rows one by one to
+ * put each on its day (2026-10-18).
+ */
+export function shipmentLossWhere(
+  cycleId: string | null,
+  markedAt?: { gte?: Date; lt?: Date },
+): Prisma.ShipmentLossWhereInput {
+  return {
+    ...(cycleId === null ? {} : { leg: { cycleId } }),
+    ...(markedAt ? { createdAt: markedAt } : {}),
+  };
+}
+
+/** The allocations `samplesWrittenOffEgp` sums, as a filter (as above). */
+export function samplesWrittenOffWhere(
+  cycleId: string | null,
+  decidedAt?: { gte?: Date; lt?: Date },
+): Prisma.SaleItemAllocationWhereInput {
+  return {
+    ...(cycleId === null ? {} : { inventoryBatch: { cycleId } }),
+    saleItem: {
+      saleOrder: {
+        status: 'SAMPLES_WRITTEN_OFF',
+        ...(decidedAt ? { samplesDecidedAt: decidedAt } : {}),
+      },
+    },
+  };
+}
+
+/**
  * What a cycle lost on the way, in EGP (BUSINESS_LOGIC §2, §8, §9 — 2026-10-10).
  *
  * Goods marked lost are a loss against the cycle's profit, but no money moves
@@ -32,10 +63,7 @@ export async function cycleLossesEgp(
   markedAt?: { gte?: Date; lt?: Date },
 ): Promise<Prisma.Decimal> {
   const { _sum } = await db.shipmentLoss.aggregate({
-    where: {
-      ...(cycleId === null ? {} : { leg: { cycleId } }),
-      ...(markedAt ? { createdAt: markedAt } : {}),
-    },
+    where: shipmentLossWhere(cycleId, markedAt),
     _sum: { costEgp: true },
   });
   return new Prisma.Decimal(_sum.costEgp ?? 0);
@@ -67,15 +95,7 @@ export async function samplesWrittenOffEgp(
   decidedAt?: { gte?: Date; lt?: Date },
 ): Promise<Prisma.Decimal> {
   const { _sum } = await db.saleItemAllocation.aggregate({
-    where: {
-      ...(cycleId === null ? {} : { inventoryBatch: { cycleId } }),
-      saleItem: {
-        saleOrder: {
-          status: 'SAMPLES_WRITTEN_OFF',
-          ...(decidedAt ? { samplesDecidedAt: decidedAt } : {}),
-        },
-      },
-    },
+    where: samplesWrittenOffWhere(cycleId, decidedAt),
     _sum: { cogsEgp: true },
   });
   return new Prisma.Decimal(_sum?.cogsEgp ?? 0);

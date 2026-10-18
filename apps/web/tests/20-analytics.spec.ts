@@ -124,33 +124,28 @@ test.describe('Analytics figures', () => {
 });
 
 test.describe('Analytics page', () => {
-  test('TC-ANA-05: the month with revenue is scrolled into view', async ({ page }) => {
+  test('TC-ANA-05: the profit and loss chart shows every bucket without scrolling sideways', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/analytics`);
 
-    const strip = page.locator('div.overflow-x-auto').first();
-    await expect(strip).toBeVisible({ timeout: 10000 });
-
-    // The series runs oldest first, so without scrolling to the end the only
-    // months with data sit past the right edge and the page reads as empty.
-    await expect
-      .poll(async () => strip.evaluate((el) => el.scrollLeft + el.clientWidth >= el.scrollWidth - 4), {
-        timeout: 10000,
-      })
-      .toBe(true);
+    // The old Revenue by month strip scrolled, and its one bar with data sat
+    // past the right edge. The chart that replaced it (2026-10-18) fits its
+    // card, so the newest bucket is always in view.
+    const chart = page.getByTestId('pnl-chart');
+    await expect(chart).toBeVisible({ timeout: 10000 });
+    expect(await chart.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   });
 
-  test('TC-ANA-06: bars have height, not just labels', async ({ page }) => {
+  test('TC-ANA-06: columns have height, not just labels', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/analytics`);
-    await expect(page.locator('div.overflow-x-auto').first()).toBeVisible({ timeout: 10000 });
-    // The chart's frame is up from the first paint, over a skeleton: wait for the real bars.
-    await expect(page.locator('.bg-primary-500').first()).toBeAttached({ timeout: 10000 });
+    await expect(page.getByTestId('pnl-chart').locator('[data-bar]').first()).toBeAttached({ timeout: 10000 });
 
     // A percentage height inside an auto-height column collapses to nothing,
-    // which drew the chart as a row of labels with no bars at all.
+    // which once drew a chart as a row of labels with no bars at all.
     const tallest = await page
-      .locator('.bg-primary-500')
+      .getByTestId('pnl-chart')
+      .locator('[data-bar]')
       .evaluateAll((els) => Math.max(0, ...els.map((e) => (e as HTMLElement).getBoundingClientRect().height)));
     expect(tallest).toBeGreaterThan(20);
   });

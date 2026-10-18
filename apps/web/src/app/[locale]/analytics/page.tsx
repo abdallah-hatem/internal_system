@@ -4,26 +4,21 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useTopProductsBy } from '@/components/dashboard/top-products-by';
 import { Segmented } from '@/components/ui/segmented';
 import { localName } from '@/lib/localized-name';
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense } from 'react';
 import { ProfitAndLossSection, ProfitAndLossSkeleton } from '@/components/analytics/profit-and-loss-section';
 import { Money } from '../../../components/ui/money';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import {
-  BarChart3, TrendingUp, TrendingDown, Package, Route,
+  TrendingUp, TrendingDown, Package, Route,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
 import { EmptyState } from '@/components/ui/empty-state';
-import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 
 // ─── Types ────────────────────────────────────────────────────────────
-interface MonthlyRevenue {
-  month: string;
-  revenue: number;
-}
-
 interface TopProduct {
   productId: string;
   name: string;
@@ -53,28 +48,8 @@ interface CycleProfit {
 // Traced from the sections below: each section keeps its frame and heading
 // while its own figures load, and only the body becomes a placeholder.
 
-/** How many months the chart asks for, and how many products the table. */
-const MONTHS = 12;
+/** How many products the table shows. */
 const TOP_PRODUCTS = 10;
-/** Bar heights for the placeholder chart — a shape, not data. */
-const BAR_HEIGHTS = [30, 45, 25, 60, 40, 70, 55, 35, 80, 50, 65, 90];
-
-/** The bar chart: the same strip of columns, a label line above and below each bar. */
-function RevenueChartSkeleton() {
-  return (
-    <SkeletonGroup className="flex items-end gap-2 h-48 overflow-hidden">
-      {repeat(MONTHS, (i) => (
-        <div key={i} className="flex h-full flex-col items-center gap-1 min-w-[3rem] flex-1">
-          <SkeletonText size="xs" lineClassName="h-[15px]" className="h-2 w-6" />
-          <div className="flex w-full flex-1 items-end">
-            <Skeleton className="w-full rounded-b-none rounded-t-md" style={{ height: `${BAR_HEIGHTS[i % BAR_HEIGHTS.length]}%` }} />
-          </div>
-          <SkeletonText size="xs" lineClassName="h-[15px]" className="h-2 w-4" />
-        </div>
-      ))}
-    </SkeletonGroup>
-  );
-}
 
 /** A top product's name over its SKU, as the real cell. */
 function TopProductNameSkeleton() {
@@ -118,13 +93,8 @@ export default function AnalyticsPage() {
   const codeLabel = useCodeLabel();
   const t = useTranslations('analytics');
   const td = useTranslations('dashboard');
-  const { formatNumber, formatMoney } = useNumberFormat();
+  const { formatNumber } = useNumberFormat();
   const pct = (v: number) => `${formatNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-
-  const { data: monthlyRevenue = [], isLoading: loadingRevenue } = useQuery({
-    queryKey: ['analytics', 'revenue-by-month'],
-    queryFn: () => api.get(`/analytics/revenue-by-month?months=${MONTHS}`).then((r) => r.data.data ?? r.data),
-  });
 
   // Units or revenue — the same choice the dashboard's card keeps (owner 2026-10-18).
   const [topBy, setTopBy] = useTopProductsBy();
@@ -138,24 +108,10 @@ export default function AnalyticsPage() {
     queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
   });
 
-  const revenueList: MonthlyRevenue[] = Array.isArray(monthlyRevenue) ? monthlyRevenue : [];
   const productList: TopProduct[] = Array.isArray(topProducts) ? topProducts : [];
   const cycleList: CycleProfit[] = Array.isArray(cycleProfitability) ? cycleProfitability : [];
 
-  const maxRevenue = Math.max(...revenueList.map((r) => r.revenue), 1);
-  const hasAnyRevenue = revenueList.some((r) => r.revenue > 0);
-
-  // The series runs oldest to newest inside a horizontally scrolling strip, so
-  // the most recent months — the only ones with data in a young system — start
-  // off past the right edge. The page looked empty because its one non-zero bar
-  // was scrolled out of view.
-  const chartRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = chartRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, [revenueList]);
-
-  const isLoading = loadingRevenue || loadingProducts || loadingCycles;
+  const isLoading = loadingProducts || loadingCycles;
 
   // Top products: the name (its SKU under it), quantity sold, revenue,
   // margin. The revenue fits "123,456.00 EGP".
@@ -206,7 +162,7 @@ export default function AnalyticsPage() {
           prerendered, so it sits in a Suspense boundary traced in its shape. */}
       <Suspense
         fallback={
-          <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <ProfitAndLossSkeleton />
           </section>
         }
@@ -215,57 +171,8 @@ export default function AnalyticsPage() {
       </Suspense>
 
         <>
-          {/* Revenue by Month — CSS Bar Chart */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('revenueByMonth')}</h2>
-            {loadingRevenue ? (
-              <RevenueChartSkeleton />
-            ) : revenueList.length === 0 ? (
-              <EmptyState size="compact" icon={BarChart3} title={t('noData')} description={t('noRevenueHint')} />
-            ) : (
-              <>
-                {!hasAnyRevenue && (
-                  <p className="mb-3 text-xs text-gray-500">{t('noRevenueInPeriod')}</p>
-                )}
-                <div ref={chartRef} className="scrollbar-clean scrollbar-x flex items-end gap-2 h-48 overflow-x-auto">
-                  {revenueList.map((item) => {
-                    const heightPct = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0;
-                    const [year, month] = (item.month ?? '').split('-');
-                    // A bare "01" is ambiguous across a 13-month window; mark
-                    // where the year turns over.
-                    const label = month === '01' || item.month === revenueList[0]?.month
-                      ? `${month}/${year?.slice(2)}`
-                      : month;
-                    return (
-                      <div
-                        key={item.month}
-                        title={`${item.month}: ${formatMoney(item.revenue)}`}
-                        className="flex h-full flex-col items-center gap-1 min-w-[3rem] flex-1"
-                      >
-                        <span className={`text-[10px] font-medium ${item.revenue > 0 ? 'text-gray-700' : 'text-gray-300'}`}>
-                          {item.revenue >= 1000
-                            ? `${formatNumber(item.revenue / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`
-                            : formatNumber(item.revenue)}
-                        </span>
-                        {/* The bar's height is a percentage, so it needs a
-                            parent with a resolved height — inside an auto-height
-                            column it collapses to nothing and the chart renders
-                            as a row of labels with no bars. */}
-                        <div className="flex w-full flex-1 items-end">
-                          <div
-                            className={`w-full rounded-t-md transition-all ${item.revenue > 0 ? 'bg-primary-500' : 'bg-gray-100'}`}
-                            style={{ height: `${Math.max(heightPct, 2)}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-gray-500 whitespace-nowrap">{label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </section>
-
+          {/* Revenue by month lived here; its figures are the profit and loss
+              chart's columns now (owner 2026-10-18, "Option A"). */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Products */}
             <section className="bg-white rounded-xl border border-gray-200 p-6">

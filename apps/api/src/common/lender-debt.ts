@@ -122,15 +122,27 @@ export async function exchangeDifferenceEgp(
   paidOn?: { gte?: Date; lte?: Date },
 ): Promise<Prisma.Decimal> {
   const { _sum } = await db.lenderRepayment.aggregate({
-    where: {
-      ...STANDING_REPAYMENT,
-      ...(paidOn ? { paidOn } : {}),
-      financing: {
-        ...STANDING_FINANCING,
-        ...(cycleId === null ? {} : { cycleId }),
-      },
-    },
+    where: exchangeDifferenceWhere(cycleId, paidOn),
     _sum: { exchangeDiffEgp: true },
   });
   return D(_sum.exchangeDiffEgp);
+}
+
+/**
+ * The repayments `exchangeDifferenceEgp` sums, as a filter: one definition
+ * for the sum and for Analytics' profit and loss, which reads the same rows
+ * one by one to put each on its day (2026-10-18).
+ */
+export function exchangeDifferenceWhere(
+  cycleId: string | null,
+  paidOn?: { gte?: Date; lte?: Date },
+): Prisma.LenderRepaymentWhereInput {
+  return {
+    ...STANDING_REPAYMENT,
+    ...(paidOn ? { paidOn } : {}),
+    financing: {
+      ...STANDING_FINANCING,
+      ...(cycleId === null ? {} : { cycleId }),
+    },
+  };
 }

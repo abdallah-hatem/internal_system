@@ -72,6 +72,41 @@ export function formatMoney(
 }
 
 /**
+ * A figure shortened for a tile or an axis: "1.34M", "385.7K", "950" — and
+ * "1.34 مليون" in Arabic, Latin digits in both. Millions keep two decimals,
+ * thousands one, so a tile still tells 1.34M from 1.35M. Always shown with the
+ * exact amount a hover away (`formatMoney`), never instead of it.
+ */
+export function formatCompact(value: number | string | null | undefined, locale?: string): string {
+  const { number, unit } = compactParts(value, locale);
+  if (!unit) return number;
+  return locale === 'ar' ? `${number} ${unit}` : `${number}${unit}`;
+}
+
+/**
+ * `formatCompact` in its two pieces: the figure ("-1.34", Latin digits, the
+ * minus before them) and the word or letter for its size ("M", "مليون", or
+ * none under a thousand). Arabic needs them apart: the figure is an LTR run
+ * and the word an RTL one, and set as one LTR string the word lands on the
+ * wrong side for a right-to-left reader ("ألف 293" read as "thousand 293").
+ */
+export function compactParts(value: number | string | null | undefined, locale?: string): { number: string; unit: string } {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return { number: '—', unit: '' };
+  const { tag, numberingSystem } = intlFor(locale);
+  const parts = new Intl.NumberFormat(tag, {
+    numberingSystem,
+    notation: 'compact',
+    maximumFractionDigits: Math.abs(n) >= 1_000_000 ? 2 : 1,
+  }).formatToParts(n);
+  const clean = (s: string) => s.replace(BIDI_MARKS, '').replace(/−/g, '-');
+  return {
+    number: clean(parts.filter((p) => p.type !== 'compact' && p.type !== 'literal').map((p) => p.value).join('')),
+    unit: clean(parts.filter((p) => p.type === 'compact').map((p) => p.value).join('')).trim(),
+  };
+}
+
+/**
  * Read back a figure that was formatted for display — Latin or Arabic-Indic
  * digits, grouping commas, a trailing currency code. Returns null when the text
  * is not a single number (so it can be shown as it is).
@@ -116,6 +151,7 @@ export function useNumberFormat() {
       formatAmount: (value: number | string | null | undefined) => formatAmount(value, locale),
       formatMoney: (value: number | string | null | undefined, currency?: string) =>
         formatMoney(value, { locale, currency }),
+      formatCompact: (value: number | string | null | undefined) => formatCompact(value, locale),
     }),
     [locale],
   );
