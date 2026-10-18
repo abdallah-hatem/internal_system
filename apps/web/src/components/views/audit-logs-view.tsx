@@ -10,10 +10,8 @@ import { useDateFormat } from '@/lib/dates';
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import { Select } from '@/components/ui/select';
-import {
-  ShieldCheck, Search, Eye, 
-  ChevronDown, ChevronRight,
-} from 'lucide-react';
+import { ListToolbar } from '@/components/ui/list-toolbar';
+import { Eye } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
@@ -21,6 +19,7 @@ import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { AuditChanges, auditChanges } from '@/components/audit/audit-changes';
 import { AuditRecord, useAuditRecordName, type AuditRecordRef } from '@/components/audit/audit-record';
+import { AUDIT_ENTITY_TYPES } from '@/components/audit/audit-entity-types';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog extends AuditRecordRef {
@@ -45,11 +44,6 @@ const ACTION_COLORS: Record<string, string> = {
   REVERSE: 'bg-orange-100 text-orange-700',
   LOGIN: 'bg-purple-100 text-purple-700',
 };
-
-const ENTITY_TYPES = [
-  'Product', 'Customer', 'SaleOrder', 'Payment', 'PurchaseOrder',
-  'Shipment', 'InventoryBatch', 'Cycle', 'Settlement', 'User', 'LedgerEntry',
-];
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The table's skeleton rows are drawn by DataTable from each column's
@@ -195,17 +189,7 @@ export default function AuditLogsPage() {
       </div>
 
       {/* Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
         <Select
           className="w-full sm:w-52"
           value={entityFilter}
@@ -213,9 +197,9 @@ export default function AuditLogsPage() {
           clearable
           placeholder={tph('allRecordTypes')}
           searchPlaceholder={tph('searchTypes')}
-          options={ENTITY_TYPES.map((type) => ({ value: type, label: codeLabel('entityType', type) }))}
+          options={AUDIT_ENTITY_TYPES.map((type) => ({ value: type, label: codeLabel('entityType', type) }))}
         />
-      </div>
+      </ListToolbar>
 
       <ListCapNotice capped={capped} count={logs.length} />
 

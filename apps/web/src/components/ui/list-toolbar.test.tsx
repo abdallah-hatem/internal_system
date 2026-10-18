@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { useState } from 'react';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { FilterPills, ListToolbar, SearchField } from './list-toolbar';
 
@@ -111,9 +111,6 @@ describe('FilterPills', () => {
 // its own `<input … setSearch …>` again, or its own glass icon, or its own
 // status pills, is the drift this file exists to stop.
 
-/** Converted by another change in flight (2026-10-18); remove once it is. */
-const PENDING = new Set(['components/views/audit-logs-view.tsx']);
-
 function listSources(): string[] {
   const src = join(process.cwd(), 'src');
   const files: string[] = [];
@@ -126,7 +123,7 @@ function listSources(): string[] {
   };
   walk(join(src, 'app', '[locale]'), (n) => n === 'page.tsx');
   walk(join(src, 'components'), (n) => n.endsWith('.tsx') && !n.endsWith('.test.tsx') && !n.includes('list-toolbar'));
-  return files.filter((f) => !PENDING.has(relative(src, f)));
+  return files;
 }
 
 describe('every list uses the shared toolbar', () => {
