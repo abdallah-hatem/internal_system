@@ -19,10 +19,12 @@ import { businessDay } from './dates';
  *
  * When the shop decides:
  * - **buying** — the order becomes a normal CONFIRMED sale, in place (same
- *   ORD number), dated the decision day. Its lines keep only the units bought,
- *   at the price agreed; the allocations keep only the bought units, from the
- *   oldest batch first, as a sale would draw them; the rest go back on the
- *   shelf, to the batch each came from.
+ *   ORD number), dated the day of the decision, with exactly the lines the
+ *   New Order popup was saved with (owner 2026-10-18, round 2): sample units
+ *   kept are the ones that went out (oldest batch first, at the cost they left
+ *   at), units not kept go back to the batch each came from, and anything more
+ *   — a larger quantity or a product that never went out — is drawn FIFO from
+ *   the shelf like any sale (`planSamplesConversion`).
  * - **returned** — everything back on the shelf; the order ends
  *   SAMPLES_RETURNED. Its allocations stay as the record of what went out, as
  *   a cancelled sale's do, and count for nothing.
@@ -113,163 +115,6 @@ export function samplesRemindersDue<T extends ReminderCandidate>(
   );
 }
 
-// ─── The decision ─────────────────────────────────────────────────────
-
-/** One line of a samples order, as it stands: what is out at the shop. */
-export interface SampleLine {
-  saleItemId: string;
-  productId: string;
-  /** For the refusal's words. */
-  product: string;
-  outQty: Prisma.Decimal.Value;
-}
-
-/** What the partner entered for one line. */
-export interface DecisionInput {
-  saleItemId: string;
-  buyQty: unknown;
-  returnQty: unknown;
-  unitPrice?: unknown;
-}
-
-export interface DecidedLine {
-  saleItemId: string;
-  productId: string;
-  product: string;
-  out: Prisma.Decimal;
-  buy: Prisma.Decimal;
-  back: Prisma.Decimal;
-  /** Set for every line with something bought; null otherwise. */
-  unitPrice: Prisma.Decimal | null;
-}
-
-const shape = (field: string, message: string) =>
-  badRequest('VALIDATION_FAILED', message, { fields: field });
-
-/** A quantity or a price: a finite number or a numeric string, else null. */
-function numeric(value: unknown): Prisma.Decimal | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return D(value);
-  if (typeof value === 'string' && value.trim() !== '') {
-    const n = Number(value);
-    if (Number.isFinite(n)) return D(value.trim());
-  }
-  return null;
-}
-
-/**
- * Check a shop's decision against what is out, line by line, and say what
- * each line becomes. Every line out must be decided, once; for each,
- * buying + returned must equal what is out exactly; nothing negative; and a
- * line with anything bought needs its price (0 or more — a free unit is a
- * choice, as on any sale).
- *
- * The quantities are compared in Decimal, so 0.1 + 0.2 is 0.3.
- */
-export function planSamplesDecision(
-  orderNo: string,
-  lines: readonly SampleLine[],
-  input: unknown,
-): DecidedLine[] {
-  if (!Array.isArray(input) || input.length === 0) {
-    throw shape('lines', 'lines must list every product left at the shop.');
-  }
-  const byItem = new Map<string, DecisionInput>();
-  for (const raw of input as unknown[]) {
-    if (!raw || typeof raw !== 'object') {
-      throw shape(
-        'lines',
-        'Each line must be { saleItemId, buyQty, returnQty }.',
-      );
-    }
-    const entry = raw as DecisionInput;
-    const line = lines.find((l) => l.saleItemId === entry.saleItemId);
-    if (!line) {
-      throw badRequest(
-        'SAMPLES_LINE_NOT_IN_ORDER',
-        `That line is not one of the samples left on ${orderNo}.`,
-        { order: orderNo },
-      );
-    }
-    if (byItem.has(entry.saleItemId)) {
-      throw badRequest(
-        'SAMPLES_LINE_TWICE',
-        `${line.product} is decided twice on ${orderNo}.`,
-        { order: orderNo, product: line.product },
-      );
-    }
-    byItem.set(entry.saleItemId, entry);
-  }
-
-  return lines.map((line) => {
-    const entry = byItem.get(line.saleItemId);
-    if (!entry) {
-      throw badRequest(
-        'SAMPLES_LINE_MISSING',
-        `Say what happened to ${line.product}: how many they are buying and how many came back.`,
-        { order: orderNo, product: line.product },
-      );
-    }
-    const buy = numeric(entry.buyQty ?? 0);
-    const back = numeric(entry.returnQty ?? 0);
-    if (!buy || !back) {
-      throw shape('lines.buyQty', 'buyQty and returnQty must be numbers.');
-    }
-    if (buy.isNeg() || back.isNeg()) {
-      throw badRequest(
-        'SAMPLES_QTY_NEGATIVE',
-        `A quantity cannot be negative (${line.product}).`,
-        { product: line.product },
-      );
-    }
-    const out = D(line.outQty);
-    if (!buy.add(back).eq(out)) {
-      throw badRequest(
-        'SAMPLES_DECISION_MISMATCH',
-        `${out.toString()} of ${line.product} are at the shop: buying ` +
-          `${buy.toString()} and returning ${back.toString()} must add up to it.`,
-        {
-          product: line.product,
-          out: out.toString(),
-          buying: buy.toString(),
-          returned: back.toString(),
-        },
-      );
-    }
-    let unitPrice: Prisma.Decimal | null = null;
-    if (buy.gt(0)) {
-      const price =
-        entry.unitPrice === undefined ||
-        entry.unitPrice === null ||
-        entry.unitPrice === ''
-          ? null
-          : numeric(entry.unitPrice);
-      if (price === null) {
-        throw badRequest(
-          'SAMPLES_PRICE_REQUIRED',
-          `Enter the price they are paying for ${line.product}.`,
-          { product: line.product },
-        );
-      }
-      if (price.isNeg()) {
-        throw badRequest(
-          'PRICE_NEGATIVE',
-          `Invalid unitPrice for ${line.product}: must be 0 or greater`,
-        );
-      }
-      unitPrice = price;
-    }
-    return {
-      saleItemId: line.saleItemId,
-      productId: line.productId,
-      product: line.product,
-      out,
-      buy,
-      back,
-      unitPrice,
-    };
-  });
-}
-
 // ─── Which units are bought, which come back ──────────────────────────
 
 /** One draw of a samples line from a batch, oldest received first. */
@@ -321,13 +166,146 @@ export function splitSampleAllocations(
     if (returned.gt(0)) out.back.push({ batchId: a.batchId, qty: returned });
   }
   if (toBuy.gt(0)) {
-    // planSamplesDecision makes buying ≤ what is out; reaching here means the
+    // planSamplesConversion keeps at most what is out; reaching here means the
     // allocations do not add up to the line, which the order never allows.
     throw new Error(
       'Samples allocations hold fewer units than are being bought.',
     );
   }
   return out;
+}
+
+// ─── Completing the sale from samples ─────────────────────────────────
+
+/** One draw of a samples order from a batch: units that went out. */
+export interface SampleDraw {
+  productId: string;
+  batchId: string;
+  qty: Prisma.Decimal.Value;
+  unitCostEgp: Prisma.Decimal.Value;
+}
+
+/** One line of the sale as the popup was saved: a product and its quantity. */
+export interface WantedLine {
+  productId: string;
+  quantity: Prisma.Decimal.Value;
+}
+
+/** Units of one sale line taken from what went out, at the cost they left at. */
+export interface KeptDraw {
+  batchId: string;
+  qty: Prisma.Decimal;
+  unitCostEgp: Prisma.Decimal;
+  cogsEgp: Prisma.Decimal;
+}
+
+export interface ConversionPlan {
+  /** Per product on either side: what went out, what the sale keeps of it, and what it needs beyond that. */
+  products: {
+    productId: string;
+    out: Prisma.Decimal;
+    kept: Prisma.Decimal;
+    /** More than went out: drawn from the shelf, FIFO, like any sale. */
+    extra: Prisma.Decimal;
+    /** Units not kept, back to the batch each left. */
+    back: { batchId: string; qty: Prisma.Decimal }[];
+  }[];
+  /** Per sale line, in the order given: its units from the samples, and how many more from the shelf. */
+  lines: { fromSamples: KeptDraw[]; fromShelf: Prisma.Decimal }[];
+}
+
+/**
+ * The shop is buying, with the lines the popup was saved with (BUSINESS_LOGIC
+ * §4, owner 2026-10-18 round 2). Per product:
+ *
+ * - **kept** = the lesser of what went out and what the sale has. Those units
+ *   are the oldest-received of what went out — the units FIFO would have
+ *   drawn first — so the sale's COGS is what a sale of them would have cost.
+ * - **back** = what went out and is not kept: to the newer batches it left.
+ * - **extra** = what the sale has beyond what went out (a raised quantity, or
+ *   a product that never went out): the caller draws it FIFO from the shelf,
+ *   after checking the shelf has it.
+ *
+ * Each line of a product takes its kept units first, in the order given, then
+ * the rest from the shelf. Shelf + samples + sold therefore never counts a
+ * unit twice: a unit is either kept (sold), back (shelf), or drawn (sold).
+ *
+ * `draws` must be in FIFO order (oldest batch first) within each product;
+ * quantities are positive and checked by the caller.
+ */
+export function planSamplesConversion(
+  draws: readonly SampleDraw[],
+  lines: readonly WantedLine[],
+): ConversionPlan {
+  const productIds = [
+    ...new Set([
+      ...draws.map((d) => d.productId),
+      ...lines.map((l) => l.productId),
+    ]),
+  ];
+  const pools = new Map<string, KeptDraw[]>();
+  const products = productIds.map((productId) => {
+    const own = draws.filter((d) => d.productId === productId);
+    const out = own.reduce((s, d) => s.add(d.qty), D(0));
+    const wanted = lines
+      .filter((l) => l.productId === productId)
+      .reduce((s, l) => s.add(l.quantity), D(0));
+    const kept = Prisma.Decimal.min(out, wanted);
+    const split = splitSampleAllocations(
+      own.map((d, i) => ({
+        id: String(i),
+        batchId: d.batchId,
+        qty: d.qty,
+        unitCostEgp: d.unitCostEgp,
+      })),
+      kept,
+    );
+    pools.set(
+      productId,
+      split.keep.map((k) => {
+        const d = own[Number(k.id)];
+        return {
+          batchId: d.batchId,
+          qty: k.qty,
+          unitCostEgp: D(d.unitCostEgp),
+          cogsEgp: k.cogsEgp,
+        };
+      }),
+    );
+    return {
+      productId,
+      out,
+      kept,
+      extra: wanted.sub(kept),
+      back: split.back,
+    };
+  });
+
+  const planned = lines.map((line) => {
+    const pool = pools.get(line.productId)!;
+    let need = D(line.quantity);
+    const fromSamples: KeptDraw[] = [];
+    while (need.gt(0) && pool.length > 0) {
+      const head = pool[0];
+      const take = Prisma.Decimal.min(head.qty, need);
+      fromSamples.push({
+        batchId: head.batchId,
+        qty: take,
+        unitCostEgp: head.unitCostEgp,
+        cogsEgp: take.mul(head.unitCostEgp).toDecimalPlaces(2),
+      });
+      need = need.sub(take);
+      if (take.eq(head.qty)) pool.shift();
+      else
+        pool[0] = {
+          ...head,
+          qty: head.qty.sub(take),
+          cogsEgp: head.qty.sub(take).mul(head.unitCostEgp).toDecimalPlaces(2),
+        };
+    }
+    return { fromSamples, fromShelf: need };
+  });
+  return { products, lines: planned };
 }
 
 // ─── Settling a cycle with samples out ─────────────────────────────────

@@ -6,7 +6,7 @@ import {
   assertNoSamplesOut,
   daysAtShop,
   isSamplesStatus,
-  planSamplesDecision,
+  planSamplesConversion,
   samplesReminderDay,
   samplesRemindersDue,
   splitSampleAllocations,
@@ -23,156 +23,161 @@ import { cycleCostLines, sumCostLines } from './payout-breakdown';
 
 const D = (v: number | string) => new Prisma.Decimal(v);
 
-function codeOf(fn: () => unknown): string {
-  try {
-    fn();
-  } catch (e) {
-    return ((e as HttpException).getResponse() as { code: string }).code;
-  }
-  return 'not refused';
-}
-
-const LINES = [
-  { saleItemId: 'a', productId: 'pa', product: 'Piston kit', outQty: 5 },
-  { saleItemId: 'b', productId: 'pb', product: 'Chain', outQty: '0.3' },
+// Two batches of the piston kit went out: 2 at 100 (older), 3 at 130 (newer).
+const DRAWS = [
+  { productId: 'pa', batchId: 'old', qty: 2, unitCostEgp: 100 },
+  { productId: 'pa', batchId: 'new', qty: 3, unitCostEgp: 130 },
+  { productId: 'pb', batchId: 'chain', qty: '0.3', unitCostEgp: 50 },
 ];
 
-describe('planSamplesDecision — what the shop decided, checked', () => {
-  it('a partial decision: bought and returned add up per line, a price for what is bought', () => {
-    const plan = planSamplesDecision('ORD-1', LINES, [
-      { saleItemId: 'a', buyQty: 3, returnQty: 2, unitPrice: 250 },
-      { saleItemId: 'b', buyQty: 0, returnQty: '0.3' },
+const kept = (plan: ReturnType<typeof planSamplesConversion>, i: number) =>
+  plan.lines[i].fromSamples.map((k) => [
+    k.batchId,
+    k.qty.toString(),
+    k.cogsEgp.toFixed(2),
+  ]);
+const product = (
+  plan: ReturnType<typeof planSamplesConversion>,
+  id: string,
+) => {
+  const p = plan.products.find((x) => x.productId === id)!;
+  return {
+    out: p.out.toString(),
+    kept: p.kept.toString(),
+    extra: p.extra.toString(),
+    back: p.back.map((b) => [b.batchId, b.qty.toString()]),
+  };
+};
+
+describe('planSamplesConversion — the sale from samples, as the popup was saved', () => {
+  it('everything kept as it went out: the same units at the cost they left at, nothing back, nothing more drawn', () => {
+    const plan = planSamplesConversion(DRAWS, [
+      { productId: 'pa', quantity: 5 },
+      { productId: 'pb', quantity: '0.3' },
     ]);
-    expect(plan.map((l) => [l.buy.toString(), l.back.toString()])).toEqual([
-      ['3', '2'],
-      ['0', '0.3'],
+    expect(kept(plan, 0)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '3', '390.00'],
     ]);
-    expect(plan[0].unitPrice?.toString()).toBe('250');
-    // Nothing bought of the chain: no price asked for, none recorded.
-    expect(plan[1].unitPrice).toBeNull();
+    expect(plan.lines.map((l) => l.fromShelf.toString())).toEqual(['0', '0']);
+    expect(product(plan, 'pa')).toEqual({
+      out: '5',
+      kept: '5',
+      extra: '0',
+      back: [],
+    });
   });
 
-  it('all bought, none returned, and all returned, none bought, both pass', () => {
-    const all = planSamplesDecision('ORD-1', LINES, [
-      { saleItemId: 'a', buyQty: 5, returnQty: 0, unitPrice: 1 },
-      { saleItemId: 'b', buyQty: '0.3', returnQty: 0, unitPrice: '10' },
+  it('a lowered quantity keeps the oldest units; the rest go back to the newer batch they left', () => {
+    const plan = planSamplesConversion(DRAWS, [
+      { productId: 'pa', quantity: 3 },
+      { productId: 'pb', quantity: '0.3' },
     ]);
-    expect(all.every((l) => l.back.isZero())).toBe(true);
-    const none = planSamplesDecision('ORD-1', LINES, [
-      { saleItemId: 'a', buyQty: 0, returnQty: 5 },
-      { saleItemId: 'b', buyQty: 0, returnQty: 0.3 },
+    expect(kept(plan, 0)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '1', '130.00'],
     ]);
-    expect(none.every((l) => l.buy.isZero())).toBe(true);
+    expect(product(plan, 'pa')).toEqual({
+      out: '5',
+      kept: '3',
+      extra: '0',
+      back: [['new', '2']],
+    });
   });
 
-  it('buying + returned is compared in Decimal: 0.1 + 0.2 of 0.3 out is exact', () => {
-    const plan = planSamplesDecision(
-      'ORD-1',
-      [LINES[1]],
-      [{ saleItemId: 'b', buyQty: 0.1, returnQty: 0.2, unitPrice: 5 }],
-    );
-    expect(plan[0].buy.add(plan[0].back).toString()).toBe('0.3');
+  it('a removed sample line: all of it back, each unit to its own batch', () => {
+    const plan = planSamplesConversion(DRAWS, [
+      { productId: 'pb', quantity: '0.3' },
+    ]);
+    expect(plan.lines).toHaveLength(1);
+    expect(product(plan, 'pa')).toEqual({
+      out: '5',
+      kept: '0',
+      extra: '0',
+      back: [
+        ['old', '2'],
+        ['new', '3'],
+      ],
+    });
   });
 
-  it.each([
-    ['more than is out', { buyQty: 4, returnQty: 2 }],
-    ['less than is out', { buyQty: 2, returnQty: 2 }],
-    ['zero of everything', { buyQty: 0, returnQty: 0 }],
-  ])('%s → SAMPLES_DECISION_MISMATCH', (_name, qty) => {
-    expect(
-      codeOf(() =>
-        planSamplesDecision(
-          'ORD-1',
-          [LINES[0]],
-          [{ saleItemId: 'a', unitPrice: 10, ...qty }],
-        ),
-      ),
-    ).toBe('SAMPLES_DECISION_MISMATCH');
+  it('a raised quantity keeps every unit that went out and asks the shelf for the rest only', () => {
+    const plan = planSamplesConversion(DRAWS, [
+      { productId: 'pa', quantity: 8 },
+    ]);
+    expect(kept(plan, 0)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '3', '390.00'],
+    ]);
+    expect(plan.lines[0].fromShelf.toString()).toBe('3');
+    expect(product(plan, 'pa')).toMatchObject({
+      kept: '5',
+      extra: '3',
+      back: [],
+    });
+    // The chain was not on the sale: all 0.3 back.
+    expect(product(plan, 'pb').back).toEqual([['chain', '0.3']]);
   });
 
-  it('a negative quantity is refused even when the sum matches (-1 bought, 6 back of 5)', () => {
-    expect(
-      codeOf(() =>
-        planSamplesDecision(
-          'ORD-1',
-          [LINES[0]],
-          [{ saleItemId: 'a', buyQty: -1, returnQty: 6, unitPrice: 10 }],
-        ),
-      ),
-    ).toBe('SAMPLES_QTY_NEGATIVE');
+  it('a product that never went out is drawn from the shelf in full', () => {
+    const plan = planSamplesConversion(DRAWS, [
+      { productId: 'pa', quantity: 5 },
+      { productId: 'pc', quantity: 4 },
+    ]);
+    expect(plan.lines[1]).toEqual({ fromSamples: [], fromShelf: D(4) });
+    expect(product(plan, 'pc')).toEqual({
+      out: '0',
+      kept: '0',
+      extra: '4',
+      back: [],
+    });
   });
 
-  it('a bought line with no price → SAMPLES_PRICE_REQUIRED; 0 is a price, a negative one is not', () => {
-    for (const unitPrice of [undefined, null, '']) {
-      expect(
-        codeOf(() =>
-          planSamplesDecision(
-            'ORD-1',
-            [LINES[0]],
-            [{ saleItemId: 'a', buyQty: 1, returnQty: 4, unitPrice }],
-          ),
-        ),
-      ).toBe('SAMPLES_PRICE_REQUIRED');
+  it('two lines of one product share what went out in order, the second taking the shelf for its rest', () => {
+    const plan = planSamplesConversion(DRAWS, [
+      { productId: 'pa', quantity: 3 },
+      { productId: 'pa', quantity: 4 },
+    ]);
+    expect(kept(plan, 0)).toEqual([
+      ['old', '2', '200.00'],
+      ['new', '1', '130.00'],
+    ]);
+    expect(kept(plan, 1)).toEqual([['new', '2', '260.00']]);
+    expect(plan.lines.map((l) => l.fromShelf.toString())).toEqual(['0', '2']);
+    expect(product(plan, 'pa')).toMatchObject({
+      kept: '5',
+      extra: '2',
+      back: [],
+    });
+  });
+
+  it('every unit that went out is either kept or back, and the sale gets exactly its quantities — in Decimal', () => {
+    for (const wanted of [0, 0.1, 0.2, 0.3, 0.7, 1, 2.5, 5, 6.25, 12]) {
+      const lines =
+        wanted > 0 ? [{ productId: 'pa', quantity: String(wanted) }] : [];
+      const plan = planSamplesConversion(DRAWS, lines);
+      const p = plan.products.find((x) => x.productId === 'pa')!;
+      const back = p.back.reduce((s, b) => s.add(b.qty), D(0));
+      expect(p.kept.add(back).toString()).toBe('5');
+      if (wanted > 0) {
+        const got = plan.lines[0].fromSamples
+          .reduce((s, k) => s.add(k.qty), D(0))
+          .add(plan.lines[0].fromShelf);
+        expect(got.toString()).toBe(D(wanted).toString());
+        expect(plan.lines[0].fromShelf.toString()).toBe(p.extra.toString());
+      }
     }
-    expect(
-      planSamplesDecision(
-        'ORD-1',
-        [LINES[0]],
-        [{ saleItemId: 'a', buyQty: 1, returnQty: 4, unitPrice: 0 }],
-      )[0].unitPrice?.toString(),
-    ).toBe('0');
-    expect(
-      codeOf(() =>
-        planSamplesDecision(
-          'ORD-1',
-          [LINES[0]],
-          [{ saleItemId: 'a', buyQty: 1, returnQty: 4, unitPrice: -5 }],
-        ),
-      ),
-    ).toBe('PRICE_NEGATIVE');
-  });
-
-  it('every line must be decided once: a line left out, named twice, or not on the order is refused', () => {
-    expect(
-      codeOf(() =>
-        planSamplesDecision('ORD-1', LINES, [
-          { saleItemId: 'a', buyQty: 5, returnQty: 0, unitPrice: 1 },
-        ]),
-      ),
-    ).toBe('SAMPLES_LINE_MISSING');
-    expect(
-      codeOf(() =>
-        planSamplesDecision('ORD-1', LINES, [
-          { saleItemId: 'a', buyQty: 5, returnQty: 0, unitPrice: 1 },
-          { saleItemId: 'a', buyQty: 5, returnQty: 0, unitPrice: 1 },
-        ]),
-      ),
-    ).toBe('SAMPLES_LINE_TWICE');
-    expect(
-      codeOf(() =>
-        planSamplesDecision('ORD-1', LINES, [
-          { saleItemId: 'someone-elses', buyQty: 1, returnQty: 0 },
-        ]),
-      ),
-    ).toBe('SAMPLES_LINE_NOT_IN_ORDER');
-  });
-
-  it('a body that is not a list, or text where a number goes, is VALIDATION_FAILED — never a 500', () => {
-    expect(codeOf(() => planSamplesDecision('ORD-1', LINES, undefined))).toBe(
-      'VALIDATION_FAILED',
-    );
-    expect(codeOf(() => planSamplesDecision('ORD-1', LINES, []))).toBe(
-      'VALIDATION_FAILED',
-    );
-    expect(
-      codeOf(() =>
-        planSamplesDecision(
-          'ORD-1',
-          [LINES[0]],
-          [{ saleItemId: 'a', buyQty: 'three', returnQty: 2, unitPrice: 1 }],
-        ),
-      ),
-    ).toBe('VALIDATION_FAILED');
+    // 0.1 + 0.2 of the chain's 0.3 is exact.
+    const chain = planSamplesConversion(DRAWS, [
+      { productId: 'pb', quantity: '0.1' },
+      { productId: 'pb', quantity: '0.2' },
+    ]);
+    expect(product(chain, 'pb')).toEqual({
+      out: '0.3',
+      kept: '0.3',
+      extra: '0',
+      back: [],
+    });
   });
 });
 

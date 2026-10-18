@@ -52,7 +52,6 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
-import { SamplesDecideDialog } from '@/components/sales/samples-decide';
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
 import { useCan } from '@/lib/can';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
@@ -200,7 +199,8 @@ function SalesPageContent() {
   // The Contract button's plan popup (§7, 2026-10-16).
   const [contractFor, setContractFor] = useState<SaleOrder | null>(null);
   // Samples at a shop (§4): what the shop decided.
-  const [decidingSamples, setDecidingSamples] = useState<SaleOrder | null>(null);
+  // "They're buying" opens the New Order popup on the samples (§4 round 2).
+  const [completingSamples, setCompletingSamples] = useState<SaleOrder | null>(null);
   const [returningSamples, setReturningSamples] = useState<SaleOrder | null>(null);
   const [writingOffSamples, setWritingOffSamples] = useState<SaleOrder | null>(null);
   const canWriteOff = useCan('sale.samplesWriteOff');
@@ -846,7 +846,7 @@ function SalesPageContent() {
                 <button
                   type="button"
                   data-testid="samples-buying"
-                  onClick={() => setDecidingSamples(detail)}
+                  onClick={() => setCompletingSamples(detail)}
                   className="order-first col-span-2 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:order-none sm:min-h-0"
                 >
                   <PackageCheck className="h-4 w-4" />
@@ -1064,18 +1064,39 @@ function SalesPageContent() {
         <ContractPlanDialog sale={contractFor} onClose={() => setContractFor(null)} />
       )}
 
-      {decidingSamples && (
-        <SamplesDecideDialog
-          order={(orderDetail as SaleOrder | undefined)?.id === decidingSamples.id ? (orderDetail as SaleOrder) : decidingSamples}
-          products={productList}
-          onClose={() => setDecidingSamples(null)}
-          onDone={({ status, orderNo }) => {
-            setDecidingSamples(null);
-            setViewingOrder(null);
-            addToast(status === 'SAMPLES_RETURNED' ? tsm('returnedToast') : tsm('boughtToast', { orderNo }), 'success');
-          }}
-        />
-      )}
+      {completingSamples && (() => {
+        // The detail carries every line with its product; the list row is the fallback.
+        const source =
+          (orderDetail as SaleOrder | undefined)?.id === completingSamples.id
+            ? (orderDetail as SaleOrder)
+            : completingSamples;
+        return (
+          <SaleOrderForm
+            title={tsm('completeTitle', { orderNo: source.orderNo })}
+            customers={customerList}
+            products={productList}
+            stock={stockList}
+            fromSamples={{
+              id: source.id,
+              orderNo: source.orderNo,
+              customerId: source.customerId,
+              channel: source.channel,
+              currency: source.currency,
+              leftOn: source.samples?.leftOn,
+              items: source.items ?? [],
+            }}
+            onCancel={() => setCompletingSamples(null)}
+            onSaved={({ order }) => {
+              for (const key of ['sales', 'sale', 'inventory', 'customers', 'analytics']) {
+                void queryClient.invalidateQueries({ queryKey: [key] });
+              }
+              setCompletingSamples(null);
+              setViewingOrder(null);
+              addToast(tsm('boughtToast', { orderNo: order.orderNo ?? source.orderNo }), 'success');
+            }}
+          />
+        );
+      })()}
 
       {returningSamples && (
         <Dialog
@@ -1365,17 +1386,17 @@ function SamplesPanel({ order }: { order: SaleOrder }) {
     return (
       <div
         data-testid="samples-panel"
-        className="rounded-lg border border-accent-300 bg-accent-50 px-4 py-3 text-sm dark:border-accent-500/50 dark:bg-accent-500/10"
+        className="rounded-lg border border-accent-300 bg-accent-50 px-4 py-3 text-sm"
       >
-        <p className="flex items-center gap-2 font-medium text-accent-900 dark:text-accent-200">
+        <p className="flex items-center gap-2 font-medium text-accent-900">
           <PackageOpen className="h-4 w-4 shrink-0" />
           <span className="min-w-0">{tsm('atShopTitle', { shop, date: formatDate(s.leftOn) })}</span>
         </p>
-        <p className="mt-1 text-accent-900 dark:text-accent-200" data-testid="samples-panel-figures">
+        <p className="mt-1 text-accent-900" data-testid="samples-panel-figures">
           {tsm('badge', { units: Number(s.unitsOut) })} · {tsm('leftAgo', { days: s.daysAtShop })} ·{' '}
           {s.remindedAt ? tsm('reminderSent') : tsm('reminderOn', { date: formatDate(s.reminderOn) })}
         </p>
-        <p className="mt-1 text-xs text-accent-800 dark:text-accent-300">{tsm('atShopHint')}</p>
+        <p className="mt-1 text-xs text-accent-900">{tsm('atShopHint')}</p>
       </div>
     );
   }

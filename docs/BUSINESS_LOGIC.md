@@ -841,6 +841,11 @@ uses (LEARNINGS "Keep flows small"). Migration `20261018200000_samples_at_shops`
 `sale_orders.samples_left_at`, `samples_decided_at`, `samples_reminded_at`). The rules are in
 `apps/api/src/common/samples.ts` (pure) and `common/samples-out.ts` (what is out, read from the database).
 
+**Round 2 (owner 2026-10-18, after testing it locally).** "At shops" reads **"Samples"** everywhere; "They're buying"
+opens the **normal New Order popup pre-filled** instead of its own dialog, so lines can be changed, removed and added;
+a product's page shows its **Samples**, and its B2C price stat card is gone. The rules below are updated in place and
+marked "round 2".
+
 **Leaving samples.** The New Order popup has one amber switch, **"Samples — no charge yet"** ("Units leave the shelf.
 No sale, nothing owed, until the shop decides."). With it on there is no draft, no discount, no total, prices are
 optional, and the one button reads **Leave samples** (`POST /sales/orders` with `samples: true`).
@@ -863,18 +868,22 @@ optional, and the one button reads **Leave samples** (`POST /sales/orders` with 
 - GUESS: leaving samples that take a product below its minimum raises the low-stock alert, as a sale does — the
   shelf is what low stock means (§3).
 
-**On Sales.** The order shows an amber **"Samples at shop · N units"** badge, and when opened: the shop and the day
+**On Sales.** The order shows an amber **"Samples · N units"** badge (round 2: the owner asked for "Samples" wherever
+the screens said "At shops"; Arabic عينات), and when opened: the shop and the day
 left, how many days ago, and the day the reminder is due (or "Reminder sent"). The list's status filter has
 **Samples**. Three actions, and nothing else (no invoice, payment, contract, return or cancel):
 
-- **"They're buying"** — a dialog per product: **Buying**, **Returned**, **Price each**. It starts with everything
-  bought and nothing returned; typing one quantity fills the other with the rest only while the other has not been
-  typed (a typed number is never overwritten). The price starts at the price noted when left, else the product's
-  current list price for the order's channel (B2B/B2C), else empty — and is required for any line with something
-  bought (0 is a price). The server checks the same (`planSamplesDecision`): every line decided once
-  (`SAMPLES_LINE_MISSING`, `SAMPLES_LINE_TWICE`, `SAMPLES_LINE_NOT_IN_ORDER`), nothing negative
-  (`SAMPLES_QTY_NEGATIVE`), buying + returned exactly what is out, in Decimal (`SAMPLES_DECISION_MISMATCH`, which also
-  refuses zero of everything), a price for what is bought (`SAMPLES_PRICE_REQUIRED`, `PRICE_NEGATIVE`).
+- **"They're buying"** — DECIDED (owner 2026-10-18, round 2, replacing the first round's per-product
+  Buying / Returned dialog): **opens the normal New Order popup, pre-filled**, because the shop may take more, take
+  less, or add products. Title "Complete sale from samples ORD-…", and one line above the fields: "N units were out as
+  samples; anything you remove goes back to the shelf." Pre-filled: the shop (fixed — the samples were left with it;
+  the server refuses another with `SAMPLES_OTHER_SHOP`), today, the order's channel and currency, and every line that
+  went out at its quantity and price — the price noted when left (a typed price: it stays when the channel changes),
+  else the product's price for the channel, else empty. In the popup everything a sale allows: lower a quantity (the
+  rest goes back to the shelf), remove a line (all of it back), raise one, add products, set prices and discounts. A
+  product's units out on this order count as available to it in the popup. No draft, no walk-in, no samples switch;
+  one button, **Complete sale** (`POST /sales/orders/:id/samples/convert`, the body a new order sends). The
+  below-cost warning is not shown there (GUESS: it costs from the shelf's FIFO, which is not what the kept units cost).
 - **"Returned"** — everything back on the shelf; the order ends **SAMPLES_RETURNED** (not a cancelled sale, not a
   return of a sale). **Cancel on samples is "Returned"** (`POST …/cancel` does the same; the screen does not offer
   Cancel at all).
@@ -882,25 +891,42 @@ left, how many days ago, and the day the reminder is due (or "Reminder sent"). T
   cost written off; an optional note goes to the audit log.
 
 **DECIDED (built) — the shop buying converts the order in place.** Same order, same ORD number, becomes a
-**CONFIRMED sale dated the decision day** (`orderedAt` = the moment it is recorded; `samples_left_at` keeps the day
-left, and the order says "Began as samples left on …"). Every existing sale invariant holds: its lines keep only the
-units bought, at the agreed price (`lineTotal` = qty × price, no discount), totals from those lines, `outstanding` =
-total; its allocations keep only the bought units — so revenue, COGS, the receivable and the shop's debt start that
-day, from the same batches and units that went out. Chosen over a linked sale because nothing reads it differently
-from any other sale: a payment, a return, a contract and the invoice work on it as they are.
-- GUESS: **which units are bought** — the oldest-received ones, as FIFO would have drawn them (§3); the returned
-  units go back to the newer batches they left (`splitSampleAllocations`). So the sale's COGS is what a sale of those
-  units would have cost. A line with nothing bought is removed from the sale.
-- Nothing bought at all is "Returned". All bought and none returned is a plain sale of every unit.
-- GUESS: **the decision is dated today**, always; there is no "decided on" day to back-date it (unlike a sale's
-  date). Record it the day the shop says so.
+**CONFIRMED sale dated the day chosen** in the popup (`samples_left_at` keeps the day left, and the order says "Began
+as samples left on …"), with **exactly the lines the popup was saved with** — revenue, COGS, the receivable and the
+shop's debt start that day. Chosen over a linked sale because nothing reads it differently from any other sale: a
+payment, a return, a contract and the invoice work on it as they are. Per product (`planSamplesConversion` in
+`common/samples.ts`, owner 2026-10-18 round 2):
+- **Kept** = the lesser of what went out and what the sale has. Those units **are the units that went out** — same
+  batches, same cost — and they do not move again (no second movement; they left with `SAMPLE_OUT`).
+- **Back** = what went out and is not kept: back to the batch each unit left (`SAMPLE_BACK`).
+- **Extra** = what the sale has beyond what went out — a raised quantity, or a product that never went out — drawn
+  FIFO from the shelf exactly as confirming a sale draws (`drawFifo`, movement `SALE`). Checked first, on the shelf of
+  the sale's day: for a product that went out the refusal is **`SAMPLES_EXTRA_NOT_IN_STOCK`** ("5 of X went out as
+  samples; selling 9 needs 4 more from the shelf, and only 1 is there"), for one that never went out it is the sale's
+  own `NOT_ENOUGH_STOCK` / `NOT_ENOUGH_STOCK_ON_DATE`. Nothing moves on a refusal.
+- Every line is checked as a new order's are, by the same code (`checkLines`, `saleLines`): a real product,
+  quantity above 0, price 0 or more, no negative discount, no discount above its line.
+- So a unit is counted once: kept (sold), back (shelf) or drawn (sold) — shelf + samples + sold always equals what
+  was received.
+- GUESS (kept from round 1): **which units are kept** — the oldest-received of what went out, as FIFO would have drawn
+  them (§3); the units put back are the newer ones. When one product has two lines, they take the kept units in the
+  order of the lines, the later line taking the shelf for its rest.
+- DECIDED by me, round 2 (the owner said "treat as Returned, or refuse with a code — pick one"): **a sale with no
+  lines at all is refused, `SAMPLES_NOTHING_KEPT`, pointing at "Returned"** — saving a sale should never quietly
+  record a return, and "Returned" is one click beside it. Removing every sample line but adding another product is a
+  sale (of the new product) with every sample back on the shelf.
+- GUESS, round 2 (replaces "always dated today"): **the sale's day is today unless an earlier day is entered**, as on
+  any sale — never in the future (`DATE_IN_FUTURE`) and **never before the samples were left**
+  (`SAMPLES_SALE_BEFORE_LEFT`; the picker greys those days out). Extra units come from the stock of that day.
+- Converting twice, or after Returned / Write off, is `SAMPLES_ALREADY_DECIDED`; two saves at once make one sale (the
+  claim on the order is a conditional update only one wins).
 
 **Returned and written off — how stock and money move.**
 
 | Outcome | Stock | Money |
 |---|---|---|
-| Left (SAMPLES) | Off the shelf (`remainingQty`/`saleableQty` fall), counted **At shops** | Nothing: no sale, no ledger row |
-| Bought (CONFIRMED) | Bought units stay out (sold); returned units back to their own batch (`SAMPLE_BACK`) | A normal sale on the decision day: revenue, COGS, receivable |
+| Left (SAMPLES) | Off the shelf (`remainingQty`/`saleableQty` fall), counted under **Samples** | Nothing: no sale, no ledger row |
+| Bought (CONFIRMED) | Kept units stay out (sold, same batches); units not kept back to their own batch (`SAMPLE_BACK`); extra drawn FIFO (`SALE`) | A normal sale on its day, with the popup's lines: revenue, COGS, receivable |
 | Returned (SAMPLES_RETURNED) | Every unit back to the batch it left (`SAMPLE_BACK`) | Nothing. Its lines and allocations stay as the record of what went out and count in nothing, as a cancelled sale's do |
 | Written off (SAMPLES_WRITTEN_OFF) | Gone for good: never back on the shelf, not at a shop | Their landed cost is a cost of the cycle each unit came from |
 
@@ -916,9 +942,9 @@ the write-off follows a corrected cost while the cycle is unsettled.
 - GUESS: a write-off is the **whole order** and cannot be undone — there is no mix of returned and written off on
   one order. OPEN for the owner: a shop that sends some back and keeps the rest free can today only be recorded as
   "They're buying" the kept units at a price of 0 (their cost then lands in that sale's COGS rather than on a
-  "Samples written off" line — the cycle's profit is the same).
+  "Samples written off" line — the cycle's profit is the same). Round 2: that is a line at price 0 in the popup.
 
-**Inventory.** A new **At shops** column (units out on open samples orders, per product and per batch), beside
+**Inventory.** A **Samples** column (named "At shops" until the owner's round 2, 2026-10-18; Arabic عينات) (units out on open samples orders, per product and per batch), beside
 **On shelf** (was "Total Stock": every batch's remaining units) and **Total** = on shelf + at shops. **Low stock still
 means the shelf** (§3, `common/low-stock.ts` reads `remainingQty`): units at shops are not on it and are counted once,
 from the open samples orders' allocations (`common/samples-out.ts`) — never twice. Shelf + at shops + sold always adds
@@ -941,7 +967,14 @@ pushed to phones too (§10).
   overdue instalments).
 
 **Editing.** A samples order's lines cannot be edited while open — there is no edit path for any order (§4); to change
-what is out, record "Returned" and leave the samples again.
+what is out, record "Returned" and leave the samples again. Changing the lines **when the shop buys** is what the
+"They're buying" popup is for (round 2).
+
+**On a product's page** (owner 2026-10-18, round 2). A **Samples** card: the units of the product out on open samples
+orders in all, and per order the shop, the units, how long ago they were left, linking to the order
+(`/sales?order=<id>`); "No samples out" when there are none. The stat card that showed the B2C price is now the
+Samples total — the prices card below it still shows and sets both B2B and B2C prices (only the card was removed;
+B2C pricing is unchanged everywhere else).
 
 **The assistant** (§16): `list_sales` labels each order `kind: "SALE"` or `"SAMPLES"`, gives a samples order's units at
 the shop, day left and reminder day, reports its outstanding as 0.00 whatever is stored, and its description says a
@@ -950,8 +983,9 @@ samples order is not a sale and is never owed. No new tool.
 **Who.** Leaving samples, "They're buying" and "Returned": the sales roles (core partners and admin support), as
 selling is. "Write off": core partners only (GUESS — it moves cost onto a cycle, like cancelling a sale).
 
-**Checked by** `apps/api/src/common/samples.spec.ts` (the rules), `apps/api/src/modules/sales/samples.db.spec.ts`
-(against Postgres: every figure before and after), `apps/web/src/components/sales/samples-form.test.tsx` and
+**Checked by** `apps/api/src/common/samples.spec.ts` (the rules, `planSamplesConversion`),
+`apps/api/src/modules/sales/samples.db.spec.ts` (against Postgres: every figure before and after, and each change the
+popup can make), `apps/web/src/components/sales/samples-form.test.tsx` and
 `samples-pages.test.tsx`, spec 34 TC-INV-72..74, and `scripts/check-data.sh` 26–26.2 (a samples order with a total,
 a balance or money on it; an open one whose batches do not hold its lines; one with no day left).
 

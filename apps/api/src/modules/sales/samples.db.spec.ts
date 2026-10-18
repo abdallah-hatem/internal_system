@@ -8,7 +8,11 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { PaymentsService } from '../payments/payments.service';
 import { SettlementsService } from '../settlements/settlements.service';
-import { SalesService, type CreateSaleOrderInput } from './sales.service';
+import {
+  SalesService,
+  type CreateSaleOrderInput,
+  type SamplesConversionInput,
+} from './sales.service';
 import { owedBy } from '../../common/customer-balance';
 import {
   buildStatement,
@@ -458,9 +462,34 @@ suite('samples at shops against Postgres', () => {
     expect(await refusal(sales.invoice(left.data.id))).toBe('INVOICE_SAMPLES');
   });
 
-  // ─── Deciding ───────────────────────────────────────────────────────
+  // ─── They're buying: the New Order popup, saved (round 2) ───────────
 
-  it('a partial decision: revenue and COGS only for the bought units (oldest first), dated the decision day; returned units back on their own batch', async () => {
+  /** "They're buying" with the popup's lines, as a new order sends them. */
+  const convert = (
+    orderId: string,
+    items: CreateSaleOrderInput['items'],
+    extra: Partial<SamplesConversionInput> = {},
+  ) => sales.convertSamples(orderId, { items, ...extra }, actor);
+
+  /** The sale as stored: its status, total, lines and every allocation. */
+  const saleOf = (orderId: string) =>
+    prisma.saleOrder.findUniqueOrThrow({
+      where: { id: orderId },
+      include: { items: { include: { allocations: true } } },
+    });
+  const drawsOf = (order: Awaited<ReturnType<typeof saleOf>>) =>
+    order.items
+      .flatMap((i) =>
+        i.allocations.map((a) => [
+          i.productId,
+          a.inventoryBatchId,
+          Number(a.qty),
+          Number(a.cogsEgp),
+        ]),
+      )
+      .sort((a, b) => Number(a[3]) - Number(b[3]));
+
+  it('a lowered quantity: revenue and COGS only for the units kept (the oldest that went out), dated today; the rest back on the newer batch they left', async () => {
     const { product, batches } = await stocked([
       { qty: 2, cost: 100, daysAgo: 20 },
       { qty: 10, cost: 130, daysAgo: 15 },
@@ -473,24 +502,12 @@ suite('samples at shops against Postgres', () => {
       { orderedOn: yesterday },
     );
     const before = await figures(s.id);
-    const item = await prisma.saleItem.findFirstOrThrow({
-      where: { saleOrderId: left.data.id },
-    });
 
-    await sales.decideSamples(
-      left.data.id,
-      {
-        lines: [
-          { saleItemId: item.id, buyQty: 3, returnQty: 2, unitPrice: 250 },
-        ],
-      },
-      actor,
-    );
+    await convert(left.data.id, [
+      { productId: product.id, quantity: 3, unitPrice: 250 },
+    ]);
 
-    const order = await prisma.saleOrder.findUniqueOrThrow({
-      where: { id: left.data.id },
-      include: { items: { include: { allocations: true } } },
-    });
+    const order = await saleOf(left.data.id);
     expect(order.orderNo).toBe(left.data.orderNo); // in place: one ORD number
     expect(order.status).toBe('CONFIRMED');
     expect(businessDay(order.orderedAt)).toBe(businessToday());
@@ -503,16 +520,21 @@ suite('samples at shops against Postgres', () => {
       Number(order.items[0].quantity),
       Number(order.items[0].lineTotal),
     ]).toEqual([3, 750]);
-    // Bought: the old batch's 2 at 100 and 1 at 130 — what FIFO would charge.
-    const cogs = order.items[0].allocations.reduce(
-      (t, a) => t + Number(a.cogsEgp),
-      0,
-    );
-    expect(cogs).toBe(330);
-    // Returned: 2 back to the newer batch they left.
+    // Kept: the old batch's 2 at 100 and 1 at 130 — the units that went out.
+    expect(drawsOf(order)).toEqual([
+      [product.id, batches[1].id, 1, 130],
+      [product.id, batches[0].id, 2, 200],
+    ]);
+    // Not kept: 2 back to the newer batch they left; the old one stays empty.
     expect(await shelf(batches[0].id)).toEqual([0, 0]);
     expect(await shelf(batches[1].id)).toEqual([9, 9]);
     expect(await atShops(product.id)).toBe(0);
+    const back = await prisma.inventoryMovement.findMany({
+      where: { referenceId: order.id, movementType: 'SAMPLE_BACK' },
+    });
+    expect(back.map((m) => [m.batchId, Number(m.qtyDelta)])).toEqual([
+      [batches[1].id, 2],
+    ]);
 
     const after = await figures(s.id);
     const delta = (k: keyof typeof before) =>
@@ -523,126 +545,276 @@ suite('samples at shops against Postgres', () => {
     expect(delta('owed')).toBe('750.00');
     expect(delta('pnlSales')).toBe('750.00');
     expect(after.statementRows).toBe(before.statementRows + 1);
-    const statement = buildStatement(
-      { id: s.id, displayName: 'x', phone: null },
-      await loadStatementSource(prisma, s.id),
-    );
-    expect(statement.rows.find((r) => r.kind === 'SALE')?.date).toBe(
-      businessToday(),
-    );
     await accountedFor(product.id, 12);
   });
 
-  it('the decision is refused when buying + returned is not what is out, or a bought line has no price — and nothing moves', async () => {
-    const { product, batches } = await stocked([
-      { qty: 5, cost: 100, daysAgo: 3 },
+  it('an added product is drawn FIFO from the shelf like any sale, beside the samples kept', async () => {
+    const sample = await stocked([{ qty: 4, cost: 100, daysAgo: 9 }]);
+    const added = await stocked([
+      { qty: 2, cost: 60, daysAgo: 8 },
+      { qty: 5, cost: 70, daysAgo: 2 },
     ]);
     const s = await shop();
     const left = await leave(s.id, [
-      { productId: product.id, quantity: 4 } as never,
+      { productId: sample.product.id, quantity: 2 } as never,
     ]);
-    const item = await prisma.saleItem.findFirstOrThrow({
-      where: { saleOrderId: left.data.id },
-    });
-    const decide = (line: Record<string, unknown>) =>
-      sales.decideSamples(
-        left.data.id,
-        { lines: [{ saleItemId: item.id, ...line } as never] },
-        actor,
-      );
+    const before = await figures(s.id);
 
+    await convert(left.data.id, [
+      { productId: sample.product.id, quantity: 2, unitPrice: 300 },
+      {
+        productId: added.product.id,
+        quantity: 3,
+        unitPrice: 150,
+        discount: 50,
+      },
+    ]);
+
+    const order = await saleOf(left.data.id);
+    expect(order.status).toBe('CONFIRMED');
+    // 2 × 300 + (3 × 150 − 50) = 1,000, by the one formula a sale uses.
+    expect(Number(order.total)).toBe(1000);
     expect(
-      await refusal(decide({ buyQty: 3, returnQty: 2, unitPrice: 1 })),
-    ).toBe('SAMPLES_DECISION_MISMATCH');
-    expect(await refusal(decide({ buyQty: 0, returnQty: 0 }))).toBe(
-      'SAMPLES_DECISION_MISMATCH',
+      order.items.map((i) => [
+        i.productId,
+        Number(i.quantity),
+        Number(i.lineTotal),
+      ]),
+    ).toEqual(
+      expect.arrayContaining([
+        [sample.product.id, 2, 600],
+        [added.product.id, 3, 400],
+      ]),
     );
+    // The added product: the older batch's 2 at 60, then 1 at 70.
+    expect(drawsOf(order)).toEqual([
+      [added.product.id, added.batches[1].id, 1, 70],
+      [added.product.id, added.batches[0].id, 2, 120],
+      [sample.product.id, sample.batches[0].id, 2, 200],
+    ]);
+    expect(await shelf(added.batches[0].id)).toEqual([0, 0]);
+    expect(await shelf(added.batches[1].id)).toEqual([4, 4]);
+    expect(await shelf(sample.batches[0].id)).toEqual([2, 2]);
+    const sold = await prisma.inventoryMovement.findMany({
+      where: { referenceId: order.id, movementType: 'SALE' },
+    });
+    expect(sold.reduce((t, m) => t + Number(m.qtyDelta), 0)).toBe(-3);
+
+    const after = await figures(s.id);
+    expect((Number(after.revenue) - Number(before.revenue)).toFixed(2)).toBe(
+      '1000.00',
+    );
+    expect((Number(after.cogs) - Number(before.cogs)).toFixed(2)).toBe(
+      '390.00',
+    );
+    await accountedFor(sample.product.id, 4);
+    await accountedFor(added.product.id, 7);
+  });
+
+  it('a removed sample line: every unit of it back on its own batches; the sale has only the lines kept', async () => {
+    const kept = await stocked([{ qty: 5, cost: 100, daysAgo: 9 }]);
+    const removed = await stocked([
+      { qty: 1, cost: 40, daysAgo: 9 },
+      { qty: 4, cost: 45, daysAgo: 3 },
+    ]);
+    const s = await shop();
+    const left = await leave(s.id, [
+      { productId: kept.product.id, quantity: 2, unitPrice: 300 },
+      { productId: removed.product.id, quantity: 3, unitPrice: 90 },
+    ]);
+
+    await convert(left.data.id, [
+      { productId: kept.product.id, quantity: 2, unitPrice: 300 },
+    ]);
+
+    const order = await saleOf(left.data.id);
+    expect(order.items.map((i) => i.productId)).toEqual([kept.product.id]);
+    expect(Number(order.total)).toBe(600);
+    expect(await shelf(removed.batches[0].id)).toEqual([1, 1]);
+    expect(await shelf(removed.batches[1].id)).toEqual([4, 4]);
+    expect(await atShops(removed.product.id)).toBe(0);
+    expect(await sold(removed.product.id)).toBe(0);
+    await accountedFor(removed.product.id, 5);
+    await accountedFor(kept.product.id, 5);
+  });
+
+  it('a raised quantity the shelf has: every unit that went out is kept at its cost, and only the extra is drawn from the shelf', async () => {
+    const { product, batches } = await stocked([
+      { qty: 2, cost: 100, daysAgo: 9 },
+      { qty: 10, cost: 130, daysAgo: 3 },
+    ]);
+    const s = await shop();
+    const left = await leave(s.id, [
+      { productId: product.id, quantity: 2, unitPrice: 200 },
+    ]);
+    expect(await shelf(batches[0].id)).toEqual([0, 0]);
+
+    await convert(left.data.id, [
+      { productId: product.id, quantity: 4, unitPrice: 200 },
+    ]);
+
+    const order = await saleOf(left.data.id);
+    expect([Number(order.items[0].quantity), Number(order.total)]).toEqual([
+      4, 800,
+    ]);
+    expect(drawsOf(order)).toEqual([
+      [product.id, batches[0].id, 2, 200], // the 2 that went out, at 100
+      [product.id, batches[1].id, 2, 260], // 2 more from the shelf, at 130
+    ]);
+    expect(await shelf(batches[1].id)).toEqual([8, 8]);
+    expect(await atShops(product.id)).toBe(0);
+    await accountedFor(product.id, 12);
+  });
+
+  it('a raised quantity the shelf does not have is refused with its own code, and nothing moves — nor for a new product short on the shelf', async () => {
+    const { product, batches } = await stocked([
+      { qty: 3, cost: 100, daysAgo: 9 },
+    ]);
+    const other = await stocked([{ qty: 1, cost: 50, daysAgo: 9 }]);
+    const s = await shop();
+    const left = await leave(s.id, [
+      { productId: product.id, quantity: 2, unitPrice: 200 },
+    ]);
+    // 2 out + 1 on the shelf: 3 can be sold, 4 cannot.
+    let body: { code?: string; params?: Record<string, string> } | undefined;
+    try {
+      await convert(left.data.id, [
+        { productId: product.id, quantity: 4, unitPrice: 200 },
+      ]);
+    } catch (e) {
+      body = (e as HttpException).getResponse() as typeof body;
+    }
+    expect(body?.code).toBe('SAMPLES_EXTRA_NOT_IN_STOCK');
+    expect(body?.params).toMatchObject({
+      out: '2',
+      wanted: '4',
+      extra: '2',
+      available: '1',
+    });
     expect(
-      await refusal(decide({ buyQty: -1, returnQty: 5, unitPrice: 1 })),
-    ).toBe('SAMPLES_QTY_NEGATIVE');
-    expect(await refusal(decide({ buyQty: 4, returnQty: 0 }))).toBe(
-      'SAMPLES_PRICE_REQUIRED',
+      await refusal(
+        convert(left.data.id, [
+          { productId: product.id, quantity: 2, unitPrice: 200 },
+          { productId: other.product.id, quantity: 2, unitPrice: 80 },
+        ]),
+      ),
+    ).toBe('NOT_ENOUGH_STOCK');
+
+    const order = await saleOf(left.data.id);
+    expect(order.status).toBe('SAMPLES');
+    expect(Number(order.total)).toBe(0);
+    expect(drawsOf(order)).toEqual([[product.id, batches[0].id, 2, 200]]);
+    expect(await shelf(batches[0].id)).toEqual([1, 1]);
+    expect(await shelf(other.batches[0].id)).toEqual([1, 1]);
+    expect(await atShops(product.id)).toBe(2);
+
+    // Exactly what there is still sells: 2 out + the 1 on the shelf.
+    await convert(left.data.id, [
+      { productId: product.id, quantity: 3, unitPrice: 200 },
+    ]);
+    expect(await shelf(batches[0].id)).toEqual([0, 0]);
+    await accountedFor(product.id, 3);
+  });
+
+  it('the wrong things are refused — nothing on the sale, another shop, a day before they were left or still to come, a bad line — and nothing moves', async () => {
+    const { product, batches } = await stocked([
+      { qty: 5, cost: 100, daysAgo: 9 },
+    ]);
+    const s = await shop();
+    const otherShop = await shop();
+    const left = await leave(
+      s.id,
+      [{ productId: product.id, quantity: 4 } as never],
+      { orderedOn: addDays(businessToday(), -3) },
+    );
+    const line = { productId: product.id, quantity: 4, unitPrice: 100 };
+
+    expect(await refusal(convert(left.data.id, []))).toBe(
+      'SAMPLES_NOTHING_KEPT',
     );
     expect(
       await refusal(
-        sales.decideSamples(
+        sales.convertSamples(left.data.id, undefined as never, actor),
+      ),
+    ).toBe('SAMPLES_NOTHING_KEPT');
+    expect(
+      await refusal(
+        convert(left.data.id, [line], { customerId: otherShop.id }),
+      ),
+    ).toBe('SAMPLES_OTHER_SHOP');
+    expect(
+      await refusal(
+        convert(left.data.id, [line], {
+          orderedOn: addDays(businessToday(), -4),
+        }),
+      ),
+    ).toBe('SAMPLES_SALE_BEFORE_LEFT');
+    expect(
+      await refusal(
+        convert(left.data.id, [line], {
+          orderedOn: addDays(businessToday(), 1),
+        }),
+      ),
+    ).toBe('DATE_IN_FUTURE');
+    expect(
+      await refusal(convert(left.data.id, [{ ...line, quantity: 0 }])),
+    ).toBe('QTY_NOT_POSITIVE');
+    expect(
+      await refusal(convert(left.data.id, [{ ...line, quantity: -1 }])),
+    ).toBe('QTY_NOT_POSITIVE');
+    expect(
+      await refusal(convert(left.data.id, [{ ...line, unitPrice: -5 }])),
+    ).toBe('PRICE_NEGATIVE');
+    expect(
+      await refusal(convert(left.data.id, [{ ...line, discount: 401 }])),
+    ).toBe('DISCOUNT_EXCEEDS_LINE');
+    expect(
+      await refusal(
+        convert(left.data.id, [{ ...line, productId: randomUUID() }]),
+      ),
+    ).toBe('NOT_FOUND');
+    expect(
+      await refusal(convert(left.data.id, [line], { channel: 'WHOLESALE' })),
+    ).toBe('VALIDATION_FAILED');
+
+    const order = await saleOf(left.data.id);
+    expect(order.status).toBe('SAMPLES');
+    expect(order.version).toBe(1); // every refusal rolled the claim back too
+    expect(await shelf(batches[0].id)).toEqual([1, 1]);
+    expect(await atShops(product.id)).toBe(4);
+
+    // The shop's own id is fine, and so is the day they were left.
+    await convert(left.data.id, [line], {
+      customerId: s.id,
+      orderedOn: addDays(businessToday(), -3),
+    });
+    const sale = await saleOf(left.data.id);
+    expect(sale.status).toBe('CONFIRMED');
+    expect(businessDay(sale.orderedAt)).toBe(addDays(businessToday(), -3));
+    await accountedFor(product.id, 5);
+  });
+
+  it('a back-dated sale draws its extra only from stock received by that day', async () => {
+    const { product, batches } = await stocked([
+      { qty: 2, cost: 100, daysAgo: 10 },
+      { qty: 5, cost: 130, daysAgo: 1 }, // arrived yesterday
+    ]);
+    const s = await shop();
+    const left = await leave(
+      s.id,
+      [{ productId: product.id, quantity: 2, unitPrice: 1 }],
+      { orderedOn: addDays(businessToday(), -5) },
+    );
+    expect(
+      await refusal(
+        convert(
           left.data.id,
-          {
-            lines: [
-              {
-                saleItemId: randomUUID(),
-                buyQty: 4,
-                returnQty: 0,
-                unitPrice: 1,
-              },
-            ],
-          },
-          actor,
+          [{ productId: product.id, quantity: 3, unitPrice: 1 }],
+          { orderedOn: addDays(businessToday(), -3) },
         ),
       ),
-    ).toBe('SAMPLES_LINE_NOT_IN_ORDER');
-
-    const order = await prisma.saleOrder.findUniqueOrThrow({
-      where: { id: left.data.id },
-    });
-    expect(order.status).toBe('SAMPLES');
-    expect(await shelf(batches[0].id)).toEqual([1, 1]);
-  });
-
-  it('all bought, none returned: a normal sale of every unit, nothing back on the shelf', async () => {
-    const { product, batches } = await stocked([
-      { qty: 5, cost: 100, daysAgo: 3 },
-    ]);
-    const s = await shop();
-    const left = await leave(s.id, [
-      { productId: product.id, quantity: 5, unitPrice: 200 },
-    ]);
-    const item = await prisma.saleItem.findFirstOrThrow({
-      where: { saleOrderId: left.data.id },
-    });
-    await sales.decideSamples(
-      left.data.id,
-      {
-        lines: [
-          { saleItemId: item.id, buyQty: 5, returnQty: 0, unitPrice: 180 },
-        ],
-      },
-      actor,
-    );
-    const order = await prisma.saleOrder.findUniqueOrThrow({
-      where: { id: left.data.id },
-    });
-    expect([order.status, Number(order.total)]).toEqual(['CONFIRMED', 900]);
-    expect(await shelf(batches[0].id)).toEqual([0, 0]);
-    await accountedFor(product.id, 5);
-  });
-
-  it('all returned through the decision (nothing bought): returned samples, every unit back on its batch, nothing sold', async () => {
-    const { product, batches } = await stocked([
-      { qty: 1, cost: 100, daysAgo: 9 },
-      { qty: 4, cost: 120, daysAgo: 3 },
-    ]);
-    const s = await shop();
-    const before = await figures(s.id);
-    const left = await leave(s.id, [
-      { productId: product.id, quantity: 3, unitPrice: 200 },
-    ]);
-    const item = await prisma.saleItem.findFirstOrThrow({
-      where: { saleOrderId: left.data.id },
-    });
-    await sales.decideSamples(
-      left.data.id,
-      { lines: [{ saleItemId: item.id, buyQty: 0, returnQty: 3 }] },
-      actor,
-    );
-    const order = await prisma.saleOrder.findUniqueOrThrow({
-      where: { id: left.data.id },
-    });
-    expect(order.status).toBe('SAMPLES_RETURNED');
-    expect(await shelf(batches[0].id)).toEqual([1, 1]);
-    expect(await shelf(batches[1].id)).toEqual([4, 4]);
-    expect(await figures(s.id)).toEqual(before);
-    await accountedFor(product.id, 5);
+    ).toBe('SAMPLES_EXTRA_NOT_IN_STOCK');
+    expect(await shelf(batches[1].id)).toEqual([5, 5]);
   });
 
   it('"Returned" and Cancel on samples both put everything back and end as returned samples, never a cancelled sale', async () => {
@@ -669,7 +841,7 @@ suite('samples at shops against Postgres', () => {
     expect(await shelf(batches[0].id)).toEqual([5, 5]);
   });
 
-  it('the second time is refused: deciding twice, returning after deciding, writing off after returning, cancelling after writing off', async () => {
+  it('the second time is refused: converting twice (and twice at once), returning after deciding, writing off after returning, cancelling after writing off', async () => {
     const { product, batches } = await stocked([
       { qty: 9, cost: 100, daysAgo: 3 },
     ]);
@@ -677,16 +849,18 @@ suite('samples at shops against Postgres', () => {
     const bought = await leave(s.id, [
       { productId: product.id, quantity: 2, unitPrice: 50 },
     ]);
-    const item = await prisma.saleItem.findFirstOrThrow({
-      where: { saleOrderId: bought.data.id },
-    });
-    const decision = {
-      lines: [{ saleItemId: item.id, buyQty: 2, returnQty: 0, unitPrice: 50 }],
-    };
-    await sales.decideSamples(bought.data.id, decision, actor);
-    expect(
-      await refusal(sales.decideSamples(bought.data.id, decision, actor)),
-    ).toBe('SAMPLES_ALREADY_DECIDED');
+    const lines = [{ productId: product.id, quantity: 2, unitPrice: 50 }];
+    // Two saves at once (two partners, two tabs): exactly one sale.
+    const twice = await Promise.allSettled([
+      convert(bought.data.id, lines),
+      convert(bought.data.id, lines),
+    ]);
+    expect(twice.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await refusal(convert(bought.data.id, lines))).toBe(
+      'SAMPLES_ALREADY_DECIDED',
+    );
+    expect((await saleOf(bought.data.id)).items).toHaveLength(1);
+    expect(Number((await saleOf(bought.data.id)).total)).toBe(100);
     expect(await refusal(sales.returnSamples(bought.data.id, actor))).toBe(
       'SAMPLES_ALREADY_DECIDED',
     );
@@ -713,6 +887,9 @@ suite('samples at shops against Postgres', () => {
     ]);
     await sales.writeOffSamples(gone.data.id, {}, actor);
     expect(await refusal(sales.cancelOrder(gone.data.id, actor))).toBe(
+      'SAMPLES_ALREADY_DECIDED',
+    );
+    expect(await refusal(convert(gone.data.id, lines))).toBe(
       'SAMPLES_ALREADY_DECIDED',
     );
     expect(await refusal(sales.returnSamples(gone.data.id, actor))).toBe(
@@ -743,6 +920,7 @@ suite('samples at shops against Postgres', () => {
     expect(await refusal(sales.returnSamples(draft.data.id, actor))).toBe(
       'NOT_SAMPLES',
     );
+    expect(await refusal(convert(draft.data.id, lines))).toBe('NOT_SAMPLES');
     expect(await refusal(sales.returnSamples(randomUUID(), actor))).toBe(
       'NOT_FOUND',
     );

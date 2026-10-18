@@ -2216,19 +2216,20 @@ test.describe('Samples left at a shop are not a sale (§4, samples at shops, 202
     expect(await code(res)).toBe('SAMPLES_NOT_PAYABLE');
   });
 
-  test('TC-INV-73: deciding with buying + returned ≠ what is out is refused; deciding twice is refused the second time', async ({ request }) => {
-    const { headers, order } = await samplesLeft(request, 3);
-    const itemId = order.items[0].id;
-    const decide = (line: Record<string, unknown>) =>
-      request.post(`${API}/sales/orders/${order.id}/samples/decide`, {
-        headers, data: { lines: [{ saleItemId: itemId, ...line }] },
-      });
-    const wrong = await decide({ buyQty: 2, returnQty: 2, unitPrice: 50 });
-    expect(wrong.status()).toBe(400);
-    expect(await code(wrong)).toBe('SAMPLES_DECISION_MISMATCH');
-    expect(await code(await decide({ buyQty: 1, returnQty: 2 }))).toBe('SAMPLES_PRICE_REQUIRED');
-    expect((await decide({ buyQty: 1, returnQty: 2, unitPrice: 50 })).ok()).toBeTruthy();
-    expect(await code(await decide({ buyQty: 1, returnQty: 2, unitPrice: 50 }))).toBe('SAMPLES_ALREADY_DECIDED');
+  test('TC-INV-73: completing a sale from samples with more than went out and the shelf holds, or with nothing on it, is refused by its code; completing twice is refused the second time', async ({ request }) => {
+    // 10 received, 3 out as samples: 7 on the shelf, so at most 10 can be sold.
+    const { headers, order, product } = await samplesLeft(request, 3);
+    const convert = (items: unknown[]) =>
+      request.post(`${API}/sales/orders/${order.id}/samples/convert`, { headers, data: { items } });
+    const line = (quantity: number) => ({ productId: product.id, quantity, unitPrice: 50 });
+    const tooMany = await convert([line(11)]);
+    expect(tooMany.status()).toBe(400);
+    expect(await code(tooMany)).toBe('SAMPLES_EXTRA_NOT_IN_STOCK');
+    expect(await code(await convert([]))).toBe('SAMPLES_NOTHING_KEPT');
+    const sold = await convert([line(4)]);
+    expect(sold.ok()).toBeTruthy();
+    expect(Number((await sold.json()).data.total)).toBe(200);
+    expect(await code(await convert([line(4)]))).toBe('SAMPLES_ALREADY_DECIDED');
   });
 
   test('TC-INV-74: a cycle with units out as samples cannot be settled', async ({ request }) => {
