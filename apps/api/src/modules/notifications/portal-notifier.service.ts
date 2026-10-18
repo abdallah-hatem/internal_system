@@ -2,11 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
-import { PushService } from './push.service';
 import {
   isNotificationCode,
-  pushLocaleFor,
-  renderNotification,
   type NotificationCode,
   type NotificationParams,
 } from '../../common/notification-messages';
@@ -35,8 +32,8 @@ import {
  * (`common/notification-messages.ts`), so the reader's app says it in the
  * reader's language. The English `title` stays as what the logs record and what
  * a client that has never heard the code falls back to — the same bargain
- * `api-error.ts` makes for refusals. Only the push is worded here, because it
- * is sent while no app is open to word it.
+ * `api-error.ts` makes for refusals. Only the push is worded on the server
+ * (`NotificationsService`), because it is sent while no app is open to word it.
  */
 @Injectable()
 export class PortalNotifier {
@@ -45,7 +42,6 @@ export class PortalNotifier {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
-    private push: PushService,
   ) {}
 
   /** Everyone in the office who should hear about a shop's request. */
@@ -70,11 +66,13 @@ export class PortalNotifier {
   }
 
   /**
-   * Write the rows, then try the phones.
+   * Write the rows, then try the phones — both done by
+   * `NotificationsService`, which does it for every notification, office and
+   * storefront alike (one path since 2026-10-18).
    *
-   * The row stores the code and its params; the push is put into words here,
-   * in the language `pushLocaleFor` picks for each reader, because nobody's
-   * app is open to translate it.
+   * An office reader's tap opens what the bell links to (the default). A
+   * shop's opens a storefront page, which the bell's mapping knows nothing
+   * about, so those events name their `url`.
    *
    * Swallows everything. The only trace of a failure is a log line, which is
    * the right place for it: nobody's order should depend on it.
@@ -98,6 +96,9 @@ export class PortalNotifier {
         code: event.code,
         params: event.params,
         payload: event.payload,
+        // Same tag replaces rather than stacks, so three updates about one
+        // request leave one notification on the phone and not three.
+        push: { url: event.url, tag: event.tag },
       });
     } catch (err) {
       // If even the row failed there is nothing to push about, and the caller
@@ -105,42 +106,6 @@ export class PortalNotifier {
       this.log.error(
         `could not record ${event.eventType}: ${(err as Error).message}`,
       );
-      return;
-    }
-
-    let readers: { id: string; role: string | null }[] = [];
-    try {
-      readers = await this.prisma.user.findMany({
-        where: { id: { in: userIds } },
-        select: { id: true, role: true },
-      });
-    } catch (err) {
-      this.log.warn(
-        `could not read who to push ${event.eventType} to: ${(err as Error).message}`,
-      );
-    }
-    const roleOf = new Map(readers.map((r) => [r.id, r.role]));
-
-    for (const userId of userIds) {
-      try {
-        const words = renderNotification(
-          event.code,
-          event.params,
-          pushLocaleFor({ role: roleOf.get(userId) }),
-        );
-        await this.push.sendToUser(userId, {
-          title: words.title,
-          body: words.body ?? '',
-          url: event.url,
-          // Same tag replaces rather than stacks, so three updates about one
-          // request leave one notification on the phone and not three.
-          tag: event.tag,
-        });
-      } catch (err) {
-        this.log.warn(
-          `push for ${event.eventType} failed: ${(err as Error).message}`,
-        );
-      }
     }
   }
 
@@ -156,7 +121,6 @@ export class PortalNotifier {
       code: 'ORDER_REQUEST_SUBMITTED',
       params: { shopName: args.shopName, requestNo: args.requestNo },
       payload: { ...args },
-      url: '/requests',
       tag: `order-request-${args.requestId}`,
     });
   }
@@ -171,7 +135,6 @@ export class PortalNotifier {
       code: 'IMPORT_REQUEST_SUBMITTED',
       params: { shopName: args.shopName, productName: args.productName },
       payload: { ...args },
-      url: '/requests?view=imports',
       tag: `import-request-${args.requestId}`,
     });
   }
@@ -182,7 +145,6 @@ export class PortalNotifier {
       code: 'SHOP_SIGNED_UP',
       params: { shopName: args.shopName },
       payload: { ...args },
-      url: '/customers?verification=UNVERIFIED',
       tag: `signup-${args.customerId}`,
     });
   }
@@ -204,7 +166,6 @@ export class PortalNotifier {
       code: 'HOLD_EXPIRING',
       params: { requestNo: args.requestNo, shopName: args.shopName },
       payload: { ...args },
-      url: '/requests',
       tag: `order-request-${args.requestId}`,
     });
   }

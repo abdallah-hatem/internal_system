@@ -6,6 +6,23 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { badRequest } from '../../common/api-error';
 
 /**
+ * What a service worker is handed: the office's (`apps/web/public/sw.js`) or
+ * the storefront's. `url` is what a tap opens. `locale` is the language the
+ * words are in; the office worker puts a `url` with no language in front of
+ * it under that one.
+ */
+export interface PushPayload {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  locale?: string;
+}
+
+const errText = (err: unknown) =>
+  err instanceof Error ? err.message : String(err);
+
+/**
  * Delivering a notification to a device that is not looking at the app.
  *
  * Push is a delivery attempt, never the record. Every notification is written
@@ -94,59 +111,154 @@ export class PushService {
   }
 
   /**
-   * Send to every device one person has registered.
+   * Send to every device one person has registered: `sendToUsers` for one.
    *
    * Never throws at the caller. This runs after the notification row is already
    * written, and a failure to reach a phone must not roll back the thing that
    * happened — a settlement approved and then un-approved because a push failed
    * would be a far worse bug than a missed alert.
    */
-  async sendToUser(
+  sendToUser(
     userId: string,
-    payload: { title: string; body: string; url?: string; tag?: string },
+    payload: PushPayload,
   ): Promise<{ sent: number; removed: number }> {
-    if (!this.vapidPublicKey) return { sent: 0, removed: 0 };
+    return this.sendToUsers([userId], () => payload);
+  }
 
-    const subs = await this.prisma.pushSubscription.findMany({
-      where: { userId },
+  /** Each push service gets this long to accept one message. */
+  static readonly SEND_TIMEOUT_MS = 2500;
+  /** And one delivery this long in all, however many people and devices. */
+  static readonly DEADLINE_MS = 3000;
+
+  /**
+   * Send to every device of every one of these people, each in their own words.
+   *
+   * One query for all of their subscriptions, however many people — telling
+   * three partners must not ask the database three times — and none at all
+   * when push is not configured. Nobody with no subscription is sent anything.
+   *
+   * Bounded in time. The request that raised the notification awaits this (on
+   * Vercel, work left running after the response is sent may simply be cut
+   * off), so every device is tried at once, each send gives up after
+   * `SEND_TIMEOUT_MS`, and the whole thing returns by `DEADLINE_MS` whatever the
+   * push services are doing. A device that has not answered by then is left
+   * alone: counted neither delivered nor failed.
+   *
+   * Never throws, and must not run inside a transaction: it uses the client's
+   * own connection (LEARNINGS: Deployment). Call it after the commit.
+   */
+  async sendToUsers(
+    userIds: readonly string[],
+    payloadFor: (userId: string) => PushPayload,
+  ): Promise<{ sent: number; removed: number }> {
+    const none = { sent: 0, removed: 0 };
+    if (!this.vapidPublicKey) return none;
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return none;
+
+    let subs: {
+      id: string;
+      userId: string;
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+    }[];
+    try {
+      subs = await this.prisma.pushSubscription.findMany({
+        where: { userId: { in: ids } },
+        select: {
+          id: true,
+          userId: true,
+          endpoint: true,
+          p256dh: true,
+          auth: true,
+        },
+      });
+    } catch (err) {
+      this.log.warn(`could not read push subscriptions: ${errText(err)}`);
+      return none;
+    }
+    if (subs.length === 0) return none;
+
+    type Outcome = 'sent' | 'gone' | 'failed' | 'late';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<Outcome>((resolve) => {
+      timer = setTimeout(() => resolve('late'), PushService.DEADLINE_MS);
     });
-    let sent = 0;
-    let removed = 0;
 
-    for (const sub of subs) {
+    const attempt = async (sub: (typeof subs)[number]): Promise<Outcome> => {
       try {
         await webpush.sendNotification(
           {
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           },
-          JSON.stringify(payload),
+          JSON.stringify(payloadFor(sub.userId)),
+          { timeout: PushService.SEND_TIMEOUT_MS },
         );
-        sent += 1;
-        await this.prisma.pushSubscription.update({
-          where: { id: sub.id },
-          data: { lastSuccessAt: new Date(), failureCount: 0 },
-        });
+        return 'sent';
       } catch (err: any) {
         const status = err?.statusCode;
-        if (status === 404 || status === 410) {
-          // Gone for good, not a bad moment. Deleting is the only way this
-          // table does not grow forever.
-          await this.prisma.pushSubscription.delete({ where: { id: sub.id } });
-          removed += 1;
-        } else {
-          await this.prisma.pushSubscription.update({
-            where: { id: sub.id },
-            data: { failureCount: { increment: 1 } },
-          });
-          this.log.warn(
-            `push to ${sub.id} failed with ${status ?? 'no status'}`,
-          );
-        }
+        // Gone for good, not a bad moment. Deleting is the only way this
+        // table does not grow forever.
+        if (status === 404 || status === 410) return 'gone';
+        this.log.warn(
+          `push to ${sub.id} failed with ${status ?? errText(err)}`,
+        );
+        return 'failed';
       }
+    };
+
+    const outcomes = await Promise.all(
+      subs.map((sub) => Promise.race([attempt(sub), deadline])),
+    );
+    clearTimeout(timer);
+
+    const idsWith = (o: Outcome) =>
+      subs.filter((_, i) => outcomes[i] === o).map((s) => s.id);
+    const sentIds = idsWith('sent');
+    const goneIds = idsWith('gone');
+    const failedIds = idsWith('failed');
+    const late = outcomes.filter((o) => o === 'late').length;
+    if (late > 0) {
+      this.log.warn(`${late} push(es) had not answered after the deadline`);
     }
 
-    return { sent, removed };
+    // At most three writes, whatever the number of devices.
+    if (sentIds.length > 0) {
+      await this.quietly(
+        this.prisma.pushSubscription.updateMany({
+          where: { id: { in: sentIds } },
+          data: { lastSuccessAt: new Date(), failureCount: 0 },
+        }),
+      );
+    }
+    if (goneIds.length > 0) {
+      await this.quietly(
+        this.prisma.pushSubscription.deleteMany({
+          where: { id: { in: goneIds } },
+        }),
+      );
+    }
+    if (failedIds.length > 0) {
+      await this.quietly(
+        this.prisma.pushSubscription.updateMany({
+          where: { id: { in: failedIds } },
+          data: { failureCount: { increment: 1 } },
+        }),
+      );
+    }
+
+    return { sent: sentIds.length, removed: goneIds.length };
+  }
+
+  /** Bookkeeping about devices: a failure here is a log line, never an error. */
+  private async quietly(write: PromiseLike<unknown>) {
+    try {
+      await write;
+    } catch (err) {
+      this.log.warn(`push bookkeeping failed: ${errText(err)}`);
+    }
   }
 
   /**

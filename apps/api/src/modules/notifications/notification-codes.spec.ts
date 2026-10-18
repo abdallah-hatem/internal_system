@@ -28,8 +28,13 @@ function makeNotifications() {
       createMany: jest.fn((a: { data: Row[] }) => Promise.resolve(a)),
     },
   };
+  type Deps = ConstructorParameters<typeof NotificationsService>;
+  const push = {
+    sendToUsers: jest.fn(() => Promise.resolve({ sent: 0, removed: 0 })),
+  };
   const service = new NotificationsService(
-    prisma as unknown as ConstructorParameters<typeof NotificationsService>[0],
+    prisma as unknown as Deps[0],
+    push as unknown as Deps[1],
   );
   return { prisma, service };
 }
@@ -115,76 +120,90 @@ describe('notification codes', () => {
 
   describe('which language a push goes out in', () => {
     it('a stored locale wins over everything', () => {
-      expect(pushLocaleFor({ role: 'SHOP_OWNER_PORTAL', locale: 'en' })).toBe(
-        'en',
-      );
-      expect(pushLocaleFor({ role: 'CORE_PARTNER', locale: 'ar' })).toBe('ar');
+      expect(pushLocaleFor({ locale: 'en' })).toBe('en');
+      expect(pushLocaleFor({ locale: 'ar' })).toBe('ar');
     });
 
-    it('without one: a shop gets Arabic (the storefront default), the office English (the internal default)', () => {
-      expect(pushLocaleFor({ role: 'SHOP_OWNER_PORTAL' })).toBe('ar');
-      expect(pushLocaleFor({ role: 'CORE_PARTNER' })).toBe('en');
-      expect(pushLocaleFor({ role: 'ADMIN_SUPPORT', locale: null })).toBe('en');
+    it('without one: Arabic, the business’s language, for shop and office alike (GUESS 2026-10-18)', () => {
+      expect(pushLocaleFor({})).toBe('ar');
+      expect(pushLocaleFor({ locale: null })).toBe('ar');
     });
 
     it('a locale that is neither language is ignored, not trusted', () => {
-      expect(pushLocaleFor({ role: 'SHOP_OWNER_PORTAL', locale: 'fr' })).toBe(
-        'ar',
-      );
+      expect(pushLocaleFor({ locale: 'fr' })).toBe('ar');
     });
   });
 });
 
 describe('PortalNotifier', () => {
-  function makeNotifier(
-    over: { roles?: Record<string, string>; pushFails?: boolean } = {},
-  ) {
-    const roles = over.roles ?? {
-      shop: 'SHOP_OWNER_PORTAL',
-      p1: 'CORE_PARTNER',
-      a1: 'ADMIN_SUPPORT',
-    };
+  /**
+   * The real NotificationsService under the notifier, since 2026-10-18 the one
+   * place that writes the row and pushes it, over a fake database and a fake
+   * push that records what each reader would have been sent.
+   */
+  function makeNotifier(over: { pushFails?: boolean } = {}) {
     const prisma = {
       user: {
-        findMany: jest.fn((args: { where?: { id?: { in: string[] } } }) => {
-          const ids = args.where?.id?.in;
-          if (ids) {
-            return Promise.resolve(
-              ids.map((id) => ({ id, role: roles[id] ?? null })),
-            );
-          }
-          return Promise.resolve([{ id: 'p1' }, { id: 'a1' }]);
-        }),
+        findMany: jest.fn(() => Promise.resolve([{ id: 'p1' }, { id: 'a1' }])),
       },
       customer: {
         findUnique: jest.fn(() => Promise.resolve({ shopOwnerUserId: 'shop' })),
       },
+      notification: {
+        createMany: jest.fn((a: { data: Row[] }) =>
+          Promise.resolve({ count: a.data.length }),
+        ),
+      },
     };
-    const notifications = {
-      createForMultipleUsers: jest.fn(
-        (_ids: string[], _data: { code: NotificationCode }) =>
-          Promise.resolve({ count: 1 }),
-      ),
-    };
+    const sent: {
+      userId: string;
+      title: string;
+      body: string;
+      url?: string;
+    }[] = [];
     const push = {
-      sendToUser: jest.fn(
-        (_userId: string, _payload: { title: string; body: string }) =>
-          over.pushFails
-            ? Promise.reject(new Error('push service down'))
-            : Promise.resolve({ sent: 1, removed: 0 }),
+      sendToUsers: jest.fn(
+        (
+          userIds: string[],
+          payloadFor: (id: string) => {
+            title: string;
+            body: string;
+            url?: string;
+          },
+        ) => {
+          if (over.pushFails) {
+            return Promise.reject(new Error('push service down'));
+          }
+          for (const userId of userIds)
+            sent.push({ userId, ...payloadFor(userId) });
+          return Promise.resolve({ sent: userIds.length, removed: 0 });
+        },
       ),
     };
+    type NDeps = ConstructorParameters<typeof NotificationsService>;
+    const notifications = new NotificationsService(
+      prisma as unknown as NDeps[0],
+      push as unknown as NDeps[1],
+    );
+    jest.spyOn(notifications, 'createForMultipleUsers');
     type Deps = ConstructorParameters<typeof PortalNotifier>;
     const notifier = new PortalNotifier(
       prisma as unknown as Deps[0],
-      notifications as unknown as Deps[1],
-      push as unknown as Deps[2],
+      notifications,
     );
-    return { notifier, notifications, push };
+    return {
+      notifier,
+      notifications: notifications as unknown as {
+        createForMultipleUsers: jest.Mock;
+      },
+      push,
+      sent,
+      prisma,
+    };
   }
 
   it('the row carries the code and params; the shop’s push is in Arabic', async () => {
-    const { notifier, notifications, push } = makeNotifier();
+    const { notifier, notifications, sent } = makeNotifier();
     await notifier.orderRequestAnswered({
       customerId: 'c-1',
       requestId: 'r-1',
@@ -201,37 +220,47 @@ describe('PortalNotifier', () => {
         params: { requestNo: 'REQ-0042' },
       }),
     );
-    const sent = (push.sendToUser.mock.calls[0] as unknown[])[1] as {
-      title: string;
-      body: string;
-    };
-    expect(sent.title).toBe('تمت الموافقة على REQ-0042');
-    expect(sent.body).toBe(
+    expect(sent).toHaveLength(1);
+    expect(sent[0].title).toBe('تمت الموافقة على REQ-0042');
+    expect(sent[0].body).toBe(
       NOTIFICATION_MESSAGES.ORDER_REQUEST_APPROVED_PARTIAL.ar.body,
     );
+    // A storefront page: the office bell's mapping knows nothing of it.
+    expect(sent[0].url).toBe('/requests/r-1');
   });
 
-  it('the office’s push for the same storefront event is in English', async () => {
-    const { notifier, push } = makeNotifier();
+  it('the office’s push for a storefront event is in Arabic too, and opens what the bell opens', async () => {
+    const { notifier, push, sent } = makeNotifier();
     await notifier.orderRequestSubmitted({
       requestId: 'r-2',
       requestNo: 'REQ-0043',
       shopName: 'Nile Motors',
     });
-    expect(push.sendToUser).toHaveBeenCalledTimes(2);
-    for (const call of push.sendToUser.mock.calls as unknown[][]) {
-      expect((call[1] as { title: string }).title).toBe(
-        'Nile Motors asked to buy — REQ-0043',
+    // One lookup for both readers, not one each.
+    expect(push.sendToUsers).toHaveBeenCalledTimes(1);
+    expect(sent.map((s) => s.userId)).toEqual(['p1', 'a1']);
+    const words = renderNotification(
+      'ORDER_REQUEST_SUBMITTED',
+      { shopName: 'Nile Motors', requestNo: 'REQ-0043' },
+      'ar',
+    );
+    for (const s of sent) {
+      expect(s.title).toBe(words.title);
+      expect(s.url).toMatch(
+        /^\/notifications\/open\?event=ORDER_REQUEST_SUBMITTED&/,
       );
     }
   });
 
   it('a push that fails never reaches the caller, and the row is still written', async () => {
-    const { notifier, notifications } = makeNotifier({ pushFails: true });
+    const { notifier, notifications, prisma } = makeNotifier({
+      pushFails: true,
+    });
     await expect(
       notifier.shopSignedUp({ customerId: 'c-9', shopName: 'Delta Spares' }),
     ).resolves.toBeUndefined();
     expect(notifications.createForMultipleUsers).toHaveBeenCalledTimes(1);
+    expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
   });
 
   it('an import request status with no wording writes nothing rather than a row with no text', async () => {
@@ -243,7 +272,7 @@ describe('PortalNotifier', () => {
       status: 'CANCELLED',
     });
     expect(notifications.createForMultipleUsers).not.toHaveBeenCalled();
-    expect(push.sendToUser).not.toHaveBeenCalled();
+    expect(push.sendToUsers).not.toHaveBeenCalled();
   });
 
   it('every code the notifier can send is a known code', async () => {

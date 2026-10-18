@@ -34,17 +34,22 @@ function service(subs: Sub[], configured = true) {
         async ({ where }: { where: { userId: string } }) =>
           rows.filter((r) => r.userId === where.userId).length,
       ),
-      findMany: jest.fn(async ({ where }: { where: { userId: string } }) =>
-        rows.filter((r) => r.userId === where.userId),
+      findMany: jest.fn(
+        async ({ where }: { where: { userId: { in: string[] } } }) =>
+          rows.filter((r) => where.userId.in.includes(r.userId)),
       ),
-      update: jest.fn(async () => ({})),
-      delete: jest.fn(async ({ where }: { where: { id: string } }) => {
-        rows.splice(
-          rows.findIndex((r) => r.id === where.id),
-          1,
-        );
-        return {};
-      }),
+      updateMany: jest.fn(async () => ({ count: 1 })),
+      deleteMany: jest.fn(
+        async ({ where }: { where: { id: { in: string[] } } }) => {
+          for (const id of where.id.in) {
+            rows.splice(
+              rows.findIndex((r) => r.id === id),
+              1,
+            );
+          }
+          return { count: where.id.in.length };
+        },
+      ),
     },
   } as unknown as PrismaService;
   const config = {

@@ -207,15 +207,47 @@ export function renderNotification(
  * arrivals-and-ux/U5.md):
  *
  * 1. The reader's stored locale, when there is one. Nothing stores one yet —
- *    the parameter is here so storing it later is a one-line change.
- * 2. Otherwise the default of the app that person reads: a shop reads the
- *    storefront, which opens in Arabic for everyone (BUSINESS_LOGIC §13); the
- *    office reads the internal system, whose default is English.
+ *    no user, session or push subscription records a language (checked
+ *    2026-10-18) — so the parameter is here so storing it later is a one-line
+ *    change.
+ * 2. Otherwise Arabic, for everyone. A shop reads the storefront, which opens
+ *    in Arabic for everyone (BUSINESS_LOGIC §13). The office was English until
+ *    2026-10-18, when office notifications started to be pushed at all
+ *    (BUSINESS_LOGIC §10): **GUESS** — the partners are Egyptian and Arabic is
+ *    the business's language, so a push with no stored language is in Arabic,
+ *    the office's included. The office app itself still opens in English.
  */
 export function pushLocaleFor(reader: {
-  role?: string | null;
   locale?: string | null;
 }): NotificationLocale {
   if (reader.locale === 'ar' || reader.locale === 'en') return reader.locale;
-  return reader.role === 'SHOP_OWNER_PORTAL' ? 'ar' : 'en';
+  return 'ar';
+}
+/**
+ * Where a tap on an office push lands, when the event names no place of its
+ * own (2026-10-18).
+ *
+ * Every push opens the page the bell links to. That mapping lives once, in the
+ * office app (`notificationHref`, `apps/web/src/lib/notification-href.ts`),
+ * which is where it has to be: whether Requests is switched on is a property of
+ * the web build. So the push carries what the bell row carries — the event and
+ * the ids in its payload — to `/notifications/open`, which asks the same
+ * function and goes there (`pushLanding`). Only flat values travel; a list (the
+ * products of a low-stock alert) is not an id anything links by.
+ */
+export function bellLink(
+  eventType: string,
+  payload?: Record<string, unknown>,
+): string {
+  const query = new URLSearchParams({ event: eventType });
+  for (const [key, value] of Object.entries(payload ?? {})) {
+    if (key === 'event') continue;
+    if (
+      (typeof value === 'string' && value.length <= 200) ||
+      typeof value === 'number'
+    ) {
+      query.set(key, String(value));
+    }
+  }
+  return `/notifications/open?${query.toString()}`;
 }
