@@ -1415,6 +1415,9 @@ profit or a settlement. Now "Record money in or out":
     (and a note, if wanted) is typed. No cycle means it is a running cost, shared by the partners at settlement
     like rent (§8, L7); charge it to a cycle by picking one. Not automatic: fuel is a different amount each time,
     so a schedule would record figures nobody paid.
+    **Also on the ledger page** (owner 2026-10-18): the same Fuel quick-action tile, in a labelled "Quick actions"
+    strip under the page title — set apart from Add entry and Export, which stay the page's toolbar. Same roles as
+    the dashboard (core partners), same form, same refresh.
   - Other income: other income, interest, other.
 - **Refused by the server**, each with a code in both languages: any other
   category (`LEDGER_CATEGORY_NOT_MANUAL` — every system category, free text,
