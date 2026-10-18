@@ -74,19 +74,20 @@ Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-12 — L5–L8 (leftover transfer, ledger entry, running costs out of payouts, departures in parts) and
   isolated e2e per agent.
 
-## Known e2e debt (one list; none of these were run after the change that broke them)
+## Known e2e debt
+Targeted pass 2026-10-19 (owner chose the cheaper run): invariants TC-INV-72..83 added and passing (spec 34 87/87);
+the specs stale from the menu tabs, folded legs, 3-step wizard and funding note fixed and passing (27, 17, 40, 47,
+50, 51, 64, 72, 78, 80, 85, 86, 87, 89, 90, 91, 98, 99-*); investor-UI tests deleted (only the partners use the app),
+their API refusal tests kept. Still failing or unrun:
 - Full suite (466 tests) not run since the 2026-10-18 batches; it runs before the next big production ship (Next up).
-- 27-payment-plans, 50-date-formatting, 61-production-browser still use the old `/payment-plans` page.
-- TC-NOT-05 (expects the email in the header; it lives in the account menu) and TC-UI-02 (breaks when run after
-  spec 100, whose test category sorts first) — fail on master too.
-- 85-shipment-panel, 17-shipping-costing, 89-investor-readonly and 99-departures-in-parts open finished legs, which
-  now start folded; 75-recent-activity tests a removed panel.
-- 78-menu-by-role, 87-investor-scope, 90-catalogue-readonly, 91-lists-show-everything, and the 64/72 assistant specs
-  click or count the old menu entries (sidebar → tabs, 2026-10-18).
-- TC-PORTAL-03 fails when run after 34 (TC-INV-48's product "Cost Check" trips the "no `cost` in the payload" check).
-- TC-CASH-01 and TC-L6-03 fail only in the combined 20–34 run (2026-10-14); both pass alone.
-- Samples, default price, funding lock, cancelled order and P&L Option A: covered by unit/db specs and spec 34
-  TC-INV-72..74 and the targeted pass; 20-analytics was edited for Option A. Not yet in a full run.
+- 99-skeletons: Dashboard, Products, Sales, a customer and a cycle — skeleton rows no longer match the real rows' count
+  or height (Products: the default-price hint makes rows taller). Product issue, not a stale test.
+- 99-table-columns TC-COL-04.03 (statement) and 04.10 (contracts): the screen-reader-only "Actions" header is wider
+  than its cell; TC-COL-05: invoice and statement wider than A4. Pre-existing, not from 2026-10-18/19.
+- API real-database suites: 64/66 pass; walk-in.db "Payment dated now, in Cairo" and references.db "22:30 UTC on the
+  10th" fail because their fixtures pin the clock before the back-dated-sales rule (2026-10-16). Fixtures to update.
+- 61-production-browser edited, not run (production only). TC-NOT-05 / TC-UI-02 as before.
+- Partners view draws its running-costs section twice on a fresh load (closes an open period picker); tests wait.
 
 ## Waiting on the owner
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
