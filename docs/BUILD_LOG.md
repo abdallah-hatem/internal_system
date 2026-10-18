@@ -18,6 +18,9 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- Before the next big production ship (owner, 2026-10-19): run the FULL e2e suite (466 tests, in ~3-minute groups on
+  an agent database). A targeted pass (invariants for today's rules + the known-stale specs + the real-database API
+  suites) was run first, at the owner's choice, to save tokens.
 - Later (owner, 2026-10-18): remove the Suppliers and Compatibility cards from the product details page.
 - After the owner approves samples + default price locally (2026-10-18): give the assistant the samples flow — leave
   samples, list what is out, "they're buying" (complete the sale), returned, write off — through the same service
