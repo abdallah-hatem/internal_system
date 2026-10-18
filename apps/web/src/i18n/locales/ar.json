@@ -1055,7 +1055,10 @@
       "saleOrder": "طلب البيع",
       "allocations": "التوزيع على الطلبات",
       "refundMethod": "طريقة الاسترداد"
-    }
+    },
+    "everyone": "الجميع",
+    "systemActor": "النظام",
+    "formerUser": "مستخدم سابق"
   },
   "settings": {
     "title": "الإعدادات",

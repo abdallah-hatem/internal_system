@@ -223,7 +223,7 @@ describe('Audit log endpoints return the label', () => {
   });
 
   it('one entry', async () => {
-    const res = await new AuditController(prisma()).findOne('log-1');
+    const res = await new AuditController(prisma()).findOne(id(1));
     expect(res.data).toMatchObject({ entityLabel: 'ORD-2026-00007' });
   });
 });

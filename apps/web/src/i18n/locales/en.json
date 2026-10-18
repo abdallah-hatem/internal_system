@@ -1055,7 +1055,10 @@
       "saleOrder": "Sale order",
       "allocations": "Applied to orders",
       "refundMethod": "Refund method"
-    }
+    },
+    "everyone": "Everyone",
+    "systemActor": "System",
+    "formerUser": "Former user"
   },
   "settings": {
     "title": "Settings",

@@ -20,12 +20,14 @@ import { Dialog } from '@/components/ui/dialog';
 import { AuditChanges, auditChanges } from '@/components/audit/audit-changes';
 import { AuditRecord, useAuditRecordName, type AuditRecordRef } from '@/components/audit/audit-record';
 import { AUDIT_ENTITY_TYPES } from '@/components/audit/audit-entity-types';
+import { EVERYONE, useAuditActors } from '@/components/audit/audit-actors';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface AuditLog extends AuditRecordRef {
   id: string;
   actorUserId?: string;
-  actor?: { email: string; displayName?: string };
+  actor?: { email: string; displayName?: string | null } | null;
   action: string;
   entityType: string;
   entityId: string;
@@ -73,20 +75,40 @@ export default function AuditLogsPage() {
 
   const [search, setSearch] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
+  // Who did it: kept in the address beside the view (`?view=audit-logs&actor=<id>`),
+  // so a refresh or a shared link keeps the person chosen.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { options: actorOptions, actor, nameOf, loading: actorsLoading } = useAuditActors(
+    searchParams.get('actor') ?? '',
+  );
+  const setActor = (next: string) => {
+    const q = new URLSearchParams(searchParams.toString());
+    if (next && next !== EVERYONE) q.set('actor', next);
+    else q.delete('actor');
+    const query = q.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
   const [viewingLog, setViewingLog] = useState<AuditLog | null>(null);
   const [page, setPage] = useState(1);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, entityFilter]);
+  useEffect(() => { setPage(1); }, [search, entityFilter, actor]);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { items: logs, capped, isLoading, reloading } = useAllRecords(
-    ['audit-logs', entityFilter],
+    ['audit-logs', entityFilter, actor],
     '/audit-logs',
-    entityFilter ? { entityType: entityFilter } : {},
-    // The record type is filtered by the API, so a new one is a new query: keep
-    // the rows on screen, dimmed, until it arrives, rather than back to skeletons.
-    { keepPrevious: true },
+    {
+      ...(entityFilter ? { entityType: entityFilter } : {}),
+      ...(actor ? { actorUserId: actor } : {}),
+    },
+    // The record type and the person are filtered by the API, so a new one is a
+    // new query: keep the rows on screen, dimmed, until it arrives, rather than
+    // back to skeletons. A person named in the address waits for the list of
+    // people, so a stale link asks for everyone instead of failing.
+    { keepPrevious: true, enabled: !actor || !actorsLoading },
   );
 
   const { data: logDetail } = useQuery({
@@ -112,6 +134,7 @@ export default function AuditLogsPage() {
       log.entityLabel,
       log.entityLabelAr,
       recordName(log),
+      nameOf(log),
       log.actor?.email,
     ].some((text) => text?.toLowerCase().includes(q));
   });
@@ -128,7 +151,10 @@ export default function AuditLogsPage() {
         description={t('emptyHint')}
       />
     ) : (
-      <NoMatch filtered={!!entityFilter} onClear={() => { setSearch(''); setEntityFilter(''); }} />
+      <NoMatch
+        filtered={!!entityFilter || !!actor}
+        onClear={() => { setSearch(''); setEntityFilter(''); setActor(''); }}
+      />
     );
 
   const detail = (logDetail as AuditLog) ?? viewingLog;
@@ -146,7 +172,7 @@ export default function AuditLogsPage() {
     },
     {
       key: 'actor', header: t('actor'), width: 'auto', kind: 'name', className: 'text-gray-700',
-      title: (log) => log.actor?.email ?? log.actorUserId, cell: (log) => log.actor?.email ?? log.actorUserId ?? '—',
+      title: (log) => nameOf(log), cell: (log) => <span data-testid="audit-actor">{nameOf(log)}</span>,
     },
     {
       key: 'action', header: t('action'), width: '10rem', skeleton: { kind: 'pill', share: 'w-2/3' },
@@ -199,6 +225,15 @@ export default function AuditLogsPage() {
           searchPlaceholder={tph('searchTypes')}
           options={AUDIT_ENTITY_TYPES.map((type) => ({ value: type, label: codeLabel('entityType', type) }))}
         />
+        {/* Who did it: the office's people by name, not by email. */}
+        <div data-testid="audit-actor-filter" className="w-full sm:w-52">
+          <Select
+            value={actor || EVERYONE}
+            onChange={setActor}
+            placeholder={t('everyone')}
+            options={actorOptions}
+          />
+        </div>
       </ListToolbar>
 
       <ListCapNotice capped={capped} count={logs.length} />
@@ -244,7 +279,7 @@ export default function AuditLogsPage() {
                   <AuditRecord log={log} />
                 </p>
                 <p className="text-xs text-muted-foreground mb-1">{codeLabel('entityType', log.entityType)}</p>
-                <p className="text-xs text-gray-500">{log.actor?.email ?? '—'}</p>
+                <p className="text-xs text-muted-foreground">{nameOf(log)}</p>
               </div>
             ))
           )}
@@ -262,7 +297,7 @@ export default function AuditLogsPage() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('timestamp')} value={formatDate(detail.occurredAt, { includeTime: true })} />
-              <Detail label={t('actor')} value={detail.actor?.email ?? detail.actorUserId ?? '—'} />
+              <Detail label={t('actor')} value={<span data-testid="audit-detail-actor">{nameOf(detail)}</span>} />
               <Detail label={t('action')} value={codeLabel('auditAction', detail.action)} />
               <Detail label={t('entity')} value={codeLabel('entityType', detail.entityType)} />
               <Detail label={t('record')} value={<AuditRecord log={detail} />} />

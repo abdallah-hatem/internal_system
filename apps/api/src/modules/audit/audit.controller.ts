@@ -9,6 +9,7 @@ import {
 } from '../../common/dto/pagination.dto';
 
 import { notFound } from '../../common/api-error';
+import { assertUuid, isUuid } from '../../common/uuid';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { withEntityLabels } from './audit-labels';
 
@@ -20,6 +21,41 @@ import { withEntityLabels } from './audit-labels';
  * settlements too. A temporary investor or a shop is refused. Before this the
  * controller named no roles, and the guard's silence meant open (rule 12).
  */
+/**
+ * Who did it, by the name the office knows them by (owner 2026-10-18: "filter
+ * by the 3 users, me, Fares & Shady"). A partner's displayName; an account with
+ * no partner record (admin support) has only its email, which the client shows.
+ */
+const ACTOR = {
+  select: {
+    id: true,
+    email: true,
+    partner: { select: { displayName: true } },
+  },
+} as const;
+
+type WithActor = {
+  actor: {
+    id: string;
+    email: string;
+    partner: { displayName: string } | null;
+  } | null;
+};
+
+function flattenActor<T extends WithActor>(log: T) {
+  const { actor, ...rest } = log;
+  return {
+    ...rest,
+    actor: actor
+      ? {
+          id: actor.id,
+          email: actor.email,
+          displayName: actor.partner?.displayName ?? null,
+        }
+      : null,
+  };
+}
+
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -54,6 +90,16 @@ export class AuditController {
     const limit = pageSize(rawLimit);
 
     const where: any = {};
+    // The "Who" filter. Not an id → 400; an id that is nobody → 404. Either
+    // reaching Postgres would fail the uuid cast and come back as a 500.
+    if (actorUserId) {
+      assertUuid(actorUserId, 'actorUserId');
+      const user = await this.prisma.user.findUnique({
+        where: { id: actorUserId },
+        select: { id: true },
+      });
+      if (!user) throw notFound('user');
+    }
     if (entityType) where.entityType = entityType;
     if (entityId) where.entityId = entityId;
     if (actorUserId) where.actorUserId = actorUserId;
@@ -68,15 +114,13 @@ export class AuditController {
       where,
       ...cursorPage(cursor, limit),
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-      include: {
-        actor: { select: { id: true, email: true } },
-      },
+      include: { actor: ACTOR },
     });
 
     const hasMore = items.length > limit;
     const page = hasMore ? items.slice(0, limit) : items;
     // The record's name or number, not its UUID (owner 2026-10-18).
-    const data = await withEntityLabels(this.prisma, page);
+    const data = await withEntityLabels(this.prisma, page.map(flattenActor));
     return {
       data,
       meta: {
@@ -89,14 +133,13 @@ export class AuditController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a single audit log by ID' })
   async findOne(@Param('id') id: string) {
+    if (!isUuid(id)) throw notFound('auditLog');
     const log = await this.prisma.auditLog.findUnique({
       where: { id },
-      include: {
-        actor: { select: { id: true, email: true } },
-      },
+      include: { actor: ACTOR },
     });
     if (!log) throw notFound('auditLog');
-    const [data] = await withEntityLabels(this.prisma, [log]);
+    const [data] = await withEntityLabels(this.prisma, [flattenActor(log)]);
     return { data };
   }
 }
