@@ -86,6 +86,19 @@ export const NOTIFICATION_MESSAGES = {
     },
   },
 
+  // Samples still at a shop 14 days after they were left (§4, samples at
+  // shops, owner 2026-10-18), from the same daily job; once per order.
+  SAMPLES_AT_SHOP_REMINDER: {
+    en: {
+      title: 'Samples at {shop} for {days} days',
+      body: '{units} unit(s) on {order} — have they decided?',
+    },
+    ar: {
+      title: 'عينات عند {shop} منذ {days} يوماً',
+      body: '{units} وحدة على {order} — هل قرروا؟',
+    },
+  },
+
   // ── What the office hears from the storefront ─────────────────────────
   ORDER_REQUEST_SUBMITTED: {
     en: {

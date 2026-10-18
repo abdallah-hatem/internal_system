@@ -1,5 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; money in EGP must not become a float
 import { Prisma } from '@prisma/client';
+import { SAMPLES_WRITTEN_OFF_CATEGORY } from './samples';
 import {
   operatingExpenseEgp,
   otherIncomeEgp,
@@ -69,6 +70,8 @@ export function cycleCostLines(input: {
   recoveryRows: Row[];
   otherIncomeRows: Row[];
   lossesEgp: Prisma.Decimal;
+  /** Samples the shops kept or lost (§4, samples at shops): its own line. */
+  samplesWrittenOffEgp?: Prisma.Decimal;
   exchangeDifferenceEgp: Prisma.Decimal;
 }): CycleCostLine[] {
   const lines: CycleCostLine[] = [
@@ -79,6 +82,13 @@ export function cycleCostLines(input: {
       kind: 'loss',
       category: null,
       amountEgp: fixed(input.lossesEgp),
+    });
+  }
+  if (input.samplesWrittenOffEgp && !input.samplesWrittenOffEgp.isZero()) {
+    lines.push({
+      kind: 'loss',
+      category: SAMPLES_WRITTEN_OFF_CATEGORY,
+      amountEgp: fixed(input.samplesWrittenOffEgp),
     });
   }
   if (!input.exchangeDifferenceEgp.isZero()) {

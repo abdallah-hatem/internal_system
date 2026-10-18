@@ -427,7 +427,11 @@
     "emptyHint": "Stock arrives when a cycle's shipment is received.",
     "emptyAction": "Go to cycles",
     "noBatchesTitle": "No batches left for this product",
-    "noMovementsTitle": "No movements in this batch yet"
+    "noMovementsTitle": "No movements in this batch yet",
+    "onShelf": "On shelf",
+    "atShops": "At shops",
+    "allStock": "Total",
+    "atShopsHint": "Units out at shops as samples — off the shelf, not sold"
   },
   "sales": {
     "title": "Sales Orders",
@@ -581,6 +585,55 @@
       "createFailed": "Could not create the contract",
       "back": "Back to sales",
       "notAvailable": "No contract for this sale"
+    },
+    "samplesFilter": "Samples",
+    "samples": {
+      "switch": "Samples — no charge yet",
+      "switchHint": "Units leave the shelf. No sale, nothing owed, until the shop decides.",
+      "leave": "Leave samples",
+      "leftOn": "Date left",
+      "priceOptional": "Price (optional)",
+      "noCharge": "No charge yet",
+      "left": "Samples left at {shop}",
+      "badge": "Samples at shop · {units, plural, one {# unit} other {# units}}",
+      "leftAgo": "Left {days, plural, =0 {today} one {# day ago} other {# days ago}}",
+      "reminderOn": "Reminder {date}",
+      "reminderSent": "Reminder sent",
+      "atShopTitle": "At {shop} since {date}",
+      "atShopHint": "Not a sale and nothing owed until the shop decides.",
+      "buying": "They're buying",
+      "returned": "Returned",
+      "writeOff": "Write off",
+      "returnedDone": "Every sample came back on {date}.",
+      "writtenOffDone": "Written off on {date}: the shop kept them or they were lost. Their cost is a cost of the cycle they came from.",
+      "boughtFrom": "Began as samples left on {date}.",
+      "returnTitle": "Samples returned — {orderNo}",
+      "returnBody": "Every unit goes back on the shelf, to the batch it came from. Nothing is sold and nothing is owed.",
+      "returnConfirm": "Put back on the shelf",
+      "writeOffTitle": "Write off samples — {orderNo}",
+      "writeOffBody": "The shop kept them or they were lost. The units leave stock for good, and their landed cost becomes a cost of the cycle they came from.",
+      "writeOffCost": "Cost written off",
+      "writeOffReason": "What happened (optional)",
+      "writeOffConfirm": "Write off",
+      "returnedToast": "Samples are back on the shelf",
+      "writtenOffToast": "Samples written off",
+      "boughtToast": "Sale recorded — {orderNo}",
+      "decideTitle": "They're buying — {orderNo}",
+      "decideHelp": "For each product: how many they are buying and how many came back. What they buy becomes a sale dated today; the rest goes back on the shelf.",
+      "out": "At the shop",
+      "buyQty": "Buying",
+      "returnQty": "Returned",
+      "priceEach": "Price each",
+      "mustAddUp": "Buying + returned must be {out}",
+      "priceNeeded": "Enter a price",
+      "noNegative": "Cannot be negative",
+      "saleTotal": "Sale total",
+      "backOnShelf": "Back on the shelf",
+      "units": "{count, plural, one {# unit} other {# units}}",
+      "recordDecision": "Record the sale",
+      "allReturnedNote": "Nothing bought: the samples are recorded as returned.",
+      "noChargeCell": "No charge",
+      "writeOffReasonPlaceholder": "Kept for the shop window — two helmets"
     }
   },
   "customers": {
@@ -890,7 +943,8 @@
       "goodsLost": "Goods lost on the way",
       "noExpenses": "No expenses in this period.",
       "noMonths": "Nothing recorded yet.",
-      "loadFailed": "Could not load profit and loss."
+      "loadFailed": "Could not load profit and loss.",
+      "samplesWrittenOff": "Samples written off"
     }
   },
   "notifications": {
@@ -923,7 +977,8 @@
     "IMPORT_REQUEST_SOURCING": "About {productName}",
     "IMPORT_REQUEST_ANSWERED": "About {productName}",
     "IMPORT_REQUEST_DECLINED": "About {productName}",
-    "LENDER_INSTALMENT_OVERDUE": "Repayment to {lender} due {dueOn} on {reference} is late — {amount} {currency} outstanding"
+    "LENDER_INSTALMENT_OVERDUE": "Repayment to {lender} due {dueOn} on {reference} is late — {amount} {currency} outstanding",
+    "SAMPLES_AT_SHOP_REMINDER": "Samples at {shop} for {days} days"
   },
   "auditLogs": {
     "title": "Audit Logs",
@@ -1316,7 +1371,8 @@
     "runningCostsReleased": "Put back to waiting when this settlement was reversed",
     "paidToHim": "Paid",
     "wouldBePaid": "To be paid",
-    "runningCostsDay": "Share of running costs ({day})"
+    "runningCostsDay": "Share of running costs ({day})",
+    "costSamplesWrittenOff": "Samples written off"
   },
   "contracts": {
     "title": "Contracts",
@@ -1629,7 +1685,19 @@
     "INSTALMENT_DUE_IN_PAST": "An instalment cannot fall due in the past ({day}).",
     "SALE_HAS_NO_PLAN": "Order {order} has no instalment plan, so it has no contract.",
     "LENDER_HAS_FINANCINGS": "He still has {count} payment(s) on record. Remove them first, then delete him.",
-    "PERIOD_NOT_STARTED": "The period starts on {from}, which has not come yet."
+    "PERIOD_NOT_STARTED": "The period starts on {from}, which has not come yet.",
+    "SAMPLES_NEED_SHOP": "Samples are left with a shop, so choose the customer — a walk-in cannot take samples.",
+    "SAMPLES_ALREADY_DECIDED": "{order} is no longer samples at the shop ({status}); what the shop decided is already recorded.",
+    "NOT_SAMPLES": "{order} is not samples left at a shop.",
+    "INVOICE_SAMPLES": "{order} is samples left at a shop, not a sale, so it has no invoice.",
+    "SAMPLES_LINE_NOT_IN_ORDER": "That line is not one of the samples left on {order}.",
+    "SAMPLES_LINE_TWICE": "{product} is decided twice on {order}.",
+    "SAMPLES_LINE_MISSING": "Say what happened to {product}: how many they are buying and how many came back.",
+    "SAMPLES_QTY_NEGATIVE": "A quantity cannot be negative ({product}).",
+    "SAMPLES_DECISION_MISMATCH": "{out} of {product} are at the shop: buying {buying} and returning {returned} must add up to it.",
+    "SAMPLES_PRICE_REQUIRED": "Enter the price they are paying for {product}.",
+    "CYCLE_HAS_SAMPLES_OUT": "{units} unit(s) of cycle {cycle} are out as samples at {shops}. Record what the shops decided — bought, returned or written off — before settling.",
+    "SAMPLES_NOT_PAYABLE": "{order} is samples left at a shop, not a sale, so nothing can be paid on it. Record what the shop decided first."
   },
   "requests": {
     "tabs": {
@@ -1742,7 +1810,10 @@
       "PARTIALLY_PAID": "Partially paid",
       "PAID": "Paid",
       "CANCELLED": "Cancelled",
-      "RETURNED": "Returned"
+      "RETURNED": "Returned",
+      "SAMPLES": "Samples at shop",
+      "SAMPLES_RETURNED": "Samples returned",
+      "SAMPLES_WRITTEN_OFF": "Samples written off"
     },
     "paymentStatus": {
       "RECORDED": "Recorded",
@@ -1831,7 +1902,9 @@
       "PURCHASE_RECEIPT": "Received",
       "SALE_ALLOCATION": "Sold",
       "TRANSFER_OUT": "Moved to another cycle",
-      "TRANSFER_IN": "Moved in from another cycle"
+      "TRANSFER_IN": "Moved in from another cycle",
+      "SAMPLE_OUT": "Left at a shop as samples",
+      "SAMPLE_BACK": "Samples back from a shop"
     },
     "referenceType": {
       "PURCHASE_ORDER_ITEM": "Purchase order",
@@ -1844,7 +1917,8 @@
       "CYCLE_PARTICIPANT": "Cycle participant",
       "LENDER_FINANCING": "Friend's payment",
       "LENDER_REPAYMENT": "Repayment to a friend",
-      "STOCK_TRANSFER": "Leftovers moved between cycles"
+      "STOCK_TRANSFER": "Leftovers moved between cycles",
+      "SAMPLES_ORDER": "Samples order"
     },
     "auditAction": {
       "CREATE": "Created",
@@ -1868,7 +1942,11 @@
       "ADD_PARTICIPANT": "Participant added",
       "ADD_ITEM": "Item added",
       "DEACTIVATE": "Deactivated",
-      "REACTIVATE": "Reactivated"
+      "REACTIVATE": "Reactivated",
+      "LEAVE_SAMPLES": "Samples left",
+      "SAMPLES_BOUGHT": "Samples bought",
+      "SAMPLES_RETURNED": "Samples returned",
+      "SAMPLES_WRITTEN_OFF": "Samples written off"
     },
     "entityType": {
       "Product": "Product",

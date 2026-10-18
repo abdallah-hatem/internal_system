@@ -24,7 +24,8 @@ import {
   netOtherIncomeEgp,
   netRecoveredEgp,
 } from '../../common/ledger-categories';
-import { cycleLossesEgp } from '../../common/cycle-losses';
+import { cycleWriteOffsEgp } from '../../common/cycle-losses';
+import { assertCycleHasNoSamplesOut } from '../../common/samples-out';
 import { lockCycle } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
 import {
@@ -414,7 +415,11 @@ export class SettlementsService {
     // moved when they were marked, so they are not in the ledger and are
     // added here on purpose — through the one definition analytics reads too
     // (§9, rule 11).
-    const losses = await cycleLossesEgp(this.prisma, cycleId);
+    // Samples the shops kept or lost (§4, samples at shops) are the same
+    // kind of cost — goods paid for that will never sell — through the one
+    // definition the dashboard and the P&L read too.
+    const writeOffs = await cycleWriteOffsEgp(this.prisma, cycleId);
+    const losses = writeOffs.total;
 
     // What repaying a friend in pounds cost beyond his payment at the order's
     // rate (§18): a cost when the dirham rose, a gain when it fell. Read from
@@ -433,7 +438,8 @@ export class SettlementsService {
       expenseRows: expenseTxns,
       recoveryRows: recoveryTxns,
       otherIncomeRows: otherIncomeTxns,
-      lossesEgp: losses,
+      lossesEgp: writeOffs.lostOnTheWay,
+      samplesWrittenOffEgp: writeOffs.samplesWrittenOff,
       exchangeDifferenceEgp: exchangeDiff,
     });
 
@@ -581,6 +587,11 @@ export class SettlementsService {
         { status: locked.status },
       );
     }
+
+    // Not while any of its units are out at shops as samples (DECIDED, owner
+    // 2026-10-18): they are neither sold nor on the shelf, so the profit
+    // would be a guess.
+    await assertCycleHasNoSamplesOut(this.prisma, cycleId, cycle.code);
 
     // The same arithmetic `preview` shows, so what a partner was shown is
     // what is settled — losses on the way included (§8).
@@ -755,6 +766,12 @@ export class SettlementsService {
         settlement.cycleId,
         cycle?.code ?? settlement.cycleId,
       );
+      // And no samples out at a shop (§4, samples at shops).
+      await assertCycleHasNoSamplesOut(
+        tx,
+        settlement.cycleId,
+        cycle?.code ?? settlement.cycleId,
+      );
 
       // Update the cycle first: the settlement is read back with its cycle
       // included, so doing it the other way round returns a stale status.
@@ -814,6 +831,13 @@ export class SettlementsService {
         'Only APPROVED settlements can be marked as paid',
       );
     }
+
+    // Samples left at a shop after approval stop the payout too (§4).
+    await assertCycleHasNoSamplesOut(
+      this.prisma,
+      settlement.cycleId,
+      settlement.cycle.code,
+    );
 
     // What the cycle holds NOW, not what it held when the figures were
     // calculated: leftovers moved to another cycle after approval (§8, L5)

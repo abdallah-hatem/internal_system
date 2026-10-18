@@ -231,8 +231,17 @@ function teachDashboard() {
   prisma.saleReturn = {
     aggregate: answer({ _sum: { refundEgp: null, cogsReversedEgp: null } }),
   };
-  prisma.saleItemAllocation.aggregate = () =>
-    Promise.resolve({ _sum: { cogsEgp: sum(db.allocations, 'cogsEgp') } });
+  // COGS of what sold; nothing here is ever samples written off (§4), so
+  // that question — the only other one asked of this aggregate — finds none.
+  prisma.saleItemAllocation.aggregate = ({ where }: Row = {}) =>
+    Promise.resolve({
+      _sum: {
+        cogsEgp:
+          where?.saleItem?.saleOrder?.status === 'SAMPLES_WRITTEN_OFF'
+            ? null
+            : sum(db.allocations, 'cogsEgp'),
+      },
+    });
   prisma.importCycle.count = () => Promise.resolve(db.cycles.length);
   prisma.product.findMany = answer([]);
   prisma.product.count = answer(0);

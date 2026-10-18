@@ -33,7 +33,7 @@ import {
 import {
   Plus, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
-  Undo2, ShoppingCart, Wallet, FileText,
+  Undo2, ShoppingCart, Wallet, FileText, PackageOpen, PackageX, PackageCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -52,6 +52,9 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
+import { SamplesDecideDialog } from '@/components/sales/samples-decide';
+import { isSamplesStatus, samplesUnits } from '@/lib/samples';
+import { useCan } from '@/lib/can';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
@@ -73,6 +76,20 @@ interface SaleOrder {
   paymentAllocations?: PaymentAllocation[];
   /** The sale's instalment plan, from the detail (§7, 2026-10-16). */
   contractPlan?: ContractSale['contractPlan'];
+  /**
+   * Samples left at a shop (§4, samples at shops), worked out by the API:
+   * units out, the day left, days since, the reminder day. Null for an order
+   * that never was samples.
+   */
+  samples?: {
+    open: boolean;
+    unitsOut: string;
+    leftOn: string;
+    daysAtShop: number;
+    reminderOn: string;
+    remindedAt: string | null;
+    decidedAt: string | null;
+  } | null;
 }
 
 interface PaymentAllocation {
@@ -85,7 +102,7 @@ interface PaymentAllocation {
 interface SaleOrderItem {
   id: string;
   productId: string;
-  product?: { name: string; sku: string };
+  product?: { name: string; nameAr?: string | null; sku: string };
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -116,9 +133,13 @@ const STATUS_COLORS: Record<string, string> = {
   PAID: 'bg-green-100 text-green-700',
   CANCELLED: 'bg-red-100 text-red-700',
   RETURNED: 'bg-purple-100 text-purple-700',
+  // Samples at a shop (§4): amber, "not a sale yet".
+  SAMPLES: 'bg-accent-100 text-accent-800',
+  SAMPLES_RETURNED: 'bg-muted text-muted-foreground',
+  SAMPLES_WRITTEN_OFF: 'bg-destructive/10 text-destructive',
 };
 
-const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled'] as const;
+const FILTER_TABS = ['all', 'draft', 'confirmed', 'partiallyPaid', 'paid', 'cancelled', 'samplesFilter'] as const;
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The table's skeleton rows are drawn by DataTable from each column's
@@ -166,7 +187,7 @@ function SalesPageContent() {
   const [createFor, setCreateFor] = useState<{ customerId?: string } | null>(null);
   // `?new=1` — the dashboard's "New sale" — opens the same form the button does.
   useOpenFromQuery(() => setCreateFor({}));
-  const [viewingOrder, setViewingOrder] = useState<SaleOrder | null>(null);
+  const [openedOrder, setOpenedOrder] = useState<SaleOrder | null>(null);
   const codeLabel = useCodeLabel();
   // Dates in the reader's language (UX #10).
   const { formatDate } = useDateFormat();
@@ -178,6 +199,12 @@ function SalesPageContent() {
   const [payingOrder, setPayingOrder] = useState<SaleOrder | null>(null);
   // The Contract button's plan popup (§7, 2026-10-16).
   const [contractFor, setContractFor] = useState<SaleOrder | null>(null);
+  // Samples at a shop (§4): what the shop decided.
+  const [decidingSamples, setDecidingSamples] = useState<SaleOrder | null>(null);
+  const [returningSamples, setReturningSamples] = useState<SaleOrder | null>(null);
+  const [writingOffSamples, setWritingOffSamples] = useState<SaleOrder | null>(null);
+  const canWriteOff = useCan('sale.samplesWriteOff');
+  const tsm = useTranslations('sales.samples');
 
   // Arriving from a shop's page with ?customer=<id> opens the order form on
   // that shop, so "New Order" there means what it says instead of dropping you
@@ -206,6 +233,22 @@ function SalesPageContent() {
     { keepPrevious: true },
   );
   const dated = Boolean(dates.from || dates.to);
+
+  // `?order=<id>` — a notification's link (the samples reminder, §4) — opens
+  // that order as soon as its row is on the list. Read once, and forgotten the
+  // moment any order is opened or closed, so it never reopens behind the user.
+  const [linkedOrderId, setLinkedOrderId] = useState(() => searchParams.get('order'));
+  const linkedOrder = linkedOrderId
+    ? ((orders as SaleOrder[]).find((o) => o.id === linkedOrderId) ?? null)
+    : null;
+  const viewingOrder = openedOrder ?? linkedOrder;
+  const setViewingOrder = (order: SaleOrder | null) => {
+    if (linkedOrderId) {
+      setLinkedOrderId(null);
+      router.replace(`/${locale}/sales`, { scroll: false });
+    }
+    setOpenedOrder(order);
+  };
   const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDates({ from: '', to: '' }); };
   const { items: customers } = useAllRecords(['customers'], '/customers');
   const { items: products } = useAllRecords(['products'], '/products');
@@ -225,8 +268,15 @@ function SalesPageContent() {
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const onOrderSaved = ({ confirmed, walkIn }: SavedOrder) => {
+  const onOrderSaved = ({ confirmed, walkIn, samples }: SavedOrder) => {
     void queryClient.invalidateQueries({ queryKey: ['sales'] });
+    if (samples) {
+      // The units left the shelf; nothing is owed.
+      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      setCreateFor(null);
+      addToast(tsm('leave'), 'success');
+      return;
+    }
     if (confirmed) {
       // Confirming took stock off the shelf and added to what the shop owes.
       void queryClient.invalidateQueries({ queryKey: ['inventory'] });
@@ -294,6 +344,24 @@ function SalesPageContent() {
     },
   });
 
+  /** "Returned" and "Write off" (§4): the samples come back, or never will. */
+  const samplesMutation = useMutation({
+    mutationFn: ({ id, action, reason }: { id: string; action: 'return' | 'write-off'; reason?: string }) =>
+      api.post(`/sales/orders/${id}/samples/${action}`, action === 'write-off' ? { reason } : undefined),
+    onSuccess: (_res, { action }) => {
+      for (const key of ['sales', 'sale', 'inventory', 'analytics']) {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      }
+      setReturningSamples(null);
+      setWritingOffSamples(null);
+      setViewingOrder(null);
+      addToast(action === 'return' ? tsm('returnedToast') : tsm('writtenOffToast'), 'success');
+    },
+    onError: (error: unknown) => {
+      addToast(apiError(error, tc('error')), 'error');
+    },
+  });
+
   // ── Derived ───────────────────────────────────────────────────────
   const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
   const customerList: SaleFormCustomer[] = useMemo(
@@ -319,12 +387,14 @@ function SalesPageContent() {
     router.replace(`/${locale}/sales`, { scroll: false });
   }, [searchParams, customerList, locale, router]);
 
+
   const STATUS_FILTER: Record<string, string> = {
     draft: 'DRAFT',
     confirmed: 'CONFIRMED',
     partiallyPaid: 'PARTIALLY_PAID',
     paid: 'PAID',
     cancelled: 'CANCELLED',
+    samplesFilter: 'SAMPLES',
   };
   /** Who bought, as the reader sees it: a walk-in reads "Walk-in" in their language. */
   const buyerName = (o: SaleOrder) => (o.customer?.isWalkIn ? t('walkInCustomer') : o.customer?.displayName);
@@ -372,6 +442,15 @@ function SalesPageContent() {
         <span className="text-gray-400" data-testid="outstanding">
           {withLabel && `${t('outstanding')}: `}—{' '}
           <span className="text-xs">({t('notConfirmed')})</span>
+        </span>
+      );
+    }
+    // Samples are not a sale and owe nothing (§4, samples at shops).
+    if (isSamplesStatus(order.status)) {
+      return (
+        <span className="text-muted-foreground" data-testid="outstanding">
+          {withLabel && `${t('outstanding')}: `}—{' '}
+          <span className="text-xs">({tsm('noChargeCell')})</span>
         </span>
       );
     }
@@ -434,13 +513,14 @@ function SalesPageContent() {
       cell: (order) => channelBadge(order.channel),
     },
     {
-      key: 'status', header: tc('status'), width: '8rem', skeleton: { kind: 'pill', share: 'w-3/4' },
-      cell: (order) => statusBadge(order.status),
+      // Wide enough for "Samples at shop · 12 units" (§4) in either language.
+      key: 'status', header: tc('status'), width: '12.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      cell: (order) => statusBadge(order.status, order),
     },
     {
       key: 'total', header: t('total'), width: '9.5rem', kind: 'value', align: 'end',
       className: 'text-gray-900 font-medium', skeleton: { kind: 'text', share: 'w-2/3' },
-      cell: (order) => <Money value={order.total} currency={order.currency} />,
+      cell: (order) => totalCell(order),
     },
     {
       key: 'outstanding', header: t('outstanding'), width: '9.5rem', kind: 'value', align: 'end',
@@ -484,7 +564,12 @@ function SalesPageContent() {
           </p>
           <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{item.product?.sku}</LatinText></p>
           <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
-            <LatinText dir="ltr" className="whitespace-nowrap">{item.quantity} × {formatAmount(item.unitPrice)}</LatinText>
+            <LatinText dir="ltr" className="whitespace-nowrap">
+              {/* Samples with no price noted: the quantity alone, not "× 0.00" (§4). */}
+              {isSamplesStatus(detail?.status ?? '') && !(Number(item.unitPrice) > 0)
+                ? item.quantity
+                : `${item.quantity} × ${formatAmount(item.unitPrice)}`}
+            </LatinText>
             {item.discount > 0 && (
               <>
                 {' · '}
@@ -503,7 +588,13 @@ function SalesPageContent() {
     },
     {
       key: 'unitPrice', header: t('unitPrice'), width: '7.5rem', kind: 'value', align: 'end', hiddenBelow: 'sm',
-      className: 'text-gray-600', cell: (item) => <bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi>,
+      className: 'text-gray-600',
+      cell: (item) =>
+        isSamplesStatus(detail?.status ?? '') && !(Number(item.unitPrice) > 0) ? (
+          '—'
+        ) : (
+          <bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi>
+        ),
     },
     {
       key: 'discount', header: t('discount'), width: '7.5rem', kind: 'value', align: 'end', hiddenBelow: 'sm',
@@ -514,18 +605,35 @@ function SalesPageContent() {
       // What the server stored for the line, not a re-derivation of it.
       key: 'lineTotal', header: t('lineTotal'), width: '8.5rem', kind: 'value', align: 'end',
       className: 'font-medium text-gray-900',
-      cell: (item) => <Money value={item.lineTotal} currency={detail?.currency} />,
+      cell: (item) =>
+        isSamplesStatus(detail?.status ?? '') ? (
+          <span className="text-xs font-normal text-muted-foreground">{tsm('noChargeCell')}</span>
+        ) : (
+          <Money value={item.lineTotal} currency={detail?.currency} />
+        ),
     },
   ];
 
   // ── Render ────────────────────────────────────────────────────────
-  const statusBadge = (status: string) => (
+  // Samples still at the shop read "Samples at shop · N units" (§4).
+  const statusBadge = (status: string, order?: SaleOrder) => (
     <span
-      className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600'}`}
+      data-testid={status === 'SAMPLES' ? 'samples-badge' : undefined}
+      title={status === 'SAMPLES' && order ? tsm('badge', { units: samplesUnits(order) }) : undefined}
+      className={`inline-flex max-w-full items-center truncate whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-600'}`}
     >
-      {codeLabel('orderStatus', status)}
+      {status === 'SAMPLES' && order
+        ? tsm('badge', { units: samplesUnits(order) })
+        : codeLabel('orderStatus', status)}
     </span>
   );
+  /** A sale's total, or "No charge" for samples, which are worth nothing as a sale yet. */
+  const totalCell = (order: SaleOrder) =>
+    isSamplesStatus(order.status) ? (
+      <span className="text-xs font-normal text-muted-foreground">{tsm('noChargeCell')}</span>
+    ) : (
+      <Money value={order.total} currency={order.currency} />
+    );
   const channelBadge = (channel: string) => (
     <span
       className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -554,8 +662,9 @@ function SalesPageContent() {
       { header: t('total'), value: (o) => Number(o.total) },
       {
         header: t('outstanding'),
-        // A draft owes nothing yet and a walk-in never owes (§4).
-        value: (o) => (o.status === 'DRAFT' || o.customer?.isWalkIn ? 0 : Number(o.outstanding)),
+        // A draft owes nothing yet, a walk-in never owes, and samples are not a sale (§4).
+        value: (o) =>
+          o.status === 'DRAFT' || o.customer?.isWalkIn || isSamplesStatus(o.status) ? 0 : Number(o.outstanding),
       },
     ]);
 
@@ -628,6 +737,9 @@ function SalesPageContent() {
       {!noOrdersYet && (
         <DataTable
           testId="sales-table"
+          // The status column grew for "Samples at shop · N units" (§4); the
+          // customer gives up the room, so the table still fits a laptop.
+          autoMin="11rem"
           className="hidden md:block"
           columns={columns}
           rows={paginated}
@@ -662,16 +774,16 @@ function SalesPageContent() {
                 onKeyDown={openOnKey(order)}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer select-none hover:shadow-md active:bg-gray-50 transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="font-mono text-sm font-bold text-primary-600">{order.orderNo}</span>
-                  {statusBadge(order.status)}
+                  {statusBadge(order.status, order)}
                 </div>
                 <p className="text-sm text-gray-700">
                   {customerCell(order)}
                 </p>
                 <div className="flex items-center gap-3 mt-2 text-sm">
                   {channelBadge(order.channel)}
-                  <span className="font-medium text-gray-900"><Money value={order.total} currency={order.currency} /></span>
+                  <span className="font-medium text-gray-900">{totalCell(order)}</span>
                 </div>
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                   <span>{formatDate(order.orderedAt ?? order.createdAt)}</span>
@@ -708,8 +820,42 @@ function SalesPageContent() {
           onClose={() => setViewingOrder(null)}
           size="lg"
           footer={
+            // Samples at the shop: what the shop decided, and nothing else (§4).
+            detail.status === 'SAMPLES' ? (
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:justify-end">
+                {canWriteOff && (
+                  <button
+                    type="button"
+                    data-testid="samples-write-off"
+                    onClick={() => setWritingOffSamples(detail)}
+                    className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-destructive/40 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 sm:min-h-0"
+                  >
+                    <PackageX className="h-4 w-4" />
+                    {tsm('writeOff')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  data-testid="samples-returned"
+                  onClick={() => setReturningSamples(detail)}
+                  className={`bg-background inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted sm:min-h-0 ${canWriteOff ? '' : 'col-span-2'}`}
+                >
+                  <Undo2 className="h-4 w-4" />
+                  {tsm('returned')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="samples-buying"
+                  onClick={() => setDecidingSamples(detail)}
+                  className="order-first col-span-2 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:order-none sm:min-h-0"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  {tsm('buying')}
+                </button>
+              </div>
+            ) : isSamplesStatus(detail.status) ||
             // A cancelled order offers nothing to do; an empty bar would only say so.
-            detail.status === 'CANCELLED' && !canTakePayment(detail) ? undefined : (
+            (detail.status === 'CANCELLED' && !canTakePayment(detail)) ? undefined : (
               <>
               {/* A confirmed sale has an invoice / delivery note; a draft is
                   not a sale yet and a cancelled order never happened (§4). */}
@@ -786,11 +932,14 @@ function SalesPageContent() {
           }
         >
           <div className="space-y-6">
+            {/* Samples at a shop (§4): where they are, since when, the reminder. */}
+            {detail.samples && <SamplesPanel order={detail} />}
+
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={detail.customer?.isWalkIn ? t('walkInCustomer') : <LatinText>{detail.customer?.displayName ?? '—'}</LatinText>} />
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
-              <Detail label={t('total')} value={<Money value={detail.total} currency={detail.currency} />} />
+              <Detail label={t('total')} value={totalCell(detail)} />
               <Detail label={t('outstanding')} value={outstandingCell(detail)} />
               <Detail label={t('date')} value={formatDate(detail.orderedAt ?? detail.createdAt)} />
               <Detail label={tc('status')} value={codeLabel('orderStatus', detail.status)} />
@@ -871,7 +1020,8 @@ function SalesPageContent() {
               )}
             </div>
 
-            {/* Payment History */}
+            {/* Payment History — samples are never paid on (§4). */}
+            {!isSamplesStatus(detail.status) && (
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('paymentHistory')}</h3>
               {(detail.paymentAllocations ?? []).length === 0 ? (
@@ -899,6 +1049,7 @@ function SalesPageContent() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Below cost (§4, 2026-10-11): the confirm step says it again,
                 and Confirm still goes through. */}
@@ -911,6 +1062,105 @@ function SalesPageContent() {
 
       {contractFor && (
         <ContractPlanDialog sale={contractFor} onClose={() => setContractFor(null)} />
+      )}
+
+      {decidingSamples && (
+        <SamplesDecideDialog
+          order={(orderDetail as SaleOrder | undefined)?.id === decidingSamples.id ? (orderDetail as SaleOrder) : decidingSamples}
+          products={productList}
+          onClose={() => setDecidingSamples(null)}
+          onDone={({ status, orderNo }) => {
+            setDecidingSamples(null);
+            setViewingOrder(null);
+            addToast(status === 'SAMPLES_RETURNED' ? tsm('returnedToast') : tsm('boughtToast', { orderNo }), 'success');
+          }}
+        />
+      )}
+
+      {returningSamples && (
+        <Dialog
+          title={tsm('returnTitle', { orderNo: returningSamples.orderNo })}
+          onClose={() => setReturningSamples(null)}
+          size="sm"
+          busy={samplesMutation.isPending}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setReturningSamples(null)}
+                className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="button"
+                data-testid="samples-return-confirm"
+                onClick={() => samplesMutation.mutate({ id: returningSamples.id, action: 'return' })}
+                disabled={samplesMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {samplesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                {tsm('returnConfirm')}
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-muted-foreground">{tsm('returnBody')}</p>
+        </Dialog>
+      )}
+
+      {writingOffSamples && (
+        <Dialog
+          title={tsm('writeOffTitle', { orderNo: writingOffSamples.orderNo })}
+          onClose={() => setWritingOffSamples(null)}
+          size="sm"
+          busy={samplesMutation.isPending}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const reason = String(new FormData(e.currentTarget).get('reason') || '').trim();
+            samplesMutation.mutate({ id: writingOffSamples.id, action: 'write-off', reason: reason || undefined });
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setWritingOffSamples(null)}
+                className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                data-testid="samples-write-off-confirm"
+                disabled={samplesMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {samplesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageX className="h-4 w-4" />}
+                {tsm('writeOffConfirm')}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{tsm('writeOffBody')}</p>
+            <div className="flex justify-between rounded-lg bg-muted px-4 py-3 text-sm">
+              <span className="text-muted-foreground">{tsm('writeOffCost')}</span>
+              <span className="font-medium text-foreground" data-testid="samples-write-off-cost">
+                <Money
+                  value={((orderDetail as SaleOrder | undefined)?.id === writingOffSamples.id ? (orderDetail as SaleOrder) : writingOffSamples).items
+                    ?.flatMap((i) => i.allocations ?? [])
+                    .reduce((sum, a) => sum + Number(a.cogsEgp ?? 0), 0) ?? 0}
+                />
+              </span>
+            </div>
+            <TextareaField
+              label={tsm('writeOffReason')}
+              name="reason"
+              maxLength={500}
+              placeholder={tsm('writeOffReasonPlaceholder')}
+            />
+          </div>
+        </Dialog>
       )}
 
       <RecordPaymentDialog
@@ -1097,6 +1347,49 @@ function SalesPageContent() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+/**
+ * Where samples are (§4, samples at shops): the shop and the day they were
+ * left, how long ago, and the day the reminder is due — or, once decided,
+ * what happened. A sale that began as samples says so in one line.
+ */
+function SamplesPanel({ order }: { order: SaleOrder }) {
+  const tsm = useTranslations('sales.samples');
+  const t = useTranslations('sales');
+  const { formatDate } = useDateFormat();
+  const s = order.samples!;
+  const shop = order.customer?.isWalkIn ? t('walkInCustomer') : order.customer?.displayName ?? '—';
+  if (order.status === 'SAMPLES') {
+    return (
+      <div
+        data-testid="samples-panel"
+        className="rounded-lg border border-accent-300 bg-accent-50 px-4 py-3 text-sm dark:border-accent-500/50 dark:bg-accent-500/10"
+      >
+        <p className="flex items-center gap-2 font-medium text-accent-900 dark:text-accent-200">
+          <PackageOpen className="h-4 w-4 shrink-0" />
+          <span className="min-w-0">{tsm('atShopTitle', { shop, date: formatDate(s.leftOn) })}</span>
+        </p>
+        <p className="mt-1 text-accent-900 dark:text-accent-200" data-testid="samples-panel-figures">
+          {tsm('badge', { units: Number(s.unitsOut) })} · {tsm('leftAgo', { days: s.daysAtShop })} ·{' '}
+          {s.remindedAt ? tsm('reminderSent') : tsm('reminderOn', { date: formatDate(s.reminderOn) })}
+        </p>
+        <p className="mt-1 text-xs text-accent-800 dark:text-accent-300">{tsm('atShopHint')}</p>
+      </div>
+    );
+  }
+  const decided = s.decidedAt ? formatDate(s.decidedAt) : '—';
+  const text =
+    order.status === 'SAMPLES_RETURNED'
+      ? tsm('returnedDone', { date: decided })
+      : order.status === 'SAMPLES_WRITTEN_OFF'
+      ? tsm('writtenOffDone', { date: decided })
+      : tsm('boughtFrom', { date: formatDate(s.leftOn) });
+  return (
+    <p data-testid="samples-panel" className="rounded-lg bg-muted px-4 py-2 text-xs text-muted-foreground">
+      {text}
+    </p>
   );
 }
 

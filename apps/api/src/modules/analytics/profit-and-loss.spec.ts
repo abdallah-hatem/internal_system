@@ -16,7 +16,8 @@ const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 type Range = { gte?: Date; gt?: Date; lt?: Date; lte?: Date };
 /** The parts of a Prisma `where` the computation uses, read below as Postgres would. */
 interface W {
-  status?: { in?: string[] };
+  /** A list of statuses, or one by name (samples written off, §4). */
+  status?: { in?: string[] } | string;
   orderedAt?: Range;
   direction?: string;
   category?: { in?: string[]; notIn?: string[] };
@@ -80,7 +81,7 @@ const inRange = (v: Date | null, r?: Range) =>
     (r.lte === undefined || v <= r.lte));
 
 const statusOk = (status: string, w?: W['status']) =>
-  !w?.in || w.in.includes(status);
+  typeof w === 'string' ? status === w : !w?.in || w.in.includes(status);
 
 function matchOrder(o: Order, w: W = {}): boolean {
   return statusOk(o.status, w.status) && inRange(o.orderedAt, w.orderedAt);

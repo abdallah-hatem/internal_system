@@ -1,6 +1,7 @@
-import type { Prisma } from '@prisma/client';
+import type { OrderStatus, Prisma } from '@prisma/client';
 
 import { assertDayRange, businessDay } from './dates';
+import { SAMPLES_STATUSES } from './samples';
 
 /**
  * A customer's statement (BUSINESS_LOGIC §7b, 2026-10-11): every sale,
@@ -107,8 +108,13 @@ export interface StatementSource {
   }[];
 }
 
-/** Statuses that never owed anything and are left out. */
-const NEVER_OWED = ['DRAFT', 'CANCELLED'];
+/**
+ * Statuses that never owed anything and are left out. Samples left at a shop
+ * are not a sale until the shop buys (§4, samples at shops, 2026-10-18): open,
+ * returned or written off, they never reach the statement. Bought, the order
+ * is CONFIRMED and appears on the day the shop decided.
+ */
+const NEVER_OWED: string[] = ['DRAFT', 'CANCELLED', ...SAMPLES_STATUSES];
 
 const cents = (v: Prisma.Decimal | number | string) =>
   Math.round(Number(v) * 100);
@@ -377,7 +383,10 @@ export async function loadStatementSource(
 ): Promise<StatementSource> {
   const [orders, payments, returns] = await Promise.all([
     db.saleOrder.findMany({
-      where: { customerId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+      where: {
+        customerId,
+        status: { notIn: NEVER_OWED as OrderStatus[] },
+      },
       select: {
         id: true,
         orderNo: true,

@@ -45,6 +45,16 @@ import {
   priceAgainstCost,
   unitFigure,
 } from '../../common/below-cost';
+import {
+  daysAtShop,
+  isSamplesStatus,
+  planSamplesDecision,
+  samplesReminderDay,
+  samplesRemindersDue,
+  SAMPLES_OPEN_STATUS,
+  SAMPLES_REMINDER_DAYS,
+  splitSampleAllocations,
+} from '../../common/samples';
 
 /** The client or a transaction — whichever the caller holds. */
 type Db = Prisma.TransactionClient;
@@ -82,6 +92,23 @@ export interface CreateSaleOrderInput {
    * sale dated in the past draws only stock received on or before that day.
    */
   orderedOn?: string;
+  /**
+   * Leave the lines at the shop as samples, with no charge yet (BUSINESS_LOGIC
+   * §4, "Samples at shops", owner 2026-10-18). The units leave the shelf; no
+   * sale, nothing owed, until the shop decides. Prices are optional — a price
+   * given is only noted, for the decision to start from.
+   */
+  samples?: boolean;
+}
+
+/** One line of a shop's decision on samples it was left. */
+export interface SamplesDecisionInput {
+  lines: {
+    saleItemId: string;
+    buyQty: number | string;
+    returnQty: number | string;
+    unitPrice?: number | string | null;
+  }[];
 }
 
 /** What the price check is asked: the lines as they stand on a form. */
@@ -185,6 +212,61 @@ function notEnoughOnDay(
 const refuseShape = (field: string, message: string) =>
   badRequest('VALIDATION_FAILED', message, { fields: field });
 
+/**
+ * A samples order as a screen reads it (§4, samples at shops): how many units
+ * are out, the day they were left, how long ago, and the day the reminder is
+ * due. Null for an order that never was samples. Worked out here, once, so the
+ * list, the order and the assistant cannot disagree about the reminder day.
+ */
+export function samplesSummary(
+  order: {
+    status: string;
+    samplesLeftAt?: Date | null;
+    samplesDecidedAt?: Date | null;
+    samplesRemindedAt?: Date | null;
+    items?: { quantity: Prisma.Decimal.Value }[];
+  },
+  now = new Date(),
+) {
+  if (!order.samplesLeftAt) return null;
+  const open = order.status === SAMPLES_OPEN_STATUS;
+  return {
+    open,
+    unitsOut: open
+      ? (order.items ?? [])
+          .reduce((s, i) => s.add(i.quantity), new Prisma.Decimal(0))
+          .toString()
+      : '0',
+    leftOn: businessDay(order.samplesLeftAt),
+    daysAtShop: daysAtShop(order.samplesLeftAt, now),
+    reminderOn: samplesReminderDay(order.samplesLeftAt),
+    remindedAt: order.samplesRemindedAt ?? null,
+    decidedAt: order.samplesDecidedAt ?? null,
+  };
+}
+
+/** The order is not samples at a shop, or no longer is. */
+function notOpenSamples(order: {
+  orderNo: string;
+  status: string;
+  samplesLeftAt: Date | null;
+}) {
+  // Began as samples and has since been decided: bought, returned or
+  // written off. Saying "already decided" is the second visit's answer.
+  if (isSamplesStatus(order.status) || order.samplesLeftAt) {
+    return badRequest(
+      'SAMPLES_ALREADY_DECIDED',
+      `${order.orderNo} is no longer samples at the shop (${order.status}); what the shop decided is already recorded.`,
+      { order: order.orderNo, status: order.status },
+    );
+  }
+  return badRequest(
+    'NOT_SAMPLES',
+    `${order.orderNo} is not samples left at a shop.`,
+    { order: order.orderNo },
+  );
+}
+
 @Injectable()
 export class SalesService {
   constructor(
@@ -237,7 +319,11 @@ export class SalesService {
     });
 
     const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
+    const now = new Date();
+    const data = (hasMore ? items.slice(0, limit) : items).map((o) => ({
+      ...o,
+      samples: samplesSummary(o, now),
+    }));
     return {
       data,
       meta: {
@@ -269,7 +355,9 @@ export class SalesService {
     const { paymentPlan, ...rest } = order;
     const contractPlan =
       paymentPlan && paymentPlan.status !== 'CANCELLED' ? paymentPlan : null;
-    return { data: { ...rest, contractPlan } };
+    return {
+      data: { ...rest, contractPlan, samples: samplesSummary(order) },
+    };
   }
 
   /**
@@ -313,6 +401,15 @@ export class SalesService {
       throw badRequest(
         'INVOICE_CANCELLED',
         `Order ${order.orderNo} was cancelled, so it has no invoice.`,
+        { order: order.orderNo },
+      );
+    }
+    // Samples are not a sale: nothing was charged, so there is nothing to
+    // invoice until the shop buys (§4, samples at shops).
+    if (isSamplesStatus(order.status)) {
+      throw badRequest(
+        'INVOICE_SAMPLES',
+        `Order ${order.orderNo} is samples left at a shop, not a sale, so it has no invoice.`,
         { order: order.orderNo },
       );
     }
@@ -482,6 +579,32 @@ export class SalesService {
     actorId: string,
     idempotencyKey?: string,
   ): Promise<{ data: unknown }> {
+    if (data?.samples !== undefined && typeof data.samples !== 'boolean') {
+      throw refuseShape('samples', 'samples must be true or false.');
+    }
+    if (data?.samples === true) {
+      // Samples go to a shop that can decide later; a walk-in buyer has no
+      // account to come back to, and a samples order is never a draft.
+      if (data.walkIn === true) {
+        throw badRequest(
+          'SAMPLES_NEED_SHOP',
+          'Samples are left with a shop, so they need a customer — not a walk-in.',
+        );
+      }
+      if (data.payment !== undefined) {
+        throw refuseShape(
+          'payment',
+          'Samples are not charged, so no payment is taken.',
+        );
+      }
+      if (data.confirm === false) {
+        throw refuseShape(
+          'confirm',
+          'Samples leave the shelf when saved; they are never a draft.',
+        );
+      }
+      return this.leaveSamples(data, actorId, idempotencyKey);
+    }
     const walkIn = this.walkInRequest(data);
     if (walkIn) {
       return this.createWalkIn(data, walkIn.method, actorId, idempotencyKey);
@@ -709,11 +832,32 @@ export class SalesService {
     data: CreateSaleOrderInput,
     actorId: string,
     idempotencyKey?: string,
-    { walkIn = false }: { walkIn?: boolean } = {},
+    {
+      walkIn = false,
+      samples = false,
+    }: { walkIn?: boolean; samples?: boolean } = {},
   ) {
     // The day it was sold (§4, 2026-10-16): checked before anything is read.
+    // Samples are left on a day the same way, and draw the stock of that day.
     const day = chosenDay(data?.orderedOn, 'SALE_MADE');
     const cutoff = receivedCutoff(day);
+    // A samples line's price is optional (DECIDED, owner 2026-10-18): it is
+    // set when the shop decides. One that is given is kept as a note; one left
+    // out is 0, and nothing is charged either way. No discount: there is no
+    // charge to discount.
+    if (samples && Array.isArray(data?.items)) {
+      data = {
+        ...data,
+        items: data.items.map((item) => ({
+          ...item,
+          unitPrice:
+            item?.unitPrice === undefined || item?.unitPrice === null
+              ? 0
+              : item.unitPrice,
+          discount: 0,
+        })),
+      };
+    }
 
     // Validate customer exists
     if (!data?.customerId) {
@@ -726,6 +870,12 @@ export class SalesService {
       throw notFound('customer');
     }
     assertVerified(customer);
+    if (samples && customer.isWalkIn) {
+      throw badRequest(
+        'SAMPLES_NEED_SHOP',
+        'Samples are left with a shop, so they need a customer — not a walk-in.',
+      );
+    }
     // The walk-in record is sold to only as a walk-in sale, which is paid on
     // the spot. Named by id on an ordinary sale it would become a draft, or
     // a confirmed order owing money, on a record that must never owe (§4).
@@ -877,7 +1027,14 @@ export class SalesService {
         lineTotal: centsToDecimalString(line.lineTotalCents),
       };
     });
-    const subtotal = centsToDecimalString(totals.subtotalCents);
+    // Samples owe nothing and are worth nothing as a sale until the shop
+    // decides: the order and its lines total zero, whatever price was noted.
+    const subtotal = samples
+      ? '0.00'
+      : centsToDecimalString(totals.subtotalCents);
+    if (samples) {
+      for (const line of itemsData) line.lineTotal = '0.00';
+    }
 
     return {
       orderNo,
@@ -1064,6 +1221,81 @@ export class SalesService {
     // A sale dated before the day it was entered draws only what had been
     // received by the end of its own day (§4, 2026-10-16); any other sale
     // draws the whole shelf, as before.
+    const { allocations, totalCogs, lowStock } = await this.drawFifo(
+      tx,
+      order,
+      actorId,
+      { movementType: 'SALE', referenceType: 'SALE_ORDER' },
+    );
+
+    // Update order status
+    const updatedOrder = await tx.saleOrder.update({
+      where: { id, version },
+      data: { status: 'CONFIRMED', version: { increment: 1 } },
+      include: { items: true },
+    });
+
+    // No ledger entry is raised here, deliberately.
+    //
+    // Confirming a sale is not the arrival of money — the shop takes the
+    // goods and pays later, often over weeks. Booking revenue here as well
+    // as on each payment counted the same sale twice: 31,200 of orders
+    // produced 72,710 of ledger revenue.
+    //
+    // DECIDED 2026-08-22: the ledger records money as it is received. The
+    // sale itself is not lost — the order records it, and what has been sold
+    // but not yet collected is reported as receivables, which is the gap
+    // between the two.
+
+    return {
+      audit: {
+        actorUserId: actorId,
+        action: 'CONFIRM',
+        entityType: 'SaleOrder',
+        entityId: id,
+        beforeJson: { status: 'DRAFT' },
+        afterJson: { status: 'CONFIRMED', cogs: Number(totalCogs) },
+      },
+      lowStock,
+      data: {
+        ...updatedOrder,
+        allocations,
+        totalCogs: Number(totalCogs),
+      },
+    };
+  }
+
+  /**
+   * Take an order's lines off the shelf, FIFO, writing one allocation per
+   * batch drawn at that batch's landed cost — the one definition of drawing
+   * stock for an order. Confirming a sale calls it, and so does leaving
+   * samples at a shop (§4, samples at shops): the units leave the shelf the
+   * same way and their cost is known the same way, so when the shop buys,
+   * the sale's COGS is the cost of the very units that went out.
+   */
+  private async drawFifo(
+    tx: Db,
+    order: {
+      id: string;
+      orderedAt: Date;
+      createdAt: Date;
+      items: {
+        id: string;
+        productId: string;
+        quantity: Prisma.Decimal.Value;
+        product: { name: string };
+      }[];
+    },
+    actorId: string,
+    how: {
+      movementType: 'SALE' | 'SAMPLE_OUT';
+      referenceType: string;
+    },
+  ) {
+    const id = order.id;
+    // A sale dated before the day it was entered draws only what had been
+    // received by the end of its own day (§4, 2026-10-16); any other sale
+    // draws the whole shelf, as before.
     const saleDay = businessDay(order.orderedAt);
     const cutoff = receivedCutoff(saleDay, businessDay(order.createdAt));
 
@@ -1118,9 +1350,9 @@ export class SalesService {
         await tx.inventoryMovement.create({
           data: {
             batchId: batch.id,
-            movementType: 'SALE',
+            movementType: how.movementType,
             qtyDelta: allocQty.neg(),
-            referenceType: 'SALE_ORDER',
+            referenceType: how.referenceType,
             referenceId: id,
             createdBy: actorId,
           },
@@ -1173,44 +1405,464 @@ export class SalesService {
       sold,
     );
 
-    // Update order status
-    const updatedOrder = await tx.saleOrder.update({
-      where: { id, version },
-      data: { status: 'CONFIRMED', version: { increment: 1 } },
-      include: { items: true },
+    return { allocations, totalCogs, lowStock };
+  }
+
+  // ─── Samples at shops (BUSINESS_LOGIC §4, owner 2026-10-18) ──────────
+
+  /**
+   * Leave samples at a shop: an order numbered like any (ORD-), in status
+   * SAMPLES, whose units leave the shelf FIFO from real batches with their
+   * landed cost recorded (`drawFifo`, the path confirming a sale takes). It
+   * totals zero and owes nothing; it is not a sale. Built and drawn in one
+   * transaction, or neither — a refusal (not enough stock) leaves nothing.
+   */
+  private async leaveSamples(
+    data: CreateSaleOrderInput,
+    actorId: string,
+    idempotencyKey?: string,
+  ): Promise<{ data: unknown }> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const draft = await this.prepareDraft(tx, data, actorId, idempotencyKey, {
+        samples: true,
+      });
+      const order = await tx.saleOrder.create({
+        data: {
+          ...draft,
+          status: SAMPLES_OPEN_STATUS,
+          samplesLeftAt: draft.orderedAt,
+        },
+        include: { items: { include: { product: true } }, customer: true },
+      });
+      const drawn = await this.drawFifo(tx, order, actorId, {
+        movementType: 'SAMPLE_OUT',
+        referenceType: 'SAMPLES_ORDER',
+      });
+      return { order, drawn };
     });
 
-    // No ledger entry is raised here, deliberately.
-    //
-    // Confirming a sale is not the arrival of money — the shop takes the
-    // goods and pays later, often over weeks. Booking revenue here as well
-    // as on each payment counted the same sale twice: 31,200 of orders
-    // produced 72,710 of ledger revenue.
-    //
-    // DECIDED 2026-08-22: the ledger records money as it is received. The
-    // sale itself is not lost — the order records it, and what has been sold
-    // but not yet collected is reported as receivables, which is the gap
-    // between the two.
-
-    return {
-      audit: {
-        actorUserId: actorId,
-        action: 'CONFIRM',
-        entityType: 'SaleOrder',
-        entityId: id,
-        beforeJson: { status: 'DRAFT' },
-        afterJson: { status: 'CONFIRMED', cogs: Number(totalCogs) },
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'LEAVE_SAMPLES',
+      entityType: 'SaleOrder',
+      entityId: outcome.order.id,
+      afterJson: {
+        status: SAMPLES_OPEN_STATUS,
+        costAtShopEgp: Number(outcome.drawn.totalCogs),
+        lines: outcome.order.items.map((i) => ({
+          productId: i.productId,
+          quantity: Number(i.quantity),
+        })),
       },
-      lowStock,
+    });
+    // Off the shelf is off the shelf: a product the samples took below its
+    // minimum is low stock, as after a sale (§3).
+    await notifyLowStock(
+      this.prisma,
+      this.notifications,
+      outcome.drawn.lowStock,
+    );
+    const { items, ...order } = outcome.order;
+    return {
       data: {
-        ...updatedOrder,
-        allocations,
-        totalCogs: Number(totalCogs),
+        ...order,
+        items: items.map(({ product: _product, ...i }) => i),
+        allocations: outcome.drawn.allocations,
+        samples: samplesSummary(outcome.order),
       },
     };
   }
 
+  /**
+   * Claim an open samples order inside the transaction, so a decision is
+   * recorded once: two clicks, two partners, or a decision after a return
+   * all meet the status check of an update that only one of them wins.
+   */
+  private async claimOpenSamples(tx: Db, id: string) {
+    if (!isUuid(id)) throw notFound('saleOrder');
+    const order = await tx.saleOrder.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { displayName: true } },
+        items: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            product: { select: { name: true } },
+            allocations: {
+              include: { inventoryBatch: { select: { createdAt: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!order) throw notFound('saleOrder');
+    if (order.status !== SAMPLES_OPEN_STATUS) throw notOpenSamples(order);
+    const claimed = await tx.saleOrder.updateMany({
+      where: { id, status: SAMPLES_OPEN_STATUS },
+      data: { version: { increment: 1 } },
+    });
+    if (claimed.count === 0) throw notOpenSamples(order);
+    // A line's draws, oldest batch first — the order FIFO drew them in.
+    for (const item of order.items) {
+      item.allocations.sort(
+        (a, b) =>
+          a.inventoryBatch.createdAt.getTime() -
+            b.inventoryBatch.createdAt.getTime() ||
+          a.inventoryBatchId.localeCompare(b.inventoryBatchId),
+      );
+    }
+    return order;
+  }
+
+  /** Put units back on the shelf of the batch they left, and say so. */
+  private async sampleBack(
+    tx: Db,
+    orderId: string,
+    batchId: string,
+    qty: Prisma.Decimal,
+    actorId: string,
+  ) {
+    await tx.inventoryBatch.update({
+      where: { id: batchId },
+      data: {
+        saleableQty: { increment: qty },
+        remainingQty: { increment: qty },
+      },
+    });
+    await tx.inventoryMovement.create({
+      data: {
+        batchId,
+        movementType: 'SAMPLE_BACK',
+        qtyDelta: qty,
+        referenceType: 'SAMPLES_ORDER',
+        referenceId: orderId,
+        createdBy: actorId,
+      },
+    });
+  }
+
+  /**
+   * "They're buying" (§4, samples at shops): per line, how many they buy, how
+   * many came back, and the price of what they buy.
+   *
+   * Converted **in place** (DECIDED in BUSINESS_LOGIC): the same order, the
+   * same ORD number, becomes a CONFIRMED sale dated the decision day — the
+   * day the debt starts. Its lines keep only the units bought, at the agreed
+   * price; its allocations keep only those units, from the oldest batches
+   * first, at the cost they left at; every returned unit goes back to the
+   * batch it came from. Nothing bought at all is "Returned".
+   */
+  async decideSamples(id: string, body: SamplesDecisionInput, actorId: string) {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const order = await this.claimOpenSamples(tx, id);
+      const plan = planSamplesDecision(
+        order.orderNo,
+        order.items.map((i) => ({
+          saleItemId: i.id,
+          productId: i.productId,
+          product: i.product.name,
+          outQty: i.quantity,
+        })),
+        body?.lines,
+      );
+      const now = new Date();
+
+      if (plan.every((l) => l.buy.isZero())) {
+        return {
+          returnedAll: true as const,
+          ...(await this.returnAllWithin(tx, order, actorId, now)),
+        };
+      }
+
+      let totalCogs = new Prisma.Decimal(0);
+      const lineTotals: { gross: number; discount: number }[] = [];
+      for (const line of plan) {
+        const item = order.items.find((i) => i.id === line.saleItemId)!;
+        const split = splitSampleAllocations(
+          item.allocations.map((a) => ({
+            id: a.id,
+            batchId: a.inventoryBatchId,
+            qty: a.qty,
+            unitCostEgp: a.unitCostEgp,
+          })),
+          line.buy,
+        );
+        for (const k of split.keep) {
+          totalCogs = totalCogs.add(k.cogsEgp);
+          await tx.saleItemAllocation.update({
+            where: { id: k.id },
+            data: { qty: k.qty, cogsEgp: k.cogsEgp },
+          });
+        }
+        if (split.remove.length > 0) {
+          await tx.saleItemAllocation.deleteMany({
+            where: { id: { in: split.remove } },
+          });
+        }
+        for (const b of split.back) {
+          await this.sampleBack(tx, order.id, b.batchId, b.qty, actorId);
+        }
+        if (line.buy.isZero()) {
+          // Nothing of it was bought: the sale has no such line.
+          await tx.saleItem.delete({ where: { id: item.id } });
+          continue;
+        }
+        const price = line.unitPrice!;
+        const lineTotal = line.buy.mul(price).toDecimalPlaces(2);
+        lineTotals.push({
+          gross: Math.round(Number(lineTotal) * 100),
+          discount: 0,
+        });
+        await tx.saleItem.update({
+          where: { id: item.id },
+          data: {
+            quantity: line.buy,
+            unitPrice: price,
+            discount: 0,
+            lineTotal,
+          },
+        });
+      }
+
+      const subtotal = centsToDecimalString(
+        lineTotals.reduce((s, l) => s + l.gross - l.discount, 0),
+      );
+      const updated = await tx.saleOrder.update({
+        where: { id: order.id },
+        data: {
+          status: 'CONFIRMED',
+          // The sale is dated the day the shop decided: revenue, COGS and the
+          // debt start then, not the day the samples were left.
+          orderedAt: now,
+          samplesDecidedAt: now,
+          subtotal,
+          discount: 0,
+          total: subtotal,
+          outstanding: subtotal,
+        },
+        include: { items: true, customer: true },
+      });
+      return {
+        returnedAll: false as const,
+        data: updated,
+        audit: {
+          actorUserId: actorId,
+          action: 'SAMPLES_BOUGHT',
+          entityType: 'SaleOrder',
+          entityId: order.id,
+          beforeJson: { status: SAMPLES_OPEN_STATUS },
+          afterJson: {
+            status: 'CONFIRMED',
+            total: Number(subtotal),
+            cogs: Number(totalCogs),
+            lines: plan.map((l) => ({
+              productId: l.productId,
+              out: Number(l.out),
+              bought: Number(l.buy),
+              returned: Number(l.back),
+              unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
+            })),
+          },
+        },
+      };
+    });
+
+    await this.audit.log(outcome.audit);
+    return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
+  }
+
+  /** "Returned": every sample back on the shelf (§4, samples at shops). */
+  async returnSamples(id: string, actorId: string) {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const order = await this.claimOpenSamples(tx, id);
+      return this.returnAllWithin(tx, order, actorId, new Date());
+    });
+    await this.audit.log(outcome.audit);
+    return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
+  }
+
+  /**
+   * Everything back on the shelf, each unit to the batch it left. The order
+   * ends SAMPLES_RETURNED — not a cancelled sale and not a sale return. Its
+   * lines and allocations stay as the record of what went out; that status
+   * counts in nothing.
+   */
+  private async returnAllWithin(
+    tx: Db,
+    order: Awaited<ReturnType<SalesService['claimOpenSamples']>>,
+    actorId: string,
+    now: Date,
+  ) {
+    for (const item of order.items) {
+      for (const a of item.allocations) {
+        await this.sampleBack(
+          tx,
+          order.id,
+          a.inventoryBatchId,
+          new Prisma.Decimal(a.qty),
+          actorId,
+        );
+      }
+    }
+    const data = await tx.saleOrder.update({
+      where: { id: order.id },
+      data: { status: 'SAMPLES_RETURNED', samplesDecidedAt: now },
+      include: { items: true, customer: true },
+    });
+    return {
+      data,
+      audit: {
+        actorUserId: actorId,
+        action: 'SAMPLES_RETURNED',
+        entityType: 'SaleOrder',
+        entityId: order.id,
+        beforeJson: { status: SAMPLES_OPEN_STATUS },
+        afterJson: {
+          status: 'SAMPLES_RETURNED',
+          lines: order.items.map((i) => ({
+            productId: i.productId,
+            returned: Number(i.quantity),
+          })),
+        },
+      },
+    };
+  }
+
+  /**
+   * "Write off": the shop kept them or they were lost. The units never come
+   * back to the shelf; their landed cost — on the allocations, at the cost
+   * they left at — becomes a cost of the cycle each batch came from, read
+   * through `samplesWrittenOffEgp` by settlement, the dashboard and the P&L
+   * alike. No money moves, so no ledger row is written (§9: a loss is not
+   * money moving).
+   */
+  async writeOffSamples(
+    id: string,
+    body: { reason?: unknown } | undefined,
+    actorId: string,
+  ) {
+    const reason =
+      typeof body?.reason === 'string'
+        ? body.reason.trim().slice(0, 500)
+        : null;
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const order = await this.claimOpenSamples(tx, id);
+      const cost = order.items
+        .flatMap((i) => i.allocations)
+        .reduce((s, a) => s.add(a.cogsEgp), new Prisma.Decimal(0));
+      const data = await tx.saleOrder.update({
+        where: { id: order.id },
+        data: { status: 'SAMPLES_WRITTEN_OFF', samplesDecidedAt: new Date() },
+        include: { items: true, customer: true },
+      });
+      return {
+        data,
+        audit: {
+          actorUserId: actorId,
+          action: 'SAMPLES_WRITTEN_OFF',
+          entityType: 'SaleOrder',
+          entityId: order.id,
+          beforeJson: { status: SAMPLES_OPEN_STATUS },
+          afterJson: {
+            status: 'SAMPLES_WRITTEN_OFF',
+            costEgp: Number(cost),
+            ...(reason ? { reason } : {}),
+          },
+        },
+      };
+    });
+    await this.audit.log(outcome.audit);
+    return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
+  }
+
+  /**
+   * The samples reminder (DECIDED, owner 2026-10-18): 14 days after samples
+   * were left and while they are still at the shop, every active core
+   * partner is told "Samples at <shop> for 14 days", linking to the order.
+   * Once per order, ever: the order records when it was sent
+   * (`samplesRemindedAt`), claimed by an update that only one run can win, so
+   * the morning job and a `@Cron` on a long-lived host never both send it.
+   * A decided order is never reminded.
+   *
+   * Run by the daily job (`GET /jobs/overdue-payments`, the `@Cron` in
+   * `OverdueScheduler`). The notification goes after the claim, outside any
+   * transaction, through NotificationsService — which also pushes it.
+   */
+  async notifySamplesReminders(now = new Date()) {
+    const open = await this.prisma.saleOrder.findMany({
+      where: {
+        status: SAMPLES_OPEN_STATUS,
+        samplesRemindedAt: null,
+        samplesLeftAt: { not: null },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        status: true,
+        samplesLeftAt: true,
+        samplesRemindedAt: true,
+        customerId: true,
+        customer: { select: { displayName: true } },
+        items: { select: { quantity: true } },
+      },
+    });
+    const due = samplesRemindersDue(open, now);
+    if (due.length === 0) return { samplesDue: 0, notifications: 0 };
+
+    const partners = await this.prisma.user.findMany({
+      where: { role: 'CORE_PARTNER', status: 'ACTIVE' },
+      select: { id: true },
+    });
+    const userIds = partners.map((u) => u.id);
+    if (userIds.length === 0)
+      return { samplesDue: due.length, notifications: 0 };
+
+    let notifications = 0;
+    for (const order of due) {
+      const claimed = await this.prisma.saleOrder.updateMany({
+        where: {
+          id: order.id,
+          status: SAMPLES_OPEN_STATUS,
+          samplesRemindedAt: null,
+        },
+        data: { samplesRemindedAt: now },
+      });
+      if (claimed.count === 0) continue;
+      const units = order.items
+        .reduce((s, i) => s.add(i.quantity), new Prisma.Decimal(0))
+        .toString();
+      await this.notifications.createForMultipleUsers(userIds, {
+        eventType: 'SAMPLES_REMINDER',
+        code: 'SAMPLES_AT_SHOP_REMINDER',
+        params: {
+          shop: order.customer.displayName,
+          days: SAMPLES_REMINDER_DAYS,
+          order: order.orderNo,
+          units,
+        },
+        payload: {
+          orderId: order.id,
+          customerId: order.customerId,
+        },
+      });
+      notifications += userIds.length;
+    }
+    return { samplesDue: due.length, notifications };
+  }
+
   async cancelOrder(id: string, actorId: string) {
+    // Cancel on samples still at the shop is "Returned" (§4, samples at
+    // shops): the units come back to the shelf, and the order ends as
+    // returned samples — never as a cancelled sale it never was.
+    const peek = isUuid(id)
+      ? await this.prisma.saleOrder.findUnique({
+          where: { id },
+          select: { status: true },
+        })
+      : null;
+    if (peek?.status === SAMPLES_OPEN_STATUS) {
+      return this.returnSamples(id, actorId);
+    }
     const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await tx.saleOrder.findUnique({
         where: { id },
@@ -1223,6 +1875,9 @@ export class SalesService {
           'Order is already cancelled/returned',
         );
       }
+      // Samples the shop already decided on: returned or written off. Cancel
+      // would put back stock that is already back, or never coming back.
+      if (isSamplesStatus(order.status)) throw notOpenSamples(order);
 
       // DECIDED 2026-08-23: an order that has been paid against cannot be
       // cancelled.

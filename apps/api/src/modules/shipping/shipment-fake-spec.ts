@@ -169,6 +169,19 @@ export function fakePrisma(db: Store) {
   };
 
   const REALISED = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'];
+  const orderOf = (a: Row) => {
+    const item = db.saleItems.find((i) => i.id === a.saleItemId)!;
+    return db.saleOrders.find((o) => o.id === item.saleOrderId)!;
+  };
+  /** A batch filter: a cycle's, a product's, or every batch. */
+  const allocationBatchMatches = (a: Row, where: Row | undefined) => {
+    const b = db.batches.find((x) => x.id === a.inventoryBatchId);
+    if (!where) return true;
+    return (
+      (where.cycleId === undefined || b?.cycleId === where.cycleId) &&
+      (where.productId === undefined || b?.productId === where.productId)
+    );
+  };
   const realised = (a: Row) => {
     const item = db.saleItems.find((i) => i.id === a.saleItemId)!;
     const order = db.saleOrders.find((o) => o.id === item.saleOrderId)!;
@@ -776,17 +789,47 @@ export function fakePrisma(db: Store) {
           db.allocations
             .filter((a) =>
               // One batch's allocations, whatever their sale (the re-cost),
-              // or a cycle's realised ones (settlement).
+              // or a cycle's realised ones (settlement), or — named by
+              // status — a cycle's or a product's samples still at a shop
+              // (§4, samples at shops).
               where.inventoryBatchId !== undefined
                 ? a.inventoryBatchId === where.inventoryBatchId
-                : db.batches.find((b) => b.id === a.inventoryBatchId)
-                    ?.cycleId === where.inventoryBatch.cycleId && realised(a),
+                : allocationBatchMatches(a, where.inventoryBatch) &&
+                  (typeof where.saleItem?.saleOrder?.status === 'string'
+                    ? orderOf(a).status === where.saleItem.saleOrder.status
+                    : realised(a)),
             )
-            .map((a) => ({
-              ...a,
-              saleItem: db.saleItems.find((i) => i.id === a.saleItemId),
-            })),
+            .map((a) => {
+              const item = db.saleItems.find((i) => i.id === a.saleItemId);
+              const batch = db.batches.find((b) => b.id === a.inventoryBatchId);
+              return {
+                ...a,
+                inventoryBatch: batch,
+                saleItem: {
+                  ...item,
+                  saleOrder: {
+                    ...orderOf(a),
+                    customer: { displayName: 'Shop' },
+                  },
+                },
+              };
+            }),
         ),
+      // Samples written off (§4): the cost on the allocations of orders in
+      // that status, for a cycle or all. None is ever written off in these
+      // worlds unless a test puts one there.
+      aggregate: ({ where }: Row) =>
+        after({
+          _sum: {
+            cogsEgp: db.allocations
+              .filter(
+                (a) =>
+                  allocationBatchMatches(a, where?.inventoryBatch) &&
+                  orderOf(a).status === where?.saleItem?.saleOrder?.status,
+              )
+              .reduce((t, a) => t.add(a.cogsEgp ?? 0), new Prisma.Decimal(0)),
+          },
+        }),
     },
     saleReturnItem: { findMany: () => after([]) },
     // Nothing is ever paid against an order in these worlds.

@@ -796,6 +796,130 @@ is the day chosen (today: now, as before; an earlier day: midday in Cairo).
   be sold.
 - `check-data` 25 and 25.1 watch for a sale dated forward and a back-dated sale
   that drew stock received after its day.
+
+### Samples at shops (owner 2026-10-18)
+
+The owner, 2026-10-18 (mockup approved): "Sometimes we leave samples at shops with no money; when they like it they
+say ok let's make a deal, or they send them back." Built the same day as the smallest flow, from the screen he already
+uses (LEARNINGS "Keep flows small"). Migration `20261018200000_samples_at_shops` (additive: order statuses
+`SAMPLES`, `SAMPLES_RETURNED`, `SAMPLES_WRITTEN_OFF`; movement types `SAMPLE_OUT`, `SAMPLE_BACK`; nullable
+`sale_orders.samples_left_at`, `samples_decided_at`, `samples_reminded_at`). The rules are in
+`apps/api/src/common/samples.ts` (pure) and `common/samples-out.ts` (what is out, read from the database).
+
+**Leaving samples.** The New Order popup has one amber switch, **"Samples — no charge yet"** ("Units leave the shelf.
+No sale, nothing owed, until the shop decides."). With it on there is no draft, no discount, no total, prices are
+optional, and the one button reads **Leave samples** (`POST /sales/orders` with `samples: true`).
+
+- DECIDED (owner): **the price is optional until the shop decides.** A price given is kept on the line as a note
+  (the decision starts from it); the line and the order total **0** and owe **0** whatever was noted.
+- The units leave the shelf from real batches, **FIFO like a sale** (the same `drawFifo` confirming uses), each draw a
+  `SaleItemAllocation` at that batch's landed cost, with a `SAMPLE_OUT` movement. Stock rules are a sale's: more than
+  is on the shelf is `NOT_ENOUGH_STOCK` (summed per product), a quantity of 0 or less `QTY_NOT_POSITIVE`, and a
+  back-dated leave draws only the stock of its day (`NOT_ENOUGH_STOCK_ON_DATE`).
+- Same ORD- numbering, same idempotency key (a double click leaves the samples once).
+- **A real customer only:** walk-in, the walk-in record, or `walkIn: true` with `samples: true` → `SAMPLES_NEED_SHOP`;
+  no customer → `CUSTOMER_REQUIRED`; an id that is not a customer → 404.
+- **It is not a sale.** A samples order (open, returned or written off) counts in no revenue, COGS, receivable,
+  customer balance or statement, dashboard, Analytics, P&L, settlement profit, invoice (`INVOICE_SAMPLES`) or
+  contract (`SALE_CONTRACT_NOT_OPEN`), and cannot be returned (`ONLY_CONFIRMED_RETURNABLE`). Every reader already
+  counts only CONFIRMED / PARTIALLY_PAID / PAID (and RETURNED for a return's netting); the customer statement used to
+  read "not DRAFT, not CANCELLED" and now leaves the samples statuses out too.
+- **No payment against it:** chosen on the order or allocated afterwards → `SAMPLES_NOT_PAYABLE`.
+- GUESS: leaving samples that take a product below its minimum raises the low-stock alert, as a sale does — the
+  shelf is what low stock means (§3).
+
+**On Sales.** The order shows an amber **"Samples at shop · N units"** badge, and when opened: the shop and the day
+left, how many days ago, and the day the reminder is due (or "Reminder sent"). The list's status filter has
+**Samples**. Three actions, and nothing else (no invoice, payment, contract, return or cancel):
+
+- **"They're buying"** — a dialog per product: **Buying**, **Returned**, **Price each**. It starts with everything
+  bought and nothing returned; typing one quantity fills the other with the rest only while the other has not been
+  typed (a typed number is never overwritten). The price starts at the price noted when left, else the product's
+  current list price for the order's channel (B2B/B2C), else empty — and is required for any line with something
+  bought (0 is a price). The server checks the same (`planSamplesDecision`): every line decided once
+  (`SAMPLES_LINE_MISSING`, `SAMPLES_LINE_TWICE`, `SAMPLES_LINE_NOT_IN_ORDER`), nothing negative
+  (`SAMPLES_QTY_NEGATIVE`), buying + returned exactly what is out, in Decimal (`SAMPLES_DECISION_MISMATCH`, which also
+  refuses zero of everything), a price for what is bought (`SAMPLES_PRICE_REQUIRED`, `PRICE_NEGATIVE`).
+- **"Returned"** — everything back on the shelf; the order ends **SAMPLES_RETURNED** (not a cancelled sale, not a
+  return of a sale). **Cancel on samples is "Returned"** (`POST …/cancel` does the same; the screen does not offer
+  Cancel at all).
+- **"Write off"** (core partners only, like Cancel) — the shop kept them or they were lost. Asks first, showing the
+  cost written off; an optional note goes to the audit log.
+
+**DECIDED (built) — the shop buying converts the order in place.** Same order, same ORD number, becomes a
+**CONFIRMED sale dated the decision day** (`orderedAt` = the moment it is recorded; `samples_left_at` keeps the day
+left, and the order says "Began as samples left on …"). Every existing sale invariant holds: its lines keep only the
+units bought, at the agreed price (`lineTotal` = qty × price, no discount), totals from those lines, `outstanding` =
+total; its allocations keep only the bought units — so revenue, COGS, the receivable and the shop's debt start that
+day, from the same batches and units that went out. Chosen over a linked sale because nothing reads it differently
+from any other sale: a payment, a return, a contract and the invoice work on it as they are.
+- GUESS: **which units are bought** — the oldest-received ones, as FIFO would have drawn them (§3); the returned
+  units go back to the newer batches they left (`splitSampleAllocations`). So the sale's COGS is what a sale of those
+  units would have cost. A line with nothing bought is removed from the sale.
+- Nothing bought at all is "Returned". All bought and none returned is a plain sale of every unit.
+- GUESS: **the decision is dated today**, always; there is no "decided on" day to back-date it (unlike a sale's
+  date). Record it the day the shop says so.
+
+**Returned and written off — how stock and money move.**
+
+| Outcome | Stock | Money |
+|---|---|---|
+| Left (SAMPLES) | Off the shelf (`remainingQty`/`saleableQty` fall), counted **At shops** | Nothing: no sale, no ledger row |
+| Bought (CONFIRMED) | Bought units stay out (sold); returned units back to their own batch (`SAMPLE_BACK`) | A normal sale on the decision day: revenue, COGS, receivable |
+| Returned (SAMPLES_RETURNED) | Every unit back to the batch it left (`SAMPLE_BACK`) | Nothing. Its lines and allocations stay as the record of what went out and count in nothing, as a cancelled sale's do |
+| Written off (SAMPLES_WRITTEN_OFF) | Gone for good: never back on the shelf, not at a shop | Their landed cost is a cost of the cycle each unit came from |
+
+**The write-off is costed like goods lost on the way (§2, §9; CLAUDE.md §11).** `samplesWrittenOffEgp` in
+`common/cycle-losses.ts` sums the cost on the written-off orders' allocations, per cycle (by batch) or for all
+cycles, dated the day it was written off; `cycleWriteOffsEgp` gives goods lost on the way and samples written off
+apart and together, and settlement, the dashboard's net profit, Analytics' P&L and the cycle comparison all subtract
+the total — one definition. It is **not** a ledger row (no money moved — the cash left when the goods were bought),
+**not** a cost of goods sold (nothing was sold, so it is neither in COGS nor in revenue), **not** an operating expense
+in the ledger's sense and **not** a cost recovery. It shows as its own line: **"Samples written off"** in the P&L's
+expenses by category, and in a payout's cycle costs. A leg re-cost (§2) re-costs those allocations with the rest, so
+the write-off follows a corrected cost while the cycle is unsettled.
+- GUESS: a write-off is the **whole order** and cannot be undone — there is no mix of returned and written off on
+  one order. OPEN for the owner: a shop that sends some back and keeps the rest free can today only be recorded as
+  "They're buying" the kept units at a price of 0 (their cost then lands in that sale's COGS rather than on a
+  "Samples written off" line — the cycle's profit is the same).
+
+**Inventory.** A new **At shops** column (units out on open samples orders, per product and per batch), beside
+**On shelf** (was "Total Stock": every batch's remaining units) and **Total** = on shelf + at shops. **Low stock still
+means the shelf** (§3, `common/low-stock.ts` reads `remainingQty`): units at shops are not on it and are counted once,
+from the open samples orders' allocations (`common/samples-out.ts`) — never twice. Shelf + at shops + sold always adds
+up to what was received (net of returns and losses).
+
+**Settlements.** DECIDED (owner): **a cycle cannot be settled while any of its units are out as samples** — calculate,
+approve, pay, and the plain move to Settlement all refuse with `CYCLE_HAS_SAMPLES_OUT`, naming how many units at which
+shops ("3 unit(s) of cycle CYC-… are out as samples at Nile Motors (2), Delta Bikes (1)"). Unsold-stock figures
+(`common/unsold-stock.ts`, the cycle's projection and the cycle comparison) count units at shops as **unsold**, at
+the cost they left at — never as sold.
+
+**The reminder.** DECIDED (owner): **14 days after samples were left** and while they are still at the shop, every
+active core partner gets "Samples at <shop> for 14 days" (`SAMPLES_AT_SHOP_REMINDER`, en + ar in
+`common/notification-messages.ts`, with the units and the order on the push's second line), linking to the order
+(`/sales?order=<id>`, which opens it). Once per order, ever: `samples_reminded_at` is claimed by an update only one run
+can win. Never before the 14th Cairo day, never for decided samples. It rides the daily job: Vercel's cron
+`GET /jobs/overdue-payments` (05:00 UTC) and the `@Cron` in `OverdueScheduler`. Through `NotificationsService`, so it is
+pushed to phones too (§10).
+- GUESS: a partner who joins after the reminder went out is not told again (once per order, not per partner — unlike
+  overdue instalments).
+
+**Editing.** A samples order's lines cannot be edited while open — there is no edit path for any order (§4); to change
+what is out, record "Returned" and leave the samples again.
+
+**The assistant** (§16): `list_sales` labels each order `kind: "SALE"` or `"SAMPLES"`, gives a samples order's units at
+the shop, day left and reminder day, reports its outstanding as 0.00 whatever is stored, and its description says a
+samples order is not a sale and is never owed. No new tool.
+
+**Who.** Leaving samples, "They're buying" and "Returned": the sales roles (core partners and admin support), as
+selling is. "Write off": core partners only (GUESS — it moves cost onto a cycle, like cancelling a sale).
+
+**Checked by** `apps/api/src/common/samples.spec.ts` (the rules), `apps/api/src/modules/sales/samples.db.spec.ts`
+(against Postgres: every figure before and after), `apps/web/src/components/sales/samples-form.test.tsx` and
+`samples-pages.test.tsx`, spec 34 TC-INV-72..74, and `scripts/check-data.sh` 26–26.2 (a samples order with a total,
+a balance or money on it; an open one whose batches do not hold its lines; one with no day left).
+
 ---
 
 ## 5. Returns
@@ -1336,6 +1460,10 @@ the cycle can move to settlement or a settlement can be approved, by any route.
 Goods still on the way make the cycle's profit a guess. A cycle with nothing
 ordered has nothing to account for.
 
+**DECIDED 2026-10-18 (owner) — nor while any of its units are out at shops as
+samples** (`CYCLE_HAS_SAMPLES_OUT`, naming the units and the shops; §4 "Samples at
+shops"). Units at shops count as unsold stock in every unsold figure.
+
 ---
 
 ## 9. The ledger
@@ -1515,8 +1643,10 @@ out.
 
 Raised on: low stock (after a receipt, and since 2026-10-11 after a sale that
 takes a product into low stock — §3), a shipment arriving, a cycle created or
-changing state, a purchase order created, a partner added to a cycle, and an
-instalment falling behind (checked daily since 2026-10-11 — §7).
+changing state, a purchase order created, a partner added to a cycle, an
+instalment falling behind (checked daily since 2026-10-11 — §7), and samples
+still at a shop 14 days after they were left (daily, once per order, since
+2026-10-18 — §4 "Samples at shops").
 
 **Every office notification is also pushed to the reader's phone** — built
 2026-10-18, after the owner's test sale took a product below its minimum, the

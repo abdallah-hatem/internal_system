@@ -4,6 +4,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import { HoldsScheduler } from './holds.scheduler';
 import { PaymentPlansService } from '../payment-plans/payment-plans.service';
 import { LendersService } from '../lenders/lenders.service';
+import { SalesService } from '../sales/sales.service';
 import { Surface } from '../../common/surface';
 import { unauthorized } from '../../common/api-error';
 
@@ -34,6 +35,7 @@ export class JobsController {
     private holds: HoldsScheduler,
     private plans: PaymentPlansService,
     private lenders: LendersService,
+    private sales: SalesService,
   ) {}
 
   /**
@@ -68,7 +70,16 @@ export class JobsController {
     const result = await this.plans.notifyOverdue();
     // A friend's overdue instalment rides the same morning call (§18).
     const lenders = await this.lenders.notifyOverdue();
-    return { ok: true, ranAt: new Date().toISOString(), ...result, lenders };
+    // Samples left at a shop for 14 days (§4, samples at shops, 2026-10-18)
+    // ride it too: Vercel's plan allows two crons and both are used.
+    const samples = await this.sales.notifySamplesReminders();
+    return {
+      ok: true,
+      ranAt: new Date().toISOString(),
+      ...result,
+      lenders,
+      samples,
+    };
   }
 
   /**

@@ -60,6 +60,10 @@ export function notificationHref(
     case 'SALE_CONFIRMED':
       return '/sales';
 
+    // Samples at a shop for 14 days (§4): the order itself, opened on Sales.
+    case 'SAMPLES_REMINDER':
+      return payload.orderId ? `/sales?order=${payload.orderId}` : '/sales';
+
     case 'PAYMENT_RECEIVED':
       return '/payments';
 

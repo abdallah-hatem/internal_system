@@ -56,6 +56,8 @@ export function monthName(month: string, locale: string): string {
 
 /** Goods lost on the way: an expense with no ledger row, named here (API `LOSSES_CATEGORY`). */
 const LOSSES_CATEGORY = 'goods_lost';
+/** Samples the shops kept or lost (§4, samples at shops): named here too (API `SAMPLES_WRITTEN_OFF_CATEGORY`). */
+const SAMPLES_WRITTEN_OFF_CATEGORY = 'samples_written_off';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** Last day of a month; month is 1-12 and may overflow into the next year. */
@@ -185,7 +187,13 @@ export function ProfitAndLossSection() {
               ? '—'
               : `${formatNumber(data.netProfitPctOfSales, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
           }
-          categoryLabel={(c) => (c === LOSSES_CATEGORY ? t('pnl.goodsLost') : codeLabel('ledgerCategory', c))}
+          categoryLabel={(c) =>
+            c === LOSSES_CATEGORY
+              ? t('pnl.goodsLost')
+              : c === SAMPLES_WRITTEN_OFF_CATEGORY
+              ? t('pnl.samplesWrittenOff')
+              : codeLabel('ledgerCategory', c)
+          }
           monthLabel={(m) => monthName(m, locale)}
         />
       )}

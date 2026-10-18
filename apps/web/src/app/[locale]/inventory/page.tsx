@@ -29,9 +29,14 @@ interface InventorySummary {
   productName: string;
   /** The Arabic name, null when none was entered (§3, 2026-10-14). */
   productNameAr?: string | null;
+  /** On the shelf: every batch's remaining units — what low stock reads (§3). */
   totalStock: number;
   reservedStock: number;
   availableStock: number;
+  /** Out at shops as samples (§4): off the shelf, not sold. */
+  atShopsStock?: number;
+  /** On the shelf + at shops. */
+  allStock?: number;
   batches: any[];
 }
 
@@ -46,7 +51,7 @@ interface Movement {
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The table's skeleton rows are drawn by DataTable from each column's
-// `skeleton`; the phone card below is traced by hand: the name and three
+// `skeleton`; the phone card below is traced by hand: the name and four
 // counts. Change one, change the other.
 
 function InventoryCardSkeleton() {
@@ -54,8 +59,8 @@ function InventoryCardSkeleton() {
     <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="p-4">
         <SkeletonText size="base" className="w-2/3" />
-        <div className="grid grid-cols-3 gap-3 mt-3">
-          {repeat(3, (i) => (
+        <div className="grid grid-cols-4 gap-3 mt-3">
+          {repeat(4, (i) => (
             <div key={i}>
               {/* A text-xs label inline in a text-sm cell: an 18px line. */}
               <SkeletonText size="xs" className="w-14" lineClassName="h-[18px]" />
@@ -147,7 +152,7 @@ function InventoryPageContent() {
     );
 
   // ── Columns ───────────────────────────────────────────────────────
-  // The chevron, product, total, reserved, available, batches
+  // The chevron, product, on shelf, at shops, total, reserved, available, batches
   // (components/ui/data-table.tsx). Each fixed column fits its title in
   // English and Arabic; the product takes what is left.
   const columns: Column<InventorySummary>[] = [
@@ -177,8 +182,20 @@ function InventoryPageContent() {
       },
     },
     {
-      key: 'totalStock', header: t('totalStock'), width: '8rem', kind: 'value', className: 'font-medium text-gray-900',
+      key: 'totalStock', header: t('onShelf'), width: '7rem', kind: 'value', className: 'font-medium text-gray-900',
       skeleton: { kind: 'text', share: 'w-1/4' }, cell: (item) => item.totalStock,
+    },
+    {
+      // Samples left at shops (§4): off the shelf, not sold, still ours.
+      key: 'atShops', header: t('atShops'), headerTitle: t('atShopsHint'), width: '7rem', kind: 'value',
+      className: (item) => (Number(item.atShopsStock ?? 0) > 0 ? 'font-medium text-accent-700' : 'text-muted-foreground'),
+      skeleton: { kind: 'text', share: 'w-1/4' },
+      cell: (item) => <span data-testid="at-shops">{item.atShopsStock ?? 0}</span>,
+    },
+    {
+      key: 'allStock', header: t('allStock'), width: '6rem', kind: 'value', className: 'font-medium text-gray-900',
+      skeleton: { kind: 'text', share: 'w-1/4' },
+      cell: (item) => <span data-testid="all-stock">{item.allStock ?? item.totalStock}</span>,
     },
     {
       key: 'reserved', header: t('reserved'), width: '7rem', kind: 'value', className: 'text-gray-600',
@@ -393,18 +410,27 @@ function InventoryPageContent() {
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
+                    <div className="grid grid-cols-4 gap-3 mt-3 text-sm">
                       <div>
-                        <span className="text-gray-500 text-xs">{t('totalStock')}</span>
+                        <span className="text-gray-500 text-xs">{t('onShelf')}</span>
                         <p className="font-medium">{item.totalStock}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">{t('atShops')}</span>
+                        <p
+                          data-testid="at-shops-card"
+                          className={`font-medium ${Number(item.atShopsStock ?? 0) > 0 ? 'text-accent-700' : 'text-muted-foreground'}`}
+                        >
+                          {item.atShopsStock ?? 0}
+                        </p>
                       </div>
                        <div>
                         <span className="text-gray-500 text-xs">{t('available')}</span>
                         <p className={`font-medium ${isLow ? 'text-red-600' : 'text-green-600'}`}>{item.availableStock}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500 text-xs">{t('batches')}</span>
-                        <p className="font-medium">{item.batches?.length ?? 0}</p>
+                        <span className="text-muted-foreground text-xs">{t('allStock')}</span>
+                        <p className="font-medium" data-testid="all-stock-card">{item.allStock ?? item.totalStock}</p>
                       </div>
                     </div>
                   </div>

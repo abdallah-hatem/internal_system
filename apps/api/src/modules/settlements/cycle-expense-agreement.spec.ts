@@ -91,7 +91,21 @@ function fakeDb(rows: Row[]) {
           },
         ]),
     },
-    saleItemAllocation: { findMany: () => Promise.resolve([ALLOCATION]) },
+    // The cycle's one sale; it has no samples at a shop or written off (§4),
+    // which are asked for by status.
+    saleItemAllocation: {
+      findMany: ({
+        where,
+      }: {
+        where?: { saleItem?: { saleOrder?: { status?: unknown } } };
+      } = {}) =>
+        Promise.resolve(
+          typeof where?.saleItem?.saleOrder?.status === 'string'
+            ? []
+            : [ALLOCATION],
+        ),
+      aggregate: () => Promise.resolve({ _sum: { cogsEgp: null } }),
+    },
     saleReturnItem: { findMany: () => Promise.resolve([]) },
     inventoryBatch: { findMany: () => Promise.resolve([BATCH]) },
     financialTransaction: {

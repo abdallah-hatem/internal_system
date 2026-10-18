@@ -76,6 +76,8 @@ export const ACTION_ROLES = {
   'fxRate.add': PARTNERS, //              POST /currency-rates
   // A sale's instalment contract (§7, 2026-10-16) — SaleContractController
   'sale.contractPlan': PARTNERS, //      POST /sales/orders/:id/contract-plan
+  // Samples a shop kept or lost (§4, samples at shops) — SalesController
+  'sale.samplesWriteOff': PARTNERS, //   POST /sales/orders/:id/samples/write-off
   // Reads a page makes on the side — UsersController
   'users.list': BOOKS_READERS, //         GET /users (the participant picker)
 } as const satisfies Record<string, readonly string[]>;

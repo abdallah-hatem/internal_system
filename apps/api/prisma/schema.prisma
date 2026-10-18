@@ -60,7 +60,7 @@ model User {
   portalCustomer Customer? @relation("PortalAccount")
 
   pushSubscriptions    PushSubscription[]
-  decidedOrderRequests OrderRequest[]      @relation("DecidedOrderRequestUser")
+  decidedOrderRequests OrderRequest[]        @relation("DecidedOrderRequestUser")
   oauthRefreshTokens   OAuthRefreshToken[]
   sessionRefreshTokens SessionRefreshToken[]
 
@@ -737,6 +737,10 @@ enum InventoryMovementType {
   /// Leftover stock moved to another cycle at its cost (§8, L5), and back when undone.
   TRANSFER_OUT
   TRANSFER_IN
+  /// Units left at a shop as samples, off the shelf with no sale (§4, samples
+  /// at shops, 2026-10-18), and the samples coming back to the same batch.
+  SAMPLE_OUT
+  SAMPLE_BACK
 }
 
 enum VerificationStatus {
@@ -911,6 +915,14 @@ enum OrderStatus {
   PAID
   CANCELLED
   RETURNED
+  /// Samples left at a shop with no charge yet (§4, samples at shops,
+  /// 2026-10-18): off the shelf, not a sale, owes nothing.
+  SAMPLES
+  /// Every sample came back. Not a cancelled sale and not a sale return.
+  SAMPLES_RETURNED
+  /// The shop kept them or they were lost: their cost is a cost of the cycle
+  /// they came from, as goods lost on the way are.
+  SAMPLES_WRITTEN_OFF
 }
 
 model Customer {
@@ -951,20 +963,28 @@ model Customer {
 }
 
 model SaleOrder {
-  id          String      @id @default(uuid()) @db.Uuid
-  orderNo     String      @unique
-  customerId  String      @map("customer_id") @db.Uuid
-  channel     String
-  status      OrderStatus @default(DRAFT)
-  currency    String
-  subtotal    Decimal     @db.Decimal(18, 2)
-  discount    Decimal     @default(0) @db.Decimal(18, 2)
-  total       Decimal     @db.Decimal(18, 2)
-  outstanding Decimal     @db.Decimal(18, 2)
-  orderedAt   DateTime    @default(now()) @map("ordered_at") @db.Timestamptz()
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
-  version     Int         @default(1)
+  id                String      @id @default(uuid()) @db.Uuid
+  orderNo           String      @unique
+  customerId        String      @map("customer_id") @db.Uuid
+  channel           String
+  status            OrderStatus @default(DRAFT)
+  currency          String
+  subtotal          Decimal     @db.Decimal(18, 2)
+  discount          Decimal     @default(0) @db.Decimal(18, 2)
+  total             Decimal     @db.Decimal(18, 2)
+  outstanding       Decimal     @db.Decimal(18, 2)
+  orderedAt         DateTime    @default(now()) @map("ordered_at") @db.Timestamptz()
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
+  version           Int         @default(1)
+  /// When samples were left at the shop (§4, samples at shops, 2026-10-18).
+  /// Null for an order that began as a sale; kept after the shop decides, so
+  /// a sale that began as samples still says so.
+  samplesLeftAt     DateTime?   @map("samples_left_at") @db.Timestamptz()
+  /// When the shop's decision was recorded: buying, returned or written off.
+  samplesDecidedAt  DateTime?   @map("samples_decided_at") @db.Timestamptz()
+  /// When the 14-day reminder went to the partners — once per order.
+  samplesRemindedAt DateTime?   @map("samples_reminded_at") @db.Timestamptz()
 
   customer           Customer               @relation(fields: [customerId], references: [id])
   creator            User?                  @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
@@ -1100,13 +1120,13 @@ model FinancialTransaction {
 /// A friend who pays a supplier for us and is repaid in pounds. Not a partner,
 /// not a customer, not a supplier: he shares in no profit (§18).
 model Lender {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
   name      String
   phone     String?
   notes     String?
-  createdBy String?  @map("created_by") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   /// Set when he was deleted (owner, 2026-10-18): hidden from every list and
   /// picker; kept so a removed payment's history still names him.
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
@@ -1595,7 +1615,6 @@ model OAuthRefreshToken {
 /**
  * An office sign-in that outlives its access token (owner, 2026-10-17:
  * "why do I have to log in every time I open it").
- *
  * Opaque, stored hashed, spent on every use. Every token descended from one
  * sign-in shares a `familyId`, so a spent token presented again ends that
  * sign-in on every device holding it (BUSINESS_LOGIC §23).

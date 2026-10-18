@@ -130,10 +130,15 @@ function fakePrisma(db: Store) {
         db.participants.filter((p) => p.cycleId === where.cycleId),
     },
     saleItemAllocation: {
+      // A cycle's realised allocations; samples at a shop or written off
+      // (§4, asked for by status) never exist in these worlds.
       findMany: async ({ where }: Row) =>
-        db.allocations.filter(
-          (a) => a.cycleId === where.inventoryBatch.cycleId,
-        ),
+        typeof where.saleItem?.saleOrder?.status === 'string'
+          ? []
+          : db.allocations.filter(
+              (a) => a.cycleId === where.inventoryBatch.cycleId,
+            ),
+      aggregate: async () => ({ _sum: { cogsEgp: null } }),
     },
     saleReturnItem: { findMany: async () => [] },
     inventoryBatch: { findMany: async () => [] },

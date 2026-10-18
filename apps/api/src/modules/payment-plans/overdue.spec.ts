@@ -9,6 +9,7 @@ import { JobsController } from '../portal/jobs.controller';
 import type { HoldsScheduler } from '../portal/holds.scheduler';
 import { PaymentPlansService } from './payment-plans.service';
 import type { LendersService } from '../lenders/lenders.service';
+import type { SalesService } from '../sales/sales.service';
 import type { PushService } from '../notifications/push.service';
 
 /** No phones in this suite: what is written is what is checked. */
@@ -336,12 +337,18 @@ describe('GET /jobs/overdue-payments — the door the cron knocks on', () => {
         Promise.resolve({ overdueInstalments: 1, notifications: 3 }),
       ),
     };
+    const sales = {
+      notifySamplesReminders: jest.fn(() =>
+        Promise.resolve({ samplesDue: 1, notifications: 3 }),
+      ),
+    };
     const jobs = new JobsController(
       {} as HoldsScheduler,
       plans as unknown as PaymentPlansService,
       lenders as unknown as LendersService,
+      sales as unknown as SalesService,
     );
-    return { jobs, plans, lenders };
+    return { jobs, plans, lenders, sales };
   }
 
   async function codeOf(p: Promise<unknown>) {
@@ -372,6 +379,21 @@ describe('GET /jobs/overdue-payments — the door the cron knocks on', () => {
     expect(res).toMatchObject({
       lenders: { overdueInstalments: 1, notifications: 3 },
     });
+  });
+
+  it('samples at a shop for 14 days ride the same call — no cron of their own (§4)', async () => {
+    process.env.CRON_SECRET = 'right-secret';
+    const { jobs, sales } = controller();
+    const res = await jobs.overduePayments('Bearer right-secret');
+    expect(sales.notifySamplesReminders).toHaveBeenCalledTimes(1);
+    expect(res).toMatchObject({ samples: { samplesDue: 1, notifications: 3 } });
+  });
+
+  it('the wrong secret sends no samples reminder either', async () => {
+    process.env.CRON_SECRET = 'right-secret';
+    const { jobs, sales } = controller();
+    await jobs.overduePayments('Bearer wrong').catch(() => undefined);
+    expect(sales.notifySamplesReminders).not.toHaveBeenCalled();
   });
 
   it('no header, or the wrong secret → 401 CRON_FORBIDDEN, nothing runs', async () => {

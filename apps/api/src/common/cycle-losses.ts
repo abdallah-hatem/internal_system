@@ -40,3 +40,64 @@ export async function cycleLossesEgp(
   });
   return new Prisma.Decimal(_sum.costEgp ?? 0);
 }
+
+/**
+ * What samples the shops kept or lost cost, in EGP (BUSINESS_LOGIC §4,
+ * "Samples at shops", 2026-10-18): the landed cost on the allocations of every
+ * samples order written off, charged to the cycle each batch came from.
+ *
+ * The same kind of figure as goods lost on the way — goods the cycle paid for
+ * that will never sell — and read the same way: no money moves when samples
+ * are written off (the cash left when they were bought), so it is not a ledger
+ * row and every profit figure subtracts it on purpose. It is NOT a ledger
+ * expense, NOT a cost of goods sold (nothing was sold, so it is in neither
+ * COGS nor revenue), and NOT a cost recovery.
+ *
+ * Its day is the day the write-off was recorded (`samplesDecidedAt`).
+ * `cycleId` null is every cycle at once — the dashboard's and the P&L's.
+ */
+export async function samplesWrittenOffEgp(
+  db: {
+    saleItemAllocation: Pick<
+      Prisma.TransactionClient['saleItemAllocation'],
+      'aggregate'
+    >;
+  },
+  cycleId: string | null,
+  decidedAt?: { gte?: Date; lt?: Date },
+): Promise<Prisma.Decimal> {
+  const { _sum } = await db.saleItemAllocation.aggregate({
+    where: {
+      ...(cycleId === null ? {} : { inventoryBatch: { cycleId } }),
+      saleItem: {
+        saleOrder: {
+          status: 'SAMPLES_WRITTEN_OFF',
+          ...(decidedAt ? { samplesDecidedAt: decidedAt } : {}),
+        },
+      },
+    },
+    _sum: { cogsEgp: true },
+  });
+  return new Prisma.Decimal(_sum?.cogsEgp ?? 0);
+}
+
+/**
+ * Everything a cycle wrote off — goods lost on the way and samples written
+ * off — apart and together. Settlement, the dashboard, the P&L and the cycle
+ * comparison all subtract `total`; the parts are what the payout's lines and
+ * the P&L's expense lines show.
+ */
+export async function cycleWriteOffsEgp(
+  db: Parameters<typeof cycleLossesEgp>[0] &
+    Parameters<typeof samplesWrittenOffEgp>[0],
+  cycleId: string | null,
+  window?: { gte?: Date; lt?: Date },
+) {
+  const lostOnTheWay = await cycleLossesEgp(db, cycleId, window);
+  const samplesWrittenOff = await samplesWrittenOffEgp(db, cycleId, window);
+  return {
+    lostOnTheWay,
+    samplesWrittenOff,
+    total: lostOnTheWay.add(samplesWrittenOff),
+  };
+}

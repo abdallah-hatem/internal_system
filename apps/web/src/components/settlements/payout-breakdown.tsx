@@ -169,7 +169,8 @@ export function PayoutBreakdownView({
     const category = codeLabel('ledgerCategory', c.category);
     switch (c.kind) {
       case 'loss':
-        return t('costLoss');
+        // Samples the shops kept or lost (§4) are a loss line of their own.
+        return c.category === 'samples_written_off' ? t('costSamplesWrittenOff') : t('costLoss');
       case 'exchange':
         return t('costExchange');
       case 'recovery':

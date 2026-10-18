@@ -2179,3 +2179,64 @@ test.describe('A corrected leg cost re-costs the cycle, and nothing disagrees af
     expect(Number(unit.trim())).toBe(10);
   });
 });
+
+test.describe('Samples left at a shop are not a sale (§4, samples at shops, 2026-10-18)', () => {
+  /** Samples of `qty` units of a stocked product left at the context's shop. */
+  async function samplesLeft(request: APIRequestContext, qty = 3) {
+    const c = await ctx(request);
+    await c.stockUp(10);
+    const order = await c.mk('sales/orders', {
+      samples: true, customerId: c.customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: c.product.id, quantity: qty }],
+    });
+    return { ...c, order };
+  }
+  const code = async (res: { json(): Promise<any> }) => (await res.json())?.error?.code;
+  const dashboard = async (request: APIRequestContext, headers: any) => {
+    const body = await (await request.get(`${API}/analytics/dashboard`, { headers })).json();
+    return body.data ?? body;
+  };
+
+  test('TC-INV-72: samples owe nothing and add nothing to revenue or receivables; a payment against them is refused by its code', async ({ request }) => {
+    const first = await ctx(request);
+    const before = await dashboard(request, first.headers);
+    const { headers, customer, order } = await samplesLeft(request);
+    expect(order.status).toBe('SAMPLES');
+    expect(Number(order.total)).toBe(0);
+    const after = await dashboard(request, headers);
+    expect(after.totalRevenue).toBe(before.totalRevenue);
+    expect(after.receivables).toBe(before.receivables);
+    const shop = await (await request.get(`${API}/customers/${customer.id}`, { headers })).json();
+    expect(Number((shop.data ?? shop).outstandingBalance)).toBe(0);
+    const res = await request.post(`${API}/payments`, {
+      headers,
+      data: { customerId: customer.id, amount: 10, currency: 'EGP', method: 'CASH', orderId: order.id },
+    });
+    expect(res.status()).toBe(400);
+    expect(await code(res)).toBe('SAMPLES_NOT_PAYABLE');
+  });
+
+  test('TC-INV-73: deciding with buying + returned ≠ what is out is refused; deciding twice is refused the second time', async ({ request }) => {
+    const { headers, order } = await samplesLeft(request, 3);
+    const itemId = order.items[0].id;
+    const decide = (line: Record<string, unknown>) =>
+      request.post(`${API}/sales/orders/${order.id}/samples/decide`, {
+        headers, data: { lines: [{ saleItemId: itemId, ...line }] },
+      });
+    const wrong = await decide({ buyQty: 2, returnQty: 2, unitPrice: 50 });
+    expect(wrong.status()).toBe(400);
+    expect(await code(wrong)).toBe('SAMPLES_DECISION_MISMATCH');
+    expect(await code(await decide({ buyQty: 1, returnQty: 2 }))).toBe('SAMPLES_PRICE_REQUIRED');
+    expect((await decide({ buyQty: 1, returnQty: 2, unitPrice: 50 })).ok()).toBeTruthy();
+    expect(await code(await decide({ buyQty: 1, returnQty: 2, unitPrice: 50 }))).toBe('SAMPLES_ALREADY_DECIDED');
+  });
+
+  test('TC-INV-74: a cycle with units out as samples cannot be settled', async ({ request }) => {
+    const { headers, order } = await samplesLeft(request, 2);
+    const detail = await (await request.get(`${API}/sales/orders/${order.id}`, { headers })).json();
+    const cycleId = (detail.data ?? detail).items[0].allocations[0].inventoryBatch.cycleId;
+    const res = await request.post(`${API}/settlements/calculate/${cycleId}`, { headers });
+    expect(res.status()).toBe(400);
+    expect(await code(res)).toBe('CYCLE_HAS_SAMPLES_OUT');
+  });
+});

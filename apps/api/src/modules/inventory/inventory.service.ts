@@ -10,6 +10,7 @@ import { CostingService, lineEventCost } from '../costing/costing.service';
 import { CyclesService } from '../cycles/cycles.service';
 import { formatMoney, formatQty } from '../../common/money';
 import { findLowStock } from '../../common/low-stock';
+import { unitsAtShopsByProduct } from '../../common/samples-out';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
@@ -575,6 +576,12 @@ export class InventoryService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Units out at shops as samples (§4, samples at shops, 2026-10-18): off
+    // the shelf — so not in totalStock, which stays "on the shelf" and is what
+    // low stock reads (§3) — and not sold. Counted once, from the open
+    // samples orders' allocations; `allStock` is shelf + at shops.
+    const atShops = await unitsAtShopsByProduct(this.prisma, where);
+
     // Group by product for totals
     const productTotals: Record<string, any> = {};
     for (const batch of batches) {
@@ -586,6 +593,8 @@ export class InventoryService {
           totalStock: 0,
           reservedStock: 0,
           availableStock: 0,
+          atShopsStock: Number(atShops.byProduct.get(batch.productId) ?? 0),
+          allStock: 0,
           batches: [],
         };
       }
@@ -619,7 +628,17 @@ export class InventoryService {
         ...batch,
         arrivedOn,
         receivedAt: batch.createdAt,
+        atShopsQty: Number(atShops.byBatch.get(batch.id) ?? 0),
       });
+    }
+    for (const row of Object.values(productTotals) as {
+      totalStock: number;
+      atShopsStock: number;
+      allStock: number;
+    }[]) {
+      // Thousandths, so 0.1 + 0.2 on the shelf and at shops is 0.3.
+      row.allStock =
+        Math.round((row.totalStock + row.atShopsStock) * 1000) / 1000;
     }
 
     return { data: Object.values(productTotals) };

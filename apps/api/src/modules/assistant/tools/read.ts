@@ -18,6 +18,7 @@ import { ProductsService } from '../../products/products.service';
 import { SalesService } from '../../sales/sales.service';
 import { SuppliersService } from '../../suppliers/suppliers.service';
 import { withOverdue } from '../../../common/receivables';
+import { isSamplesStatus } from '../../../common/samples';
 import { readTool, type AssistantContext, type ToolOutcome } from '../tool-kit';
 
 /**
@@ -472,7 +473,7 @@ export function registerReadTools(
     {
       title: 'List sales',
       description:
-        'Sale orders, newest first, optionally for one customer and/or between two days (the day it was ordered, in Cairo time). Returns order number, customer, channel, status, currency, total, discount, what is still outstanding, when it was ordered, and its lines. A DRAFT is not a sale and owes nothing. Refuses DATE_RANGE_REVERSED when from is after to.',
+        'Sale orders, newest first, optionally for one customer and/or between two days (the day it was ordered, in Cairo time). Returns order number, customer, channel, status, currency, total, discount, what is still outstanding, when it was ordered, and its lines. A DRAFT is not a sale and owes nothing. An order with kind "SAMPLES" is samples left at a shop with no charge (status SAMPLES while still at the shop, SAMPLES_RETURNED or SAMPLES_WRITTEN_OFF once decided): it is NOT a sale, owes nothing and must never be counted as sold or owed; its unitsAtShop, leftOn and reminderOn say how many are out and since when. Refuses DATE_RANGE_REVERSED when from is after to.',
       inputSchema: {
         customerId: z
           .string()
@@ -492,28 +493,45 @@ export function registerReadTools(
         to,
         limit: rows(limit),
       });
-      const data = res.data.map((o) => ({
-        id: o.id,
-        orderNo: o.orderNo,
-        customer: o.customer.displayName,
-        customerId: o.customerId,
-        channel: o.channel,
-        status: o.status,
-        currency: o.currency,
-        total: dec(o.total),
-        discount: dec(o.discount),
-        outstanding: dec(o.outstanding),
-        orderedAt: instant(o.orderedAt),
-        lines: o.items.map((i) => ({
-          sku: i.product.sku,
-          product: i.product.name,
-          quantity: dec(i.quantity),
-          unitPrice: dec(i.unitPrice),
-          discount: dec(i.discount),
-        })),
-      }));
+      const data = res.data.map((o) => {
+        // Samples left at a shop (§4, samples at shops): labelled, and never
+        // owed — whatever the stored figure, a samples order owes nothing.
+        const samples = isSamplesStatus(o.status);
+        return {
+          id: o.id,
+          orderNo: o.orderNo,
+          kind: samples ? 'SAMPLES' : 'SALE',
+          customer: o.customer.displayName,
+          customerId: o.customerId,
+          channel: o.channel,
+          status: o.status,
+          currency: o.currency,
+          total: dec(o.total),
+          discount: dec(o.discount),
+          outstanding: samples ? '0.00' : dec(o.outstanding),
+          ...(o.samples
+            ? {
+                samples: {
+                  unitsAtShop: o.samples.unitsOut,
+                  leftOn: o.samples.leftOn,
+                  daysAtShop: o.samples.daysAtShop,
+                  reminderOn: o.samples.reminderOn,
+                },
+              }
+            : {}),
+          orderedAt: instant(o.orderedAt),
+          lines: o.items.map((i) => ({
+            sku: i.product.sku,
+            product: i.product.name,
+            quantity: dec(i.quantity),
+            unitPrice: dec(i.unitPrice),
+            discount: dec(i.discount),
+          })),
+        };
+      });
+      const samplesCount = data.filter((o) => o.kind === 'SAMPLES').length;
       return answer(
-        `${data.length} sale order(s)${res.meta.nextCursor ? ', more exist — narrow the range' : ''}.`,
+        `${data.length} order(s)${samplesCount ? `, of which ${samplesCount} samples left at shops (not sales, nothing owed)` : ''}${res.meta.nextCursor ? ', more exist — narrow the range' : ''}.`,
         data,
       );
     },

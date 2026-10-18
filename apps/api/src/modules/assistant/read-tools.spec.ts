@@ -139,6 +139,8 @@ function fakePrisma(db: Db) {
     },
     product: { findMany: findMany(() => db.products) },
     inventoryBatch: { findMany: findMany(() => db.batches) },
+    // Samples at shops (§4): none in these worlds.
+    saleItemAllocation: { findMany: findMany(() => []) },
     // The shipment read says whether a leg's cost can change (§2,
     // 2026-10-17): nothing is settled or moved in these worlds.
     settlement: { findFirst: jest.fn(() => Promise.resolve(null)) },

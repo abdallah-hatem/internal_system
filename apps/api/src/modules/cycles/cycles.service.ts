@@ -20,6 +20,7 @@ import {
   lockCycle,
 } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
+import { assertCycleHasNoSamplesOut } from '../../common/samples-out';
 import {
   STANDING_FINANCING,
   assertLendersRepaid,
@@ -626,6 +627,9 @@ export class CyclesService {
       // Nor while a friend who paid a supplier is still owed (§18): the same
       // helper settlement `approve` calls.
       await assertLendersRepaid(db, id, cycle.code);
+      // Nor while any of its units are out at shops as samples (§4,
+      // samples at shops, 2026-10-18) — the helper settlement calls too.
+      await assertCycleHasNoSamplesOut(db, id, cycle.code);
     }
 
     // A cycle whose order a friend paid for did order something (§15, §18):

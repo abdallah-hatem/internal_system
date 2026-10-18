@@ -487,6 +487,26 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 25.4, 'stock received on a day that has not arrived',
          count(*) FROM inventory_batches
    WHERE (created_at AT TIME ZONE 'Africa/Cairo')::date > (now() AT TIME ZONE 'Africa/Cairo')::date
+  -- Samples left at a shop are not a sale (section 4, samples at shops,
+  -- 2026-10-18): open, returned or written off, they are worth nothing as a
+  -- sale and owe nothing, and no money is ever allocated to them.
+  UNION ALL SELECT 26, 'samples order with a total, a balance or money allocated',
+         count(*) FROM sale_orders o
+   WHERE o.status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF')
+     AND (o.total <> 0 OR o.outstanding <> 0
+          OR EXISTS (SELECT 1 FROM payment_allocations a WHERE a.sale_order_id = o.id))
+  -- Units at a shop are counted from the allocations of the open samples order:
+  -- they must be exactly the units on its lines, or "At shops" lies.
+  UNION ALL SELECT 26.1, 'open samples order whose batches do not hold its lines',
+         count(*) FROM sale_items i
+         JOIN sale_orders o ON o.id = i.sale_order_id
+   WHERE o.status = 'SAMPLES'
+     AND i.quantity <> coalesce((SELECT sum(a.qty) FROM sale_item_allocations a
+                                  WHERE a.sale_item_id = i.id), 0)
+  UNION ALL SELECT 26.2, 'samples order with no day it was left',
+         count(*) FROM sale_orders
+   WHERE status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF')
+     AND samples_left_at IS NULL
 SQL
 )
 

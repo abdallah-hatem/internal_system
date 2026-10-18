@@ -16,7 +16,9 @@ import {
 } from '../../common/ledger-categories';
 import { cashPosition } from '../../common/cash-position';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
-import { cycleLossesEgp } from '../../common/cycle-losses';
+import { cycleWriteOffsEgp } from '../../common/cycle-losses';
+import { cycleUnitsAtShops } from '../../common/samples-out';
+import { SAMPLES_WRITTEN_OFF_CATEGORY } from '../../common/samples';
 import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { owedToLenders } from '../../common/lenders-owed';
 import { countLowStock } from '../../common/low-stock';
@@ -67,6 +69,11 @@ export interface ProfitFigures {
   operatingExpenses: Prisma.Decimal;
   /** The part of operatingExpenses that is goods lost on the way. */
   losses: Prisma.Decimal;
+  /**
+   * The part of operatingExpenses that is samples the shops kept or lost
+   * (§4, samples at shops, 2026-10-18), on the day they were written off.
+   */
+  samplesWrittenOff: Prisma.Decimal;
   recovered: Prisma.Decimal;
   otherIncome: Prisma.Decimal;
   exchangeDiff: Prisma.Decimal;
@@ -278,8 +285,13 @@ export class AnalyticsService {
       await recoveryOf('INFLOW'),
       await recoveryOf('OUTFLOW'),
     ]);
-    const losses = await cycleLossesEgp(this.prisma, null, instants);
-    const operatingExpenses = operatingNet.add(losses);
+    // Samples written off are the same kind of cost (§4, samples at shops):
+    // goods paid for that will never sell, with no ledger row. One definition
+    // with settlement (common/cycle-losses.ts, rule 11).
+    const writeOffs = await cycleWriteOffsEgp(this.prisma, null, instants);
+    const losses = writeOffs.lostOnTheWay;
+    const samplesWrittenOff = writeOffs.samplesWrittenOff;
+    const operatingExpenses = operatingNet.add(writeOffs.total);
 
     // Repaying friends at a moved rate (§18): a cost or a gain of the cycles,
     // not an operating expense — shown on its own, and taken off net profit
@@ -298,6 +310,7 @@ export class AnalyticsService {
       cogs,
       operatingExpenses,
       losses,
+      samplesWrittenOff,
       recovered,
       otherIncome,
       exchangeDiff,
@@ -383,6 +396,10 @@ export class AnalyticsService {
     // Goods lost on the way are in Expenses with no ledger row (§2, §9).
     if (!figures.losses.isZero()) {
       byCategory.set(LOSSES_CATEGORY, figures.losses);
+    }
+    // Samples written off: its own line, "Samples written off" (§4).
+    if (!figures.samplesWrittenOff.isZero()) {
+      byCategory.set(SAMPLES_WRITTEN_OFF_CATEGORY, figures.samplesWrittenOff);
     }
     const expensesByCategory = [...byCategory.entries()]
       .filter(([, amount]) => !amount.isZero())
@@ -811,9 +828,18 @@ export class AnalyticsService {
     // read through the one definition (§2, §9; rule 11).
     const withStock = cycles.filter((c) => c.inventoryBatches.length > 0);
     const lossesByCycle = new Map<string, Prisma.Decimal>();
+    // Units out at shops as samples are unsold stock (§4, samples at shops).
+    const atShopsByCycle = new Map<
+      string,
+      { units: Prisma.Decimal; value: Prisma.Decimal }
+    >();
     const exchangeByCycle = new Map<string, Prisma.Decimal>();
     for (const c of withStock) {
-      lossesByCycle.set(c.id, await cycleLossesEgp(this.prisma, c.id));
+      lossesByCycle.set(
+        c.id,
+        (await cycleWriteOffsEgp(this.prisma, c.id)).total,
+      );
+      atShopsByCycle.set(c.id, await cycleUnitsAtShops(this.prisma, c.id));
       // Repaying friends at a moved rate (§18), as settlement reads it.
       exchangeByCycle.set(c.id, await exchangeDifferenceEgp(this.prisma, c.id));
     }
@@ -883,6 +909,12 @@ export class AnalyticsService {
         .sub(supplierRefunds)
         .add(exchangeByCycle.get(cycle.id) ?? D(0));
 
+      const atShops = atShopsByCycle.get(cycle.id);
+      if (atShops) {
+        unitsRemaining = unitsRemaining.add(atShops.units);
+        unsoldValue = unsoldValue.add(atShops.value);
+      }
+
       const losses = lossesByCycle.get(cycle.id) ?? D(0);
       const exchangeDiff = exchangeByCycle.get(cycle.id) ?? D(0);
       // Expenses charged to the cycle and other income credited to it, read
@@ -907,7 +939,7 @@ export class AnalyticsService {
         originType: cycle.originType,
         investment: money(investment),
         supplierRefundsEgp: money(supplierRefunds),
-        /** Goods lost on the way, already taken off profit (§2). */
+        /** Goods lost on the way and samples written off, already taken off profit (§2, §4). */
         lossesEgp: money(losses),
         /** Expenses charged to the cycle, already taken off profit (§9, L6). */
         expensesEgp: money(expenses),

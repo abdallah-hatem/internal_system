@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { OWED_STATUSES, owedBy } from '../../common/customer-balance';
+import { isSamplesStatus } from '../../common/samples';
 import type { Prisma } from '@prisma/client';
 
 /** A payment's day: `receivedOn` is a date column, UTC midnight of the day. */
@@ -460,6 +461,16 @@ export class PaymentsService {
 
     // Only a confirmed order owes anything (§4, §7a). A draft is not a sale
     // yet; a cancelled, returned or paid order owes nothing any more.
+    // Samples left at a shop are not a sale and owe nothing until the shop
+    // decides (§4, samples at shops, 2026-10-18); one returned or written off
+    // never will.
+    if (isSamplesStatus(order.status)) {
+      throw badRequest(
+        'SAMPLES_NOT_PAYABLE',
+        `Order ${order.orderNo} is samples left at a shop, not a sale, so nothing can be paid on it. Record what the shop decided first.`,
+        { order: order.orderNo },
+      );
+    }
     if (order.status === 'DRAFT') {
       throw badRequest(
         'ORDER_NOT_CONFIRMED',

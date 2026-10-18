@@ -4,7 +4,7 @@ import { localName, otherName } from '@/lib/localized-name';
 import { useId, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
-import { CheckCircle, Loader2, MinusCircle, Plus, Wallet } from 'lucide-react';
+import { CheckCircle, Loader2, MinusCircle, PackageOpen, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { isOffered, isSellable } from '@/lib/product-status';
@@ -67,6 +67,8 @@ export interface SavedOrder {
   order: { id: string; orderNo: string; status: string };
   confirmed: boolean;
   walkIn: boolean;
+  /** Samples left at the shop (§4, samples at shops): off the shelf, no sale. */
+  samples: boolean;
 }
 
 let lineSeq = 0;
@@ -111,6 +113,13 @@ function newIdempotencyKey(): string {
  * takes the payment, which the server does in one transaction. Turning it off
  * puts back the channel that was there before; the customer was never cleared. A refusal leaves the form open with every line as typed and
  * the reason shown, translated, above the buttons.
+ *
+ * **Samples — no charge yet** (BUSINESS_LOGIC §4, samples at shops, owner
+ * 2026-10-18): the amber switch above the fields. With it on the units leave
+ * the shelf and nothing is charged: prices are optional (one typed is noted
+ * for the decision), there is no discount and no total, no draft, and the one
+ * button reads "Leave samples". Samples go to a shop, so walk-in is not
+ * offered beside it; turning samples on turns walk-in off.
  *
  * Required pickers are checked the way `ValidatedForm` checks them — the
  * constraint API, so each empty picker shows its own "Required" and the first
@@ -161,6 +170,7 @@ export function SaleOrderForm({
   const [checked, setChecked] = useState(false);
   const [idempotencyKey] = useState(newIdempotencyKey);
   const [walkIn, setWalkIn] = useState(false);
+  const [samples, setSamples] = useState(false);
   const [method, setMethod] = useState<string>('CASH');
   /**
    * The day the sale was made (§4, 2026-10-16): today unless an earlier sale
@@ -228,6 +238,13 @@ export function SaleOrderForm({
     setRefusal(null);
   };
 
+  /** Samples on: a shop's order with no charge; walk-in, if it was on, goes off. */
+  const toggleSamples = () => {
+    if (!samples && walkIn) toggleWalkIn();
+    setSamples(!samples);
+    setRefusal(null);
+  };
+
   const update = (key: string, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
@@ -237,7 +254,9 @@ export function SaleOrderForm({
   // shown under each line and the total. A warning only — neither button
   // looks at it.
   // Only a back-dated sale names its day: today is the server's default.
+  // Samples are not sold, so there is no price to check against cost.
   const priceCheck = usePriceCheck(lines, currency, {
+    enabled: !samples,
     orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
   });
 
@@ -255,7 +274,12 @@ export function SaleOrderForm({
       api.post('/sales/orders', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
     onSuccess: (res, body) => {
       const order = res.data?.data ?? res.data;
-      onSaved({ order, confirmed: body.confirm === true, walkIn: body.walkIn === true });
+      onSaved({
+        order,
+        confirmed: body.confirm === true,
+        walkIn: body.walkIn === true,
+        samples: body.samples === true,
+      });
     },
     onError: (err) => setRefusal(apiError(err, t('saveFailed'))),
     onSettled: () => {
@@ -266,7 +290,7 @@ export function SaleOrderForm({
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (submitting.current) return;
-    if (walkIn) mode.current = 'confirm';
+    if (walkIn || samples) mode.current = 'confirm';
     // The form is noValidate (the browser would answer in English); the
     // pickers' `required` is checked here instead, in the reader's language.
     if (missing.length > 0) {
@@ -287,7 +311,22 @@ export function SaleOrderForm({
       discount,
     }));
     mutation.mutate(
-      walkIn
+      samples
+        ? // Left at the shop: a price only where one was typed — it is noted
+          // for the decision, nothing is charged — and never a discount.
+          {
+            samples: true,
+            customerId,
+            channel,
+            currency,
+            orderedOn,
+            items: lines.map(({ productId, quantity, unitPrice }) => ({
+              productId,
+              quantity,
+              ...(Number(unitPrice) > 0 ? { unitPrice } : {}),
+            })),
+          }
+        : walkIn
         ? // No customer and never a draft: the server confirms and records the
           // payment of the full total with the order, or does none of it.
           { walkIn: true, channel: 'B2C', currency, orderedOn, confirm: true, payment: { method }, items }
@@ -297,7 +336,7 @@ export function SaleOrderForm({
 
   const pending = mutation.isPending;
   const formId = useId();
-  const confirming = mutation.variables?.confirm === true;
+  const confirming = mutation.variables?.confirm === true || mutation.variables?.samples === true;
   const fieldClass =
     'w-full min-w-0 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2';
 
@@ -319,14 +358,14 @@ export function SaleOrderForm({
               <button
                 type="button"
                 onClick={onCancel}
-                className={`min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0 ${walkIn ? 'col-span-2' : ''}`}
+                className={`min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0 ${walkIn || samples ? 'col-span-2' : ''}`}
               >
                 {tc('cancel')}
               </button>
               {/* First in the DOM, so Enter in a field saves a draft rather than
                   confirming a sale — implicit submission clicks the first submit.
                   A walk-in has no draft (§4), so there it is not offered at all. */}
-              {!walkIn && (
+              {!walkIn && !samples && (
                 <button
                   type="submit"
                   form={formId}
@@ -343,21 +382,34 @@ export function SaleOrderForm({
                   form={formId}
                 onClick={() => (mode.current = 'confirm')}
                 disabled={pending}
-                className="order-first col-span-2 inline-flex min-h-11 cursor-pointer sm:order-none items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+                data-testid="sale-submit"
+                className={`order-first col-span-2 inline-flex min-h-11 cursor-pointer sm:order-none items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 ${
+                  samples
+                    ? 'bg-accent-600 text-primary-foreground hover:bg-accent-700'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                }`}
               >
                 {pending && confirming ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : samples ? (
+                  <PackageOpen className="h-4 w-4" />
                 ) : walkIn ? (
                   <Wallet className="h-4 w-4" />
                 ) : (
                   <CheckCircle className="h-4 w-4" />
                 )}
-                {walkIn ? t('sellAndTakePayment') : t('createAndConfirm')}
+                {samples ? t('samples.leave') : walkIn ? t('sellAndTakePayment') : t('createAndConfirm')}
               </button>
             </div>
       }
     >
     <form id={formId} onSubmit={submit} noValidate className="space-y-4" data-sale-order-form="">
+      <SamplesSwitch
+        on={samples}
+        onToggle={toggleSamples}
+        label={t('samples.switch')}
+        hint={t('samples.switchHint')}
+      />
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           {/* The label row holds the switch and keeps the height of the other
@@ -367,7 +419,8 @@ export function SaleOrderForm({
               {walkIn ? t('paymentMethod') : t('customer')}
               {!walkIn && <FieldMark required />}
             </label>
-            <WalkInSwitch on={walkIn} onToggle={toggleWalkIn} label={t('walkIn')} />
+            {/* Samples go to a shop: no walk-in beside them. */}
+            {!samples && <WalkInSwitch on={walkIn} onToggle={toggleWalkIn} label={t('walkIn')} />}
           </div>
           {walkIn ? (
             <Select
@@ -393,7 +446,7 @@ export function SaleOrderForm({
         </div>
         <div>
           <label htmlFor={`${formId}-ordered-on`} className="mb-1 block text-sm font-medium text-foreground">
-            {t('saleDate')}
+            {samples ? t('samples.leftOn') : t('saleDate')}
             <FieldMark required />
           </label>
           <DatePicker
@@ -408,7 +461,7 @@ export function SaleOrderForm({
               setRefusal(null);
             }}
           />
-          {orderedOn < businessToday() && (
+          {orderedOn < businessToday() && !samples && (
             <p data-testid="back-dated-note" className="mt-1 text-[11px] text-muted-foreground">
               {t('backDatedNote')}
             </p>
@@ -530,7 +583,13 @@ export function SaleOrderForm({
                 </div>
 
                 {/* Row 2: quantity / price / discount, with room for their values. */}
-                <div className="field-row mt-2 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
+                <div
+                  className={`field-row mt-2 grid gap-2 ${
+                    samples
+                      ? 'grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)]'
+                      : 'grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,1fr)]'
+                  }`}
+                >
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('quantity')}</label>
                     <input
@@ -553,7 +612,9 @@ export function SaleOrderForm({
                     )}
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">{t('unitPrice')}</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                      {samples ? t('samples.priceOptional') : t('unitPrice')}
+                    </label>
                     <MoneyInput
                       placeholder={tph('money')}
                       data-field="unitPrice"
@@ -574,6 +635,7 @@ export function SaleOrderForm({
                       </p>
                     )}
                   </div>
+                  {!samples && (
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">{t('discount')}</label>
                     <MoneyInput
@@ -592,15 +654,19 @@ export function SaleOrderForm({
                       <p className="mt-1 text-[11px] text-destructive">{t('discountTooLarge')}</p>
                     )}
                   </div>
+                  )}
                 </div>
 
+                {/* Samples have no line total: the order says "No charge yet" once. */}
+                {!samples && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-sm">
                   <span className="text-xs text-muted-foreground">{t('lineTotal')}</span>
                   <span className="whitespace-nowrap font-medium text-foreground" data-testid="line-total">
                     <Money value={lineTotals.lineTotalCents / 100} currency={currency} />
                   </span>
                 </div>
-                <BelowCostLine check={priceCheck?.lines[idx]} />
+                )}
+                {!samples && <BelowCostLine check={priceCheck?.lines[idx]} />}
               </li>
             );
           })}
@@ -618,7 +684,11 @@ export function SaleOrderForm({
               </span>
             )}
             <span className="text-base font-bold text-foreground" data-testid="order-total">
-              <Money value={totals.subtotalCents / 100} currency={currency} />
+              {samples ? (
+                <span className="text-sm font-semibold text-accent-700 dark:text-accent-300">{t('samples.noCharge')}</span>
+              ) : (
+                <Money value={totals.subtotalCents / 100} currency={currency} />
+              )}
             </span>
           </span>
         </div>
@@ -631,7 +701,7 @@ export function SaleOrderForm({
             {t('walkInPaidBy', { method: codeLabel('paymentMethod', method) })}
           </p>
         )}
-        <BelowCostTotal result={priceCheck} className="mt-2" />
+        {!samples && <BelowCostTotal result={priceCheck} className="mt-2" />}
       </div>
 
       {checked && missing.length > 0 ? (
@@ -654,6 +724,60 @@ export function SaleOrderForm({
       )}
     </form>
     </Dialog>
+  );
+}
+
+/**
+ * The samples switch (§4, samples at shops): amber, the colour of "not a sale
+ * yet", with its one-line explanation under the label. A typed `button` with
+ * `role="switch"`, so it never submits the form it sits in; the whole row is
+ * the touch target.
+ */
+function SamplesSwitch({
+  on,
+  onToggle,
+  label,
+  hint,
+}: {
+  on: boolean;
+  onToggle: () => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      data-testid="samples-switch"
+      onClick={onToggle}
+      className={`flex w-full cursor-pointer touch-manipulation select-none items-start gap-3 rounded-lg border px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        on
+          ? 'border-accent-400 bg-accent-50 dark:border-accent-500/60 dark:bg-accent-500/10'
+          : 'border-border bg-background hover:bg-muted'
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`relative mt-0.5 inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+          on ? 'bg-accent-500' : 'bg-muted-foreground/30'
+        }`}
+      >
+        <span
+          className={`inline-block size-3 rounded-full bg-background shadow transition-transform duration-150 ${
+            on ? 'translate-x-3.5 rtl:-translate-x-3.5' : 'translate-x-0.5 rtl:-translate-x-0.5'
+          }`}
+        />
+      </span>
+      <span className="min-w-0">
+        <span className={`block text-sm font-medium ${on ? 'text-accent-900 dark:text-accent-200' : 'text-foreground'}`}>
+          {label}
+        </span>
+        <span className={`block text-xs ${on ? 'text-accent-800 dark:text-accent-300' : 'text-muted-foreground'}`}>
+          {hint}
+        </span>
+      </span>
+    </button>
   );
 }
 

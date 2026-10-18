@@ -1,6 +1,8 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; stock value in EGP must not become a float
 import { Prisma } from '@prisma/client';
 
+import { cycleUnitsAtShops } from './samples-out';
+
 /**
  * What a cycle still holds on its shelves, and what it cost: every batch's
  * remaining units at its landed cost (§8, "unsold stock keeps its cost with
@@ -18,6 +20,10 @@ export async function unsoldStock(
       Prisma.TransactionClient['inventoryBatch'],
       'findMany'
     >;
+    saleItemAllocation: Pick<
+      Prisma.TransactionClient['saleItemAllocation'],
+      'findMany'
+    >;
   },
   cycleId: string,
 ) {
@@ -25,16 +31,21 @@ export async function unsoldStock(
     where: { cycleId },
     select: { remainingQty: true, landedUnitCostEgp: true },
   });
-  const unitsRemaining = batches.reduce(
-    (s, b) => s.add(b.remainingQty),
-    new Prisma.Decimal(0),
-  );
-  const unsoldValue = batches.reduce(
-    (s, b) =>
-      s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
-    new Prisma.Decimal(0),
-  );
-  return { unitsRemaining, unsoldValue };
+  // Units out at shops as samples are unsold too (§4, samples at shops,
+  // 2026-10-18): off the shelf, so not in remainingQty, and not sold, so in
+  // no allocation a sale counts. Added here once, at the cost they left at.
+  const atShops = await cycleUnitsAtShops(db, cycleId);
+  const unitsRemaining = batches
+    .reduce((s, b) => s.add(b.remainingQty), new Prisma.Decimal(0))
+    .add(atShops.units);
+  const unsoldValue = batches
+    .reduce(
+      (s, b) =>
+        s.add(new Prisma.Decimal(b.remainingQty).mul(b.landedUnitCostEgp)),
+      new Prisma.Decimal(0),
+    )
+    .add(atShops.value);
+  return { unitsRemaining, unsoldValue, unitsAtShops: atShops.units };
 }
 
 /**
@@ -47,6 +58,10 @@ export async function refreshOpenSettlementStock(
   db: {
     inventoryBatch: Pick<
       Prisma.TransactionClient['inventoryBatch'],
+      'findMany'
+    >;
+    saleItemAllocation: Pick<
+      Prisma.TransactionClient['saleItemAllocation'],
       'findMany'
     >;
     settlement: Pick<

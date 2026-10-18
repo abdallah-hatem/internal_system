@@ -39,6 +39,7 @@ vi.mock('@/lib/api', () => ({
 
 import { NotificationBell } from '@/components/layout/notification-bell';
 import { notificationHref } from '@/lib/notifications';
+import { pushLanding } from '@/lib/notification-href';
 
 beforeAll(() => {
   globalThis.ResizeObserver ??= class {
@@ -160,6 +161,12 @@ describe('where a notification the API actually raises takes you', () => {
 
   it('low stock (eventType LOW_STOCK_DETECTED, after a receipt or a sale) opens the stock page', () => {
     expect(href('LOW_STOCK_DETECTED', { products: [{ productId: 'x' }] })).toBe('/inventory');
+  });
+
+  it('samples at a shop for 14 days (SAMPLES_REMINDER, §4) open that order on Sales', () => {
+    expect(href('SAMPLES_REMINDER', { orderId: 'o-1', customerId: 'c-1' })).toBe('/sales?order=o-1');
+    // The push's tap asks the same mapping, so the phone opens the same order.
+    expect(pushLanding({ event: 'SAMPLES_REMINDER', orderId: 'o-1' })).toBe('/sales?order=o-1');
   });
 });
 

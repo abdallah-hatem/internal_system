@@ -15,6 +15,7 @@ import {
   SalesService,
   type CreateSaleOrderInput,
   type PriceCheckInput,
+  type SamplesDecisionInput,
 } from './sales.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -100,9 +101,53 @@ export class SalesController {
 
   @Post(':id/cancel')
   @Roles('CORE_PARTNER')
-  @ApiOperation({ summary: 'Cancel a sale order and release allocations' })
+  @ApiOperation({
+    summary:
+      'Cancel a sale order and release allocations. On samples still at a shop it is "Returned".',
+  })
   cancelOrder(@Param('id') id: string, @CurrentUser() user: any) {
     return this.salesService.cancelOrder(id, user.id);
+  }
+
+  // ─── Samples at shops (BUSINESS_LOGIC §4, owner 2026-10-18) ──────────
+
+  @Post(':id/samples/decide')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'The shop decided on its samples: per line, units bought (at a price) and units returned, which must add up to what is out. The bought part becomes this order, confirmed, dated today; the rest goes back on the shelf.',
+  })
+  decideSamples(
+    @Param('id') id: string,
+    @Body() body: SamplesDecisionInput,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.salesService.decideSamples(id, body, user.id);
+  }
+
+  @Post(':id/samples/return')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Every sample came back: all units back on the shelf.',
+  })
+  returnSamples(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.salesService.returnSamples(id, user.id);
+  }
+
+  /** The units are gone for good and their cost lands on their cycles: a partner's call. */
+  @Post(':id/samples/write-off')
+  @HttpCode(200)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary:
+      'The shop kept the samples or they were lost: their landed cost becomes a cost of the cycles they came from.',
+  })
+  writeOffSamples(
+    @Param('id') id: string,
+    @Body() body: { reason?: string } | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.salesService.writeOffSamples(id, body, user.id);
   }
 }
 
