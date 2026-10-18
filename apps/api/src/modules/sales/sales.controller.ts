@@ -15,7 +15,7 @@ import {
   SalesService,
   type CreateSaleOrderInput,
   type PriceCheckInput,
-  type SamplesDecisionInput,
+  type SamplesConversionInput,
 } from './sales.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -111,18 +111,18 @@ export class SalesController {
 
   // ─── Samples at shops (BUSINESS_LOGIC §4, owner 2026-10-18) ──────────
 
-  @Post(':id/samples/decide')
+  @Post(':id/samples/convert')
   @HttpCode(200)
   @ApiOperation({
     summary:
-      'The shop decided on its samples: per line, units bought (at a price) and units returned, which must add up to what is out. The bought part becomes this order, confirmed, dated today; the rest goes back on the shelf.',
+      "They're buying: the samples order becomes a confirmed sale, in place, with exactly these lines (as a new order sends them). Sample units kept come from what went out; units not kept go back to their batches; anything more is drawn from the shelf.",
   })
-  decideSamples(
+  convertSamples(
     @Param('id') id: string,
-    @Body() body: SamplesDecisionInput,
+    @Body() body: SamplesConversionInput,
     @CurrentUser() user: { id: string },
   ) {
-    return this.salesService.decideSamples(id, body, user.id);
+    return this.salesService.convertSamples(id, body, user.id);
   }
 
   @Post(':id/samples/return')

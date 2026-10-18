@@ -12,8 +12,9 @@ import { useEffect, useState } from 'react';
 import {
   Package, Tag, Barcode, DollarSign, TrendingUp, TrendingDown,
   Boxes, AlertTriangle, ShoppingCart, Truck, Store, Loader2, ChevronDown,
-  ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check,
+  ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check, PackageOpen,
 } from 'lucide-react';
+import { ProductSamplesCard, useProductSamples } from '@/components/products/product-samples';
 
 import { useApiError } from '../../../../lib/api-error';
 import { ProductPhotos } from '../../../../components/products/product-photos';
@@ -262,6 +263,9 @@ function ProductDetailSkeleton() {
               <DetailItemSkeleton />
             </div>
           </SectionCardSkeleton>
+          <SectionCardSkeleton heading="w-20">
+            <div className="space-y-2">{repeat(1, (i) => <PriceHistoryRowSkeleton key={i} />)}</div>
+          </SectionCardSkeleton>
           <SectionCardSkeleton>
             <div className="space-y-3">{repeat(2, (i) => <BatchRowSkeleton key={i} />)}</div>
           </SectionCardSkeleton>
@@ -349,6 +353,8 @@ export default function ProductDetailPage() {
 
   const activeB2B = activePrices.find((p) => p.channel === 'B2B');
   const activeB2C = activePrices.find((p) => p.channel === 'B2C');
+
+  const samplesOut = useProductSamples(productId);
 
   const allMovements: Movement[] = Array.isArray(batchMovements) ? batchMovements : [];
 
@@ -438,14 +444,15 @@ export default function ProductDetailPage() {
           iconBg="bg-amber-100 text-amber-600"
           valueColor="text-amber-600"
         />
+        {/* Units out as samples at shops (§4, owner 2026-10-18 round 2), in
+            the place the B2C price card had — the prices are in their own
+            card below. */}
         <StatCard
-          icon={<DollarSign className="h-5 w-5" />}
-          label={t('b2cPrice')}
-          // Money, not a formatted string: a plain string in an RTL card read
-          // "EGP 1,300.00" (L4 audit), currency first.
-          value={activeB2C ? <Money value={activeB2C.amount} currency={activeB2C.currency} /> : '—'}
-          iconBg="bg-primary-100 text-primary-600"
-          valueColor="text-primary-600"
+          icon={<PackageOpen className="h-5 w-5" />}
+          label={t('samples.title')}
+          value={<span data-testid="product-samples-stat">{formatNumber(samplesOut.units)}</span>}
+          iconBg="bg-accent-100 text-accent-800"
+          valueColor={samplesOut.units > 0 ? 'text-accent-800' : 'text-gray-900'}
         />
       </div>
 
@@ -499,6 +506,9 @@ export default function ProductDetailPage() {
               />
             </div>
           </div>
+
+          {/* ── Samples at shops ─────────────────────────────────── */}
+          <ProductSamplesCard productId={productId} />
 
           {/* ── Inventory Batches ────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">

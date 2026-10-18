@@ -248,7 +248,13 @@
     "inactiveNotice": "Deactivated — no more can be bought. What is on the shelf can still be sold; once it is gone, it leaves the sale form and the store.",
     "filterAll": "All",
     "statusFilter": "Show products",
-    "inStock": "In stock"
+    "inStock": "In stock",
+    "samples": {
+      "title": "Samples",
+      "units": "{count, plural, one {# unit out} other {# units out}}",
+      "emptyTitle": "No samples out",
+      "emptyHint": "Units of this product left at shops as samples show here until the shop decides."
+    }
   },
   "cycles": {
     "title": "Import Cycles",
@@ -429,7 +435,7 @@
     "noBatchesTitle": "No batches left for this product",
     "noMovementsTitle": "No movements in this batch yet",
     "onShelf": "On shelf",
-    "atShops": "At shops",
+    "atShops": "Samples",
     "allStock": "Total",
     "atShopsHint": "Units out at shops as samples — off the shelf, not sold"
   },
@@ -595,11 +601,11 @@
       "priceOptional": "Price (optional)",
       "noCharge": "No charge yet",
       "left": "Samples left at {shop}",
-      "badge": "Samples at shop · {units, plural, one {# unit} other {# units}}",
+      "badge": "Samples · {units, plural, one {# unit} other {# units}}",
       "leftAgo": "Left {days, plural, =0 {today} one {# day ago} other {# days ago}}",
       "reminderOn": "Reminder {date}",
       "reminderSent": "Reminder sent",
-      "atShopTitle": "At {shop} since {date}",
+      "atShopTitle": "Samples at {shop} since {date}",
       "atShopHint": "Not a sale and nothing owed until the shop decides.",
       "buying": "They're buying",
       "returned": "Returned",
@@ -618,22 +624,11 @@
       "returnedToast": "Samples are back on the shelf",
       "writtenOffToast": "Samples written off",
       "boughtToast": "Sale recorded — {orderNo}",
-      "decideTitle": "They're buying — {orderNo}",
-      "decideHelp": "For each product: how many they are buying and how many came back. What they buy becomes a sale dated today; the rest goes back on the shelf.",
-      "out": "At the shop",
-      "buyQty": "Buying",
-      "returnQty": "Returned",
-      "priceEach": "Price each",
-      "mustAddUp": "Buying + returned must be {out}",
-      "priceNeeded": "Enter a price",
-      "noNegative": "Cannot be negative",
-      "saleTotal": "Sale total",
-      "backOnShelf": "Back on the shelf",
-      "units": "{count, plural, one {# unit} other {# units}}",
-      "recordDecision": "Record the sale",
-      "allReturnedNote": "Nothing bought: the samples are recorded as returned.",
       "noChargeCell": "No charge",
-      "writeOffReasonPlaceholder": "Kept for the shop window — two helmets"
+      "writeOffReasonPlaceholder": "Kept for the shop window — two helmets",
+      "complete": "Complete sale",
+      "completeTitle": "Complete sale from samples {orderNo}",
+      "completeNote": "{units, plural, one {# unit was} other {# units were}} out as samples; anything you remove goes back to the shelf."
     }
   },
   "customers": {
@@ -1690,14 +1685,12 @@
     "SAMPLES_ALREADY_DECIDED": "{order} is no longer samples at the shop ({status}); what the shop decided is already recorded.",
     "NOT_SAMPLES": "{order} is not samples left at a shop.",
     "INVOICE_SAMPLES": "{order} is samples left at a shop, not a sale, so it has no invoice.",
-    "SAMPLES_LINE_NOT_IN_ORDER": "That line is not one of the samples left on {order}.",
-    "SAMPLES_LINE_TWICE": "{product} is decided twice on {order}.",
-    "SAMPLES_LINE_MISSING": "Say what happened to {product}: how many they are buying and how many came back.",
-    "SAMPLES_QTY_NEGATIVE": "A quantity cannot be negative ({product}).",
-    "SAMPLES_DECISION_MISMATCH": "{out} of {product} are at the shop: buying {buying} and returning {returned} must add up to it.",
-    "SAMPLES_PRICE_REQUIRED": "Enter the price they are paying for {product}.",
     "CYCLE_HAS_SAMPLES_OUT": "{units} unit(s) of cycle {cycle} are out as samples at {shops}. Record what the shops decided — bought, returned or written off — before settling.",
-    "SAMPLES_NOT_PAYABLE": "{order} is samples left at a shop, not a sale, so nothing can be paid on it. Record what the shop decided first."
+    "SAMPLES_NOT_PAYABLE": "{order} is samples left at a shop, not a sale, so nothing can be paid on it. Record what the shop decided first.",
+    "SAMPLES_NOTHING_KEPT": "Nothing is on the sale from {order}. If every sample came back, record \"Returned\".",
+    "SAMPLES_OTHER_SHOP": "The samples on {order} were left with {shop}; the sale from them is to {shop}.",
+    "SAMPLES_SALE_BEFORE_LEFT": "The samples on {order} were left on {left}, so the sale cannot be dated {day}.",
+    "SAMPLES_EXTRA_NOT_IN_STOCK": "{out} of {product} went out as samples; selling {wanted} needs {extra} more from the shelf, and only {available} is there."
   },
   "requests": {
     "tabs": {
@@ -1811,7 +1804,7 @@
       "PAID": "Paid",
       "CANCELLED": "Cancelled",
       "RETURNED": "Returned",
-      "SAMPLES": "Samples at shop",
+      "SAMPLES": "Samples",
       "SAMPLES_RETURNED": "Samples returned",
       "SAMPLES_WRITTEN_OFF": "Samples written off"
     },

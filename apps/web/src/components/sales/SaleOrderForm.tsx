@@ -4,7 +4,7 @@ import { localName, otherName } from '@/lib/localized-name';
 import { useId, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
-import { CheckCircle, Loader2, MinusCircle, PackageOpen, Plus, Wallet } from 'lucide-react';
+import { CheckCircle, Loader2, MinusCircle, PackageCheck, PackageOpen, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { isOffered, isSellable } from '@/lib/product-status';
@@ -69,6 +69,24 @@ export interface SavedOrder {
   walkIn: boolean;
   /** Samples left at the shop (§4, samples at shops): off the shelf, no sale. */
   samples: boolean;
+  /** A samples order completed as a sale ("They're buying", §4 round 2). */
+  fromSamples?: boolean;
+}
+
+/**
+ * An open samples order, as "They're buying" opens the form on it (BUSINESS_LOGIC
+ * §4, owner 2026-10-18 round 2): the shop, the channel and currency, and every
+ * line that went out with the price noted when it was left.
+ */
+export interface SamplesSource {
+  id: string;
+  orderNo: string;
+  customerId: string;
+  channel: string;
+  currency: string;
+  /** The Cairo day they were left: the sale cannot be dated before it. */
+  leftOn?: string;
+  items?: { productId: string; quantity: number | string; unitPrice: number | string }[];
 }
 
 let lineSeq = 0;
@@ -80,6 +98,40 @@ const emptyLine = (): Line => ({
   discount: 0,
   priceTyped: false,
 });
+
+/** A product's current list price for a channel, or null if none is set. */
+function listPrice(products: SaleFormProduct[], productId: string, channel: string): number | null {
+  const active = products
+    .find((p) => p.id === productId)
+    ?.prices?.find((pr) => pr.channel === channel && !pr.effectiveTo);
+  return active ? Number(active.amount) : null;
+}
+
+/**
+ * The lines "They're buying" opens with (§4 round 2): every line that went
+ * out, at its quantity, priced at the price noted when it was left — a typed
+ * decision, kept whatever the channel does — else the product's price for the
+ * order's channel, else empty.
+ */
+export function linesFromSamples(source: SamplesSource, products: SaleFormProduct[]): Line[] {
+  return (source.items ?? []).map((item) => {
+    const noted = Number(item.unitPrice);
+    return {
+      ...emptyLine(),
+      productId: item.productId,
+      quantity: Number(item.quantity),
+      unitPrice: noted > 0 ? noted : (listPrice(products, item.productId, source.channel) ?? 0),
+      priceTyped: noted > 0,
+    };
+  });
+}
+
+/** Units of a product out on the samples order: they count as available to this sale. */
+export function outOnSamples(source: SamplesSource | undefined, productId: string): number {
+  return (source?.items ?? [])
+    .filter((i) => i.productId === productId)
+    .reduce((s, i) => s + Number(i.quantity), 0);
+}
 
 /**
  * One key per opened form. `crypto.randomUUID` only exists in a secure
@@ -121,6 +173,14 @@ function newIdempotencyKey(): string {
  * button reads "Leave samples". Samples go to a shop, so walk-in is not
  * offered beside it; turning samples on turns walk-in off.
  *
+ * **From samples** (`fromSamples`, §4, owner 2026-10-18 round 2): "They're
+ * buying" opens this same form on the samples order, pre-filled — the shop
+ * (fixed: the samples were left with it), today, and every line that went out
+ * with its price. Lines can be lowered, removed, raised and added exactly as on
+ * a new order; a product's units out on the order count as available to it.
+ * One button, "Complete sale", sends the lines to `…/samples/convert`, where
+ * the server keeps what went out, puts the rest back and draws anything more.
+ *
  * Required pickers are checked the way `ValidatedForm` checks them — the
  * constraint API, so each empty picker shows its own "Required" and the first
  * takes the focus — but the line naming them is worked out from the form's
@@ -136,6 +196,7 @@ export function SaleOrderForm({
   onCancel,
   onSaved,
   title,
+  fromSamples,
 }: {
   /** The dialog's title: the form renders in the shared dialog, its actions in the fixed footer. */
   title: string;
@@ -145,6 +206,8 @@ export function SaleOrderForm({
   initialCustomerId?: string;
   onCancel: () => void;
   onSaved: (saved: SavedOrder) => void;
+  /** Complete this samples order as a sale ("They're buying", §4 round 2). */
+  fromSamples?: SamplesSource;
 }) {
   const codeLabel = useCodeLabel();
   const t = useTranslations('sales');
@@ -160,10 +223,16 @@ export function SaleOrderForm({
     return type === 'B2B' || type === 'B2C' ? type : null;
   };
 
-  const [customerId, setCustomerId] = useState(initialCustomerId ?? '');
-  const [channel, setChannel] = useState<string>(() => channelOf(initialCustomerId) ?? 'B2B');
-  const [currency, setCurrency] = useState('EGP');
-  const [lines, setLines] = useState<Line[]>(() => [emptyLine()]);
+  const [customerId, setCustomerId] = useState(fromSamples?.customerId ?? initialCustomerId ?? '');
+  const [channel, setChannel] = useState<string>(
+    () => fromSamples?.channel ?? channelOf(initialCustomerId) ?? 'B2B',
+  );
+  const [currency, setCurrency] = useState(fromSamples?.currency ?? 'EGP');
+  const [lines, setLines] = useState<Line[]>(() =>
+    fromSamples ? linesFromSamples(fromSamples, products) : [emptyLine()],
+  );
+  /** Units that went out on the samples order, for the line under the title. */
+  const unitsOut = fromSamples ? (fromSamples.items ?? []).reduce((s, i) => s + Number(i.quantity), 0) : 0;
   /** The server's refusal, translated. */
   const [refusal, setRefusal] = useState<string | null>(null);
   /** A submit was stopped for empty required fields, and they are still empty. */
@@ -186,19 +255,18 @@ export function SaleOrderForm({
   const submitting = useRef(false);
   const mode = useRef<'draft' | 'confirm'>('draft');
 
-  /** Units of a product available to sell right now. */
+  /**
+   * Units of a product available to sell right now: the shelf, plus — when
+   * completing samples — the units of it out on that order, which the sale
+   * keeps first.
+   */
   const stockFor = (productId: string): number => {
     const row = stock.find((r) => r.productId === productId);
-    return row ? Number(row.availableStock ?? 0) : 0;
+    return (row ? Number(row.availableStock ?? 0) : 0) + outOnSamples(fromSamples, productId);
   };
 
   /** The product's current list price for a channel, or null if none is set. */
-  const priceFor = (productId: string, ch: string): number | null => {
-    const active = products
-      .find((p) => p.id === productId)
-      ?.prices?.find((pr) => pr.channel === ch && !pr.effectiveTo);
-    return active ? Number(active.amount) : null;
-  };
+  const priceFor = (productId: string, ch: string): number | null => listPrice(products, productId, ch);
 
   /** Switch channel and re-price every line whose price nobody typed. */
   const applyChannel = (next: string) => {
@@ -255,8 +323,10 @@ export function SaleOrderForm({
   // looks at it.
   // Only a back-dated sale names its day: today is the server's default.
   // Samples are not sold, so there is no price to check against cost.
+  // Completing samples is not checked either: the units kept are costed at
+  // what they left at, which the shelf's FIFO cost the check reads is not.
   const priceCheck = usePriceCheck(lines, currency, {
-    enabled: !samples,
+    enabled: !samples && !fromSamples,
     orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
   });
 
@@ -271,14 +341,17 @@ export function SaleOrderForm({
 
   const mutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      api.post('/sales/orders', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
+      fromSamples
+        ? api.post(`/sales/orders/${fromSamples.id}/samples/convert`, body)
+        : api.post('/sales/orders', body, { headers: { 'Idempotency-Key': idempotencyKey } }),
     onSuccess: (res, body) => {
       const order = res.data?.data ?? res.data;
       onSaved({
         order,
-        confirmed: body.confirm === true,
+        confirmed: body.confirm === true || !!fromSamples,
         walkIn: body.walkIn === true,
         samples: body.samples === true,
+        fromSamples: !!fromSamples,
       });
     },
     onError: (err) => setRefusal(apiError(err, t('saveFailed'))),
@@ -290,7 +363,7 @@ export function SaleOrderForm({
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (submitting.current) return;
-    if (walkIn || samples) mode.current = 'confirm';
+    if (walkIn || samples || fromSamples) mode.current = 'confirm';
     // The form is noValidate (the browser would answer in English); the
     // pickers' `required` is checked here instead, in the reader's language.
     if (missing.length > 0) {
@@ -311,7 +384,11 @@ export function SaleOrderForm({
       discount,
     }));
     mutation.mutate(
-      samples
+      fromSamples
+        ? // Exactly the lines on screen: the server keeps what went out, puts
+          // back what is not here, and draws anything more from the shelf.
+          { customerId, channel, currency, orderedOn, items }
+        : samples
         ? // Left at the shop: a price only where one was typed — it is noted
           // for the decision, nothing is charged — and never a discount.
           {
@@ -336,7 +413,10 @@ export function SaleOrderForm({
 
   const pending = mutation.isPending;
   const formId = useId();
-  const confirming = mutation.variables?.confirm === true || mutation.variables?.samples === true;
+  const confirming =
+    mutation.variables?.confirm === true || mutation.variables?.samples === true || !!fromSamples;
+  /** One button only: walk-in, samples, and completing samples have no draft. */
+  const single = walkIn || samples || !!fromSamples;
   const fieldClass =
     'w-full min-w-0 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2';
 
@@ -358,14 +438,14 @@ export function SaleOrderForm({
               <button
                 type="button"
                 onClick={onCancel}
-                className={`min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0 ${walkIn || samples ? 'col-span-2' : ''}`}
+                className={`min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted sm:min-h-0 ${single ? 'col-span-2' : ''}`}
               >
                 {tc('cancel')}
               </button>
               {/* First in the DOM, so Enter in a field saves a draft rather than
                   confirming a sale — implicit submission clicks the first submit.
                   A walk-in has no draft (§4), so there it is not offered at all. */}
-              {!walkIn && !samples && (
+              {!single && (
                 <button
                   type="submit"
                   form={formId}
@@ -391,6 +471,8 @@ export function SaleOrderForm({
               >
                 {pending && confirming ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : fromSamples ? (
+                  <PackageCheck className="h-4 w-4" />
                 ) : samples ? (
                   <PackageOpen className="h-4 w-4" />
                 ) : walkIn ? (
@@ -398,18 +480,35 @@ export function SaleOrderForm({
                 ) : (
                   <CheckCircle className="h-4 w-4" />
                 )}
-                {samples ? t('samples.leave') : walkIn ? t('sellAndTakePayment') : t('createAndConfirm')}
+                {fromSamples
+                  ? t('samples.complete')
+                  : samples
+                  ? t('samples.leave')
+                  : walkIn
+                  ? t('sellAndTakePayment')
+                  : t('createAndConfirm')}
               </button>
             </div>
       }
     >
     <form id={formId} onSubmit={submit} noValidate className="space-y-4" data-sale-order-form="">
-      <SamplesSwitch
-        on={samples}
-        onToggle={toggleSamples}
-        label={t('samples.switch')}
-        hint={t('samples.switchHint')}
-      />
+      {fromSamples ? (
+        // Completing samples: say so, and what removing a line means.
+        <p
+          data-testid="samples-convert-note"
+          className="flex items-start gap-2 rounded-lg border border-accent-300 bg-accent-50 px-3 py-2.5 text-sm text-accent-900"
+        >
+          <PackageCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>{t('samples.completeNote', { units: unitsOut })}</span>
+        </p>
+      ) : (
+        <SamplesSwitch
+          on={samples}
+          onToggle={toggleSamples}
+          label={t('samples.switch')}
+          hint={t('samples.switchHint')}
+        />
+      )}
       <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           {/* The label row holds the switch and keeps the height of the other
@@ -420,7 +519,7 @@ export function SaleOrderForm({
               {!walkIn && <FieldMark required />}
             </label>
             {/* Samples go to a shop: no walk-in beside them. */}
-            {!samples && <WalkInSwitch on={walkIn} onToggle={toggleWalkIn} label={t('walkIn')} />}
+            {!samples && !fromSamples && <WalkInSwitch on={walkIn} onToggle={toggleWalkIn} label={t('walkIn')} />}
           </div>
           {walkIn ? (
             <Select
@@ -429,6 +528,17 @@ export function SaleOrderForm({
               placeholder={tph('choosePaymentMethod')}
               onChange={setMethod}
               options={PAYMENT_METHODS.map((m) => ({ value: m, label: codeLabel('paymentMethod', m) }))}
+            />
+          ) : fromSamples ? (
+            // The samples were left with this shop: the sale is to it.
+            <Select
+              name="customerId"
+              required
+              disabled
+              value={customerId}
+              onChange={() => {}}
+              placeholder={tph('chooseCustomer')}
+              options={customers.map((c) => ({ value: c.id, label: c.displayName, hint: codeLabel('customerType', c.type) }))}
             />
           ) : (
             <FieldWithQuickCreate entity="customer" onCreated={(c) => onCustomerChange(c.id, c)}>
@@ -454,6 +564,8 @@ export function SaleOrderForm({
             name="orderedOn"
             required
             disableFuture
+            // A sale from samples cannot predate the day they were left.
+            min={fromSamples?.leftOn}
             value={orderedOn}
             onChange={(day) => {
               setOrderedOn(day || businessToday());
@@ -685,7 +797,7 @@ export function SaleOrderForm({
             )}
             <span className="text-base font-bold text-foreground" data-testid="order-total">
               {samples ? (
-                <span className="text-sm font-semibold text-accent-700 dark:text-accent-300">{t('samples.noCharge')}</span>
+                <span className="text-sm font-semibold text-accent-800">{t('samples.noCharge')}</span>
               ) : (
                 <Money value={totals.subtotalCents / 100} currency={currency} />
               )}
@@ -732,6 +844,12 @@ export function SaleOrderForm({
  * yet", with its one-line explanation under the label. A typed `button` with
  * `role="switch"`, so it never submits the form it sits in; the whole row is
  * the touch target.
+ *
+ * Both lines are accent-900 on accent-50 when on (8.8:1; WCAG AA asks 4.5).
+ * No `dark:` variants: the office has one light palette whatever the OS says,
+ * and Tailwind's `dark:` follows the OS — on a Mac in dark mode it swapped the
+ * text for accent-200/300 while the box stayed pale, which is the unreadable
+ * pale-orange-on-pale-orange the owner sent (1.2:1 and 1.5:1, 2026-10-18).
  */
 function SamplesSwitch({
   on,
@@ -753,7 +871,7 @@ function SamplesSwitch({
       onClick={onToggle}
       className={`flex w-full cursor-pointer touch-manipulation select-none items-start gap-3 rounded-lg border px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         on
-          ? 'border-accent-400 bg-accent-50 dark:border-accent-500/60 dark:bg-accent-500/10'
+          ? 'border-accent-400 bg-accent-50'
           : 'border-border bg-background hover:bg-muted'
       }`}
     >
@@ -770,10 +888,10 @@ function SamplesSwitch({
         />
       </span>
       <span className="min-w-0">
-        <span className={`block text-sm font-medium ${on ? 'text-accent-900 dark:text-accent-200' : 'text-foreground'}`}>
+        <span className={`block text-sm font-medium ${on ? 'text-accent-900' : 'text-foreground'}`}>
           {label}
         </span>
-        <span className={`block text-xs ${on ? 'text-accent-800 dark:text-accent-300' : 'text-muted-foreground'}`}>
+        <span className={`block text-xs ${on ? 'text-accent-900' : 'text-muted-foreground'}`}>
           {hint}
         </span>
       </span>

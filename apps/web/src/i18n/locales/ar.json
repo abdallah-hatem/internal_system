@@ -248,7 +248,13 @@
     "inactiveNotice": "موقوف — لا يُشترى منه المزيد. ما على الرف يمكن بيعه، وعند نفاده يخرج من نموذج البيع والمتجر.",
     "filterAll": "الكل",
     "statusFilter": "عرض المنتجات",
-    "inStock": "في المخزون"
+    "inStock": "في المخزون",
+    "samples": {
+      "title": "عينات",
+      "units": "{count, plural, one {وحدة واحدة بالخارج} two {وحدتان بالخارج} few {# وحدات بالخارج} many {# وحدة بالخارج} other {# وحدة بالخارج}}",
+      "emptyTitle": "لا توجد عينات بالخارج",
+      "emptyHint": "الوحدات المتروكة من هذا الصنف عند المحلات كعينات تظهر هنا حتى يقرر المحل."
+    }
   },
   "cycles": {
     "title": "دورات الاستيراد",
@@ -429,7 +435,7 @@
     "noBatchesTitle": "لا توجد تشغيلات متبقية لهذا المنتج",
     "noMovementsTitle": "لا توجد حركات في هذه التشغيلة بعد",
     "onShelf": "على الرف",
-    "atShops": "عند المحلات",
+    "atShops": "عينات",
     "allStock": "الإجمالي",
     "atShopsHint": "وحدات عند المحلات كعينات — ليست على الرف ولم تُبع"
   },
@@ -595,11 +601,11 @@
       "priceOptional": "السعر (اختياري)",
       "noCharge": "بدون حساب الآن",
       "left": "تُركت العينات عند {shop}",
-      "badge": "عينات عند المحل · {units, plural, one {وحدة واحدة} two {وحدتان} few {# وحدات} many {# وحدة} other {# وحدة}}",
+      "badge": "عينات · {units, plural, one {وحدة واحدة} two {وحدتان} few {# وحدات} many {# وحدة} other {# وحدة}}",
       "leftAgo": "{days, plural, =0 {تُركت اليوم} one {تُركت منذ يوم} two {تُركت منذ يومين} few {تُركت منذ # أيام} other {تُركت منذ # يوماً}}",
       "reminderOn": "التذكير {date}",
       "reminderSent": "تم إرسال التذكير",
-      "atShopTitle": "عند {shop} منذ {date}",
+      "atShopTitle": "عينات عند {shop} منذ {date}",
       "atShopHint": "ليست بيعاً ولا مديونية حتى يقرر المحل.",
       "buying": "سيشترون",
       "returned": "رجعت",
@@ -618,22 +624,11 @@
       "returnedToast": "رجعت العينات إلى الرف",
       "writtenOffToast": "تم شطب العينات",
       "boughtToast": "تم تسجيل البيع — {orderNo}",
-      "decideTitle": "سيشترون — {orderNo}",
-      "decideHelp": "لكل صنف: كم سيشترون وكم رجع. ما يشترونه يصبح بيعاً بتاريخ اليوم، والباقي يرجع إلى الرف.",
-      "out": "عند المحل",
-      "buyQty": "شراء",
-      "returnQty": "مرتجع",
-      "priceEach": "سعر الوحدة",
-      "mustAddUp": "يجب أن يساوي الشراء + المرتجع {out}",
-      "priceNeeded": "أدخل السعر",
-      "noNegative": "لا يمكن أن تكون سالبة",
-      "saleTotal": "إجمالي البيع",
-      "backOnShelf": "يرجع إلى الرف",
-      "units": "{count, plural, one {وحدة واحدة} two {وحدتان} few {# وحدات} many {# وحدة} other {# وحدة}}",
-      "recordDecision": "سجّل البيع",
-      "allReturnedNote": "لم يشتروا شيئاً: تُسجل العينات كمرتجعة.",
       "noChargeCell": "بدون حساب",
-      "writeOffReasonPlaceholder": "احتفظ بها المحل للعرض — خوذتان"
+      "writeOffReasonPlaceholder": "احتفظ بها المحل للعرض — خوذتان",
+      "complete": "أكمل البيع",
+      "completeTitle": "إكمال البيع من العينات {orderNo}",
+      "completeNote": "{units, plural, one {خرجت وحدة واحدة} two {خرجت وحدتان} few {خرجت # وحدات} many {خرجت # وحدة} other {خرجت # وحدة}} كعينات؛ أي شيء تحذفه يرجع إلى الرف."
     }
   },
   "customers": {
@@ -1690,14 +1685,12 @@
     "SAMPLES_ALREADY_DECIDED": "لم يعد {order} عينات عند المحل ({status})؛ قرار المحل مسجل بالفعل.",
     "NOT_SAMPLES": "{order} ليس عينات متروكة عند محل.",
     "INVOICE_SAMPLES": "{order} عينات متروكة عند محل وليس بيعاً، فلا فاتورة له.",
-    "SAMPLES_LINE_NOT_IN_ORDER": "هذا السطر ليس من العينات المتروكة في {order}.",
-    "SAMPLES_LINE_TWICE": "تم تسجيل قرار {product} مرتين في {order}.",
-    "SAMPLES_LINE_MISSING": "حدد ما حدث لـ {product}: كم سيشترون وكم رجع.",
-    "SAMPLES_QTY_NEGATIVE": "لا يمكن أن تكون الكمية سالبة ({product}).",
-    "SAMPLES_DECISION_MISMATCH": "عند المحل {out} من {product}: يجب أن يساوي مجموع الشراء {buying} والمرتجع {returned} هذا العدد.",
-    "SAMPLES_PRICE_REQUIRED": "أدخل السعر الذي سيدفعونه مقابل {product}.",
     "CYCLE_HAS_SAMPLES_OUT": "{units} وحدة من الدورة {cycle} موجودة كعينات عند {shops}. سجّل قرار المحلات — شراء أو إرجاع أو شطب — قبل التسوية.",
-    "SAMPLES_NOT_PAYABLE": "{order} عينات متروكة عند محل وليس بيعاً، فلا يمكن الدفع عليه. سجّل قرار المحل أولاً."
+    "SAMPLES_NOT_PAYABLE": "{order} عينات متروكة عند محل وليس بيعاً، فلا يمكن الدفع عليه. سجّل قرار المحل أولاً.",
+    "SAMPLES_NOTHING_KEPT": "لا شيء في البيع من {order}. إذا رجعت كل العينات، سجّل \"رجعت\".",
+    "SAMPLES_OTHER_SHOP": "عينات {order} تُركت عند {shop}؛ البيع منها يكون لـ {shop}.",
+    "SAMPLES_SALE_BEFORE_LEFT": "عينات {order} تُركت في {left}، فلا يمكن أن يكون تاريخ البيع {day}.",
+    "SAMPLES_EXTRA_NOT_IN_STOCK": "خرج {out} من {product} كعينات؛ بيع {wanted} يحتاج {extra} إضافية من الرف، والموجود {available} فقط."
   },
   "requests": {
     "tabs": {
@@ -1811,7 +1804,7 @@
       "PAID": "مدفوع",
       "CANCELLED": "ملغى",
       "RETURNED": "مرتجع",
-      "SAMPLES": "عينات عند المحل",
+      "SAMPLES": "عينات",
       "SAMPLES_RETURNED": "عينات مرتجعة",
       "SAMPLES_WRITTEN_OFF": "عينات مشطوبة"
     },

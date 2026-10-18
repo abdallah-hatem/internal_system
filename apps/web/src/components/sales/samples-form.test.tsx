@@ -5,18 +5,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
-import { SaleOrderForm, type SaleFormProduct } from './SaleOrderForm';
 import {
-  SamplesDecideDialog,
-  initialRows,
-  rowProblem,
-  typeQty,
-  type SamplesOrder,
-} from './samples-decide';
+  SaleOrderForm,
+  linesFromSamples,
+  outOnSamples,
+  type SaleFormProduct,
+  type SamplesSource,
+} from './SaleOrderForm';
+import { businessToday } from '@/lib/dates';
 
 /**
  * Samples at shops (BUSINESS_LOGIC §4, owner 2026-10-18), on screen: the
- * switch in the New Order popup, and the "They're buying" dialog. Each test
+ * switch in the New Order popup, and "They're buying" — the same popup opened
+ * pre-filled from the samples (owner 2026-10-18, round 2). Each test
  * reaches the field the way a person does — the switch is clicked, a quantity
  * is typed — and reads what they would see.
  */
@@ -180,6 +181,27 @@ describe('New Order popup — "Samples — no charge yet"', () => {
     expect(screen.getByTestId('samples-switch').getAttribute('aria-checked')).toBe('true');
   });
 
+  it('the switch box is readable: strong accent text on the pale box when on, the normal text colours when off — and no dark-mode swap to pale text', () => {
+    renderForm();
+    const sw = screen.getByTestId('samples-switch');
+    const [title, hint] = sw.querySelectorAll<HTMLElement>('span.block');
+    expect(title.textContent).toBe(en.sales.samples.switch);
+    expect(hint.textContent).toBe(en.sales.samples.switchHint);
+    // Off: the form's own text colours on the page's background.
+    expect(title.className).toContain('text-foreground');
+    expect(hint.className).toContain('text-muted-foreground');
+    fireEvent.click(sw);
+    // On: accent-900 (#7c2d12) on accent-50 (#fff7ed), 8.8:1 — both lines.
+    expect(sw.className).toContain('bg-accent-50');
+    for (const line of [title, hint]) {
+      expect(line.className).toContain('text-accent-900');
+      expect(line.className).not.toMatch(/text-accent-(?:[1-6]00)\b/);
+    }
+    // The office has one light palette; `dark:` follows the OS and turned the
+    // text pale on the pale box (the owner's screenshot).
+    expect(sw.outerHTML).not.toMatch(/dark:/);
+  });
+
   it('Arabic: the switch, its explanation and the button are Arabic', () => {
     renderForm('ar');
     fireEvent.click(screen.getByTestId('samples-switch'));
@@ -189,113 +211,183 @@ describe('New Order popup — "Samples — no charge yet"', () => {
   });
 });
 
-// ─── The decide dialog ───────────────────────────────────────────────
+// ─── "They're buying": the same popup, pre-filled from the samples ───
 
-const ORDER: SamplesOrder = {
+const CHAIN: SaleFormProduct = { id: 'p-chain', name: 'Chain', sku: 'CH-1', prices: [{ channel: 'B2B', amount: 120 }] };
+const BOLT: SaleFormProduct = { id: 'p-bolt', name: 'Bolt', sku: 'B-1' };
+const MIRROR: SaleFormProduct = {
+  id: 'p-mirror',
+  name: 'Mirror',
+  sku: 'MR-1',
+  prices: [
+    { channel: 'B2B', amount: 300 },
+    { channel: 'B2C', amount: 350 },
+  ],
+};
+const SOURCE: SamplesSource = {
   id: 'o-1',
   orderNo: 'ORD-2026-00042',
+  customerId: SHOP.id,
   channel: 'B2B',
   currency: 'EGP',
+  leftOn: '2026-10-08',
   items: [
-    { id: 'i-piston', productId: PISTON.id, product: { name: 'Piston kit', sku: 'PK-1' }, quantity: 5, unitPrice: 0 },
-    { id: 'i-chain', productId: 'p-chain', product: { name: 'Chain', sku: 'CH-1' }, quantity: 3, unitPrice: 95 },
-    { id: 'i-bolt', productId: 'p-bolt', product: { name: 'Bolt', sku: 'B-1' }, quantity: 2, unitPrice: 0 },
+    { productId: PISTON.id, quantity: '5', unitPrice: '0' }, // no price noted: the B2B price
+    { productId: CHAIN.id, quantity: '3', unitPrice: '95' }, // noted when left
+    { productId: BOLT.id, quantity: '2', unitPrice: '0' }, // neither
   ],
 };
 
-describe('The decision, as rules', () => {
-  it('starts with everything bought; the price is the one noted, else the list price, else empty', () => {
-    const rows = initialRows(ORDER, [PISTON]);
-    expect(rows.map((r) => [r.buy, r.back, r.price])).toEqual([
-      ['5', '0', '1800'], // list price for B2B
-      ['3', '0', '95'], // noted when left
-      ['2', '0', ''], // neither: empty, and required to buy
+function renderCompleting(locale: 'en' | 'ar' = 'en', onSaved = vi.fn()) {
+  render(
+    wrap(
+      <SaleOrderForm
+        customers={[SHOP]}
+        products={[PISTON, CHAIN, BOLT, MIRROR]}
+        // On the shelf: 1 piston, no chains or bolts, 10 mirrors.
+        stock={[
+          { productId: PISTON.id, availableStock: 1 },
+          { productId: MIRROR.id, availableStock: 10 },
+        ]}
+        title="Complete sale from samples ORD-2026-00042"
+        fromSamples={SOURCE}
+        onCancel={() => {}}
+        onSaved={onSaved}
+      />,
+      locale,
+    ),
+  );
+  return { onSaved };
+}
+const productOf = (line: HTMLElement) => within(line).getAllByRole('combobox')[0].textContent;
+
+describe('"They\'re buying" — the New Order popup, pre-filled from the samples', () => {
+  it('opens on the shop, today and every line that went out, with its price; one button, "Complete sale", and the line saying what removing does', () => {
+    renderCompleting();
+    expect(screen.getByText('Complete sale from samples ORD-2026-00042')).toBeTruthy();
+    expect(screen.getByTestId('samples-convert-note').textContent).toBe(
+      '10 units were out as samples; anything you remove goes back to the shelf.',
+    );
+    const customer = screen.getAllByRole('combobox')[0];
+    expect(customer.textContent).toContain('Nile Motors');
+    expect((customer as HTMLButtonElement).disabled).toBe(true);
+    expect(lines().map(productOf)).toEqual([
+      expect.stringContaining('Piston kit'),
+      expect.stringContaining('Chain'),
+      expect.stringContaining('Bolt'),
     ]);
-    expect(rowProblem(rows[2])).toBe('PRICE_NEEDED');
+    expect(lines().map((l) => field(l, 'quantity')!.value)).toEqual(['5', '3', '2']);
+    expect(lines().map((l) => field(l, 'unitPrice')!.value)).toEqual(['1,800', '95', '']);
+    // A sale's fields: discount and line totals are there, as on any order.
+    expect(field(lines()[0], 'discount')).not.toBeNull();
+    expect(screen.getByTestId('order-total').textContent).toContain('9,285');
+    // Not a new order: no samples switch, no walk-in, no draft.
+    expect(screen.queryByTestId('samples-switch')).toBeNull();
+    expect(screen.queryByTestId('walk-in-switch')).toBeNull();
+    expect(screen.queryByRole('button', { name: en.sales.saveDraft })).toBeNull();
+    expect(screen.getByTestId('sale-submit').textContent).toContain(en.sales.samples.complete);
   });
 
-  it('buying + returned must be what is out; nothing negative; a bought line needs a price; nothing bought needs none', () => {
-    const [row] = initialRows(ORDER, [PISTON]);
-    expect(rowProblem({ ...row, buy: '3', back: '1' })).toBe('MUST_ADD_UP');
-    expect(rowProblem({ ...row, buy: '3', back: '3' })).toBe('MUST_ADD_UP');
-    expect(rowProblem({ ...row, buy: '', back: '5' })).toBe('MUST_ADD_UP');
-    expect(rowProblem({ ...row, buy: '-1', back: '6' })).toBe('NEGATIVE');
-    expect(rowProblem({ ...row, buy: '3', back: '2', price: '' })).toBe('PRICE_NEEDED');
-    expect(rowProblem({ ...row, buy: '0', back: '5', price: '' })).toBeNull();
-    expect(rowProblem({ ...row, buy: '3', back: '2', price: '0' })).toBeNull();
-    // Thousandths: 0.1 + 0.2 of 0.3 out adds up.
-    expect(rowProblem({ ...row, out: 0.3, buy: '0.1', back: '0.2' })).toBeNull();
-  });
-
-  it('typing one quantity fills the other with the rest — but never over a number the partner typed', () => {
-    const [row] = initialRows(ORDER, [PISTON]);
-    const a = typeQty(row, 'buy', '3');
-    expect([a.buy, a.back]).toEqual(['3', '2']);
-    const b = typeQty(a, 'back', '1'); // typed by hand: buy (typed) stays
-    expect([b.buy, b.back]).toEqual(['3', '1']);
-    // Returned was typed: it stays, even where the rest would differ (5 − 2 = 3).
-    const c = typeQty(b, 'buy', '2');
-    expect([c.buy, c.back]).toEqual(['2', '1']);
-    // And the other way: returned typed first, then buying — buying is the rest
-    // until it is typed itself.
-    const [fresh] = initialRows(ORDER, [PISTON]);
-    const d = typeQty(fresh, 'back', '4');
-    expect([d.buy, d.back]).toEqual(['1', '4']);
-  });
-});
-
-describe('"They\'re buying" dialog', () => {
-  function renderDialog(locale: 'en' | 'ar' = 'en', onDone = vi.fn()) {
-    render(wrap(<SamplesDecideDialog order={ORDER} products={[PISTON]} onClose={() => {}} onDone={onDone} />, locale));
-    return { onDone };
-  }
-  const row = (i: number) => screen.getAllByTestId('samples-decide-line')[i];
-
-  it('refuses to send a decision that does not add up or has no price, saying which line', () => {
-    renderDialog();
-    // Bolt has no price yet.
-    fireEvent.click(screen.getByTestId('samples-decide-submit'));
-    expect(post).not.toHaveBeenCalled();
-    expect(within(row(2)).getByTestId('samples-decide-problem').textContent).toBe(en.sales.samples.priceNeeded);
-    // Piston: 2 bought + 2 returned typed by hand is 4 of 5.
-    typeInto(field(row(0), 'buyQty')!, '2');
-    typeInto(field(row(0), 'returnQty')!, '2');
-    expect(within(row(0)).getByTestId('samples-decide-problem').textContent).toContain('5');
-    fireEvent.click(screen.getByTestId('samples-decide-submit'));
-    expect(post).not.toHaveBeenCalled();
-  });
-
-  it('sends each line — bought, returned, and a price only for what is bought — and shows the sale total and what comes back', async () => {
-    renderDialog();
-    typeInto(field(row(0), 'buyQty')!, '3'); // returned fills to 2
-    expect(field(row(0), 'returnQty')!.value).toBe('2');
-    typeInto(field(row(2), 'buyQty')!, '0'); // nothing of the bolts
-    // 3 × 1800 + 3 × 95 = 5,685.00; back: 2 + 2.
-    expect(screen.getByTestId('samples-decide-total').textContent).toContain('5,685');
-    expect(screen.getByTestId('samples-decide-back').textContent).toContain('4');
-    fireEvent.click(screen.getByTestId('samples-decide-submit'));
+  it('saves exactly the lines on screen — a lowered quantity, a removed line, an added product, a discount — to the convert endpoint, dated today', async () => {
+    const { onSaved } = renderCompleting();
+    answer = () => Promise.resolve({ data: { data: { id: 'o-1', orderNo: 'ORD-2026-00042', status: 'CONFIRMED' } } });
+    typeInto(field(lines()[0], 'quantity')!, '3');
+    // The bolts came back: their line goes, and they with it, to the shelf.
+    fireEvent.click(within(lines()[2]).getByRole('button', { name: en.sales.removeItem }));
+    expect(lines()).toHaveLength(2);
+    // And the shop takes two mirrors that were never samples.
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(en.sales.addItem) }));
+    fireEvent.click(within(lines()[2]).getAllByRole('combobox')[0]);
+    fireEvent.click(screen.getByRole('option', { name: /Mirror/ }));
+    typeInto(field(lines()[2], 'quantity')!, '2');
+    typeInto(field(lines()[1], 'discount')!, '15');
+    // 3 × 1800 + (3 × 95 − 15) + 2 × 300 = 6,270.
+    expect(screen.getByTestId('order-total').textContent).toContain('6,270');
+    fireEvent.click(screen.getByTestId('sale-submit'));
     await waitFor(() => expect(post).toHaveBeenCalled());
     const [path, body] = post.mock.calls[0];
-    expect(path).toBe('/sales/orders/o-1/samples/decide');
-    expect(body.lines).toEqual([
-      { saleItemId: 'i-piston', buyQty: 3, returnQty: 2, unitPrice: 1800 },
-      { saleItemId: 'i-chain', buyQty: 3, returnQty: 0, unitPrice: 95 },
-      { saleItemId: 'i-bolt', buyQty: 0, returnQty: 2 },
+    expect(path).toBe('/sales/orders/o-1/samples/convert');
+    expect(body).toEqual({
+      customerId: SHOP.id,
+      channel: 'B2B',
+      currency: 'EGP',
+      orderedOn: businessToday(),
+      items: [
+        { productId: PISTON.id, quantity: 3, unitPrice: 1800, discount: 0 },
+        { productId: CHAIN.id, quantity: 3, unitPrice: 95, discount: 15 },
+        { productId: MIRROR.id, quantity: 2, unitPrice: 300, discount: 0 },
+      ],
+    });
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(onSaved.mock.calls[0][0]).toMatchObject({ fromSamples: true, confirmed: true, samples: false });
+  });
+
+  it('a product’s units out on the order count as available to it: 1 on the shelf + 5 out is 6, and 7 is too many', () => {
+    renderCompleting();
+    const piston = lines()[0];
+    typeInto(field(piston, 'quantity')!, '6');
+    expect(field(piston, 'quantity')!.className).not.toContain('border-destructive');
+    typeInto(field(piston, 'quantity')!, '7');
+    expect(field(piston, 'quantity')!.className).toContain('border-destructive');
+    expect(piston.textContent).toContain(`6 ${en.sales.inStock}`);
+    // The chain has none on the shelf, but its 3 out make it sellable in the picker.
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(en.sales.addItem) }));
+    fireEvent.click(within(lines()[3]).getAllByRole('combobox')[0]);
+    const chain = screen.getByRole('option', { name: /Chain/ });
+    expect(chain.getAttribute('aria-disabled')).not.toBe('true');
+    expect(chain.textContent).toContain(`3 ${en.sales.inStock}`);
+  });
+
+  it('a price noted when left is kept when the channel changes; a list price follows the channel', () => {
+    renderCompleting();
+    fireEvent.click(screen.getAllByRole('combobox')[1]); // channel
+    fireEvent.click(screen.getByRole('option', { name: en.sales.b2c }));
+    // Piston had no noted price: it takes the B2C price; the chain keeps its 95.
+    expect(field(lines()[0], 'unitPrice')!.value).toBe('2,100');
+    expect(field(lines()[1], 'unitPrice')!.value).toBe('95');
+  });
+
+  it('the server’s refusal is said in the reader’s language, and every line stays as typed', async () => {
+    answer = () =>
+      Promise.reject({
+        response: {
+          data: {
+            error: {
+              code: 'SAMPLES_EXTRA_NOT_IN_STOCK',
+              message: 'x',
+              params: { out: '5', product: 'Piston kit', wanted: '9', extra: '4', available: '1' },
+            },
+          },
+        },
+      });
+    renderCompleting();
+    typeInto(field(lines()[0], 'quantity')!, '9');
+    fireEvent.click(screen.getByTestId('sale-submit'));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe(
+      '5 of Piston kit went out as samples; selling 9 needs 4 more from the shelf, and only 1 is there.',
+    );
+    expect(field(lines()[0], 'quantity')!.value).toBe('9');
+    expect(lines()).toHaveLength(3);
+  });
+
+  it('linesFromSamples: the quantity out, the noted price (typed), else the channel’s price, else nothing', () => {
+    const rows = linesFromSamples(SOURCE, [PISTON, CHAIN, BOLT]);
+    expect(rows.map((r) => [r.productId, r.quantity, r.unitPrice, r.priceTyped])).toEqual([
+      [PISTON.id, 5, 1800, false],
+      [CHAIN.id, 3, 95, true],
+      [BOLT.id, 2, 0, false],
     ]);
+    expect(outOnSamples(SOURCE, PISTON.id)).toBe(5);
+    expect(outOnSamples(SOURCE, MIRROR.id)).toBe(0);
+    expect(outOnSamples(undefined, PISTON.id)).toBe(0);
   });
 
-  it('nothing bought: says so, and the button reads "Returned"', () => {
-    renderDialog();
-    for (const i of [0, 1, 2]) typeInto(field(row(i), 'buyQty')!, '0');
-    expect(screen.getByTestId('samples-all-returned')).toBeTruthy();
-    expect(screen.getByTestId('samples-decide-submit').textContent).toContain(en.sales.samples.returned);
-  });
-
-  it('Arabic labels', () => {
-    renderDialog('ar');
-    expect(screen.getByText(ar.sales.samples.decideTitle.replace('{orderNo}', ORDER.orderNo))).toBeTruthy();
-    expect(within(row(0)).getByText(ar.sales.samples.buyQty)).toBeTruthy();
-    expect(within(row(0)).getByText(ar.sales.samples.returnQty)).toBeTruthy();
-    expect(within(row(0)).getByText(ar.sales.samples.priceEach)).toBeTruthy();
+  it('Arabic: the line under the title and the button are Arabic', () => {
+    renderCompleting('ar');
+    expect(screen.getByTestId('samples-convert-note').textContent).toBe(
+      'خرجت 10 وحدات كعينات؛ أي شيء تحذفه يرجع إلى الرف.',
+    );
+    expect(screen.getByTestId('sale-submit').textContent).toContain(ar.sales.samples.complete);
   });
 });

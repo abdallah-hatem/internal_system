@@ -48,12 +48,11 @@ import {
 import {
   daysAtShop,
   isSamplesStatus,
-  planSamplesDecision,
+  planSamplesConversion,
   samplesReminderDay,
   samplesRemindersDue,
   SAMPLES_OPEN_STATUS,
   SAMPLES_REMINDER_DAYS,
-  splitSampleAllocations,
 } from '../../common/samples';
 
 /** The client or a transaction — whichever the caller holds. */
@@ -101,14 +100,18 @@ export interface CreateSaleOrderInput {
   samples?: boolean;
 }
 
-/** One line of a shop's decision on samples it was left. */
-export interface SamplesDecisionInput {
-  lines: {
-    saleItemId: string;
-    buyQty: number | string;
-    returnQty: number | string;
-    unitPrice?: number | string | null;
-  }[];
+/**
+ * "They're buying" (§4, samples at shops; owner 2026-10-18 round 2): the New
+ * Order popup's lines, as a new sale sends them. The customer is the shop the
+ * samples were left with (sent or not); the channel and currency default to
+ * the samples order's; the day defaults to today.
+ */
+export interface SamplesConversionInput {
+  customerId?: string | null;
+  channel?: string;
+  currency?: string;
+  orderedOn?: string;
+  items: CreateSaleOrderInput['items'];
 }
 
 /** What the price check is asked: the lines as they stand on a form. */
@@ -207,6 +210,63 @@ function notEnoughOnDay(
       wanted: wanted.toFixed(3),
     },
   );
+}
+
+/** Not enough on the shelf for a sale: on its own day when back-dated, else now. */
+function notEnoughStock(
+  product: string,
+  available: Prisma.Decimal,
+  wanted: Prisma.Decimal,
+  day: string,
+  cutoff: Date | undefined,
+) {
+  if (cutoff) return notEnoughOnDay(product, day, available, wanted);
+  return badRequest(
+    'NOT_ENOUGH_STOCK',
+    `Only ${available.toFixed(3)} of ${product} ` +
+      `is in stock, so ${wanted.toFixed(3)} cannot be sold.`,
+    {
+      available: available.toFixed(3),
+      product,
+      wanted: wanted.toFixed(3),
+    },
+  );
+}
+
+/**
+ * An order's lines as rows, and its subtotal. The figures come from
+ * `saleOrderTotals`, the one formula the order form also shows while it is
+ * being typed (`common/sale-totals.ts`). A new order and a sale completed
+ * from samples (§4) both build their lines here.
+ */
+function saleLines(items: CreateSaleOrderInput['items']) {
+  const totals = saleOrderTotals(items);
+  const itemsData = items.map((item, i) => {
+    const line = totals.lines[i];
+
+    // A discount cannot exceed what the line is worth. Without this the line
+    // went negative and took the order with it: a 100 line discounted by
+    // 9,999 produced an order totalling -9,899 — a sale that owes money to
+    // the customer, and one that would have been counted as revenue.
+    if (line.discountCents > line.grossCents) {
+      const discount = centsToDecimalString(line.discountCents);
+      const gross = centsToDecimalString(line.grossCents);
+      throw badRequest(
+        'DISCOUNT_EXCEEDS_LINE',
+        `Discount ${discount} is more than the line is worth (${gross}).`,
+        { discount, gross },
+      );
+    }
+
+    return {
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount: centsToDecimalString(line.discountCents),
+      lineTotal: centsToDecimalString(line.lineTotalCents),
+    };
+  });
+  return { itemsData, subtotal: centsToDecimalString(totals.subtotalCents) };
 }
 
 const refuseShape = (field: string, message: string) =>
@@ -919,8 +979,70 @@ export class SalesService {
       wantedPerProduct.set(item.productId, soFar.add(item.quantity));
     }
 
-    // Validate each item
-    for (const item of data.items) {
+    await this.checkLines(db, data.items);
+
+    // You cannot sell what is not there — and you should be told now, not at
+    // the end. Only confirming checked this, so an order for 600 against 60 in
+    // stock was built, priced and saved before anything objected.
+    for (const [productId, wanted] of wantedPerProduct) {
+      const available = await availableFor(productId);
+      if (wanted.gt(available)) {
+        const product = await db.product.findUnique({
+          where: { id: productId },
+          select: { name: true },
+        });
+        throw notEnoughStock(
+          product?.name ?? 'that product',
+          available,
+          wanted,
+          day,
+          cutoff,
+        );
+      }
+    }
+
+    // Generate order number: ORD-YYYY-XXXXX
+    const year = new Date().getFullYear();
+    const last = await db.saleOrder.findFirst({
+      where: { orderNo: { startsWith: `ORD-${year}` } },
+      orderBy: { orderNo: 'desc' },
+      select: { orderNo: true },
+    });
+    const orderNo = `ORD-${year}-${pad(nextReferenceNumber(last?.orderNo, 5), 5)}`;
+
+    const { itemsData, subtotal: charged } = saleLines(data.items);
+    // Samples owe nothing and are worth nothing as a sale until the shop
+    // decides: the order and its lines total zero, whatever price was noted.
+    const subtotal = samples ? '0.00' : charged;
+    if (samples) {
+      for (const line of itemsData) line.lineTotal = '0.00';
+    }
+
+    return {
+      orderNo,
+      customerId: customer.id,
+      channel: data.channel,
+      currency: data.currency,
+      status: 'DRAFT' as const,
+      orderedAt: instantOfDay(day),
+      subtotal,
+      discount: 0,
+      total: subtotal,
+      outstanding: subtotal,
+      createdBy: actorId,
+      idempotencyKey: idempotencyKey ?? null,
+      items: { create: itemsData },
+    };
+  }
+
+  /**
+   * Each line of an order, checked: a product that exists, a quantity above
+   * zero, a price of 0 or more, and no negative discount. The one place every
+   * path that builds lines passes through — draft, create & confirm, the
+   * storefront's approval, and a sale completed from samples (§4).
+   */
+  private async checkLines(db: Db, items: CreateSaleOrderInput['items']) {
+    for (const item of items) {
       if (!item.productId) {
         throw badRequest(
           'ITEM_NEEDS_PRODUCT',
@@ -947,9 +1069,8 @@ export class SalesService {
       }
       // A negative discount is a price rise the line does not show: the
       // customer is charged more than quantity × price, under a column named
-      // "discount". Refused here, the one place every create path passes
-      // through — draft, create & confirm, and the storefront's approval.
-      // (Orders have no edit path; a confirmed order is changed by a return.)
+      // "discount". (Orders have no edit path; a confirmed order is changed
+      // by a return.)
       if (item.discount != null && Number(item.discount) < 0) {
         throw badRequest(
           'DISCOUNT_NEGATIVE',
@@ -958,99 +1079,6 @@ export class SalesService {
         );
       }
     }
-
-    // You cannot sell what is not there — and you should be told now, not at
-    // the end. Only confirming checked this, so an order for 600 against 60 in
-    // stock was built, priced and saved before anything objected.
-    for (const [productId, wanted] of wantedPerProduct) {
-      const available = await availableFor(productId);
-      if (wanted.gt(available)) {
-        const product = await db.product.findUnique({
-          where: { id: productId },
-          select: { name: true },
-        });
-        if (cutoff) {
-          throw notEnoughOnDay(
-            product?.name ?? 'that product',
-            day,
-            available,
-            wanted,
-          );
-        }
-        throw badRequest(
-          'NOT_ENOUGH_STOCK',
-          `Only ${available.toFixed(3)} of ${product?.name ?? 'that product'} ` +
-            `is in stock, so ${wanted.toFixed(3)} cannot be sold.`,
-          {
-            available: available.toFixed(3),
-            product: product?.name ?? 'that product',
-            wanted: wanted.toFixed(3),
-          },
-        );
-      }
-    }
-
-    // Generate order number: ORD-YYYY-XXXXX
-    const year = new Date().getFullYear();
-    const last = await db.saleOrder.findFirst({
-      where: { orderNo: { startsWith: `ORD-${year}` } },
-      orderBy: { orderNo: 'desc' },
-      select: { orderNo: true },
-    });
-    const orderNo = `ORD-${year}-${pad(nextReferenceNumber(last?.orderNo, 5), 5)}`;
-
-    // The figures come from `saleOrderTotals`, the one formula the order form
-    // also shows while it is being typed (`common/sale-totals.ts`).
-    const totals = saleOrderTotals(data.items);
-    const itemsData = data.items.map((item, i) => {
-      const line = totals.lines[i];
-
-      // A discount cannot exceed what the line is worth. Without this the line
-      // went negative and took the order with it: a 100 line discounted by
-      // 9,999 produced an order totalling -9,899 — a sale that owes money to
-      // the customer, and one that would have been counted as revenue.
-      if (line.discountCents > line.grossCents) {
-        const discount = centsToDecimalString(line.discountCents);
-        const gross = centsToDecimalString(line.grossCents);
-        throw badRequest(
-          'DISCOUNT_EXCEEDS_LINE',
-          `Discount ${discount} is more than the line is worth (${gross}).`,
-          { discount, gross },
-        );
-      }
-
-      return {
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: centsToDecimalString(line.discountCents),
-        lineTotal: centsToDecimalString(line.lineTotalCents),
-      };
-    });
-    // Samples owe nothing and are worth nothing as a sale until the shop
-    // decides: the order and its lines total zero, whatever price was noted.
-    const subtotal = samples
-      ? '0.00'
-      : centsToDecimalString(totals.subtotalCents);
-    if (samples) {
-      for (const line of itemsData) line.lineTotal = '0.00';
-    }
-
-    return {
-      orderNo,
-      customerId: customer.id,
-      channel: data.channel,
-      currency: data.currency,
-      status: 'DRAFT' as const,
-      orderedAt: instantOfDay(day),
-      subtotal,
-      discount: 0,
-      total: subtotal,
-      outstanding: subtotal,
-      createdBy: actorId,
-      idempotencyKey: idempotencyKey ?? null,
-      items: { create: itemsData },
-    };
   }
 
   /**
@@ -1542,98 +1570,196 @@ export class SalesService {
   }
 
   /**
-   * "They're buying" (§4, samples at shops): per line, how many they buy, how
-   * many came back, and the price of what they buy.
+   * "They're buying" (§4, samples at shops; owner 2026-10-18, round 2): the
+   * normal New Order popup, pre-filled from the samples and saved with
+   * whatever lines the partner left in it — a lowered quantity, a removed
+   * line, a raised quantity, a product that never went out, any price and
+   * discount a sale may have.
    *
-   * Converted **in place** (DECIDED in BUSINESS_LOGIC): the same order, the
-   * same ORD number, becomes a CONFIRMED sale dated the decision day — the
-   * day the debt starts. Its lines keep only the units bought, at the agreed
-   * price; its allocations keep only those units, from the oldest batches
-   * first, at the cost they left at; every returned unit goes back to the
-   * batch it came from. Nothing bought at all is "Returned".
+   * Converted **in place**: the same order, the same ORD number, becomes a
+   * CONFIRMED sale dated the day chosen (today unless an earlier day is
+   * entered; never before the samples were left, never in the future), with
+   * exactly those lines. Per product (`planSamplesConversion`):
+   * - the units kept are taken from the ones that went out, oldest batch
+   *   first, at the cost they left at — no second movement, they already left;
+   * - the units not kept go back to the batch each came from (SAMPLE_BACK);
+   * - anything beyond what went out is drawn FIFO from the shelf
+   *   (`drawFifo`, as confirming a sale draws), after checking the shelf of
+   *   that day has it — `SAMPLES_EXTRA_NOT_IN_STOCK` for a sample product,
+   *   `NOT_ENOUGH_STOCK` for one that never went out.
+   *
+   * Nothing on the sale at all is refused with `SAMPLES_NOTHING_KEPT`, which
+   * points at "Returned": saving a sale should never quietly record a return.
+   * All in one transaction, or none of it.
    */
-  async decideSamples(id: string, body: SamplesDecisionInput, actorId: string) {
+  async convertSamples(
+    id: string,
+    body: SamplesConversionInput,
+    actorId: string,
+  ) {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await this.claimOpenSamples(tx, id);
-      const plan = planSamplesDecision(
-        order.orderNo,
-        order.items.map((i) => ({
-          saleItemId: i.id,
-          productId: i.productId,
-          product: i.product.name,
-          outQty: i.quantity,
-        })),
-        body?.lines,
-      );
-      const now = new Date();
+      const shop = order.customer.displayName;
 
-      if (plan.every((l) => l.buy.isZero())) {
-        return {
-          returnedAll: true as const,
-          ...(await this.returnAllWithin(tx, order, actorId, now)),
-        };
+      if (
+        body?.customerId !== undefined &&
+        body.customerId !== null &&
+        body.customerId !== order.customerId
+      ) {
+        throw badRequest(
+          'SAMPLES_OTHER_SHOP',
+          `The samples on ${order.orderNo} were left with ${shop}; the sale from them is to ${shop}.`,
+          { order: order.orderNo, shop },
+        );
+      }
+      if (!Array.isArray(body?.items) || body.items.length === 0) {
+        throw badRequest(
+          'SAMPLES_NOTHING_KEPT',
+          `Nothing is on the sale from ${order.orderNo}. If every sample came back, record "Returned".`,
+          { order: order.orderNo },
+        );
+      }
+      const channel = body.channel ?? order.channel;
+      if (channel !== 'B2B' && channel !== 'B2C') {
+        throw refuseShape('channel', 'channel must be B2B or B2C.');
+      }
+      const currency = body.currency ?? order.currency;
+
+      // The day the shop bought: today unless an earlier day is entered,
+      // never one that has not come, and never before the samples were left.
+      const day = chosenDay(body.orderedOn, 'SALE_MADE');
+      const leftOn = businessDay(order.samplesLeftAt ?? order.orderedAt);
+      if (day < leftOn) {
+        throw badRequest(
+          'SAMPLES_SALE_BEFORE_LEFT',
+          `The samples on ${order.orderNo} were left on ${leftOn}, so the sale cannot be dated ${day}.`,
+          { order: order.orderNo, left: leftOn, day },
+        );
+      }
+      const cutoff = receivedCutoff(day);
+
+      await this.checkLines(tx, body.items);
+      const { itemsData, subtotal } = saleLines(body.items);
+
+      const draws = order.items.flatMap((i) =>
+        i.allocations.map((a) => ({
+          productId: i.productId,
+          batchId: a.inventoryBatchId,
+          qty: a.qty,
+          unitCostEgp: a.unitCostEgp,
+          receivedAt: a.inventoryBatch.createdAt.getTime(),
+        })),
+      );
+      // Oldest batch first within each product, across every line of it.
+      draws.sort(
+        (a, b) =>
+          a.receivedAt - b.receivedAt || a.batchId.localeCompare(b.batchId),
+      );
+      const plan = planSamplesConversion(draws, body.items);
+
+      // More than went out comes from the shelf of the sale's day — and the
+      // shelf must have it, said before anything moves.
+      for (const p of plan.products) {
+        if (!p.extra.gt(0)) continue;
+        const available = await availableQty(
+          tx,
+          p.productId,
+          undefined,
+          cutoff,
+        );
+        if (p.extra.lte(available)) continue;
+        const product = await tx.product.findUnique({
+          where: { id: p.productId },
+          select: { name: true },
+        });
+        const name = product?.name ?? 'that product';
+        if (p.out.gt(0)) {
+          const wanted = p.out.add(p.extra);
+          throw badRequest(
+            'SAMPLES_EXTRA_NOT_IN_STOCK',
+            `${p.out.toString()} of ${name} went out as samples; selling ` +
+              `${wanted.toString()} needs ${p.extra.toString()} more from the ` +
+              `shelf, and only ${available.toString()} is there.`,
+            {
+              product: name,
+              out: p.out.toString(),
+              wanted: wanted.toString(),
+              extra: p.extra.toString(),
+              available: available.toString(),
+            },
+          );
+        }
+        throw notEnoughStock(name, available, p.extra, day, cutoff);
       }
 
-      let totalCogs = new Prisma.Decimal(0);
-      const lineTotals: { gross: number; discount: number }[] = [];
-      for (const line of plan) {
-        const item = order.items.find((i) => i.id === line.saleItemId)!;
-        const split = splitSampleAllocations(
-          item.allocations.map((a) => ({
-            id: a.id,
-            batchId: a.inventoryBatchId,
-            qty: a.qty,
-            unitCostEgp: a.unitCostEgp,
-          })),
-          line.buy,
-        );
-        for (const k of split.keep) {
-          totalCogs = totalCogs.add(k.cogsEgp);
-          await tx.saleItemAllocation.update({
-            where: { id: k.id },
-            data: { qty: k.qty, cogsEgp: k.cogsEgp },
-          });
-        }
-        if (split.remove.length > 0) {
-          await tx.saleItemAllocation.deleteMany({
-            where: { id: { in: split.remove } },
-          });
-        }
-        for (const b of split.back) {
+      // The samples' lines give way to the sale's: their draws are replaced
+      // by the plan's, and whatever is not kept goes back to its batch.
+      const itemIds = order.items.map((i) => i.id);
+      await tx.saleItemAllocation.deleteMany({
+        where: { saleItemId: { in: itemIds } },
+      });
+      await tx.saleItem.deleteMany({ where: { id: { in: itemIds } } });
+      for (const p of plan.products) {
+        for (const b of p.back) {
           await this.sampleBack(tx, order.id, b.batchId, b.qty, actorId);
         }
-        if (line.buy.isZero()) {
-          // Nothing of it was bought: the sale has no such line.
-          await tx.saleItem.delete({ where: { id: item.id } });
-          continue;
-        }
-        const price = line.unitPrice!;
-        const lineTotal = line.buy.mul(price).toDecimalPlaces(2);
-        lineTotals.push({
-          gross: Math.round(Number(lineTotal) * 100),
-          discount: 0,
-        });
-        await tx.saleItem.update({
-          where: { id: item.id },
-          data: {
-            quantity: line.buy,
-            unitPrice: price,
-            discount: 0,
-            lineTotal,
-          },
-        });
       }
 
-      const subtotal = centsToDecimalString(
-        lineTotals.reduce((s, l) => s + l.gross - l.discount, 0),
-      );
+      let keptCogs = new Prisma.Decimal(0);
+      const fromShelf: {
+        id: string;
+        productId: string;
+        quantity: Prisma.Decimal;
+        product: { name: string };
+      }[] = [];
+      for (const [i, row] of itemsData.entries()) {
+        const item = await tx.saleItem.create({
+          data: { ...row, saleOrderId: order.id },
+          include: { product: { select: { name: true } } },
+        });
+        for (const k of plan.lines[i].fromSamples) {
+          keptCogs = keptCogs.add(k.cogsEgp);
+          await tx.saleItemAllocation.create({
+            data: {
+              saleItemId: item.id,
+              inventoryBatchId: k.batchId,
+              qty: k.qty,
+              unitCostEgp: k.unitCostEgp,
+              cogsEgp: k.cogsEgp,
+            },
+          });
+        }
+        if (plan.lines[i].fromShelf.gt(0)) {
+          fromShelf.push({
+            id: item.id,
+            productId: item.productId,
+            quantity: plan.lines[i].fromShelf,
+            product: item.product,
+          });
+        }
+      }
+
+      const orderedAt = instantOfDay(day);
+      const now = new Date();
+      const drawn =
+        fromShelf.length > 0
+          ? await this.drawFifo(
+              tx,
+              { id: order.id, orderedAt, createdAt: now, items: fromShelf },
+              actorId,
+              { movementType: 'SALE', referenceType: 'SALE_ORDER' },
+            )
+          : null;
+
       const updated = await tx.saleOrder.update({
         where: { id: order.id },
         data: {
           status: 'CONFIRMED',
-          // The sale is dated the day the shop decided: revenue, COGS and the
-          // debt start then, not the day the samples were left.
-          orderedAt: now,
+          channel,
+          currency,
+          // Dated the day the shop bought: revenue, COGS and the debt start
+          // then, not the day the samples were left.
+          orderedAt,
           samplesDecidedAt: now,
           subtotal,
           discount: 0,
@@ -1642,25 +1768,32 @@ export class SalesService {
         },
         include: { items: true, customer: true },
       });
+      const totalCogs = keptCogs.add(drawn?.totalCogs ?? 0);
       return {
-        returnedAll: false as const,
         data: updated,
+        lowStock: drawn?.lowStock ?? [],
         audit: {
           actorUserId: actorId,
           action: 'SAMPLES_BOUGHT',
           entityType: 'SaleOrder',
           entityId: order.id,
-          beforeJson: { status: SAMPLES_OPEN_STATUS },
+          beforeJson: {
+            status: SAMPLES_OPEN_STATUS,
+            lines: order.items.map((i) => ({
+              productId: i.productId,
+              quantity: Number(i.quantity),
+            })),
+          },
           afterJson: {
             status: 'CONFIRMED',
             total: Number(subtotal),
             cogs: Number(totalCogs),
-            lines: plan.map((l) => ({
-              productId: l.productId,
-              out: Number(l.out),
-              bought: Number(l.buy),
-              returned: Number(l.back),
-              unitPrice: l.unitPrice === null ? null : Number(l.unitPrice),
+            products: plan.products.map((p) => ({
+              productId: p.productId,
+              out: Number(p.out),
+              kept: Number(p.kept),
+              back: Number(p.out.sub(p.kept)),
+              fromShelf: Number(p.extra),
             })),
           },
         },
@@ -1668,6 +1801,7 @@ export class SalesService {
     });
 
     await this.audit.log(outcome.audit);
+    await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
     return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
   }
 
