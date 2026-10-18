@@ -431,6 +431,7 @@
   },
   "sales": {
     "title": "Sales Orders",
+    "statusFilter": "Show orders",
     "create": "New Order",
     "orderNo": "Order #",
     "customer": "Customer",

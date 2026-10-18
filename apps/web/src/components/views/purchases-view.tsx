@@ -12,7 +12,7 @@ import { api } from '@/lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
-  ShoppingCart, Plus, Search, Eye, MinusCircle, ChevronRight,
+  ShoppingCart, Plus, Eye, MinusCircle, ChevronRight,
   Package, DollarSign,
 } from 'lucide-react';
 import { useDateFormat } from '@/lib/dates';
@@ -36,6 +36,7 @@ import { offeredOnly } from '@/lib/product-status';
 import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { Dialog } from '@/components/ui/dialog';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 interface PurchaseOrder {
   id: string;
@@ -324,16 +325,7 @@ export default function PurchasesPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
 
       <ListCapNotice capped={capped} count={purchases.length} />
 

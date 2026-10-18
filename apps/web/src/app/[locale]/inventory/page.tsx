@@ -14,7 +14,7 @@ import { ReceiveStockList } from '../../../components/shipment/ReceiveStockList'
 import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Search, ChevronDown, AlertTriangle,
+  ChevronDown, AlertTriangle,
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
 } from 'lucide-react';
 import { useCodeLabel } from '@/lib/labels';
@@ -322,16 +322,7 @@ function InventoryPageContent() {
       {canReceive && showReceive && <ReceiveStockList />}
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
 
       {lowOnly && (
         <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="low-stock-chip">
@@ -502,6 +493,7 @@ function InventoryPageContent() {
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 import { useDateFormat } from '../../../lib/dates';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 function VerificationBadge({ status }: { status: string }) {
   const t = useTranslations('inventory');
   if (status === 'VERIFIED') {

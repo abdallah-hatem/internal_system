@@ -12,7 +12,7 @@ import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import { FormActions } from '@/components/ui/fields';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';
 import {
-  Plus, Search, Edit, Loader2, Phone, Mail, MessageCircle, Trash2, ShoppingCart,
+  Plus, Edit, Loader2, Phone, Mail, MessageCircle, Trash2, ShoppingCart,
 } from 'lucide-react';
 
 import { useApiError } from '@/lib/api-error';
@@ -24,6 +24,7 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { LatinText } from '@/components/ui/latin-text';
 import { Dialog } from '@/components/ui/dialog';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 /** Free-form on the server; these are the keys the app actually writes. */
 interface SupplierContact {
@@ -270,16 +271,7 @@ export default function SuppliersPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
 
       <ListCapNotice capped={capped} count={suppliers.length} />
 

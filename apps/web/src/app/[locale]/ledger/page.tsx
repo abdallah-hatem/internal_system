@@ -11,7 +11,7 @@ import { api } from '../../../lib/api';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import {
-  Plus, Search, Eye, 
+  Plus, Eye, 
   RotateCcw, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useDateFormat } from '../../../lib/dates';
@@ -27,6 +27,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -319,17 +320,7 @@ export default function LedgerPage() {
       </div>
 
       {/* Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
         <Select
           className="w-full sm:w-44"
           value={directionFilter}
@@ -374,7 +365,7 @@ export default function LedgerPage() {
               .map((c) => ({ value: c, label: categoryLabel(c) })),
           ]}
         />
-      </div>
+      </ListToolbar>
 
       <ListCapNotice capped={capped} count={entries.length} />
 

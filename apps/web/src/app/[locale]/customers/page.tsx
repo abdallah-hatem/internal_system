@@ -16,7 +16,7 @@ import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useDateFormat } from '../../../lib/dates';
 import {
-  Users, Plus, Search, Eye, Edit, Loader2,
+  Users, Plus, Eye, Edit, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
   ShieldAlert, ShieldCheck,
 } from 'lucide-react';
@@ -31,6 +31,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -351,17 +352,7 @@ function CustomersPageContent() {
       </div>
 
       {/* Search + verification filter */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
         <Select
           id="verification-filter"
           className="w-full sm:w-52"
@@ -374,7 +365,7 @@ function CustomersPageContent() {
             { value: 'ALL', label: t('allCustomers') },
           ]}
         />
-      </div>
+      </ListToolbar>
 
       {byBalance && (
         <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="balance-sort-chip">

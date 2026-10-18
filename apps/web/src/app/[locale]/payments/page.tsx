@@ -23,7 +23,7 @@ import {
   canTakePayment,
 } from '../../../components/payments/RecordPaymentDialog';
 import {
-  Plus, Search, Eye, Loader2,
+  Plus, Eye, Loader2,
   ArrowRightLeft, RotateCcw, Download,
 } from 'lucide-react';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
@@ -38,6 +38,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { TabBar } from '@/components/ui/tab-bar';
 import { ContractsList } from '@/components/payments/contracts-list';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -426,24 +427,18 @@ function PaymentsPageContent() {
       </div>
 
       {/* Search + days received */}
-      <div className="space-y-3">
-        <div className="relative max-w-md">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: t('search') }}
+        after={
+          listError && (
+            <p role="alert" data-testid="payments-range-error" className="text-sm text-destructive">
+              {apiError(listError, tc('error'))}
+            </p>
+          )
+        }
+      >
         <DateRangeFilter idPrefix="payments" value={dates} onChange={setDates} busy={reloading} />
-        {listError && (
-          <p role="alert" data-testid="payments-range-error" className="text-sm text-destructive">
-            {apiError(listError, tc('error'))}
-          </p>
-        )}
-      </div>
+      </ListToolbar>
 
       <ListCapNotice capped={capped} count={payments.length} />
 

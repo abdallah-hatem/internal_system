@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
-  Tag, Plus, Search, Edit, Loader2, Trash2, ChevronRight, ChevronDown,
+  Tag, Plus, Edit, Loader2, Trash2, ChevronRight, ChevronDown,
 } from 'lucide-react';
 
 import { useApiError } from '@/lib/api-error';
@@ -22,6 +22,7 @@ import { localName, matchesName, otherName } from '@/lib/localized-name';
 import { useLocale } from 'next-intl';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { Dialog } from '@/components/ui/dialog';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Category {
   id: string;
@@ -279,28 +280,18 @@ export default function CategoriesPage() {
       </div>
 
       {/* Search + Expand All */}
-      <div className="flex items-center gap-3 max-w-md">
-        <div className="relative flex-1">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
         {parentIds.length > 0 && !search && (
           <button
             type="button"
             data-testid="toggle-all"
             onClick={toggleExpandAll}
-            className="bg-background px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors whitespace-nowrap"
+            className="self-start whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted sm:self-auto"
           >
             {allOpen ? t('collapseAll') : t('expandAll')}
           </button>
         )}
-      </div>
+      </ListToolbar>
 
       {/* Loading: the tree's own card over skeleton rows. */}
       {isLoading && (

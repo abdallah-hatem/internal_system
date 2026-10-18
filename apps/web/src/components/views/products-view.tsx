@@ -12,7 +12,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
-  Plus, Search, Edit, Eye, Tag,
+  Plus, Edit, Eye, Tag,
 } from 'lucide-react';
 
 import { useApiError } from '@/lib/api-error';
@@ -30,6 +30,7 @@ import { namedOption } from '@/components/entities/entity-forms';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useNumberFormat } from '@/lib/numbers';
+import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -379,54 +380,30 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('search')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-          <Select
-            id="category-filter"
-            className="w-full sm:w-56"
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            clearable
-            placeholder={tph('allCategories')}
-            searchPlaceholder={tph('searchCategories')}
-            // Filtered by the English name, which is unique; shown in the reader's.
-            options={categoryList.map((cat) => ({ ...namedOption(cat, String(locale)), value: cat.name }))}
-          />
-        </div>
-        <div
-          role="group"
-          aria-label={t('statusFilter')}
-          data-testid="status-filter"
-          className="flex flex-wrap gap-2 mt-3"
-        >
-          {STATUS_FILTERS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={statusFilter === key}
-              onClick={() => setStatusFilter(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                statusFilter === key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-card border border-border text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {key === 'ACTIVE' ? t('active') : key === 'INACTIVE' ? t('inactive') : t('filterAll')}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Search + Filters — the shared toolbar every list uses. */}
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
+        <Select
+          id="category-filter"
+          className="w-full sm:w-56"
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          clearable
+          placeholder={tph('allCategories')}
+          searchPlaceholder={tph('searchCategories')}
+          // Filtered by the English name, which is unique; shown in the reader's.
+          options={categoryList.map((cat) => ({ ...namedOption(cat, String(locale)), value: cat.name }))}
+        />
+        <FilterPills
+          label={t('statusFilter')}
+          testId="status-filter"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={STATUS_FILTERS.map((key) => ({
+            value: key,
+            label: key === 'ACTIVE' ? t('active') : key === 'INACTIVE' ? t('inactive') : t('filterAll'),
+          }))}
+        />
+      </ListToolbar>
 
       <ListCapNotice capped={capped} count={products.length} />
 
