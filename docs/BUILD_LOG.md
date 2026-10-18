@@ -18,6 +18,10 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- Future (owner, 2026-10-18): a few simple summary cards or small charts at the top of each tab, about that tab —
+  e.g. top-earning cycles on Cycles, top-selling products on Products, the order with the most revenue and the
+  largest order on Sales. Build it once there is enough data for a "top" to mean something (today: one cycle, five
+  orders, five products); one shared summary-strip component, figures from the existing analytics definitions.
 - Money accounts removed 2026-10-14 on `chore/remove-money-accounts` (owner: "we don't need money accounts"; not
   merged, not pushed). Migration `20261014120000_drop_money_accounts` (sorts after everything in production) drops
   `money_accounts`, `reconciliation_entries` and the `account_id` columns on `financial_transactions` and
