@@ -1990,6 +1990,13 @@ Analytics' table, remembered on the device; `GET /analytics/top-products?by=unit
 for other callers), returns netted out, ties broken by the other measure then the name. The card shows the
 ranked figure first with a bar against the top seller ("how is 21 sold on top of 28?" — it was ranked by
 revenue while showing units).
+**Analytics shows the top five — DECIDED 2026-10-19 (owner: "show only top 5"); the zero-sales rule and the
+cycle tie-break GUESSED.** Top products: the five best by the switch that is on, in the API's ranking above
+(`?limit=5`); a product that sold nothing net of returns (units sold 0) never takes a place, so fewer than five
+sold means fewer rows, and none sold is the empty state. Cycle profitability: the five most profitable cycles,
+highest profit first, equal profit by code; the API still sends every cycle in code order (the dashboard and a
+cycle's page read that full list), so the ranking and the cut are the web app's (`components/analytics/analytics-top.ts`).
+The dashboard's own Top products card is unchanged.
 
 **Profit and loss on Analytics — DECIDED 2026-10-18 (owner, mockup approved), dates GUESSED from how the
 dashboard already counts.** "A proper place to see total net profit, with time, and with expenses and sales as

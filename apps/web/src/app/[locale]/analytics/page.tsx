@@ -17,6 +17,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { ANALYTICS_TOP, mostProfitableCycles, topSoldProducts } from '@/components/analytics/analytics-top';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface TopProduct {
@@ -47,9 +48,6 @@ interface CycleProfit {
 // ─── Skeletons ────────────────────────────────────────────────────────
 // Traced from the sections below: each section keeps its frame and heading
 // while its own figures load, and only the body becomes a placeholder.
-
-/** How many products the table shows. */
-const TOP_PRODUCTS = 10;
 
 /** A top product's name over its SKU, as the real cell. */
 function TopProductNameSkeleton() {
@@ -100,7 +98,7 @@ export default function AnalyticsPage() {
   const [topBy, setTopBy] = useTopProductsBy();
   const { data: topProducts = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['analytics', 'top-products', topBy],
-    queryFn: () => api.get(`/analytics/top-products?limit=${TOP_PRODUCTS}&by=${topBy}`).then((r) => r.data.data ?? r.data),
+    queryFn: () => api.get(`/analytics/top-products?limit=${ANALYTICS_TOP}&by=${topBy}`).then((r) => r.data.data ?? r.data),
   });
 
   const { data: cycleProfitability = [], isLoading: loadingCycles } = useQuery({
@@ -108,8 +106,12 @@ export default function AnalyticsPage() {
     queryFn: () => api.get('/analytics/cycle-profitability').then((r) => r.data.data ?? r.data),
   });
 
-  const productList: TopProduct[] = Array.isArray(topProducts) ? topProducts : [];
-  const cycleList: CycleProfit[] = Array.isArray(cycleProfitability) ? cycleProfitability : [];
+  // The top five of each (owner 2026-10-19): products that sold, in the API's
+  // ranking; cycles by profit, highest first.
+  const productList: TopProduct[] = topSoldProducts(Array.isArray(topProducts) ? (topProducts as TopProduct[]) : []);
+  const cycleList: CycleProfit[] = mostProfitableCycles(
+    Array.isArray(cycleProfitability) ? (cycleProfitability as CycleProfit[]) : [],
+  );
 
   const isLoading = loadingProducts || loadingCycles;
 
@@ -204,7 +206,7 @@ export default function AnalyticsPage() {
                   density="compact"
                   autoMin="9rem"
                   isLoading={loadingProducts}
-                  skeletonRows={TOP_PRODUCTS}
+                  skeletonRows={ANALYTICS_TOP}
                   rows={productList}
                   rowKey={(p) => p.productId}
                   columns={topProductColumns}
@@ -220,7 +222,7 @@ export default function AnalyticsPage() {
               </h2>
               {loadingCycles ? (
                 <SkeletonGroup className="space-y-3">
-                  {repeat(3, (i) => <CycleProfitCardSkeleton key={i} />)}
+                  {repeat(ANALYTICS_TOP, (i) => <CycleProfitCardSkeleton key={i} />)}
                 </SkeletonGroup>
               ) : cycleList.length === 0 ? (
                 <EmptyState size="compact" icon={Route} title={t('noData')} description={t('noCycleProfitHint')} />
