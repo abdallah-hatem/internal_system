@@ -10,6 +10,7 @@ import {
 
 import { notFound } from '../../common/api-error';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { withEntityLabels } from './audit-labels';
 
 /**
  * Every audit row carries the full before/after of what changed — sale
@@ -73,7 +74,9 @@ export class AuditController {
     });
 
     const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
+    const page = hasMore ? items.slice(0, limit) : items;
+    // The record's name or number, not its UUID (owner 2026-10-18).
+    const data = await withEntityLabels(this.prisma, page);
     return {
       data,
       meta: {
@@ -93,6 +96,7 @@ export class AuditController {
       },
     });
     if (!log) throw notFound('auditLog');
-    return { data: log };
+    const [data] = await withEntityLabels(this.prisma, [log]);
+    return { data };
   }
 }
