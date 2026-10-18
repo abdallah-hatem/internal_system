@@ -342,3 +342,9 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   (hidden tabs, per-role menus, investor-only views) into new features. The tab merge got per-tab role checks so "an
   investor sees only Settlements", and the owner: "no investor can access the system, its only the 3 of us, no roles
   needed". The existing API guards stay (rule 12); this is about not adding more UI for roles nobody has. — 2026-10-18
+
+## Delivery channels
+
+- A "send a test" button proves the pipe, not that anything uses it. Office push alerts shipped with a working test
+  push while no office notification ever called `PushService`; the owner found it with a real low-stock sale
+  (2026-10-18). When adding a channel, test that a real event reaches it, from the service that raises the event.
