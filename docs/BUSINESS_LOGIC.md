@@ -1972,6 +1972,27 @@ goods lost on the way as its own line); net profit by month. `GET /analytics/pro
   answered with zeros; a reversed range `DATE_RANGE_REVERSED`, a malformed day `BAD_DATE`. All time's months
   start at the first day anything that counts was recorded. The share of sales is shown only when sales are
   above zero.
+- **Redesign "Option A" — DECIDED 2026-10-18 (owner, mockup approved); bucket sizes and the week GUESSED.**
+  Under the period: four tiles (Sales · Gross profit with its share of sales · Expenses · Net profit with its
+  share, green from zero up and red below, "—" when nothing was sold), a "How it adds up" disclosure with the
+  full Sales − COGS = Gross − Expenses ± Recovered / Other income / Exchange difference = Net list, one chart
+  (sales as columns, net profit as a line, a loss point red), and the top four expense categories with the
+  rest folded into "N more categories". The separate Revenue by month card is gone (its figures are the
+  chart's columns); `GET /analytics/revenue-by-month` stays — no screen reads it now, but the API checks
+  (TC-API-24, TC-ANA-01), the role and investor-scope suites and the walk-in suite still do.
+  - **Buckets by length of the period:** up to 35 days a day each (this month, last month); 36–124 days a
+    week each; longer a calendar month each (this year from February, all time). GUESSED, with the
+    **week Saturday to Friday** — the week as an Egyptian calendar prints it, Friday its last day. Edge
+    weeks and months are cut to the period. Every bucket is present; a quiet one is zero. Days are Cairo's.
+  - **The buckets add up to the totals exactly**, because both are the same parts: `profitParts` reads every
+    source once for the period (twelve queries however many buckets — asking `profitFigures` per bucket had
+    cost twelve per bucket, 26 for a month by month, would have been 372 by day), each row put on its day by
+    the rules above, and `figuresOf` adds up a bucket the way it adds up the period. The dashboard reads the
+    same filters summed by the database (`itemised` false), so its figures are unchanged, query for query.
+  - All time runs from the first day anything that counts in profit was recorded (a purchase alone no
+    longer starts it — it counts nowhere in profit). A row dated after today (check-data 25) still counts
+    in all time's totals, so the buckets run on to its day rather than drop it.
+  - A samples write-off with no recorded moment (none should exist) falls on its order's day.
 
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost
