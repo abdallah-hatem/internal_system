@@ -97,6 +97,9 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 
 ## Local environment
 
+- The local `motorcycle_parts` database is test data. Don't back it up before seeding or changing it; just do it.
+  The owner: "dont backup its just testing database no need" (2026-10-18). Production backups stay his call (memory).
+
 - "Close dev", "stop dev" and the like mean the whole stack and then Docker Desktop itself:
   the API, the web app, the storefront, `docker compose stop`, then quit the app with
   `osascript -e 'tell application "Docker Desktop" to quit'`. Stopping the container alone
