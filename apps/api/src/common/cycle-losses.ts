@@ -25,9 +25,17 @@ export async function cycleLossesEgp(
     shipmentLoss: Pick<Prisma.TransactionClient['shipmentLoss'], 'aggregate'>;
   },
   cycleId: string | null,
+  /**
+   * Only losses marked in this window (Analytics' profit and loss, 2026-10-18):
+   * a loss has no date but the moment it was marked, so that is its day.
+   */
+  markedAt?: { gte?: Date; lt?: Date },
 ): Promise<Prisma.Decimal> {
   const { _sum } = await db.shipmentLoss.aggregate({
-    where: cycleId === null ? {} : { leg: { cycleId } },
+    where: {
+      ...(cycleId === null ? {} : { leg: { cycleId } }),
+      ...(markedAt ? { createdAt: markedAt } : {}),
+    },
     _sum: { costEgp: true },
   });
   return new Prisma.Decimal(_sum.costEgp ?? 0);

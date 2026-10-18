@@ -72,3 +72,37 @@ export function businessMonthBuckets(
 export function businessMonthOf(instant: Date): string {
   return businessDay(instant).slice(0, 7);
 }
+
+/**
+ * The calendar months a run of days touches, oldest first, each cut to the
+ * days of it inside the run: 2026-09-15 … 2026-11-03 is the 15th–30th of
+ * September, all of October, and the 1st–3rd of November. Days are Cairo's
+ * calendar days (YYYY-MM-DD), so no clock is read here and no timezone can
+ * move a day into the next month — the month of a day is its first seven
+ * characters. Analytics' net profit by month (2026-10-18).
+ *
+ * Stepped by `Date.UTC` from day 1, never by `setMonth` on a date carrying a
+ * day-of-month (see `monthBuckets` above for why).
+ */
+export function monthsOfPeriod(
+  from: string,
+  to: string,
+): { month: string; from: string; to: string }[] {
+  if (from > to) return [];
+  const out: { month: string; from: string; to: string }[] = [];
+  const [y, m] = from.split('-').map(Number);
+  for (let i = 0; ; i++) {
+    const start = new Date(Date.UTC(y, m - 1 + i, 1))
+      .toISOString()
+      .slice(0, 10);
+    if (start.slice(0, 7) > to.slice(0, 7)) break;
+    // Day 0 of the next month is the last day of this one.
+    const end = new Date(Date.UTC(y, m + i, 0)).toISOString().slice(0, 10);
+    out.push({
+      month: start.slice(0, 7),
+      from: start < from ? from : start,
+      to: end > to ? to : end,
+    });
+  }
+  return out;
+}

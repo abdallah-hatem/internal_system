@@ -862,7 +862,36 @@
     "noRevenueInPeriod": "No sales recorded in this period yet.",
     "noRevenueHint": "Revenue from confirmed sales is charted here month by month.",
     "noTopProductsHint": "Your best-selling products appear here once sales are confirmed.",
-    "noCycleProfitHint": "Each cycle shows its profit here once its stock is received."
+    "noCycleProfitHint": "Each cycle shows its profit here once its stock is received.",
+    "pnl": {
+      "title": "Profit and loss",
+      "period": "Period",
+      "periods": {
+        "month": "This month",
+        "lastMonth": "Last month",
+        "year": "This year",
+        "all": "All time",
+        "custom": "Custom"
+      },
+      "today": "today",
+      "nothingYet": "Nothing recorded yet",
+      "netProfit": "Net profit",
+      "ofSales": "<n>{pct}</n> of sales",
+      "summary": "Summary",
+      "sales": "Sales",
+      "cogs": "Cost of goods sold",
+      "grossProfit": "Gross profit",
+      "expenses": "Expenses",
+      "recovered": "Refunds recovered",
+      "otherIncome": "Other income",
+      "exchangeDifference": "Exchange difference",
+      "expensesByCategory": "Expenses by category",
+      "netProfitByMonth": "Net profit by month",
+      "goodsLost": "Goods lost on the way",
+      "noExpenses": "No expenses in this period.",
+      "noMonths": "Nothing recorded yet.",
+      "loadFailed": "Could not load profit and loss."
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -1596,7 +1625,8 @@
     "CONTRACT_SUM_MISMATCH": "The instalments total {total} EGP but {owed} EGP is outstanding on order {order}.",
     "INSTALMENT_DUE_IN_PAST": "An instalment cannot fall due in the past ({day}).",
     "SALE_HAS_NO_PLAN": "Order {order} has no instalment plan, so it has no contract.",
-    "LENDER_HAS_FINANCINGS": "He still has {count} payment(s) on record. Remove them first, then delete him."
+    "LENDER_HAS_FINANCINGS": "He still has {count} payment(s) on record. Remove them first, then delete him.",
+    "PERIOD_NOT_STARTED": "The period starts on {from}, which has not come yet."
   },
   "requests": {
     "tabs": {

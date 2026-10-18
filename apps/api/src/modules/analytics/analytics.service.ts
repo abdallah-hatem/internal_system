@@ -10,6 +10,7 @@ import {
   netOperatingExpenseEgp,
   netOtherIncomeEgp,
   netRecoveredEgp,
+  operatingExpenseEgp,
   TRANSFER_CATEGORY,
   transferNetEgp,
 } from '../../common/ledger-categories';
@@ -22,7 +23,16 @@ import { countLowStock } from '../../common/low-stock';
 import {
   businessMonthBuckets,
   businessMonthOf,
+  monthsOfPeriod,
 } from '../../common/month-buckets';
+import {
+  assertDayRange,
+  businessDay,
+  businessToday,
+  calendarRange,
+  instantRange,
+} from '../../common/dates';
+import { badRequest } from '../../common/api-error';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 
 /**
@@ -43,19 +53,116 @@ export const ACTIVE_CYCLE_WHERE = {
 export const TOP_PRODUCTS_BY = ['revenue', 'units'] as const;
 export type TopProductsBy = (typeof TOP_PRODUCTS_BY)[number];
 
+/** A run of Cairo days, both ends included, either left open (YYYY-MM-DD). */
+export interface DayPeriod {
+  from?: string;
+  to?: string;
+}
+
+/** What `profitFigures` answers, in EGP, unrounded. */
+export interface ProfitFigures {
+  revenue: Prisma.Decimal;
+  cogs: Prisma.Decimal;
+  /** Operating expenses, goods lost on the way included (§2, §9). */
+  operatingExpenses: Prisma.Decimal;
+  /** The part of operatingExpenses that is goods lost on the way. */
+  losses: Prisma.Decimal;
+  recovered: Prisma.Decimal;
+  otherIncome: Prisma.Decimal;
+  exchangeDiff: Prisma.Decimal;
+  netProfit: Prisma.Decimal;
+}
+
+/**
+ * Goods lost on the way, as a line among Analytics' expenses by category: an
+ * expense with no ledger row (§2, §9), so not a ledger category — the web
+ * names it itself.
+ */
+export const LOSSES_CATEGORY = 'goods_lost';
+
+/**
+ * A ledger row's day, as a filter: the day the money moved (`occurredOn`), or
+ * for a row with none — written before the column, or by a flow — the Cairo
+ * day it was entered. The same reading running costs use (§8, §9).
+ */
+export function ledgerDayWhere(
+  period?: DayPeriod,
+): Prisma.FinancialTransactionWhereInput {
+  const onDays = period ? calendarRange(period.from, period.to) : undefined;
+  if (!period || !onDays) return {};
+  return {
+    OR: [
+      { occurredOn: onDays },
+      { occurredOn: null, createdAt: instantRange(period.from, period.to) },
+    ],
+  };
+}
+
+/**
+ * The ledger rows the Expenses line sums for one direction: money out in any
+ * category that is not capitalised, recovered, income or a sale, and the
+ * reversals of those coming back in (§9, L6). One definition for the total
+ * and for the split by category, so the split always adds up to the total.
+ */
+export function expenseWhere(
+  direction: 'INFLOW' | 'OUTFLOW',
+  period?: DayPeriod,
+): Prisma.FinancialTransactionWhereInput {
+  return {
+    direction,
+    category: { notIn: [...NOT_OPERATING_EXPENSE] },
+    ...(direction === 'INFLOW' ? { reversalOfId: { not: null } } : {}),
+    ...ledgerDayWhere(period),
+  };
+}
+
+/** A day from a query string: '' or absent is none; anything else is checked by assertDayRange. */
+function dayParam(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string') {
+    const shown = JSON.stringify(value) ?? typeof value;
+    throw badRequest('BAD_DATE', `${shown} is not a date written YYYY-MM-DD.`, {
+      value: shown,
+    });
+  }
+  return value;
+}
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
-  async getDashboardKPIs() {
+  /**
+   * Revenue, cost of goods sold, expenses and net profit — the one
+   * computation behind the dashboard's figures and Analytics' profit and loss
+   * (CLAUDE.md rule 11, owner 2026-10-18). With no period it is the
+   * dashboard's all-time reading, query for query; with one, every figure is
+   * cut to its own day (BUSINESS_LOGIC §9, "Profit and loss"):
+   *
+   * - a sale, and the cost of what it sold, on the sale's day (`orderedAt`);
+   * - a return, and the cost it reversed, on the day it came back
+   *   (`returnedOn`), as Revenue by month reads it;
+   * - a ledger row on the day the money moved (`occurredOn`, else the Cairo
+   *   day it was entered);
+   * - goods lost on the day they were marked lost;
+   * - an exchange difference on the day of the repayment (`paidOn`).
+   *
+   * Never a second formula: a period that needs a figure the dashboard does
+   * not count is a change here, read by both.
+   */
+  async profitFigures(period?: DayPeriod): Promise<ProfitFigures> {
     const D = (v: unknown) =>
       new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
-    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
     const REALISED = REALISED_SALE_STATUSES;
+    const instants = period ? instantRange(period.from, period.to) : undefined;
+    const days = period ? calendarRange(period.from, period.to) : undefined;
 
     const revenueAgg = await this.prisma.saleOrder.aggregate({
-      where: { status: { in: [...REALISED] } },
+      where: {
+        status: { in: [...REALISED] },
+        ...(instants ? { orderedAt: instants } : {}),
+      },
       _sum: { total: true },
     });
 
@@ -63,7 +170,10 @@ export class AnalyticsService {
     // here left the dashboard and the cycle comparison disagreeing about the
     // same sales.
     const returnsAgg = await this.prisma.saleReturn.aggregate({
-      where: { saleOrder: { status: { in: [...REALISED] } } },
+      where: {
+        saleOrder: { status: { in: [...REALISED] } },
+        ...(days ? { returnedOn: days } : {}),
+      },
       _sum: { refundEgp: true, cogsReversedEgp: true },
     });
 
@@ -72,7 +182,14 @@ export class AnalyticsService {
     // Cost of the units actually sold, taken from the batch allocation made at
     // the time of sale, so historical costs are never re-priced.
     const cogsAgg = await this.prisma.saleItemAllocation.aggregate({
-      where: { saleItem: { saleOrder: { status: { in: [...REALISED] } } } },
+      where: {
+        saleItem: {
+          saleOrder: {
+            status: { in: [...REALISED] },
+            ...(instants ? { orderedAt: instants } : {}),
+          },
+        },
+      },
       _sum: { cogsEgp: true },
     });
     // Damaged goods reverse no cost, so cogsReversedEgp is zero for those and
@@ -99,13 +216,7 @@ export class AnalyticsService {
       amount: D(
         (
           await this.prisma.financialTransaction.aggregate({
-            where: {
-              direction,
-              category: { notIn: [...NOT_OPERATING_EXPENSE] },
-              ...(direction === 'INFLOW'
-                ? { reversalOfId: { not: null } }
-                : {}),
-            },
+            where: expenseWhere(direction, period),
             _sum: { amount: true },
           })
         )._sum.amount,
@@ -127,6 +238,7 @@ export class AnalyticsService {
             where: {
               direction,
               category: { in: [...OTHER_INCOME_CATEGORIES] },
+              ...ledgerDayWhere(period),
             },
             _sum: { amount: true },
           })
@@ -155,6 +267,7 @@ export class AnalyticsService {
             where: {
               direction,
               category: { in: [...COST_RECOVERY_CATEGORIES] },
+              ...ledgerDayWhere(period),
             },
             _sum: { amount: true },
           })
@@ -165,14 +278,13 @@ export class AnalyticsService {
       await recoveryOf('INFLOW'),
       await recoveryOf('OUTFLOW'),
     ]);
-    const operatingExpenses = operatingNet.add(
-      await cycleLossesEgp(this.prisma, null),
-    );
+    const losses = await cycleLossesEgp(this.prisma, null, instants);
+    const operatingExpenses = operatingNet.add(losses);
 
     // Repaying friends at a moved rate (§18): a cost or a gain of the cycles,
     // not an operating expense — shown on its own, and taken off net profit
     // through the one definition settlement reads (rule 11).
-    const exchangeDiff = await exchangeDifferenceEgp(this.prisma, null);
+    const exchangeDiff = await exchangeDifferenceEgp(this.prisma, null, days);
 
     const netProfit = revenue
       .sub(cogs)
@@ -180,6 +292,185 @@ export class AnalyticsService {
       .add(recovered)
       .add(otherIncome)
       .sub(exchangeDiff);
+
+    return {
+      revenue,
+      cogs,
+      operatingExpenses,
+      losses,
+      recovered,
+      otherIncome,
+      exchangeDiff,
+      netProfit,
+    };
+  }
+
+  /**
+   * Analytics' profit and loss for a run of days (owner 2026-10-18: "a proper
+   * place to see total net profit, with time, and with expenses and sales as
+   * summary, not details"). Every total is `profitFigures` — the dashboard's
+   * own computation — for the period; the expenses by category split the
+   * same rows it sums (`expenseWhere`), and each month's net profit is
+   * `profitFigures` for that month's days, so the months add up to the
+   * period.
+   *
+   * `from` and `to` are Cairo days, both included, either left out. Left out
+   * altogether it is all time: the totals are then the dashboard's exactly.
+   * A `to` after today is today (the days after hold nothing yet); a `from`
+   * after today, a reversed range or a malformed day is refused, never
+   * answered with zeros that look like a quiet period.
+   */
+  async getProfitAndLoss(fromIn?: unknown, toIn?: unknown, now = new Date()) {
+    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+    const from = dayParam(fromIn);
+    const toAsked = dayParam(toIn);
+    assertDayRange(from, toAsked);
+    const today = businessToday(now);
+    if (from && from > today) {
+      throw badRequest(
+        'PERIOD_NOT_STARTED',
+        `The period starts on ${from}, which has not come yet.`,
+        { from },
+      );
+    }
+    const to = !toAsked || toAsked > today ? today : toAsked;
+    const allTime = !from && !toAsked;
+
+    // All time is the dashboard's reading itself, with no date at all — a
+    // row dated forward (check-data 25) still counts there, so it does here.
+    const period: DayPeriod | undefined = allTime ? undefined : { from, to };
+    const figures = await this.profitFigures(period);
+
+    // Where the months start: the period's first day, or for all time (and an
+    // open start) the first day anything was recorded.
+    const start = from ?? (await this.firstRecordedDay(to));
+    const months = start ? monthsOfPeriod(start, to) : [];
+    const byMonth = await Promise.all(
+      months.map(async (m) => ({
+        month: m.month,
+        netProfitEgp: money(
+          (await this.profitFigures({ from: m.from, to: m.to })).netProfit,
+        ),
+      })),
+    );
+
+    // Each category's net expense: its outflows less the reversals of them,
+    // through the same signed reading as the Expenses line (operatingExpenseEgp).
+    const grouped = async (direction: 'INFLOW' | 'OUTFLOW') =>
+      (await this.prisma.financialTransaction.groupBy({
+        by: ['category'],
+        where: expenseWhere(direction, period),
+        _sum: { amount: true },
+      })) as unknown as {
+        category: string;
+        _sum: { amount: Prisma.Decimal.Value | null };
+      }[];
+    const byCategory = new Map<string, Prisma.Decimal>();
+    for (const direction of ['OUTFLOW', 'INFLOW'] as const) {
+      for (const g of await grouped(direction)) {
+        const amount = operatingExpenseEgp({
+          direction,
+          category: g.category,
+          amount: g._sum.amount ?? 0,
+          reversalOfId: direction === 'INFLOW' ? 'reversal' : null,
+        });
+        byCategory.set(
+          g.category,
+          (byCategory.get(g.category) ?? new Prisma.Decimal(0)).add(amount),
+        );
+      }
+    }
+    // Goods lost on the way are in Expenses with no ledger row (§2, §9).
+    if (!figures.losses.isZero()) {
+      byCategory.set(LOSSES_CATEGORY, figures.losses);
+    }
+    const expensesByCategory = [...byCategory.entries()]
+      .filter(([, amount]) => !amount.isZero())
+      .map(([category, amount]) => ({ category, amountEgp: money(amount) }))
+      .sort(
+        (a, b) =>
+          b.amountEgp - a.amountEgp || a.category.localeCompare(b.category),
+      );
+
+    const grossProfit = figures.revenue.sub(figures.cogs);
+    return {
+      data: {
+        /** The days covered, resolved: null for all time's open start. */
+        from: from ?? start ?? null,
+        to,
+        allTime,
+        salesEgp: money(figures.revenue),
+        cogsEgp: money(figures.cogs),
+        grossProfitEgp: money(grossProfit),
+        expensesEgp: money(figures.operatingExpenses),
+        recoveredEgp: money(figures.recovered),
+        otherIncomeEgp: money(figures.otherIncome),
+        exchangeDifferenceEgp: money(figures.exchangeDiff),
+        netProfitEgp: money(figures.netProfit),
+        /** Net profit as a share of sales; null when nothing was sold. */
+        netProfitPctOfSales: figures.revenue.gt(0)
+          ? Number(
+              figures.netProfit
+                .div(figures.revenue)
+                .mul(100)
+                .toDecimalPlaces(1),
+            )
+          : null,
+        expensesByCategory,
+        months: byMonth,
+      },
+    };
+  }
+
+  /**
+   * The first Cairo day anything that counts in profit was recorded on, up
+   * to `to`; null when nothing has been.
+   */
+  private async firstRecordedDay(to: string): Promise<string | null> {
+    const [sale, ret, ledgerOn, ledgerAt, loss, repaid] = await Promise.all([
+      this.prisma.saleOrder.aggregate({
+        where: { status: { in: [...REALISED_SALE_STATUSES] } },
+        _min: { orderedAt: true },
+      }),
+      this.prisma.saleReturn.aggregate({ _min: { returnedOn: true } }),
+      this.prisma.financialTransaction.aggregate({
+        _min: { occurredOn: true },
+      }),
+      this.prisma.financialTransaction.aggregate({
+        where: { occurredOn: null },
+        _min: { createdAt: true },
+      }),
+      this.prisma.shipmentLoss.aggregate({ _min: { createdAt: true } }),
+      this.prisma.lenderRepayment.aggregate({ _min: { paidOn: true } }),
+    ]);
+    const days = [
+      sale._min?.orderedAt && businessDay(sale._min.orderedAt),
+      ret._min?.returnedOn && ret._min.returnedOn.toISOString().slice(0, 10),
+      ledgerOn._min?.occurredOn &&
+        ledgerOn._min.occurredOn.toISOString().slice(0, 10),
+      ledgerAt._min?.createdAt && businessDay(ledgerAt._min.createdAt),
+      loss._min?.createdAt && businessDay(loss._min.createdAt),
+      repaid._min?.paidOn && repaid._min.paidOn.toISOString().slice(0, 10),
+    ].filter((d): d is string => Boolean(d) && (d as string) <= to);
+    return days.length ? days.sort()[0] : null;
+  }
+
+  async getDashboardKPIs() {
+    const D = (v: unknown) =>
+      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+    const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
+
+    // Revenue, COGS, expenses and net profit: the one computation Analytics'
+    // profit and loss reads too, here for all time (rule 11).
+    const {
+      revenue,
+      cogs,
+      operatingExpenses,
+      recovered,
+      otherIncome,
+      exchangeDiff,
+      netProfit,
+    } = await this.profitFigures();
 
     // Cash actually paid out, reported separately from accounting profit
     // (BRD 11). Read with cash in and cash on hand below, through the one
