@@ -1,4 +1,6 @@
 # Plan — walk-in sales + assistant sales
+
+> Done: shipped 2026-10-11 (docs/BUILD_LOG.md "Phases"); BUSINESS_LOGIC §4 and §16 are the current authority.
 Spec `docs/specs/2026-10-11-walk-in-and-assistant-sales.md` · BUSINESS_LOGIC §4, §16 (*Building*)
 
 | Wave | Tasks |

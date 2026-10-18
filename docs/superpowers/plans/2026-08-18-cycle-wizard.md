@@ -1,5 +1,7 @@
 # Cycle Wizard Implementation Plan
 
+> Superseded: the wizard now stops when the goods leave (BUSINESS_LOGIC §1, 2026-10-12) and has three steps with no Funding step (§8, 2026-10-18).
+
 > **For agentic workers:** Use subagent-driven-development to implement this plan task-by-task.
 
 **Goal:** Replace the scattered per-entity create modals with a single guided 4-step wizard for the core import flow: Cycle → Purchase Order → Shipping Leg → Inventory Verification.

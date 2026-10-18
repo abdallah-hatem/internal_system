@@ -1,5 +1,7 @@
 # Plan — partial arrivals + the UX batch
 
+> Done: shipped 2026-10-11 (docs/BUILD_LOG.md "Phases"); BUSINESS_LOGIC is the current authority.
+
 Spec: `docs/specs/2026-10-10-partial-arrivals-and-ux.md` (**read its Amendments section — it overrides**) · Business doc §1 §2 §3 §4 §7 §8 §14 §16
 (edits marked *Building*) · Decisions: `docs/build-log/decisions/arrivals-and-ux.md`.
 
