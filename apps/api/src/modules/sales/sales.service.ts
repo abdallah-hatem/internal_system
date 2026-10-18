@@ -2066,9 +2066,12 @@ export class SalesService {
         }
       }
 
+      // A cancelled order owes nothing (check-data 12.2). Only an order with
+      // nothing paid against it reaches here, so the whole balance goes; the
+      // total stays as the record of what the order was.
       const updated = await tx.saleOrder.update({
         where: { id },
-        data: { status: 'CANCELLED' },
+        data: { status: 'CANCELLED', outstanding: 0 },
       });
 
       return {
