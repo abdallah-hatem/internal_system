@@ -87,6 +87,11 @@ const PISTON: SaleFormProduct = {
     { channel: 'B2B', amount: 1800 },
     { channel: 'B2C', amount: 2100 },
   ],
+  // As the API resolves them (§3, 2026-10-18): both set.
+  listPrices: {
+    B2B: { amount: '1800.00', currency: 'EGP', source: 'SET' },
+    B2C: { amount: '2100.00', currency: 'EGP', source: 'SET' },
+  },
 };
 
 // A shop is chosen up front: the form refuses to send an order with no
@@ -95,6 +100,7 @@ function renderForm(
   onSaved = vi.fn(),
   initialCustomerId: string | undefined = SHOP.id,
   locale: 'en' | 'ar' = 'en',
+  products: SaleFormProduct[] = [PISTON],
 ) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   render(
@@ -103,8 +109,8 @@ function renderForm(
         <ToastProvider>
           <SaleOrderForm
             customers={[SHOP, RETAIL]}
-            products={[PISTON]}
-            stock={[{ productId: PISTON.id, availableStock: 60 }]}
+            products={products}
+            stock={products.map((p) => ({ productId: p.id, availableStock: 60 }))}
             title="New sale"
             onCancel={() => {}}
             onSaved={onSaved}
@@ -879,5 +885,61 @@ describe('SaleOrderForm — the sale date (§4, 2026-10-16)', () => {
     expect(alert.textContent).toContain(ar.errors.NOT_ENOUGH_STOCK_ON_DATE.split('{')[0]);
     expect(saleDate().value).toBe('2026-10-05');
     expect(lines()).toHaveLength(1);
+  });
+});
+
+describe('SaleOrderForm — the default price (§3, owner 2026-10-18)', () => {
+  // No price set on either channel: the API sends landed 1,500 + 20% = 1,800
+  // as the DEFAULT. B2C is set at 2,100 to show the two side by side.
+  const CHAIN: SaleFormProduct = {
+    id: 'p-chain',
+    name: 'Chain kit',
+    sku: 'CK-1',
+    prices: [{ channel: 'B2C', amount: 2100 }],
+    listPrices: {
+      B2B: { amount: '1800.00', currency: 'EGP', source: 'DEFAULT', markupPct: 20 },
+      B2C: { amount: '2100.00', currency: 'EGP', source: 'SET' },
+    },
+  };
+  const hint = () => lines()[0].querySelector('[data-testid="default-price-hint"]');
+
+  it('an untouched line starts at the default, and says it is the default', () => {
+    renderForm(vi.fn(), SHOP.id, 'en', [CHAIN]);
+    pick(3, 'Chain kit');
+    expect(field(lines()[0], 'unitPrice').value).toBe('1,800');
+    expect(hint()?.textContent).toBe('Default (landed + 20%)');
+  });
+
+  it('a set price fills the line with no hint', () => {
+    renderForm(vi.fn(), RETAIL.id, 'en', [CHAIN]);
+    pick(3, 'Chain kit');
+    expect(field(lines()[0], 'unitPrice').value).toBe('2,100');
+    expect(hint()).toBeNull();
+  });
+
+  it('a typed price is never overwritten by the default, and the hint goes', () => {
+    renderForm(vi.fn(), SHOP.id, 'en', [CHAIN]);
+    typeInto(field(lines()[0], 'unitPrice'), '1650');
+    pick(3, 'Chain kit');
+    expect(field(lines()[0], 'unitPrice').value).toBe('1,650');
+    expect(hint()).toBeNull();
+  });
+
+  it('what is saved is the line as it stands — the default it started from, as the line price — and no product price is written', async () => {
+    answer = () => Promise.resolve({ data: { data: { id: 'o1', orderNo: 'ORD-1', status: 'DRAFT' } } });
+    const { onSaved } = renderForm(vi.fn(), SHOP.id, 'en', [CHAIN]);
+    pick(3, 'Chain kit');
+    fireEvent.click(screen.getByRole('button', { name: en.sales.saveDraft }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls).toHaveLength(1);
+    expect(post.mock.calls[0][0]).toBe('/sales/orders');
+    expect(post.mock.calls[0][1].items[0]).toMatchObject({ productId: CHAIN.id, unitPrice: 1800 });
+  });
+
+  it('in Arabic the hint is Arabic', () => {
+    renderForm(vi.fn(), SHOP.id, 'ar', [CHAIN]);
+    fireEvent.click(screen.getAllByRole('combobox')[3]);
+    fireEvent.click(screen.getByRole('option', { name: /Chain kit/ }));
+    expect(hint()?.textContent).toBe('افتراضي (التكلفة الإجمالية + 20٪)');
   });
 });

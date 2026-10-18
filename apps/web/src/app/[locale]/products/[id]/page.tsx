@@ -27,6 +27,8 @@ import { BelowCostPrice } from '@/components/sales/below-cost';
 import { ProductStatusAction } from '@/components/products/product-status-action';
 import { localDescription, localName } from '@/lib/localized-name';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { listPriceOf, type ListPrice, type ListPrices } from '@/lib/list-price';
+import { DefaultPriceHint } from '@/components/products/default-price-hint';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -42,6 +44,7 @@ interface Product {
   category?: { id: string; name: string; nameAr?: string | null };
   suppliers?: { supplier: { id: string; name: string } }[];
   prices?: PriceEntry[];
+  listPrices?: ListPrices | null;
   compatibilities?: { motorcycleModel: { id: string; name: string } }[];
 }
 
@@ -697,6 +700,7 @@ export default function ProductDetailPage() {
                 label={t('b2bPrice')}
                 icon={<Truck className="h-4 w-4 text-blue-500" />}
                 current={activeB2B}
+                resolved={listPriceOf(productData, 'B2B')}
               />
               <PriceRow
                 productId={productId}
@@ -885,13 +889,18 @@ function PriceRow({
   label,
   icon,
   current,
+  resolved,
 }: {
   productId: string;
   channel: 'B2B' | 'B2C';
   label: string;
   icon: React.ReactNode;
   current?: { amount: number; currency: string };
+  /** The API's price for the channel: a DEFAULT (landed + markup) when none is set (§3, 2026-10-18). */
+  resolved?: ListPrice | null;
 }) {
+  // Shown, never filled in: saving it would turn a default into a set price.
+  const fallback = !current && resolved?.source === 'DEFAULT' ? resolved : null;
   const tc = useTranslations('common');
   const tp = useTranslations('products');
   const tph = useTranslations('placeholders');
@@ -951,7 +960,14 @@ function PriceRow({
       </div>
       {!maySet ? (
         <p data-testid="price-readonly" className="text-sm font-medium text-foreground">
-          {current ? <Money value={current.amount} currency={current.currency} /> : '—'}
+          {current ? (
+            <Money value={current.amount} currency={current.currency} />
+          ) : fallback ? (
+            <Money value={Number(fallback.amount)} currency={fallback.currency} />
+          ) : (
+            '—'
+          )}
+          <DefaultPriceHint price={fallback} />
         </p>
       ) : (
       <div className="flex items-center gap-2">
@@ -959,7 +975,7 @@ function PriceRow({
         <MoneyInput
           value={value}
           onChange={setValue}
-          placeholder={tph('money')}
+          placeholder={fallback ? String(Number(fallback.amount)) : tph('money')}
           className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         <button
@@ -973,6 +989,12 @@ function PriceRow({
           {tc('save')}
         </button>
       </div>
+      )}
+      {maySet && fallback && (
+        <p data-testid="default-price" className="mt-1 text-xs text-muted-foreground">
+          <Money value={Number(fallback.amount)} currency={fallback.currency} />{' '}
+          <DefaultPriceHint price={fallback} className="inline" />
+        </p>
       )}
       {maySet && <BelowCostPrice check={priceCheck?.lines[0]} />}
     </div>

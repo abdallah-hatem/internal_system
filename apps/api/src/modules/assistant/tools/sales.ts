@@ -11,7 +11,12 @@ import { PAYMENT_METHODS } from '../../../common/walk-in';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { PaymentsService } from '../../payments/payments.service';
-import { priceOn, type PriceChannel } from '../../portal/portal-pricing';
+import { type PriceChannel } from '../../portal/portal-pricing';
+import {
+  DEFAULT_MARKUP_PCT,
+  listPricesFor,
+  type ListPrices,
+} from '../../../common/default-price';
 import {
   type CreateSaleOrderInput,
   receivedCutoff,
@@ -46,6 +51,8 @@ import { writeTool, type AssistantContext } from '../tool-kit';
 const CURRENCY = 'EGP';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const LIST_PRICE_NOTE = 'list price — confirm or give the price';
+/** No price was set, so it is landed cost + the markup (§3, 2026-10-18). */
+const DEFAULT_PRICE_NOTE = `default price (landed cost + ${DEFAULT_MARKUP_PCT}%), no price is set — confirm or give the price`;
 
 const saleShape = {
   customer: z
@@ -77,7 +84,7 @@ const saleShape = {
           .number()
           .optional()
           .describe(
-            'Price per unit in EGP, as the partner said it. Leave out ONLY when they gave no price: the preview then offers the list price and the partner must confirm it.',
+            `Price per unit in EGP, as the partner said it. Leave out ONLY when they gave no price: the preview then offers the list price (the one set, else the default: landed cost + ${DEFAULT_MARKUP_PCT}%) and the partner must confirm it.`,
           ),
         discount: z
           .number()
@@ -123,7 +130,8 @@ interface CatalogueProduct {
   /** Matched as well as the English name (§3, 2026-10-14). */
   nameAr: string | null;
   sku: string;
-  prices: { channel: string; amount: unknown; effectiveTo: Date | null }[];
+  /** Each channel's price, set or default — common/default-price.ts. */
+  listPrices: ListPrices;
 }
 
 interface CatalogueCustomer {
@@ -155,7 +163,7 @@ interface PlannedLine {
   sku: string;
   qty: number;
   unitPrice: number;
-  priceSource: 'given' | 'list';
+  priceSource: 'given' | 'list' | 'default';
   discount: number;
 }
 
@@ -267,22 +275,19 @@ export function resolveSale(
     if (unitPrice === undefined) {
       // Only once the customer is known: the list price depends on who buys.
       if (!walkIn && !customer) return;
-      const list = priceOn(
-        product.prices as Parameters<typeof priceOn>[0],
-        channel,
-      );
+      const list = product.listPrices[channel];
       if (!list) {
         questions.push({
           id: `PRICE_NEEDED:${line}`,
           kind: 'PRICE_NEEDED',
           line,
-          text: `Line ${line} (${product.name}) has no price, and there is no ${channel} list price on file. What was it sold for?`,
+          text: `Line ${line} (${product.name}) has no price, there is no ${channel} list price on file, and it was never received so there is no default. What was it sold for?`,
           options: [],
         });
         return;
       }
-      unitPrice = list.toNumber();
-      priceSource = 'list';
+      unitPrice = Number(list.amount);
+      priceSource = list.source === 'DEFAULT' ? 'default' : 'list';
     }
     lines.push({
       line,
@@ -387,8 +392,12 @@ export function registerSalesTools(
         orderBy: { displayName: 'asc' },
       }),
     ]);
+    const listPrices = await listPricesFor(prisma(), products);
     return {
-      products: products as CatalogueProduct[],
+      products: products.map(({ prices: _prices, ...p }): CatalogueProduct => ({
+        ...p,
+        listPrices: listPrices.get(p.id)!,
+      })),
       customers: customers.map((c) => ({
         id: c.id,
         name: c.displayName,
@@ -481,6 +490,7 @@ export function registerSalesTools(
       unitPrice: Number(l.unitPrice).toFixed(2),
       priceSource: l.priceSource,
       ...(l.priceSource === 'list' ? { note: LIST_PRICE_NOTE } : {}),
+      ...(l.priceSource === 'default' ? { note: DEFAULT_PRICE_NOTE } : {}),
       discount: Number(l.discount).toFixed(2),
       lineTotal: seen.items[i].lineTotal,
       available: available.get(l.productId)?.toString() ?? '0',
@@ -503,6 +513,7 @@ export function registerSalesTools(
           (l) =>
             `- ${l.product} (${l.sku}): ${formatQty(l.qty)} × ${formatMoney(l.unitPrice)}` +
             (l.priceSource === 'list' ? ` (${LIST_PRICE_NOTE})` : '') +
+            (l.priceSource === 'default' ? ` (${DEFAULT_PRICE_NOTE})` : '') +
             (Number(l.discount) ? ` less ${formatMoney(l.discount)}` : '') +
             ` = ${formatMoney(l.lineTotal)} ${CURRENCY}; ${formatQty(l.available)} in stock` +
             (l.belowCost
@@ -545,7 +556,7 @@ export function registerSalesTools(
       description:
         'Records a sale the partner made: created and confirmed in one step. Name the customer (a shop on file) — the sale is then owed — or set walkIn for a buyer who is not a shop, which is paid in full on the spot at retail prices. ' +
         'Products and customers are matched by exact name, SKU or id only: a close name comes back as a question with candidates and nothing to confirm. ' +
-        'Without a price the preview offers the list price, which the partner must confirm. ' +
+        `Without a price the preview offers the list price — the one set, else the default (landed cost + ${DEFAULT_MARKUP_PCT}%), said which — which the partner must confirm. ` +
         'A sale made on an earlier day takes orderedOn — only when the partner says the day; it then draws only stock received by that day, and is refused (NOT_ENOUGH_STOCK_ON_DATE) when there was not enough then. ' +
         "A line sold below cost — under what its goods cost, the FIFO cost of the units it would draw, after its discount — carries a belowCost block (each unit's cost, the price after discount, the loss on the line), and belowCostLossEgp is the total: tell the partner the loss before the partner confirms. It is a warning, never a refusal. " +
         'Call without a confirmationToken to preview. Records no other payments, returns or settlements.',

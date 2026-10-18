@@ -13,7 +13,6 @@ import { CyclesService } from '../../cycles/cycles.service';
 import { InventoryService } from '../../inventory/inventory.service';
 import { PaymentPlansService } from '../../payment-plans/payment-plans.service';
 import { PaymentsService } from '../../payments/payments.service';
-import { priceOn } from '../../portal/portal-pricing';
 import { ProductsService } from '../../products/products.service';
 import { SalesService } from '../../sales/sales.service';
 import { SuppliersService } from '../../suppliers/suppliers.service';
@@ -182,7 +181,7 @@ export function registerReadTools(
     {
       title: 'Find products',
       description:
-        'Search products by English name, Arabic name or SKU (case-insensitive, part of any is enough — "prd-00" finds PRD-000012, "تيل" finds a product whose Arabic name has it). Returns id, SKU, name and nameAr (the Arabic name, null when none was entered — never translate one yourself), status, category and categoryAr, the current B2B and B2C selling prices (null when none is set), and stock: total on hand, reserved, and available to sell. Use it to answer "do we have X", "what does X sell for", or to find a product id.',
+        'Search products by English name, Arabic name or SKU (case-insensitive, part of any is enough — "prd-00" finds PRD-000012, "تيل" finds a product whose Arabic name has it). Returns id, SKU, name and nameAr (the Arabic name, null when none was entered — never translate one yourself), status, category and categoryAr, the current B2B and B2C selling prices — each { amount, currency, source }, where source SET is a price the owner set and DEFAULT is landed cost + markupPct% because none is set; null when the product was never received and no price is set — say which when you quote a DEFAULT, and stock: total on hand, reserved, and available to sell. Use it to answer "do we have X", "what does X sell for", or to find a product id.',
       inputSchema: {
         search: z
           .string()
@@ -211,9 +210,10 @@ export function registerReadTools(
             status: p.status,
             category: p.category?.name ?? null,
             categoryAr: p.category?.nameAr ?? null,
+            // Set, or the default landed + markup, said which (§3, 2026-10-18).
             prices: {
-              B2B: dec(priceOn(p.prices, 'B2B')),
-              B2C: dec(priceOn(p.prices, 'B2C')),
+              B2B: p.listPrices.B2B,
+              B2C: p.listPrices.B2C,
             },
             stock: {
               total: stock?.totalStock ?? 0,

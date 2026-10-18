@@ -613,6 +613,41 @@ and category names, in the office and the storefront, compares Arabic as people 
 | ؤ and ئ | **Read as و and ي.** Unicode writes them as و and ي with a hamza *mark*, and the assistant's matcher has always folded them so (it decomposes text first); search follows it rather than the two disagreeing. So رييس finds رئيس. A standalone ء is a letter and is not folded. | **GUESS** (consistency with the assistant) |
 | Customer, supplier and other names | **Not folded in their own lists or the API** (`GET /customers?search=`, `GET /suppliers?search=`, the Customers, Suppliers, Payments and Sales list boxes): the brief is product and category names. A picker built on the shared select folds whatever it lists, customers included, because the select has one filter. | Recorded, not built |
 
+### A default price: landed cost + 20%  — DECIDED 2026-10-18 (owner), details GUESSED
+
+The owner: "The default of any product price — B2B and B2C — is landed cost + 20% of its landed cost. Landed 100 →
+default price 120 EGP. So I don't have to enter the price manually on the product details page."
+
+| Rule | What the code does | Status |
+|---|---|---|
+| The default | **landed cost × 1.20**, for B2B and for B2C, in EGP. The 20 is `DEFAULT_MARKUP_PCT`, once, in `apps/api/src/common/default-price.ts`. | **DECIDED** (owner) |
+| A set price wins | A price the owner set on a channel is that channel's price; the default applies only to a channel with no open price row. Each channel on its own: B2B set and B2C default is normal. | **DECIDED** (owner) |
+| Which landed cost | The **weighted average landed unit cost of the units on the shelf now** — `remainingQty` × `landedUnitCostEgp` over every batch with some left, divided by the units left (verified or not, as "stock on hand" counts them, §3). Nothing on the shelf → the landed cost of the **most recently received batch** (newest `createdAt`). Never received → **no default** (null, shown "—", as an unpriced product was before). | **GUESS** (owner was told and did not object) |
+| Rounding | To the **nearest whole pound, half up**, on the price, not on the cost: worked as Σ(qty × cost) × 120 / (Σqty × 100), so an exact .5 is seen as .5 (11 at 50 and 1 at 55 → 60.5 → 61). | **GUESS** |
+| Landed at nothing | A cost of 0 is a batch not yet costed, not free goods: when the cost the default would use is 0, there is **no default** rather than a price of 0 (CLAUDE.md §10). A zero-cost batch beside costed ones is averaged in like any other. | **GUESS** |
+| It moves | A default is worked out whenever it is read, so it follows the shelf: sell the cheap batch and the default rises. Nothing is stored, and the price history shows only prices the owner set. | **GUESS** (follows from "default") |
+| Switched-off products | Unchanged: an inactive product still on the shelf is priced as any other (set, else default). | Follows §3 2026-10-14 |
+
+**Who reads it — one function.** `listPricesFor` / `listPriceOn` in `common/default-price.ts` answer every reader:
+`GET /products` and `GET /products/:id` (as `listPrices: { B2B, B2C }`, each `{ amount, currency, source: 'SET' |
+'DEFAULT', markupPct? }` or null; the raw `prices` rows stay for the history), the New Order popup and the samples
+"They're buying" dialog (both prefill from the products list), the assistant's `find_products` (the same objects) and
+`record_sale` (a line without a stated price takes it, marked `priceSource: 'default'` and "default price (landed cost
++ 20%) … confirm or give the price" in the preview), and the storefront's catalogue, product page and request.
+
+**A default is never saved as typed.** A sale line starts from it, and what is saved is the line's price, as for any
+list price; a typed price is never overwritten. The product page shows the default under an empty B2B field (as its
+placeholder, with "Default (landed + 20%)") and Save stays off until a price is typed — the default never becomes a set
+price by itself. The products list shows the default with the same muted hint.
+
+**The storefront.** It already listed products with no price, as unpriced, and refused a request for one
+(`PRODUCT_NOT_PRICED`). It now follows the office: a product with a default shows that figure on its card, its page and
+the request, and only a product with neither a set price nor a default is unpriced. A shop is shown **the figure only,
+never that it is a default** — "landed + 20%" beside a price would hand any shop the landed cost. **GUESS**, the same
+rule as the office.
+
+Open: whether the markup should differ by channel (retail above trade) — the owner said one figure for both.
+
 ---
 
 ## 4. Sales
@@ -2194,7 +2229,8 @@ stricter. Guesses made while building it, open until confirmed:
   confirmation token at all, rather than a refusal; an unknown customer is
   offered "a walk-in sale" as one answer.
 - The assistant's sales are in EGP; the list price offered is the open price
-  on the buyer's channel (the customer's type, B2C for a walk-in).
+  on the buyer's channel (the customer's type, B2C for a walk-in) — or, with
+  none set, the default landed + 20%, said so (§3, 2026-10-18).
 - The stock shown in the preview binds: if any of that product is sold
   elsewhere before the partner confirms, even leaving enough, the partner is
   shown a fresh preview (`PREVIEW_CHANGED`).
