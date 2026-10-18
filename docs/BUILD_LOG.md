@@ -18,6 +18,9 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- After the owner approves samples + default price locally (2026-10-18): give the assistant the samples flow — leave
+  samples, list what is out, "they're buying" (complete the sale), returned, write off — through the same service
+  methods and roles as the office, with the usual preview/confirm; find_products already returns the default price.
 - Future (owner, 2026-10-18): a few simple summary cards or small charts at the top of each tab, about that tab —
   e.g. top-earning cycles on Cycles, top-selling products on Products, the order with the most revenue and the
   largest order on Sales. Build it once there is enough data for a "top" to mean something (today: one cycle, five
