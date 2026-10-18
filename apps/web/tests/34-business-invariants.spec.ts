@@ -2241,3 +2241,323 @@ test.describe('Samples left at a shop are not a sale (§4, samples at shops, 202
     expect(await code(res)).toBe('CYCLE_HAS_SAMPLES_OUT');
   });
 });
+
+// ─── Rules agreed 2026-10-18, pinned 2026-10-19 ──────────────────────────
+
+/**
+ * A cycle of `qty` units landed at 10 each (EGP, a free leg), every unit
+ * received, funded by partner A so it has a basis to settle on (rule 10).
+ * Built the business's way (rule 4): order, leg, walk, check-in.
+ */
+async function shelfCycle(request: APIRequestContext, label: string, qty = 10) {
+  const { headers, mk } = await apiCtx(request);
+  const a = (await usersByEmail(request, headers))('partner.a@motoparts.com');
+  const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const product = await mk('products', { name: `${label} ${stamp} Part`, minStock: 0 });
+  const supplier = await mk('suppliers', { name: `${label} ${stamp} Supplier`, country: 'AE' });
+  const customer = await mk('customers', { displayName: `${label} ${stamp} Shop`, type: 'B2B' });
+  const cycle = await mk('cycles', {
+    originType: 'UAE_DIRECT', currency: 'EGP',
+    participants: [{ participantType: 'CORE_PARTNER', partnerUserId: a.id, contributionAmount: qty * 10 }],
+  });
+  const po = await mk(`cycles/${cycle.id}/purchases`, {
+    supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: dayFromNow(-30),
+    items: [{ productId: product.id, orderedQty: qty, unitPrice: 10 }],
+  });
+  await mk(`cycles/${cycle.id}/shipping-legs`, {
+    sequence: 1, origin: 'Dubai, UAE', destination: 'Cairo, Egypt', provider: `${label} Freight`,
+    costBasis: 'FLAT', amount: 0, currency: 'EGP', fxRateToEgp: 1,
+    departedOn: dayFromNow(-20), arrivedOn: dayFromNow(-5),
+  });
+  for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    await mk(`cycles/${cycle.id}/transition`, { status });
+  }
+  const full = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+  const poItem = (full.data ?? full).purchaseOrders[0].items[0];
+  await mk('receipts/verify', { cycleId: cycle.id, items: [{ purchaseOrderItemId: poItem.id, productId: product.id, receivedQty: qty }] });
+
+  /** A confirmed sale of `quantity` at `unitPrice`. */
+  const sell = async (quantity: number, unitPrice = 50) => {
+    const order = await mk('sales/orders', {
+      customerId: customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: product.id, quantity, unitPrice, discount: 0 }],
+    });
+    await mk(`sales/orders/${order.id}/confirm`, { version: order.version });
+    return order;
+  };
+  /** Samples of `quantity` left at the shop. */
+  const leave = (quantity: number) => mk('sales/orders', {
+    samples: true, customerId: customer.id, channel: 'B2B', currency: 'EGP',
+    items: [{ productId: product.id, quantity }],
+  });
+  /** The stock screen's reading of this product. */
+  const stock = async () => {
+    const body = await (await request.get(`${API}/inventory?productId=${product.id}`, { headers })).json();
+    const row = (body.data ?? body)[0];
+    return { shelf: Number(row.totalStock), atShops: Number(row.atShopsStock), all: Number(row.allStock) };
+  };
+  /** Units sold: what confirmed sales of this product drew. */
+  const sold = () => Number(psqlQuery(`
+    SELECT coalesce(sum(a.qty), 0) FROM sale_item_allocations a
+      JOIN sale_items i ON i.id = a.sale_item_id JOIN sale_orders o ON o.id = i.sale_order_id
+     WHERE i.product_id = '${product.id}' AND o.status IN ('CONFIRMED', 'PARTIALLY_PAID', 'PAID')`).trim());
+  const preview = async () => {
+    const res = await request.get(`${API}/settlements/preview/${cycle.id}`, { headers });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    return (await res.json()).data;
+  };
+  return { headers, mk, cycle, po, product, customer, sell, leave, stock, sold, preview };
+}
+
+const dashOf = async (request: APIRequestContext, headers: any) =>
+  (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
+const pnlOf = async (request: APIRequestContext, headers: any, query = '') => {
+  const res = await request.get(`${API}/analytics/profit-and-loss${query}`, { headers });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return (await res.json()).data;
+};
+const errCode = async (res: { json(): Promise<any> }) => (await res.json())?.error?.code;
+
+test.describe('Samples are not on the shelf and not sold (§4, samples at shops, 2026-10-18)', () => {
+  test('TC-INV-75: every unit received is in exactly one place — shelf + at shops + sold = received — before and after the shop buys some', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Smp Count');
+    const samples = await c.leave(3);
+    await c.sell(2);
+    let s = await c.stock();
+    expect(s).toEqual({ shelf: 5, atShops: 3, all: 8 });
+    expect(c.sold()).toBe(2);
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
+    // The three at the shop cannot be sold a second time from the shelf.
+    const tooMany = await attempt(request, c.headers, 'sales/orders', {
+      customerId: c.customer.id, channel: 'B2B', currency: 'EGP',
+      items: [{ productId: c.product.id, quantity: 6, unitPrice: 50, discount: 0 }],
+    });
+    expect(tooMany.status, tooMany.message).toBe(400);
+
+    // The shop keeps one of the three: two come back to the shelf, one is sold — once.
+    const res = await request.post(`${API}/sales/orders/${samples.id}/samples/convert`, {
+      headers: c.headers, data: { items: [{ productId: c.product.id, quantity: 1, unitPrice: 50 }] },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    s = await c.stock();
+    expect(s).toEqual({ shelf: 7, atShops: 0, all: 7 });
+    expect(c.sold()).toBe(3);
+    expect(s.shelf + s.atShops + c.sold()).toBe(10);
+  });
+
+  test('TC-INV-76: samples written off cost their own cycle exactly their landed cost — in its settlement and in the P&L — and write no ledger row', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Smp WO');
+    const other = await shelfCycle(request, 'Inv Smp WO Other');
+    await c.sell(4); // 200 of sales at 40 of cost
+    await other.sell(4);
+    const samples = await c.leave(2); // 2 × 10 landed
+    const ledgerBefore = Number(psqlQuery('SELECT count(*) FROM financial_transactions').trim());
+    const dashBefore = await dashOf(request, c.headers);
+    const pnlBefore = await pnlOf(request, c.headers);
+    const otherBefore = await other.preview();
+
+    const res = await request.post(`${API}/sales/orders/${samples.id}/samples/write-off`, { headers: c.headers, data: { reason: 'shop lost them' } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+
+    const p = await c.preview();
+    expect(cents(p.revenueEgp)).toBe(cents(200));
+    expect(cents(p.cogsEgp)).toBe(cents(40));
+    expect(cents(p.grossProfitEgp)).toBe(cents(140));
+    const line = (p.costs as any[]).find((l) => l.category === 'samples_written_off');
+    expect(line, JSON.stringify(p.costs)).toBeTruthy();
+    expect(cents(line.amountEgp)).toBe(cents(20));
+    // Nobody else's cycle carries it.
+    expect((await other.preview()).grossProfitEgp).toBe(otherBefore.grossProfitEgp);
+
+    const dashAfter = await dashOf(request, c.headers);
+    expect(cents(dashBefore.netProfit) - cents(dashAfter.netProfit)).toBe(cents(20));
+    expect(dashAfter.totalRevenue).toBe(dashBefore.totalRevenue);
+    expect(dashAfter.totalCogs).toBe(dashBefore.totalCogs);
+    const pnlAfter = await pnlOf(request, c.headers);
+    const wo = (d: any) => cents((d.expensesByCategory as any[]).find((e) => e.category === 'samples_written_off')?.amountEgp ?? 0);
+    expect(wo(pnlAfter) - wo(pnlBefore)).toBe(cents(20));
+    expect(cents(pnlBefore.netProfitEgp) - cents(pnlAfter.netProfitEgp)).toBe(cents(20));
+    expect(Number(psqlQuery('SELECT count(*) FROM financial_transactions').trim())).toBe(ledgerBefore);
+  });
+
+  test('TC-INV-77: samples out stop the settlement at every step — the plain transition, approve and pay — and the shop deciding lets it through', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Smp Gate');
+    await c.sell(4);
+    const out = await c.leave(2);
+    const t = await request.post(`${API}/cycles/${c.cycle.id}/transition`, { headers: c.headers, data: { status: 'SETTLEMENT' } });
+    expect(t.status()).toBe(400);
+    expect(await errCode(t)).toBe('CYCLE_HAS_SAMPLES_OUT');
+    await c.mk(`sales/orders/${out.id}/samples/return`, {});
+
+    // A draft made while nothing was out; samples left afterwards stop the approval.
+    const draft = await c.mk(`settlements/calculate/${c.cycle.id}`, {});
+    const late = await c.leave(1);
+    const approve = await request.post(`${API}/settlements/${draft.id}/approve`, { headers: c.headers, data: {} });
+    expect(approve.status()).toBe(400);
+    expect(await errCode(approve)).toBe('CYCLE_HAS_SAMPLES_OUT');
+    await c.mk(`sales/orders/${late.id}/samples/return`, {});
+    await c.mk(`settlements/${draft.id}/approve`, {});
+
+    // Approved, then samples left: the payout stops on them before anything else.
+    await c.leave(1);
+    const pay = await request.post(`${API}/settlements/${draft.id}/pay`, { headers: c.headers, data: { acceptRemainingStock: true } });
+    expect(pay.status()).toBe(400);
+    expect(await errCode(pay)).toBe('CYCLE_HAS_SAMPLES_OUT');
+    expect((await settlement(request, c.headers, draft.id)).status).toBe('APPROVED');
+  });
+});
+
+test.describe('Funding stops changing once the split is agreed (§8, owner 2026-10-18)', () => {
+  test('TC-INV-78: after approval — a contribution edit, Split equally, a new participant and removing a friend\'s payment are refused by FUNDING_LOCKED_AFTER_SETTLEMENT; recording one is refused too; nothing moves', async ({ request }) => {
+    const { headers, mk, cycle, po, lender, partners, stamp } = await friendCycle(request, 'Inv Lock Appr');
+    const f = await mk(`purchases/${po.id}/financings`, { lenderId: lender.id, amount: 30000 });
+    await mk(`lender-financings/${f.id}/repayments`, { amountEgp: 390000, rateToEgp: 13 });
+    const draft = await mk(`settlements/calculate/${cycle.id}`, {});
+    await mk(`settlements/${draft.id}/approve`, {});
+
+    const put = (id: string, data: any) => request.put(`${API}/cycles/participants/${id}`, { headers, data });
+    const edit = await put(partners[0].id, { contributionAmount: 99999 });
+    expect(edit.status()).toBe(400);
+    const body = (await edit.json()).error;
+    expect(body.code).toBe('FUNDING_LOCKED_AFTER_SETTLEMENT');
+    expect(body.params.reason).toBe('SETTLEMENT_APPROVED');
+    // "Split equally" is one equal edit per partner, down the same path.
+    for (const p of partners) {
+      expect(await errCode(await put(p.id, { contributionAmount: 13000 / partners.length }))).toBe('FUNDING_LOCKED_AFTER_SETTLEMENT');
+    }
+    const investor = await anInvestorUser(request, headers);
+    const add = await request.post(`${API}/cycles/${cycle.id}/participants`, {
+      headers, data: { participantType: 'TEMP_INVESTOR', investorUserId: investor.id, contributionAmount: 1000 },
+    });
+    expect(await errCode(add)).toBe('FUNDING_LOCKED_AFTER_SETTLEMENT');
+    const remove = await request.post(`${API}/lender-financings/${f.id}/remove`, { headers, data: { reason: 'late change' } });
+    expect(await errCode(remove)).toBe('FUNDING_LOCKED_AFTER_SETTLEMENT');
+    // An approved cycle stands at Settlement, which closes it to friends'
+    // payments before the funding lock is reached — refused either way.
+    const second = await mk('lenders', { name: `Inv Lock Second ${stamp}` });
+    const record = await request.post(`${API}/purchases/${po.id}/financings`, { headers, data: { lenderId: second.id, amount: 1 } });
+    expect(record.status()).toBe(400);
+    expect(['FUNDING_LOCKED_AFTER_SETTLEMENT', 'CYCLE_CLOSED_FOR_FINANCING']).toContain(await errCode(record));
+
+    const now = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
+    expect(now.participants.length).toBe(partners.length);
+    for (const p of partners) {
+      const was = p.id === partners[partners.length - 1].id ? 13000 - 4333.33 * (partners.length - 1) : 4333.33;
+      expect(cents(now.participants.find((x: any) => x.id === p.id).contributionAmount)).toBe(cents(was));
+    }
+  });
+
+  test('TC-INV-79: paid and closed — funding is locked; reversing the settlement opens it again', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const a = (await usersByEmail(request, headers))('partner.a@motoparts.com');
+    const { mk, cycle } = await soldOutCycle(request, 'Inv Lock Paid', [[a.id, 'CORE_PARTNER', 1000]]);
+    const id = await approved(mk, cycle.id);
+    const pay = await request.post(`${API}/settlements/${id}/pay`, { headers, data: {} });
+    expect(pay.ok(), await pay.text()).toBeTruthy();
+    const detail = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
+    const mine = detail.participants.find((p: any) => p.partnerUserId === a.id);
+    const edit = await request.put(`${API}/cycles/participants/${mine.id}`, { headers, data: { contributionAmount: 2000 } });
+    expect(edit.status()).toBe(400);
+    const err = (await edit.json()).error;
+    expect(err.code).toBe('FUNDING_LOCKED_AFTER_SETTLEMENT');
+    expect(['SETTLEMENT_PAID', 'CYCLE_CLOSED']).toContain(err.params.reason);
+
+    const rev = await request.post(`${API}/settlements/${id}/reverse`, { headers, data: { reason: 'paid the wrong figures' } });
+    expect(rev.ok(), await rev.text()).toBeTruthy();
+    const open = await request.put(`${API}/cycles/participants/${mine.id}`, { headers, data: { contributionAmount: 2000 } });
+    expect(open.ok(), await open.text()).toBeTruthy();
+  });
+
+  test('TC-INV-80: a draft calculated before the funding changed cannot be approved (SETTLEMENT_STALE_FUNDING); calculated again, it can', async ({ request }) => {
+    const { headers } = await apiCtx(request);
+    const user = await usersByEmail(request, headers);
+    const a = user('partner.a@motoparts.com');
+    const b = user('partner.b@motoparts.com');
+    const { mk, cycle } = await soldOutCycle(request, 'Inv Stale', [[a.id, 'CORE_PARTNER', 500], [b.id, 'CORE_PARTNER', 500]]);
+    const draft = await mk(`settlements/calculate/${cycle.id}`, {});
+    const detail = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;
+    const pa = detail.participants.find((p: any) => p.partnerUserId === a.id);
+    const edit = await request.put(`${API}/cycles/participants/${pa.id}`, { headers, data: { contributionAmount: 900 } });
+    expect(edit.ok(), await edit.text()).toBeTruthy();
+    const stale = await request.post(`${API}/settlements/${draft.id}/approve`, { headers, data: {} });
+    expect(stale.status()).toBe(400);
+    expect(await errCode(stale)).toBe('SETTLEMENT_STALE_FUNDING');
+    expect((await settlement(request, headers, draft.id)).status).toBe('DRAFT');
+    const fresh = await mk(`settlements/calculate/${cycle.id}`, {});
+    await mk(`settlements/${fresh.id}/approve`, {});
+    expect((await settlement(request, headers, fresh.id)).status).toBe('APPROVED');
+  });
+});
+
+test.describe('The profit and loss is the dashboard\'s own figures (owner 2026-10-18)', () => {
+  test('TC-INV-81: with no period the P&L equals the dashboard exactly, and its buckets add up to the totals', async ({ request }) => {
+    // Something to count, so a zero cannot hide a disagreement (rule 10).
+    const c = await shelfCycle(request, 'Inv PnL');
+    await c.sell(3, 70);
+    const dash = await dashOf(request, c.headers);
+    const pnl = await pnlOf(request, c.headers);
+    expect(pnl.allTime).toBe(true);
+    expect(pnl.netProfitEgp).not.toBe(0);
+    expect(pnl.salesEgp).toBe(dash.totalRevenue);
+    expect(pnl.cogsEgp).toBe(dash.totalCogs);
+    expect(pnl.expensesEgp).toBe(dash.totalExpenses);
+    expect(pnl.recoveredEgp).toBe(dash.totalRecoveredEgp);
+    expect(pnl.otherIncomeEgp).toBe(dash.totalOtherIncomeEgp);
+    expect(pnl.exchangeDifferenceEgp).toBe(dash.exchangeDifferenceEgp);
+    expect(pnl.netProfitEgp).toBe(dash.netProfit);
+    // `buckets` since the P&L redesign (days, weeks or months); `months` before it.
+    const parts: any[] = pnl.buckets ?? pnl.months;
+    expect(parts.length).toBeGreaterThan(0);
+    const sum = (k: string) => parts.reduce((s, b) => s + cents(b[k] ?? 0), 0);
+    expect(sum('netProfitEgp')).toBe(cents(pnl.netProfitEgp));
+    if (parts[0].salesEgp !== undefined) expect(sum('salesEgp')).toBe(cents(pnl.salesEgp));
+    if (parts[0].expensesEgp !== undefined) expect(sum('expensesEgp')).toBe(cents(pnl.expensesEgp));
+  });
+});
+
+test.describe('A default price is a suggestion, never a set price (§3, owner 2026-10-18)', () => {
+  test('TC-INV-82: selling at the default (landed + 20%) or at any other price saves the line\'s price and writes no ProductPrice row; the default stays a default', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv DefPrice');
+    const listed = async () => (await (await request.get(`${API}/products/${c.product.id}`, { headers: c.headers })).json()).data.listPrices;
+    const before = await listed();
+    expect(before.B2B).toMatchObject({ amount: '12.00', source: 'DEFAULT' });
+
+    const atDefault = await c.sell(2, 12);
+    const atOther = await c.sell(1, 15);
+    const lineOf = async (id: string) => (await (await request.get(`${API}/sales/orders/${id}`, { headers: c.headers })).json()).data.items[0];
+    expect(Number((await lineOf(atDefault.id)).unitPrice)).toBe(12);
+    expect(Number((await lineOf(atOther.id)).unitPrice)).toBe(15);
+    expect(Number(psqlQuery(`SELECT count(*) FROM product_prices WHERE product_id = '${c.product.id}'`).trim())).toBe(0);
+    const after = await listed();
+    expect(after.B2B.source).toBe('DEFAULT');
+    expect(after.B2C?.source ?? 'DEFAULT').toBe('DEFAULT');
+  });
+});
+
+test.describe('A cancelled order owes nothing and counts in nothing (§4, fixed 2026-10-18)', () => {
+  test('TC-INV-83: cancelled after confirming — outstanding 0, the shop owes nothing, revenue, cost, receivables and profit are as before, and it cannot be paid', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Cancel');
+    const owes = async () => Number((await (await request.get(`${API}/customers/${c.customer.id}`, { headers: c.headers })).json()).data.outstandingBalance);
+    const dashBefore = await dashOf(request, c.headers);
+    const order = await c.sell(2, 250);
+    const confirmed = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers: c.headers })).json()).data;
+    expect(Number(confirmed.outstanding)).toBe(500);
+    expect(await owes()).toBe(500);
+
+    await c.mk(`sales/orders/${order.id}/cancel`, {});
+    const after = (await (await request.get(`${API}/sales/orders/${order.id}`, { headers: c.headers })).json()).data;
+    expect(after.status).toBe('CANCELLED');
+    expect(Number(after.outstanding)).toBe(0);
+    expect(await owes()).toBe(0);
+    const dashAfter = await dashOf(request, c.headers);
+    for (const k of ['totalRevenue', 'totalCogs', 'receivables', 'netProfit']) {
+      expect(dashAfter[k], k).toBe(dashBefore[k]);
+    }
+    expect((await c.stock()).shelf).toBe(10);
+    const pay = await request.post(`${API}/payments`, {
+      headers: c.headers,
+      data: { customerId: c.customer.id, amount: 10, currency: 'EGP', method: 'CASH', orderId: order.id },
+    });
+    expect(pay.status()).toBe(400);
+  });
+});
