@@ -79,16 +79,17 @@ export const PHONE_FIRST_TILES: readonly TileKey[] = [
   'inventoryValue',
 ];
 
-export type QuickActionKey = 'newSale' | 'recordPayment' | 'newCycle' | 'recordFuel';
+/**
+ * The dashboard's quick actions. Fuel is not one of them (owner 2026-10-18:
+ * "remove fuel from dashboard") — it lives on the Ledger page only, gated by
+ * `canRecordFuel`.
+ */
+export type QuickActionKey = 'newSale' | 'recordPayment' | 'newCycle';
 
 export interface QuickAction {
   key: QuickActionKey;
-  /**
-   * Opens the list's own create form on arrival — no second copy of the form.
-   * None for Fuel, which opens the ledger's own form right here (owner
-   * 2026-10-17: fuel is quick access, recorded without leaving the dashboard).
-   */
-  href?: string;
+  /** Opens the list's own create form on arrival — no second copy of the form. */
+  href: string;
   roles: readonly string[];
 }
 
@@ -96,8 +97,16 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
   { key: 'newSale', href: '/sales?new=1', roles: SELLING_ROLES },
   { key: 'recordPayment', href: '/payments?new=1', roles: SELLING_ROLES },
   { key: 'newCycle', href: '/cycles/new', roles: CYCLE_ROLES },
-  { key: 'recordFuel', roles: LEDGER_WRITE_ROLES },
 ];
+
+/**
+ * Whether the Ledger page's Fuel quick action shows: only a role that may write
+ * the ledger (POST /ledger is core partners only) — a button it could not save
+ * from would be a dead end.
+ */
+export function canRecordFuel(role: string | undefined): boolean {
+  return allows(LEDGER_WRITE_ROLES, role);
+}
 
 export function allows(roles: readonly string[] | undefined, role: string | undefined): boolean {
   if (!roles) return true;

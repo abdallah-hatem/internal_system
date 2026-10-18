@@ -5,13 +5,12 @@ import { useTranslations } from 'next-intl';
 import { Banknote, Fuel, Plus, Ship, Zap } from 'lucide-react';
 import { LedgerEntryDialog } from '@/components/ledger/LedgerEntryDialog';
 import { Link } from '@/i18n/navigation';
-import { quickActionsFor, type QuickActionKey } from './dashboard-model';
+import { canRecordFuel, quickActionsFor, type QuickActionKey } from './dashboard-model';
 
 const ICONS: Record<QuickActionKey, typeof Plus> = {
   newSale: Plus,
   recordPayment: Banknote,
   newCycle: Ship,
-  recordFuel: Fuel,
 };
 
 /** The quick-action tile's look — the first action is filled, the rest outlined. */
@@ -25,7 +24,7 @@ function quickActionClass(primary: boolean): string {
 
 /**
  * Fuel: opens the ledger's own form in place, on Expense → Fuel (BUSINESS_LOGIC
- * §9, 2026-10-17). One button, used by the dashboard and the ledger page alike;
+ * §9). On the Ledger page only (owner 2026-10-18: removed from the dashboard);
  * the form saves and refreshes the ledger and the figures it moves itself.
  */
 function FuelQuickAction({ primary = false }: { primary?: boolean }) {
@@ -50,9 +49,7 @@ function FuelQuickAction({ primary = false }: { primary?: boolean }) {
 /**
  * The things done most from the dashboard. Each one is a link to the list that
  * already owns the form, which opens it on arrival — the form is never copied
- * here. Fuel is the exception: it opens the ledger's own form in place, so a
- * fill-up is recorded without leaving the dashboard. A role the API would
- * refuse does not see the button.
+ * here. A role the API would refuse does not see the button.
  */
 export function QuickActions({ role }: { role: string | undefined }) {
   const t = useTranslations('dashboard');
@@ -62,7 +59,6 @@ export function QuickActions({ role }: { role: string | undefined }) {
   return (
     <nav aria-label={t('quickActions')} className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
       {actions.map((action, i) => {
-        if (!action.href) return <FuelQuickAction key={action.key} primary={i === 0} />;
         const Icon = ICONS[action.key];
         return (
           <Link
@@ -83,13 +79,14 @@ export function QuickActions({ role }: { role: string | undefined }) {
 /**
  * The ledger page's quick actions (owner 2026-10-18: the Fuel button on the
  * ledger too, "as a quick action button, not like an ordinary one like add or
- * export"). The same Fuel tile as the dashboard, set apart from the page's
- * toolbar in its own labelled strip under the title. The roles are the
- * dashboard's (`quickActionsFor`), so a role that could not save sees nothing.
+ * export"). The Fuel tile, dressed like the dashboard's quick actions and set
+ * apart from the page's toolbar in its own labelled strip under the title. Only
+ * a role that may write the ledger (`canRecordFuel`) sees it — the same roles
+ * as before Fuel left the dashboard (owner 2026-10-18).
  */
 export function LedgerQuickActions({ role }: { role: string | undefined }) {
   const t = useTranslations('dashboard');
-  if (!quickActionsFor(role).some((a) => a.key === 'recordFuel')) return null;
+  if (!canRecordFuel(role)) return null;
   return (
     <nav
       aria-label={t('quickActions')}

@@ -7,8 +7,9 @@ import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
 
-// The ledger page's Fuel quick action (owner 2026-10-18): the dashboard's own
-// tile, in a strip of its own under the title, never one of Add / Export.
+// The ledger page's Fuel quick action (owner 2026-10-18): a quick-action tile,
+// in a strip of its own under the title, never one of Add / Export. Since
+// 2026-10-18 the only place Fuel is recorded from — not the dashboard.
 
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -80,15 +81,18 @@ describe('the ledger page has the Fuel quick action', () => {
     expect(nav.contains(fuel())).toBe(true);
   });
 
-  it('is the dashboard tile itself: same look, same icon', async () => {
+  it('looks like a dashboard quick action: same tile, same icon size', async () => {
     render(wrap(<QuickActions role="CORE_PARTNER" />));
-    const onDashboard = screen.getByTestId('quick-action-recordFuel');
+    // The dashboard no longer has Fuel (owner 2026-10-18); compare with an outlined tile there.
+    expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
+    const onDashboard = screen.getByTestId('quick-action-recordPayment');
     const look = onDashboard.className;
-    const icon = onDashboard.querySelector('svg')?.getAttribute('class');
+    const icon = onDashboard.querySelector('svg')?.getAttribute('class')?.split(' ').filter((c) => !c.startsWith('lucide'));
     cleanup();
     await renderLedger();
     expect(fuel()!.className).toBe(look);
-    expect(fuel()!.querySelector('svg')?.getAttribute('class')).toBe(icon);
+    const fuelIcon = fuel()!.querySelector('svg')?.getAttribute('class')?.split(' ').filter((c) => !c.startsWith('lucide'));
+    expect(fuelIcon).toEqual(icon);
   });
 
   it('is not one of the toolbar buttons: Add and Export sit elsewhere and look different', async () => {
@@ -104,7 +108,7 @@ describe('the ledger page has the Fuel quick action', () => {
     expect(within(strip()!).getAllByRole('button')).toHaveLength(1);
   });
 
-  it.each(['ADMIN_SUPPORT', 'TEMP_INVESTOR'])('%s, who may not write the ledger, does not see it', async (role) => {
+  it.each(['ADMIN_SUPPORT', 'TEMP_INVESTOR', 'SHOP_OWNER_PORTAL'])('%s, who may not write the ledger, does not see it', async (role) => {
     auth.role = role;
     await renderLedger();
     expect(fuel()).toBeNull();

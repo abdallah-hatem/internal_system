@@ -1409,15 +1409,15 @@ profit or a settlement. Now "Record money in or out":
   a test fails if they differ).
   - Expense: rent, salaries, utilities, transport and delivery, fuel, packaging,
     marketing, bank fees, customs and clearance, extra freight (for a cycle), other.
-  - **Fuel** (added 2026-10-17, owner: fuelling the delivery car is a regular expense). The dashboard's quick
-    actions have a **Fuel** button (core partners, who alone may write the ledger; moved there from the ledger's
-    header the same day — owner: quick access belongs on the dashboard) that opens this same form in place already on Expense → Fuel, dated today, no cycle; only the amount
-    (and a note, if wanted) is typed. No cycle means it is a running cost, shared by the partners at settlement
-    like rent (§8, L7); charge it to a cycle by picking one. Not automatic: fuel is a different amount each time,
-    so a schedule would record figures nobody paid.
-    **Also on the ledger page** (owner 2026-10-18): the same Fuel quick-action tile, in a labelled "Quick actions"
-    strip under the page title — set apart from Add entry and Export, which stay the page's toolbar. Same roles as
-    the dashboard (core partners), same form, same refresh.
+  - **Fuel** (added 2026-10-17, owner: fuelling the delivery car is a regular expense). A **Fuel** quick-action
+    button (core partners, who alone may write the ledger) opens this same form in place already on Expense → Fuel,
+    dated today, no cycle; only the amount (and a note, if wanted) is typed. No cycle means it is a running cost,
+    shared by the partners at settlement like rent (§8, L7); charge it to a cycle by picking one. Not automatic:
+    fuel is a different amount each time, so a schedule would record figures nobody paid.
+    **It lives on the Ledger page only** (owner 2026-10-18: "remove fuel from dashboard"): a labelled "Quick
+    actions" strip under the page title — set apart from Add entry and Export, which stay the page's toolbar —
+    shown to core partners only, same form, same refresh. History: it began on the dashboard (2026-10-17), was
+    added to the ledger page on 2026-10-18, and left the dashboard the same day.
   - Other income: other income, interest, other.
 - **Refused by the server**, each with a code in both languages: any other
   category (`LEDGER_CATEGORY_NOT_MANUAL` — every system category, free text,
@@ -1667,8 +1667,9 @@ dashboard"). The panel and its endpoint (`GET /analytics/recent-activity`) are
 gone; the office dashboard is the figure tiles, then To collect beside Top
 products. Each kind of event still has its own list: Sales, Payments, Inventory.
 
-**The dashboard, 2026-10-17/18 (owner).** Quick actions: New sale, Record payment, New cycle, and **Fuel**
-(core partners) — the ledger's expense form opened in place on Expense → Fuel, no cycle (a running cost, §9).
+**The dashboard, 2026-10-17/18 (owner).** Quick actions: New sale, Record payment, New cycle. **Fuel** left
+the dashboard on 2026-10-18 (owner: "remove fuel from dashboard"); it is recorded from the Ledger page's quick
+actions only (§9).
 On a phone every figure tile keeps its icon, and only six show — Revenue, Collected, Receivables, Net profit,
 Cash on hand, Inventory value — with "See more" for the rest; wider screens show every tile.
 **Top products** rank by **units sold** (default) or **revenue**, a switch on the dashboard card and on

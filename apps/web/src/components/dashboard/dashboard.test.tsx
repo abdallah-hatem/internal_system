@@ -30,6 +30,7 @@ const post = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api', () => ({ api: { get, post } }));
 
 import DashboardPage from '@/app/[locale]/dashboard/page';
+import { QUICK_ACTIONS, quickActionsFor } from '@/components/dashboard/dashboard-model';
 
 const KPIS = {
   totalRevenue: 1000, totalExpenses: 50, totalCogs: 400, totalCashOut: 600, totalCashIn: 700,
@@ -184,13 +185,14 @@ describe('a temporary investor sees only their own cycles (R1)', () => {
 
 // ── Quick actions ────────────────────────────────────────────────────
 describe('quick actions follow the API roles', () => {
-  it('a core partner sees all four, each opening the existing form', async () => {
+  it('a core partner sees the three, each opening the existing form', async () => {
     renderPage();
     await tile('revenue');
     expect(screen.getByTestId('quick-action-newSale').getAttribute('href')).toBe('/sales?new=1');
     expect(screen.getByTestId('quick-action-recordPayment').getAttribute('href')).toBe('/payments?new=1');
     expect(screen.getByTestId('quick-action-newCycle').getAttribute('href')).toBe('/cycles/new');
-    expect(screen.getByTestId('quick-action-recordFuel').textContent).toContain('Fuel');
+    const nav = screen.getByRole('navigation', { name: en.dashboard.quickActions });
+    expect(nav.querySelectorAll('a, button')).toHaveLength(3);
   });
 
   it('support staff may sell and take payments but not start a cycle', async () => {
@@ -246,65 +248,37 @@ describe('every dashboard key exists in both languages', () => {
 });
 
 
-// ── Fuel, recorded from the dashboard (owner 2026-10-17) ─────────────
-describe('the Fuel quick action', () => {
-  const fuelButton = async () => {
-    renderPage();
-    await tile('revenue');
-    return screen.getByTestId('quick-action-recordFuel');
-  };
-  const dialog = () => document.querySelector('[data-ledger-entry-dialog]');
-  const amount = () => document.querySelector<HTMLInputElement>('#ledger-amount')!;
-  const save = () => screen.getByRole('button', { name: en.common.save });
+// ── No Fuel on the dashboard (owner 2026-10-18: "remove fuel from dashboard") ──
+// Fuel is recorded from the Ledger page's quick-action strip only
+// (ledger-quick-actions.test.tsx). The dashboard keeps the other three.
+describe('the dashboard has no Fuel quick action', () => {
+  it.each(['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR', 'SHOP_OWNER_PORTAL', undefined])(
+    'role %s: no Fuel button, no ledger form, no Fuel label',
+    async (role) => {
+      auth.role = role;
+      renderPage();
+      if (role === 'CORE_PARTNER' || role === 'ADMIN_SUPPORT') await tile('revenue');
+      else if (role) await screen.findByTestId('your-cycles');
+      expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
+      expect(document.querySelector('[data-ledger-entry-dialog]')).toBeNull();
+      const nav = screen.queryByRole('navigation', { name: en.dashboard.quickActions });
+      if (nav) expect(nav.textContent).not.toContain(en.dashboard.actions.recordFuel);
+    },
+  );
 
-  it('opens the ledger form here, on Expense → Fuel, without leaving the dashboard', async () => {
-    fireEvent.click(await fuelButton());
-    expect(dialog()).toBeTruthy();
-    expect(document.querySelector<HTMLInputElement>('input[type="hidden"][name="category"]')?.value).toBe('fuel');
-    expect(screen.getByRole('radio', { name: new RegExp(en.ledger.kindExpense) }).getAttribute('aria-checked')).toBe('true');
-    expect(amount().value).toBe('');
-    expect(screen.getByTestId('tile-revenue')).toBeTruthy();
+  it('the model offers no fuel to any role', () => {
+    for (const role of ['CORE_PARTNER', 'ADMIN_SUPPORT', 'TEMP_INVESTOR', 'SHOP_OWNER_PORTAL', undefined]) {
+      expect(quickActionsFor(role).map((a) => a.key as string)).not.toContain('recordFuel');
+    }
+    expect(QUICK_ACTIONS.map((a) => a.key as string)).not.toContain('recordFuel');
   });
 
-  it('saves a fuel expense with no cycle, then closes', async () => {
-    post.mockResolvedValue({ data: { data: { id: 'tx' } } });
-    fireEvent.click(await fuelButton());
-    fireEvent.focus(amount());
-    fireEvent.change(amount(), { target: { value: '650' } });
-    fireEvent.blur(amount());
-    fireEvent.click(save());
-    await waitFor(() => expect(dialog()).toBeNull());
-    expect(post).toHaveBeenCalledTimes(1);
-    const body = post.mock.calls[0][1] as Record<string, unknown>;
-    expect(body).toMatchObject({ kind: 'EXPENSE', direction: 'OUTFLOW', category: 'fuel', amount: 650 });
-    expect(body).not.toHaveProperty('cycleId');
-  });
-
-  it('the second time opens a fresh form: Cancel leaves nothing behind', async () => {
-    fireEvent.click(await fuelButton());
-    fireEvent.focus(amount());
-    fireEvent.change(amount(), { target: { value: '300' } });
-    fireEvent.blur(amount());
-    fireEvent.click(screen.getByRole('button', { name: en.common.cancel }));
-    expect(dialog()).toBeNull();
-    fireEvent.click(screen.getByTestId('quick-action-recordFuel'));
-    expect(amount().value).toBe('');
-    expect(document.querySelector<HTMLInputElement>('input[type="hidden"][name="category"]')?.value).toBe('fuel');
-    expect(post).not.toHaveBeenCalled();
-  });
-
-  it('with no amount, Save sends nothing and the form stays open', async () => {
-    fireEvent.click(await fuelButton());
-    fireEvent.click(save());
-    expect(await screen.findByTestId('ledger-refusal')).toBeTruthy();
-    expect(post).not.toHaveBeenCalled();
-    expect(dialog()).toBeTruthy();
-  });
-
-  it('reads Fuel in Arabic', async () => {
+  it('nor in Arabic', async () => {
     renderPage('ar');
     await tile('revenue');
-    expect(screen.getByTestId('quick-action-recordFuel').textContent).toContain('بنزين');
+    expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
+    const nav = screen.getByRole('navigation', { name: ar.dashboard.quickActions });
+    expect(nav.textContent).not.toContain(ar.dashboard.actions.recordFuel);
   });
 });
 
