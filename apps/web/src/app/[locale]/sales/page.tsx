@@ -513,7 +513,7 @@ function SalesPageContent() {
       cell: (order) => channelBadge(order.channel),
     },
     {
-      // Wide enough for "Samples at shop · 12 units" (§4) in either language.
+      // Wide enough for "Samples · 12 units" (§4) in either language.
       key: 'status', header: tc('status'), width: '12.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
       cell: (order) => statusBadge(order.status, order),
     },
@@ -615,7 +615,7 @@ function SalesPageContent() {
   ];
 
   // ── Render ────────────────────────────────────────────────────────
-  // Samples still at the shop read "Samples at shop · N units" (§4).
+  // Samples still at the shop read "Samples · N units" (§4).
   const statusBadge = (status: string, order?: SaleOrder) => (
     <span
       data-testid={status === 'SAMPLES' ? 'samples-badge' : undefined}
@@ -737,7 +737,7 @@ function SalesPageContent() {
       {!noOrdersYet && (
         <DataTable
           testId="sales-table"
-          // The status column grew for "Samples at shop · N units" (§4); the
+          // The status column grew for "Samples · N units" (§4); the
           // customer gives up the room, so the table still fits a laptop.
           autoMin="11rem"
           className="hidden md:block"

@@ -637,8 +637,9 @@ default price 120 EGP. So I don't have to enter the price manually on the produc
 + 20%) … confirm or give the price" in the preview), and the storefront's catalogue, product page and request.
 
 **A default is never saved as typed.** A sale line starts from it, and what is saved is the line's price, as for any
-list price; a typed price is never overwritten. The product page shows the default under an empty B2B field (as its
-placeholder, with "Default (landed + 20%)") and Save stays off until a price is typed — the default never becomes a set
+list price; a typed price is never overwritten. The product page shows the default under whichever of the B2B and B2C fields
+is empty (as its placeholder, with "Default (landed + 20%)"; the B2C field was missed until 2026-10-19) and Save stays
+off until a price is typed — the default never becomes a set
 price by itself. The products list shows the default with the same muted hint.
 
 **The storefront.** It already listed products with no price, as unpriced, and refused a request for one

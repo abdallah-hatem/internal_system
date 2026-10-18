@@ -31,6 +31,7 @@ movement types `SAMPLE_OUT`, `SAMPLE_BACK`; three nullable `sale_orders` dates),
   switch, "They're buying" opens the New Order popup pre-filled, Returned, Write off, the 14-day reminder, the
   Samples column on Inventory and the Samples card on a product's page, settlement refused while samples are out.
 - A product's default price is landed cost + 20% where no price is set (`22c0856`; §3; `common/default-price.ts`).
+  2026-10-19: the product page's B2C field shows it too (it only did for B2B).
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.

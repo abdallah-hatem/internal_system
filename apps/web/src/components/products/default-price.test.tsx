@@ -45,11 +45,25 @@ const product = {
   },
 };
 
+// The mirror case: B2B set at 150, B2C has nothing set → the default 120.
+// Both channels default the same way (owner 2026-10-18).
+const b2cDefaultProduct = {
+  ...product,
+  prices: [
+    { id: 'pr-1', channel: 'B2B', amount: 150, currency: 'EGP', effectiveFrom: '2026-09-01', effectiveTo: null },
+  ],
+  listPrices: {
+    B2B: { amount: '150.00', currency: 'EGP', source: 'SET' },
+    B2C: { amount: '120.00', currency: 'EGP', source: 'DEFAULT', markupPct: 20 },
+  },
+};
+const fixture = vi.hoisted(() => ({ current: null as unknown }));
+
 const post = vi.fn(() => new Promise(() => {}));
 vi.mock('@/lib/api', () => ({
   api: {
     get: (url: string) => {
-      if (url === '/products/prod-1') return Promise.resolve({ data: { data: product } });
+      if (url === '/products/prod-1') return Promise.resolve({ data: { data: fixture.current ?? product } });
       if (url === '/products') return Promise.resolve({ data: { data: [product] } });
       return Promise.resolve({ data: { data: [] } });
     },
@@ -72,6 +86,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   post.mockClear();
+  fixture.current = null;
 });
 
 function wrap(ui: ReactNode, locale: 'en' | 'ar' = 'en') {
@@ -137,6 +152,41 @@ describe('the product page, B2B price card', () => {
     expect(within(b2b).getByTestId('default-price-hint').textContent).toBe('Default (landed + 20%)');
     const b2c = readonly.find((el) => el.textContent?.includes('150.00'));
     if (b2c) expect(within(b2c).queryByTestId('default-price-hint')).toBeNull();
+    state.role = 'CORE_PARTNER';
+  });
+});
+
+describe('the product page, B2C price card', () => {
+  it('a B2C channel with no price set shows the default under an empty field, like B2B does', async () => {
+    state.role = 'CORE_PARTNER';
+    fixture.current = b2cDefaultProduct;
+    wrap(<ProductDetailPage />);
+    const line = await screen.findByTestId('default-price');
+    expect(line.textContent).toMatch(/120\.00/);
+    expect(within(line).getByTestId('default-price-hint').textContent).toBe('Default (landed + 20%)');
+    const card = line.parentElement!;
+    // It is the B2C card, not the B2B one.
+    expect(card.textContent).toContain(en.products.b2cPrice);
+    const input = card.querySelector('input')!;
+    expect(input.value).toBe('');
+    expect(input.placeholder).toBe('120');
+    expect(within(card).getByTestId('set-price-action').hasAttribute('disabled')).toBe(true);
+    expect(post).not.toHaveBeenCalledWith(expect.stringMatching(/\/prices$/), expect.anything());
+    // The set B2B price carries no hint: one hint on the page.
+    expect(screen.getAllByTestId('default-price-hint')).toHaveLength(1);
+  });
+
+  it('a reader sees the B2C default with the hint, and the set B2B price bare', async () => {
+    state.role = 'TEMP_INVESTOR';
+    fixture.current = b2cDefaultProduct;
+    wrap(<ProductDetailPage />);
+    const readonly = await screen.findAllByTestId('price-readonly');
+    const b2c = readonly.find((el) => el.textContent?.includes('120.00'))!;
+    expect(b2c).toBeTruthy();
+    expect(within(b2c).getByTestId('default-price-hint').textContent).toBe('Default (landed + 20%)');
+    const b2b = readonly.find((el) => el.textContent?.includes('150.00'))!;
+    expect(b2b).toBeTruthy();
+    expect(within(b2b).queryByTestId('default-price-hint')).toBeNull();
     state.role = 'CORE_PARTNER';
   });
 });

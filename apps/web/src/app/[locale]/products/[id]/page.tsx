@@ -718,6 +718,7 @@ export default function ProductDetailPage() {
                 label={t('b2cPrice')}
                 icon={<Store className="h-4 w-4 text-primary-500" />}
                 current={activeB2C}
+                resolved={listPriceOf(productData, 'B2C')}
               />
             </div>
           </div>

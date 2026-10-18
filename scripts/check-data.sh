@@ -496,7 +496,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
      AND (o.total <> 0 OR o.outstanding <> 0
           OR EXISTS (SELECT 1 FROM payment_allocations a WHERE a.sale_order_id = o.id))
   -- Units at a shop are counted from the allocations of the open samples order:
-  -- they must be exactly the units on its lines, or "At shops" lies.
+  -- they must be exactly the units on its lines, or "Samples" lies.
   UNION ALL SELECT 26.1, 'open samples order whose batches do not hold its lines',
          count(*) FROM sale_items i
          JOIN sale_orders o ON o.id = i.sale_order_id
