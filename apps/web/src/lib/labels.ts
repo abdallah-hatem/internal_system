@@ -35,7 +35,9 @@ export type CodeKind =
   // L6 — a manual ledger entry (api common/manual-ledger-categories.ts).
   | 'ledgerCategory'
   | 'ledgerKind'
-  | 'ledgerDirection';
+  | 'ledgerDirection'
+  // Why a cycle's funding is locked (api common/funding-lock.ts, 2026-10-18).
+  | 'fundingLock';
 
 /**
  * Translate an API code for display.

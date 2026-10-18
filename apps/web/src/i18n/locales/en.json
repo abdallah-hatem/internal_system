@@ -339,7 +339,16 @@
     "profitExpenses": "Expenses charged to it",
     "profitOtherIncome": "Other income",
     "movedInAtCost": "+ moved in at cost",
-    "byContributionHint": "Leave blank to split by contribution"
+    "byContributionHint": "Leave blank to split by contribution",
+    "fundingNoteTitle": "Funding not entered yet — needed to settle this cycle",
+    "fundingNotePartial": "A lender paid <paid></paid> of <cost></cost>; enter the partners' share for the rest, or the settlement will be refused.",
+    "fundingNoteHint": "Settling splits the profit by what each partner put in. With nothing recorded, the settlement is refused.",
+    "fundingEnterAmounts": "Enter amounts",
+    "fundingPaidByLender": "Paid by a lender",
+    "editAmounts": "Edit amounts",
+    "amountsSaved": "Contributions saved",
+    "amountsFailed": "Could not save the contributions",
+    "fundingLocked": "Funding is locked: {reason}."
   },
   "purchases": {
     "title": "Purchases",
@@ -1217,7 +1226,6 @@
     "step1Title": "Cycle Info",
     "step2Title": "Purchase Order",
     "step3Title": "Shipping Leg",
-    "step4Title": "Funding",
     "cycleCreated": "Cycle created",
     "purchaseCreated": "Purchase order created",
     "addItem": "Add Item",
@@ -1265,27 +1273,6 @@
     "purchaseOrder": "Purchase Order",
     "back": "Back",
     "saveAndContinueBtn": "Save & Continue",
-    "funding": "Who is funding this cycle",
-    "fundingHint": "Split what the cycle cost between the partners. Left at zero, its profit cannot be shared out at settlement.",
-    "splitEqually": "Split equally",
-    "fundingSaved": "Contributions saved",
-    "fundingFailed": "Could not save the contributions",
-    "cycleCost": "Cycle cost",
-    "funded": "Funded",
-    "fundingShort": "{amount} EGP of the cycle cost is not covered",
-    "fundingOver": "{amount} EGP more than the cycle cost",
-    "notFundedYet": "No contributions recorded yet",
-    "tempInvestorTag": "investor",
-    "addInvestor": "Add a temporary investor",
-    "investorPerson": "Who",
-    "investorAmount": "Amount",
-    "investorFee": "Fee %",
-    "investorFeeHint": "Percentage of this investor's own profit that goes to the partners",
-    "addInvestorAction": "Add",
-    "investorAdded": "Investor added",
-    "investorFailed": "Could not add the investor",
-    "selectPerson": "Choose a partner or investor",
-    "everyoneIsOn": "Everyone is already on this cycle",
     "continue": "Continue",
     "savedOrdersHint": "Already saved on this cycle. Continue to the shipping step.",
     "orderLine": "{qty} ×",
@@ -1300,8 +1287,7 @@
     "finished": "Cycle saved — {status}",
     "finishFailed": "The cycle could not be moved on",
     "baseCurrency": "base currency",
-    "backToCycle": "Back to the cycle",
-    "financedByFriends": "Paid by friends"
+    "backToCycle": "Back to the cycle"
   },
   "settlementsPage": {
     "title": "Settlements",
@@ -1691,7 +1677,9 @@
     "SAMPLES_NOTHING_KEPT": "Nothing is on the sale from {order}. If every sample came back, record \"Returned\".",
     "SAMPLES_OTHER_SHOP": "The samples on {order} were left with {shop}; the sale from them is to {shop}.",
     "SAMPLES_SALE_BEFORE_LEFT": "The samples on {order} were left on {left}, so the sale cannot be dated {day}.",
-    "SAMPLES_EXTRA_NOT_IN_STOCK": "{out} of {product} went out as samples; selling {wanted} needs {extra} more from the shelf, and only {available} is there."
+    "SAMPLES_EXTRA_NOT_IN_STOCK": "{out} of {product} went out as samples; selling {wanted} needs {extra} more from the shelf, and only {available} is there.",
+    "FUNDING_LOCKED_AFTER_SETTLEMENT": "The funding of {cycle} can no longer change: {reason}.",
+    "SETTLEMENT_STALE_FUNDING": "The funding changed after this settlement was calculated. Calculate it again before approving."
   },
   "requests": {
     "tabs": {
@@ -2040,6 +2028,11 @@
     "ledgerDirection": {
       "INFLOW": "money in",
       "OUTFLOW": "money out"
+    },
+    "fundingLock": {
+      "SETTLEMENT_APPROVED": "the settlement is approved — reverse it to change the funding",
+      "SETTLEMENT_PAID": "the settlement is paid — reverse it to change the funding",
+      "CYCLE_CLOSED": "the cycle is closed"
     }
   },
   "goodsLocation": {

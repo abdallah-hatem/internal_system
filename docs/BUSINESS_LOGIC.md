@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -1532,6 +1532,48 @@ ordered has nothing to account for.
 **DECIDED 2026-10-18 (owner) — nor while any of its units are out at shops as
 samples** (`CYCLE_HAS_SAMPLES_OUT`, naming the units and the shops; §4 "Samples at
 shops"). Units at shops count as unsold stock in every unsold figure.
+
+### The wizard ends at the shipping; funding is asked for on the cycle page, and locks at approval — owner 2026-10-18
+
+**DECIDED (owner, 2026-10-18):**
+
+- **The new-cycle wizard has three steps** — Cycle info, Purchase order, Shipping leg.
+  The Funding step is gone. Finishing the shipping step saves the legs, moves the
+  cycle as far as its dates allow (§1, unchanged) and opens the cycle's details page.
+  The cycle is created exactly as before: every active core partner on it with a
+  contribution of 0 (§8 above).
+- **A funding note on the cycle page.** While settling the cycle would be refused for
+  want of a basis to split its profit on (`CYCLE_NOT_FUNDED`), an amber note near the
+  top says "Funding not entered yet — needed to settle this cycle", with three actions:
+  **Split equally** (the page's existing split), **Enter amounts** (each participant's
+  contribution, edited in place on the Participants card) and **Paid by a lender** (the
+  existing "a friend paid the supplier" form, §18). If a lender paid part and the
+  partners nothing, it reads "A lender paid X of Y; enter the partners' share for the
+  rest, or the settlement will be refused". It goes once the partners put money in or a
+  lender paid the whole cost to fund, and never shows on a closed or cancelled cycle.
+- **Funding locks once the settlement is approved.** From an APPROVED or PAID settlement,
+  or a CLOSED cycle, a contribution or custom split cannot be edited (Split equally
+  included), a participant cannot be added, and a friend's payment cannot be recorded or
+  removed: `FUNDING_LOCKED_AFTER_SETTLEMENT`, naming why (`reason`: `SETTLEMENT_APPROVED`,
+  `SETTLEMENT_PAID`, `CYCLE_CLOSED`). Reversing the settlement unlocks it (the cycle goes
+  back to Selling). One definition, `apps/api/src/common/funding-lock.ts`; the cycle's
+  `fundingLock` carries the reason to the page, whose controls stay visible, switched
+  off, with the reason beside them.
+
+**GUESSES (2026-10-18, built; open until the owner confirms):**
+
+| Question | Guess built | Why |
+|---|---|---|
+| When the note shows | Exactly when settling would refuse: `profitBasis` on the landed-cost totals is `NONE`. That is `profitBasisOf` (settlement-math.ts) — the function the settlement's split itself branches on — over the participants and `fundingFor`'s `fundedByLenders`. A custom split on every participant is a basis, so no note. Hidden too while funding is locked. | One definition (CLAUDE.md §11): the note and the refusal can never disagree. |
+| "Paid by a lender" with one order / several | One order: the form opens on it. Several: the order picker, nothing preselected. | The owner's rule. |
+| Its prefilled amount | What friends may still pay of the cycle, the API's own `availableEgp` (the cap it enforces). In pounds as is; in another currency divided by the rate shown, **rounded down** to the piastre, so it is never above the cap. It follows the currency and rate until he types an amount; a typed amount is never overwritten. | Reuse the server's figure; never a second formula for the cap. In a foreign currency the rounded-down amount can leave a few piastres unfunded, so the note may stay with the partial text — the partners split those, or the amount is typed. |
+| "Enter amounts" | There was no per-participant editing on the cycle page (only the wizard's Funding step had it), so it moved there: an **Edit amounts** button on the Participants card, the note's action opens it and scrolls to it. Save writes only what changed. | The smallest flow, on the screen where the person is. |
+| Adding an investor | On the cycle page's existing Add participant (the wizard's own add-investor box went with the step). | Already there. |
+| A closed cycle, adding a participant | Keeps its older refusal, `CYCLE_CLOSED_NO_PARTICIPANTS`; every other locked path says `FUNDING_LOCKED_AFTER_SETTLEMENT`. | Unchanged code for an unchanged case. |
+| A friend's payment on a cycle in Settlement or Closed | Still `CYCLE_CLOSED_FOR_FINANCING` (unchanged, checked first); the lock catches what that misses — an approved settlement on a cycle not marked Settlement. Removing one, which had no status check at all, is now refused from approval on. | Removing one after the payout changed the basis the profit was split on. |
+| A draft settlement calculated before funding changed | **Approval refuses it** (`SETTLEMENT_STALE_FUNDING`) when, since the draft's `calculatedAt`, a participant was added or edited (`createdAt`/`updatedAt`) or a friend's payment recorded or removed (`createdAt`/`removedAt`). Calculating again replaces the draft, as it always has. Nothing is marked or deleted when funding changes. | The smallest correct option: the settlement flow already supersedes drafts on recalculation; approval is the one moment a stale split would become agreed. An edit that writes the same value still counts as a change (re-calculate). |
+| The wizard's other figures | The wizard's funded-versus-cost line, its "Cycle cost" and its Split equally are gone with the step (§18's rows above that name them describe the cycle page now). | — |
+
 
 ---
 

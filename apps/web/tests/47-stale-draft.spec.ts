@@ -211,7 +211,8 @@ test.describe('A shipping leg that is no longer there', () => {
       (r) => r.url().includes('shipping-leg') && r.request().method() === 'POST',
       { timeout: 15000 },
     );
-    await page.getByRole('button', { name: /save & continue/i }).click();
+    // The shipping step is the last since 2026-10-18: its button is Finish.
+    await page.getByRole('button', { name: /^finish$/i }).click();
     await legPost;
 
     // No refusal, and the leg exists afterwards.

@@ -27,8 +27,11 @@ export class CostingController {
     // equally" and the wizard's funded-versus-cost line ask for the rest.
     // Leftovers moved in from another cycle (§8, L5) are funded here too,
     // and so are the expenses charged to the cycle (§18, 2026-10-16).
-    const { financed, toFund, transferredIn, expenses, cycleCost } =
-      await this.costing.fundingFor(cycleId);
+    const funding = await this.costing.fundingFor(cycleId);
+    const { financed, toFund, transferredIn, expenses, cycleCost } = funding;
+    // What settling would split the profit on; NONE is the cycle page's
+    // "Funding not entered yet" note (owner 2026-10-18).
+    const profitBasis = await this.costing.profitBasis(cycleId, funding);
     return {
       cycleId: r.cycleId,
       totals: {
@@ -42,6 +45,10 @@ export class CostingController {
         lenderFinancedEgp: financed.toFixed(2),
         transferredInEgp: transferredIn.toFixed(2),
         toFundEgp: toFund.toFixed(2),
+        /** A friend paid something and the partners are asked for nothing (§8). */
+        fundedByLenders: funding.fundedByLenders,
+        /** CUSTOM_SPLIT, CONTRIBUTIONS, LENDERS — or NONE: settling would be refused. */
+        profitBasis,
         pieces: r.totalPieces.toFixed(3),
         weightKg: r.totalWeightKg.toFixed(3),
       },

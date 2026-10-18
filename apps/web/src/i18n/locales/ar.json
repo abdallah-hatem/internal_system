@@ -339,7 +339,16 @@
     "profitExpenses": "مصروفات محمّلة عليها",
     "profitOtherIncome": "دخل آخر",
     "movedInAtCost": "+ منقول إليها بالتكلفة",
-    "byContributionHint": "اتركه فارغًا للتقسيم حسب المساهمة"
+    "byContributionHint": "اتركه فارغًا للتقسيم حسب المساهمة",
+    "fundingNoteTitle": "لم يُسجَّل التمويل بعد — وهو لازم لتسوية هذه الدورة",
+    "fundingNotePartial": "دفع مُقرض <paid></paid> من <cost></cost>؛ سجّل حصة الشركاء من الباقي، وإلا رُفضت التسوية.",
+    "fundingNoteHint": "تقسّم التسوية الربح بحسب ما دفعه كل شريك. وإن لم يُسجَّل شيء رُفضت التسوية.",
+    "fundingEnterAmounts": "إدخال المبالغ",
+    "fundingPaidByLender": "دفعه مُقرض",
+    "editAmounts": "تعديل المبالغ",
+    "amountsSaved": "تم حفظ المساهمات",
+    "amountsFailed": "تعذّر حفظ المساهمات",
+    "fundingLocked": "التمويل مُقفل: {reason}."
   },
   "purchases": {
     "title": "المشتريات",
@@ -1284,7 +1293,6 @@
     "step1Title": "بيانات الدورة",
     "step2Title": "أمر الشراء",
     "step3Title": "الشحن",
-    "step4Title": "التمويل",
     "cycleCreated": "تم إنشاء الدورة",
     "purchaseCreated": "تم إنشاء أمر الشراء",
     "addItem": "إضافة بند",
@@ -1332,27 +1340,6 @@
     "purchaseOrder": "أمر الشراء",
     "back": "رجوع",
     "saveAndContinueBtn": "حفظ ومتابعة",
-    "funding": "من يموّل هذه الدورة",
-    "fundingHint": "وزّع تكلفة الدورة على الشركاء. إن تُركت صفرًا، لا يمكن تقسيم أرباحها عند التسوية.",
-    "splitEqually": "تقسيم بالتساوي",
-    "fundingSaved": "تم حفظ المساهمات",
-    "fundingFailed": "تعذّر حفظ المساهمات",
-    "cycleCost": "تكلفة الدورة",
-    "funded": "المموّل",
-    "fundingShort": "{amount} ج.م من تكلفة الدورة غير مغطاة",
-    "fundingOver": "{amount} ج.م أكثر من تكلفة الدورة",
-    "notFundedYet": "لا توجد مساهمات مسجّلة بعد",
-    "tempInvestorTag": "مستثمر",
-    "addInvestor": "إضافة مستثمر مؤقت",
-    "investorPerson": "الشخص",
-    "investorAmount": "المبلغ",
-    "investorFee": "نسبة العمولة ٪",
-    "investorFeeHint": "نسبة من أرباح هذا المستثمر تذهب إلى الشركاء",
-    "addInvestorAction": "إضافة",
-    "investorAdded": "تمت إضافة المستثمر",
-    "investorFailed": "تعذّرت إضافة المستثمر",
-    "selectPerson": "اختر شريكًا أو مستثمرًا",
-    "everyoneIsOn": "جميع الأشخاص مشاركون في هذه الدورة بالفعل",
     "continue": "متابعة",
     "savedOrdersHint": "محفوظ بالفعل على هذه الدورة. تابع إلى خطوة الشحن.",
     "orderLine": "{qty} ×",
@@ -1367,8 +1354,7 @@
     "finished": "تم حفظ الدورة — {status}",
     "finishFailed": "تعذّر نقل الدورة إلى المرحلة التالية",
     "baseCurrency": "العملة الأساسية",
-    "backToCycle": "العودة إلى الدورة",
-    "financedByFriends": "دفعه أصدقاء"
+    "backToCycle": "العودة إلى الدورة"
   },
   "contracts": {
     "title": "العقود",
@@ -1691,7 +1677,9 @@
     "SAMPLES_NOTHING_KEPT": "لا شيء في البيع من {order}. إذا رجعت كل العينات، سجّل \"رجعت\".",
     "SAMPLES_OTHER_SHOP": "عينات {order} تُركت عند {shop}؛ البيع منها يكون لـ {shop}.",
     "SAMPLES_SALE_BEFORE_LEFT": "عينات {order} تُركت في {left}، فلا يمكن أن يكون تاريخ البيع {day}.",
-    "SAMPLES_EXTRA_NOT_IN_STOCK": "خرج {out} من {product} كعينات؛ بيع {wanted} يحتاج {extra} إضافية من الرف، والموجود {available} فقط."
+    "SAMPLES_EXTRA_NOT_IN_STOCK": "خرج {out} من {product} كعينات؛ بيع {wanted} يحتاج {extra} إضافية من الرف، والموجود {available} فقط.",
+    "FUNDING_LOCKED_AFTER_SETTLEMENT": "لم يعد ممكناً تغيير تمويل {cycle}: {reason}.",
+    "SETTLEMENT_STALE_FUNDING": "تغيّر التمويل بعد احتساب هذه التسوية. احتسبها من جديد قبل الاعتماد."
   },
   "requests": {
     "tabs": {
@@ -2040,6 +2028,11 @@
     "ledgerDirection": {
       "INFLOW": "مالًا داخلًا",
       "OUTFLOW": "مالًا خارجًا"
+    },
+    "fundingLock": {
+      "SETTLEMENT_APPROVED": "التسوية معتمدة — اعكسها لتغيير التمويل",
+      "SETTLEMENT_PAID": "التسوية مسددة — اعكسها لتغيير التمويل",
+      "CYCLE_CLOSED": "الدورة مُغلقة"
     }
   },
   "goodsLocation": {

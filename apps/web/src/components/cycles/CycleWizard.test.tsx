@@ -39,6 +39,8 @@ vi.mock('../../lib/api', () => ({
     },
     put: (url: string, body: Body) => {
       writes.push({ method: 'PUT', url, body });
+      const refusal = refuse?.(url, body);
+      if (refusal) return Promise.reject(refusal);
       return ok({ id: url.split('/').pop() });
     },
   },
@@ -85,8 +87,10 @@ const leg = (sequence: number, extra: Record<string, unknown> = {}) => ({
   sequence,
   origin: sequence === 1 ? 'Guangzhou, CN' : 'Dubai, UAE',
   destination: sequence === 1 ? 'Dubai, UAE' : 'Cairo, Egypt',
-  provider: null,
-  providerId: null,
+  // A provider and a cost, as a saved leg has: finishing submits this form,
+  // which checks its own required fields.
+  provider: 'Aramex',
+  providerId: 'prov-1',
   trackingRef: `TRK-LEG-${sequence}`,
   departedOn: null,
   arrivedOn: null,
@@ -128,12 +132,15 @@ function renderWizard(existingCycleId?: string) {
 const transitions = () =>
   writes.filter((w) => w.url.endsWith('/transition')).map((w) => (w.body as Body).status);
 
+/** The shipping step's submit — the last step's, so it says Finish (2026-10-18). */
 const finishButton = () => screen.findByRole('button', { name: 'Finish' });
 
 async function finish() {
   fireEvent.click(await finishButton());
   await waitFor(() => expect(push).toHaveBeenCalled());
 }
+
+const contributionWrites = () => writes.filter((w) => w.url.startsWith('/cycles/participants/'));
 
 beforeEach(() => {
   costingTotals = { landedEgp: 0 };
@@ -261,12 +268,59 @@ describe('finishing the wizard', () => {
     expect(transitions()).toEqual(['FUNDING', 'PURCHASING']);
   });
 
-  it('has no Receive Inventory step any more', async () => {
+  it('has three steps — no Receive Inventory, no Funding (owner 2026-10-18)', async () => {
     cycle = chinaCycle();
     renderWizard('cyc-1');
     await finishButton();
     expect(screen.queryByText(/receive inventory/i)).toBeNull();
-    expect(screen.getAllByRole('button', { name: /Cycle Info|Purchase Order|Shipping Leg|Funding/ })).toHaveLength(4);
+    const steps = screen.getAllByRole('button', { name: /Cycle Info|Purchase Order|Shipping Leg|Funding/ });
+    expect(steps.map((b) => b.textContent?.replace(/^\d/, '').trim())).toEqual([
+      'Cycle Info',
+      'Purchase Order',
+      'Shipping Leg',
+    ]);
+    expect(screen.queryByText(/who is funding/i)).toBeNull();
+    expect(document.querySelector('[data-field^="contribution-"]')).toBeNull();
+  });
+
+  it('the shipping step is the last: saving it saves the legs, walks the cycle, and lands on the details page', async () => {
+    cycle = chinaCycle({ participants: [] });
+    renderWizard('cyc-1');
+    await finish();
+    // The legs first, then the walk — in that order.
+    const legWrite = writes.findIndex((w) => w.url.startsWith('/shipping/legs/'));
+    const firstTransition = writes.findIndex((w) => w.url.endsWith('/transition'));
+    expect(legWrite).toBeGreaterThanOrEqual(0);
+    expect(firstTransition).toBeGreaterThan(legWrite);
+    expect(push).toHaveBeenCalledWith('/en/cycles/cyc-1/details');
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it('finishing writes no contribution: the partners stay at zero for the cycle page to ask', async () => {
+    cycle = chinaCycle({
+      participants: [
+        { id: 'part-1', participantType: 'CORE_PARTNER', contributionAmount: '0' },
+        { id: 'part-2', participantType: 'CORE_PARTNER', contributionAmount: '0' },
+      ],
+    });
+    renderWizard('cyc-1');
+    await finish();
+    expect(contributionWrites()).toEqual([]);
+    expect(writes.some((w) => w.url.endsWith('/participants'))).toBe(false);
+  });
+
+  it('a leg the server refuses keeps the wizard on the shipping step and goes nowhere', async () => {
+    cycle = chinaCycle();
+    refuse = (url) =>
+      url.startsWith('/cycles/cyc-1/shipping-legs') || url.startsWith('/shipping/legs/')
+        ? { response: { data: { error: { code: 'X', message: 'leg refused' } } } }
+        : null;
+    renderWizard('cyc-1');
+    fireEvent.click(await finishButton());
+    await waitFor(() => expect(screen.getByText(/leg refused/i)).toBeTruthy());
+    expect(transitions()).toEqual([]);
+    expect(push).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('wizard-leg-1')).toBeTruthy();
   });
 });
 
@@ -471,7 +525,8 @@ describe('the shipping step', () => {
       .forEach((input) => fireEvent.change(input, { target: { value: '2' } }));
 
     fireEvent.submit(tracking()!.form!);
-    await finishButton();
+    // The last step: saving it finishes, and the cycle's page opens.
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/en/cycles/cyc-1/details'));
     expect(useCycleWizardDraft.getState().legFields['cyc-1']).toBeUndefined();
     const saved = writes.find((w) => w.url === '/cycles/cyc-1/shipping-legs');
     expect((saved?.body as Body | undefined)?.trackingRef).toBe('TRK-SAVED');
@@ -528,53 +583,31 @@ describe('A reload restores the draft (spec 39, 47)', () => {
     );
     expect(await screen.findByTestId('wizard-draft-restored')).toBeTruthy();
   });
-});
 
-// ---------------------------------------------------------------------------
-// Funding: the cycle's cost includes the expenses charged to it (§18, 2026-10-16)
-// ---------------------------------------------------------------------------
-
-describe('the funding step', () => {
-  const partner = (n: number) => ({
-    id: `part-${n}`,
-    participantType: 'CORE_PARTNER',
-    contributionAmount: '0',
-    partner: { email: `p${n}@x.z`, partner: { displayName: `Partner ${n}` } },
-  });
-
-  it('shows the cycle’s cost with its expenses, and Split equally asks the partners for what friends did not pay', async () => {
-    // Goods and shipping 111,653.16 + a card fee of 3,338.82 charged to the
-    // cycle; a friend paid 100,000 of it.
-    costingTotals = {
-      landedEgp: '111653.16',
-      expensesEgp: '3338.82',
-      cycleCostEgp: '114991.98',
-      lenderFinancedEgp: '100000.00',
-      toFundEgp: '14991.98',
-    };
-    cycle = chinaCycle({ status: 'PURCHASING', participants: [partner(1), partner(2), partner(3)] });
-    renderWizard('cyc-1');
-    const cost = await screen.findByText((_, el) => el?.tagName === 'SPAN' && /^Cycle cost:/.test(el.textContent ?? ''));
-    expect(cost.textContent).toMatch(/114,991\.98/);
-    fireEvent.click(screen.getByRole('button', { name: en.wizard.splitEqually }));
-    const values = [1, 2, 3].map(
-      (n) => document.querySelector<HTMLInputElement>(`[data-field="contribution-part-${n}"]`)!.value.replace(/,/g, ''),
-    );
-    expect(values).toEqual(['4997.32', '4997.32', '4997.34']);
-    expect(values.map(Number).reduce((s, x) => s + x, 0).toFixed(2)).toBe('14991.98');
-  });
-
-  it('a friend who paid the whole cycle, fees included: nothing to fund, Split equally is off', async () => {
-    costingTotals = {
-      landedEgp: '111653.16',
-      expensesEgp: '3338.82',
-      cycleCostEgp: '114991.98',
-      lenderFinancedEgp: '114991.98',
-      toFundEgp: '0.00',
-    };
-    cycle = chinaCycle({ status: 'PURCHASING', participants: [partner(1), partner(2), partner(3)] });
-    renderWizard('cyc-1');
-    const split = await screen.findByRole('button', { name: en.wizard.splitEqually });
-    expect((split as HTMLButtonElement).disabled).toBe(true);
+  it('a draft left on the old Funding step (step 4) comes back on the shipping step', async () => {
+    cycle = chinaCycle({ status: 'PURCHASING' });
+    useCycleWizardDraft.setState({
+      hydrated: true,
+      savedAt: Date.now(),
+      draft: {
+        currentStep: 3,
+        maxStepReached: 3,
+        cycleId: 'cyc-1',
+        cycleCode: 'CYC-2026-0001',
+        poId: 'po-1',
+        poReference: 'PO-2026-0001',
+        legIds: { 1: 'leg-1', 2: 'leg-2' },
+        originType: 'CHINA',
+        poSupplierId: '',
+        poCurrency: 'USD',
+        poFxRate: '50',
+        poOrderedOn: '',
+        lineItems: [],
+      },
+    });
+    renderWizard();
+    expect(await screen.findByTestId('wizard-leg-2')).toBeTruthy();
+    expect(await finishButton()).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Shipping Leg/ }).getAttribute('aria-current')).toBe('step');
   });
 });

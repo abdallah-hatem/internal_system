@@ -1,4 +1,3 @@
-
 import { Prisma } from '@prisma/client';
 
 import { badRequest } from '../../common/api-error';
@@ -74,7 +73,10 @@ export function distributeCycleProfit(
   opts: DistributeOptions = {},
 ): DistributionResult {
   if (participants.length === 0) {
-    throw badRequest('CYCLE_NO_PARTICIPANTS', 'Cycle has no participants to settle');
+    throw badRequest(
+      'CYCLE_NO_PARTICIPANTS',
+      'Cycle has no participants to settle',
+    );
   }
 
   const shares = resolveShares(participants, opts);
@@ -153,24 +155,54 @@ export function distributeCycleProfit(
   };
 }
 
+/**
+ * What a cycle's profit would be split on (§8), or `NONE` when settlement
+ * would refuse it as `CYCLE_NOT_FUNDED`. The one reading for the split itself
+ * and for the cycle page's "Funding not entered yet" note (owner 2026-10-18),
+ * so the note shows exactly when settling would be refused (CLAUDE.md §11).
+ *
+ * - `CUSTOM_SPLIT`: an agreed percentage on any participant (a partial one is
+ *   refused separately, as `PARTIAL_CUSTOM_SPLIT`).
+ * - `CONTRIBUTIONS`: someone put money in.
+ * - `LENDERS`: nobody did, a friend paid the whole cost to fund, and there is
+ *   a core partner to split it equally among (owner 2026-10-11).
+ */
+export type ProfitBasis = 'CUSTOM_SPLIT' | 'CONTRIBUTIONS' | 'LENDERS' | 'NONE';
+
+export function profitBasisOf(
+  participants: Pick<
+    ParticipantInput,
+    'type' | 'contribution' | 'customProfitPct'
+  >[],
+  opts: DistributeOptions = {},
+): ProfitBasis {
+  if (participants.some((p) => p.customProfitPct !== null))
+    return 'CUSTOM_SPLIT';
+  const total = participants.reduce((s, p) => s.add(p.contribution), ZERO);
+  if (total.gt(0)) return 'CONTRIBUTIONS';
+  const coreCount = participants.filter(
+    (p) => p.type === 'CORE_PARTNER',
+  ).length;
+  if (opts.fundedByLenders && coreCount > 0) return 'LENDERS';
+  return 'NONE';
+}
+
 /** Fractional share (0-1) per participant, from an agreed split or capital. */
 function resolveShares(
   participants: ParticipantInput[],
   opts: DistributeOptions,
 ): Prisma.Decimal[] {
+  const basis = profitBasisOf(participants, opts);
   const withCustom = participants.filter((p) => p.customProfitPct !== null);
 
-  if (withCustom.length > 0) {
+  if (basis === 'CUSTOM_SPLIT') {
     if (withCustom.length !== participants.length) {
       throw badRequest(
         'PARTIAL_CUSTOM_SPLIT',
         'A custom profit split must be set for every participant in the cycle, or for none of them',
       );
     }
-    const total = withCustom.reduce(
-      (s, p) => s.add(p.customProfitPct!),
-      ZERO,
-    );
+    const total = withCustom.reduce((s, p) => s.add(p.customProfitPct!), ZERO);
     if (!total.equals(HUNDRED)) {
       throw badRequest(
         'SPLIT_NOT_100',
@@ -189,7 +221,7 @@ function resolveShares(
   const coreCount = participants.filter(
     (p) => p.type === 'CORE_PARTNER',
   ).length;
-  if (totalContribution.lte(0) && opts.fundedByLenders && coreCount > 0) {
+  if (basis === 'LENDERS') {
     /**
      * A friend paid for the whole cycle (§18), so nobody's capital is in it
      * and contribution gives no basis. Owner decision 2026-10-11 (§8): the
@@ -201,7 +233,7 @@ function resolveShares(
     return participants.map((p) => (p.type === 'CORE_PARTNER' ? each : ZERO));
   }
 
-  if (totalContribution.lte(0)) {
+  if (basis === 'NONE') {
     /**
      * Nobody funded the cycle, so there is no basis to split on — and
      * returning all-zero shares was worse than refusing.

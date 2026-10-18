@@ -21,6 +21,7 @@ import {
 } from '../../common/shipment-load';
 import { assertShipmentAccounted } from '../../common/shipment-accounted';
 import { assertCycleHasNoSamplesOut } from '../../common/samples-out';
+import { assertFundingOpen, fundingLockOf } from '../../common/funding-lock';
 import {
   STANDING_FINANCING,
   assertLendersRepaid,
@@ -151,7 +152,14 @@ export class CyclesService {
       },
     });
     if (!cycle) throw notFound('cycle');
-    return { data: cycle };
+    // Why the funding can no longer change, if it cannot (§8, 2026-10-18):
+    // the page shows it beside the locked controls.
+    return {
+      data: {
+        ...cycle,
+        fundingLock: fundingLockOf(cycle.status, cycle.settlements),
+      },
+    };
   }
 
   /**
@@ -989,6 +997,10 @@ export class CyclesService {
     }
 
     const participant = await this.prisma.$transaction(async (tx) => {
+      // Funding is locked once the settlement is approved (§8, owner
+      // 2026-10-18): a new participant changes everyone's share.
+      await lockCycle(tx, cycleId);
+      await assertFundingOpen(tx, cycleId);
       const created = await tx.cycleParticipant.create({
         data: {
           cycleId,
@@ -1108,6 +1120,12 @@ export class CyclesService {
     if (!existing) throw notFound('participant');
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Not once the settlement is approved, paid or the cycle closed (§8,
+      // owner 2026-10-18): the paid split would no longer match the cycle.
+      // Split equally takes this path too. Under the cycle's lock, so an
+      // approval cannot slip in between the check and the write.
+      await lockCycle(tx, existing.cycleId);
+      await assertFundingOpen(tx, existing.cycleId);
       const next = await tx.cycleParticipant.update({
         where: { id },
         data: {

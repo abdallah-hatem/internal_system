@@ -33,7 +33,6 @@ import {
   Route,
   ShoppingCart,
   Truck,
-  Wallet,
   CheckCircle2,
   Plus,
   X,
@@ -47,22 +46,25 @@ import { RowAction } from '../ui/fields';
 import { BackLink } from '../ui/back-link';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '../ui/skeleton';
 import { ValidatedForm } from '@/components/ui/validated-form';
-import { splitAcrossPartners } from '@/lib/funding-split';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 /**
- * Four steps, and the last is the money. Receiving used to be step 4 and it
+ * Three steps, and the last is the shipping. Receiving used to be step 4 and it
  * could only be reached once every leg had arrived — so a cycle set up on the
  * day it was ordered dead-ended there. Receiving now happens on the cycle page,
  * one delivery at a time (spec 2026-10-10, UX #5).
+ *
+ * DECIDED 2026-10-18 (owner): the Funding step went too. Finishing the
+ * shipping step creates the cycle and opens its page, where a note asks for
+ * the funding while settling would still be refused for the want of it
+ * (BUSINESS_LOGIC §8, `components/cycles/funding-note.tsx`).
  */
 const STEPS = [
   { titleKey: 'step1Title', icon: Route },
   { titleKey: 'step2Title', icon: ShoppingCart },
   { titleKey: 'step3Title', icon: Truck },
-  { titleKey: 'step4Title', icon: Wallet },
 ] as const;
 
 /** The step the wizard ends on. */
@@ -155,7 +157,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
   const locale = useLocale();
   const t = useTranslations('wizard');
   const tph = useTranslations('placeholders');
-  const tc = useTranslations('common');
   const toast = useToast();
   const announce = useAnnounceStatusMove();
 
@@ -267,8 +268,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
      */
     const apply = () => {
       setShowRestoredNotice(true);
-      // A draft written by the old four-step wizard may stand on the success
-      // screen (step 4), which no longer exists; the money step is the last.
+      // A draft written by an older wizard may stand on a step that no longer
+      // exists — the success screen, or the Funding step (removed 2026-10-18);
+      // the shipping step is the last.
       setCurrentStep(Math.min(draft.currentStep, LAST_STEP));
       setMaxStepReached(Math.min(draft.maxStepReached ?? 0, LAST_STEP));
       setCycleId(draft.cycleId);
@@ -360,162 +362,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   /** Every order on the cycle — a resumed cycle can hold more than one. */
   const savedOrders: any[] = Array.isArray(cycle?.purchaseOrders) ? cycle.purchaseOrders : [];
-
-  /**
-   * Who is funding this cycle, and for how much.
-   *
-   * The wizard never asked. Contributions are seeded at zero because the cost
-   * is not known when the cycle is created, and filling them in lived on a
-   * different page entirely — so it was a step you could simply forget, weeks
-   * before settlement made that matter. It matters a great deal: an unfunded
-   * cycle used to hand its entire profit to whichever partner was created last.
-   *
-   * Asked here, on the last step, because this is where the cycle's real cost
-   * is finally known: goods from step 2 plus shipping from step 3.
-   */
-  const participants: any[] = Array.isArray(cycle?.participants) ? cycle.participants : [];
-
-  /**
-   * What to call a participant.
-   *
-   * `partner` and `investor` on a participant row are USER records, and the
-   * display name hangs off the Partner record nested inside each. Reading
-   * `p.partner.displayName` is one level too high, so every row rendered as a
-   * dash — three identical amounts against three blank names.
-   */
-  const participantName = (p: any) => {
-    const user = p.partner ?? p.investor;
-    return user?.partner?.displayName ?? user?.email ?? '—';
-  };
-  const [contributions, setContributions] = useState<Record<string, string>>({});
-  const [isFunding, setIsFunding] = useState(false);
-
-  // Seed the inputs from what is already recorded, once the participants load.
-  useEffect(() => {
-    if (participants.length === 0) return;
-    setContributions((prev) => {
-      if (Object.keys(prev).length > 0) return prev;
-      return Object.fromEntries(
-        participants.map((p: any) => {
-          const amount = Number(p.contributionAmount);
-          return [p.id, amount ? amount.toFixed(2) : ''];
-        }),
-      );
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seeded once, when the participants first arrive
-  }, [participants.length]);
-
-  // What the cycle has actually cost: goods from step 2 plus shipping from
-  // step 3, which is the number the partners are funding.
-  const { data: landedCost } = useQuery({
-    queryKey: ['costing', cycleId],
-    queryFn: () =>
-      api.get(`/costing/cycles/${cycleId}/landed-cost`).then((r) => r.data.data ?? r.data),
-    enabled: !!cycleId && currentStep === LAST_STEP,
-  });
-
-  /**
-   * Everyone who could still be put on this cycle.
-   *
-   * A temporary investor is an ordinary user given money in one cycle, so the
-   * list is everybody not already a participant — not only users whose role
-   * says TEMP_INVESTOR. A core partner backing a cycle separately is a real
-   * case, and the demo data has one.
-   */
-  const { items: allUsers } = useAllRecords(['users'], '/users', undefined, {
-    enabled: !!cycleId && currentStep === LAST_STEP,
-  });
-
-  const onCycle = new Set(
-    participants.flatMap((p: any) => [p.partnerUserId, p.investorUserId].filter(Boolean)),
-  );
-  const addableUsers = (Array.isArray(allUsers) ? allUsers : []).filter(
-    (u: any) => !onCycle.has(u.id),
-  );
-
-  const [investorUserId, setInvestorUserId] = useState('');
-  const [investorAmount, setInvestorAmount] = useState('');
-  const [investorFee, setInvestorFee] = useState('');
-  const [isAddingInvestor, setIsAddingInvestor] = useState(false);
-
-  const addInvestor = async () => {
-    if (!investorUserId) return;
-    setIsAddingInvestor(true);
-    try {
-      await api.post(`/cycles/${cycleId}/participants`, {
-        participantType: 'TEMP_INVESTOR',
-        investorUserId,
-        contributionAmount: Number(investorAmount || 0),
-        investorFeePct: investorFee ? Number(investorFee) : undefined,
-      });
-      setInvestorUserId('');
-      setInvestorAmount('');
-      setInvestorFee('');
-      await refetchCycle();
-      refreshCycleCaches();
-      toast.success(t('investorAdded'));
-    } catch (err: any) {
-      toast.error(apiError(err, t('investorFailed')));
-    } finally {
-      setIsAddingInvestor(false);
-    }
-  };
-
-  // The cycle's cost: goods, shipping and the expenses charged to it (§18,
-  // 2026-10-16) — the server's figure; landed cost on an API from before it.
-  const landedTotal = Number(landedCost?.totals?.cycleCostEgp ?? landedCost?.totals?.landedEgp ?? 0);
-  // What friends paid towards this cycle (§18) is not the partners' to fund:
-  // the server's `toFundEgp` is the cycle's cost less it, and both the split
-  // and the funded-versus-cost line read that one figure.
-  const financedTotal = Number(landedCost?.totals?.lenderFinancedEgp ?? 0);
-  const toFund = Number(landedCost?.totals?.toFundEgp ?? landedTotal);
-  const fundedTotal = participants.reduce(
-    (sum: number, p: any) => sum + Number(contributions[p.id] || 0),
-    0,
-  );
-
-  /**
-   * Split what the cycle has left to fund across the core partners, through
-   * the one split the cycle page uses too (`lib/funding-split`). Investors
-   * are left alone — they put in a specific amount that is theirs.
-   */
-  const splitEqually = () => {
-    const core = participants.filter((p: any) => p.participantType === 'CORE_PARTNER');
-    if (core.length === 0) return;
-    const investors = participants
-      .filter((p: any) => p.participantType !== 'CORE_PARTNER')
-      .reduce((sum: number, p: any) => sum + Number(contributions[p.id] || 0), 0);
-
-    const { shares } = splitAcrossPartners(toFund, investors, core.length);
-    const next: Record<string, string> = { ...contributions };
-    core.forEach((p: any, i: number) => {
-      next[p.id] = shares[i].toFixed(2);
-    });
-    setContributions(next);
-  };
-
-  /** Write every contribution that differs from what is recorded. */
-  const writeContributions = async () => {
-    for (const p of participants) {
-      const next = Number(contributions[p.id] || 0);
-      if (next === Number(p.contributionAmount)) continue;
-      await api.put(`/cycles/participants/${p.id}`, { contributionAmount: next });
-    }
-  };
-
-  const saveFunding = async () => {
-    setIsFunding(true);
-    try {
-      await writeContributions();
-      await refetchCycle();
-      refreshCycleCaches();
-      toast.success(t('fundingSaved'));
-    } catch (err: any) {
-      toast.error(apiError(err, t('fundingFailed')));
-    } finally {
-      setIsFunding(false);
-    }
-  };
 
   // The currency the purchase order step is showing: the one already chosen on
   // this order, or failing that the cycle's own.
@@ -706,6 +552,14 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
    */
   const legFormRef = useRef<HTMLFormElement | null>(null);
   const legBaselineRef = useRef<Record<string, string> | null>(null);
+  /**
+   * Saving the legs is finishing now (2026-10-18), and the form stays on
+   * screen until the cycle's page opens. The click on Finish schedules one
+   * more "remember what was typed" a tick later, which landed after the save
+   * had cleared it — so the saved legs came back as unsaved edits. Nothing is
+   * remembered while saving.
+   */
+  const savingLegsRef = useRef(false);
 
   useEffect(() => {
     if (currentStep !== 2) {
@@ -726,7 +580,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     window.setTimeout(() => {
       const form = legFormRef.current;
       const baseline = legBaselineRef.current;
-      if (!form || !baseline) return;
+      if (!form || !baseline || savingLegsRef.current) return;
       const now = readForm(form);
       const before = useCycleWizardDraft.getState().legFields[cycleId]?.fields ?? {};
       const kept: Record<string, string> = {};
@@ -794,6 +648,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     });
 
     setIsCreatingLegs(true);
+    savingLegsRef.current = true;
     try {
       const savedIds: Record<number, string> = {};
       let updated = false;
@@ -849,23 +704,29 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       // The cycle query holds the legs the form reads back; without this the
       // next visit would show what was on screen before this save.
       await refetchCycle();
-      announce(
-        updated
-          ? t('legsUpdated', { count: payloads.length })
-          : t('legsCreated', { count: payloads.length }),
-        { data: { cycleStatus: moved } },
-      );
-      setCurrentStep(LAST_STEP);
+      // One toast for finishing, below. A leg that moved the cycle by itself
+      // (L3) still says where it ended up, as it always did.
+      if (moved) {
+        announce(
+          updated
+            ? t('legsUpdated', { count: payloads.length })
+            : t('legsCreated', { count: payloads.length }),
+          { data: { cycleStatus: moved } },
+        );
+      }
     } catch (err: any) {
       toast.error(apiError(err, t('saveShippingLegsFailed')));
-    } finally {
       setIsCreatingLegs(false);
+      savingLegsRef.current = false;
+      return;
     }
+    setIsCreatingLegs(false);
+    await handleFinish();
   };
 
   /**
-   * Finish: save the money, move the cycle as far as its dates allow, and open
-   * the cycle's page.
+   * Finish, once the legs are saved: move the cycle as far as its dates allow,
+   * and open the cycle's page — where the funding is asked for (2026-10-18).
    *
    * No dates → it stays PURCHASING with its order a draft (§15). A departure →
    * In transit, which confirms the order. Arrival dates already became
@@ -877,9 +738,6 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
     if (!cycleId || isFinishing) return;
     setIsFinishing(true);
     try {
-      // Typed and not saved is still meant: finishing does not discard it.
-      await writeContributions();
-
       const fresh = await api.get(`/cycles/${cycleId}`).then((r) => r.data.data ?? r.data);
       let status: string = fresh.status;
       for (const next of statusesToWalk(fresh.originType, fresh.status, fresh.shippingLegs ?? [])) {
@@ -897,6 +755,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
       void refetchCycle();
       toast.error(apiError(err, t('finishFailed')));
       setIsFinishing(false);
+      savingLegsRef.current = false;
     }
   };
 
@@ -1615,6 +1474,10 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               );
             })}
 
+            {/* What finishing does, said before the click: the cycle moves as
+                far as its dates allow, and receiving is on the cycle page. */}
+            <p className="text-sm text-muted-foreground">{t('finishHint')}</p>
+
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
@@ -1625,219 +1488,16 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
               </button>
               <button
                 type="submit"
-                disabled={isStep3Loading}
+                disabled={isStep3Loading || isFinishing}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isStep3Loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('saveAndContinueBtn')}
+                {t('finish')}
               </button>
             </div>
           </ValidatedForm>
         )}
 
-        {/* Step 4 — Funding, and finish */}
-        {currentStep === LAST_STEP && (
-          <div className="space-y-5">
-            <h2 className="text-lg font-semibold text-foreground">{t('step4Title')}</h2>
-
-            {/* Funding.
-
-                Asked here because this is the first point where the cycle's
-                real cost is known — goods plus shipping — and the last point
-                before it leaves the wizard. It used to live on another page,
-                which made it a step you could finish without. */}
-            {participants.length > 0 && (
-              <div className="space-y-3 border-t border-gray-200 pt-4 sm:rounded-xl sm:border sm:p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900">{t('funding')}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{t('fundingHint')}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={splitEqually}
-                    disabled={toFund <= 0}
-                    className="bg-background shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {t('splitEqually')}
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {participants.map((p: any) => (
-                    <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="min-w-[8rem] flex-1 text-sm text-gray-700">
-                        <bdi>{participantName(p)}</bdi>
-                        {p.participantType !== 'CORE_PARTNER' && (
-                          <span className="ms-2 text-xs text-purple-600">
-                            {t('tempInvestorTag')}
-                          </span>
-                        )}
-                      </span>
-                      <MoneyInput
-                        data-field={`contribution-${p.id}`}
-                        placeholder={tph('money')}
-                        value={contributions[p.id] ?? ''}
-                        onChange={(raw) =>
-                          setContributions((prev) => ({ ...prev, [p.id]: raw }))
-                        }
-                        className="w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Adding an investor.
-
-                    A cycle starts with the three partners on it and there was
-                    no way to put anyone else there from the wizard at all —
-                    the only route was a separate page most people would never
-                    find. A temporary investor is funding like any other, so it
-                    is asked for in the same place. */}
-                <div className="border-t border-gray-100 pt-3">
-                  <p className="text-xs font-medium text-gray-700 mb-2">{t('addInvestor')}</p>
-                  {addableUsers.length === 0 ? (
-                    <p className="text-xs text-gray-400">{t('everyoneIsOn')}</p>
-                  ) : (
-                    <div className="field-row flex flex-wrap gap-2">
-                      <div className="min-w-[12rem] flex-1">
-                        <label className="block text-[11px] text-gray-500 mb-1">
-                          {t('investorPerson')}
-                        </label>
-                        <Select
-                          value={investorUserId}
-                          onChange={setInvestorUserId}
-                          placeholder={t('selectPerson')}
-                          searchPlaceholder={tph('searchPeople')}
-                          options={addableUsers.map((u: any) => ({
-                            value: u.id,
-                            label: u.partner?.displayName ?? u.email,
-                            hint: u.email,
-                          }))}
-                        />
-                      </div>
-                      <div className="w-32">
-                        <label className="block text-[11px] text-gray-500 mb-1">
-                          {t('investorAmount')}
-                        </label>
-                        <MoneyInput
-                          data-field="investor-amount"
-                          placeholder={tph('money')}
-                          value={investorAmount}
-                          onChange={setInvestorAmount}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                      <div className="w-24">
-                        <label
-                          className="block text-[11px] text-gray-500 mb-1"
-                          title={t('investorFeeHint')}
-                        >
-                          {t('investorFee')}
-                        </label>
-                        <input
-                          type="number"
-                          name="investorFeePct"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          placeholder={tph('percent')}
-                          value={investorFee}
-                          onChange={(e) => setInvestorFee(e.target.value)}
-                          {...selectOnFocus}
-                          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                      <RowAction labelClassName="block text-[11px] text-gray-500 mb-1">
-                        <button
-                          type="button"
-                          onClick={() => void addInvestor()}
-                          disabled={!investorUserId || isAddingInvestor}
-                          className="inline-flex h-full items-center gap-2 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          {isAddingInvestor && <Loader2 className="h-3 w-3 animate-spin" />}
-                          {t('addInvestorAction')}
-                        </button>
-                      </RowAction>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 text-xs">
-                  <span className="text-gray-500">
-                    {t('cycleCost')}:{' '}
-                    <span className="font-medium text-gray-900">
-                      <Money value={landedTotal} />
-                    </span>
-                    {financedTotal > 0 && (
-                      <>
-                        {' · '}
-                        {t('financedByFriends')}:{' '}
-                        <span className="font-medium text-foreground">
-                          <Money value={financedTotal} />
-                        </span>
-                      </>
-                    )}
-                    {' · '}
-                    {t('funded')}:{' '}
-                    <span className="font-medium text-gray-900">
-                      <Money value={fundedTotal} />
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void saveFunding()}
-                    disabled={isFunding || isFinishing}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {isFunding && <Loader2 className="h-3 w-3 animate-spin" />}
-                    {tc('save')}
-                  </button>
-                </div>
-
-                {/* Not blocking — a cycle can legitimately be funded for less
-                    than it cost, or by someone outside the system. But it is
-                    said plainly, because the settlement will not say it. */}
-                {fundedTotal <= 0 ? (
-                  <p className="text-xs text-amber-700">{t('notFundedYet')}</p>
-                ) : Math.abs(fundedTotal - toFund) > 0.01 && toFund > 0 ? (
-                  <p className="text-xs text-amber-700">
-                    {fundedTotal < toFund
-                      ? t('fundingShort', {
-                          amount: (toFund - fundedTotal).toFixed(2),
-                        })
-                      : t('fundingOver', {
-                          amount: (fundedTotal - toFund).toFixed(2),
-                        })}
-                  </p>
-                ) : null}
-              </div>
-            )}
-
-            {/* What finishing does, said before the click: the cycle moves as
-                far as its dates allow, and receiving is on the cycle page. */}
-            <p className="text-sm text-muted-foreground">{t('finishHint')}</p>
-
-            <div className="flex items-center justify-between pt-2">
-              <button
-                type="button"
-                onClick={() => setCurrentStep(2)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t('back')}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleFinish()}
-                disabled={isFinishing || isFunding}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isFinishing && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('finish')}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

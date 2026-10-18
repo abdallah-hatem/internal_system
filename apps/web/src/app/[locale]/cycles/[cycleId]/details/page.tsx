@@ -22,7 +22,7 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../../../../../lib/api';
 import { Money } from '../../../../../components/ui/money';
 import { Select } from '../../../../../components/ui/select';
@@ -30,7 +30,7 @@ import { useToast } from '../../../../../components/ui/toast';
 import { selectOnFocus } from '../../../../../lib/select-on-focus';
 import { MoneyInput } from '../../../../../components/ui/money-input';
 import {
-  Loader2, Users, ShoppingCart, Boxes, Plus, Scale, TrendingUp,
+  Loader2, Users, ShoppingCart, Boxes, Plus, Scale, TrendingUp, PencilLine,
 } from 'lucide-react';
 
 import { useApiError } from '../../../../../lib/api-error';
@@ -48,6 +48,7 @@ import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
 import { splitAcrossPartners } from '@/lib/funding-split';
 import { viewPath } from '@/lib/page-views';
+import { FundingNote } from '@/components/cycles/funding-note';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -69,6 +70,23 @@ interface CycleProfit {
 }
 const num = (v: unknown) => Number(v ?? 0);
 
+/** A participant as the cycle reads it: the person is a User, named by its partner record. */
+interface ParticipantRow {
+  id: string;
+  participantType: string;
+  contributionAmount: unknown;
+  partner?: { email?: string; partner?: { displayName?: string } | null } | null;
+  investor?: { email?: string; partner?: { displayName?: string } | null } | null;
+}
+
+/** `partner` here is the User; the display name hangs off their partner record. */
+const participantName = (p: ParticipantRow): string =>
+  p.partner?.partner?.displayName ??
+  p.investor?.partner?.displayName ??
+  p.partner?.email ??
+  p.investor?.email ??
+  '—';
+
 export default function CycleDetailsPage() {
   const apiError = useApiError();
   const t = useTranslations('cycles');
@@ -78,6 +96,16 @@ export default function CycleDetailsPage() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [adding, setAdding] = useState(false);
+  // The funding note's two ways in (owner 2026-10-18): the contributions,
+  // edited in place on the Participants card, and a friend's payment.
+  const [editingAmounts, setEditingAmounts] = useState(false);
+  const [financingOpen, setFinancingOpen] = useState(false);
+  const [financingPrefill, setFinancingPrefill] = useState(false);
+  const participantsRef = useRef<HTMLDivElement>(null);
+  const financingRef = useRef<HTMLDivElement>(null);
+  const scrollTo = (el: HTMLElement | null) =>
+    // After the render that opens it, so it lands on the open form.
+    window.setTimeout(() => el?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
   // An investor reads their own cycle and acts on nothing (R1b). The people
   // list only feeds the add-participant picker, and GET /users refuses an
   // investor, so it is not asked for unless that picker can be offered.
@@ -85,6 +113,7 @@ export default function CycleDetailsPage() {
   const canEditParticipant = useCan('cycle.editParticipant');
   const canListUsers = useCan('users.list');
   const canAddPurchase = useCan('purchase.create');
+  const canFinance = useCan('lender.finance');
   const { formatNumber } = useNumberFormat();
 
   const { data: cycle, isLoading } = useQuery<any>({
@@ -166,16 +195,48 @@ export default function CycleDetailsPage() {
       return total;
     },
     onSuccess: (total) => {
-      queryClient.invalidateQueries({ queryKey: ['cycle', id] });
-      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      refreshFunding();
       addToast(t('splitDone', { total: formatNumber(total, { maximumFractionDigits: 2 }) }), 'success');
     },
-    onError: (e: any) =>
-      addToast(
-        e?.response?.data?.error?.message || e?.message || tc('error'),
-        'error',
-      ),
+    // A coded refusal — funding locked after the settlement (2026-10-18) —
+    // said in the reader's language, never the raw English (rule 9).
+    onError: (e: unknown) => {
+      refreshFunding();
+      addToast(apiError(e, tc('error')), 'error');
+    },
   });
+
+  /**
+   * Every contribution that differs from what is recorded, written one by one
+   * — the edit the wizard's Funding step made before it was removed
+   * (2026-10-18), now on the cycle's own page.
+   */
+  const saveAmounts = useMutation({
+    mutationFn: async (amounts: Record<string, string>) => {
+      for (const p of participants) {
+        if (!(p.id in amounts)) continue;
+        const next = num(amounts[p.id] || 0);
+        if (next === num(p.contributionAmount)) continue;
+        await api.put(`/cycles/participants/${p.id}`, { contributionAmount: next });
+      }
+    },
+    onSuccess: () => {
+      refreshFunding();
+      setEditingAmounts(false);
+      addToast(t('amountsSaved'), 'success');
+    },
+    onError: (e: unknown) => {
+      refreshFunding();
+      addToast(apiError(e, t('amountsFailed')), 'error');
+    },
+  });
+
+  /** The cycle and its costing, which says whether funding is still needed. */
+  function refreshFunding() {
+    void queryClient.invalidateQueries({ queryKey: ['cycle', id] });
+    void queryClient.invalidateQueries({ queryKey: ['cycles'] });
+    void queryClient.invalidateQueries({ queryKey: ['landedCost', id] });
+  }
 
   if (isLoading) {
     return (
@@ -205,6 +266,19 @@ export default function CycleDetailsPage() {
   const batches: any[] = cycle.inventoryBatches ?? [];
   const invested = participants.reduce((s, p) => s + num(p.contributionAmount), 0);
   const isClosed = cycle.status === 'CLOSED';
+  // Why the funding can no longer change, from the server (§8, 2026-10-18):
+  // the controls stay in sight, switched off, with this beside them.
+  const fundingLock: string | null = cycle.fundingLock ?? null;
+  const lockReason = fundingLock
+    ? t('fundingLocked', { reason: codeLabel('fundingLock', fundingLock) })
+    : undefined;
+  const canSplit =
+    participants.some((p) => p.participantType === 'CORE_PARTNER') &&
+    num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) +
+      num(costing?.totals?.transferredInEgp) >
+      0;
+  const financingClosed =
+    ['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(cycle.status) || !!fundingLock;
 
   return (
     <div className="space-y-6">
@@ -236,6 +310,28 @@ export default function CycleDetailsPage() {
         </div>
       </div>
 
+      {/* Funding not entered yet (owner 2026-10-18): shown while settling
+          would be refused for want of it, with the three ways to enter it. */}
+      <FundingNote
+        cycle={cycle}
+        totals={costing?.totals}
+        canSplit={canSplit}
+        splitting={splitEqually.isPending}
+        canEdit={canEditParticipant && participants.length > 0}
+        canFinance={canFinance && orders.length > 0 && !financingClosed}
+        onSplit={() => splitEqually.mutate()}
+        onEnterAmounts={() => {
+          setAdding(false);
+          setEditingAmounts(true);
+          scrollTo(participantsRef.current);
+        }}
+        onPaidByLender={() => {
+          setFinancingPrefill(true);
+          setFinancingOpen(true);
+          scrollTo(financingRef.current);
+        }}
+      />
+
       {/* Where the goods are — layout A, chosen by the owner (I3). */}
       <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} transfers={transfers} />
 
@@ -265,6 +361,7 @@ export default function CycleDetailsPage() {
       <ShipmentPanel cycle={cycle} />
 
       {/* ── Participants ─────────────────────────────────────────────── */}
+      <div ref={participantsRef} data-testid="participants-card" className="scroll-mt-4">
       <Card title={t('participants')} icon={<Users className="h-4 w-4 text-gray-400" />}>
         {participants.length === 0 && !adding && (
           <p className="pb-3 text-sm text-amber-700">
@@ -272,18 +369,12 @@ export default function CycleDetailsPage() {
           </p>
         )}
 
-        {participants.length > 0 && (
+        {participants.length > 0 && !(editingAmounts && !fundingLock) && (
           <Rows>
             {participants.map((p) => (
               <Row key={p.id}>
                 <span className="font-medium text-gray-900">
-                  {/* `partner` here is the User; the display name hangs off
-                      their partner record. */}
-                  {p.partner?.partner?.displayName ??
-                    p.investor?.partner?.displayName ??
-                    p.partner?.email ??
-                    p.investor?.email ??
-                    '—'}
+                  {participantName(p)}
                 </span>
                 <span className="text-xs text-gray-500">{codeLabel('role', p.participantType)}</span>
                 <span className="text-sm"><Money value={num(p.contributionAmount)} /></span>
@@ -298,9 +389,27 @@ export default function CycleDetailsPage() {
           </Rows>
         )}
 
-        {/* A closed cycle is history: it can be read, not rewritten. */}
-        {!isClosed && canAddParticipant && (
-          adding ? (
+        {participants.length > 0 && editingAmounts && !fundingLock && (
+          <AmountsForm
+            participants={participants}
+            nameOf={participantName}
+            roleOf={(p: ParticipantRow) => codeLabel('role', p.participantType)}
+            pending={saveAmounts.isPending}
+            onCancel={() => setEditingAmounts(false)}
+            onSubmit={(amounts) => saveAmounts.mutate(amounts)}
+          />
+        )}
+
+        {/* Locked once the settlement is approved (§8, 2026-10-18): the
+            controls stay, switched off, and say why. */}
+        {lockReason && canAddParticipant && (
+          <p data-testid="funding-locked" className="mt-3 text-xs text-muted-foreground">
+            {lockReason}
+          </p>
+        )}
+
+        {canAddParticipant && !(editingAmounts && !fundingLock) && (
+          adding && !fundingLock ? (
             <AddParticipantForm
               users={users}
               pending={addParticipant.isPending}
@@ -310,37 +419,51 @@ export default function CycleDetailsPage() {
           ) : (
             <div className="mt-3 flex flex-wrap items-center gap-4">
               <button
+                type="button"
                 onClick={() => setAdding(true)}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
+                disabled={!!fundingLock}
+                title={lockReason}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" /> {t('addParticipant')}
               </button>
-              {canEditParticipant &&
-                participants.some((p) => p.participantType === 'CORE_PARTNER') &&
-                num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) +
-                  num(costing?.totals?.transferredInEgp) >
-                  0 && (
-                  <button
-                    onClick={() => splitEqually.mutate()}
-                    disabled={splitEqually.isPending}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                  >
-                    {splitEqually.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Scale className="h-4 w-4" />
-                    )}
-                    {t('splitEqually')}
-                  </button>
-                )}
+              {canEditParticipant && participants.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setEditingAmounts(true)}
+                  disabled={!!fundingLock}
+                  title={lockReason}
+                  data-testid="edit-amounts"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <PencilLine className="h-4 w-4" /> {t('editAmounts')}
+                </button>
+              )}
+              {canEditParticipant && canSplit && (
+                <button
+                  type="button"
+                  onClick={() => splitEqually.mutate()}
+                  disabled={splitEqually.isPending || !!fundingLock}
+                  title={lockReason}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {splitEqually.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Scale className="h-4 w-4" />
+                  )}
+                  {t('splitEqually')}
+                </button>
+              )}
             </div>
           )
         )}
       </Card>
+      </div>
 
       {/* A friend who paid a supplier for us (§18): who, how much, still owed. */}
       {orders.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div ref={financingRef} className="scroll-mt-4 rounded-xl border border-border bg-card p-4 sm:p-5">
           <PaidByFriend
             cycleId={cycle.id}
             orders={orders.map((o) => ({
@@ -349,7 +472,14 @@ export default function CycleDetailsPage() {
               currency: o.currency,
               fxRateToEgp: o.fxRateToEgp,
             }))}
-            closed={['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(cycle.status)}
+            closed={financingClosed}
+            lockedReason={lockReason}
+            open={financingOpen}
+            onOpenChange={(open) => {
+              setFinancingOpen(open);
+              if (!open) setFinancingPrefill(false);
+            }}
+            prefillRemaining={financingPrefill}
           />
         </div>
       )}
@@ -616,6 +746,77 @@ function AddParticipantForm({
         <button
           type="submit" disabled={pending}
           className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+        >
+          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {tc('save')}
+        </button>
+      </div>
+    </ValidatedForm>
+  );
+}
+
+/**
+ * Each participant's contribution, typed in place (the funding note's Enter
+ * amounts, 2026-10-18). Starts from what is recorded; Save writes only what
+ * changed.
+ */
+function AmountsForm({
+  participants,
+  nameOf,
+  roleOf,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  participants: ParticipantRow[];
+  nameOf: (p: ParticipantRow) => string;
+  roleOf: (p: ParticipantRow) => string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (amounts: Record<string, string>) => void;
+}) {
+  const tph = useTranslations('placeholders');
+  const tc = useTranslations('common');
+  const [amounts, setAmounts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      participants.map((p) => [p.id, num(p.contributionAmount) ? num(p.contributionAmount).toFixed(2) : '']),
+    ),
+  );
+  return (
+    <ValidatedForm
+      data-testid="amounts-form"
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit(amounts);
+      }}
+    >
+      <div className="divide-y divide-border">
+        {participants.map((p) => (
+          <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+            <label htmlFor={`contribution-${p.id}`} className="min-w-[8rem] flex-1 text-sm text-foreground">
+              <bdi className="font-medium">{nameOf(p)}</bdi>
+              <span className="ms-2 text-xs text-muted-foreground">{roleOf(p)}</span>
+            </label>
+            <MoneyInput
+              id={`contribution-${p.id}`}
+              data-field={`contribution-${p.id}`}
+              placeholder={tph('money')}
+              value={amounts[p.id] ?? ''}
+              onChange={(raw) => setAmounts((prev) => ({ ...prev, [p.id]: raw }))}
+              className="w-40 rounded-lg border border-border px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted">
+          {tc('cancel')}
+        </button>
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-700 disabled:opacity-50"
         >
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           {tc('save')}
