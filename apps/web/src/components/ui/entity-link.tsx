@@ -111,3 +111,23 @@ export function ProductLink({
   if (!id) return <LatinText truncate={truncate} className={className}>{name}</LatinText>;
   return <EntityLink href={`${prefix}/products/${id}`} label={name} className={className} truncate={truncate} />;
 }
+
+/**
+ * Any record, to the page the API named for it (`/cycles/<id>/details`), or
+ * plain text when it has none. The path comes without the locale; this adds it.
+ */
+export function RecordLink({
+  href,
+  label,
+  className,
+  truncate = false,
+}: {
+  href?: string | null;
+  label: string;
+  className?: string;
+  truncate?: boolean;
+}) {
+  const prefix = useLocalePrefix();
+  if (!href) return <LatinText truncate={truncate} className={className}>{label}</LatinText>;
+  return <EntityLink href={`${prefix}${href}`} label={label} className={className} truncate={truncate} />;
+}

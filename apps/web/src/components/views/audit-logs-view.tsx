@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useDateFormat } from '@/lib/dates';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import { Select } from '@/components/ui/select';
 import {
@@ -19,9 +19,11 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
+import { AuditChanges, auditChanges } from '@/components/audit/audit-changes';
+import { AuditRecord, useAuditRecordName, type AuditRecordRef } from '@/components/audit/audit-record';
 
 // ─── Types ────────────────────────────────────────────────────────────
-interface AuditLog {
+interface AuditLog extends AuditRecordRef {
   id: string;
   actorUserId?: string;
   actor?: { email: string; displayName?: string };
@@ -69,6 +71,7 @@ function AuditLogCardSkeleton() {
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function AuditLogsPage() {
   const codeLabel = useCodeLabel();
+  const recordName = useAuditRecordName();
   const { formatDate } = useDateFormat();
   const t = useTranslations('auditLogs');
   const tph = useTranslations('placeholders');
@@ -105,12 +108,18 @@ export default function AuditLogsPage() {
   const filtered = logList.filter((log) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return (
-      log.action?.toLowerCase().includes(q) ||
-      log.entityType?.toLowerCase().includes(q) ||
-      log.entityId?.toLowerCase().includes(q) ||
-      log.actor?.email?.toLowerCase().includes(q)
-    );
+    // What the reader sees: the record's name in either language, its type
+    // and action in words — not the database id, which is never shown.
+    return [
+      log.action,
+      codeLabel('auditAction', log.action),
+      log.entityType,
+      codeLabel('entityType', log.entityType),
+      log.entityLabel,
+      log.entityLabelAr,
+      recordName(log),
+      log.actor?.email,
+    ].some((text) => text?.toLowerCase().includes(q));
   });
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -131,7 +140,7 @@ export default function AuditLogsPage() {
   const detail = (logDetail as AuditLog) ?? viewingLog;
 
   // ── Columns ───────────────────────────────────────────────────────
-  // Timestamp, actor, action, record type, record id, actions
+  // Timestamp, actor, action, record type, the record by name, actions
   // (components/ui/data-table.tsx). The timestamp fits "Dec 28, 2026, 12:59 PM";
   // a long action or record type is cut with the whole of it on hover; the
   // actor takes what is left.
@@ -159,9 +168,9 @@ export default function AuditLogsPage() {
       cell: (log) => codeLabel('entityType', log.entityType),
     },
     {
-      key: 'entityId', header: t('entityId'), width: '7rem', kind: 'label', className: 'text-gray-500 font-mono text-xs',
-      title: (log) => log.entityId, skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' },
-      cell: (log) => `${log.entityId?.slice(0, 8)}...`,
+      key: 'record', header: t('record'), width: '14rem', kind: 'name', className: 'text-foreground',
+      title: (log) => recordName(log), skeleton: { kind: 'text', share: 'w-3/4' },
+      cell: (log) => <AuditRecord log={log} />,
     },
     {
       key: 'actions', header: tc('actions'), width: '5.5rem', skeleton: { kind: 'buttons', count: 1 },
@@ -247,7 +256,10 @@ export default function AuditLogsPage() {
                   </span>
                   <span className="text-xs text-gray-400">{formatDate(log.occurredAt)}</span>
                 </div>
-                <p className="text-sm font-medium text-gray-900 mb-1">{codeLabel('entityType', log.entityType)}</p>
+                <p className="text-sm font-medium text-foreground mb-1">
+                  <AuditRecord log={log} />
+                </p>
+                <p className="text-xs text-muted-foreground mb-1">{codeLabel('entityType', log.entityType)}</p>
                 <p className="text-xs text-gray-500">{log.actor?.email ?? '—'}</p>
               </div>
             ))
@@ -269,33 +281,21 @@ export default function AuditLogsPage() {
               <Detail label={t('actor')} value={detail.actor?.email ?? detail.actorUserId ?? '—'} />
               <Detail label={t('action')} value={codeLabel('auditAction', detail.action)} />
               <Detail label={t('entity')} value={codeLabel('entityType', detail.entityType)} />
-              <Detail label={t('entityId')} value={detail.entityId ?? '—'} />
+              <Detail label={t('record')} value={<AuditRecord log={detail} />} />
               <Detail label={t('ipAddress')} value={detail.ipAddress ?? '—'} />
             </div>
 
-            {/* Before / After JSON */}
-            {(detail.beforeJson || detail.afterJson) && (
-              <div className="space-y-3">
-                {detail.beforeJson && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-1">{t('before')}</h4>
-                    <div className="bg-gray-50 rounded-lg p-1.5">
-                      <pre className="scrollbar-clean max-h-48 overflow-auto p-1.5 text-xs text-gray-700">
-                        {JSON.stringify(detail.beforeJson, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-                {detail.afterJson && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-1">{t('after')}</h4>
-                    <div className="bg-gray-50 rounded-lg p-1.5">
-                      <pre className="scrollbar-clean max-h-48 overflow-auto p-1.5 text-xs text-gray-700">
-                        {JSON.stringify(detail.afterJson, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
+            {/* What changed, field by field — not the raw before/after JSON. */}
+            {auditChanges(detail.beforeJson, detail.afterJson).length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  {detail.beforeJson && detail.afterJson
+                    ? t('changes')
+                    : detail.afterJson
+                      ? t('valuesSet')
+                      : t('valuesRemoved')}
+                </h4>
+                <AuditChanges entityType={detail.entityType} before={detail.beforeJson} after={detail.afterJson} />
               </div>
             )}
 
@@ -312,7 +312,7 @@ export default function AuditLogsPage() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <span className="text-gray-500 text-xs">{label}</span>
