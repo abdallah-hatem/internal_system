@@ -25,6 +25,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
+    "db:seed:history": "ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\"}' prisma/seeds/history.ts",
     "db:backfill:deliveries": "ts-node --compiler-options '{\"module\":\"commonjs\"}' prisma/backfill-shipment-deliveries.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

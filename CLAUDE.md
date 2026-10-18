@@ -145,6 +145,7 @@ had left behind, which no test would ever have noticed.
 | `db:reset:minimal` | partner logins, FX rates (money accounts were removed by the owner 2026-10-14) |
 | `db:reset` (default) | the above plus two each of category, supplier, shipping provider, product and customer |
 | `db:reset:demo` | the full worked example with cycles, sales and settlements |
+| `cd apps/api && npm run db:seed:history` | optional, on top of any level or a database in use: May–October 2026 of trading (4 cycles `CYC-H26-01…04`, ~80 sales, payments, contracts, returns, samples, expenses, one settled cycle) so Analytics has months to show. Written through the services; idempotent; `-- --plan` prints it without writing |
 
 The reference level is the one for manual testing: everything needed before a
 cycle can be started, and nothing that a test would be about. No cycles,
