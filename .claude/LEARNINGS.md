@@ -351,3 +351,12 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - A "send a test" button proves the pipe, not that anything uses it. Office push alerts shipped with a working test
   push while no office notification ever called `PushService`; the owner found it with a real low-stock sale
   (2026-10-18). When adding a channel, test that a real event reaches it, from the service that raises the event.
+
+## Documentation
+
+- Docs move with the code, in the same change, every time (owner 2026-10-19: "make sure that docs are always up to
+  date with everything"). Every feature or fix updates `docs/BUSINESS_LOGIC.md` (rules, dated DECIDED/GUESS),
+  `docs/BUILD_LOG.md` (current stage and next up, kept short) and, when the state of the product changes,
+  `docs/where-things-stand.md`; CLAUDE.md §8 when a reset/seed level changes. Every agent brief says so, and a merge
+  is not finished until the docs describe what was merged. `where-things-stand.md` had gone a month stale
+  (last touched 2026-09-19) when this was said.
