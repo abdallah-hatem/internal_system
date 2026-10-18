@@ -18,6 +18,7 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- Later (owner, 2026-10-18): remove the Suppliers and Compatibility cards from the product details page.
 - After the owner approves samples + default price locally (2026-10-18): give the assistant the samples flow — leave
   samples, list what is out, "they're buying" (complete the sale), returned, write off — through the same service
   methods and roles as the office, with the usual preview/confirm; find_products already returns the default price.
