@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HandCoins, Plus, Search, AlertTriangle } from 'lucide-react';
+import { HandCoins, Plus, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';
@@ -18,6 +18,7 @@ import { ENTITY_FORMS } from '@/components/entities/entity-forms';
 import { Dialog } from '@/components/ui/dialog';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/ui/data-table';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 
 /**
  * Friends who pay a supplier for us and are repaid in pounds (BUSINESS_LOGIC
@@ -94,16 +95,7 @@ export default function LendersPage() {
         )}
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-border py-2 pe-4 ps-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
 
       {isLoading && <LoadingStatus />}
           {/* Desktop — the shared table (components/ui/data-table.tsx). Name,

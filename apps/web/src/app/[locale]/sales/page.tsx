@@ -31,7 +31,7 @@ import {
   type SaleFormStockRow,
 } from '../../../components/sales/SaleOrderForm';
 import {
-  Plus, Search, Loader2,
+  Plus, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
   Undo2, ShoppingCart, Wallet, FileText,
 } from 'lucide-react';
@@ -52,6 +52,7 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
+import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -586,41 +587,25 @@ function SalesPageContent() {
       </div>
 
       {/* Search + Filter Tabs */}
-      <div className="space-y-3">
-        <div className="relative max-w-md">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: t('search') }}
+        after={
+          listError && (
+            <p role="alert" data-testid="sales-range-error" className="text-sm text-destructive">
+              {apiError(listError, tc('error'))}
+            </p>
+          )
+        }
+      >
         <DateRangeFilter idPrefix="sales" value={dates} onChange={setDates} busy={reloading} />
-        {listError && (
-          <p role="alert" data-testid="sales-range-error" className="text-sm text-destructive">
-            {apiError(listError, tc('error'))}
-          </p>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {FILTER_TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              aria-pressed={statusFilter === tab}
-              onClick={() => setStatusFilter(tab)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                statusFilter === tab
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {t(tab)}
-            </button>
-          ))}
-        </div>
-      </div>
+        <FilterPills
+          label={t('statusFilter')}
+          testId="sales-status-filter"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={FILTER_TABS.map((tab) => ({ value: tab, label: t(tab) }))}
+        />
+      </ListToolbar>
 
       <ListCapNotice capped={capped} count={orders.length} />
 

@@ -431,6 +431,7 @@
   },
   "sales": {
     "title": "طلبات البيع",
+    "statusFilter": "عرض الطلبات",
     "create": "طلب جديد",
     "orderNo": "رقم الطلب",
     "customer": "العميل",

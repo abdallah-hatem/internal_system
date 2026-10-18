@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Search, Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from 'lucide-react';
+import { Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from 'lucide-react';
 import { RunningCostsSection } from '@/components/partners/running-costs-section';
 import { PayoutHistory, type PartnerPayout } from '@/components/partners/payout-history';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -15,6 +15,7 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { downloadCsv, datedFilename } from '@/lib/export-csv';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface PartnerCycle {
@@ -139,16 +140,7 @@ export default function PartnersPage() {
         </button>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
 
       {/* Loading: the totals, then each section under its own heading. The
           running costs fetch their own figures and show their own skeleton. */}

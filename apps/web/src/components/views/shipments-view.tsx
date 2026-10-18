@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
-  Plus, Search, Edit, MapPin,
+  Plus, Edit, MapPin,
 } from 'lucide-react';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
@@ -21,6 +21,7 @@ import { useCodeLabel } from '@/lib/labels';
 import { LegCreateForm, LegEditForm, type LegRow } from '@/components/shipment/LegForm';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
+import { ListToolbar } from '@/components/ui/list-toolbar';
 // ─── Types ────────────────────────────────────────────────────────────
 /** A leg as the list returns it — the shared leg forms' own type. */
 type Shipment = LegRow;
@@ -228,16 +229,7 @@ export default function ShipmentsPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full ps-10 pe-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-      </div>
+      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
 
       <ListCapNotice capped={capped} count={shipments.length} />
 
