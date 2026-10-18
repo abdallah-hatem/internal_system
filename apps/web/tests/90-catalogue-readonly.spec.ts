@@ -1,6 +1,9 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════
- *  TEST SUITE: The catalogue pages offer an investor nothing to write (R1c)
+ *  TEST SUITE: The catalogue pages offer a partner every write (R1c)
+ *  Only the three partners use the office app (owner 2026-10-18): the
+ *  investor's own screens were dropped from this suite; a partner on rows an
+ *  investor is on still sees every action. The API refuses an investor in 87.
  * ═══════════════════════════════════════════════════════════════════════
  *  BUSINESS_LOGIC, roles (owner, 2026-10-10): a temporary investor reads, they
  *  don't act. R1b took the actions off the cycle, shipment, settlement and
@@ -20,11 +23,10 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { API, apiCtx, EMAIL, PASSWORD, today, aCorePartnerUser } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
+import { pageOfView } from '../src/lib/page-views';
 
 const INVESTOR_EMAIL = 'investor@motoparts.com';
-
-/** Every write a catalogue list can offer, by test id. */
-const LIST_WRITES = ['create-action', 'edit-action', 'delete-action'];
 
 async function investorId(request: APIRequestContext) {
   const r = await request.post(`${API}/auth/login`, { data: { email: INVESTOR_EMAIL, password: PASSWORD } });
@@ -82,22 +84,18 @@ async function login(page: Page, email: string) {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
 
-/** Every API 403 and 5xx seen from now on. */
-function watchRefusals(page: Page) {
-  const seen: string[] = [];
-  page.on('response', (res) => {
-    if (!res.url().includes('/api/')) return;
-    if (res.status() === 403 || res.status() >= 500) seen.push(`${res.status()} ${res.url()}`);
-  });
-  return seen;
-}
-
 /** From the menu to a list, by clicking, and wait for the row to show. */
 async function openList(page: Page, href: string, row: string) {
-  await page.locator(`aside a[href="/en${href}"]`).click();
-  await expect(page).toHaveURL(new RegExp(`/en${href}$`));
-  await page.getByRole('textbox').first().fill(row);
-  await expect(page.getByText(row).first()).toBeVisible();
+  // Categories, providers, purchases and shipments are tabs since 2026-10-18.
+  if (pageOfView(href.slice(1))) {
+    await openView(page, href.slice(1));
+  } else {
+    await page.locator(`aside a[href="/en${href}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/en${href}$`));
+  }
+  const main = page.getByRole('main');
+  await main.getByRole('textbox').first().fill(row);
+  await expect(main.getByText(row).first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 }
 
@@ -110,18 +108,7 @@ const LISTS = (d: Awaited<ReturnType<typeof theInvestorsCatalogue>>) => [
   { href: '/shipments', row: `${d.tag} Dubai`, create: en.shipments.create },
 ];
 
-test.describe('R1c — the catalogue is read-only for an investor', () => {
-  test('TC-CAT-01: each catalogue list shows the investor its rows and no create, edit or delete — and nothing is refused on the way', async ({ page, request }) => {
-    const d = await theInvestorsCatalogue(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    for (const list of LISTS(d)) {
-      await openList(page, list.href, list.row);
-      for (const id of LIST_WRITES) await expect(page.getByTestId(id), `${list.href} ${id}`).toHaveCount(0);
-      await expect(page.getByRole('button', { name: list.create }), list.href).toHaveCount(0);
-    }
-    expect(refusals).toEqual([]);
-  });
+test.describe('R1c — the catalogue offers a partner every write, on rows an investor is on', () => {
 
   test('TC-CAT-02: a core partner, on the same rows, is offered create and edit on every list', async ({ page, request }) => {
     const d = await theInvestorsCatalogue(request);
@@ -135,37 +122,12 @@ test.describe('R1c — the catalogue is read-only for an investor', () => {
     }
   });
 
-  test('TC-CAT-03: the investor opens a purchase order — its refunds show, "Record refund" does not', async ({ page, request }) => {
-    const d = await theInvestorsCatalogue(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    await openList(page, '/purchases', d.po.reference);
-    await page.locator('tr', { hasText: d.po.reference }).getByRole('button', { name: en.common.view }).click();
-    // The refunds section heading; UF7's empty line "No refunds from the supplier" also contains the word.
-    await expect(page.getByRole('heading', { name: en.purchases.refunds })).toBeVisible();
-    await expect(page.getByTestId('record-refund-action')).toHaveCount(0);
-    expect(refusals).toEqual([]);
-  });
-
   test('TC-CAT-04: a core partner, on the same order, still has "Record refund"', async ({ page, request }) => {
     const d = await theInvestorsCatalogue(request);
     await login(page, EMAIL);
     await openList(page, '/purchases', d.po.reference);
     await page.locator('tr', { hasText: d.po.reference }).getByRole('button', { name: en.common.view }).click();
     await expect(page.getByTestId('record-refund-action')).toBeVisible();
-  });
-
-  test('TC-CAT-05: the investor opens a product — the price reads, but cannot be set, and no photo can be added', async ({ page, request }) => {
-    const d = await theInvestorsCatalogue(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    await openList(page, '/products', d.product.name);
-    await page.getByRole('link', { name: d.product.name }).first().click();
-    await expect(page).toHaveURL(new RegExp(`/en/products/${d.product.id}$`));
-    await expect(page.getByTestId('price-readonly').first()).toContainText('100.00');
-    await expect(page.getByTestId('set-price-action')).toHaveCount(0);
-    await expect(page.getByTestId('add-photo-action')).toHaveCount(0);
-    expect(refusals).toEqual([]);
   });
 
   test('TC-CAT-06: a core partner, on the same product, can set either price and add a photo', async ({ page, request }) => {

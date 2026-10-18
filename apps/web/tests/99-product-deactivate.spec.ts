@@ -20,7 +20,7 @@
  */
 import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { API, apiCtx, daysAgo, refusedCallers, stockedProduct, SHOP_OWNER_EMAIL, PASSWORD } from './support/fixtures';
-import { login, openNav, messages, type Locale } from './support/ui';
+import { login, openNav, openView, messages, type Locale } from './support/ui';
 
 type Headers = Record<string, string>;
 const stamp = () => `${Date.now()}${Math.floor(performance.now() % 1000)}`;
@@ -408,7 +408,7 @@ test.describe('Switching a product off and on — the office app', () => {
 
     await login(page);
     const poPicker = async () => {
-      await openNav(page, m.nav.purchases);
+      await openView(page, 'purchases');
       await page.getByRole('main').getByTestId('create-action').click();
       await page.getByRole('button', { name: m.purchases.addItem }).click();
       await openPicker(page, page.getByRole('combobox').filter({ visible: true }).last(), label);

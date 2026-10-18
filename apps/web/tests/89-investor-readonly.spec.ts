@@ -2,6 +2,11 @@
  * ═══════════════════════════════════════════════════════════════════════
  *  TEST SUITE: An investor reads, and is offered nothing to act on (R1b)
  * ═══════════════════════════════════════════════════════════════════════
+ *  Only the three partners use the office app (owner 2026-10-18): the
+ *  investor's own screens were dropped from this suite, and what stays is the
+ *  partner's side — on cycles an investor is on, every action is still offered.
+ *  The API's refusals of an investor are pinned in 87 and 78.
+ *
  *  BUSINESS_LOGIC, roles (owner, 2026-10-10): a temporary investor sees only
  *  their own cycles — and they read, they don't act. R1 made the server refuse
  *  every write; this checks the screens stopped offering them, so an investor
@@ -21,14 +26,9 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { API, apiCtx, EMAIL, PASSWORD, daysAgo, aCorePartnerUser } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
 
 const INVESTOR_EMAIL = 'investor@motoparts.com';
-
-/** Every write the shipment panel can offer, by test id. */
-const PANEL_ACTIONS = [
-  'record-delivery', 'mark-lost', 'receive-delivery', 'delete-delivery',
-  'record-refund', 'undo-refund', 'take-back-loss', 'walk-to-egypt',
-];
 
 async function investorId(request: APIRequestContext) {
   const r = await request.post(`${API}/auth/login`, { data: { email: INVESTOR_EMAIL, password: PASSWORD } });
@@ -135,32 +135,14 @@ async function openCycle(page: Page, code: string) {
   await page.waitForLoadState('networkidle');
 }
 
+/** Partners → Settlements tab (a tab since 2026-10-18), by clicking. */
 async function openSettlements(page: Page, code: string) {
-  await page.locator('aside a[href="/en/settlements"]').click();
-  await expect(page).toHaveURL(/\/en\/settlements$/);
-  await expect(page.getByText(code).first()).toBeVisible();
+  await openView(page, 'settlements');
+  await expect(page.getByRole('main').getByText(code).first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 }
 
 test.describe('R1b — an investor reads and does not act', () => {
-  test('TC-RO-01: the investor opens their cycle — no action, no participant form, and no 403 (GET /users is not asked)', async ({ page, request }) => {
-    const { moving } = await theInvestorsCycles(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    const usersAsked: string[] = [];
-    page.on('request', (req) => {
-      if (/\/api\/v1\/users(\?|$)/.test(req.url())) usersAsked.push(req.url());
-    });
-
-    await openCycle(page, moving.code);
-    await expect(page.getByTestId('shipment-leg')).toHaveCount(1);
-    for (const id of PANEL_ACTIONS) await expect(page.getByTestId(id), id).toHaveCount(0);
-    await expect(page.getByRole('button', { name: en.cycles.addParticipant })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: en.cycles.splitEqually })).toHaveCount(0);
-
-    expect(usersAsked).toEqual([]);
-    expect(refusals).toEqual([]);
-  });
 
   test('TC-RO-02: a core partner, on the same cycle, still sees the actions', async ({ page, request }) => {
     const { moving } = await theInvestorsCycles(request);
@@ -173,17 +155,6 @@ test.describe('R1b — an investor reads and does not act', () => {
     expect(refusals).toEqual([]);
   });
 
-  test('TC-RO-03: the investor opens settlements — their draft is there, with no calculate, approve, pay or reverse', async ({ page, request }) => {
-    const { settled } = await theInvestorsCycles(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    await openSettlements(page, settled.code);
-    for (const name of [en.settlementsPage.calculate, en.settlementsPage.approve, en.settlementsPage.markPaid, en.settlementsPage.reverse]) {
-      await expect(page.getByRole('button', { name }), name).toHaveCount(0);
-    }
-    expect(refusals).toEqual([]);
-  });
-
   test('TC-RO-04: a core partner, on the same settlement, still sees calculate, approve and reverse', async ({ page, request }) => {
     const { settled } = await theInvestorsCycles(request);
     await login(page, EMAIL);
@@ -192,27 +163,6 @@ test.describe('R1b — an investor reads and does not act', () => {
     const card = page.locator('div.rounded-xl', { hasText: settled.code }).first();
     await expect(card.getByRole('button', { name: en.settlementsPage.approve })).toBeVisible();
     await expect(card.getByRole('button', { name: en.settlementsPage.reverse })).toBeVisible();
-  });
-
-  test('TC-RO-05: inventory offers the investor no "Receive stock", the cycles list no "New Cycle", and the wizard URL sends them back', async ({ page, request }) => {
-    const { moving } = await theInvestorsCycles(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-
-    await page.locator('aside a[href="/en/inventory"]').click();
-    await expect(page).toHaveURL(/\/en\/inventory$/);
-    await expect(page.getByTestId('receive-stock-toggle')).toHaveCount(0);
-
-    await page.locator('aside a[href="/en/cycles"]').click();
-    await expect(page.getByText(moving.code).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: en.cycles.create })).toHaveCount(0);
-
-    // Typed by hand: the wizard is a partner's, so they land on the details.
-    await page.goto(`${BASE}/en/cycles/${moving.id}`);
-    await expect(page).toHaveURL(new RegExp(`/en/cycles/${moving.id}/details$`));
-    await page.goto(`${BASE}/en/cycles/new`);
-    await expect(page).toHaveURL(/\/en\/cycles$/);
-    expect(refusals).toEqual([]);
   });
 
   test('TC-RO-06: a core partner still has "Receive stock" and "New Cycle"', async ({ page }) => {

@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { API, apiCtx, stockedProduct } from './support/fixtures';
 import { psqlQuery } from './support/database';
-import { login, openNav, messages } from './support/ui';
+import { login, openNav, openView, messages } from './support/ui';
 import cases from '../../api/src/common/arabic-search-cases.json';
 
 /** Letters only, so no figure in a name can match an assertion. */
@@ -113,7 +113,7 @@ test.describe('Arabic search — the office', () => {
     const helmets = await mk('categories', { name: `Helmets ${stamp()}`, nameAr: `خوذة ${tag}` });
 
     await login(page);
-    await openNav(page, m.nav.categories);
+    await openView(page, 'categories');
     const main = page.getByRole('main');
     const box = main.getByPlaceholder(m.categories.search);
 

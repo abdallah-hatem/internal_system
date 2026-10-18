@@ -11,25 +11,14 @@
  *  `seedTempInvestor`). Each test builds its own cycles through the API as a
  *  core partner: one the investor is on, one they are not.
  *
- *  Pages are reached by clicking the sidebar, as a person does, and every API
- *  response on the way is watched for a 403.
- *
- *  Not run at the time of writing (R1 was told not to run Playwright).
+ *  Only the three partners use the office app (owner 2026-10-18), so the
+ *  investor's menu and screens were dropped from this suite; what stays is the
+ *  API refusing and scoping him, which is still the rule (rule 12).
  */
-import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { test, expect, APIRequestContext } from '@playwright/test';
 import { API, apiCtx, EMAIL, PASSWORD } from './support/fixtures';
-import { WEB as BASE } from './support/env';
 
 const INVESTOR_EMAIL = 'investor@motoparts.com';
-
-/** The menu an investor is offered since R1 (nav-model.ts, nav-roles test). */
-const INVESTOR_HREFS = [
-  '/dashboard',
-  '/cycles', '/purchases', '/suppliers', '/shipments', '/providers',
-  '/products', '/categories', '/inventory',
-  '/settlements',
-  '/notifications', '/settings',
-];
 
 async function tokenFor(request: APIRequestContext, email: string) {
   const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
@@ -56,58 +45,13 @@ async function twoCycles(request: APIRequestContext) {
   return { theirs, other, partnerHeaders: headers, investorHeaders };
 }
 
-async function login(page: Page, email: string) {
-  await page.goto(`${BASE}/en/login`);
-  await page.getByPlaceholder('name@company.com').fill(email);
-  await page.getByPlaceholder('StrongPassword@123').fill(PASSWORD);
-  await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
-}
-
-/** Every API 403 and 500 seen from now on, except those named. */
-function watchRefusals(page: Page, except: RegExp[] = []) {
-  const seen: string[] = [];
-  page.on('response', (res) => {
-    if (res.status() !== 403 && res.status() < 500) return;
-    if (except.some((r) => r.test(res.url()))) return;
-    seen.push(`${res.status()} ${res.url()}`);
-  });
-  return seen;
-}
-
 test.describe('R1 — an investor sees only their own cycles', () => {
-  test('TC-INV-01: every menu entry the investor sees opens, by clicking, with no 403', async ({ page, request }) => {
-    await twoCycles(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    for (const href of INVESTOR_HREFS) {
-      await page.locator(`aside a[href="/en${href}"]`).click();
-      await expect(page).toHaveURL(new RegExp(`/en${href}$`));
-      await page.waitForLoadState('networkidle');
-    }
-    expect(refusals).toEqual([]);
-  });
 
-  test('TC-INV-02: the cycles list shows their cycle and not the other one', async ({ page, request }) => {
-    const { theirs, other } = await twoCycles(request);
-    await login(page, INVESTOR_EMAIL);
-    await page.locator('aside a[href="/en/cycles"]').click();
-    await expect(page.getByText(theirs.code).first()).toBeVisible();
-    await expect(page.getByText(other.code)).toHaveCount(0);
-  });
-
-  test("TC-INV-03: another cycle's URL → not found, from the API and on the page", async ({ page, request }) => {
+  test("TC-INV-03: another cycle's id → not found from the API", async ({ request }) => {
     const { other, investorHeaders } = await twoCycles(request);
     const res = await request.get(`${API}/cycles/${other.id}`, { headers: investorHeaders });
     expect(res.status()).toBe(404);
     expect((await res.json()).error.code).toBe('NOT_FOUND');
-
-    await login(page, INVESTOR_EMAIL);
-    const seen = page.waitForResponse((r) => r.url().endsWith(`/cycles/${other.id}`));
-    await page.goto(`${BASE}/en/cycles/${other.id}/details`);
-    expect((await seen).status()).toBe(404);
-    await expect(page.getByText('This cycle could not be found')).toBeVisible();
-    await expect(page.getByText(other.code)).toHaveCount(0);
   });
 
   test('TC-INV-04: their own cycle opens, with their participation and not the partners\' contributions', async ({ request }) => {
@@ -133,17 +77,6 @@ test.describe('R1 — an investor sees only their own cycles', () => {
       expect((await refused.json()).error.code, path).toBe('ROLE_NOT_ALLOWED');
       expect((await request.get(`${API}${path}`, { headers: partnerHeaders })).status(), path).toBe(200);
     }
-  });
-
-  test("TC-INV-06: the dashboard shows the investor's cycles, not the business's figures", async ({ page, request }) => {
-    await twoCycles(request);
-    await login(page, INVESTOR_EMAIL);
-    const refusals = watchRefusals(page);
-    await expect(page.getByTestId('your-cycles')).toBeVisible();
-    await expect(page.getByTestId('tile-revenue')).toHaveCount(0);
-    await expect(page.getByTestId('tile-cashOnHand')).toHaveCount(0);
-    await page.waitForLoadState('networkidle');
-    expect(refusals).toEqual([]);
   });
 
   test('TC-INV-07: the investor\'s lists hold only their cycles\' rows', async ({ request }) => {

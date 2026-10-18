@@ -22,6 +22,8 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiCtx, daysAgo } from './support/fixtures';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
+import en from '../src/i18n/locales/en.json';
 
 const EMAIL = 'partner.a@motoparts.com';
 const PASSWORD = 'password123';
@@ -63,12 +65,13 @@ test.describe('Dates on screen', () => {
     page,
     request,
   }) => {
-    await cycleWithDatedLeg(request, `Ship${Date.now()}`);
+    const { code } = await cycleWithDatedLeg(request, `Ship${Date.now()}`);
 
     await login(page);
-    await page.goto(`${BASE}/en/shipments`);
-    await expect(page.locator('main')).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(1200);
+    // Shipments is a tab of Cycles (2026-10-18), reached by clicking.
+    await openView(page, 'shipments');
+    await page.getByRole('main').getByPlaceholder(en.shipments.search).fill(code);
+    await expect(page.getByRole('main').locator('tr', { hasText: code }).first()).toBeVisible();
 
     const text = await page.locator('main').innerText();
     expect(text).not.toMatch(RAW_TIMESTAMP);
@@ -90,11 +93,13 @@ test.describe('Dates on screen', () => {
     await cycleWithDatedLeg(request, `Sweep${Date.now()}`);
     await login(page);
 
+    // Every page and every tab, at the address it has since the menu became
+    // tabs (2026-10-18) — the old ones only redirect here.
     const pages = [
-      'dashboard', 'cycles', 'purchases', 'shipments', 'inventory',
-      'products', 'sales', 'customers', 'payments', 'payment-plans',
-      'ledger', 'partners', 'settlements', 'notifications', 'audit-logs',
-      'suppliers', 'providers', 'categories',
+      'dashboard', 'cycles', 'cycles?view=purchases', 'cycles?view=shipments', 'inventory',
+      'products', 'products?view=categories', 'sales', 'customers', 'payments', 'payments?view=contracts',
+      'ledger', 'partners', 'partners?view=settlements', 'notifications', 'settings?view=audit-logs',
+      'settings?view=fx-rates', 'suppliers', 'suppliers?view=providers',
     ];
 
     const leaks: string[] = [];

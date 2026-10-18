@@ -14,7 +14,7 @@
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { API, apiCtx, owedOrder, stockedProduct } from './support/fixtures';
-import { login, openNav, messages, type Locale } from './support/ui';
+import { login, openNav, openView, messages, type Locale } from './support/ui';
 
 /** Letters only, so no figure in a name can match an assertion. */
 const stamp = () =>
@@ -263,8 +263,8 @@ test.describe('Arabic names — the office app', () => {
     const m = messages('ar');
 
     await login(page, 'ar');
-    await openNav(page, m.nav.categories);
-    await page.getByTestId('create-action').click();
+    await openView(page, 'categories', 'ar');
+    await page.getByRole('main').getByTestId('create-action').click();
     const form = page.getByRole('dialog').filter({ has: page.locator('input[name="nameAr"]') });
     await form.locator('input[name="name"]').fill(`${label} B`);
     await form.locator('input[name="nameAr"]').fill(arabic);

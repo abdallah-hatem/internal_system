@@ -33,10 +33,13 @@ test.describe.configure({ mode: 'serial', timeout: 240_000 });
  *  Requests (order and import requests) is hidden in production for now
  *  (owner, 2026-10-17, lib/features.ts), so it is not swept here. */
 const SCREENS = [
-  'dashboard', 'analytics', 'cycles', 'purchases', 'suppliers', 'shipments',
-  'providers', 'products', 'categories', 'inventory',
-  'sales', 'customers', 'payments', 'payment-plans',
-  'ledger', 'partners', 'settlements', 'notifications', 'audit-logs', 'settings',
+  // Every page and every tab at its own address since the menu became tabs
+  // (2026-10-18); Contracts is a tab of Payments (was /payment-plans).
+  'dashboard', 'analytics', 'cycles', 'cycles?view=purchases', 'cycles?view=shipments',
+  'suppliers', 'suppliers?view=providers', 'products', 'products?view=categories', 'inventory',
+  'sales', 'customers', 'payments', 'payments?view=contracts',
+  'ledger', 'partners', 'partners?view=settlements', 'notifications',
+  'settings', 'settings?view=fx-rates', 'settings?view=audit-logs',
 ];
 
 /**
