@@ -1,5 +1,7 @@
 # L5 — leftover transfer: plan
 
+> Done: L5 shipped 2026-10-12; BUSINESS_LOGIC §8 is the current authority.
+
 Spec: `docs/superpowers/specs/2026-10-11-leftover-transfer.md`. Rules: BUSINESS_LOGIC §8 (2026-10-11).
 
 ## Phase 1 — no database, no servers (this run)

@@ -1,4 +1,6 @@
 # Plan — a purchase paid by a friend, repaid in pounds (L1)
+
+> Done: L1 shipped 2026-10-11; superseded in part by BUSINESS_LOGIC §18 (a friend may pay the whole cycle cost, 2026-10-16; editing and deleting a lender, 2026-10-18).
 Spec `docs/superpowers/specs/2026-10-11-lender-financing.md` · BUSINESS_LOGIC §18 (+ §2, §7, §8, §9)
 
 > Superseded in part: money accounts were removed by the owner on 2026-10-14 (BUSINESS_LOGIC §9,

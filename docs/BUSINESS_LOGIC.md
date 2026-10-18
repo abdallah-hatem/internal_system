@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -236,7 +236,8 @@ opened the details page, and was removed.
 
 **DECIDED 2026-10-12 (owner) — the wizard is for setting a cycle up; it stops
 when the goods leave.** *Built 2026-10-12.* The wizard's statuses are Planning,
-Funding and Purchasing (`WIZARD_STATUSES`, `components/cycles/wizard-walk.ts`).
+Funding and Purchasing (`WIZARD_STATUSES`, `components/cycles/wizard-walk.ts`) — cycle statuses,
+unchanged; its steps are three since 2026-10-18, with no Funding step (§8).
 Continue setup is shown only in those, and a wizard opened on a cycle past
 them — from a bookmark, a typed address, an old link — sends the reader to
 the cycle's page and writes nothing. From In transit on, departures,
@@ -682,6 +683,19 @@ and a refund is a return (§5), where the goods, the cost and the cash move
 together. Cancelling also asks before acting, since it cannot be undone and the
 button sits beside Confirm.
 
+**A cancelled order owes nothing — fixed 2026-10-18.** Cancelling put the stock
+back and set the status, but left `outstanding` at the full total, so every
+cancel made through the app produced exactly the record check-data 12.2
+("cancelled order still showing a balance") exists to find; found when the
+history seed cancelled an unpaid order. Now (`POST /sales/orders/:id/cancel`,
+core partners only) the stock comes back through a RELEASE movement, the status
+becomes CANCELLED and `outstanding` is **0**; `total` stays as the record of what
+the order was. Refused: an order already CANCELLED or RETURNED
+(`ORDER_ALREADY_CLOSED`), anything paid against it (`ORDER_PAID_CANNOT_CANCEL`,
+above). Cancel on samples still at a shop is "Returned" (§4 "Samples at shops").
+Checked by `apps/api/src/modules/sales/sales.cancel.db.spec.ts`. Orders cancelled
+before the fix keep their old balance until corrected; check-data 12.2 lists them.
+
 
 **DECIDED 2026-10-10 — an order can be created and confirmed in one step.**
 *Built 2026-10-11 (U1).* Both happen together or neither does: if confirming is refused (not
@@ -864,7 +878,8 @@ optional, and the one button reads **Leave samples** (`POST /sales/orders` with 
   contract (`SALE_CONTRACT_NOT_OPEN`), and cannot be returned (`ONLY_CONFIRMED_RETURNABLE`). Every reader already
   counts only CONFIRMED / PARTIALLY_PAID / PAID (and RETURNED for a return's netting); the customer statement used to
   read "not DRAFT, not CANCELLED" and now leaves the samples statuses out too.
-- **No payment against it:** chosen on the order or allocated afterwards → `SAMPLES_NOT_PAYABLE`.
+- **No payment against it:** a payment sent with the samples order itself → `VALIDATION_FAILED`; one recorded or
+  allocated against it afterwards → `SAMPLES_NOT_PAYABLE`. A discount sent on a samples line is set to 0, not refused.
 - GUESS: leaving samples that take a product below its minimum raises the low-stock alert, as a sale does — the
   shelf is what low stock means (§3).
 
@@ -879,14 +894,14 @@ left, how many days ago, and the day the reminder is due (or "Reminder sent"). T
   samples; anything you remove goes back to the shelf." Pre-filled: the shop (fixed — the samples were left with it;
   the server refuses another with `SAMPLES_OTHER_SHOP`), today, the order's channel and currency, and every line that
   went out at its quantity and price — the price noted when left (a typed price: it stays when the channel changes),
-  else the product's price for the channel, else empty. In the popup everything a sale allows: lower a quantity (the
+  else the product's price for the channel, else 0. In the popup everything a sale allows: lower a quantity (the
   rest goes back to the shelf), remove a line (all of it back), raise one, add products, set prices and discounts. A
   product's units out on this order count as available to it in the popup. No draft, no walk-in, no samples switch;
   one button, **Complete sale** (`POST /sales/orders/:id/samples/convert`, the body a new order sends). The
   below-cost warning is not shown there (GUESS: it costs from the shelf's FIFO, which is not what the kept units cost).
 - **"Returned"** — everything back on the shelf; the order ends **SAMPLES_RETURNED** (not a cancelled sale, not a
-  return of a sale). **Cancel on samples is "Returned"** (`POST …/cancel` does the same; the screen does not offer
-  Cancel at all).
+  return of a sale). **Cancel on samples is "Returned"** (`POST …/cancel` does the same, for core partners — cancel
+  is theirs alone, while `POST …/samples/return` is open to the sales roles; the screen does not offer Cancel at all).
 - **"Write off"** (core partners only, like Cancel) — the shop kept them or they were lost. Asks first, showing the
   cost written off; an optional note goes to the audit log.
 
@@ -952,7 +967,8 @@ up to what was received (net of returns and losses).
 
 **Settlements.** DECIDED (owner): **a cycle cannot be settled while any of its units are out as samples** — calculate,
 approve, pay, and the plain move to Settlement all refuse with `CYCLE_HAS_SAMPLES_OUT`, naming how many units at which
-shops ("3 unit(s) of cycle CYC-… are out as samples at Nile Motors (2), Delta Bikes (1)"). Unsold-stock figures
+shops, sorted by name, and what to do ("3 unit(s) of cycle CYC-… are out as samples at Delta Bikes (1), Nile
+Motors (2). Record what the shops decided — bought, returned or written off — before settling."). Unsold-stock figures
 (`common/unsold-stock.ts`, the cycle's projection and the cycle comparison) count units at shops as **unsold**, at
 the cost they left at — never as sold.
 
@@ -1750,7 +1766,8 @@ TC-L6-08.
 ## 10. Notifications
 
 **V1 is in-app only**, as the BRD scopes. Email and WhatsApp are deliberately
-out.
+out. (Superseded in part 2026-10-18: every in-app notification is also pushed to
+the partners' phones — below. Email and WhatsApp are still out.)
 
 Raised on: low stock (after a receipt, and since 2026-10-11 after a sale that
 takes a product into low stock — §3), a shipment arriving, a cycle created or
@@ -1782,8 +1799,16 @@ notification was only a row.
   the language of a window already open, else the push's. If a partner wants
   English pushes, the fix is to store the language with the device when alerts
   are turned on (the page knows it then).
-- GUESSED: a new alert about the same thing (same event and ids) replaces the
-  earlier one on the phone rather than stacking.
+- GUESSED: a new alert about the same thing replaces the earlier one on the
+  phone rather than stacking. The push's tag is the bell's link for it
+  (`bellLink` in `common/notification-messages.ts`: the event plus the payload's
+  plain string and number values), so "the same thing" is the same event with
+  the same values; the storefront's request alerts set their own tags
+  (`order-request-<id>` and the like).
+- Push needs `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the API (set in
+  production 2026-10-16); with either missing, push is off with a warning in the
+  log and the bell still works. `VAPID_SUBJECT` defaults to a placeholder
+  mailto (`push.service.ts`).
 
 ---
 
@@ -1891,6 +1916,19 @@ so it is those same books in another shape; a temporary investor or a shop is
 refused (`ROLE_NOT_ALLOWED`). Before this the endpoint named no roles and any
 signed-in account could read it.
 
+**The audit log is readable — built 2026-10-18 (owner).** Each row from `GET /audit-logs` and
+`GET /audit-logs/:id` carries `entityLabel` (and `entityLabelAr`, `entityHref`): the record's own number or name —
+an order's ORD number, a cycle's code, a product's name and SKU, a lender's name, a payment's reference or shop with
+its sum — and the office page that shows it, looked up with one query per record type on the page
+(`modules/audit/audit-labels.ts`). A record that no longer exists gets no label and the screen shows the type's
+name, never the id. The detail shows **what changed**, one `Field: old → new` line per field that differs, names
+translated, money and dates formatted, ids hidden (`components/audit/audit-changes.tsx`); a create lists what was
+set, a delete what was removed. A **Who** filter lists the office's people by partner name (email when there is no
+partner record), kept in the address as `?actor=`; an action with no actor reads System, an actor nobody has any
+more reads Former user. `actorUserId` that is not a uuid is `VALIDATION_FAILED` (400), a uuid that is no user 404.
+Search (through the shared list toolbar) matches the record's name and the person's; the record-type filter offers
+the types the API writes.
+
 **The menu shows a role what it may open.** DECIDED 2026-10-10 (U4c). An
 entry is shown exactly when the endpoint its page lists from lets the role in;
 the menu copies the controllers' `@Roles` rather than deciding anything itself.
@@ -1899,6 +1937,13 @@ the importing and catalogue pages (scoped to their cycles), settlements (theirs,
 with their own line), notifications and settings — and not analytics,
 customers, payment plans, order or import requests, sales, payments, the
 ledger, partners or the audit log.
+
+2026-10-18 (owner): only the three partners use the office app — no investor has access, though nothing stops an
+investor account from signing in (the office login refuses only shop accounts, `USE_PORTAL_LOGIN`). The sidebar
+went from 21 entries to 13 by making related pages tabs of one page (`apps/web/src/lib/page-views.ts`); the tabs
+carry no role checks, while the sidebar, More and the phone bar still hide the books entries from roles other than
+core partner and admin support (`components/layout/nav-model.ts`). The investor rules in this section and R1 below
+are built and enforced by the server; they describe nobody who uses the app today.
 
 **DECIDED 2026-10-10 by the owner — a temporary investor sees only their own
 cycles.** *Built 2026-10-11 (R1, R1b, R1c).* The cycles they put money into, and for each: their
@@ -1951,12 +1996,14 @@ summary, not details." At the top of Analytics: a period (This month · Last mon
 default · Custom days, kept in the address as `?period=` / `?from=&to=`), net profit large with its share of
 sales, the summary Sales − Cost of goods sold = Gross profit, − Expenses, then Recovered, Other income and
 Exchange difference only when not zero, = Net profit; expenses by category (one total each, largest first,
-goods lost on the way as its own line); net profit by month. `GET /analytics/profit-and-loss?from=&to=`
+goods lost on the way as its own line); net profit by month (superseded 2026-10-18 by Option A below: one chart in
+day, week or month buckets). `GET /analytics/profit-and-loss?from=&to=`
 (core partners and support, as the dashboard).
 - **One computation** (rule 11): `AnalyticsService.profitFigures(period?)` is the dashboard's revenue, COGS,
   expenses and net profit, query for query; the dashboard calls it with no period, Analytics with one. All
   time is therefore the dashboard's figures exactly. Each month's bar is the same computation for that
-  month's days, so the bars add up to the period; the category split reads the same rows as the Expenses line
+  month's days, so the bars add up to the period (v1; superseded 2026-10-18 by Option A — the buckets are
+  `profitParts` split per bucket and added up by `figuresOf`, below); the category split reads the same rows as the Expenses line
   (`expenseWhere`) through the same signed reading, so it adds up to it.
 - **Which day each figure belongs to** (Cairo days, both ends included):
   - a sale's revenue and the cost of what it sold: the sale's day (`orderedAt`), as Revenue by month and the
@@ -1981,7 +2028,8 @@ goods lost on the way as its own line); net profit by month. `GET /analytics/pro
   chart's columns); `GET /analytics/revenue-by-month` stays — no screen reads it now, but the API checks
   (TC-API-24, TC-ANA-01), the role and investor-scope suites and the walk-in suite still do.
   - **Buckets by length of the period:** up to 35 days a day each (this month, last month); 36–124 days a
-    week each; longer a calendar month each (this year from February, all time). GUESSED, with the
+    week each; longer a calendar month each (all time; this year from early May — This year runs 1 January to today, so it
+    is daily through January and weekly from early February to early May). GUESSED, with the
     **week Saturday to Friday** — the week as an Egyptian calendar prints it, Friday its last day. Edge
     weeks and months are cut to the period. Every bucket is present; a quiet one is zero. Days are Cairo's.
   - **On a phone (below 640px) a by-day period is drawn by week** (owner 2026-10-19, mockup "Option 1"):
@@ -2062,6 +2110,10 @@ no longer described the system.
   through those same logins. Each partner changes theirs before relying on it.
   (Until 2026-10-14 Settings → change password failed every time, so this
   could not be done from the app; it can now — §20.)
+  Superseded 2026-10-14: the owner emptied production and replaced the partner
+  logins (abdallah@ / shady@ / fares@) with passwords he typed, through
+  `scripts/prod-reset-partners.sh`. The seeded password remains only in local and
+  demo seeds.
 - **Backups have never been tested.** The database's host keeps a short window
   for restoring to an earlier moment. Its length depends on the plan and has not
   been checked, no restore has ever been tried, and no copy is kept anywhere
@@ -2069,6 +2121,11 @@ no longer described the system.
 - **No real cycle has been confirmed through it yet.** Two cycles exist in
   production. Whether they are the business's own or a trial run is not
   recorded, so no figure from them has been checked against reality.
+  Superseded 2026-10-17/18: production holds one real cycle, CYC-2026-0001,
+  entered mid-cycle after the fact (the test cycle CYC-2026-0002 was deleted);
+  its ledger was checked by hand 2026-10-18 and agrees with itself. Some of its
+  figures are still stand-ins until the owner sends the data listed in
+  `docs/BUILD_LOG.md` "Waiting on the owner".
 
 Fixed since the first version of this list: it runs in production now, not on
 one laptop. Production has its own login-signing secret, and the system refuses
@@ -2636,6 +2693,20 @@ above and the 2026-10-16 "The cap" row.
 | A cost that moves after he paid | A leg or an expense added later: the partners fund the new part, and another friend may pay it. A leg corrected down or an expense reversed: cost to fund and what is available stop at zero, never negative; `check-data` 19.1 (now per cycle) will name that cycle for a look. | GUESS |
 | Where it shows | `GET /purchases/:id/financings` and `GET /cycles/:id/financing` return `cycleGoodsEgp`, `cycleShippingEgp`, `cycleExpensesEgp`, `cycleCostEgp`, `cycleFinancedEgp` and `availableEgp` — now the cycle-wide room (the order's `orderTotalEgp` and `financedEgp` are kept). The landed-cost endpoint adds `expensesEgp` and `cycleCostEgp`. The office form says what is left of the cycle's cost and that his payment may cover shipping and fees; the wizard's "Cycle cost" is the cycle's cost. The assistant's `record_lender_financing` says the same and its preview shows the cycle's cost, what friends paid of it and what was available. | GUESS |
 | The owner's existing 6,509.86 AED | Remove it (with a reason — allowed while nothing is repaid) and record it again at 8,302.60 once the fee is on the cycle. | DECIDED (owner's plan) |
+
+(2026-10-18: the wizard's Funding step is gone — §8 "The wizard ends at the shipping". Where the "Cost to fund"
+row above names the wizard's Split equally and funded-versus-cost line, read the cycle page's funding note and
+Participants card.)
+
+**Editing and deleting a lender — built 2026-10-18 (owner asked).** `PUT /lenders/:id` corrects his name, phone
+and notes — the whole record is replaced, so a phone or note left out is cleared; a blank name is
+`LENDER_NAME_REQUIRED`; no money changes; an UPDATE audit row keeps before and after. `DELETE /lenders/:id` is for
+a lender added by mistake: refused with `LENDER_HAS_FINANCINGS` (`count`, `name`) while any payment of his still
+stands — remove each first, with its reason. Deleting **hides** him (`deleted_at`, migration
+`20261018100000_lender_deleted_at`), never erases him, so a removed payment's history still names him; he leaves
+the lenders list, his page, the pickers, the assistant's matching and new payments; a DELETE audit row is written.
+An unknown or deleted lender is `notFound('lender')`. Both: core partners only (`LENDER_WRITE_ROLES`); reading
+lenders stays core partners and admin support. Edit and Delete sit beside his name on his page.
 
 ## 19. Signing out of the office  — built 2026-10-14 (owner asked for a way out), details GUESSED
 

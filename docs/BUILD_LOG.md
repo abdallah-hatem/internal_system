@@ -2,11 +2,92 @@
 
 Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The MCP run before it was
 fully autonomous too, chosen 2026-09-19.
-Goal (current): walk-in sales paid on the spot + the assistant records sales; then test the assistant with real receipt
-photos and spoken sales. Plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`.
-Current stage: shipped 2026-10-17 — the sale contract is live (`feature/sale-contract` merged to master; migration `20261016110000_sale_contract_plan` applied first): Contract button on the sale popup → plan popup → printed contract `/sales/[id]/contract` with Download PDF / Share PDF (lib/document-pdf.ts; browser-drawn sheets, numbered only when several, table headers repeat) and Print that prints the PDF on desktop Chromium/Firefox (page print with @page margin 0 elsewhere); Payment Plans is a tab of Payments. Also live: 30-day office sign-in (refresh tokens, migration `20261017100000_session_refresh_tokens`); the window no longer scrolls past the app frame. Known e2e debt (not run, owner said no e2e): 27-payment-plans, 50-date-formatting, 61-production-browser still use the old /payment-plans page; TC-NOT-05, TC-UI-02 fail on master too. Production data (2026-10-17): test cycle CYC-2026-0002 and its records deleted; CYC-2026-0001 received in Egypt 9 Sep (owner's date; China/UAE dates estimated 20 Jul / 10 Aug / 28 Aug; leg 2 Dubai→Cairo corrected 2026-10-17 to 20 AED × 230 pieces = 4,600 AED at 14 = 64,400 EGP, re-costing the cycle — rate not yet confirmed by the owner), in SELLING; sales ORD-2026-00001..00005 (Sameh paid cash, Koshary, Flesteeny 5,000 paid, Ahmad Emad, Hussien El Sayed) dated 12–16 Oct; lender renamed Ahmad Eraiby. Ledger checked 2026-10-18: arithmetic agrees (receipts = goods + legs to the piastre; collected + receivables = revenue); capital 64,400.97 (21,466.99 / 21,466.99 / 21,467 by Split equally) stands in for leg 2's cost until Mohamed Abu Setta's payment is recorded; cash on hand 34,800 = collected. Also live 2026-10-17/18: leg cost correctable after arrival with re-costing (+ assistant update_leg_cost), per-piece count forced to the units on the leg, compact Shipment card with status dots, Fuel quick action on the Ledger page only (removed from the dashboard, owner 2026-10-18), Recent Activity removed, phone fixes (logo in the top bar, dialogs without the bottom strip, slimmer bottom bar, customer orders/payments as cards, New Order buttons in two rows), dashboard tiles with icons and See more on a phone, top products by units or revenue with bars, the ledger named سِجِلّ الحسابات in Arabic. Known e2e debt from these (not run): 85-shipment-panel, 17-shipping-costing, 89-investor-readonly and 99-departures-in-parts open finished legs, which now start folded; 75-recent-activity removed. Also 2026-10-18: the sidebar went from 21 entries to 13 by merging pages into tabs (lib/page-views.ts, components/ui/page-views.tsx): Cycles | Purchases | Shipments, Suppliers | Providers, Products | Categories, Partners | Settlements, Settings | Exchange rates | Audit log; Notifications left the sidebar (the bell opens it). Old addresses redirect to their tab with parameters kept. The tabs carry no role checks — owner 2026-10-18: only the three partners use the office app, no investor has access. Known e2e debt (not run): 78-menu-by-role, 87-investor-scope, 90-catalogue-readonly, 91-lists-show-everything, 64/72-assistant specs click or count the old menu entries. Standing: no e2e unless the owner asks; keep flows small.
+Goal (current, 2026-10-19): the owner tests today's batch locally (samples, default price, wizard + funding lock,
+P&L Option A), the full e2e suite runs, then it ships. The goal before it — walk-in sales + the assistant records
+sales (plan `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`) — shipped 2026-10-11.
 
-## Waiting on the user
+## Current stage
+2026-10-19 — production runs `origin/master` (`f231309`, the 2026-10-18 batch). Today's batch is merged into local
+`master` (`299fba9`) and **waits for the owner's local test**, then the full e2e run, then a ship with one migration.
+Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep flows small.
+State of the product and of production's data: `docs/where-things-stand.md`.
+
+## Merged locally — awaiting the owner's test (not in production)
+Ship order when he says go (`docs/deployment.md` "Shipping a release"): `scripts/ship-prod.sh migrate` **on its own**
+for `20261018200000_samples_at_shops` (additive: order statuses `SAMPLES`, `SAMPLES_RETURNED`, `SAMPLES_WRITTEN_OFF`;
+movement types `SAMPLE_OUT`, `SAMPLE_BACK`; three nullable `sale_orders` dates), then `ship-prod.sh status` must print
+"Database schema is up to date!", then push `master`. The code reads the new enum values, so it must not go first.
+- Profit and loss redesigned as Option A (`7834f4e`): four tiles, "How it adds up", one sales/net chart in day, week
+  (Saturday–Friday) or month buckets by the period's length, top four expense categories; the Revenue by month card
+  is gone (§12 "Profit and loss on Analytics"; `common/period-buckets.ts`).
+- Cycle wizard ends at step 3, Shipping leg; a funding note on the cycle page (Split equally / Enter amounts / Paid by
+  a lender); funding locks once the settlement is approved, `FUNDING_LOCKED_AFTER_SETTLEMENT`; a stale draft is
+  refused at approval, `SETTLEMENT_STALE_FUNDING` (`1dfb963`; §8; `common/funding-lock.ts`).
+- Six months of trading history for Analytics, `cd apps/api && npm run db:seed:history` (`caf2e1f`; local only,
+  refuses a non-local database; CLAUDE.md §8).
+- A cancelled order owes nothing — outstanding goes to 0, the total stays (`2a45571`; §4). Production's own
+  cancelled orders, if any, are what check-data 12.2 finds; run it after the ship.
+- Samples at shops, rounds 1 and 2 (`1062e28`, `c59486d`; §4 "Samples at shops"): the New Order popup's samples
+  switch, "They're buying" opens the New Order popup pre-filled, Returned, Write off, the 14-day reminder, the
+  Samples column on Inventory and the Samples card on a product's page, settlement refused while samples are out.
+- A product's default price is landed cost + 20% where no price is set (`22c0856`; §3; `common/default-price.ts`).
+
+## Live in production (newest first, last two weeks)
+Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-18 — the audit log names the record and lists what changed; a Who filter (by partner name) and a
+  record-type filter that offers what the API writes (`3e9b748`, `07cb929`, `f231309`).
+- 2026-10-18 — every office notification is pushed to the reader's phone, in Arabic (`18d52be`; §10).
+- 2026-10-18 — Profit and loss v1 on Analytics, from the dashboard's own computation (`225be8f`; redesigned locally,
+  above).
+- 2026-10-18 — one search-and-filters toolbar (`ListToolbar`) on every office list (`51b4cf9`).
+- 2026-10-18 — Fuel quick action on the Ledger page only, gone from the dashboard (`22c1de6`, `54791b9`; §9).
+- 2026-10-18 — a lender can be edited and deleted (hidden, `deleted_at`; refused while a payment of his stands,
+  `LENDER_HAS_FINANCINGS`; migration `20261018100000_lender_deleted_at`); one edit icon everywhere (`17eb2e6`; §18).
+- 2026-10-18 — the sidebar went from 21 entries to 13 by merging pages into tabs (`b431efb`; `lib/page-views.ts`,
+  `components/ui/page-views.tsx`): Cycles | Purchases | Shipments, Suppliers | Providers, Products | Categories,
+  Partners | Settlements, Settings | Exchange rates | Audit log; Notifications left the sidebar (the bell opens it).
+  Old addresses redirect to their tab with parameters kept. No role checks on the tabs — owner 2026-10-18: only the
+  three partners use the office app, no investor has access.
+- 2026-10-18 — top products by units or revenue with bars; dashboard tiles keep their icons on a phone, six then See
+  more; the ledger is سِجِلّ الحسابات in Arabic.
+- 2026-10-18 — the owner's test sales deleted from production (see where-things-stand for the data left).
+- 2026-10-17/18 — a leg's cost can be corrected after arrival and the cycle re-costs (+ assistant `update_leg_cost`);
+  a per-piece leg is charged for the pieces that travelled on it; compact Shipment card with status dots; Recent
+  Activity removed from the dashboard; phone fixes (logo in the top bar, dialogs without the bottom strip, slimmer
+  bottom bar, customer orders/payments as cards, New Order buttons in two rows).
+- 2026-10-17 — the sale contract (`feature/sale-contract`, migration `20261016110000_sale_contract_plan`): Contract
+  button on the sale popup → plan popup → printed contract `/sales/[id]/contract` with Download PDF / Share PDF
+  (`lib/document-pdf.ts`) and a clean Print; Contracts are a tab of Payments; the invoice gets the same PDF buttons.
+- 2026-10-17 — 30-day office sign-in (1h access + rolling refresh token, migration
+  `20261017100000_session_refresh_tokens`; §23); the window no longer scrolls past the app frame; one Requests page
+  (Order | Import), hidden in production; the products table shows stock in place of Min stock.
+- 2026-10-16 — sale and receipt dates (back-dated sales draw that day's stock); a friend's payment in his own
+  currency covering the cycle's goods, shipping and fees; Exchange rates page; supplier country picker; Send a test
+  alert (VAPID keys set in production, the owner's test alert arrived).
+- 2026-10-15 — skeletons replace "Loading…"; one DataTable and one Dialog; Arabic search forgives spelling; the
+  assistant lists and creates categories; the dashboard's To collect card; the office app is S&F System.
+- 2026-10-14 — Arabic names for categories and products; product deactivate/reactivate; log out; money accounts
+  removed (migration `20261014120000_drop_money_accounts`); password change fixed; every field shows an example;
+  production reset by the owner with `scripts/prod-reset-partners.sh` (logins abdallah@ / shady@ / fares@).
+- 2026-10-13 — ChatGPT may connect to the assistant (its two callbacks only).
+- 2026-10-12 — L5–L8 (leftover transfer, ledger entry, running costs out of payouts, departures in parts) and
+  isolated e2e per agent.
+
+## Known e2e debt (one list; none of these were run after the change that broke them)
+- Full suite (466 tests) not run since the 2026-10-18 batches; it runs before the next big production ship (Next up).
+- 27-payment-plans, 50-date-formatting, 61-production-browser still use the old `/payment-plans` page.
+- TC-NOT-05 (expects the email in the header; it lives in the account menu) and TC-UI-02 (breaks when run after
+  spec 100, whose test category sorts first) — fail on master too.
+- 85-shipment-panel, 17-shipping-costing, 89-investor-readonly and 99-departures-in-parts open finished legs, which
+  now start folded; 75-recent-activity tests a removed panel.
+- 78-menu-by-role, 87-investor-scope, 90-catalogue-readonly, 91-lists-show-everything, and the 64/72 assistant specs
+  click or count the old menu entries (sidebar → tabs, 2026-10-18).
+- TC-PORTAL-03 fails when run after 34 (TC-INV-48's product "Cost Check" trips the "no `cost` in the payload" check).
+- TC-CASH-01 and TC-L6-03 fail only in the combined 20–34 run (2026-10-14); both pass alone.
+- Samples, default price, funding lock, cancelled order and P&L Option A: covered by unit/db specs and spec 34
+  TC-INV-72..74 and the targeted pass; 20-analytics was edited for Option A. Not yet in a full run.
+
+## Waiting on the owner
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
 - Leg 2 (Dubai → Cairo) of CYC-2026-0001: is 20 AED per piece right, and is 14 EGP/AED the rate? (Saved that way; edit the leg when confirmed.)
 - UAE costs for this shipment (wrapping paper, fuel in the UAE…): each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
@@ -29,6 +110,85 @@ _(none)_
   e.g. top-earning cycles on Cycles, top-selling products on Products, the order with the most revenue and the
   largest order on Sales. Build it once there is enough data for a "top" to mean something (today: one cycle, five
   orders, five products); one shared summary-strip component, figures from the existing analytics definitions.
+- Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
+  §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
+  when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last
+  participant with a share); §1 L3 guesses (only a changed departure is news; the status dialog closes when its fix
+  moved the cycle; receiving says "cycle is now Selling"); §9 L6 guesses (foreign amounts stored in pounds +
+  original_*, income "Other" as its own key, other income into net profit without a tile, a cycle in SETTLEMENT
+  still takes a late cost, the date filter still reads entry time); §8 L7 guesses (who shares, capital counts toward
+  the cap, the partner who leaves); §1 L8 guesses; §3 product-deactivate guesses (storefront visibility,
+  import-request answer refused); §4, §7b, §16 I2 guesses. Today's batch adds the guesses marked in §3 (default
+  price), §4 (samples), §8 (wizard/funding lock) and the P&L passage (buckets, the Saturday–Friday week).
+- Seen, not fixed (L1, 2026-10-11): approving a settlement while a recalculation replaces its draft answers 500
+  (P2025) instead of NOT_FOUND — a race between Calculate and Approve.
+- Observation: the dashboard's cash on hand counts a friend's payment as money in at once while the purchase is only
+  booked out at receipt — the same timing every partner-funded cycle already has (contribution in, purchase out at
+  receipt). Not a new bug; consider booking purchases out when the order is confirmed.
+- Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
+- Rotate the seeded `password123` on partner accounts — production no longer has them (the owner replaced the logins
+  with his own passwords via `scripts/prod-reset-partners.sh`, 2026-10-14); local and demo seeds still do.
+- Queued from the 2026-10-10/11 run: system-written ledger reasons are stored in English (needs a code/params
+  migration); the app has no dark theme; audit nits #39–#46; §3 vs §12 reservations contradiction (Still open);
+  R1's reference-data guesses for investors (moot while no investor uses the office app, owner 2026-10-18).
+
+## Queued, not started
+- Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
+
+## Phases
+- Walk-in + assistant sales — shipped 2026-10-11 · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)
+- MCP assistant — shipped 2026-09-25 · [log](build-log/decisions/mcp-assistant.md)
+- Partial arrivals + UX batch — shipped 2026-10-11 · [decisions](build-log/decisions/arrivals-and-ux.md) · [waves](build-log/waves/arrivals-and-ux/)
+
+## Notes
+- [Live assistant test](build-log/notes/assistant-live-test-2026-10-11.md) — invoice image, walk-in and shop sales: pass; deliveries need a cycle in transit.
+- [Backfill rehearsal](build-log/notes/backfill-rehearsal.md) — old-shape data → migrate → backfill twice → check-data zero.
+
+## How to run things here
+- Postgres runs in Docker: `open -a Docker`, then `docker compose up -d postgres`. Quit both afterwards.
+- Port 3000 may belong to another project. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003
+  CRON_SECRET=local-cron-secret npm run start:dev` (specs 27/34 call the daily overdue job with that secret); web `cd apps/web && npm run dev -- -p 3003`; storefront `PORT=3002` (specs 54/59).
+- **Parallel agents get their own environment (2026-10-12)** — no queueing for one database or fixed ports. Each
+  agent works in its own worktree (`.next` and `dist` are per checkout; one stack per checkout) and:
+  ```
+  (cd apps/api && npm ci) && (cd apps/web && npm ci) && (cd apps/storefront && npm ci)   # fresh worktree only
+  eval "$(scripts/agent-env.sh <name>)"        # database motorcycle_parts_<name> + slot N; exports below
+  scripts/agent-servers.sh <name> start         # API 31N1, storefront 31N2, office 31N3; PIDs in .agent-servers/<name>/
+  cd apps/web && npx playwright test '<pattern>' --project=chromium
+  scripts/agent-servers.sh <name> stop && scripts/agent-env.sh <name> --drop    # when finished
+  ```
+  `agent-env.sh` exports `DATABASE_URL`, `API_BASE`, `WEB_URL`, `STORE_URL`, `PORT`/`API_PORT`/`WEB_PORT`/`STORE_PORT`,
+  `WEB_ORIGIN`, `STORE_ORIGIN`, `NEXT_PUBLIC_API_URL`, `CRON_SECRET`. The database is copied from
+  `motorcycle_parts_template` (migrated, reference seed; rebuilt automatically when migrations/schema/seed change),
+  about a second. globalSetup snapshots, reseeds and restores only that database. Each shell call starts fresh, so
+  prefix every command that needs the env with the `eval` line. `scripts/agent-env.sh --list` shows who holds which
+  slot. Stop only your own servers (`agent-servers.sh <name> stop`), never `pkill -f next-server`.
+  Lines for a subagent's brief:
+  > Give yourself an isolated e2e environment: pick a short name (e.g. your task id, `[a-z0-9_]`). In your worktree run
+  > `npm ci` in apps/api, apps/web, apps/storefront; then `eval "$(scripts/agent-env.sh <name>)"` before every command
+  > that runs servers or specs, `scripts/agent-servers.sh <name> start`, and run specs from apps/web as usual. Never
+  > use ports 3000–3003 or the `motorcycle_parts` database. When done: `scripts/agent-servers.sh <name> stop` and
+  > `scripts/agent-env.sh <name> --drop`.
+- With nothing set, the suite is as before: API 3001, office 3000, storefront 3002, database `motorcycle_parts`
+  (`apps/web/tests/support/env.ts` is the only file in the tests that names an address).
+- Specs: `WEB_URL=http://localhost:3003 npx playwright test '<pattern>' --project=chromium`, in 4 groups:
+  `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`, `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`, `tests/(8[0-9]|9[0-9])-` (the fifth group: 80–94 were missing from "full" runs until 2026-10-11).
+- Production: `scripts/ship-prod.sh status|migrate|env|stranded|smoke`. Pushing `master` deploys all three
+  apps. Vercel builds production only (`ignoreCommand`). Check each deploy reaches READY on the new commit.
+- Auto mode blocks production steps: switch this session to manual (set_session_permission_mode), let the owner
+  approve each step, switch back to auto.
+
+## History
+The "Current stage" line as it stood on 2026-10-18, before this file's top was split into sections (2026-10-19).
+Kept verbatim; everything in it is also in the sections above.
+
+Stage on 2026-10-18: shipped 2026-10-17 — the sale contract is live (`feature/sale-contract` merged to master; migration `20261016110000_sale_contract_plan` applied first): Contract button on the sale popup → plan popup → printed contract `/sales/[id]/contract` with Download PDF / Share PDF (lib/document-pdf.ts; browser-drawn sheets, numbered only when several, table headers repeat) and Print that prints the PDF on desktop Chromium/Firefox (page print with @page margin 0 elsewhere); Payment Plans is a tab of Payments. Also live: 30-day office sign-in (refresh tokens, migration `20261017100000_session_refresh_tokens`); the window no longer scrolls past the app frame. Known e2e debt (not run, owner said no e2e): 27-payment-plans, 50-date-formatting, 61-production-browser still use the old /payment-plans page; TC-NOT-05, TC-UI-02 fail on master too. Production data (2026-10-17): test cycle CYC-2026-0002 and its records deleted; CYC-2026-0001 received in Egypt 9 Sep (owner's date; China/UAE dates estimated 20 Jul / 10 Aug / 28 Aug; leg 2 Dubai→Cairo corrected 2026-10-17 to 20 AED × 230 pieces = 4,600 AED at 14 = 64,400 EGP, re-costing the cycle — rate not yet confirmed by the owner), in SELLING; sales ORD-2026-00001..00005 (Sameh paid cash, Koshary, Flesteeny 5,000 paid, Ahmad Emad, Hussien El Sayed) dated 12–16 Oct; lender renamed Ahmad Eraiby. Ledger checked 2026-10-18: arithmetic agrees (receipts = goods + legs to the piastre; collected + receivables = revenue); capital 64,400.97 (21,466.99 / 21,466.99 / 21,467 by Split equally) stands in for leg 2's cost until Mohamed Abu Setta's payment is recorded; cash on hand 34,800 = collected. Also live 2026-10-17/18: leg cost correctable after arrival with re-costing (+ assistant update_leg_cost), per-piece count forced to the units on the leg, compact Shipment card with status dots, Fuel quick action on the Ledger page only (removed from the dashboard, owner 2026-10-18), Recent Activity removed, phone fixes (logo in the top bar, dialogs without the bottom strip, slimmer bottom bar, customer orders/payments as cards, New Order buttons in two rows), dashboard tiles with icons and See more on a phone, top products by units or revenue with bars, the ledger named سِجِلّ الحسابات in Arabic. Known e2e debt from these (not run): 85-shipment-panel, 17-shipping-costing, 89-investor-readonly and 99-departures-in-parts open finished legs, which now start folded; 75-recent-activity removed. Also 2026-10-18: the sidebar went from 21 entries to 13 by merging pages into tabs (lib/page-views.ts, components/ui/page-views.tsx): Cycles | Purchases | Shipments, Suppliers | Providers, Products | Categories, Partners | Settlements, Settings | Exchange rates | Audit log; Notifications left the sidebar (the bell opens it). Old addresses redirect to their tab with parameters kept. The tabs carry no role checks — owner 2026-10-18: only the three partners use the office app, no investor has access. Known e2e debt (not run): 78-menu-by-role, 87-investor-scope, 90-catalogue-readonly, 91-lists-show-everything, 64/72-assistant specs click or count the old menu entries. Standing: no e2e unless the owner asks; keep flows small.
+
+### Done, moved out of "Next up" on 2026-10-19
+These entries sat under Next up after they had shipped (money accounts, deactivate, L1–L8, I1–I3, isolated e2e,
+the partial-arrivals plan: all live by 2026-10-14). Kept verbatim; the still-open questions in them are gathered in
+Next up above.
+
 - Money accounts removed 2026-10-14 on `chore/remove-money-accounts` (owner: "we don't need money accounts"; not
   merged, not pushed). Migration `20261014120000_drop_money_accounts` (sorts after everything in production) drops
   `money_accounts`, `reconciliation_entries` and the `account_id` columns on `financial_transactions` and
@@ -152,49 +312,3 @@ _(none)_
   has no dark theme; audit nits #39–#46; §3 vs §12 reservations contradiction (Still open); R1's reference-data guesses
   for investors; partner logins still use the seeded password (rotate).
 - Plan `docs/superpowers/plans/2026-10-10-partial-arrivals-and-ux.md` — waves 1–5, then verify and ship.
-
-## Queued, not started
-- Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
-
-## Phases
-- Walk-in + assistant sales — shipped 2026-10-11 · [decisions](build-log/decisions/walk-in-and-assistant-sales.md)
-- MCP assistant — shipped 2026-09-25 · [log](build-log/decisions/mcp-assistant.md)
-- Partial arrivals + UX batch — shipped 2026-10-11 · [decisions](build-log/decisions/arrivals-and-ux.md) · [waves](build-log/waves/arrivals-and-ux/)
-
-## Notes
-- [Live assistant test](build-log/notes/assistant-live-test-2026-10-11.md) — invoice image, walk-in and shop sales: pass; deliveries need a cycle in transit.
-- [Backfill rehearsal](build-log/notes/backfill-rehearsal.md) — old-shape data → migrate → backfill twice → check-data zero.
-
-## How to run things here
-- Postgres runs in Docker: `open -a Docker`, then `docker compose up -d postgres`. Quit both afterwards.
-- Port 3000 may belong to another project. Start directly: API `cd apps/api && WEB_ORIGIN=http://localhost:3003
-  CRON_SECRET=local-cron-secret npm run start:dev` (specs 27/34 call the daily overdue job with that secret); web `cd apps/web && npm run dev -- -p 3003`; storefront `PORT=3002` (specs 54/59).
-- **Parallel agents get their own environment (2026-10-12)** — no queueing for one database or fixed ports. Each
-  agent works in its own worktree (`.next` and `dist` are per checkout; one stack per checkout) and:
-  ```
-  (cd apps/api && npm ci) && (cd apps/web && npm ci) && (cd apps/storefront && npm ci)   # fresh worktree only
-  eval "$(scripts/agent-env.sh <name>)"        # database motorcycle_parts_<name> + slot N; exports below
-  scripts/agent-servers.sh <name> start         # API 31N1, storefront 31N2, office 31N3; PIDs in .agent-servers/<name>/
-  cd apps/web && npx playwright test '<pattern>' --project=chromium
-  scripts/agent-servers.sh <name> stop && scripts/agent-env.sh <name> --drop    # when finished
-  ```
-  `agent-env.sh` exports `DATABASE_URL`, `API_BASE`, `WEB_URL`, `STORE_URL`, `PORT`/`API_PORT`/`WEB_PORT`/`STORE_PORT`,
-  `WEB_ORIGIN`, `STORE_ORIGIN`, `NEXT_PUBLIC_API_URL`, `CRON_SECRET`. The database is copied from
-  `motorcycle_parts_template` (migrated, reference seed; rebuilt automatically when migrations/schema/seed change),
-  about a second. globalSetup snapshots, reseeds and restores only that database. Each shell call starts fresh, so
-  prefix every command that needs the env with the `eval` line. `scripts/agent-env.sh --list` shows who holds which
-  slot. Stop only your own servers (`agent-servers.sh <name> stop`), never `pkill -f next-server`.
-  Lines for a subagent's brief:
-  > Give yourself an isolated e2e environment: pick a short name (e.g. your task id, `[a-z0-9_]`). In your worktree run
-  > `npm ci` in apps/api, apps/web, apps/storefront; then `eval "$(scripts/agent-env.sh <name>)"` before every command
-  > that runs servers or specs, `scripts/agent-servers.sh <name> start`, and run specs from apps/web as usual. Never
-  > use ports 3000–3003 or the `motorcycle_parts` database. When done: `scripts/agent-servers.sh <name> stop` and
-  > `scripts/agent-env.sh <name> --drop`.
-- With nothing set, the suite is as before: API 3001, office 3000, storefront 3002, database `motorcycle_parts`
-  (`apps/web/tests/support/env.ts` is the only file in the tests that names an address).
-- Specs: `WEB_URL=http://localhost:3003 npx playwright test '<pattern>' --project=chromium`, in 4 groups:
-  `tests/(0[0-9]|1[0-9])-`, `tests/(2[0-9]|3[0-4])-`, `tests/(3[5-9]|4[0-9]|5[0-4])-`, `tests/(5[5-9]|6[0-9]|7[0-9])-`, `tests/(8[0-9]|9[0-9])-` (the fifth group: 80–94 were missing from "full" runs until 2026-10-11).
-- Production: `scripts/ship-prod.sh status|migrate|env|stranded|smoke`. Pushing `master` deploys all three
-  apps. Vercel builds production only (`ignoreCommand`). Check each deploy reaches READY on the new commit.
-- Auto mode blocks production steps: switch this session to manual (set_session_permission_mode), let the owner
-  approve each step, switch back to auto.
