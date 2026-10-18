@@ -222,6 +222,7 @@
     "emptyTitle": "No products yet",
     "emptyHint": "The parts you import and sell, each with its SKU and prices.",
     "priceNotSet": "not set",
+    "defaultPriceHint": "Default (landed + {pct}%)",
     "notFoundTitle": "This product could not be found",
     "notFoundHint": "It may have been removed, or the link is wrong.",
     "backToProducts": "Back to products",

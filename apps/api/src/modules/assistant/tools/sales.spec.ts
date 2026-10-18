@@ -417,7 +417,7 @@ interface Line {
   product: string;
   qty: string;
   unitPrice: string;
-  priceSource: 'given' | 'list';
+  priceSource: 'given' | 'list' | 'default';
   note?: string;
   lineTotal: string;
   available: string;
@@ -786,10 +786,39 @@ describe('record_sale — prices', () => {
     });
   });
 
-  it('No price and no list price on that channel → PRICE_NEEDED, nothing to confirm', async () => {
+  it('No price and none set on that channel → the default, landed 120 + 20% = 144, said so (§3, 2026-10-18)', async () => {
     const r = await call({
       walkIn: true,
       lines: [{ product: 'Full Face Helmet', qty: 1 }],
+    });
+    expect(r.s.status).toBe('preview');
+    expect(r.s.data?.lines?.[0]).toMatchObject({
+      unitPrice: '144.00',
+      priceSource: 'default',
+    });
+    expect(r.text).toContain('default price (landed cost + 20%)');
+  });
+
+  it('a price the partner gave beats the default', async () => {
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'Full Face Helmet', qty: 1, unitPrice: 200 }],
+    });
+    expect(r.s.data?.lines?.[0]).toMatchObject({
+      unitPrice: '200.00',
+      priceSource: 'given',
+    });
+  });
+
+  it('No price, none set, never received (no default) → PRICE_NEEDED, nothing to confirm', async () => {
+    db.insert('product', {
+      name: 'Tail Light',
+      sku: 'TL-01',
+      status: 'ACTIVE',
+    });
+    const r = await call({
+      walkIn: true,
+      lines: [{ product: 'Tail Light', qty: 1 }],
     });
     expect(r.s.status).toBe('needs_answers');
     expect(r.s.data?.questions?.[0].kind).toBe('PRICE_NEEDED');

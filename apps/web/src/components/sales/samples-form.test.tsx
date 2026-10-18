@@ -56,6 +56,11 @@ const PISTON: SaleFormProduct = {
     { channel: 'B2B', amount: 1800 },
     { channel: 'B2C', amount: 2100 },
   ],
+  // As the API resolves them (§3, 2026-10-18): both set.
+  listPrices: {
+    B2B: { amount: '1800.00', currency: 'EGP', source: 'SET' },
+    B2C: { amount: '2100.00', currency: 'EGP', source: 'SET' },
+  },
 };
 
 function wrap(children: React.ReactNode, locale: 'en' | 'ar' = 'en') {

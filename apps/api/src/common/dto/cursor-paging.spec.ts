@@ -109,7 +109,11 @@ const lists: Array<[string, string, (db: any) => (q: any) => Promise<any>]> = [
 describe.each(lists)('%s list — walking every page', (_name, model, make) => {
   it('returns each of 45 rows exactly once, across a 20-row tie', async () => {
     const rows = makeRows();
-    const findAll = make({ [model]: { findMany: fakeFindMany(rows) } });
+    const findAll = make({
+      [model]: { findMany: fakeFindMany(rows) },
+      // The products list reads each product's batches for its default price.
+      inventoryBatch: { findMany: () => Promise.resolve([]) },
+    });
     for (let run = 0; run < 5; run++) {
       const seen = await walk(findAll);
       expect(seen).toHaveLength(45);
@@ -119,7 +123,11 @@ describe.each(lists)('%s list — walking every page', (_name, model, make) => {
 
   it('a second request for the same page gives the same rows', async () => {
     const rows = makeRows();
-    const findAll = make({ [model]: { findMany: fakeFindMany(rows) } });
+    const findAll = make({
+      [model]: { findMany: fakeFindMany(rows) },
+      // The products list reads each product's batches for its default price.
+      inventoryBatch: { findMany: () => Promise.resolve([]) },
+    });
     const a = await findAll({ limit: 20 });
     const b = await findAll({ limit: 20 });
     expect(b.data.map((r: any) => r.id)).toEqual(a.data.map((r: any) => r.id));

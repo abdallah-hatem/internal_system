@@ -43,6 +43,10 @@ const product = {
     { id: 'pr-1', channel: 'B2B', amount: 100, currency: 'EGP', effectiveFrom: '2026-09-01', effectiveTo: null },
     { id: 'pr-2', channel: 'B2C', amount: 150, currency: 'EGP', effectiveFrom: '2026-09-01', effectiveTo: null },
   ],
+  listPrices: {
+    B2B: { amount: '100.00', currency: 'EGP', source: 'SET' },
+    B2C: { amount: '150.00', currency: 'EGP', source: 'SET' },
+  },
 };
 const LISTS: Record<string, unknown[]> = {
   '/products': [product],

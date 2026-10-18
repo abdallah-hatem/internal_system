@@ -12,6 +12,7 @@ import { selectOnFocus } from '@/lib/select-on-focus';
 import { Dialog } from '@/components/ui/dialog';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
+import { listAmountOf, type ListPrices } from '@/lib/list-price';
 
 /**
  * "They're buying" (BUSINESS_LOGIC §4, samples at shops, owner 2026-10-18).
@@ -49,6 +50,8 @@ export interface SamplesOrder {
 export interface PricedProduct {
   id: string;
   prices?: { channel: string; amount: number | string; effectiveTo?: string | null }[];
+  /** Set, or the default landed + markup, as the API resolved it (§3, 2026-10-18). */
+  listPrices?: ListPrices | null;
 }
 
 export interface DecisionRow {
@@ -80,17 +83,18 @@ export function rowProblem(row: DecisionRow): RowProblem {
   return null;
 }
 
-/** The starting price: the one noted when left, else the list price for the channel, else empty. */
+/**
+ * The starting price: the one noted when left, else the product's price for
+ * the channel — set, or the default landed + markup — else empty.
+ */
 export function startingPrice(
   line: Pick<SamplesOrderLine, 'productId' | 'unitPrice'>,
   channel: string,
   products: PricedProduct[],
 ): string {
   if (Number(line.unitPrice) > 0) return String(Number(line.unitPrice));
-  const list = products
-    .find((p) => p.id === line.productId)
-    ?.prices?.find((pr) => pr.channel === channel && !pr.effectiveTo);
-  return list ? String(Number(list.amount)) : '';
+  const list = listAmountOf(products.find((p) => p.id === line.productId), channel);
+  return list != null ? String(list) : '';
 }
 
 export function initialRows(order: SamplesOrder, products: PricedProduct[]): DecisionRow[] {

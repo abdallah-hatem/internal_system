@@ -844,8 +844,37 @@ describe('find_products', () => {
       await call(assistant, 'find_products', { search: 'PRD-000012' }),
     );
 
-    expect(pad.prices).toEqual({ B2B: '90', B2C: '120' });
+    expect(pad.prices).toEqual({
+      B2B: { amount: '90.00', currency: 'EGP', source: 'SET' },
+      B2C: { amount: '120.00', currency: 'EGP', source: 'SET' },
+    });
     expect(pad.stock).toEqual({ total: 8, reserved: 1, available: 7 });
+  });
+
+  it("find_products: no price set → the default, landed + 20%, said DEFAULT — the products list's own figure (§3, 2026-10-18)", async () => {
+    const d = db();
+    d.products[0].prices = [];
+    d.batches[0].landedUnitCostEgp = 100;
+    const { assistant, services } = harness(d);
+
+    const [pad] = dataOf<Array<{ prices: object }>>(
+      await call(assistant, 'find_products', { search: 'PRD-000012' }),
+    );
+
+    const expected = {
+      amount: '120.00',
+      currency: 'EGP',
+      source: 'DEFAULT',
+      markupPct: 20,
+    };
+    expect(pad.prices).toEqual({ B2B: expected, B2C: expected });
+    // One definition: the office's products list says the same.
+    const list = await (
+      services.get(ProductsService) as ProductsService
+    ).findAll({});
+    expect(list.data.find((p) => p.sku === 'PRD-000012')?.listPrices).toEqual(
+      pad.prices,
+    );
   });
 
   it('find_products matches the Arabic name and returns both names (§3, 2026-10-14)', async () => {

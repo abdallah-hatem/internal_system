@@ -5,7 +5,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { availableByProduct } from '../../common/available-stock';
-import { channelFor, priceOn } from './portal-pricing';
+import { channelFor } from './portal-pricing';
+import { listPricesFor } from '../../common/default-price';
 import { PortalNotifier } from '../notifications/portal-notifier.service';
 
 /**
@@ -104,6 +105,9 @@ export class OrderRequestsService {
       // refuses it once there is none, as for any product.
 
       const available = await availableByProduct(tx, productIds);
+      // The price the catalogue showed: set, or the default (§3, 2026-10-18).
+      const prices = await listPricesFor(tx, products);
+      const priceOf = (id: string) => prices.get(id)![channel];
 
       for (const product of products) {
         const asked = wanted.get(product.id)!;
@@ -119,7 +123,7 @@ export class OrderRequestsService {
             { available: have.toString(), product: product.name, wanted: asked.toString() },
           );
         }
-        if (!priceOn(product.prices, channel)) {
+        if (!priceOf(product.id)) {
           throw badRequest('PRODUCT_NOT_PRICED', `${product.name} has no price yet.`, {
             product: product.name,
           });
@@ -145,7 +149,7 @@ export class OrderRequestsService {
             create: products.map((p) => ({
               productId: p.id,
               qtyRequested: wanted.get(p.id)!,
-              unitPrice: priceOn(p.prices, channel)!,
+              unitPrice: priceOf(p.id)!.amount,
             })),
           },
         },

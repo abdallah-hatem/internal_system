@@ -31,6 +31,8 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { useNumberFormat } from '@/lib/numbers';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
+import { listPriceOf, type ListPrice, type ListPrices } from '@/lib/list-price';
+import { DefaultPriceHint } from '@/components/products/default-price-hint';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -51,6 +53,8 @@ interface ProductRaw {
   onHand?: number;
   status?: string;
   prices?: any[];
+  /** Each channel's price, set or the default (§3, 2026-10-18). */
+  listPrices?: ListPrices | null;
 }
 
 interface Product {
@@ -73,8 +77,22 @@ interface Product {
   onHand: number | null;
   status?: string;
   isActive: boolean;
-  b2bPrice?: number;
-  b2cPrice?: number;
+  /** Set, or the default landed + markup; null when there is neither. */
+  b2bPrice: ListPrice | null;
+  b2cPrice: ListPrice | null;
+}
+
+// ─── Price cell ───────────────────────────────────────────────────────
+
+/** A channel's price, with "Default (landed + 20%)" under one nobody set. */
+function PriceCell({ price }: { price: ListPrice | null }) {
+  if (!price) return <>—</>;
+  return (
+    <span>
+      <Money value={Number(price.amount)} currency={price.currency} />
+      <DefaultPriceHint price={price} />
+    </span>
+  );
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────
@@ -207,12 +225,8 @@ export default function ProductsPage() {
     onHand: raw.onHand == null ? null : Number(raw.onHand),
     status: raw.status,
     isActive: raw.status === 'ACTIVE',
-    b2bPrice: raw.prices?.find((p: any) => p.channel === 'B2B' && !p.effectiveTo)?.amount
-      ? Number(raw.prices.find((p: any) => p.channel === 'B2B' && !p.effectiveTo).amount)
-      : undefined,
-    b2cPrice: raw.prices?.find((p: any) => p.channel === 'B2C' && !p.effectiveTo)?.amount
-      ? Number(raw.prices.find((p: any) => p.channel === 'B2C' && !p.effectiveTo).amount)
-      : undefined,
+    b2bPrice: listPriceOf(raw, 'B2B'),
+    b2cPrice: listPriceOf(raw, 'B2C'),
   });
 
   // ── Derived data ──────────────────────────────────────────────────
@@ -306,12 +320,12 @@ export default function ProductsPage() {
     {
       key: 'b2b', header: t('b2bPrice'), width: '9rem', kind: 'value', className: 'text-gray-700',
       skeleton: { kind: 'text', share: 'w-2/3' },
-      cell: (p) => (p.b2bPrice != null ? <Money value={p.b2bPrice} /> : '—'),
+      cell: (p) => <PriceCell price={p.b2bPrice} />,
     },
     {
       key: 'b2c', header: t('b2cPrice'), width: '9rem', kind: 'value', className: 'text-gray-700',
       skeleton: { kind: 'text', share: 'w-2/3' },
-      cell: (p) => (p.b2cPrice != null ? <Money value={p.b2cPrice} /> : '—'),
+      cell: (p) => <PriceCell price={p.b2cPrice} />,
     },
     {
       // In place of Min stock (owner, 2026-10-17): how many are on the shelf,
@@ -455,11 +469,11 @@ export default function ProductsPage() {
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <div className="min-w-0">
                     <dt className="text-xs text-gray-500">{t('b2bPrice')}</dt>
-                    <dd className="font-medium tabular-nums">{product.b2bPrice != null ? <Money value={product.b2bPrice} /> : '—'}</dd>
+                    <dd className="font-medium tabular-nums"><PriceCell price={product.b2bPrice} /></dd>
                   </div>
                   <div className="min-w-0">
                     <dt className="text-xs text-gray-500">{t('b2cPrice')}</dt>
-                    <dd className="font-medium tabular-nums">{product.b2cPrice != null ? <Money value={product.b2cPrice} /> : '—'}</dd>
+                    <dd className="font-medium tabular-nums"><PriceCell price={product.b2cPrice} /></dd>
                   </div>
                 </dl>
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-100">

@@ -15,6 +15,7 @@ import { skuKey } from '../assistant/receipt/name-matching';
 import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
 import { stockOnHand } from '../../common/low-stock';
+import { listPricesFor } from '../../common/default-price';
 import {
   arabicText,
   bilingualProductSearch,
@@ -84,11 +85,14 @@ export class ProductsService {
 
     const hasMore = items.length > limit;
     const page = hasMore ? items.slice(0, limit) : items;
-    const data = page.map(({ inventoryBatches, ...product }) =>
-      inventoryBatches
-        ? { ...product, onHand: stockOnHand(inventoryBatches) }
-        : product,
-    );
+    // Each channel's price, set or the default landed + markup (§3,
+    // owner 2026-10-18) — the one definition, common/default-price.ts.
+    const listPrices = await listPricesFor(this.prisma, page);
+    const data = page.map(({ inventoryBatches, ...product }) => ({
+      ...product,
+      listPrices: listPrices.get(product.id)!,
+      ...(inventoryBatches ? { onHand: stockOnHand(inventoryBatches) } : {}),
+    }));
     return {
       data,
       meta: {
@@ -113,7 +117,8 @@ export class ProductsService {
       },
     });
     if (!product) throw notFound('product');
-    return { data: product };
+    const listPrices = await listPricesFor(this.prisma, [product]);
+    return { data: { ...product, listPrices: listPrices.get(product.id)! } };
   }
 
   /**

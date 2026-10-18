@@ -68,7 +68,11 @@ function table(rows: Row[]) {
 function setup() {
   const category = table([]);
   const product = table([]);
-  const prisma = { category, product } as unknown as PrismaService;
+  const prisma = {
+    category,
+    product,
+    inventoryBatch: { findMany: () => Promise.resolve([]) },
+  } as unknown as PrismaService;
   const audit = { log: jest.fn() } as unknown as AuditService;
   const service = new ProductsService(
     prisma,

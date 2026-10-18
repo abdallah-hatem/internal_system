@@ -5,7 +5,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { notFound } from '../../common/api-error';
 import { availableByProduct, stockBand } from '../../common/available-stock';
 import { SELLABLE } from '../../common/product-status';
-import { channelFor, priceOn, type PriceChannel } from './portal-pricing';
+import { channelFor, type PriceChannel } from './portal-pricing';
+import { listPricesFor } from '../../common/default-price';
 import { bilingualProductSearch } from '../../common/arabic-names';
 
 /**
@@ -99,6 +100,11 @@ export class PortalCatalogueService {
       products.map((p) => p.id),
     );
 
+    // The office's price, set or the default landed + markup (§3, §12,
+    // 2026-10-18). The shop is shown the figure only, never where it came
+    // from: "landed + 20%" would hand a shop the landed cost.
+    const prices = await listPricesFor(this.prisma, products);
+
     const items: CatalogueItem[] = products.map((p) => ({
       id: p.id,
       sku: p.sku,
@@ -107,7 +113,7 @@ export class PortalCatalogueService {
       description: p.description,
       descriptionAr: p.descriptionAr,
       category: p.category,
-      price: priceOn(p.prices, channel)?.toFixed(2) ?? null,
+      price: prices.get(p.id)![channel]?.amount ?? null,
       currency: 'EGP',
       channel,
       stock: stockBand(stock.get(p.id) ?? new Prisma.Decimal(0)),
@@ -152,6 +158,7 @@ export class PortalCatalogueService {
     if (!product) throw notFound('product');
 
     const stock = await availableByProduct(this.prisma, [product.id]);
+    const prices = await listPricesFor(this.prisma, [product]);
     // Switched off and sold out, it is gone from the store (§3, 2026-10-14).
     // Held units still count as on the shelf, as the list's SELLABLE does.
     if (product.status !== 'ACTIVE') {
@@ -174,7 +181,7 @@ export class PortalCatalogueService {
         description: product.description,
         descriptionAr: product.descriptionAr,
         category: product.category,
-        price: priceOn(product.prices, channel)?.toFixed(2) ?? null,
+        price: prices.get(product.id)![channel]?.amount ?? null,
         currency: 'EGP',
         channel,
         stock: stockBand(stock.get(product.id) ?? new Prisma.Decimal(0)),

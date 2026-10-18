@@ -20,6 +20,8 @@ import { invalidFields } from '@/components/ui/validated-form';
 import { useCodeLabel } from '@/lib/labels';
 import { PAYMENT_METHODS } from '@/components/payments/RecordPaymentDialog';
 import { usePriceCheck } from '@/lib/price-check';
+import { listPriceOf, type ListPrices } from '@/lib/list-price';
+import { DefaultPriceHint } from '@/components/products/default-price-hint';
 import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
 import { Dialog } from '@/components/ui/dialog';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -37,6 +39,11 @@ export interface SaleFormProduct {
   sku: string;
   status?: string | null;
   prices?: { channel: string; amount: number | string; effectiveTo?: string | null }[];
+  /**
+   * Each channel's price as the API resolved it — set, or the default landed +
+   * markup (§3, 2026-10-18). What a line starts from; never saved as typed.
+   */
+  listPrices?: ListPrices | null;
 }
 
 export interface SaleFormStockRow {
@@ -192,12 +199,15 @@ export function SaleOrderForm({
     return row ? Number(row.availableStock ?? 0) : 0;
   };
 
-  /** The product's current list price for a channel, or null if none is set. */
+  /**
+   * The product's price for a channel — the one set, else the default landed +
+   * markup, as the API resolved it (§3, 2026-10-18) — or null when it has none.
+   */
+  const listFor = (productId: string, ch: string) =>
+    listPriceOf(products.find((p) => p.id === productId), ch);
   const priceFor = (productId: string, ch: string): number | null => {
-    const active = products
-      .find((p) => p.id === productId)
-      ?.prices?.find((pr) => pr.channel === ch && !pr.effectiveTo);
-    return active ? Number(active.amount) : null;
+    const price = listFor(productId, ch);
+    return price ? Number(price.amount) : null;
   };
 
   /** Switch channel and re-price every line whose price nobody typed. */
@@ -512,7 +522,8 @@ export function SaleOrderForm({
             const overStock = !!line.productId && line.quantity > inStock;
             const lineTotals = totals.lines[idx];
             const discountTooLarge = lineTotals.discountCents > lineTotals.grossCents;
-            const list = line.productId ? priceFor(line.productId, channel) : null;
+            const listPrice = line.productId ? listFor(line.productId, channel) : null;
+            const list = listPrice ? Number(listPrice.amount) : null;
             return (
               <li
                 key={line.key}
@@ -633,6 +644,10 @@ export function SaleOrderForm({
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {codeLabel('channel', channel)} <span dir="ltr">{formatNumber(list, { maximumFractionDigits: 2 })}</span>
                       </p>
+                    )}
+                    {/* The line holds the default: say where it came from. */}
+                    {line.productId && list != null && Number(line.unitPrice) === list && (
+                      <DefaultPriceHint price={listPrice} className="mt-1 block text-[11px] text-muted-foreground" />
                     )}
                   </div>
                   {!samples && (

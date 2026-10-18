@@ -35,7 +35,10 @@ function service() {
     ),
   );
   const svc = new ProductsService(
-    { product: { findMany } } as unknown as PrismaService,
+    {
+      product: { findMany },
+      inventoryBatch: { findMany: () => Promise.resolve([]) },
+    } as unknown as PrismaService,
     { log: jest.fn() } as unknown as AuditService,
     {} as NotificationsService,
   );
