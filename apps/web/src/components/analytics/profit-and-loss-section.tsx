@@ -12,6 +12,9 @@ import { useCodeLabel } from '@/lib/labels';
 import { DEFAULT_CURRENCY, compactParts, intlFor, useNumberFormat } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import { Money } from '@/components/ui/money';
+import { Dialog } from '@/components/ui/dialog';
+import { useIsPhone } from '@/lib/use-phone';
+import { weeksOfDays, type PnlWeek } from './pnl-weeks';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { FilterPills } from '@/components/ui/list-toolbar';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
@@ -437,13 +440,35 @@ const ALL_DOTS_UP_TO = 40;
  * colour is not the only sign). Hover, tap or focus a bucket for its exact
  * figures. Time runs in the reading direction — oldest at the right in
  * Arabic — as the Revenue by month chart it replaces did.
+ *
+ * On a phone a period the API draws by day is drawn by week instead (owner
+ * 2026-10-19, "Option 1"): 19–31 day columns do not fit in 340px. The weeks
+ * are the days added up here (`pnl-weeks.ts`), Saturday to Friday as the
+ * API's weeks are, and tapping one opens its days. The desktop keeps its days;
+ * periods already by week or month are the same everywhere.
  */
-export function PnlChart({ buckets, granularity }: { buckets: PnlBucket[]; granularity: Granularity }) {
+export function PnlChart({ buckets: given, granularity: givenGranularity }: { buckets: PnlBucket[]; granularity: Granularity }) {
   const t = useTranslations('analytics');
   const locale = useLocale();
   const rtl = locale === 'ar';
   const { formatMoney } = useNumberFormat();
   const [active, setActive] = useState<number | null>(null);
+  const [openWeek, setOpenWeek] = useState<string | null>(null);
+  const today = businessToday();
+
+  // Days folded into weeks on a phone; a rotation re-renders, never refetches.
+  const byWeek = useIsPhone() && givenGranularity === 'day';
+  // Turned to the wide layout, an open week closes for good: back on a phone
+  // it must not spring open again by itself.
+  const [wasByWeek, setWasByWeek] = useState(byWeek);
+  if (wasByWeek !== byWeek) {
+    setWasByWeek(byWeek);
+    if (!byWeek) setOpenWeek(null);
+  }
+  const weeks: PnlWeek<PnlBucket>[] = byWeek ? weeksOfDays(given) : [];
+  const buckets: PnlBucket[] = byWeek ? weeks : given;
+  const granularity: Granularity = byWeek ? 'week' : givenGranularity;
+  const opened = byWeek && openWeek ? weeks.find((w) => w.key === openWeek) : undefined;
 
   const n = buckets.length;
   const values = buckets.flatMap((b) => [b.salesEgp, b.netProfitEgp]);
@@ -454,13 +479,17 @@ export function PnlChart({ buckets, granularity }: { buckets: PnlBucket[]; granu
   /** A bucket's centre from the physical left, in percent: mirrored in Arabic. */
   const x = (i: number) => (((rtl ? n - 1 - i : i) + 0.5) / n) * 100;
   // Few enough labels to never touch: about five on a phone, twelve from sm up.
-  const stepPhone = Math.max(1, Math.ceil(n / 5));
+  // Folded weeks are at most six, each wide enough for its own label.
+  const stepPhone = byWeek ? 1 : Math.max(1, Math.ceil(n / 5));
   const stepWide = Math.max(1, Math.ceil(n / 12));
 
-  const granularityText = t(`pnl.by.${granularity}`);
+  const granularityText = byWeek ? t('pnl.byWeekShort') : t(`pnl.by.${granularity}`);
+  /** Under the axis: the week's first day, and the week still running is "today". */
+  const axisLabel = (b: PnlBucket, i: number) =>
+    byWeek && i === n - 1 && b.to === today ? t('pnl.today') : bucketLabel(b, granularity, locale, 'axis');
 
   return (
-    <div data-testid="pnl-chart" data-granularity={granularity} data-buckets={n}>
+    <div data-testid="pnl-chart" data-granularity={granularity} data-buckets={n} data-folded={byWeek ? 'week' : undefined}>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 className="text-sm font-semibold text-foreground">
           {t('pnl.chartTitle')} <span className="font-normal text-muted-foreground">· {granularityText}</span>
@@ -563,7 +592,9 @@ export function PnlChart({ buckets, granularity }: { buckets: PnlBucket[]; granu
                   type="button"
                   data-bucket={b.key}
                   aria-label={`${bucketLabel(b, granularity, locale, 'full')}: ${t('pnl.sales')} ${formatMoney(b.salesEgp)}, ${t('pnl.netProfit')} ${formatMoney(b.netProfitEgp)}`}
+                  aria-haspopup={byWeek ? 'dialog' : undefined}
                   className="h-full flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                  onClick={byWeek ? () => setOpenWeek(b.key) : undefined}
                   onPointerEnter={() => setActive(i)}
                   onPointerDown={() => setActive(i)}
                   onFocus={() => setActive(i)}
@@ -572,7 +603,8 @@ export function PnlChart({ buckets, granularity }: { buckets: PnlBucket[]; granu
               ))}
             </div>
 
-            {active !== null && buckets[active] && (
+            {/* A folded week answers a tap with its days, so it needs no tooltip over them. */}
+            {!byWeek && active !== null && buckets[active] && (
               <ChartTooltip bucket={buckets[active]} granularity={granularity} at={x(active)} slots={n} />
             )}
           </div>
@@ -582,20 +614,82 @@ export function PnlChart({ buckets, granularity }: { buckets: PnlBucket[]; granu
             {buckets.map((b, i) => (
               <div key={b.key} className="relative flex-1">
                 <span
+                  data-axis-label=""
                   className={cn(
                     'absolute start-1/2 top-0 whitespace-nowrap text-[11px] text-muted-foreground ltr:-translate-x-1/2 rtl:translate-x-1/2',
                     i % stepPhone === 0 ? 'block' : 'hidden',
                     i % stepWide === 0 ? 'sm:block' : 'sm:hidden',
                   )}
                 >
-                  {bucketLabel(b, granularity, locale, 'axis')}
+                  {axisLabel(b, i)}
                 </span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {opened && <WeekDays week={opened} onClose={() => setOpenWeek(null)} />}
     </div>
+  );
+}
+
+/**
+ * A folded week's own days, opened by tapping its column on a phone: each
+ * day's sales and net profit (a loss in red, its minus kept in an LTR run),
+ * the week's total under them. Amounts are exact; the currency is said once.
+ */
+function WeekDays({ week, onClose }: { week: PnlWeek<PnlBucket>; onClose: () => void }) {
+  const t = useTranslations('analytics');
+  const locale = useLocale();
+  const { formatAmount } = useNumberFormat();
+  const today = businessToday();
+  const amount = (v: number, testId: string, net: boolean) => (
+    <span
+      data-testid={testId}
+      // A quiet day reads as quiet: zero is neither a profit nor a loss.
+      className={cn('whitespace-nowrap text-end tabular-nums', v === 0 ? 'text-muted-foreground' : net ? tone(v) : 'text-foreground')}
+    >
+      {/* The digits and their minus are one LTR run; the cell aligns to the page's own end. */}
+      <bdi dir="ltr">{formatAmount(v)}</bdi>
+    </span>
+  );
+  // One grid for the header, the days and the total, so every figure lines up
+  // under its column whatever its width; each row is a subgrid of it.
+  const row = 'col-span-3 grid grid-cols-subgrid items-baseline py-2';
+  return (
+    <Dialog
+      size="sm"
+      title={bucketLabel(week, 'week', locale, 'full')}
+      description={t('pnl.weekDaysNote')}
+      onClose={onClose}
+      cardProps={{ 'data-testid': 'pnl-week', 'data-week': week.key }}
+      bodyClassName="py-3"
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-4 text-sm">
+        <div className={cn(row, 'border-b border-border pt-0 text-xs font-medium text-muted-foreground')}>
+          <span>{t('pnl.day')}</span>
+          <span className="text-end">{t('pnl.sales')}</span>
+          <span className="text-end">{t('pnl.netProfit')}</span>
+        </div>
+        <ul data-testid="pnl-week-days" className="col-span-3 grid grid-cols-subgrid">
+          {week.days.map((d) => (
+            <li key={d.key} data-day={d.key} data-loss={d.netProfitEgp < 0 || undefined} className={cn(row, 'border-b border-border/60')}>
+              <span className="min-w-0 truncate text-foreground">
+                {d.from === today ? t('pnl.today') : dayText(d.from, locale, { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+              {amount(d.salesEgp, 'pnl-day-sales', false)}
+              {amount(d.netProfitEgp, 'pnl-day-net', true)}
+            </li>
+          ))}
+        </ul>
+        <div data-testid="pnl-week-total" className={cn(row, 'font-semibold')}>
+          <span className="text-foreground">{t('pnl.weekTotal')}</span>
+          {amount(week.salesEgp, 'pnl-week-sales', false)}
+          {amount(week.netProfitEgp, 'pnl-week-net', true)}
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

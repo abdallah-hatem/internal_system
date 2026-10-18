@@ -956,7 +956,11 @@
       "noExpenses": "No expenses in this period.",
       "noMonths": "Nothing recorded yet.",
       "loadFailed": "Could not load profit and loss.",
-      "samplesWrittenOff": "Samples written off"
+      "samplesWrittenOff": "Samples written off",
+      "byWeekShort": "by week",
+      "day": "Day",
+      "weekTotal": "Week",
+      "weekDaysNote": "Each day of the week, in EGP."
     }
   },
   "notifications": {
