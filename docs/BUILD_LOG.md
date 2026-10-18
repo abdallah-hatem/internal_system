@@ -100,6 +100,9 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- Later (owner, 2026-10-19): no investor account can sign in to the office app — refuse TEMP_INVESTOR at the office
+  login (and on refresh), like shop accounts (`auth.service.ts`); only the three partners use it. Tidy the
+  investor-only UI and specs that would then be unreachable.
 - Before the next big production ship (owner, 2026-10-19): run the FULL e2e suite (466 tests, in ~3-minute groups on
   an agent database). A targeted pass (invariants for today's rules + the known-stale specs + the real-database API
   suites) was run first, at the owner's choice, to save tokens.
