@@ -694,6 +694,26 @@ function WeekDays({ week, onClose }: { week: PnlWeek<PnlBucket>; onClose: () => 
 }
 
 /** One bucket's exact figures, beside the pointer and never past the plot's edges. */
+/** Less of the plot than this beside a bucket, and the tooltip would not fit there. */
+const TOOLTIP_ROOM_PCT = 25;
+
+/**
+ * Where the tooltip sits: beside the bucket on the side with more room, so it
+ * covers neither the hovered column nor the legend. When that side has too
+ * little plot left — one bucket fills the whole width, so "beside" is past the
+ * card's edge and the page scrolled sideways (owner 2026-10-19, All time with a
+ * single day) — it is held to that side's edge of the plot instead.
+ */
+export function tooltipPlace(at: number, slots: number): { left?: string; right?: string } {
+  const half = 50 / Math.max(1, slots);
+  if (at <= 50) {
+    const from = at + half;
+    return 100 - from >= TOOLTIP_ROOM_PCT ? { left: `calc(${from}% + 4px)` } : { right: '0px' };
+  }
+  const from = 100 - at + half;
+  return 100 - from >= TOOLTIP_ROOM_PCT ? { right: `calc(${from}% + 4px)` } : { left: '0px' };
+}
+
 function ChartTooltip({
   bucket,
   granularity,
@@ -711,14 +731,13 @@ function ChartTooltip({
   // Centred over the bucket, or held to the edge it is near.
   // Inside the plot, at its top, beside the bucket on the side with more room,
   // so it covers neither the hovered column nor the legend above.
-  const half = 50 / Math.max(1, slots);
-  const place = at <= 50 ? { left: `calc(${at + half}% + 4px)` } : { right: `calc(${100 - at + half}% + 4px)` };
+  const place = tooltipPlace(at, slots);
   const loss = bucket.netProfitEgp < 0;
   return (
     <div
       role="status"
       data-testid="pnl-tooltip"
-      className="pointer-events-none absolute top-0 z-10 w-max min-w-44 rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md"
+      className="pointer-events-none absolute top-0 z-10 w-max min-w-44 max-w-full rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md"
       style={place}
     >
       <p className="mb-1.5 font-medium text-foreground">{bucketLabel(bucket, granularity, locale, 'full')}</p>

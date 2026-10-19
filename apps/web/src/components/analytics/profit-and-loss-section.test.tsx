@@ -12,6 +12,7 @@ import {
   type Granularity,
   type PnlBucket,
   type ProfitAndLoss,
+  tooltipPlace,
 } from './profit-and-loss-section';
 
 /**
@@ -687,5 +688,20 @@ describe('the chart on a phone: a by-day period is drawn by week (owner 2026-10-
     // The minus stays with the digits: they are one LTR run inside the cell.
     expect(net.querySelector('bdi[dir="ltr"]')!.textContent).toBe('-2,500.50');
     expect(week.querySelectorAll('li')[0].textContent).toContain('السبت');
+  });
+});
+
+describe('tooltipPlace — the tooltip never leaves the plot', () => {
+  it('one bucket fills the plot: held to its right edge, not past it (All time with a single day)', () => {
+    expect(tooltipPlace(50, 1)).toEqual({ right: '0px' });
+  });
+  it('the last of a few buckets: held to the left edge when there is no room on its left', () => {
+    // Two buckets: the right one's centre is 75%, beside it on the left is 50% — room enough.
+    expect(tooltipPlace(75, 2)).toEqual({ right: 'calc(50% + 4px)' });
+    expect(tooltipPlace(25, 2)).toEqual({ left: 'calc(50% + 4px)' });
+  });
+  it('many buckets: beside the hovered one, as before', () => {
+    expect(tooltipPlace(5, 10)).toEqual({ left: 'calc(10% + 4px)' });
+    expect(tooltipPlace(95, 10)).toEqual({ right: 'calc(10% + 4px)' });
   });
 });
