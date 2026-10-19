@@ -244,8 +244,8 @@ function ProductDetailSkeleton() {
         <SkeletonText className="w-24" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {repeat(4, (i) => <StatCardSkeleton key={i} />)}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {repeat(3, (i) => <StatCardSkeleton key={i} />)}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -426,7 +426,7 @@ export default function ProductDetailPage() {
       </div>
 
       {/* ── Stat Cards ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           icon={<Boxes className="h-5 w-5" />}
           label={t('totalStock')}
@@ -439,13 +439,6 @@ export default function ProductDetailPage() {
           value={formatNumber(stock?.availableStock ?? 0)}
           iconBg="bg-green-100 text-green-600"
           valueColor="text-green-600"
-        />
-        <StatCard
-          icon={<AlertTriangle className="h-5 w-5" />}
-          label={t('reserved')}
-          value={formatNumber(stock?.reservedStock ?? 0)}
-          iconBg="bg-amber-100 text-amber-600"
-          valueColor="text-amber-600"
         />
         {/* Units out as samples at shops (§4, owner 2026-10-18 round 2), in
             the place the B2C price card had — the prices are in their own

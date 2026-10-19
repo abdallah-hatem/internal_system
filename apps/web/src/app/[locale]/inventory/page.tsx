@@ -152,7 +152,8 @@ function InventoryPageContent() {
     );
 
   // ── Columns ───────────────────────────────────────────────────────
-  // The chevron, product, on shelf, at shops, total, reserved, available, batches
+  // The chevron, product, on shelf, at shops, total, available, batches (Reserved
+  // removed 2026-10-19: nothing writes it, owner)
   // (components/ui/data-table.tsx). Each fixed column fits its title in
   // English and Arabic; the product takes what is left.
   const columns: Column<InventorySummary>[] = [
@@ -196,10 +197,6 @@ function InventoryPageContent() {
       key: 'allStock', header: t('allStock'), width: '6rem', kind: 'value', className: 'font-medium text-gray-900',
       skeleton: { kind: 'text', share: 'w-1/4' },
       cell: (item) => <span data-testid="all-stock">{item.allStock ?? item.totalStock}</span>,
-    },
-    {
-      key: 'reserved', header: t('reserved'), width: '7rem', kind: 'value', className: 'text-gray-600',
-      skeleton: { kind: 'text', share: 'w-1/4' }, cell: (item) => item.reservedStock,
     },
     {
       key: 'available', header: t('available'), width: '7rem', kind: 'value',
