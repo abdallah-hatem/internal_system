@@ -122,7 +122,9 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` at `415ccf9` (shipped 2026-10-19; migration
+Production runs `origin/master` at `73e8c29` (shipped the evening of 2026-10-19, no migration: the partners
+repay a friend in any split, the goods cards' icons, Stock value in place of Reserved, the P&L tooltip fix — see
+BUILD_LOG). Before that `415ccf9` (shipped 2026-10-19; migration
 `20261018200000_samples_at_shops` applied first). That batch added: samples at
 shops (rounds 1 and 2); default price = landed cost + 20% (B2B and B2C); the cycle
 wizard ending at step 3 with a funding note on the cycle page and funding locked

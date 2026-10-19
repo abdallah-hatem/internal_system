@@ -7,18 +7,25 @@ then the full e2e run before the next big ship. The goal before it — walk-in s
 `docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`) — shipped 2026-10-11.
 
 ## Current stage
-2026-10-19 — production runs `origin/master` (`415ccf9`): the whole 2026-10-18/19 batch shipped after the owner's local
-test; migration `20261018200000_samples_at_shops` applied first (status "up to date"), then pushed. Nothing is merged
-locally and waiting. Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep
-flows small; docs move with the code. State of the product and of production's data: `docs/where-things-stand.md`.
-On branch `worktree-agent-ac322b840669ab9bf`, not merged, waiting for the owner's local test: the partners repay a friend
-who paid for a cycle (owner 2026-10-19, §18 "The partners repay the friend") — his payment is no longer taken off what
-the partners fund, the `LENDERS` equal split is gone (no contributions refuses `CYCLE_NOT_FUNDED`), and Enter amounts
-takes any split with a % beside each partner (30/30/40). e2e specs edited to the rule but not run: 34 (TC-INV-45/46/47),
-98-lender-financing, 99-assistant-lenders.
+2026-10-19 (evening) — production runs `origin/master` (`73e8c29`): the second 2026-10-19 batch shipped at the owner's
+word ("ship to production now"), no migration (status "up to date" before the push). Nothing is merged locally and
+waiting. Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep flows small;
+docs move with the code. e2e specs edited to today's rules but not run: 34 (TC-INV-45/46/47), 98-lender-financing,
+99-assistant-lenders, and the 63 test files moved to the renamed seed logins. State of the product and of production's
+data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-19 (evening) — shipped (`73e8c29`, no migration):
+  - The partners repay a friend who paid for a cycle, in any split (`072d645`; §18 "The partners repay the friend"):
+    his payment is a loan, Split equally divides the whole cost, Enter amounts takes amounts or %, profit follows the
+    contributions; the equal split for a cycle a friend paid entirely is gone. No way to add a friend once friends
+    paid it all (`c70ed1f`); an empty share box shows the equal share (`f1ad47a`).
+  - Where-the-goods-are cards: the icon above the label, six in one row from 1024px, "To UAE" / "To Egypt" (`815107a`).
+  - The always-zero Reserved tile and column removed; a product's Stock value in its place, one definition with the
+    dashboard's Inventory Value (`324edab`, `5852479`; §3, `common/stock-value.ts`).
+  - The P&L tooltip stays inside the chart with one bucket (`6620d00`).
+  - Local seed logins are Abdallah, Shady and Fares @motoparts.com (`518931a`; CLAUDE.md §8); production's are unchanged.
 - 2026-10-19 — shipped (`415ccf9`; migration `20261018200000_samples_at_shops` first):
   - Profit and loss redesigned as Option A (`7834f4e`): four tiles, "How it adds up", one sales/net chart in day, week
     (Saturday–Friday) or month buckets by the period's length, top four expense categories; the Revenue by month card
