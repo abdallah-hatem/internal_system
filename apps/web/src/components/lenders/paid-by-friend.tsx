@@ -37,6 +37,7 @@ export function PaidByFriend({
   purchaseOrder,
   orders,
   closed,
+  fullyPaid,
   lockedReason,
   open,
   onOpenChange,
@@ -50,6 +51,8 @@ export function PaidByFriend({
   orders?: FinanceableOrder[];
   /** A cycle being settled, settled or cancelled takes no new payment. */
   closed?: boolean;
+  /** Friends' payments already cover the cycle's whole cost: nothing left to add. */
+  fullyPaid?: boolean;
   /** Why it takes none, said where the button would be (2026-10-18). */
   lockedReason?: string;
   /**
@@ -88,7 +91,7 @@ export function PaidByFriend({
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <HandCoins className="h-4 w-4 text-muted-foreground" /> {t('paidByFriend')}
         </h3>
-        {mayAdd && !closed && !adding && pickable.length > 0 && (
+        {mayAdd && !closed && !fullyPaid && !adding && pickable.length > 0 && (
           <button
             type="button"
             onClick={() => setAdding(true)}

@@ -297,6 +297,9 @@ export default function CycleDetailsPage() {
   const coreTotal = corePartners.reduce((s, p) => s + num(p.contributionAmount), 0);
   const fullyLent =
     lenderPaid >= num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) + num(costing?.totals?.transferredInEgp);
+  // Friends already paid the whole cost: the server would refuse another
+  // friend's payment (FINANCING_EXCEEDS_CYCLE_COST), so none is offered.
+  const fullyPaidByFriends = lenderPaid > 0 && fullyLent;
   const financingClosed =
     ['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(cycle.status) || !!fundingLock;
 
@@ -339,7 +342,7 @@ export default function CycleDetailsPage() {
         canSplit={canSplit}
         splitting={splitEqually.isPending}
         canEdit={canEditParticipant && participants.length > 0}
-        canFinance={canFinance && orders.length > 0 && !financingClosed}
+        canFinance={canFinance && orders.length > 0 && !financingClosed && !fullyPaidByFriends}
         onSplit={() => splitEqually.mutate()}
         onEnterAmounts={() => {
           setAdding(false);
@@ -513,6 +516,7 @@ export default function CycleDetailsPage() {
               fxRateToEgp: o.fxRateToEgp,
             }))}
             closed={financingClosed}
+            fullyPaid={fullyPaidByFriends}
             lockedReason={lockReason}
             open={financingOpen}
             onOpenChange={(open) => {

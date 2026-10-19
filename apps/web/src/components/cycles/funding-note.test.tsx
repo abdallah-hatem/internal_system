@@ -300,6 +300,27 @@ describe('the funding note shows while settling would be refused', () => {
     expect(within(shown).getByTestId('funding-note-enter').textContent).toContain(en.cycles.fundingEnterAmounts);
   });
 
+  it('friends paid the whole cost: no way to add another friend, in the note or on his card (owner 2026-10-19)', async () => {
+    // The server would refuse it anyway (FINANCING_EXCEEDS_CYCLE_COST).
+    state.cycleCost = 172155.5;
+    state.financed = 172155.5;
+    state.lenderNames = ['Ahmad Eraiby'];
+    wrap();
+    await screen.findByTestId('funding-note-title');
+    expect(within(note()!).queryByTestId('funding-note-lender')).toBeNull();
+    expect(screen.queryByTestId('add-financing')).toBeNull();
+  });
+
+  it('a friend paid only part: another friend may still pay the rest, from the note and his card', async () => {
+    state.cycleCost = 10000;
+    state.financed = 4000;
+    state.lenderNames = ['Ahmad Eraiby'];
+    wrap();
+    await screen.findByTestId('funding-note-title');
+    expect(within(note()!).getByTestId('funding-note-lender')).toBeTruthy();
+    expect(screen.getByTestId('add-financing')).toBeTruthy();
+  });
+
   it('two friends paid it: both named, and "them"', async () => {
     state.financed = 10000;
     state.lenderNames = ['Ahmad Eraiby', 'Mohamed Abu Setta'];
