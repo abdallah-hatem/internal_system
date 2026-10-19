@@ -25,7 +25,13 @@ function product(name: string, lines: [number, number][], returned = 0) {
       allocations: [{ cogsEgp: D(qty * 10) }],
       returnItems:
         i === 0 && returned > 0
-          ? [{ qty: D(returned), unitPrice: D(total / qty), cogsReversedEgp: D(returned * 10) }]
+          ? [
+              {
+                qty: D(returned),
+                unitPrice: D(total / qty),
+                cogsReversedEgp: D(returned * 10),
+              },
+            ]
           : [],
     })),
   };
@@ -41,26 +47,45 @@ const PRODUCTS = [
 ];
 
 const service = (products = PRODUCTS) =>
-  new AnalyticsService({ product: { findMany: () => Promise.resolve(products) } } as never);
+  new AnalyticsService({
+    product: { findMany: () => Promise.resolve(products) },
+  } as never);
 
 const names = (r: { data: { name: string }[] }) => r.data.map((p) => p.name);
 
 describe('top products, two rankings', () => {
   it('by revenue (the default): Y30 first, as the dashboard showed', async () => {
-    expect(names(await service().getTopProducts(5))).toEqual(['Y30 Headset', 'Y20 FM', 'Q58 Max', 'Y20 MAX', 'Y12 PRO']);
+    expect(names(await service().getTopProducts(5))).toEqual([
+      'Y30 Headset',
+      'Y20 FM',
+      'Q58 Max',
+      'Y20 MAX',
+      'Y12 PRO',
+    ]);
   });
 
   it('by units: 28 before 21', async () => {
-    expect(names(await service().getTopProducts(5, 'units'))).toEqual(['Y20 FM', 'Y30 Headset', 'Q58 Max', 'Y20 MAX', 'Y12 PRO']);
+    expect(names(await service().getTopProducts(5, 'units'))).toEqual([
+      'Y20 FM',
+      'Y30 Headset',
+      'Q58 Max',
+      'Y20 MAX',
+      'Y12 PRO',
+    ]);
   });
 
   it('the limit takes the top of the ranking asked for, not of revenue', async () => {
-    expect(names(await service().getTopProducts(1, 'units'))).toEqual(['Y20 FM']);
+    expect(names(await service().getTopProducts(1, 'units'))).toEqual([
+      'Y20 FM',
+    ]);
     expect(names(await service().getTopProducts(1))).toEqual(['Y30 Headset']);
   });
 
   it('returns come off the units: 30 sold, 10 back, ranks as 20', async () => {
-    const r = await service([product('Returned', [[30, 3000]], 10), product('Kept', [[25, 2500]])]).getTopProducts(5, 'units');
+    const r = await service([
+      product('Returned', [[30, 3000]], 10),
+      product('Kept', [[25, 2500]]),
+    ]).getTopProducts(5, 'units');
     expect(r.data.map((p) => [p.name, p.totalQuantitySold])).toEqual([
       ['Kept', 25],
       ['Returned', 20],
@@ -68,9 +93,19 @@ describe('top products, two rankings', () => {
   });
 
   it('a tie in units falls to revenue, then the name — never the database order', async () => {
-    const tied = [product('B', [[10, 1000]]), product('A', [[10, 1000]]), product('C', [[10, 2000]])];
-    expect(names(await service(tied).getTopProducts(5, 'units'))).toEqual(['C', 'A', 'B']);
-    expect(names(await service([...tied].reverse()).getTopProducts(5, 'units'))).toEqual(['C', 'A', 'B']);
+    const tied = [
+      product('B', [[10, 1000]]),
+      product('A', [[10, 1000]]),
+      product('C', [[10, 2000]]),
+    ];
+    expect(names(await service(tied).getTopProducts(5, 'units'))).toEqual([
+      'C',
+      'A',
+      'B',
+    ]);
+    expect(
+      names(await service([...tied].reverse()).getTopProducts(5, 'units')),
+    ).toEqual(['C', 'A', 'B']);
   });
 });
 
@@ -88,7 +123,11 @@ describe('GET /analytics/top-products?by=', () => {
     await controller.getTopProducts('5', 'units');
     await controller.getTopProducts('5', 'revenue');
     await controller.getTopProducts('5');
-    expect(calls).toEqual([[5, 'units'], [5, 'revenue'], [5, 'revenue']]);
+    expect(calls).toEqual([
+      [5, 'units'],
+      [5, 'revenue'],
+      [5, 'revenue'],
+    ]);
   });
 
   it('anything else is a coded refusal, never a silent default', () => {
@@ -97,7 +136,8 @@ describe('GET /analytics/top-products?by=', () => {
       try {
         void controller.getTopProducts('5', by);
       } catch (e) {
-        code = (e as { getResponse: () => { code: string } }).getResponse().code;
+        code = (e as { getResponse: () => { code: string } }).getResponse()
+          .code;
       }
       expect(code).toBe('VALIDATION_FAILED');
     }

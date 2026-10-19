@@ -117,21 +117,24 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     await expect(line).toContainText('30,000.00 AED');
     await shot(page, 'cycle-paid-by-friend-1440-en');
 
-    // Partners fund only what the friend did not — the freight (§18). "Split
-    // equally" asks them for 13,000, not the 403,000 the cycle cost.
+    // The partners fund the whole cycle, the friend's 390,000 included: his
+    // payment is a loan they repay (§18, owner 2026-10-19). "Split equally"
+    // asks them for all 403,000 — each partner's share of repaying him and
+    // of the freight.
     const costing = await (await request.get(`${API}/costing/cycles/${cycle.id}/landed-cost`, { headers })).json();
     expect(costing.totals.landedEgp).toBe('403000.00');
     expect(costing.totals.lenderFinancedEgp).toBe('390000.00');
-    expect(costing.totals.toFundEgp).toBe('13000.00');
-    // The funding note asks for it at the top of the page (2026-10-18); the
-    // participants card's own Split equally does the same.
+    expect(costing.totals.toFundEgp).toBe('403000.00');
+    // The funding note names him and asks who repays him (2026-10-19).
+    await expect(page.getByTestId('funding-note-title')).toContainText(`${friend} paid`);
     await page.getByTestId('funding-note').getByTestId('funding-note-split').click();
-    await expect(page.getByText('Split equally — 13,000 EGP')).toBeVisible();
+    await expect(page.getByText('Split equally — 403,000 EGP')).toBeVisible();
     await expect(page.getByTestId('funding-note')).toHaveCount(0);
+    await expect(page.getByTestId('repay-shares')).toContainText(friend);
     const after = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
     const funded = ((after.data ?? after).participants as { contributionAmount: string }[])
       .reduce((s, p) => s + Number(p.contributionAmount), 0);
-    expect(funded).toBeCloseTo(13000, 2);
+    expect(funded).toBeCloseTo(403000, 2);
 
     // ── His page ───────────────────────────────────────────────────────
     await line.getByRole('link', { name: friend }).click();

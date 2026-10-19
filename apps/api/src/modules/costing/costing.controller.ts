@@ -23,15 +23,15 @@ export class CostingController {
   ) {
     // Scoped: an investor reads their own cycles' costs only (R1).
     const r = await this.costing.landedCostFor(cycleId, user);
-    // A friend who paid a supplier funded that part (§18), so "Split
-    // equally" and the wizard's funded-versus-cost line ask for the rest.
-    // Leftovers moved in from another cycle (§8, L5) are funded here too,
-    // and so are the expenses charged to the cycle (§18, 2026-10-16).
+    // What the partners fund (§18): the cycle's cost — goods, legs and the
+    // expenses charged to it — plus leftovers moved in (§8, L5). A friend's
+    // payment is a loan the partners repay, so since 2026-10-19 it is not
+    // taken off; it is reported beside it, for the cycle page to say so.
     const funding = await this.costing.fundingFor(cycleId);
     const { financed, toFund, transferredIn, expenses, cycleCost } = funding;
     // What settling would split the profit on; NONE is the cycle page's
     // "Funding not entered yet" note (owner 2026-10-18).
-    const profitBasis = await this.costing.profitBasis(cycleId, funding);
+    const profitBasis = await this.costing.profitBasis(cycleId);
     return {
       cycleId: r.cycleId,
       totals: {
@@ -40,14 +40,14 @@ export class CostingController {
         landedEgp: r.totalLandedEgp.toFixed(2),
         /** Ledger expenses charged to the cycle, net of reversals. */
         expensesEgp: expenses.toFixed(2),
-        /** Goods + shipping + expenses: what friends and partners fund. */
+        /** Goods + shipping + expenses. */
         cycleCostEgp: cycleCost.toFixed(2),
+        /** What friends paid of it: a loan the partners repay (§18). */
         lenderFinancedEgp: financed.toFixed(2),
         transferredInEgp: transferredIn.toFixed(2),
+        /** What the partners fund, directly or by repaying friends: cost + moved in. */
         toFundEgp: toFund.toFixed(2),
-        /** A friend paid something and the partners are asked for nothing (§8). */
-        fundedByLenders: funding.fundedByLenders,
-        /** CUSTOM_SPLIT, CONTRIBUTIONS, LENDERS — or NONE: settling would be refused. */
+        /** CUSTOM_SPLIT or CONTRIBUTIONS — or NONE: settling would be refused. */
         profitBasis,
         pieces: r.totalPieces.toFixed(3),
         weightKg: r.totalWeightKg.toFixed(3),

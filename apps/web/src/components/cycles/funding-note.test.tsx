@@ -16,7 +16,9 @@ import { remainingIn } from '@/components/lenders/paid-by-friend';
  * The wizard ends at the shipping step now and lands here, so this note is
  * where the funding is asked for. It shows while settling would be refused
  * for want of a basis — the server's `profitBasis` reading, the settlement's
- * own — and goes once the partners put money in or a friend paid it all.
+ * own — and goes once the partners put money in. Since 2026-10-19 (§18) a
+ * friend paying it all is not a basis: the note names him and asks the
+ * partners to split repaying him, in any shares ("maybe 30,30,40").
  *
  * The fake API below plays the server: the costing's `profitBasis` is worked
  * out from what has been written, as `profitBasisOf` does, so a save shows
@@ -49,6 +51,8 @@ const state = vi.hoisted(() => ({
   cycleCost: 10000,
   /** What friends paid, in pounds. */
   financed: 0,
+  /** Who they were — what `/cycles/:id/financing` names. */
+  lenderNames: [] as string[],
   writes: [] as Array<{ method: string; url: string; body: WriteBody }>,
 }));
 
@@ -74,9 +78,6 @@ function basis() {
   if (state.participants.some((p) => p.customProfitPct !== null)) return 'CUSTOM_SPLIT';
   const total = state.participants.reduce((s, p) => s + Number(p.contributionAmount), 0);
   if (total > 0) return 'CONTRIBUTIONS';
-  const toFund = Math.max(state.cycleCost - state.financed, 0);
-  const fundedByLenders = state.financed > 0 && toFund <= 0;
-  if (fundedByLenders && state.participants.some((p) => p.participantType === 'CORE_PARTNER')) return 'LENDERS';
   return 'NONE';
 }
 
@@ -101,7 +102,8 @@ vi.mock('@/lib/api', () => {
           });
         }
         if (url === '/costing/cycles/c-1/landed-cost') {
-          const toFund = Math.max(state.cycleCost - state.financed, 0);
+          // A friend's payment is a loan the partners repay (2026-10-19): not taken off.
+          const toFund = state.cycleCost;
           return Promise.resolve({
             data: {
               totals: {
@@ -110,7 +112,6 @@ vi.mock('@/lib/api', () => {
                 lenderFinancedEgp: state.financed.toFixed(2),
                 transferredInEgp: '0.00',
                 toFundEgp: toFund.toFixed(2),
-                fundedByLenders: state.financed > 0 && toFund <= 0,
                 profitBasis: basis(),
               },
             },
@@ -118,7 +119,24 @@ vi.mock('@/lib/api', () => {
         }
         if (url === '/cycles/c-1/financing') {
           return ok({
-            financings: [],
+            financings: state.lenderNames.map((name, i) => ({
+              id: `f-${i}`,
+              lender: { id: `l-${i}`, name },
+              purchaseOrder: { id: 'po-1', reference: 'PO-2026-0041' },
+              cycle: { id: 'c-1', code: 'CYC-2026-0042', status: state.status },
+              currency: 'EGP',
+              amount: '0.00',
+              fxRateToEgp: '1',
+              amountEgp: '0.00',
+              paidOn: '2026-10-01',
+              removedAt: null,
+              repaid: '0.00',
+              owed: '0.00',
+              paidEgp: '0.00',
+              exchangeDiffEgp: '0.00',
+              repayments: [],
+              plan: null,
+            })),
             cycleCostEgp: state.cycleCost.toFixed(2),
             cycleFinancedEgp: state.financed.toFixed(2),
             availableEgp: Math.max(state.cycleCost - state.financed, 0).toFixed(2),
@@ -165,6 +183,7 @@ vi.mock('@/lib/api', () => {
           const order = state.orders.find((o) => url === `/purchases/${o.id}/financings`)!;
           const rate = body.currency === 'EGP' ? 1 : Number(body.fxRateToEgp ?? order.fxRateToEgp);
           state.financed += Math.round(body.amount * rate * 100) / 100;
+          state.lenderNames.push('Mohammed');
         }
         return ok({});
       },
@@ -204,6 +223,7 @@ beforeEach(() => {
   state.orders = [order(1)];
   state.cycleCost = 10000;
   state.financed = 0;
+  state.lenderNames = [];
   state.writes = [];
 });
 afterEach(() => cleanup());
@@ -264,22 +284,50 @@ describe('the funding note shows while settling would be refused', () => {
     expect(note()).toBeNull();
   });
 
-  it('a friend paid the whole cycle: no note — it splits equally (§8)', async () => {
-    state.financed = 10000;
+  it('a friend paid the whole cycle and the partners nothing: the note stays, names him and asks who repays him (2026-10-19)', async () => {
+    // The owner's case: "it looks vague as if we payed nothing".
+    state.cycleCost = 172155.5;
+    state.financed = 172155.5;
+    state.lenderNames = ['Ahmad Eraiby'];
     wrap();
-    await loaded();
-    expect(note()).toBeNull();
+    const title = await screen.findByTestId('funding-note-title');
+    expect(title.textContent?.replace(/\u00a0/g, ' ')).toBe(
+      'Ahmad Eraiby paid 172,155.50 EGP for this cycle. Split who repays him between the partners.',
+    );
+    const shown = note()!;
+    expect(shown.textContent).toContain(en.cycles.fundingNoteLenderHint);
+    expect(within(shown).getByTestId('funding-note-split').textContent).toContain(en.cycles.splitEqually);
+    expect(within(shown).getByTestId('funding-note-enter').textContent).toContain(en.cycles.fundingEnterAmounts);
+  });
+
+  it('two friends paid it: both named, and "them"', async () => {
+    state.financed = 10000;
+    state.lenderNames = ['Ahmad Eraiby', 'Mohamed Abu Setta'];
+    wrap();
+    const title = await screen.findByTestId('funding-note-title');
+    expect(title.textContent).toMatch(/^Ahmad Eraiby and Mohamed Abu Setta paid 10,000\.00 EGP for this cycle\. Split who repays them between the partners\.$/);
+  });
+
+  it('in Arabic: the friend paid, the partners repay him', async () => {
+    state.financed = 10000;
+    state.lenderNames = ['Ahmad Eraiby'];
+    wrap('ar');
+    const title = await screen.findByTestId('funding-note-title');
+    expect(title.textContent).toContain('دفع Ahmad Eraiby');
+    expect(title.textContent).toContain('10,000.00');
+    expect(title.textContent).toContain('من يسدّد له');
   });
 
   it('a friend paid part and the partners nothing: the note stays, and says how much of what', async () => {
     state.financed = 4000;
+    state.lenderNames = ['Mohammed'];
     wrap();
     const title = await screen.findByTestId('funding-note-title');
-    expect(title.textContent).toMatch(/A lender paid 4,000\.00 EGP of 10,000\.00 EGP/);
-    expect(title.textContent).toMatch(/or the settlement will be refused/);
+    expect(title.textContent).toMatch(/Mohammed paid 4,000\.00 EGP of this cycle's 10,000\.00 EGP/);
+    expect(title.textContent).toMatch(/they repay him and fund the rest/);
   });
 
-  it('in Arabic too — the partial text with its figures', async () => {
+  it('in Arabic too — the partial text with its figures; with no name loaded yet, "a lender"', async () => {
     state.financed = 4000;
     wrap('ar');
     const title = await screen.findByTestId('funding-note-title');
@@ -324,12 +372,53 @@ describe('the funding note’s actions', () => {
     await waitFor(() => expect(note()).toBeNull());
   });
 
-  it('Split equally takes off what a friend already paid', async () => {
+  it('Split equally on a cycle a friend paid for divides the whole cost — each partner’s share of repaying him — and the note goes', async () => {
+    state.financed = 10000;
+    state.lenderNames = ['Mohammed'];
+    wrap();
+    fireEvent.click(await screen.findByTestId('funding-note-split'));
+    await waitFor(() => expect(state.writes).toHaveLength(3));
+    expect(state.writes.map((w) => w.body.contributionAmount)).toEqual([3333.33, 3333.33, 3333.34]);
+    await waitFor(() => expect(note()).toBeNull());
+    // The participants card now says what those amounts are.
+    expect((await screen.findByTestId('repay-shares')).textContent).toContain("Each partner's share of repaying Mohammed:");
+  });
+
+  it('Split equally on a cycle a friend paid only part of still divides the whole cost', async () => {
     state.financed = 4000;
     wrap();
     fireEvent.click(await screen.findByTestId('funding-note-split'));
     await waitFor(() => expect(state.writes).toHaveLength(3));
-    expect(state.writes.map((w) => w.body.contributionAmount)).toEqual([2000, 2000, 2000]);
+    expect(state.writes.map((w) => w.body.contributionAmount)).toEqual([3333.33, 3333.33, 3333.34]);
+  });
+
+  it('Enter amounts on the owner’s cycle: 30 / 30 / 40 % of 172,155.50 fills amounts that sum exactly, and Save writes them', async () => {
+    state.cycleCost = 172155.5;
+    state.financed = 172155.5;
+    state.lenderNames = ['Ahmad Eraiby'];
+    wrap();
+    fireEvent.click(await screen.findByTestId('funding-note-enter'));
+    const form = await screen.findByTestId('amounts-form');
+    const pct = (n: number) => form.querySelector<HTMLInputElement>(`input[data-field="pct-part-${n}"]`)!;
+    const amountOf = (n: number) =>
+      form.querySelector<HTMLInputElement>(`input[data-field="contribution-part-${n}"]`)!.value.replace(/,/g, '');
+    typeInto(pct(1), '30');
+    typeInto(pct(2), '30');
+    typeInto(pct(3), '40');
+    expect([amountOf(1), amountOf(2), amountOf(3)]).toEqual(['51646.65', '51646.65', '68862.20']);
+    expect(within(form).getByTestId('amounts-gap').textContent).toBe(en.cycles.amountsMatch);
+    expect(within(form).queryByTestId('amounts-pct-warning')).toBeNull();
+    fireEvent.click(within(form).getByRole('button', { name: en.common.save }));
+    await waitFor(() => expect(state.writes).toHaveLength(3));
+    expect(state.writes.map((w) => [w.url, w.body.contributionAmount])).toEqual([
+      ['/cycles/participants/part-1', 51646.65],
+      ['/cycles/participants/part-2', 51646.65],
+      ['/cycles/participants/part-3', 68862.2],
+    ]);
+    await waitFor(() => expect(note()).toBeNull());
+    const shares = await screen.findByTestId('repay-shares');
+    expect(shares.textContent).toContain("Each partner's share of repaying Ahmad Eraiby:");
+    expect(screen.getByTestId('repay-share-part-3').textContent?.replace(/\u00a0/g, ' ')).toBe('Partner 3 68,862.20 EGP (40%)');
   });
 
   it('Enter amounts opens each participant’s contribution, recorded value first; Save writes only what changed and the note goes', async () => {
@@ -411,7 +500,7 @@ describe('the funding note’s actions', () => {
     expect(amount().value).toBe('500');
   });
 
-  it('saving the friend’s payment for all of it: the note goes', async () => {
+  it('saving the friend’s payment for all of it: the note stays and names him — the partners still split repaying him', async () => {
     wrap();
     fireEvent.click(await screen.findByTestId('funding-note-lender'));
     await screen.findByTestId('financing-form');
@@ -424,7 +513,11 @@ describe('the funding note’s actions', () => {
       amount: 10000,
       currency: 'EGP',
     });
-    await waitFor(() => expect(note()).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByTestId('funding-note-title').textContent).toMatch(
+        /^Mohammed paid 10,000\.00 EGP for this cycle\. Split who repays him between the partners\.$/,
+      ),
+    );
   });
 
   it('a friend paying only part: the note stays and turns to the partial text', async () => {
@@ -435,7 +528,7 @@ describe('the funding note’s actions', () => {
     typeInto(amount(), '2500');
     fireEvent.click(screen.getByRole('button', { name: en.lenders.save }));
     await waitFor(() =>
-      expect(screen.getByTestId('funding-note-title').textContent).toMatch(/A lender paid 2,500\.00 EGP of 10,000\.00 EGP/),
+      expect(screen.getByTestId('funding-note-title').textContent).toMatch(/Mohammed paid 2,500\.00 EGP of this cycle's 10,000\.00 EGP/),
     );
   });
 

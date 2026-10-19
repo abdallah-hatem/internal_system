@@ -92,8 +92,9 @@ export async function assertLendersRepaid(
 }
 
 /**
- * What friends paid towards this cycle's orders, in pounds at each order's
- * rate. The partners and investors fund the rest (§18, "Split equally").
+ * What friends paid towards this cycle's orders, in pounds at each
+ * payment's rate (§18). A loan to the partners, who repay it: since
+ * 2026-10-19 it is not taken off what they fund (`CostingService.fundingFor`).
  */
 export async function cycleFinancedEgp(
   db: Pick<Prisma.TransactionClient, 'lenderFinancing'>,

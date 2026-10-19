@@ -571,7 +571,12 @@ export function registerLenderTools(
     };
   }
 
-  /** The order's financing after this one, and what partners are asked for. */
+  /**
+   * The order's financing after this one, and what the partners fund — the
+   * same before and after since 2026-10-19 (§18): his payment is a loan they
+   * repay, not funding in their place. Both figures stay, so the preview can
+   * say so and a cost that moves in between still changes what is bound.
+   */
   async function financingOutcome(
     db: PrismaService,
     service: LendersService,
@@ -642,7 +647,7 @@ export function registerLenderTools(
       `Cycle ${seen.cycle} cost ${formatMoney(seen.cycleCostEgp)} EGP (goods ${formatMoney(seen.cycleGoodsEgp)}, shipping ${formatMoney(seen.cycleShippingEgp)}, expenses charged to it ${formatMoney(seen.cycleExpensesEgp)}); friends had already paid ${formatMoney(seen.cycleFinancedBeforeEgp)} EGP of it, so ${formatMoney(seen.availableBeforeEgp)} EGP was available.`,
       `Friends will have paid ${formatMoney(seen.orderFinancedEgp)} EGP through ${p.order.reference}, whose goods are ${formatMoney(seen.orderTotal)} ${seen.orderCurrency} (${formatMoney(seen.orderTotalEgp)} EGP at its rate).`,
       `We owe him ${formatMoney(seen.amount)} ${seen.currency}, repaid in pounds at each day's rate.`,
-      `Partners fund ${formatMoney(seen.partnersFundBeforeEgp)} EGP of the cycle before this, ${formatMoney(seen.partnersFundAfterEgp)} EGP after.`,
+      `The partners still fund all ${formatMoney(seen.partnersFundAfterEgp)} EGP of the cycle: what he paid is a loan to them, which they repay, each partner's contribution being their share of it.`,
     ].join('\n');
   }
 
@@ -672,7 +677,7 @@ export function registerLenderTools(
         "It is recorded against the order he paid, but it may cover more than the order's goods: the cycle's shipping legs and the expenses charged to the cycle in the ledger (a card or bank fee, customs) too — \"he paid 8,302.60 AED by card: goods, shipping to the UAE and the card fee\". Record the fee as a ledger expense on the cycle first, so the cycle's cost includes it. " +
         'The friend is matched by exact name or id; a close or unknown name comes back as a question with nothing to confirm — a new friend is added only with newLender: true after the partner agreed. ' +
         "Refused when it is more than is left of the cycle's cost — goods, shipping and expenses charged to it, less what friends already paid (compared in pounds) — the currency has no rate on the exchange-rate page, the day is in the future, he already paid for that order, or the cycle is being settled, closed or cancelled. " +
-        "The preview shows the cycle's cost, what friends already paid of it, what is available, and what the partners will still have to fund afterwards. Call without a confirmationToken to preview.",
+        "The preview shows the cycle's cost, what friends already paid of it, what is available, and that the partners still fund the whole cycle — his payment is a loan they repay, so it does not lower what they put in. Call without a confirmationToken to preview.",
       inputSchema: financingShape,
     },
     {

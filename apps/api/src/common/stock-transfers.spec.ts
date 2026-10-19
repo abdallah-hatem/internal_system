@@ -297,30 +297,17 @@ describe('money', () => {
     const before = toFundEgp({
       landed: '10000.00',
       transferredIn: 0,
-      financed: 0,
     }).toFund;
     const after = toFundEgp({
       landed: '10000.00',
       transferredIn: '2200.00',
-      financed: 0,
     }).toFund;
     expect(after.sub(before).toFixed(2)).toBe('2200.00');
   });
-  it('a friend who paid more than the goods still leaves the moved-in stock to fund', () => {
+  it('a friend’s payment is not taken off: the cost to fund is the cost plus what moved in (2026-10-19)', () => {
     expect(
-      toFundEgp({
-        landed: 1000,
-        transferredIn: 500,
-        financed: 1200,
-      }).toFund.toFixed(2),
-    ).toBe('300.00');
-    expect(
-      toFundEgp({
-        landed: 1000,
-        transferredIn: 0,
-        financed: 1200,
-      }).toFund.toFixed(2),
-    ).toBe('0.00');
+      toFundEgp({ landed: 1000, transferredIn: 500 }).toFund.toFixed(2),
+    ).toBe('1500.00');
   });
 
   it('a transfer is not an expense, not a recovery, and not cash', () => {

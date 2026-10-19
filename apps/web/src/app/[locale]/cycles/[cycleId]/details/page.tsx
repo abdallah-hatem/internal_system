@@ -48,7 +48,9 @@ import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
 import { splitAcrossPartners } from '@/lib/funding-split';
 import { viewPath } from '@/lib/page-views';
-import { FundingNote } from '@/components/cycles/funding-note';
+import { FundingNote, lenderList } from '@/components/cycles/funding-note';
+import { AmountsForm } from '@/components/cycles/amounts-form';
+import type { FinancingView } from '@/components/lenders/lender-dialogs';
 
 /**
  * One cycle's line from the analytics profitability figure — the same one the
@@ -141,6 +143,15 @@ export default function CycleDetailsPage() {
     retry: false,
   });
 
+  // Who paid the supplier for us (§18): the same query, and cache, as the
+  // "Paid by a friend" section below. The funding note and the participants
+  // card name him, because the partners repay him (owner 2026-10-19).
+  const { data: financing } = useQuery<{ financings: FinancingView[] }>({
+    queryKey: ['financing', 'cycle', id],
+    queryFn: () => api.get(`/cycles/${id}/financing`).then((r) => r.data.data ?? r.data),
+  });
+  const lenderNames = (financing?.financings ?? []).map((f) => f.lender?.name).filter(Boolean) as string[];
+
   const addParticipant = useMutation({
     mutationFn: (body: any) => api.post(`/cycles/${id}/participants`, body),
     onSuccess: () => {
@@ -157,7 +168,9 @@ export default function CycleDetailsPage() {
   });
 
   /**
-   * Give each partner an equal share of what the cycle actually cost.
+   * Give each partner an equal share of what the cycle actually cost — on a
+   * cycle a friend paid for, an equal share of repaying him (§18, owner
+   * 2026-10-19): his payment is not taken off.
    *
    * The three of them fund a cycle equally by default, but the amount is not
    * known until the goods and shipping are recorded — so this is the moment it
@@ -181,9 +194,9 @@ export default function CycleDetailsPage() {
         .reduce((sum, p) => sum + num(p.contributionAmount), 0);
 
       // What the partners are funding: the cycle's cost — goods, shipping and
-      // the expenses charged to it — less what friends paid towards it (§18,
-      // the server's `toFundEgp`) and less whatever an investor already put
-      // in. The wizard's split is the same function.
+      // the expenses charged to it, plus leftovers moved in (the server's
+      // `toFundEgp`) — less whatever an investor already put in. What a
+      // friend paid is not taken off: they repay him (§18, 2026-10-19).
       const toFund = num(costing?.totals?.toFundEgp ?? costing?.totals?.landedEgp);
       const { total, shares } = splitAcrossPartners(toFund, investors, partners.length);
 
@@ -277,6 +290,13 @@ export default function CycleDetailsPage() {
     num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) +
       num(costing?.totals?.transferredInEgp) >
       0;
+  // A friend paid towards it and the partners have entered their shares:
+  // say that those shares are what each repays him (owner 2026-10-19).
+  const lenderPaid = num(costing?.totals?.lenderFinancedEgp);
+  const corePartners = participants.filter((p) => p.participantType === 'CORE_PARTNER');
+  const coreTotal = corePartners.reduce((s, p) => s + num(p.contributionAmount), 0);
+  const fullyLent =
+    lenderPaid >= num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) + num(costing?.totals?.transferredInEgp);
   const financingClosed =
     ['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(cycle.status) || !!fundingLock;
 
@@ -315,6 +335,7 @@ export default function CycleDetailsPage() {
       <FundingNote
         cycle={cycle}
         totals={costing?.totals}
+        lenders={lenderNames}
         canSplit={canSplit}
         splitting={splitEqually.isPending}
         canEdit={canEditParticipant && participants.length > 0}
@@ -389,9 +410,28 @@ export default function CycleDetailsPage() {
           </Rows>
         )}
 
+        {participants.length > 0 && !(editingAmounts && !fundingLock) && lenderPaid > 0 && coreTotal > 0 && (
+          <div data-testid="repay-shares" className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">
+              {t(fullyLent ? 'repayShares' : 'repaySharesPartial', {
+                lenders: lenderList(lenderNames, locale) || t('fundingNoteSomeLender'),
+              })}
+            </p>
+            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+              {corePartners.map((p) => (
+                <li key={p.id} data-testid={`repay-share-${p.id}`}>
+                  <bdi>{participantName(p)}</bdi> <Money value={num(p.contributionAmount)} />{' '}
+                  <span dir="ltr">({formatNumber((num(p.contributionAmount) / coreTotal) * 100, { maximumFractionDigits: 2 })}%)</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {participants.length > 0 && editingAmounts && !fundingLock && (
           <AmountsForm
             participants={participants}
+            toFund={num(costing?.totals?.toFundEgp ?? costing?.totals?.landedEgp)}
             nameOf={participantName}
             roleOf={(p: ParticipantRow) => codeLabel('role', p.participantType)}
             pending={saveAmounts.isPending}
@@ -746,77 +786,6 @@ function AddParticipantForm({
         <button
           type="submit" disabled={pending}
           className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-        >
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {tc('save')}
-        </button>
-      </div>
-    </ValidatedForm>
-  );
-}
-
-/**
- * Each participant's contribution, typed in place (the funding note's Enter
- * amounts, 2026-10-18). Starts from what is recorded; Save writes only what
- * changed.
- */
-function AmountsForm({
-  participants,
-  nameOf,
-  roleOf,
-  pending,
-  onCancel,
-  onSubmit,
-}: {
-  participants: ParticipantRow[];
-  nameOf: (p: ParticipantRow) => string;
-  roleOf: (p: ParticipantRow) => string;
-  pending: boolean;
-  onCancel: () => void;
-  onSubmit: (amounts: Record<string, string>) => void;
-}) {
-  const tph = useTranslations('placeholders');
-  const tc = useTranslations('common');
-  const [amounts, setAmounts] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      participants.map((p) => [p.id, num(p.contributionAmount) ? num(p.contributionAmount).toFixed(2) : '']),
-    ),
-  );
-  return (
-    <ValidatedForm
-      data-testid="amounts-form"
-      className="space-y-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(amounts);
-      }}
-    >
-      <div className="divide-y divide-border">
-        {participants.map((p) => (
-          <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-            <label htmlFor={`contribution-${p.id}`} className="min-w-[8rem] flex-1 text-sm text-foreground">
-              <bdi className="font-medium">{nameOf(p)}</bdi>
-              <span className="ms-2 text-xs text-muted-foreground">{roleOf(p)}</span>
-            </label>
-            <MoneyInput
-              id={`contribution-${p.id}`}
-              data-field={`contribution-${p.id}`}
-              placeholder={tph('money')}
-              value={amounts[p.id] ?? ''}
-              onChange={(raw) => setAmounts((prev) => ({ ...prev, [p.id]: raw }))}
-              className="w-40 rounded-lg border border-border px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-end gap-3">
-        <button type="button" onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted">
-          {tc('cancel')}
-        </button>
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-700 disabled:opacity-50"
         >
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           {tc('save')}

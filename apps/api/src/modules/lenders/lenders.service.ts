@@ -525,9 +525,10 @@ export class LendersService {
           { cycle: order.cycle.code, status: order.cycle.status },
         );
       }
-      // A friend's payment changes what the profit is split on (§8: a cycle
-      // a friend paid for entirely splits equally), so it is locked with the
-      // rest of the funding once the settlement is approved (owner 2026-10-18).
+      // A friend's payment changes what the settlement settles — what is owed
+      // to him and the exchange difference on repaying him (§18) — so it is
+      // locked with the rest of the funding once the settlement is approved
+      // (owner 2026-10-18).
       await assertFundingOpen(tx, order.cycle.id);
       if (order.lenderFinancings.some((f) => f.lenderId === lender.id)) {
         throw badRequest(

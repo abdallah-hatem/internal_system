@@ -71,8 +71,9 @@ export class CostingService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * What friends paid towards this cycle's orders, at each order's rate
-   * (§18). The partners and investors fund the landed cost less this.
+   * What friends paid towards this cycle's orders, in pounds at each
+   * payment's rate (§18). A loan to the partners: since 2026-10-19 it is not
+   * taken off what they fund — they repay it.
    */
   lenderFinancedEgp(cycleId: string) {
     return cycleFinancedEgp(this.prisma, cycleId);
@@ -83,8 +84,7 @@ export class CostingService {
    * shipping leg, and every expense charged to it in the ledger — a card
    * fee, customs, a late freight bill. The one definition of "cycle cost":
    * a friend's payment is capped at it less what friends already paid, and
-   * the partners fund it less what friends and investors put in
-   * (`fundingFor`).
+   * the partners fund all of it, less what investors put in (`fundingFor`).
    *
    * `db` is the transaction to read in, when the caller holds one.
    */
@@ -114,42 +114,42 @@ export class CostingService {
   /**
    * What the partners and investors are asked to fund: the cycle's cost
    * (goods, legs and the expenses charged to it — `cycleCost`), plus leftover
-   * stock moved in from another cycle at its cost (§8, L5), less what friends
-   * paid — never below zero (§18). One definition for the costing's
-   * `toFundEgp`, "Split equally", the wizard's funded-versus-cost line, the
-   * assistant's previews and settlement's "a friend paid for it entirely"
-   * (§8, CLAUDE.md rule 11). Investors' money is the participants', taken off
-   * by the split itself.
+   * stock moved in from another cycle at its cost (§8, L5) — never below zero
+   * (§18). One definition for the costing's `toFundEgp`, "Split equally", the
+   * cycle page's amounts editor and the assistant's previews (CLAUDE.md
+   * rule 11). Investors' money is the participants', taken off by the split
+   * itself.
+   *
+   * What friends paid is NOT taken off (owner 2026-10-19, §18): his payment is
+   * a loan to the partners, who fund the cycle either directly or by repaying
+   * him. It is returned beside the figure (`financed`), because the cycle page
+   * says who paid and that the partners repay him.
    */
   async fundingFor(cycleId: string) {
     const cost = await this.cycleCost(cycleId);
     const financed = await this.lenderFinancedEgp(cycleId);
     const transferredIn = await cycleTransfersInEgp(this.prisma, cycleId);
-    const { rest, toFund } = toFundEgp({
-      landed: cost.totalEgp,
-      transferredIn,
-      financed,
-    });
+    const { toFund } = toFundEgp({ landed: cost.totalEgp, transferredIn });
     return {
       landed: cost.landedEgp,
       expenses: cost.expensesEgp,
       cycleCost: cost.totalEgp,
+      /** What friends paid towards it — a loan the partners repay, not their funding. */
       financed,
       transferredIn,
       toFund,
-      /** A friend paid something and the partners are asked for nothing. */
-      fundedByLenders: financed.gt(0) && rest.lte(0),
     };
   }
 
   /**
    * What settling this cycle would split its profit on, or `NONE` when it
    * would be refused as `CYCLE_NOT_FUNDED` (§8) — the settlement's own
-   * reading (`profitBasisOf`, with `fundingFor`'s `fundedByLenders`), so the
-   * cycle page's "Funding not entered yet" note shows exactly then (owner
-   * 2026-10-18, CLAUDE.md §11).
+   * reading (`profitBasisOf`), so the cycle page's "Funding not entered yet"
+   * note shows exactly then (owner 2026-10-18, CLAUDE.md §11). Since
+   * 2026-10-19 a friend paying does not give a basis: the partners'
+   * contributions — their shares of repaying him — do.
    */
-  async profitBasis(cycleId: string, funding?: { fundedByLenders: boolean }) {
+  async profitBasis(cycleId: string) {
     const participants = await this.prisma.cycleParticipant.findMany({
       where: { cycleId },
       select: {
@@ -158,7 +158,6 @@ export class CostingService {
         customProfitPct: true,
       },
     });
-    const { fundedByLenders } = funding ?? (await this.fundingFor(cycleId));
     return profitBasisOf(
       participants.map((p) => ({
         type:
@@ -171,7 +170,6 @@ export class CostingService {
             ? null
             : new Prisma.Decimal(p.customProfitPct),
       })),
-      { fundedByLenders },
     );
   }
 
