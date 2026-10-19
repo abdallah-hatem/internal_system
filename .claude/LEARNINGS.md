@@ -282,6 +282,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 - A deploy-wait loop that requires the deploy to be "under N minutes old" can miss a deploy that finished before
   the loop started, and then polls for ten minutes. Compare the deploy's commit or creation time with the push
   time instead, or just check status once after the push. — 2026-10-15
+- No deploy-wait loops at all (owner 2026-10-19: "never do that again"). After a push, check each app once with
+  `vercel ls --prod` (from `apps/<app>`) and read the newest Production row; if one is still building, say so and check
+  again only when asked or on the next turn. A loop whose filter (`-m githubCommitSha=…`) matched nothing polled for ten
+  minutes while all three deploys had been Ready for nine, and the owner had to ask "what taking so long ?".
 
 ## Loading states
 
