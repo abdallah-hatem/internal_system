@@ -11,6 +11,7 @@ import {
   balanceLastPartner,
   pctFromAmount,
   pctTotal,
+  splitAcrossPartners,
   type PartnerShareRow,
 } from '@/lib/funding-split';
 
@@ -116,6 +117,15 @@ export function AmountsForm<P extends AmountsParticipant>({
   const anyPct = pcts.some((p) => p.trim() !== '');
   const pctSum = pctTotal(pcts);
 
+  // The example in an empty box is this partner's equal share, so it reads as
+  // this cycle's figure rather than a generic one (1,250.00 beside 12.5%).
+  const equal = splitAcrossPartners(base, 0, partners.length).shares;
+  const equalPct = partners.length ? String(Math.round(10000 / partners.length) / 100) : '';
+  const exampleAmount = (i: number) =>
+    base > 0 && equal[i] !== undefined
+      ? equal[i].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : tph('money');
+
   const field =
     'rounded-lg border border-border px-2 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500';
 
@@ -138,7 +148,7 @@ export function AmountsForm<P extends AmountsParticipant>({
             <MoneyInput
               id={`contribution-${p.id}`}
               data-field={`contribution-${p.id}`}
-              placeholder={tph('money')}
+              placeholder={isPartner(p) ? exampleAmount(partners.indexOf(p)) : tph('money')}
               value={isPartner(p) ? rows[p.id]?.amount ?? '' : otherAmounts[p.id] ?? ''}
               onChange={(raw) =>
                 isPartner(p)
@@ -153,7 +163,7 @@ export function AmountsForm<P extends AmountsParticipant>({
                   id={`pct-${p.id}`}
                   data-field={`pct-${p.id}`}
                   aria-label={t('amountsPctLabel', { name: nameOf(p) })}
-                  placeholder={tph('percent')}
+                  placeholder={base > 0 ? equalPct : tph('percent')}
                   value={rows[p.id]?.pct ?? ''}
                   onChange={(raw) => typePct(p.id, raw)}
                   className={`w-20 ${field}`}

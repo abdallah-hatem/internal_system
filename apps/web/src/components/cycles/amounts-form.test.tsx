@@ -60,6 +60,17 @@ const text = (id: string) => screen.getByTestId(id).textContent?.replace(/ /g, 
 const save = () => fireEvent.click(screen.getByRole('button', { name: en.common.save }));
 
 describe('the % and amount of each partner, kept in step', () => {
+  it('an empty box shows this cycle\'s equal share as its example, not a generic figure', () => {
+    mount([partner(1), partner(2), partner(3)], 172155.5);
+    expect([amount('p1'), amount('p2'), amount('p3')].map((i) => i.placeholder)).toEqual([
+      '57,385.16',
+      '57,385.16',
+      '57,385.18',
+    ]);
+    expect(pct('p1').placeholder).toBe('33.33');
+    expect(amount('p1').value).toBe('');
+  });
+
   it('30 / 30 / 40 % of 172,155.50: amounts to the piastre that sum exactly to the cost to fund', () => {
     const { onSubmit } = mount([partner(1), partner(2), partner(3)], 172155.5);
     typeInto(pct('p1'), '30');
