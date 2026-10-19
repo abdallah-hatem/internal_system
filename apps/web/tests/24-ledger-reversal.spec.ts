@@ -10,7 +10,7 @@ import { API } from './support/env';
 
 async function auth(request: any) {
   const res = await request.post(`${API}/auth/login`, {
-    data: { email: 'partner.a@motoparts.com', password: 'password123' },
+    data: { email: 'abdallah@motoparts.com', password: 'password123' },
   });
   return { Authorization: `Bearer ${(await res.json()).data.accessToken}` };
 }

@@ -57,7 +57,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ user: { id: 'u-1', email: 'partner.a@motoparts.com', role: 'CORE_PARTNER' }, isLoading: false }),
+  useAuth: () => ({ user: { id: 'u-1', email: 'abdallah@motoparts.com', role: 'CORE_PARTNER' }, isLoading: false }),
 }));
 vi.mock('next/navigation', () => ({
   useParams: () => ({ cycleId: 'c-1', locale: 'en' }),

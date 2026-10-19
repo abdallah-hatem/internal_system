@@ -16,7 +16,7 @@ import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE, API } from './support/env';
 import { openView } from './support/ui';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 const ARABIC_MONTHS =

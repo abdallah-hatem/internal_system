@@ -20,7 +20,7 @@ import { WEB as BASE } from './support/env';
 
 async function login(page: any) {
   await page.goto(`${BASE}/en/login`);
-  await page.fill('input[type="email"]', 'partner.a@motoparts.com');
+  await page.fill('input[type="email"]', 'abdallah@motoparts.com');
   await page.fill('input[type="password"]', 'password123');
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(/dashboard/, { timeout: 10_000 });

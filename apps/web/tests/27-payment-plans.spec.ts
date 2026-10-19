@@ -10,7 +10,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 import { apiCtx, stockedProduct, owedOrder } from './support/fixtures';
 import { API } from './support/env';
 
-async function auth(request: any, email = 'partner.a@motoparts.com') {
+async function auth(request: any, email = 'abdallah@motoparts.com') {
   const res = await request.post(`${API}/auth/login`, {
     data: { email, password: 'password123' },
   });
@@ -239,7 +239,7 @@ test.describe('Instalment plans', () => {
     expect(run.status(), await run.text()).toBe(200);
 
     // Flag and notify is the whole of V1: nothing is blocked, nothing is charged.
-    for (const email of ['partner.a@motoparts.com', 'partner.b@motoparts.com', 'partner.c@motoparts.com']) {
+    for (const email of ['abdallah@motoparts.com', 'shady@motoparts.com', 'fares@motoparts.com']) {
       const notes = await overdueNotes(request, await auth(request, email), customer.id);
       expect([email, notes.length]).toEqual([email, 1]);
       expect(notes[0].code).toBe('INSTALMENT_OVERDUE');

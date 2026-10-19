@@ -30,7 +30,7 @@ export async function departAllWaiting(
   expect(res.ok(), await res.text()).toBeTruthy();
   return res.json();
 }
-export const EMAIL = 'partner.a@motoparts.com';
+export const EMAIL = 'abdallah@motoparts.com';
 export const PASSWORD = 'password123';
 /** The seeded shop owner, who signs in at the portal door. */
 export const SHOP_OWNER_EMAIL = 'shop.owner@example.com';

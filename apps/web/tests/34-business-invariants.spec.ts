@@ -23,7 +23,7 @@ import { leftoverWorld } from './support/leftovers';
 import { approved, cents, recordCost, runningCosts, settlement, settlementRows, soldOutCycle, usersByEmail, waitingFor } from './support/running-costs';
 import { API } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 const dayFromNow = (n: number) => {
@@ -1210,7 +1210,7 @@ test.describe('A purchase paid by a friend, repaid in pounds (§18 — L1)', () 
       const run = await request.get(`${API}/jobs/overdue-payments`, { headers: cron });
       expect(run.status(), await run.text()).toBe(200);
     }
-    for (const email of ['partner.a@motoparts.com', 'partner.b@motoparts.com', 'partner.c@motoparts.com']) {
+    for (const email of ['abdallah@motoparts.com', 'shady@motoparts.com', 'fares@motoparts.com']) {
       const login = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
       const h = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
       const notes: any[] = (await (await request.get(`${API}/notifications?limit=100`, { headers: h })).json()).data ?? [];
@@ -1871,8 +1871,8 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   test('TC-INV-59: a cost is charged once in total — each partner his own share, the next payout takes nothing more of it, and taken + waiting is always what was spent', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
-    const b = user('partner.b@motoparts.com');
+    const a = user('abdallah@motoparts.com');
+    const b = user('shady@motoparts.com');
     await recordCost(request, headers, { amount: 3000, note: `inv59 ${Date.now()}` });
     const before = await runningCosts(request, headers);
     const owedA = waitingFor(before, a.id);
@@ -1901,7 +1901,7 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   test('TC-INV-60: reversing the settlement puts its running costs back to waiting, and its ledger rows net to nothing', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     await recordCost(request, headers, { amount: 900, category: 'utilities' });
     const before = await runningCosts(request, headers);
     const w = await soldOutCycle(request, 'Inv L7 Reverse', [[a.id, 'CORE_PARTNER', 50000]]);
@@ -1923,7 +1923,7 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   test('TC-INV-61: a temporary investor is never charged, however big his payout; a partner’s cash out is his payout less his share', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     const investor = user('investor@motoparts.com');
     await recordCost(request, headers, { amount: 1200, category: 'salaries' });
     const owedA = waitingFor(await runningCosts(request, headers), a.id);
@@ -1950,7 +1950,7 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   test('TC-INV-62: a cost charged to a cycle is that cycle’s, never a running cost; rent never touches a cycle’s profit', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     const w = await soldOutCycle(request, 'Inv L7 Profit', [[a.id, 'CORE_PARTNER', 5000]]);
     const preview = async () => (await (await request.get(`${API}/settlements/preview/${w.cycle.id}`, { headers })).json()).data.grossProfitEgp;
     expect(await preview()).toBe('2000.00');
@@ -1970,7 +1970,7 @@ test.describe('Running costs come out of the core partners’ payouts (L7, §8)'
   test('TC-INV-63: a running cost already taken from a payout cannot be reversed until that settlement is; a period that ends before it starts is refused; an investor cannot read them', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     const rent = await recordCost(request, headers, { amount: 600 });
     const w = await soldOutCycle(request, 'Inv L7 Undo', [[a.id, 'CORE_PARTNER', 50000]]);
     const id = await approved(w.mk, w.cycle.id);
@@ -2023,7 +2023,7 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
   const shareOf = (rc: any, userId: string) => Number(rc.partners.find((p: any) => p.userId === userId)?.shareEgp ?? 0);
   /** The seeded partners have been partners since January, as the real three have. */
   const partnersSinceJanuary = () =>
-    psqlStdin(`UPDATE partners SET created_at = '2026-01-01T08:00:00Z' WHERE user_id IN (SELECT id FROM users WHERE email IN ('partner.a@motoparts.com','partner.b@motoparts.com','partner.c@motoparts.com'));`);
+    psqlStdin(`UPDATE partners SET created_at = '2026-01-01T08:00:00Z' WHERE user_id IN (SELECT id FROM users WHERE email IN ('abdallah@motoparts.com','shady@motoparts.com','fares@motoparts.com'));`);
 
   test('TC-INV-65: C leaves with his share unpaid — A and B are never charged more than their own share, and C’s stays waiting, shown as his', async ({ request }) => {
     const { headers } = await apiCtx(request);
@@ -2086,7 +2086,7 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
   test('TC-INV-67: a core partner who is also an investor on the cycle — only his core-partner line is charged', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     await recordCost(request, headers, { amount: 600 });
     const w = await soldOutCycle(request, 'Inv L7 Both', [[a.id, 'CORE_PARTNER', 20000], [a.id, 'TEMP_INVESTOR', 30000, 0]]);
     const id = await approved(w.mk, w.cycle.id);
@@ -2101,7 +2101,7 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
   test('TC-INV-68: a running_cost_share is never typed by hand, and one cannot be reversed on its own', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     for (const kind of ['EXPENSE', 'OTHER_INCOME']) {
       const r = await request.post(`${API}/ledger`, { headers, data: { kind, category: 'running_cost_share', amount: 100, currency: 'EGP' } });
       expect(r.status(), kind).toBe(400);
@@ -2121,7 +2121,7 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
   test('TC-INV-69: Mark paid and reversal — refused to an investor and to the office with a code, done by a core partner', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     const stamp = `${Date.now()}`;
     const email = `inv69-office-${stamp}@motoparts.com`;
     const made = await request.post(`${API}/auth/register`, { headers, data: { email, password: PASSWORD, displayName: `Office ${stamp}`, role: 'ADMIN_SUPPORT' } });
@@ -2272,7 +2272,7 @@ test.describe('Samples left at a shop are not a sale (§4, samples at shops, 202
  */
 async function shelfCycle(request: APIRequestContext, label: string, qty = 10) {
   const { headers, mk } = await apiCtx(request);
-  const a = (await usersByEmail(request, headers))('partner.a@motoparts.com');
+  const a = (await usersByEmail(request, headers))('abdallah@motoparts.com');
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const product = await mk('products', { name: `${label} ${stamp} Part`, minStock: 0 });
   const supplier = await mk('suppliers', { name: `${label} ${stamp} Supplier`, country: 'AE' });
@@ -2470,7 +2470,7 @@ test.describe('Funding stops changing once the split is agreed (§8, owner 2026-
 
   test('TC-INV-79: paid and closed — funding is locked; reversing the settlement opens it again', async ({ request }) => {
     const { headers } = await apiCtx(request);
-    const a = (await usersByEmail(request, headers))('partner.a@motoparts.com');
+    const a = (await usersByEmail(request, headers))('abdallah@motoparts.com');
     const { mk, cycle } = await soldOutCycle(request, 'Inv Lock Paid', [[a.id, 'CORE_PARTNER', 1000]]);
     const id = await approved(mk, cycle.id);
     const pay = await request.post(`${API}/settlements/${id}/pay`, { headers, data: {} });
@@ -2492,8 +2492,8 @@ test.describe('Funding stops changing once the split is agreed (§8, owner 2026-
   test('TC-INV-80: a draft calculated before the funding changed cannot be approved (SETTLEMENT_STALE_FUNDING); calculated again, it can', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
-    const b = user('partner.b@motoparts.com');
+    const a = user('abdallah@motoparts.com');
+    const b = user('shady@motoparts.com');
     const { mk, cycle } = await soldOutCycle(request, 'Inv Stale', [[a.id, 'CORE_PARTNER', 500], [b.id, 'CORE_PARTNER', 500]]);
     const draft = await mk(`settlements/calculate/${cycle.id}`, {});
     const detail = (await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json()).data;

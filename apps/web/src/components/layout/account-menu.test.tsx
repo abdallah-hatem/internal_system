@@ -9,7 +9,7 @@ const auth = vi.hoisted(() => ({
   logout: vi.fn(() => Promise.resolve()),
   user: {
     id: 'u1',
-    email: 'partner.a@motoparts.com',
+    email: 'abdallah@motoparts.com',
     role: 'CORE_PARTNER',
     // The shape POST /auth/login stores: the name flat on the user.
     displayName: 'Partner A',
@@ -46,7 +46,7 @@ describe('AccountMenu', () => {
     fireEvent.click(trigger());
     const menu = screen.getByTestId('account-menu');
     expect(menu.textContent).toContain('Partner A');
-    expect(menu.textContent).toContain('partner.a@motoparts.com');
+    expect(menu.textContent).toContain('abdallah@motoparts.com');
     expect(menu.textContent).toMatch(/core partner/i);
     expect(screen.getByRole('button', { name: 'Log out' }).getAttribute('type')).toBe('button');
     expect(auth.logout).not.toHaveBeenCalled();

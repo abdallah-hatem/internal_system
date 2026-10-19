@@ -66,7 +66,7 @@ async function noSidewaysScroll(page: Page) {
 }
 
 /**
- * Partner A (60,000) and Partner B (40,000) fund a cycle that sells 10 parts
+ * Abdallah (60,000) and Shady (40,000) fund a cycle that sells 10 parts
  * landed at 100 for 300 each: 2,000 profit, 1,200 to A. Rent of 3,000 is
  * recorded first, so A's share of it — and whatever else earlier specs left
  * waiting — is his to pay from this payout.
@@ -74,8 +74,8 @@ async function noSidewaysScroll(page: Page) {
 async function aWorld(request: any, label: string) {
   const { headers } = await apiCtx(request);
   const user = await usersByEmail(request, headers);
-  const a = user('partner.a@motoparts.com');
-  const b = user('partner.b@motoparts.com');
+  const a = user('abdallah@motoparts.com');
+  const b = user('shady@motoparts.com');
   await recordCost(request, headers, { amount: 3000, note: `${label} rent ${Date.now()}` });
   const w = await soldOutCycle(request, label, [[a.id, 'CORE_PARTNER', 60000], [b.id, 'CORE_PARTNER', 40000]]);
   return { ...w, a, b };
@@ -138,9 +138,9 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     const section = page.getByTestId('running-costs');
     await section.getByRole('combobox').click();
     await page.getByRole('option', { name: m.partners.periodAll }).click();
-    const rowA = section.getByTestId('running-costs-partners').getByRole('row').filter({ hasText: 'Partner A' });
+    const rowA = section.getByTestId('running-costs-partners').getByRole('row').filter({ hasText: 'Abdallah' });
     await expect(rowA.locator('td').nth(3)).toHaveText(/^0\.00/);
-    const partnerA = page.locator('[data-testid="partner-card"][data-email="partner.a@motoparts.com"]');
+    const partnerA = page.locator('[data-testid="partner-card"][data-email="abdallah@motoparts.com"]');
     const payout = partnerA.getByTestId('payout-history').getByRole('button').filter({ hasText: w.cycle.code });
     await payout.click();
     await expect(partnerA.getByTestId(`breakdown-${pidA}`)).toContainText(today());
@@ -202,7 +202,7 @@ test.describe('Screens, line by line, in both languages (L7)', () => {
         await rc.scrollIntoViewIfNeeded();
         await shot(page, `partners-running-costs-${tag}`, rc);
 
-        const partnerA = page.locator('[data-testid="partner-card"][data-email="partner.a@motoparts.com"]');
+        const partnerA = page.locator('[data-testid="partner-card"][data-email="abdallah@motoparts.com"]');
         await partnerA.getByTestId('payout-history').getByRole('button').filter({ hasText: w.cycle.code }).click();
         await expect(partnerA.getByTestId('payout-breakdown')).toContainText(m.settlementsPage.capitalBack);
         await noSidewaysScroll(page);
@@ -222,7 +222,7 @@ test.describe('Nothing else changed for the people who are not charged', () => {
     const m = messages('en');
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const a = user('partner.a@motoparts.com');
+    const a = user('abdallah@motoparts.com');
     const investor = user('investor@motoparts.com');
     await recordCost(request, headers, { amount: 1500, category: 'utilities' });
     const w = await soldOutCycle(request, 'RC03', [[a.id, 'CORE_PARTNER', 50000], [investor.id, 'TEMP_INVESTOR', 50000, 10]]);

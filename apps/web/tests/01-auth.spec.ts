@@ -8,7 +8,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE, API } from './support/env';
 
-const VALID_EMAIL = 'partner.a@motoparts.com';
+const VALID_EMAIL = 'abdallah@motoparts.com';
 const VALID_PASSWORD = 'password123';
 
 const emailBox = (page: Page) => page.getByPlaceholder('name@company.com');

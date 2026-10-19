@@ -36,7 +36,7 @@ const API = 'https://internal-system-api.vercel.app/api/v1';
  */
 const COLD_START = 60_000;
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 /** A translation key that reached the screen, e.g. "errors.SOME_CODE". */

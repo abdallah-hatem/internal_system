@@ -14,7 +14,7 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { apiCtx, giveStock } from './support/fixtures';
 import { WEB as BASE, API } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 const B2B_PRICE = 1800;

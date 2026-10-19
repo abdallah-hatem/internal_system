@@ -22,7 +22,7 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 const OFFICE = 'https://internal-system-web-three.vercel.app';
 const STORE = 'https://internal-system-store.vercel.app';
 const API = 'https://internal-system-api.vercel.app/api/v1';
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 /** A cold serverless function boots Nest and reaches Neon before answering. */

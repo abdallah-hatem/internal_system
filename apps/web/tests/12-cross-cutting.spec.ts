@@ -8,7 +8,7 @@
 import { test, expect } from '@playwright/test';
 import { WEB as BASE } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 async function login(page: any) {
@@ -112,7 +112,7 @@ test.describe('Cross-Cutting Concerns', () => {
     await page.goto(`${BASE}/en/settings`);
     await page.waitForTimeout(2000);
     const body = await page.textContent('body');
-    expect(body).toMatch(/partner.a@motoparts.com|partner|email|password|Password/i);
+    expect(body).toMatch(/abdallah@motoparts.com|partner|email|password|Password/i);
   });
 
   // ── Categories ──────────────────────────────────────────────────────

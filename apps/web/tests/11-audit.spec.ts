@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { WEB as BASE, API } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 /** Seeded in prisma/seed.ts — the audit test updates this one rather than creating rows. */
 const SEEDED_PROVIDER = 'Gulf Freight';

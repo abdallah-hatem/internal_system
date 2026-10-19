@@ -100,6 +100,6 @@ cat <<EOF
   API      http://localhost:$API_PORT
   Swagger  http://localhost:$API_PORT/api/docs
 
-  Login    partner.a@motoparts.com / password123
+  Login    abdallah@motoparts.com / password123
 
 EOF

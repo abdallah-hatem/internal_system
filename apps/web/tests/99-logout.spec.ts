@@ -13,8 +13,8 @@ import { test, expect, Page } from '@playwright/test';
 import { PASSWORD } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
-const PARTNER_A = 'partner.a@motoparts.com';
-const PARTNER_B = 'partner.b@motoparts.com';
+const PARTNER_A = 'abdallah@motoparts.com';
+const PARTNER_B = 'shady@motoparts.com';
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
 
@@ -85,7 +85,7 @@ test.describe('Signing out', () => {
     await expect(trigger(page)).toHaveAttribute('type', 'button');
     await expect(trigger(page)).toHaveCSS('cursor', 'pointer');
     await trigger(page).click();
-    await expect(menu(page)).toContainText('Partner A');
+    await expect(menu(page)).toContainText('Abdallah');
     await expect(menu(page)).toContainText(PARTNER_A);
     await expect(menu(page)).toContainText(/core partner/i);
 
@@ -150,7 +150,7 @@ test.describe('Signing out', () => {
     await logOutFromHeader(page);
     await expect(page).toHaveURL(/\/en\/login$/);
 
-    // Hold Partner B's dashboard figures at the network.
+    // Hold Shady's dashboard figures at the network.
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     const seenTokens: string[] = [];
@@ -161,7 +161,7 @@ test.describe('Signing out', () => {
     });
 
     await signIn(page, PARTNER_B);
-    await expect(trigger(page)).toContainText('Partner B');
+    await expect(trigger(page)).toContainText('Shady');
     // While B's request is held, nothing may be drawn from what A loaded.
     await expect(page.locator('[data-testid^="tile-"]')).toHaveCount(0);
     expect(seenTokens.length).toBeGreaterThan(0);

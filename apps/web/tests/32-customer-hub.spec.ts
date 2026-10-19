@@ -14,7 +14,7 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { alreadyWalked } from './support/fixtures';
 import { WEB as BASE, API } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 async function login(page: Page) {

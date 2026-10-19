@@ -21,7 +21,7 @@ import { test, expect, Page } from '@playwright/test';
 import { apiCtx, API } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 const num = (v: any) => Number(v ?? 0);
@@ -273,7 +273,7 @@ test.describe('Export', () => {
     // and every Arabic name arrives as mojibake.
     expect(text.charCodeAt(0)).toBe(0xfeff);
     expect(text).toContain('Capital in');
-    expect(text).toContain('Partner A');
+    expect(text).toContain('Abdallah');
     // A header row plus one row per participation.
     expect(text.trim().split(/\r\n/).length).toBeGreaterThan(1);
   });

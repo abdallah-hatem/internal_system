@@ -9,7 +9,7 @@
 import { test, expect } from '@playwright/test';
 import { API } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 async function auth(request: any) {

@@ -17,7 +17,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { WEB as BASE } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 const DRAFT_KEY = 'cycle-wizard-draft';
 

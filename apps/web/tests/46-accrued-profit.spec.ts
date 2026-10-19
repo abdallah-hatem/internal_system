@@ -19,7 +19,7 @@ import { test, expect, Page } from '@playwright/test';
 import { apiCtx, API } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 const num = (v: any) => Number(v ?? 0);

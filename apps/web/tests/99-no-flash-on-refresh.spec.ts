@@ -14,7 +14,7 @@ import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE } from './support/env';
 
 const PASSWORD = 'password123';
-const PARTNER = 'partner.a@motoparts.com';
+const PARTNER = 'abdallah@motoparts.com';
 const INVESTOR = 'investor@motoparts.com';
 const COOKIE = 'sf_session_user';
 

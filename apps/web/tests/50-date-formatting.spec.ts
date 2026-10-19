@@ -25,7 +25,7 @@ import { WEB as BASE } from './support/env';
 import { openView } from './support/ui';
 import en from '../src/i18n/locales/en.json';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 /** `2026-08-13T00:00:00.000Z`, and the bare `2026-08-13T00:00:00` variant. */

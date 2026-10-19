@@ -23,7 +23,7 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 
 const API = 'https://internal-system-api.vercel.app/api/v1';
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 /** Generous: a cold serverless function has to boot Nest and reach Neon. */

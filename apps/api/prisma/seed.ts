@@ -311,44 +311,46 @@ async function giveStoreLogin(customerId: string) {
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Create 3 core partners
+  // The three partners, by their own names (owner 2026-10-19: "always add us
+  // three as default accounts in local database"). Local and test only;
+  // production's logins are made by scripts/prod-reset-partners.sh.
   const partnerA = await prisma.user.upsert({
-    where: { email: 'partner.a@motoparts.com' },
+    where: { email: 'abdallah@motoparts.com' },
     update: {},
     create: {
-      email: 'partner.a@motoparts.com',
+      email: 'abdallah@motoparts.com',
       passwordHash: await bcrypt.hash('password123', 12),
       role: UserRole.CORE_PARTNER,
-      partner: { create: { displayName: 'Partner A' } },
+      partner: { create: { displayName: 'Abdallah' } },
     },
   });
 
   const partnerB = await prisma.user.upsert({
-    where: { email: 'partner.b@motoparts.com' },
+    where: { email: 'shady@motoparts.com' },
     update: {},
     create: {
-      email: 'partner.b@motoparts.com',
+      email: 'shady@motoparts.com',
       passwordHash: await bcrypt.hash('password123', 12),
       role: UserRole.CORE_PARTNER,
-      partner: { create: { displayName: 'Partner B' } },
+      partner: { create: { displayName: 'Shady' } },
     },
   });
 
   const partnerC = await prisma.user.upsert({
-    where: { email: 'partner.c@motoparts.com' },
+    where: { email: 'fares@motoparts.com' },
     update: {},
     create: {
-      email: 'partner.c@motoparts.com',
+      email: 'fares@motoparts.com',
       passwordHash: await bcrypt.hash('password123', 12),
       role: UserRole.CORE_PARTNER,
-      partner: { create: { displayName: 'Partner C' } },
+      partner: { create: { displayName: 'Fares' } },
     },
   });
 
   console.log('✅ Created 3 core partners:');
-  console.log(`   Partner A: ${partnerA.email} (password: password123)`);
-  console.log(`   Partner B: ${partnerB.email} (password: password123)`);
-  console.log(`   Partner C: ${partnerC.email} (password: password123)`);
+  console.log(`   Abdallah: ${partnerA.email} (password: password123)`);
+  console.log(`   Shady: ${partnerB.email} (password: password123)`);
+  console.log(`   Fares: ${partnerC.email} (password: password123)`);
 
   // Current FX rates. Reference data the forms depend on, so it belongs in
   // every seed — the test reset truncates every table, and without this the

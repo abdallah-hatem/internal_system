@@ -10,7 +10,7 @@
 import { test, expect } from '@playwright/test';
 import { API } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 const CUSTOMER = '00000000-0000-4000-8000-000000000050';
 const BRAKE_PAD = '00000000-0000-4000-8000-000000000040';

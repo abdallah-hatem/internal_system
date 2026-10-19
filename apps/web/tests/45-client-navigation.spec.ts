@@ -16,7 +16,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE } from './support/env';
 
-const EMAIL = 'partner.a@motoparts.com';
+const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
 /** Sidebar entries that exist in every build of this app. */

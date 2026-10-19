@@ -20,7 +20,7 @@
  */
 
 const API = process.env.API_URL ?? 'http://localhost:3001/api/v1';
-const EMAIL = process.env.SEED_EMAIL ?? 'partner.a@motoparts.com';
+const EMAIL = process.env.SEED_EMAIL ?? 'abdallah@motoparts.com';
 const PASSWORD = process.env.SEED_PASSWORD ?? 'password123';
 
 const QTY = Number(process.argv[2] ?? 50);
