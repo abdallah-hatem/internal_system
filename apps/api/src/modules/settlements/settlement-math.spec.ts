@@ -91,7 +91,11 @@ describe('distributeCycleProfit', () => {
 
     it('passes the fee to the core partners', () => {
       const r = distributeCycleProfit(
-        [partner('A', 50_000), partner('B', 50_000), investor('INV', 100_000, 15)],
+        [
+          partner('A', 50_000),
+          partner('B', 50_000),
+          investor('INV', 100_000, 15),
+        ],
         D(100_000),
       );
 
@@ -154,7 +158,10 @@ describe('distributeCycleProfit', () => {
     it('rejects a partially specified custom split', () => {
       expect(() =>
         distributeCycleProfit(
-          [partner('A', 10_000, { customProfitPct: D(50) }), partner('B', 90_000)],
+          [
+            partner('A', 10_000, { customProfitPct: D(50) }),
+            partner('B', 90_000),
+          ],
           D(20_000),
         ),
       ).toThrow(/every participant/i);
@@ -164,7 +171,11 @@ describe('distributeCycleProfit', () => {
   describe('totals', () => {
     it('reconciles: capital + net profit + fees received equals total payout', () => {
       const r = distributeCycleProfit(
-        [partner('A', 50_000), partner('B', 50_000), investor('INV', 100_000, 20)],
+        [
+          partner('A', 50_000),
+          partner('B', 50_000),
+          investor('INV', 100_000, 20),
+        ],
         D(60_000),
       );
 
@@ -187,7 +198,10 @@ describe('distributeCycleProfit', () => {
       // zero whatever the shares were, and it never saw any of that. It only
       // ever proved the code did not divide by zero.
       expect(() =>
-        distributeCycleProfit([partner('A', 0), partner('B', 0), partner('C', 0)], D(90_000)),
+        distributeCycleProfit(
+          [partner('A', 0), partner('B', 0), partner('C', 0)],
+          D(90_000),
+        ),
       ).toThrow(/no basis to split/i);
     });
 
@@ -221,124 +235,91 @@ describe('distributeCycleProfit', () => {
   });
 
   /**
-   * Owner decision 2026-10-11 (§8, §18): a cycle a friend paid for entirely
-   * splits its profit equally among its core partners. Every other cycle with
-   * no contributions still refuses (CLAUDE.md §10). Non-zero profits only —
-   * zero hides every share bug there is.
+   * Owner decision 2026-10-19 (§8, §18), replacing 2026-10-11's equal split:
+   * a friend's payment is a loan the partners repay, and each partner's
+   * contribution is their share of repaying it — "maybe 30,30,40". Profit
+   * follows those contributions; with none entered it refuses like any other
+   * cycle (CLAUDE.md §10). Non-zero profits only — zero hides every share bug
+   * there is.
    */
-  describe('a cycle a friend paid for entirely (§18, 2026-10-11)', () => {
-    const lenderFunded = { fundedByLenders: true };
-
-    it('splits 90,000 equally among three partners who put in nothing', () => {
-      const r = distributeCycleProfit(
-        [partner('A', 0), partner('B', 0), partner('C', 0)],
-        D(90_000),
-        lenderFunded,
-      );
-      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
-        '30000.00',
-        '30000.00',
-        '30000.00',
-      ]);
-      expect(r.lines.map((l) => l.capitalReturn.toFixed(2))).toEqual([
-        '0.00',
-        '0.00',
-        '0.00',
-      ]);
-      expect(r.totals.payout.toFixed(2)).toBe('90000.00');
-    });
-
-    it('gives the rounding residual to the last partner, as every split does', () => {
-      const r = distributeCycleProfit(
-        [partner('A', 0), partner('B', 0), partner('C', 0)],
-        D(100_000),
-        lenderFunded,
-      );
-      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
-        '33333.33',
-        '33333.33',
-        '33333.34',
-      ]);
-    });
-
-    it('gives a temporary investor on it nothing — not even the residual — because he put in nothing', () => {
+  describe('a cycle a friend paid for — the partners repay him (§18, 2026-10-19)', () => {
+    it('contributions 30/30/40 of 172,155.50 split 90,000 of profit 30/30/40 and return that capital', () => {
       const r = distributeCycleProfit(
         [
-          partner('A', 0),
-          partner('B', 0),
-          partner('C', 0),
-          investor('INV', 0, 15),
+          partner('A', '51646.65'),
+          partner('B', '51646.65'),
+          partner('C', '68862.20'),
         ],
-        D(100_000),
-        lenderFunded,
+        D(90_000),
       );
-      expect(byId(r, 'INV').grossProfit.toFixed(2)).toBe('0.00');
-      expect(byId(r, 'INV').payout.toFixed(2)).toBe('0.00');
-      expect(byId(r, 'INV').sharePct.toFixed(2)).toBe('0.00');
-      expect(byId(r, 'C').grossProfit.toFixed(2)).toBe('33333.34');
-      expect(r.totals.payout.toFixed(2)).toBe('100000.00');
+      expect(r.lines.map((l) => l.sharePct.toFixed(2))).toEqual([
+        '30.00',
+        '30.00',
+        '40.00',
+      ]);
+      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
+        '27000.00',
+        '27000.00',
+        '36000.00',
+      ]);
+      expect(r.lines.map((l) => l.capitalReturn.toFixed(2))).toEqual([
+        '51646.65',
+        '51646.65',
+        '68862.20',
+      ]);
+      expect(r.totals.capitalReturned.toFixed(2)).toBe('172155.50');
+      expect(r.totals.payout.toFixed(2)).toBe('262155.50');
     });
 
-    it('shares a loss equally too', () => {
+    it('shares a loss the same 30/30/40', () => {
       const r = distributeCycleProfit(
-        [partner('A', 0), partner('B', 0), partner('C', 0)],
+        [partner('A', 30), partner('B', 30), partner('C', 40)],
         D(-9_000),
-        lenderFunded,
       );
       expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
-        '-3000.00',
-        '-3000.00',
-        '-3000.00',
+        '-2700.00',
+        '-2700.00',
+        '-3600.00',
       ]);
     });
 
-    it('still refuses a cycle the friend paid for only partly', () => {
+    it('nothing entered from the partners refuses — there is no equal split for a friend-paid cycle any more', () => {
       expect(() =>
         distributeCycleProfit(
           [partner('A', 0), partner('B', 0), partner('C', 0)],
           D(90_000),
-          { fundedByLenders: false },
         ),
       ).toThrow(/no basis to split/i);
     });
 
-    it('still refuses when only an investor is on it — there is no partner to share equally among', () => {
-      expect(() =>
-        distributeCycleProfit(
-          [investor('INV', 0, 15)],
-          D(90_000),
-          lenderFunded,
-        ),
-      ).toThrow(/no basis to split/i);
-    });
-
-    it('lets a custom split override the equal one', () => {
-      const withPct = (id: string, pct: number) => ({
-        ...partner(id, 0),
-        customProfitPct: D(pct),
-      });
+    it('an investor on it who put in nothing takes nothing, not even the residual', () => {
       const r = distributeCycleProfit(
-        [withPct('A', 50), withPct('B', 30), withPct('C', 20)],
+        [
+          partner('A', 1),
+          partner('B', 1),
+          partner('C', 1),
+          investor('INV', 0, 15),
+        ],
+        D(100_000),
+      );
+      expect(byId(r, 'INV').grossProfit.toFixed(2)).toBe('0.00');
+      expect(byId(r, 'C').grossProfit.toFixed(2)).toBe('33333.34');
+      expect(r.totals.payout.toFixed(2)).toBe('100003.00');
+    });
+
+    it('lets a custom split override the contributions', () => {
+      const r = distributeCycleProfit(
+        [
+          partner('A', 30, { customProfitPct: D(50) }),
+          partner('B', 30, { customProfitPct: D(30) }),
+          partner('C', 40, { customProfitPct: D(20) }),
+        ],
         D(90_000),
-        lenderFunded,
       );
       expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
         '45000.00',
         '27000.00',
         '18000.00',
-      ]);
-    });
-
-    it('follows contributions when any were recorded, friend or not', () => {
-      const r = distributeCycleProfit(
-        [partner('A', 0), partner('B', 1_000), partner('C', 3_000)],
-        D(90_000),
-        lenderFunded,
-      );
-      expect(r.lines.map((l) => l.grossProfit.toFixed(2))).toEqual([
-        '0.00',
-        '22500.00',
-        '67500.00',
       ]);
     });
   });
@@ -372,7 +353,11 @@ describe('distributeCycleProfit', () => {
 });
 
 describe('summarizeCyclePnl', () => {
-  const alloc = (qty: string | number, unitPrice: string | number, cogs: string | number) => ({
+  const alloc = (
+    qty: string | number,
+    unitPrice: string | number,
+    cogs: string | number,
+  ) => ({
     qty: D(qty),
     unitPrice: D(unitPrice),
     cogs: D(cogs),

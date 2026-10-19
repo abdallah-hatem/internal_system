@@ -623,23 +623,6 @@ describe('profitBasisOf — the note shows exactly when settling would refuse', 
   it('zero contributions, nobody paid: NONE', () => {
     expect(profitBasisOf([p(0), p(0), p(0)])).toBe('NONE');
   });
-  it('zero contributions, a friend paid only part: still NONE', () => {
-    expect(profitBasisOf([p(0), p(0), p(0)], { fundedByLenders: false })).toBe(
-      'NONE',
-    );
-  });
-  it('zero contributions, a friend paid it all: LENDERS', () => {
-    expect(profitBasisOf([p(0), p(0), p(0)], { fundedByLenders: true })).toBe(
-      'LENDERS',
-    );
-  });
-  it('a friend paid it all but no core partner is on it: NONE', () => {
-    expect(
-      profitBasisOf([{ ...p(0), type: 'TEMP_INVESTOR' as const }], {
-        fundedByLenders: true,
-      }),
-    ).toBe('NONE');
-  });
   it('any contribution: CONTRIBUTIONS', () => {
     expect(profitBasisOf([p(0), p(0.01), p(0)])).toBe('CONTRIBUTIONS');
   });
@@ -650,5 +633,94 @@ describe('profitBasisOf — the note shows exactly when settling would refuse', 
         p(0, { customProfitPct: D(50) }),
       ]),
     ).toBe('CUSTOM_SPLIT');
+  });
+});
+
+/**
+ * The partners repay the friend in shares they choose (owner 2026-10-19,
+ * §18): "maybe 30,30,40". Each share is a contribution written through the
+ * same edit Split equally uses, which posts only the difference to the
+ * ledger. The second time — 30/30/40 changed to 50/25/25 — must move only
+ * the deltas, or cash on hand drifts by what was entered first.
+ */
+describe('splitting who repays the friend, and changing it', () => {
+  const COST = 172155.5;
+  const ledgerOf = (w: ReturnType<typeof world>) =>
+    w.tables.financialTransaction.map((t) => [
+      t.relatedId,
+      t.direction,
+      D(t.amount).toFixed(2),
+    ]);
+  const net = (w: ReturnType<typeof world>) =>
+    w.tables.financialTransaction
+      .reduce(
+        (s, t) =>
+          t.direction === 'INFLOW' ? s.add(D(t.amount)) : s.sub(D(t.amount)),
+        D(0),
+      )
+      .toFixed(2);
+
+  it('30/30/40 of the cost, then 50/25/25: each edit posts only its delta, and the ledger nets to the cost', async () => {
+    const w = world();
+    const { partners } = cycleWith(w);
+    // Start where a friend-paid cycle starts: nothing entered yet.
+    for (const p of partners) p.contributionAmount = D(0);
+
+    for (const [p, amount] of [
+      [partners[0], 51646.65],
+      [partners[1], 51646.65],
+      [partners[2], 68862.2],
+    ] as const) {
+      await w.cycles.updateParticipant(
+        p.id,
+        { contributionAmount: amount },
+        ACTOR,
+      );
+    }
+    expect(ledgerOf(w)).toEqual([
+      [partners[0].id, 'INFLOW', '51646.65'],
+      [partners[1].id, 'INFLOW', '51646.65'],
+      [partners[2].id, 'INFLOW', '68862.20'],
+    ]);
+    expect(net(w)).toBe(D(COST).toFixed(2));
+
+    // The second visit: 50/25/25.
+    for (const [p, amount] of [
+      [partners[0], 86077.75],
+      [partners[1], 43038.88],
+      [partners[2], 43038.87],
+    ] as const) {
+      await w.cycles.updateParticipant(
+        p.id,
+        { contributionAmount: amount },
+        ACTOR,
+      );
+    }
+    expect(ledgerOf(w).slice(3)).toEqual([
+      [partners[0].id, 'INFLOW', '34431.10'],
+      [partners[1].id, 'OUTFLOW', '8607.77'],
+      [partners[2].id, 'OUTFLOW', '25823.33'],
+    ]);
+    expect(net(w)).toBe(D(COST).toFixed(2));
+    expect(
+      profitBasisOf(
+        partners.map((p) => ({
+          type: 'CORE_PARTNER' as const,
+          contribution: D(p.contributionAmount),
+          customProfitPct: null,
+        })),
+      ),
+    ).toBe('CONTRIBUTIONS');
+  });
+
+  it('saving the same split again writes nothing to the ledger', async () => {
+    const w = world();
+    const { partners } = cycleWith(w);
+    await w.cycles.updateParticipant(
+      partners[0].id,
+      { contributionAmount: 10000 },
+      ACTOR,
+    );
+    expect(w.tables.financialTransaction).toHaveLength(0);
   });
 });

@@ -633,7 +633,7 @@ describe('get_lender — one friend', () => {
 // ── record_lender_financing ───────────────────────────────────────────────
 
 describe('record_lender_financing — "Mahmoud paid 30,000 AED for PO-2026-0004"', () => {
-  it('previews what the partners fund before and after, writes nothing, then records exactly that on yes', async () => {
+  it('previews that the partners still fund the whole cycle — his payment is a loan they repay — writes nothing, then records exactly that on yes', async () => {
     const before = db.counts();
     const preview = await finance(paid30k);
     expect(preview.s.status).toBe('preview');
@@ -643,11 +643,12 @@ describe('record_lender_financing — "Mahmoud paid 30,000 AED for PO-2026-0004"
       amount: '30000.00',
       currency: 'AED',
       amountEgp: '390000.00',
-      partnersFundBeforeEgp: '543000.00',
-      partnersFundAfterEgp: '153000.00',
+      // Since 2026-10-19 (§18) a friend's payment does not lower it.
+      partnersFundBeforeEgp: '673000.00',
+      partnersFundAfterEgp: '673000.00',
     });
     expect(preview.text).toContain(
-      'Partners fund 543,000.00 EGP of the cycle before this, 153,000.00 EGP after.',
+      "The partners still fund all 673,000.00 EGP of the cycle: what he paid is a loan to them, which they repay, each partner's contribution being their share of it.",
     );
     expect(db.counts()).toEqual(before);
 
@@ -1494,14 +1495,14 @@ describe('a friend pays in his own currency at that day’s rate (§18, 2026-10-
     expect(data.exchangeDiffEgp).toBe('150.00');
   });
 
-  it('what partners are asked to fund falls by his pounds, at his rate', async () => {
+  it('his pounds, at his rate, are what friends paid — and what the partners fund does not fall by them (2026-10-19)', async () => {
     const costing = new CostingService(db as unknown as PrismaService);
     const before = await costing.fundingFor(ids.cycle);
     await inAed(500, 13.9);
     const after = await costing.fundingFor(ids.cycle);
     expect(before.financed.toFixed(2)).toBe('130000.00');
     expect(after.financed.toFixed(2)).toBe('136950.00');
-    expect(before.toFund.sub(after.toFund).toFixed(2)).toBe('6950.00');
+    expect(before.toFund.sub(after.toFund).toFixed(2)).toBe('0.00');
   });
 
   it('the order’s summary is told in pounds: its total and what friends paid, whatever their currencies — and what is available is the cycle’s', async () => {
@@ -1718,7 +1719,7 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
     ]).toEqual(['90161.56', '21491.60', '3338.82', '114991.98']);
   });
 
-  it('the real case: 8,302.67 AED — goods, shipping and the card fee together — is accepted on the order, and the partners fund nothing', async () => {
+  it('the real case: 8,302.67 AED — goods, shipping and the card fee together — is accepted on the order; the partners still fund all of it, by repaying him', async () => {
     const { data } = await pay(8302.67);
     expect([data.amount, data.amountEgp]).toEqual(['8302.67', '114991.98']);
     const funding = await costing.fundingFor(cycle);
@@ -1726,8 +1727,7 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
       funding.cycleCost.toFixed(2),
       funding.financed.toFixed(2),
       funding.toFund.toFixed(2),
-      funding.fundedByLenders,
-    ]).toEqual(['114991.98', '114991.98', '0.00', true]);
+    ]).toEqual(['114991.98', '114991.98', '114991.98']);
   });
 
   it('one fils more than the cycle cost is refused with FINANCING_EXCEEDS_CYCLE_COST, figures in EGP; nothing written', async () => {
@@ -1755,7 +1755,9 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
       availableEgp: '45741.98',
     });
     await pay(3302.67, ids.sami);
-    expect((await costing.fundingFor(cycle)).toFund.toFixed(2)).toBe('0.00');
+    expect((await costing.fundingFor(cycle)).toFund.toFixed(2)).toBe(
+      '114991.98',
+    );
     const r = await refusalOf(pay(0.01, ids.mahmoudHassan));
     expect(r.code).toBe('FINANCING_EXCEEDS_CYCLE_COST');
     expect(r.params.financed).toBe('114,991.98');
@@ -1824,25 +1826,26 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
       chargeableWeightKg: null,
     });
     const funding = await costing.fundingFor(cycle);
-    expect([funding.toFund.toFixed(2), funding.fundedByLenders]).toEqual([
-      '1000.00',
-      false,
-    ]);
+    // The partners fund the new cost too — directly, or by repaying whoever pays it.
+    expect(funding.toFund.toFixed(2)).toBe('115991.98');
     const { data: summary } = await lendersService.forCycle(cycle);
     expect(summary.availableEgp).toBe('1000.00');
     expect((await refusalOf(pay(1000.01, ids.sami, 'EGP'))).code).toBe(
       'FINANCING_EXCEEDS_CYCLE_COST',
     );
     await pay(1000, ids.sami, 'EGP');
-    expect((await costing.fundingFor(cycle)).toFund.toFixed(2)).toBe('0.00');
+    expect((await costing.fundingFor(cycle)).toFund.toFixed(2)).toBe(
+      '115991.98',
+    );
   });
 
-  it('a leg corrected down after he paid: cost to fund and what is available stop at zero, never negative', async () => {
+  it('a leg corrected down after he paid: the cost to fund follows the cost down; what friends may still pay stops at zero, never negative', async () => {
     await pay(8302.67);
     const i = db.tables.shippingLeg.findIndex((l) => l.id === leg);
     db.tables.shippingLeg[i] = { ...db.tables.shippingLeg[i], amount: D(1000) };
     const funding = await costing.fundingFor(cycle);
-    expect(funding.toFund.toFixed(2)).toBe('0.00');
+    expect(funding.toFund.toFixed(2)).toBe(funding.cycleCost.toFixed(2));
+    expect(funding.toFund.lt(funding.financed)).toBe(true);
     const { data: summary } = await lendersService.forOrder(po);
     expect(summary.availableEgp).toBe('0.00');
     expect((await refusalOf(pay(1, ids.sami, 'EGP'))).code).toBe(
@@ -1850,49 +1853,40 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
     );
   });
 
-  it('settlement: a cycle a friend paid for whole, fees included, splits equally among the core partners; with the fee unpaid it still refuses CYCLE_NOT_FUNDED', async () => {
-    const partners = ['a', 'b', 'c'].map((id) => ({
-      id,
-      type: 'CORE_PARTNER' as const,
-      contribution: D(0),
-      customProfitPct: null,
-      investorFeePct: null,
-    }));
-    // Goods and shipping only (8,061.60 AED = 111,653.16 EGP): the fee is
-    // still the partners' to fund, so there is no basis to split on.
-    const { data: part } = await pay(8061.6);
-    const short = await costing.fundingFor(cycle);
-    expect([short.toFund.toFixed(2), short.fundedByLenders]).toEqual([
-      '3338.82',
-      false,
+  it('settlement: a cycle a friend paid for whole, fees included, refuses CYCLE_NOT_FUNDED until the partners enter who repays him; 30/30/40 then splits the profit 30/30/40', async () => {
+    const partnersWith = (amounts: number[]) =>
+      ['a', 'b', 'c'].map((id, i) => ({
+        id,
+        type: 'CORE_PARTNER' as const,
+        contribution: D(amounts[i]),
+        customProfitPct: null,
+        investorFeePct: null,
+      }));
+    await pay(8302.67);
+    const whole = await costing.fundingFor(cycle);
+    expect([whole.financed.toFixed(2), whole.toFund.toFixed(2)]).toEqual([
+      '114991.98',
+      '114991.98',
     ]);
+    // Owner 2026-10-19: no equal split for a friend-paid cycle any more.
     const refused = await refusalOf(
       Promise.resolve().then(() =>
-        distributeCycleProfit(partners, D(90000), {
-          fundedByLenders: short.fundedByLenders,
-        }),
+        distributeCycleProfit(partnersWith([0, 0, 0]), D(90000)),
       ),
     );
     expect(refused.code).toBe('CYCLE_NOT_FUNDED');
 
-    // Removed (only while nothing is repaid) and recorded again at the whole
-    // sum — what the owner will do with his 6,509.86 once this ships.
-    await lendersService.removeFinancing(
-      part.id,
-      'he paid the fee too',
-      partner.id,
+    // Their shares of repaying him: 30/30/40 of what the partners fund.
+    const split = distributeCycleProfit(
+      partnersWith([34497.59, 34497.59, 45996.8]),
+      D(90000),
     );
-    await pay(8302.67);
-    const whole = await costing.fundingFor(cycle);
-    expect(whole.fundedByLenders).toBe(true);
-    const split = distributeCycleProfit(partners, D(90000), {
-      fundedByLenders: whole.fundedByLenders,
-    });
     expect(split.lines.map((l) => l.netProfit.toFixed(2))).toEqual([
-      '30000.00',
-      '30000.00',
-      '30000.00',
+      '27000.00',
+      '27000.00',
+      '36000.00',
     ]);
+    expect(split.totals.capitalReturned.toFixed(2)).toBe('114991.98');
   });
 
   it('the assistant’s preview names the cycle cost, what friends paid of it and what is available', async () => {
@@ -1910,7 +1904,7 @@ describe('a friend’s payment covers the cycle’s shipping and fees too (§18,
       cycleFinancedBeforeEgp: '0.00',
       availableBeforeEgp: '114991.98',
       partnersFundBeforeEgp: '114991.98',
-      partnersFundAfterEgp: '0.00',
+      partnersFundAfterEgp: '114991.98',
     });
     expect(preview.text).toContain(
       'Cycle CYC-2026-0010 cost 114,991.98 EGP (goods 90,161.56, shipping 21,491.60, expenses charged to it 3,338.82); friends had already paid 0.00 EGP of it, so 114,991.98 EGP was available.',

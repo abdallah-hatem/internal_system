@@ -286,8 +286,14 @@ export function undoRefusal(input: {
 
 /**
  * What the partners are asked to fund: the cycle's cost, plus stock moved in
- * from another cycle at its cost (§8, L5), less what friends paid (§18) —
- * never below zero. The arithmetic of `CostingService.fundingFor`.
+ * from another cycle at its cost (§8, L5) — never below zero. The arithmetic
+ * of `CostingService.fundingFor`.
+ *
+ * Friends' payments are NOT taken off (owner 2026-10-19, §18): a friend who
+ * paid a supplier lent the partners that money, and they repay him, so the
+ * partners fund the whole cycle either way — directly, or by repaying him.
+ * Until 2026-10-19 this subtracted them, and a cycle a friend paid for
+ * entirely asked the partners for 0, which read as if they paid nothing.
  */
 export function toFundEgp(input: {
   /**
@@ -296,12 +302,9 @@ export function toFundEgp(input: {
    */
   landed: Prisma.Decimal.Value;
   transferredIn: Prisma.Decimal.Value;
-  financed: Prisma.Decimal.Value;
 }) {
-  const rest = D(input.landed)
-    .add(D(input.transferredIn))
-    .sub(D(input.financed));
-  return { rest, toFund: rest.isNegative() ? ZERO : rest };
+  const rest = D(input.landed).add(D(input.transferredIn));
+  return { toFund: rest.isNegative() ? ZERO : rest };
 }
 
 /**

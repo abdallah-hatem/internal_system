@@ -5,8 +5,10 @@ import { badRequest } from './api-error';
  * When a cycle's funding stops changing (BUSINESS_LOGIC §8, owner 2026-10-18).
  *
  * Funding is what a cycle's profit is split on: each participant's
- * contribution, a custom split, and what friends paid (§18 — a cycle a friend
- * paid for entirely splits equally). Once a settlement is approved the split
+ * contribution, a custom split, and what friends paid (§18 — since 2026-10-19
+ * a loan the partners repay, their contributions being their shares of it; his
+ * payment still decides what is owed and the exchange difference). Once a
+ * settlement is approved the split
  * is agreed, and once it is paid the money has gone out on it — changing the
  * funding afterwards made the paid split disagree with the cycle, with no
  * refusal anywhere. So from approval on it is locked, until the settlement is

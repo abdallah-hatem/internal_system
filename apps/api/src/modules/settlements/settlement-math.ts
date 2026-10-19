@@ -46,14 +46,6 @@ export interface DistributionResult {
   };
 }
 
-export interface DistributeOptions {
-  /**
-   * Friends' payments cover the cycle's whole cost to fund (§18: the costing's
-   * `toFundEgp` is zero and a friend paid something).
-   */
-  fundedByLenders?: boolean;
-}
-
 /**
  * Split a cycle's profit across its participants.
  *
@@ -70,7 +62,6 @@ export interface DistributeOptions {
 export function distributeCycleProfit(
   participants: ParticipantInput[],
   totalProfit: Prisma.Decimal,
-  opts: DistributeOptions = {},
 ): DistributionResult {
   if (participants.length === 0) {
     throw badRequest(
@@ -79,12 +70,12 @@ export function distributeCycleProfit(
     );
   }
 
-  const shares = resolveShares(participants, opts);
+  const shares = resolveShares(participants);
 
   // --- Gross profit per participant, residual to the last line -------------
   // The last line with a share, so the piastres rounding leaves over never
-  // land on someone the split gives nothing — a temporary investor on a
-  // cycle a friend paid for (§18) put in nothing and takes nothing.
+  // land on someone the split gives nothing — a participant who put in
+  // nothing takes nothing.
   let residualIdx = participants.length - 1;
   while (residualIdx > 0 && shares[residualIdx].lte(0)) residualIdx--;
   const amounts = participants.map((p, idx) =>
@@ -163,36 +154,33 @@ export function distributeCycleProfit(
  *
  * - `CUSTOM_SPLIT`: an agreed percentage on any participant (a partial one is
  *   refused separately, as `PARTIAL_CUSTOM_SPLIT`).
- * - `CONTRIBUTIONS`: someone put money in.
- * - `LENDERS`: nobody did, a friend paid the whole cost to fund, and there is
- *   a core partner to split it equally among (owner 2026-10-11).
+ * - `CONTRIBUTIONS`: someone put money in — directly, or as their share of
+ *   repaying a friend who paid the supplier (§18, owner 2026-10-19).
+ *
+ * There was a third, `LENDERS` (2026-10-11 to 2026-10-19): no contributions
+ * and a friend paid the whole cost, split equally. The owner replaced it on
+ * 2026-10-19 — the partners repay the friend, in whatever shares they agree,
+ * and those shares are their contributions — so a cycle a friend paid for
+ * with nothing recorded from the partners refuses like any other.
  */
-export type ProfitBasis = 'CUSTOM_SPLIT' | 'CONTRIBUTIONS' | 'LENDERS' | 'NONE';
+export type ProfitBasis = 'CUSTOM_SPLIT' | 'CONTRIBUTIONS' | 'NONE';
 
 export function profitBasisOf(
   participants: Pick<
     ParticipantInput,
     'type' | 'contribution' | 'customProfitPct'
   >[],
-  opts: DistributeOptions = {},
 ): ProfitBasis {
   if (participants.some((p) => p.customProfitPct !== null))
     return 'CUSTOM_SPLIT';
   const total = participants.reduce((s, p) => s.add(p.contribution), ZERO);
   if (total.gt(0)) return 'CONTRIBUTIONS';
-  const coreCount = participants.filter(
-    (p) => p.type === 'CORE_PARTNER',
-  ).length;
-  if (opts.fundedByLenders && coreCount > 0) return 'LENDERS';
   return 'NONE';
 }
 
 /** Fractional share (0-1) per participant, from an agreed split or capital. */
-function resolveShares(
-  participants: ParticipantInput[],
-  opts: DistributeOptions,
-): Prisma.Decimal[] {
-  const basis = profitBasisOf(participants, opts);
+function resolveShares(participants: ParticipantInput[]): Prisma.Decimal[] {
+  const basis = profitBasisOf(participants);
   const withCustom = participants.filter((p) => p.customProfitPct !== null);
 
   if (basis === 'CUSTOM_SPLIT') {
@@ -218,21 +206,6 @@ function resolveShares(
     ZERO,
   );
 
-  const coreCount = participants.filter(
-    (p) => p.type === 'CORE_PARTNER',
-  ).length;
-  if (basis === 'LENDERS') {
-    /**
-     * A friend paid for the whole cycle (§18), so nobody's capital is in it
-     * and contribution gives no basis. Owner decision 2026-10-11 (§8): the
-     * core partners share its profit equally. A temporary investor on it put
-     * in nothing and takes nothing. This is a stated rule, not a fallback —
-     * a cycle the friend paid for only partly still refuses below.
-     */
-    const each = new Prisma.Decimal(1).div(coreCount);
-    return participants.map((p) => (p.type === 'CORE_PARTNER' ? each : ZERO));
-  }
-
   if (basis === 'NONE') {
     /**
      * Nobody funded the cycle, so there is no basis to split on — and
@@ -247,6 +220,10 @@ function resolveShares(
      * A cycle reaches settlement with zero contributions by the ordinary
      * route: they are seeded at zero because the capital is not known yet, and
      * whoever set the cycle up never came back to fill them in.
+     *
+     * A cycle a friend paid for refuses too (owner 2026-10-19): the partners
+     * repay him, and who repays what is their contribution — until it is
+     * entered, nothing says how they share the profit.
      */
     throw badRequest(
       'CYCLE_NOT_FUNDED',

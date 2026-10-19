@@ -33,12 +33,16 @@ Two shapes of import: `CHINA` (China → UAE → Egypt, two legs) and `UAE_DIREC
 (UAE → Egypt, one leg). Goods may leave and arrive in parts; the cycle's status
 follows its departures and deliveries by itself.
 
-Who pays for a cycle: the partners put money in (any proportion, or "Split
-equally"), or **a friend (lender)** pays the supplier — goods, shipping and fees —
-and is repaid later in pounds at the day's rate. Profit is split by what each
-partner funded, so funding decides who gets paid; a cycle a friend paid for
-entirely splits equally among its core partners. Running costs with no cycle
-(rent, fuel…) come out of the partners' payouts.
+Who pays for a cycle: the partners, always. They put money in directly, or **a
+friend (lender)** pays the supplier — goods, shipping and fees — and the partners
+repay him later in pounds at the day's rate: his payment is a loan to them, not
+funding in their place (owner 2026-10-19; on a branch awaiting his test, see
+BUILD_LOG). Each partner's contribution is their share — directly or of repaying
+him — in any proportion ("Split equally", or e.g. 30/30/40 by amount or %).
+Profit is split by contribution, so funding decides who gets paid; a cycle with
+nothing entered cannot be settled, friend or not (the 2026-10-11 equal split for
+a cycle a friend paid for entirely is gone). Running costs with no cycle (rent,
+fuel…) come out of the partners' payouts.
 
 Stock is costed **FIFO** in batches at landed cost (purchase + that batch's share
 of freight and fees). Shops buy at trade (B2B) prices, walk-ins at retail (B2C)
@@ -147,8 +151,10 @@ the owner's test sales were deleted.
   collected read 39,800: a 5,000 payment on Koshary's ORD-2026-00002 was recorded
   on 2026-10-18 (presumably his first cash payment). The
   partners' capital of 64,400.97 (21,466.99 / 21,466.99 / 21,467 by Split equally)
-  is a **stand-in** for leg 2's cost until Mohamed Abu Setta's payment is recorded;
-  the partners actually paid nothing.
+  is a **stand-in** for leg 2's cost until Mohamed Abu Setta's payment is recorded.
+  Under the 2026-10-19 rule the partners' contributions on CYC-2026-0001 are each
+  partner's share of repaying both friends (the owner gives the split) — not 0, and
+  not this stand-in.
 
 Waiting on the owner (also in BUILD_LOG): leg 2's rate and per-piece price, the
 UAE costs, Mohamed Abu Setta's payment, repayments already made to either lender,

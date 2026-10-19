@@ -11,6 +11,11 @@ then the full e2e run before the next big ship. The goal before it — walk-in s
 test; migration `20261018200000_samples_at_shops` applied first (status "up to date"), then pushed. Nothing is merged
 locally and waiting. Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep
 flows small; docs move with the code. State of the product and of production's data: `docs/where-things-stand.md`.
+On branch `worktree-agent-ac322b840669ab9bf`, not merged, waiting for the owner's local test: the partners repay a friend
+who paid for a cycle (owner 2026-10-19, §18 "The partners repay the friend") — his payment is no longer taken off what
+the partners fund, the `LENDERS` equal split is gone (no contributions refuses `CYCLE_NOT_FUNDED`), and Enter amounts
+takes any split with a % beside each partner (30/30/40). e2e specs edited to the rule but not run: 34 (TC-INV-45/46/47),
+98-lender-financing, 99-assistant-lenders.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
@@ -93,7 +98,7 @@ their API refusal tests kept. Still failing or unrun:
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
 - Leg 2 (Dubai → Cairo) of CYC-2026-0001: is 20 AED per piece right, and is 14 EGP/AED the rate? (Saved that way; edit the leg when confirmed.)
 - UAE costs for this shipment (wrapping paper, fuel in the UAE…): each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
-- Mohamed Abu Setta, the second lender: what he paid in total, currency, date, what it covered. Then: record his financing on PO-2026-0001 and set the three partners' contributions (64,400.97, a stand-in) back to 0 — the partners paid nothing.
+- Mohamed Abu Setta, the second lender: what he paid in total, currency, date, what it covered. Then: record his financing on PO-2026-0001, and set the three partners' contributions (64,400.97, a stand-in) to each partner's share of repaying both friends — the owner gives the split (equal or e.g. 30/30/40). Since 2026-10-19 a friend's payment is a loan the partners repay, so their contributions are not 0 (§18 "The partners repay the friend"). Production data is not changed until he says.
 - Repayments already made to Ahmad Eraiby or Mohamed Abu Setta: amount, date, method each.
 - Koshary (ORD-2026-00002): the new lower price per product. Then cancel the order, re-enter it dated 13 Oct at those prices (prices for Koshary only, not the catalogue), and record his first payment, 5,000 EGP cash, dated the day he paid (he said "today", 2026-10-17).
 

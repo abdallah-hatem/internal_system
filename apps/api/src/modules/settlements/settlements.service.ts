@@ -10,7 +10,6 @@ import { AuditService } from '../audit/audit.service';
 import { CostingService } from '../costing/costing.service';
 import {
   distributeCycleProfit,
-  profitBasisOf,
   summarizeCyclePnl,
   ParticipantInput,
 } from './settlement-math';
@@ -468,19 +467,12 @@ export class SettlementsService {
         : null,
     }));
 
-    // Nobody's capital recorded and no agreed split: the one case with a
-    // stated rule is a cycle a friend paid for entirely (§8, §18 — owner
-    // 2026-10-11), split equally among the core partners. Asked only then,
-    // so every other cycle settles exactly as before.
-    const noBasis = profitBasisOf(participantInputs) === 'NONE';
-    const fundedByLenders = noBasis
-      ? (await this.costing.fundingFor(cycleId)).fundedByLenders
-      : false;
-
+    // No contributions and no agreed split refuses (`CYCLE_NOT_FUNDED`),
+    // a cycle a friend paid for included (owner 2026-10-19, §18): the
+    // partners' shares of repaying him are their contributions.
     const distribution = distributeCycleProfit(
       participantInputs,
       pnl.grossProfit,
-      { fundedByLenders },
     );
     return {
       pnl,

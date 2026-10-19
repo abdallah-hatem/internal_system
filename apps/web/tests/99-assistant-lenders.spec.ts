@@ -111,10 +111,13 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
       lender: { id: null, name: friend, isNew: true },
       amount: '30000.00',
       amountEgp: '390000.00',
+      // A friend's payment is a loan the partners repay (§18, 2026-10-19): unchanged by it.
       partnersFundBeforeEgp: '403000.00',
-      partnersFundAfterEgp: '13000.00',
+      partnersFundAfterEgp: '403000.00',
     });
-    expect(text(shown)).toContain('Partners fund 403,000.00 EGP of the cycle before this, 13,000.00 EGP after.');
+    expect(text(shown)).toContain(
+      "The partners still fund all 403,000.00 EGP of the cycle: what he paid is a loan to them, which they repay, each partner's contribution being their share of it.",
+    );
     // Nothing written by the preview: no friend of that name, nothing financed.
     const lenders = (await (await request.get(`${API}/lenders`, { headers })).json()).data as any[];
     expect(lenders.find((l) => l.name === friend)).toBeUndefined();
@@ -130,7 +133,7 @@ test.describe('The assistant and a friend who paid a supplier (§16, §18 — L2
     expect(onOrder.financedEgp).toBe('390000.00');
     expect(onOrder.financings[0].lender.name).toBe(friend);
     const costing = (await (await request.get(`${API}/costing/cycles/${cycle.id}/landed-cost`, { headers })).json());
-    expect(costing.totals.toFundEgp).toBe('13000.00');
+    expect(costing.totals.toFundEgp).toBe('403000.00');
 
     // What a partner sees afterwards, reached the way he reaches it.
     await login(page);
