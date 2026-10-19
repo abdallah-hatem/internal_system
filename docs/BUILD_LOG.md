@@ -106,6 +106,10 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
+- Later (owner, 2026-10-19): the Settlement button on a cycle's page opens the Settlements tab with that cycle
+  already picked. Today it opens the tab with nothing chosen (`router.push(viewPath('settlements'))` in the cycle
+  details page); pass the cycle in the URL (`?cycle=<id>`, filter state in the URL) and have the Settlements tab
+  read it, keeping a cycle chosen there when the URL names none.
 - Later (owner, 2026-10-19): Profit and loss on Analytics opens on **This month** by default instead of All time
   (a URL `?period=` still wins); update §12 and the section's tests.
 - Later (owner, 2026-10-19): no investor account can sign in to the office app — refuse TEMP_INVESTOR at the office
