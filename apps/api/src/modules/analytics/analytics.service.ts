@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { stockValueEgp } from '../../common/stock-value';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, type CycleStatus } from '@prisma/client';
 import {
@@ -671,9 +672,8 @@ export class AnalyticsService {
     const inventoryBatches = await this.prisma.inventoryBatch.findMany({
       select: { remainingQty: true, landedUnitCostEgp: true },
     });
-    const inventoryValue = inventoryBatches.reduce((sum, b) => {
-      return sum + Number(b.remainingQty) * Number(b.landedUnitCostEgp);
-    }, 0);
+    // One definition with a product page's Stock value (CLAUDE.md §11).
+    const inventoryValue = stockValueEgp(inventoryBatches);
     // Units on the shelf across every product: the same "stock on hand" the
     // low-stock rule counts — each batch's remaining quantity, summed (§3).
     const unitsInStock = money(

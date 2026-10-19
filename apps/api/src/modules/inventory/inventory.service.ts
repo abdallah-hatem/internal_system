@@ -10,6 +10,7 @@ import { CostingService, lineEventCost } from '../costing/costing.service';
 import { CyclesService } from '../cycles/cycles.service';
 import { formatMoney, formatQty } from '../../common/money';
 import { findLowStock } from '../../common/low-stock';
+import { stockValueEgp } from '../../common/stock-value';
 import { unitsAtShopsByProduct } from '../../common/samples-out';
 
 import { badRequest, notFound } from '../../common/api-error';
@@ -635,10 +636,18 @@ export class InventoryService {
       totalStock: number;
       atShopsStock: number;
       allStock: number;
+      stockValueEgp: number;
+      batches: {
+        remainingQty: Prisma.Decimal;
+        landedUnitCostEgp: Prisma.Decimal;
+      }[];
     }[]) {
       // Thousandths, so 0.1 + 0.2 on the shelf and at shops is 0.3.
       row.allStock =
         Math.round((row.totalStock + row.atShopsStock) * 1000) / 1000;
+      // What the shelf cost us, the dashboard's Inventory Value for this one
+      // product (owner 2026-10-19).
+      row.stockValueEgp = stockValueEgp(row.batches);
     }
 
     return { data: Object.values(productTotals) };

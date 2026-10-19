@@ -198,6 +198,7 @@
     "effectiveFrom": "ساري من",
     "search": "ابحث عن منتج بالاسم أو SKU",
     "totalStock": "إجمالي المخزون",
+    "stockValue": "قيمة المخزون",
     "available": "متاح",
     "createdAt": "تاريخ الإنشاء",
     "inventoryBatches": "تشغيلات المخزون",

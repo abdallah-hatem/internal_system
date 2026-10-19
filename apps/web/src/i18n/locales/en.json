@@ -198,6 +198,7 @@
     "effectiveFrom": "Effective From",
     "search": "Search products by name or SKU",
     "totalStock": "Total Stock",
+    "stockValue": "Stock value",
     "available": "Available",
     "createdAt": "Created",
     "inventoryBatches": "Inventory Batches",

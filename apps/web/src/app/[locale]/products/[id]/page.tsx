@@ -73,6 +73,8 @@ interface StockSummary {
   totalStock: number;
   reservedStock: number;
   availableStock: number;
+  /** Remaining units × landed cost, the dashboard's Inventory Value for this product. */
+  stockValueEgp?: number;
   batches: Batch[];
 }
 
@@ -244,8 +246,8 @@ function ProductDetailSkeleton() {
         <SkeletonText className="w-24" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {repeat(3, (i) => <StatCardSkeleton key={i} />)}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {repeat(4, (i) => <StatCardSkeleton key={i} />)}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -426,7 +428,7 @@ export default function ProductDetailPage() {
       </div>
 
       {/* ── Stat Cards ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           icon={<Boxes className="h-5 w-5" />}
           label={t('totalStock')}
@@ -439,6 +441,15 @@ export default function ProductDetailPage() {
           value={formatNumber(stock?.availableStock ?? 0)}
           iconBg="bg-green-100 text-green-600"
           valueColor="text-green-600"
+        />
+        {/* What the shelf cost us (owner 2026-10-19), in Reserved's place —
+            nothing ever reserved stock. Same rule as the dashboard's
+            Inventory Value (common/stock-value.ts). */}
+        <StatCard
+          icon={<DollarSign className="h-5 w-5" />}
+          label={t('stockValue')}
+          value={<span data-testid="product-stock-value">{formatMoney(stock?.stockValueEgp ?? 0)}</span>}
+          iconBg="bg-orange-100 text-orange-600"
         />
         {/* Units out as samples at shops (§4, owner 2026-10-18 round 2), in
             the place the B2C price card had — the prices are in their own

@@ -67,7 +67,7 @@ const QTY_PLACES = 3;
 const COST_PLACES = 4;
 
 /** `v` in units of 10^-places, exactly; anything unreadable is 0. */
-function scaled(v: Numeric, places: number): bigint {
+export function scaled(v: Numeric, places: number): bigint {
   const text =
     typeof v === 'number'
       ? v.toFixed(places)

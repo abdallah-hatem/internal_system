@@ -439,6 +439,14 @@ stock physically held. Cancelling or returning restores it.
 holding stock against a quote, which is a real future feature, but nothing
 drives it today and reserved quantity is honestly zero.
 
+**DECIDED 2026-10-19 (owner) — no "Reserved" on screen; a product shows its stock value instead.**
+The product page's Reserved tile and the Inventory table's Reserved column read the batch field
+above, which nothing writes, so they always said 0; both are removed. Storefront order-request holds
+are a separate table (`available-stock.ts`) and were never shown there. In the tile's place:
+**Stock value** = each batch's remaining units × its landed unit cost, summed and rounded once, half
+up, to the piastre — one definition (`common/stock-value.ts`) shared with the dashboard's Inventory
+Value, so the products' values add up to it.
+
 **DECIDED 2026-10-10 — stock is received one delivery at a time.** *Built 2026-10-11 (B3, F1a).*
 Each delivery that reaches Egypt is counted and checked into stock as its own
 batch, with its own arrival date, and can be sold the moment it is checked in —
