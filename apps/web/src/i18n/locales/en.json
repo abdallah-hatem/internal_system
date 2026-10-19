@@ -2060,9 +2060,9 @@
   "goodsLocation": {
     "title": "Where the goods are",
     "inChina": "In China",
-    "toUae": "On the way to UAE",
+    "toUae": "To UAE",
     "inUae": "In UAE",
-    "toEgypt": "On the way to Egypt",
+    "toEgypt": "To Egypt",
     "inEgypt": "In Egypt",
     "notCheckedIn": "{count} not checked in yet",
     "sold": "Sold",

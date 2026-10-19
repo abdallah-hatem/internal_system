@@ -30,19 +30,19 @@ const LOOK: Record<Place, { icon: LucideIcon; color: string }> = {
 /**
  * Columns per number of cards, so no row is left half empty: four in one row;
  * five in a row from 1024px; six in two rows of three, then one row from
- * 1280px; seven in a row from 1280px. Written out whole for Tailwind.
+ * 1024px (the badge sits above the label, owner 2026-10-19); seven in a row from 1280px. Written out whole for Tailwind.
  */
 const GRID: Record<number, string> = {
   4: 'sm:grid-cols-4',
   5: 'sm:grid-cols-3 lg:grid-cols-5',
-  6: 'sm:grid-cols-3 xl:grid-cols-6',
+  6: 'sm:grid-cols-3 lg:grid-cols-6',
   7: 'sm:grid-cols-4 xl:grid-cols-7',
   8: 'sm:grid-cols-4 xl:grid-cols-8',
 };
 
 /**
  * Each place's column width in the per-product table: its title on one line
- * in English and Arabic ("On the way to Egypt", "في الطريق إلى الإمارات").
+ * in English and Arabic ("To Egypt", "إلى الإمارات"; longer titles before 2026-10-19).
  */
 const PLACE_WIDTH: Record<Place | 'ordered', string> = {
   ordered: '5rem',
@@ -156,8 +156,12 @@ export function GoodsLocationCards({
               const { icon: Icon, color } = LOOK[place];
               return (
                 <div key={place} data-testid="location-card" data-place={place} className="min-h-11 rounded-xl border border-border bg-card p-3 sm:p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                  {/* Option A (owner 2026-10-19): the badge above the label, so six fit in
+                      one row without the badge being dropped or the cards stretched. */}
+                  <div className={`${color} mb-2 hidden size-8 items-center justify-center rounded-lg sm:flex`} aria-hidden="true">
+                    <Icon className="size-4 text-primary-foreground" />
+                  </div>
+                  <div className="min-w-0">
                       <p className="text-xs font-medium text-muted-foreground sm:text-sm">{t(place)}</p>
                       <p data-testid="location-value" className="mt-1 text-base font-bold tabular-nums text-card-foreground sm:text-2xl">
                         <bdi dir="ltr">{fmt(totals[place])}</bdi>
@@ -167,14 +171,6 @@ export function GoodsLocationCards({
                           {t('notCheckedIn', { count: fmt(totals.notCheckedIn) })}
                         </p>
                       )}
-                    </div>
-                    {/* In a row of six or seven there is no room for the badge beside the label. */}
-                    <div
-                      className={`${color} hidden shrink-0 rounded-lg p-2 sm:block ${places.length >= 6 ? 'xl:hidden' : ''}`}
-                      aria-hidden="true"
-                    >
-                      <Icon className="size-4 text-primary-foreground" />
-                    </div>
                   </div>
                 </div>
               );
