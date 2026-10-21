@@ -157,6 +157,29 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-20): a shipping leg's starting values follow where it leaves from. Leaving China: **USD** and
+  **Charged by: flat amount**. Leaving the UAE: **AED**, today's basis. The currency's rate prefilled. Today both the
+  wizard's leg step and the cycle page's leg form (`CycleWizard.tsx`, `shipment/LegForm.tsx`) start on EGP (the leg
+  form already starts on FLAT). Starting values only — a currency or basis picked, or a leg already saved, is never
+  changed; one helper for both forms; record it in §2.
+- Later (owner, 2026-10-20): a delivery's Delete is offered only when it can work. The cycle page shows it on every
+  delivery for a partner while the cycle is not frozen (`ShipmentPanel.tsx`, `may.deleteDelivery && !frozen`), and the
+  API refuses with `DELIVERY_IN_USE` (stock received from it, a later leg carried its goods, or the cycle's status rests
+  on it) — on production's CYC-2026-0001 both deliveries show Delete and neither can go. Have the API mark each
+  delivery deletable or not with the reason, from the same checks `deleteDelivery` runs (one definition), and show the
+  button switched off with the reason beside it, as funding does after a settlement.
+- Later (owner, 2026-10-20): on a phone the cycle page's "Where the goods are" cards show their icons, as the
+  dashboard's tiles do (the owner's message was cut off at "like the" — read as the dashboard tiles). The badge is
+  `hidden sm:flex` in `cycles/goods-location-cards.tsx` (and `sm:block` in its skeleton), so below 640px the two-column
+  cards have none. Keep each row's numbers level (bounding boxes) in English and Arabic, skeleton included.
+- Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
+  (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
+  (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's
+  Vercel environment, so the owner swaps them with no code change: `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
+  (provider-agnostic adapter; Claude API recommended for tool use — free tiers are too small for the tool list,
+  Gemini Flash ~20 requests/day, Groq ~8k tokens/min). No key set: the chat says it is not set up, never errors.
+  Needs a monthly spending cap or a per-day request limit, an input-token budget per call with one realistic-size
+  test (LEARNINGS), and no conversation kept beyond what the audit log already records.
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last
