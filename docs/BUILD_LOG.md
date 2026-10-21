@@ -150,13 +150,20 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 - UAE costs for this shipment (wrapping paper, fuel in the UAE…): each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
 - Mohamed Abu Setta, the second lender: what he paid in total, currency, date, what it covered. Then: record his financing on PO-2026-0001, and set the three partners' contributions (64,400.97, a stand-in) to each partner's share of repaying both friends — the owner gives the split (equal or e.g. 30/30/40). Since 2026-10-19 a friend's payment is a loan the partners repay, so their contributions are not 0 (§18 "The partners repay the friend"). Production data is not changed until he says.
 - Repayments already made to Ahmad Eraiby or Mohamed Abu Setta: amount, date, method each.
-- Koshary (ORD-2026-00002): the new lower price per product. Then cancel the order, re-enter it dated 13 Oct at those prices (prices for Koshary only, not the catalogue), and record his first payment, 5,000 EGP cash, dated the day he paid (he said "today", 2026-10-17).
+- Koshary (ORD-2026-00002): the owner said on 2026-10-22 "drop 100 egp on each product koshary has right now". He holds
+  3 Q58 (1,250), 10 Y20 MAX (1,150), 10 Y30 (1,200) after returns RET-2026-00001/00003; 5,000 cash already paid and
+  allocated; owes 22,250. Open: 100 off every unit (−2,300 → owes 19,950) or off each line (−300 → owes 21,950). Apply it
+  through the price-adjustment feature (Next up) once built, not by cancelling and re-entering (that would break the
+  returns and payment).
 
 ## Blocked
 _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Next (owner, 2026-10-22): lower a price after an order is confirmed — a dated price adjustment on a confirmed order's
+  line, for the units the shop still holds, counted on the adjustment's day (BUSINESS_LOGIC §4 "Lowering a price after
+  the order is confirmed"; rules and limits there, GUESSES marked). Koshary's 100 EGP off is its first real use.
 - Later (owner, 2026-10-20): a shipping leg's starting values follow where it leaves from. Leaving China: **USD** and
   **Charged by: flat amount**. Leaving the UAE: **AED**, today's basis. The currency's rate prefilled. Today both the
   wizard's leg step and the cycle page's leg form (`CycleWizard.tsx`, `shipment/LegForm.tsx`) start on EGP (the leg

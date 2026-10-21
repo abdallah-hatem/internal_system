@@ -1043,6 +1043,24 @@ a balance or money on it; an open one whose batches do not hold its lines; one w
 
 ---
 
+### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, not built yet
+
+**What happens in the business.** A shop's price is lowered after its order was confirmed — Koshary
+(ORD-2026-00002) was given 100 EGP off per product on 2026-10-22, after two returns and a 5,000 cash payment.
+Until this is built the only way is a hand correction in the database; cancelling and re-entering the order would
+break its returns and payments. The owner: "do you think we should add a feature to update price after order
+confirm?" — yes.
+
+| Rule | Answer | Status |
+|---|---|---|
+| When the lower revenue counts | **On the day of the adjustment**, not the order's date — reports already looked at do not change (owner, 2026-10-22: "adjustment date"). | DECIDED |
+| What it is | A dated **price adjustment** on a confirmed order line, recorded beside it, never an edit of the line's original price. The order shows "price lowered from 1,250 to 1,150 on 22 Oct by Abdallah"; the audit log keeps it. | GUESS |
+| What it covers | Only the units the shop still holds on that line (sold less returned). Returned units keep the price they were refunded at; returns, payments and allocations are never rewritten. | GUESS |
+| What moves | The order's total and outstanding drop by (old − new price) × units held; revenue and net profit drop on the adjustment's day; COGS, stock and batch costs do not change. No ledger row: the ledger records money received (§4 "the ledger records money as it is received"). | GUESS |
+| Limits (server, coded refusals) | Lower only — never above the price it replaces; never below zero; never more than the order still owes (a lower price on a paid-up order would mean a refund, which is a return or a separate decision); not on a draft, cancelled order, or an order on a cycle whose settlement is approved or paid. | GUESS |
+| Who | Core partners (rule 12). | GUESS |
+| Where | An "Adjust price" action on the confirmed order's popup: pick a line, type the new price, see what the shop will owe before saving. | GUESS |
+
 ## 5. Returns
 
 **DECIDED 2026-08-21.**
