@@ -158,7 +158,7 @@ export function GoodsLocationCards({
                 <div key={place} data-testid="location-card" data-place={place} className="min-h-11 rounded-xl border border-border bg-card p-3 sm:p-4">
                   {/* Option A (owner 2026-10-19): the badge above the label, so six fit in
                       one row without the badge being dropped or the cards stretched. */}
-                  <div className={`${color} mb-2 hidden size-8 items-center justify-center rounded-lg sm:flex`} aria-hidden="true">
+                  <div data-testid="location-badge" className={`${color} mb-2 flex size-8 items-center justify-center rounded-lg`} aria-hidden="true">
                     <Icon className="size-4 text-primary-foreground" />
                   </div>
                   <div className="min-w-0">
@@ -273,7 +273,7 @@ export function GoodsLocationSkeleton({ direct = false, products = 2 }: { direct
           // label) and its own type classes, so each line is as tall as the real one:
           // the old side-by-side trace came out a pixel short on every width.
           <div key={place} data-testid="skeleton-row" className="min-h-11 rounded-xl border border-border bg-card p-3 sm:p-4">
-            <Skeleton className="mb-2 hidden size-8 rounded-lg sm:block" />
+            <Skeleton className="mb-2 size-8 rounded-lg" />
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground sm:text-sm">{t(place)}</p>
               <p className="mt-1 text-base font-bold tabular-nums sm:text-2xl">

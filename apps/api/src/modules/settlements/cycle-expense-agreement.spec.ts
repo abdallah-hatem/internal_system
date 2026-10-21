@@ -107,6 +107,7 @@ function fakeDb(rows: Row[]) {
       aggregate: () => Promise.resolve({ _sum: { cogsEgp: null } }),
     },
     saleReturnItem: { findMany: () => Promise.resolve([]) },
+    salePriceAdjustmentItem: { findMany: () => Promise.resolve([]) },
     inventoryBatch: { findMany: () => Promise.resolve([BATCH]) },
     financialTransaction: {
       findMany: ({
@@ -136,7 +137,12 @@ function fakeDb(rows: Row[]) {
             originType: 'CHINA_DIRECT',
             financialTransactions: rows,
             inventoryBatches: [
-              { ...BATCH, saleItemAllocations: [ALLOCATION], returnItems: [] },
+              {
+                ...BATCH,
+                saleItemAllocations: [ALLOCATION],
+                returnItems: [],
+                priceAdjustmentItems: [],
+              },
             ],
           },
         ]),

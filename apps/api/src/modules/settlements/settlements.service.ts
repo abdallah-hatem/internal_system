@@ -364,6 +364,32 @@ export class SettlementsService {
       });
     }
 
+    // Prices lowered after the sale (§4, 2026-10-22), this cycle's share, as
+    // stored — the figure the dashboard takes off too. Written as the held
+    // units taken back at what was lowered and handed out again at nothing,
+    // so revenue drops by exactly that and units sold and cost stay put.
+    const adjustmentItems = await this.prisma.salePriceAdjustmentItem.findMany({
+      where: {
+        inventoryBatch: { cycleId },
+        adjustment: {
+          saleOrder: { status: { in: [...REALISED_ORDER_STATUSES] } },
+        },
+      },
+      select: { qty: true, amountEgp: true },
+    });
+    for (const a of adjustmentItems) {
+      const qty = new Prisma.Decimal(a.qty);
+      if (qty.lte(0)) continue;
+      allocationInputs.push(
+        {
+          qty: qty.neg(),
+          unitPrice: new Prisma.Decimal(a.amountEgp).div(qty),
+          cogs: new Prisma.Decimal(0),
+        },
+        { qty, unitPrice: new Prisma.Decimal(0), cogs: new Prisma.Decimal(0) },
+      );
+    }
+
     // --- Stock still on the shelf -----------------------------------------
     // Leftovers moved to another cycle (§8, L5) have left these batches, so
     // they are no longer here — and the moved batch on the cycle that took
@@ -504,6 +530,7 @@ export class SettlementsService {
           OR: [
             { saleItemAllocations: { some: {} } },
             { returnItems: { some: {} } },
+            { priceAdjustmentItems: { some: {} } },
           ],
         },
         select: { cycleId: true },

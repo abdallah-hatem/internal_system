@@ -555,6 +555,7 @@
       "notAvailable": "لا توجد فاتورة لهذا الطلب",
       "printedOn": "طُبعت في {date}",
       "credited": "مرتجعات مخصومة",
+      "priceLowered": "تخفيض السعر",
       "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه.",
       "page": "صفحة {n} من {total}"
     },
@@ -693,7 +694,8 @@
         "SALE": "بيع {order}",
         "PAYMENT": "دفعة",
         "RETURN": "مرتجع {reference}",
-        "REVERSAL": "عكس دفعة"
+        "REVERSAL": "عكس دفعة",
+        "ADJUSTMENT": "تخفيض السعر"
       },
       "onOrders": "على {orders}",
       "unapplied": "{amount} غير مخصّص لأي طلب",
@@ -1690,7 +1692,15 @@
     "SAMPLES_RETURN_MORE_THAN_OUT": "خرج {out} فقط من {product} في {order}؛ لا يمكن أن يرجع {returned}.",
     "SAMPLES_RETURN_NOT_ALL": "خرج {out} من {product} في {order} ورجع {returned}. \"رجعت\" تعني رجوع كل العينات؛ إذا احتفظ المحل بالباقي فسجّله بيعاً من العينات.",
     "FUNDING_LOCKED_AFTER_SETTLEMENT": "لم يعد ممكناً تغيير تمويل {cycle}: {reason}.",
-    "SETTLEMENT_STALE_FUNDING": "تغيّر التمويل بعد احتساب هذه التسوية. احتسبها من جديد قبل الاعتماد."
+    "SETTLEMENT_STALE_FUNDING": "تغيّر التمويل بعد احتساب هذه التسوية. احتسبها من جديد قبل الاعتماد.",
+    "PRICE_ADJUSTMENT_ORDER_NOT_OPEN": "لا يمكن تخفيض السعر إلا لبيع مؤكد ما زال عليه مبلغ مستحق. حالة {order} هي {status}.",
+    "PRICE_ADJUSTMENT_UNDER_CONTRACT": "{order} مباع بالتقسيط ({plan}). ألغِ العقد، ثم خفّض السعر، ثم اعمل عقدًا جديدًا.",
+    "PRICE_ADJUSTMENT_BAD_PRICE": "السعر الجديد يجب أن يكون رقمًا، صفرًا أو أكثر.",
+    "PRICE_ADJUSTMENT_NOT_LOWER": "سعر {product} هو {current} للوحدة؛ هنا يمكن تخفيض السعر فقط.",
+    "PRICE_ADJUSTMENT_NOTHING_HELD": "كل وحدات {product} في {order} تم إرجاعها؛ لا يوجد ما يُخفَّض سعره.",
+    "PRICE_ADJUSTMENT_BEFORE_SALE": "تم بيع {order} يوم {sold}؛ لا يمكن تخفيض سعره بتاريخ {day}.",
+    "PRICE_ADJUSTMENT_CYCLE_SETTLED": "هذه الوحدات من الدورة {cycle}، وهي قيد التسوية أو تمت تسويتها؛ لم يعد ممكنًا تغيير مبيعاتها.",
+    "PRICE_ADJUSTMENT_EXCEEDS_OWED": "تخفيض سعر {product} يخصم {amount}، لكن المستحق على {order} هو {owed} فقط. ما يزيد عن المستحق يكون استردادًا."
   },
   "requests": {
     "tabs": {
@@ -1939,7 +1949,8 @@
       "LEAVE_SAMPLES": "تُركت عينات",
       "SAMPLES_BOUGHT": "تم شراء العينات",
       "SAMPLES_RETURNED": "رجعت العينات",
-      "SAMPLES_WRITTEN_OFF": "شُطبت العينات"
+      "SAMPLES_WRITTEN_OFF": "شُطبت العينات",
+      "PRICE_ADJUSTED": "تخفيض السعر"
     },
     "entityType": {
       "Product": "منتج",
@@ -1987,7 +1998,8 @@
       "LEDGER_ENTRY": "تاريخ قيد في سِجِلّ الحسابات",
       "STOCK_MOVED": "تاريخ نقل البضاعة المتبقية",
       "SALE_MADE": "تاريخ البيع",
-      "STOCK_RECEIVED": "تاريخ استلام البضاعة"
+      "STOCK_RECEIVED": "تاريخ استلام البضاعة",
+      "PRICE_ADJUSTED": "تاريخ تخفيض السعر"
     },
     "country": {
       "CN": "الصين",
@@ -2114,6 +2126,11 @@
     "deleteDeliveryConfirm": "فقط لتسليمة سُجّلت بالخطأ. تعود بضاعتها إلى «في الطريق».",
     "deliveryDeleted": "حُذفت التسليمة",
     "deleteDeliveryFailed": "تعذّر حذف التسليمة.",
+    "deliveryLocked": {
+      "received": "لا يمكن حذفه: تم استلام بضاعة من هذا التسليم في المخزون.",
+      "carried": "لا يمكن حذفه: المرحلة التالية نقلت هذه البضاعة.",
+      "status": "لا يمكن حذفه: حالة الدورة قائمة على هذا التسليم — أرجع الدورة خطوة أولًا."
+    },
     "receiveIntoStock": "استلام في المخزون",
     "receiveTitle": "استلام تسليمة {date}",
     "receiveHint": "عُدّ ما على الرف. يبدأ كل سطر بما بقي للاستلام، والعدد الأقل يترك الباقي بانتظار الاستلام.",

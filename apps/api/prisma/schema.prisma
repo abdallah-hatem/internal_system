@@ -50,7 +50,8 @@ model User {
   stockTransfers        StockTransfer[]        @relation("StockTransferCreatedBy")
   stockTransfersUndone  StockTransfer[]        @relation("StockTransferReversedBy")
 
-  createdSaleReturns SaleReturn[] @relation("CreatedSaleReturnUser")
+  createdSaleReturns          SaleReturn[]          @relation("CreatedSaleReturnUser")
+  createdSalePriceAdjustments SalePriceAdjustment[] @relation("CreatedSalePriceAdjustmentUser")
 
   createdPaymentPlans PaymentPlan[] @relation("CreatedPaymentPlanUser")
 
@@ -772,18 +773,19 @@ model InventoryBatch {
   updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
   version                Int                @default(1)
 
-  cycle               ImportCycle            @relation(fields: [cycleId], references: [id])
-  product             Product                @relation(fields: [productId], references: [id])
-  sourcePoItem        PurchaseOrderItem?     @relation(fields: [sourcePoItemId], references: [id])
-  sourceDeliveryLine  ShipmentDeliveryLine?  @relation(fields: [sourceDeliveryLineId], references: [id])
-  transferredFrom     InventoryBatch?        @relation("BatchTransfer", fields: [transferredFromBatchId], references: [id])
-  transferredTo       InventoryBatch[]       @relation("BatchTransfer")
-  transferLinesOut    StockTransferLine[]    @relation("TransferSourceBatch")
-  transferLinesIn     StockTransferLine[]    @relation("TransferDestBatch")
-  movements           InventoryMovement[]
-  reservations        InventoryReservation[]
-  saleItemAllocations SaleItemAllocation[]
-  returnItems         SaleReturnItem[]
+  cycle                ImportCycle               @relation(fields: [cycleId], references: [id])
+  product              Product                   @relation(fields: [productId], references: [id])
+  sourcePoItem         PurchaseOrderItem?        @relation(fields: [sourcePoItemId], references: [id])
+  sourceDeliveryLine   ShipmentDeliveryLine?     @relation(fields: [sourceDeliveryLineId], references: [id])
+  transferredFrom      InventoryBatch?           @relation("BatchTransfer", fields: [transferredFromBatchId], references: [id])
+  transferredTo        InventoryBatch[]          @relation("BatchTransfer")
+  transferLinesOut     StockTransferLine[]       @relation("TransferSourceBatch")
+  transferLinesIn      StockTransferLine[]       @relation("TransferDestBatch")
+  movements            InventoryMovement[]
+  reservations         InventoryReservation[]
+  saleItemAllocations  SaleItemAllocation[]
+  returnItems          SaleReturnItem[]
+  priceAdjustmentItems SalePriceAdjustmentItem[]
 
   @@index([sourcePoItemId])
   @@index([sourceDeliveryLineId])
@@ -996,7 +998,8 @@ model SaleOrder {
   reservations       InventoryReservation[]
   paymentAllocations PaymentAllocation[]
 
-  returns SaleReturn[]
+  returns          SaleReturn[]
+  priceAdjustments SalePriceAdjustment[]
 
   orderRequest OrderRequest?
   /// The instalment plan agreed from this sale's Contract button (§7, 2026-10-16).
@@ -1016,12 +1019,60 @@ model SaleItem {
   lineTotal   Decimal  @map("line_total") @db.Decimal(18, 2)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  saleOrder   SaleOrder            @relation(fields: [saleOrderId], references: [id])
-  product     Product              @relation(fields: [productId], references: [id])
-  allocations SaleItemAllocation[]
-  returnItems SaleReturnItem[]
+  saleOrder        SaleOrder             @relation(fields: [saleOrderId], references: [id])
+  product          Product               @relation(fields: [productId], references: [id])
+  allocations      SaleItemAllocation[]
+  returnItems      SaleReturnItem[]
+  priceAdjustments SalePriceAdjustment[]
 
   @@map("sale_items")
+}
+
+/// A price lowered after the order was confirmed (BUSINESS_LOGIC §4, owner
+/// 2026-10-22). Its own dated record beside the line, as a return is: the line
+/// keeps the price it was sold at. It covers the units the shop held on the
+/// day, lowers what the order owes, and counts against revenue on `adjustedOn`.
+model SalePriceAdjustment {
+  id                String   @id @default(uuid()) @db.Uuid
+  saleOrderId       String   @map("sale_order_id") @db.Uuid
+  saleItemId        String   @map("sale_item_id") @db.Uuid
+  adjustedOn        DateTime @map("adjusted_on") @db.Date
+  /// The price per unit the held units had until now (the line's, after any
+  /// discount, or the last adjustment's new price).
+  previousUnitPrice Decimal  @map("previous_unit_price") @db.Decimal(18, 4)
+  newUnitPrice      Decimal  @map("new_unit_price") @db.Decimal(18, 2)
+  /// Units the shop held on the line that day: sold less returned.
+  qty               Decimal  @db.Decimal(18, 3)
+  /// (previous - new) x qty: what the order owes less, and revenue lost.
+  amountEgp         Decimal  @map("amount_egp") @db.Decimal(18, 2)
+  reason            String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy         String?  @map("created_by") @db.Uuid
+
+  saleOrder SaleOrder                 @relation(fields: [saleOrderId], references: [id])
+  saleItem  SaleItem                  @relation(fields: [saleItemId], references: [id])
+  creator   User?                     @relation("CreatedSalePriceAdjustmentUser", fields: [createdBy], references: [id])
+  items     SalePriceAdjustmentItem[]
+
+  @@index([saleOrderId])
+  @@index([adjustedOn])
+  @@map("sale_price_adjustments")
+}
+
+/// The adjustment's share per batch the held units came from, so each cycle
+/// loses only the revenue on its own units (§8).
+model SalePriceAdjustmentItem {
+  id               String  @id @default(uuid()) @db.Uuid
+  adjustmentId     String  @map("adjustment_id") @db.Uuid
+  inventoryBatchId String  @map("inventory_batch_id") @db.Uuid
+  qty              Decimal @db.Decimal(18, 3)
+  amountEgp        Decimal @map("amount_egp") @db.Decimal(18, 2)
+
+  adjustment     SalePriceAdjustment @relation(fields: [adjustmentId], references: [id])
+  inventoryBatch InventoryBatch      @relation(fields: [inventoryBatchId], references: [id])
+
+  @@index([inventoryBatchId])
+  @@map("sale_price_adjustment_items")
 }
 
 model SaleItemAllocation {

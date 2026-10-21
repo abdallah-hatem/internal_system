@@ -91,6 +91,10 @@ function fakePrisma(db: Store) {
     },
     // The advisory lock: a second payout waits until the first one's
     // transaction ends, as Postgres makes it.
+    // The cycle's row lock (common/shipment-load.ts `lockCycle`): one
+    // settlement action per cycle runs at a time already, through the lock
+    // below, so taking the cycle's own is nothing more here.
+    $queryRaw: async () => [],
     $executeRaw: async () => {
       while (lockHeld) await lockHeld;
       lockHeld = new Promise<void>((r) => (release = r));
@@ -141,6 +145,7 @@ function fakePrisma(db: Store) {
       aggregate: async () => ({ _sum: { cogsEgp: null } }),
     },
     saleReturnItem: { findMany: async () => [] },
+    salePriceAdjustmentItem: { findMany: async () => [] },
     inventoryBatch: { findMany: async () => [] },
     shipmentLoss: { aggregate: async () => ({ _sum: { costEgp: null } }) },
     lenderRepayment: {

@@ -350,6 +350,7 @@ export function fakePrisma(db: Store) {
                     saleItem: db.saleItems.find((i) => i.id === a.saleItemId),
                   })),
                 returnItems: [],
+                priceAdjustmentItems: [],
               })),
           })),
         ),
@@ -832,6 +833,8 @@ export function fakePrisma(db: Store) {
         }),
     },
     saleReturnItem: { findMany: () => after([]) },
+    // No price is ever lowered in these worlds (§4, 2026-10-22).
+    salePriceAdjustmentItem: { findMany: () => after([]) },
     // Nothing is ever paid against an order in these worlds.
     paymentAllocation: {
       aggregate: () => after({ _sum: { amount: null } }),

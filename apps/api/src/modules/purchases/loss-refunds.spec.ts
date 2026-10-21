@@ -238,6 +238,10 @@ function teachDashboard() {
   prisma.saleReturn = {
     aggregate: answer({ _sum: { refundEgp: null, cogsReversedEgp: null } }),
   };
+  // No price is lowered after a sale here (§4, 2026-10-22).
+  prisma.salePriceAdjustment = {
+    aggregate: answer({ _sum: { amountEgp: null } }),
+  };
   // COGS of what sold; nothing here is ever samples written off (§4), so
   // that question — the only other one asked of this aggregate — finds none.
   prisma.saleItemAllocation.aggregate = ({ where }: Row = {}) =>

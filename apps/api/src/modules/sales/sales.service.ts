@@ -447,6 +447,7 @@ export class SalesService {
         paymentAllocations: {
           select: { amount: true, payment: { select: { status: true } } },
         },
+        priceAdjustments: { select: { amountEgp: true } },
       },
     });
     if (!order) throw notFound('saleOrder');
@@ -478,6 +479,10 @@ export class SalesService {
     const paid = order.paymentAllocations
       .filter((a) => a.payment.status !== 'REVERSED')
       .reduce((s, a) => s.add(a.amount), new Prisma.Decimal(0));
+    const priceLowered = order.priceAdjustments.reduce(
+      (s, a) => s.add(a.amountEgp),
+      new Prisma.Decimal(0),
+    );
     // What it owes counts only while the order is owed at all (§7a): a
     // returned order owes nothing, whatever its stored figure.
     const owes = (OWED_STATUSES as readonly string[]).includes(order.status)
@@ -551,14 +556,19 @@ export class SalesService {
         discount: discount.toFixed(2),
         total: new Prisma.Decimal(order.total).toFixed(2),
         paid: paid.toFixed(2),
+        // Prices lowered after the sale (§4, 2026-10-22), its own line.
+        priceLowered: priceLowered.toFixed(2),
         // What returns took off what this order owes — a credit note lowers
-        // it (§5) — so total, paid, credited and owed add up on paper. A
-        // returned order owes nothing and says so instead.
+        // it (§5) — so total, paid, lowered, credited and owed add up on
+        // paper. A returned order owes nothing and says so instead.
         credited:
           order.status === 'RETURNED'
             ? '0.00'
             : Prisma.Decimal.max(
-                new Prisma.Decimal(order.total).sub(paid).sub(owes),
+                new Prisma.Decimal(order.total)
+                  .sub(paid)
+                  .sub(priceLowered)
+                  .sub(owes),
                 0,
               ).toFixed(2),
         returned: order.status === 'RETURNED',

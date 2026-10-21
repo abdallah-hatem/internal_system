@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Edit } from 'lucide-react';
-import { nextLegToAdd } from '@/components/cycles/leg-plan';
+import { legCostStart, nextLegToAdd } from '@/components/cycles/leg-plan';
 import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
@@ -45,6 +45,7 @@ import {
   shipmentProgress,
   type LegCount,
   type Shipment,
+  type ShipmentDelivery,
   type ShipmentLeg,
 } from './shipment-model';
 
@@ -430,6 +431,8 @@ export function ShipmentPanel({ cycle }: { cycle: PanelCycle }) {
           testId="add-leg"
           fixedCycleId={cycle.id}
           defaults={nextLeg}
+          // Leaving China, USD and a flat amount; leaving the UAE, AED (owner 2026-10-20).
+          costStart={legCostStart(cycle.originType, nextLeg.sequence)}
           onDone={close}
         />
       )}
@@ -558,6 +561,7 @@ function LegBlock({
 }) {
   const t = useTranslations('shipment');
   const codeLabel = useCodeLabel();
+  const deleteLock = (d: ShipmentDelivery) => t(`deliveryLocked.${d.deleteBlockedBy ?? 'received'}`);
   const { formatDate } = useDateFormat();
   const losable = Object.values(losableByLine(leg)).some((q) => q > 0);
   const losses = leg.losses ?? [];
@@ -812,14 +816,24 @@ function LegBlock({
                       <button
                         type="button"
                         data-testid="delete-delivery"
+                        // Switched off, with the server's reason, where the
+                        // delete would be refused (owner, 2026-10-20).
+                        disabled={d.deletable === false}
+                        title={d.deletable === false ? deleteLock(d) : undefined}
+                        aria-describedby={d.deletable === false ? `delivery-locked-${d.id}` : undefined}
                         onClick={() => onOpen({ kind: 'deleteDelivery', deliveryId: d.id })}
                         aria-label={t('deleteDelivery')}
-                        className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive sm:min-h-8 sm:min-w-8"
+                        className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground sm:min-h-8 sm:min-w-8"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     )}
                   </div>
+                  {may.deleteDelivery && !frozen && d.deletable === false && (
+                    <p id={`delivery-locked-${d.id}`} data-testid="delivery-locked" className="basis-full text-xs text-muted-foreground">
+                      {deleteLock(d)}
+                    </p>
+                  )}
                 </li>
               );
             })}

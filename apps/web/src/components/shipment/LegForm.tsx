@@ -14,7 +14,7 @@ import { InputField } from '@/components/ui/fields';
 import { FieldWithQuickCreate } from '@/components/ui/quick-create';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { Dialog } from '@/components/ui/dialog';
-import { ShippingCostFields, readShippingCostFields } from '@/components/shipping/ShippingCostFields';
+import { ShippingCostFields, readShippingCostFields, type ShippingCostDefaults } from '@/components/shipping/ShippingCostFields';
 import { Link } from '@/i18n/navigation';
 import { SHIPMENT_QUERY_KEYS } from './ShipmentDialog';
 import { useAnnounceStatusMove } from './status-move';
@@ -159,6 +159,7 @@ export function LegCreateForm({
   cycles,
   fixedCycleId,
   defaults,
+  costStart,
   onDone,
 }: {
   /** The dialog's title; the form renders in the shared dialog (§13: it portals out of any form). */
@@ -170,6 +171,8 @@ export function LegCreateForm({
   /** The cycle this leg is for — the cycle page. */
   fixedCycleId?: string;
   defaults?: { sequence: number; origin: string; destination: string };
+  /** The cost fields' starting currency and basis — the cycle page passes the route's (leg-plan.ts `legCostStart`). */
+  costStart?: ShippingCostDefaults;
   onDone: () => void;
 }) {
   const t = useTranslations('shipments');
@@ -298,7 +301,7 @@ export function LegCreateForm({
 
         <LegDepartureFields state={departure} cycleId={cycleId || undefined} label={t('firstDeparture')} />
 
-        <ShippingCostFields />
+        <ShippingCostFields defaults={costStart} />
 
       </ValidatedForm>
     </Dialog>

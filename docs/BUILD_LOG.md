@@ -2,20 +2,34 @@
 
 Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The MCP run before it was
 fully autonomous too, chosen 2026-09-19.
-Goal (current, 2026-10-20): every 2026-10-19 "Next up" item built, and the full e2e suite run and brought up to
-date — on the working tree, NOT committed: the owner tests locally first and says when to commit (2026-10-20). The goal
-before it — the 2026-10-18/19 batch — is live.
+Goal (current, 2026-10-22): the 2026-10-20 and 2026-10-22 "Next up" items — shipped at the owner's word ("finish
+whats running then update docs, then push dont start anything else", 2026-10-22), the price adjustment and order
+history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-21 — production runs the 2026-10-19 "Next up" batch (`b19b06f`, shipped 2026-10-21 at the owner's word after
-his local test) and its follow-up (items 5 and 6: the Partners page's speed and the e2e specs that also failed on
-`master`), shipped the same day. Nothing is merged locally and waiting. No migration in either. Next: the owner answers
-the guesses and open questions on the Rules Review page (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`, answers
-saved for Claude), then the backup test (Queued). State of the product and of production's data:
-`docs/where-things-stand.md`.
+2026-10-22 — shipped: a new leg starts from where it leaves, Delete delivery only where it works, the place cards'
+icons on a phone, and the API of the price adjustment after confirm and of an order's full history (migration
+`20261022100000_sale_price_adjustments`, applied to production before the push). Not started, by the owner's word:
+their office screens (Next up). Koshary's 100 off is not applied. Still waiting on the owner: the Rules Review answers
+(`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`), the backup test (Queued). State of the product and of
+production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-22 — shipped (migration `20261022100000_sale_price_adjustments` first — two new tables, no data rewritten):
+  - A new shipping leg starts from where it leaves: out of China USD at a flat amount, out of the UAE AED per piece,
+    the rate filled in (`legCostStart` in `cycles/leg-plan.ts`, for the wizard and the cycle page's Add leg; §2).
+    GUESS: the Shipments page's own New leg form still starts on EGP.
+  - Delete delivery is offered only where it would work: the shipment marks each delivery `deletable` from
+    `deliveryDeleteBlock` (the check `deleteDelivery` refuses with); the button is off with the reason (§1).
+  - The place cards of "Where the goods are" show their icons on a phone too, rows level in en and ar, skeleton
+    included (TC-I3-12, spec 99-skeletons).
+  - API only: lowering a confirmed sale's price (`POST /sales/orders/:id/price-adjustments`, `…/preview`) and an
+    order's full history (`GET /sales/orders/:id/history`) — §4, with the guesses marked; every revenue reader,
+    the statement, the invoice and check-data take the cut on its own day; returns refund at the held price
+    (`common/held-price.ts`). Tests: `price-adjustment.db.spec.ts` (11, each break-checked; five at once lower once).
+  - Tests brought up to date: the unit fakes that had no price-adjustment table; `running-costs.flow.spec` had no
+    `$queryRaw` for the cycle lock since `b19b06f`; the Arabic delivery-wording test reads grouped strings.
 - 2026-10-21 — shipped (follow-up, no migration):
   - The Partners page projects only the open cycles where something can have moved the profit
     (`SettlementsService.cyclesWithProfitActivity`, beside `project`), four at a time: 6 s → 0.2 s with 200 open cycles,
@@ -161,32 +175,13 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Next (owner, 2026-10-22): lower a price after an order is confirmed — a dated price adjustment on a confirmed order's
-  line, for the units the shop still holds, counted on the adjustment's day (BUSINESS_LOGIC §4 "Lowering a price after
-  the order is confirmed"; rules and limits there, GUESSES marked). Koshary's 100 EGP off is its first real use.
-- Next (owner, 2026-10-22): an order's full history, on the order itself — "what products he started with, then what he
-  returned, and any price change, a complete view". One timeline, oldest first, each event dated and with who did it:
-  created (draft) and confirmed with its lines and prices; each return (reference, products, units, refund, reason);
-  each price adjustment (line, old → new price, units it covered); each payment allocated to it (amount, method, date)
-  and any reversal; samples left / bought / returned / written off; cancellation. Beside it, per product: started
-  with, returned, holds now, price now. Read from the records that already exist (sale items, returns, allocations,
-  adjustments, the audit log) — no second copy of the figures; the running "owes" after each event must end on the
-  order's own outstanding. Build it with the price adjustment, which adds the one event that has no record today.
-- Later (owner, 2026-10-20): a shipping leg's starting values follow where it leaves from. Leaving China: **USD** and
-  **Charged by: flat amount**. Leaving the UAE: **AED**, today's basis. The currency's rate prefilled. Today both the
-  wizard's leg step and the cycle page's leg form (`CycleWizard.tsx`, `shipment/LegForm.tsx`) start on EGP (the leg
-  form already starts on FLAT). Starting values only — a currency or basis picked, or a leg already saved, is never
-  changed; one helper for both forms; record it in §2.
-- Later (owner, 2026-10-20): a delivery's Delete is offered only when it can work. The cycle page shows it on every
-  delivery for a partner while the cycle is not frozen (`ShipmentPanel.tsx`, `may.deleteDelivery && !frozen`), and the
-  API refuses with `DELIVERY_IN_USE` (stock received from it, a later leg carried its goods, or the cycle's status rests
-  on it) — on production's CYC-2026-0001 both deliveries show Delete and neither can go. Have the API mark each
-  delivery deletable or not with the reason, from the same checks `deleteDelivery` runs (one definition), and show the
-  button switched off with the reason beside it, as funding does after a settlement.
-- Later (owner, 2026-10-20): on a phone the cycle page's "Where the goods are" cards show their icons, as the
-  dashboard's tiles do (the owner's message was cut off at "like the" — read as the dashboard tiles). The badge is
-  `hidden sm:flex` in `cycles/goods-location-cards.tsx` (and `sm:block` in its skeleton), so below 640px the two-column
-  cards have none. Keep each row's numbers level (bounding boxes) in English and Arabic, skeleton included.
+- Next (owner, 2026-10-22; API shipped 2026-10-22, the owner stopped there): the office screens for the price
+  adjustment and the order history (BUSINESS_LOGIC §4, both sections, "As built"). An "Adjust price" button on a
+  confirmed order's popup (`app/[locale]/sales/page.tsx`, `sale.adjustPrice` in `lib/permissions.ts` already):
+  pick a line, type the new price and the day, and see from `…/price-adjustments/preview` what the shop will owe
+  before saving; and a History section in the same popup from `GET /sales/orders/:id/history` — the timeline with
+  what was owed after each event, and per product started with / returned / holds / price now; en and ar, phone
+  widths, e2e that tries to break it. Then Koshary's 100 off (Waiting on the owner): his three lines, 100 off each.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
   (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
   (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's

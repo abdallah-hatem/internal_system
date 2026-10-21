@@ -23,6 +23,7 @@ function product(name: string, lines: [number, number][], returned = 0) {
       quantity: D(qty),
       lineTotal: D(total),
       allocations: [{ cogsEgp: D(qty * 10) }],
+      priceAdjustments: [] as { amountEgp: ReturnType<typeof D> }[],
       returnItems:
         i === 0 && returned > 0
           ? [

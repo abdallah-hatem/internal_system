@@ -20,7 +20,7 @@ import { Money } from '../ui/money';
 import { businessToday, useDateFormat } from '../../lib/dates';
 import { useCodeLabel } from '../../lib/labels';
 import { statusesToWalk, WIZARD_STATUSES } from './wizard-walk';
-import { expectedLegsOf } from './leg-plan';
+import { expectedLegsOf, legCostStart } from './leg-plan';
 import { statusMoveOf, useAnnounceStatusMove, type CycleStatusMove } from '../shipment/status-move';
 import {
   useCycleWizardDraft,
@@ -593,7 +593,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
 
   const typedLeg = (name: string): string | undefined => unsavedLegs?.[name];
 
-  const legCostDefaults = (prefix: string, existing: any) => {
+  const legCostDefaults = (prefix: string, existing: any, sequence: number) => {
     const saved = existing
       ? {
           costBasis: existing.costBasis ?? 'PER_PIECE',
@@ -611,8 +611,9 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
         typedLeg(`${prefix}${k}`),
       ]),
     );
-    if (!saved && Object.keys(typed).length === 0) return undefined;
-    return { ...(saved ?? {}), ...typed };
+    // A leg not saved yet starts from where it leaves (leg-plan.ts); what was
+    // typed always wins over that, and a saved leg keeps its own values.
+    return { ...(saved ?? legCostStart(originType || cycle?.originType, sequence)), ...typed };
   };
 
   const handleStep3Submit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1468,7 +1469,7 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
                     namePrefix={prefix}
                     title={t('legCost', { leg: leg.label })}
                     orderedPieces={orderedPieces}
-                    defaults={legCostDefaults(prefix, existing)}
+                    defaults={legCostDefaults(prefix, existing, leg.sequence)}
                   />
                 </div>
               );

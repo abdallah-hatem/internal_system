@@ -10,16 +10,15 @@ import { assertNotFuture, businessDay } from '../../common/dates';
 import { isUuid } from '../../common/uuid';
 import { COUNTING_REFUND } from '../../common/loss-refunds';
 import {
-  legsThatMustHaveDelivered,
   loadShipment,
   lockCycle,
-  positionOf,
   syncLegStatuses,
   type LoadedShipment,
 } from '../../common/shipment-load';
 import {
   departureDay,
   departureLines,
+  deliveryDeleteBlock,
   departureUndoBlock,
 } from './departure-rules';
 
@@ -575,7 +574,8 @@ export class DeliveriesService {
    * Refused with DELIVERY_IN_USE (spec amendment 7) when removing it would
    * leave a record the business could not have produced: stock was received
    * from it, a later leg carried its goods on, or the cycle's status says goods
-   * reached a point that only this delivery shows them reaching.
+   * reached a point that only this delivery shows them reaching
+   * (`deliveryDeleteBlock`).
    */
   async deleteDelivery(id: string, actorId: string) {
     if (!isUuid(id)) throw notFound('shipmentDelivery');
@@ -600,63 +600,9 @@ export class DeliveriesService {
       if (!leg) throw notFound('shipmentDelivery');
       const delivery = leg.deliveries.find((d) => d.id === id)!;
 
-      const inUse = (why: 'received' | 'carried' | 'status', english: string) =>
-        badRequest('DELIVERY_IN_USE', english, { why });
-
-      const lineIds = new Set(delivery.lines.map((l) => l.id));
-      if (
-        cycle.inventoryBatches.some(
-          (b) => b.sourceDeliveryLineId && lineIds.has(b.sourceDeliveryLineId),
-        )
-      ) {
-        throw inUse(
-          'received',
-          'Stock was received from this delivery, so it cannot be deleted.',
-        );
-      }
-
-      // The shipment as it would be without this delivery: nothing may leave
-      // a leg that did not enter it.
-      const without: LoadedShipment = {
-        ...cycle,
-        shippingLegs: cycle.shippingLegs.map((l) =>
-          l.id === leg.id
-            ? { ...l, deliveries: l.deliveries.filter((d) => d.id !== id) }
-            : l,
-        ),
-      };
-      const after = positionOf(without);
-      const impossible = after.legs.some((lp) =>
-        lp.lines.some(
-          (ll) =>
-            milli(ll.delivered) + milli(ll.lost) > milli(ll.entered) ||
-            // L8: a later leg sent on goods this delivery brought.
-            milli(ll.departed) > milli(ll.entered) ||
-            (ll.received !== null &&
-              milli(ll.received) + milli(ll.lost) > milli(ll.entered)),
-        ),
-      );
-      if (impossible) {
-        throw inUse(
-          'carried',
-          'A later leg has carried on goods from this delivery, so it cannot be deleted.',
-        );
-      }
-
-      const legs = cycle.shippingLegs;
-      const isFirst = legs[0]?.id === leg.id;
-      const isLast = legs[legs.length - 1]?.id === leg.id;
-      const need = legsThatMustHaveDelivered(cycle.originType, cycle.status);
-      const stillHasOne = leg.deliveries.length > 1;
-      if (
-        !stillHasOne &&
-        ((isFirst && need.includes('first')) ||
-          (isLast && need.includes('last')))
-      ) {
-        throw inUse(
-          'status',
-          `Cycle ${cycle.code} is ${cycle.status} because of this delivery, so it cannot be deleted. Move the cycle back first.`,
-        );
+      const block = deliveryDeleteBlock(cycle, id);
+      if (block) {
+        throw badRequest('DELIVERY_IN_USE', block.english, { why: block.why });
       }
 
       await tx.shipmentDelivery.delete({ where: { id } });

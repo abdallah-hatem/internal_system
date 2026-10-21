@@ -27,7 +27,7 @@ vi.mock('../../lib/api', () => ({
     get: (url: string) => {
       if (url === `/cycles/${String(cycle?.id)}`) return ok(cycle);
       if (url.startsWith('/costing/')) return ok({ totals: costingTotals, items: [] });
-      if (url === '/currency-rates/map') return ok({});
+      if (url === '/currency-rates/map') return ok({ USD: 50.5, AED: 13.85 });
       if (url === '/providers') return ok([{ id: 'prov-1', name: 'Aramex' }]);
       return ok([]);
     },
@@ -396,9 +396,10 @@ describe('resuming a cycle', () => {
       shippingLegs: [],
     });
     renderWizard('cyc-1');
+    // Leg 2: a China cycle's leg 1 starts at a flat amount (§2, 2026-10-20).
     await waitFor(() =>
       expect(
-        document.querySelector<HTMLInputElement>('input[name="leg1_chargeablePieces"]')?.value,
+        document.querySelector<HTMLInputElement>('input[name="leg2_chargeablePieces"]')?.value,
       ).toBe('80'),
     );
   });
@@ -521,7 +522,7 @@ describe('the shipping step', () => {
       fireEvent.click(await screen.findByRole('option', { name: /Aramex/ }));
     }
     document
-      .querySelectorAll<HTMLInputElement>('input[data-field$="ratePerUnit"]')
+      .querySelectorAll<HTMLInputElement>('input[data-field$="ratePerUnit"], input[data-field$="amount"]')
       .forEach((input) => fireEvent.change(input, { target: { value: '2' } }));
 
     fireEvent.submit(tracking()!.form!);
@@ -530,6 +531,56 @@ describe('the shipping step', () => {
     expect(useCycleWizardDraft.getState().legFields['cyc-1']).toBeUndefined();
     const saved = writes.find((w) => w.url === '/cycles/cyc-1/shipping-legs');
     expect((saved?.body as Body | undefined)?.trackingRef).toBe('TRK-SAVED');
+  });
+
+  // Where a leg leaves from sets where it starts (owner, 2026-10-20, §2).
+  const costOf = (prefix: string) => ({
+    currency: document.querySelector<HTMLInputElement>(`input[name="${prefix}currency"]`)?.value,
+    basis: document.querySelector<HTMLInputElement>(`input[name="${prefix}costBasis"]`)?.value,
+    fx: document.querySelector<HTMLInputElement>(`input[name="${prefix}fxRateToEgp"]`)?.value,
+  });
+
+  it('a new China cycle: leg 1 leaves China in USD at a flat amount, leg 2 leaves the UAE in AED per piece — each at today’s rate', async () => {
+    cycle = chinaCycle({ shippingLegs: [] });
+    renderWizard('cyc-1');
+    await waitFor(() => expect(costOf('leg1_').fx).toBe('50.5'));
+    expect(costOf('leg1_')).toEqual({ currency: 'USD', basis: 'FLAT', fx: '50.5' });
+    expect(costOf('leg2_')).toEqual({ currency: 'AED', basis: 'PER_PIECE', fx: '13.85' });
+  });
+
+  it('a new UAE-direct cycle: its only leg leaves the UAE — AED, per piece', async () => {
+    cycle = chinaCycle({ originType: 'UAE_DIRECT', currency: 'AED', shippingLegs: [] });
+    renderWizard('cyc-1');
+    await waitFor(() => expect(costOf('leg1_').fx).toBe('13.85'));
+    expect(costOf('leg1_')).toEqual({ currency: 'AED', basis: 'PER_PIECE', fx: '13.85' });
+  });
+
+  it('a leg already saved keeps its own currency and basis — EGP stays EGP', async () => {
+    cycle = chinaCycle();
+    renderWizard('cyc-1');
+    await waitFor(() => expect(costOf('leg1_').currency).toBe('EGP'));
+    expect(costOf('leg1_')).toEqual({ currency: 'EGP', basis: 'FLAT', fx: '1' });
+    expect(costOf('leg2_')).toEqual({ currency: 'EGP', basis: 'FLAT', fx: '1' });
+  });
+
+  it('a currency picked is never put back: leg 1 moved to CNY survives going back and forward', async () => {
+    cycle = chinaCycle({ shippingLegs: [] });
+    renderWizard('cyc-1');
+    await waitFor(() => expect(costOf('leg1_').currency).toBe('USD'));
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    const picker = screen.getAllByRole('combobox').find((b) => b.textContent?.includes('USD'))!;
+    fireEvent.click(picker);
+    fireEvent.click(await screen.findByRole('option', { name: /CNY/ }));
+    const fx = document.querySelector<HTMLInputElement>('input[name="leg1_fxRateToEgp"]')!;
+    fireEvent.change(fx, { target: { value: '7.1' } });
+    fireEvent.keyUp(fx, { key: '1' });
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findAllByTestId('wizard-saved-order');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(costOf('leg1_').currency).toBe('CNY'));
+    expect(costOf('leg1_').fx).toBe('7.1');
   });
 
   it('an untouched form keeps nothing', async () => {

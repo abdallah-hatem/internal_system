@@ -51,6 +51,9 @@ export interface ShipmentDelivery {
   id: string;
   arrivedOn: string;
   lines: ShipmentDeliveryLine[];
+  /** The server's answer to "can this be deleted?" (owner, 2026-10-20) — absent from an older server. */
+  deletable?: boolean;
+  deleteBlockedBy?: 'received' | 'carried' | 'status' | null;
 }
 
 /** One departure on a leg (L8, 2026-10-12): the day it left and what it carried. */

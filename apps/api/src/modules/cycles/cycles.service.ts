@@ -27,7 +27,10 @@ import {
   assertLendersRepaid,
 } from '../../common/lender-debt';
 import { lossesWithRefunds } from '../../common/loss-refunds';
-import { departureUndoBlock } from '../shipping/departure-rules';
+import {
+  deliveryDeleteBlock,
+  departureUndoBlock,
+} from '../shipping/departure-rules';
 import { CostingService } from '../costing/costing.service';
 import { planRecost } from '../costing/leg-recost';
 import {
@@ -250,6 +253,16 @@ export class CyclesService {
                 ...d,
                 undoable: !block,
                 undoBlockedBy: block?.why ?? null,
+              };
+            }),
+            // Whether each delivery can be deleted, and why not (owner,
+            // 2026-10-20): the same check `deleteDelivery` refuses with.
+            deliveries: p.deliveries.map((d) => {
+              const block = deliveryDeleteBlock(cycle, d.id);
+              return {
+                ...d,
+                deletable: !block,
+                deleteBlockedBy: block?.why ?? null,
               };
             }),
             losses: losses.filter((x) => x.legId === p.legId),

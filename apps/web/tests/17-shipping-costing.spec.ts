@@ -189,17 +189,21 @@ test.describe('Shipment costing', () => {
     // loose pattern, which would be ambiguous.
     await expect(leg1.getByRole('heading', { name: 'China to UAE', exact: true })).toBeVisible();
     await expect(leg2.getByRole('heading', { name: 'UAE to Egypt', exact: true })).toBeVisible();
-    // Each leg carries its own independent cost block.
-    await expect(leg1.locator('[data-field="leg1_ratePerUnit"]')).toBeVisible();
-    // costBasis rides in a hidden input now, so it is attached, never visible.
-    await expect(leg2.locator('input[type="hidden"][name="leg2_costBasis"]')).toBeAttached();
+    // Each leg carries its own independent cost block, starting from where it
+    // leaves (§2, 2026-10-20): out of China one USD amount, out of the UAE AED
+    // per piece. costBasis and currency ride in hidden inputs.
+    await expect(leg1.locator('input[type="hidden"][name="leg1_costBasis"]')).toHaveValue('FLAT');
+    await expect(leg1.locator('input[type="hidden"][name="leg1_currency"]')).toHaveValue('USD');
+    await expect(leg1.locator('[data-field="leg1_amount"]')).toBeVisible();
+    await expect(leg2.locator('input[type="hidden"][name="leg2_costBasis"]')).toHaveValue('PER_PIECE');
+    await expect(leg2.locator('input[type="hidden"][name="leg2_currency"]')).toHaveValue('AED');
+    await expect(leg2.locator('[data-field="leg2_ratePerUnit"]')).toBeVisible();
 
-    // Step 2 ordered 100 pieces, so neither leg asks for that number again. It
-    // stays editable — a forwarder billing by carton charges for fewer — but the
-    // whole-order case is filled in.
-    await expect(leg1.locator('[name="leg1_chargeablePieces"]')).toHaveValue('100');
+    // Step 2 ordered 100 pieces, so a leg charged per piece does not ask for that
+    // number again. It stays editable — a forwarder billing by carton charges
+    // for fewer — but the whole-order case is filled in.
     await expect(leg2.locator('[name="leg2_chargeablePieces"]')).toHaveValue('100');
-    await expect(leg1.getByText(/prefilled from the 100 ordered/i)).toBeVisible();
+    await expect(leg2.getByText(/prefilled from the 100 ordered/i)).toBeVisible();
   });
 
   test('TC-COST-06: API — shipping is spread across the items it moved', async ({ request }) => {

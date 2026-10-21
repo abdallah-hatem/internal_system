@@ -101,6 +101,12 @@ Guesses made while building L8, open until confirmed (autonomous run, 2026-10-12
   departures are the ones free to undo — or when it is the leg's only departure and the cycle's status says the
   leg has left (the L3 rule deleting a delivery follows). Undoing never moves the cycle back. Deleting a leg-1
   delivery whose goods leg 2 already sent on is refused like one leg 2 delivered (`DELIVERY_IN_USE`, carried).
+- **Delete delivery is offered only where it would work** (owner 2026-10-20, built 2026-10-22). The shipment marks
+  each delivery `deletable` with the reason it is not (`deleteBlockedBy`: received / carried / status) from
+  `deliveryDeleteBlock` in `modules/shipping/departure-rules.ts` — the same check `deleteDelivery` refuses with, so
+  the mark and the refusal cannot disagree. The cycle page shows the button switched off with that reason beside
+  it, as Undo departure is offered only where it is `undoable`. Production's CYC-2026-0001 showed Delete on both
+  deliveries and neither could go.
 - **Partly departed and partly arrived at once** reads PARTLY_ARRIVED (the furthest thing that happened) and the
   leg header shows a second "Partly departed" badge. A leg that has sent on everything that entered it so far
   reads in transit, and partly departed again when more reaches its origin.
@@ -414,6 +420,17 @@ The same correction is the assistant's `update_leg_cost` (2026-10-17, §16), thr
 weight (`LEG_COST_NEGATIVE`) and a rate to EGP of zero or less (`RATE_NOT_POSITIVE`) — only the
 form's DTO said so before, so any other caller could write a negative leg or turn a USD bill into
 0 EGP (CLAUDE.md rule 3).
+
+**DECIDED 2026-10-20 (owner) — a new leg starts from where it leaves.** *Built 2026-10-22.* A leg leaving
+China (a China cycle's leg 1) starts in **USD**, **charged by a flat amount**; a leg leaving the UAE (a China
+cycle's leg 2, a UAE-direct cycle's only leg) starts in **AED**, per piece as before. The currency's rate is
+filled in from the Exchange rates page (§22) and stays editable. One helper, `legCostStart` in
+`apps/web/src/components/cycles/leg-plan.ts`, for the wizard's shipping step and the cycle page's Add leg form.
+Starting values only: a leg already saved keeps its own currency and basis (an EGP leg stays EGP), and a
+currency or basis picked in the form is never put back — not on going back a step, not on a reload of the draft.
+The API is unchanged; this is what a form offers, not a rule a caller must follow.
+GUESS: the Shipments page's own New leg form, where the cycle is picked in the form, still starts on EGP per
+piece — it does not know where the leg leaves from until a cycle is chosen.
 
 ---
 
@@ -1043,7 +1060,7 @@ a balance or money on it; an open one whose batches do not hold its lines; one w
 
 ---
 
-### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, not built yet
+### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API built 2026-10-22 (office screen not yet)
 
 **What happens in the business.** A shop's price is lowered after its order was confirmed — Koshary
 (ORD-2026-00002) was given 100 EGP off per product on 2026-10-22, after two returns and a 5,000 cash payment.
@@ -1060,6 +1077,50 @@ confirm?" — yes.
 | Limits (server, coded refusals) | Lower only — never above the price it replaces; never below zero; never more than the order still owes (a lower price on a paid-up order would mean a refund, which is a return or a separate decision); not on a draft, cancelled order, or an order on a cycle whose settlement is approved or paid. | GUESS |
 | Who | Core partners (rule 12). | GUESS |
 | Where | An "Adjust price" action on the confirmed order's popup: pick a line, type the new price, see what the shop will owe before saving. | GUESS |
+
+**As built (2026-10-22, API only — the popup's Adjust price button is not built yet).** `POST
+/sales/orders/:id/price-adjustments` (and `…/preview`, which writes nothing), core partners only;
+`modules/sales/price-adjustments.service.ts`, table `sale_price_adjustments` with its per-batch shares in
+`sale_price_adjustment_items` (migration `20261022100000_sale_price_adjustments`). Where it differs from, or adds
+to, the table above:
+
+- **GUESS (changed from the table): the order's total does not drop** — it stays what was sold, as it does after a
+  return; what it owes drops, and the invoice shows the cut on its own line, "Price lowered" (total − paid − price
+  lowered − returns credited = owes). Every revenue figure takes the cut off on the adjustment's day: dashboard,
+  P&L, revenue by month, top products and top orders, each cycle's profit and its settlement, the shop's statement
+  (an "ADJUSTMENT" row), `check-data` 13.1 (and 13.2: a cut's batch shares add up to it).
+- **Per batch, so each cycle loses its own units' revenue** (§8): the held units are split by the batches they came
+  from (each allocation less what came back to it), the last batch taking the rounding residual.
+- **A unit handed back after its price was lowered is refunded at the lower price** — one definition,
+  `common/held-price.ts`, used by the adjustment and by returns.
+- **Refused, each with its code:** not lower than the price the held units are at now, or negative
+  (`PRICE_ADJUSTMENT_NOT_LOWER`, `PRICE_ADJUSTMENT_BAD_PRICE`); more off than the order owes
+  (`PRICE_ADJUSTMENT_EXCEEDS_OWED`; exactly what it owes is accepted and leaves it paid up); a draft, cancelled,
+  paid-up or returned order (`PRICE_ADJUSTMENT_ORDER_NOT_OPEN`); a line with every unit returned
+  (`PRICE_ADJUSTMENT_NOTHING_HELD`); a day before the sale or in the future (`PRICE_ADJUSTMENT_BEFORE_SALE`,
+  `DATE_IN_FUTURE`); another order's line (`SALE_ITEM_NOT_IN_ORDER`).
+- **GUESS: not while the sale is under an instalment contract** (`PRICE_ADJUSTMENT_UNDER_CONTRACT`): the contract
+  covers what was owed when it was signed, so a cut under it would read as instalments paid. Cancel the contract,
+  lower the price, draw a new one.
+- **GUESS: not on units from a cycle being settled, closed or with its settlement approved or paid**
+  (`PRICE_ADJUSTMENT_CYCLE_SETTLED`) — its figures are agreed.
+- **Two at once lower it once:** the order's row is locked while the cut is checked and written.
+- The audit log records `PRICE_ADJUSTED` on the order. No ledger row (no money moved).
+
+Koshary's 100 off is not applied yet: once the Adjust price button is built, or through the API when the owner
+says so.
+
+### An order's full history  — DECIDED 2026-10-22 (owner), API built 2026-10-22 (office screen not yet)
+
+`GET /sales/orders/:id/history` (`modules/sales/order-history.service.ts`): one timeline, oldest first, each event
+with its day and who recorded it — created and confirmed with its lines and prices, samples left / bought /
+returned / written off, each payment allocated to it and any reversal, each return (reference, lines, refund,
+method, reason), each price cut (line, old → new price, units), cancellation — and beside it, per product: started
+with, returned, holds now, sold at, price now. Read from the records that already exist and the audit log (who
+confirmed or cancelled); no second copy of the figures. What the order owed after each event is replayed in the
+order things were recorded, as the statement replays it, and ends on the order's own outstanding (`replayedOwes`
+beside `owes`, equal unless stored figures disagree). GUESS: a sale entered later is shown on its own day (its
+`orderedAt`), created and confirmed alike.
 
 ## 5. Returns
 

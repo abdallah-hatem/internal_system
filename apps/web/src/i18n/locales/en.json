@@ -555,6 +555,7 @@
       "notAvailable": "No invoice for this order",
       "printedOn": "Printed {date}",
       "credited": "Returns credited",
+      "priceLowered": "Price lowered",
       "returnedInFull": "Returned in full — nothing is owed on it.",
       "page": "Page {n} of {total}"
     },
@@ -693,7 +694,8 @@
         "SALE": "Sale {order}",
         "PAYMENT": "Payment",
         "RETURN": "Return {reference}",
-        "REVERSAL": "Payment reversed"
+        "REVERSAL": "Payment reversed",
+        "ADJUSTMENT": "Price lowered"
       },
       "onOrders": "on {orders}",
       "unapplied": "{amount} on no order",
@@ -1690,7 +1692,15 @@
     "SAMPLES_RETURN_MORE_THAN_OUT": "Only {out} of {product} went out on {order}; {returned} cannot come back.",
     "SAMPLES_RETURN_NOT_ALL": "{out} of {product} went out on {order} and {returned} came back. \"Returned\" takes back everything; if the shop kept the rest, record it as a sale from the samples.",
     "FUNDING_LOCKED_AFTER_SETTLEMENT": "The funding of {cycle} can no longer change: {reason}.",
-    "SETTLEMENT_STALE_FUNDING": "The funding changed after this settlement was calculated. Calculate it again before approving."
+    "SETTLEMENT_STALE_FUNDING": "The funding changed after this settlement was calculated. Calculate it again before approving.",
+    "PRICE_ADJUSTMENT_ORDER_NOT_OPEN": "Only a confirmed sale that is still owed can have its price lowered. {order} is {status}.",
+    "PRICE_ADJUSTMENT_UNDER_CONTRACT": "{order} is sold on instalments ({plan}). Cancel the contract, lower the price, then draw a new one.",
+    "PRICE_ADJUSTMENT_BAD_PRICE": "The new price must be a number, zero or more.",
+    "PRICE_ADJUSTMENT_NOT_LOWER": "{product} is at {current} a unit; a price can only be lowered here.",
+    "PRICE_ADJUSTMENT_NOTHING_HELD": "Every unit of {product} on {order} has been returned; there is nothing to lower the price of.",
+    "PRICE_ADJUSTMENT_BEFORE_SALE": "{order} was sold on {sold}; its price cannot be lowered on {day}.",
+    "PRICE_ADJUSTMENT_CYCLE_SETTLED": "These units came from cycle {cycle}, which is being settled or is settled; its sales can no longer change.",
+    "PRICE_ADJUSTMENT_EXCEEDS_OWED": "Lowering {product} takes {amount} off, but {order} owes only {owed}. Anything beyond what is owed is a refund."
   },
   "requests": {
     "tabs": {
@@ -1939,7 +1949,8 @@
       "LEAVE_SAMPLES": "Samples left",
       "SAMPLES_BOUGHT": "Samples bought",
       "SAMPLES_RETURNED": "Samples returned",
-      "SAMPLES_WRITTEN_OFF": "Samples written off"
+      "SAMPLES_WRITTEN_OFF": "Samples written off",
+      "PRICE_ADJUSTED": "Price lowered"
     },
     "entityType": {
       "Product": "Product",
@@ -1987,7 +1998,8 @@
       "LEDGER_ENTRY": "The date of a ledger entry",
       "STOCK_MOVED": "The date leftover stock was moved",
       "SALE_MADE": "The date a sale was made",
-      "STOCK_RECEIVED": "The date stock was received"
+      "STOCK_RECEIVED": "The date stock was received",
+      "PRICE_ADJUSTED": "The date a price was lowered"
     },
     "country": {
       "CN": "China",
@@ -2114,6 +2126,11 @@
     "deleteDeliveryConfirm": "Only for a delivery recorded by mistake. Its goods go back to being on the way.",
     "deliveryDeleted": "Delivery deleted",
     "deleteDeliveryFailed": "The delivery could not be deleted.",
+    "deliveryLocked": {
+      "received": "Can’t be deleted: stock was received from this delivery.",
+      "carried": "Can’t be deleted: the next leg carried these goods on.",
+      "status": "Can’t be deleted: the cycle’s status rests on this delivery — move the cycle back first."
+    },
     "receiveIntoStock": "Receive into stock",
     "receiveTitle": "Receive the delivery of {date}",
     "receiveHint": "Count what is on the shelf. Each line starts at what is still to be received; a lower count leaves the rest waiting.",

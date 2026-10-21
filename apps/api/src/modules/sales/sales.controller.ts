@@ -22,6 +22,11 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { badRequest } from '../../common/api-error';
 import { SALES_PARTNER_ROLES, SALES_ROLES } from './sales-roles';
+import { OrderHistoryService } from './order-history.service';
+import {
+  PriceAdjustmentsService,
+  type PriceAdjustmentInput,
+} from './price-adjustments.service';
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -34,7 +39,11 @@ import { SALES_PARTNER_ROLES, SALES_ROLES } from './sales-roles';
 @Roles(...SALES_ROLES)
 @Controller('sales/orders')
 export class SalesController {
-  constructor(private salesService: SalesService) {}
+  constructor(
+    private salesService: SalesService,
+    private priceAdjustments: PriceAdjustmentsService,
+    private orderHistory: OrderHistoryService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List sale orders with filtering and pagination' })
@@ -98,6 +107,43 @@ export class SalesController {
       );
     }
     return this.salesService.confirmOrder(id, user.id, body.version);
+  }
+
+  @Get(':id/history')
+  @ApiOperation({
+    summary:
+      'The order’s full history, oldest first: lines, returns, price changes, payments, samples, cancellation — with what it owed after each (§4, 2026-10-22).',
+  })
+  history(@Param('id') id: string) {
+    return this.orderHistory.history(id);
+  }
+
+  @Post(':id/price-adjustments/preview')
+  @Roles(...SALES_PARTNER_ROLES)
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'What lowering a confirmed line’s price would take off what the order owes — nothing written (§4, 2026-10-22).',
+  })
+  previewPriceAdjustment(
+    @Param('id') id: string,
+    @Body() body: PriceAdjustmentInput,
+  ) {
+    return this.priceAdjustments.preview(id, body);
+  }
+
+  @Post(':id/price-adjustments')
+  @Roles(...SALES_PARTNER_ROLES)
+  @ApiOperation({
+    summary:
+      'Lower a confirmed line’s price for the units the shop still holds, counted on the adjustment’s day (§4, 2026-10-22).',
+  })
+  adjustPrice(
+    @Param('id') id: string,
+    @Body() body: PriceAdjustmentInput,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.priceAdjustments.create(id, body, user.id);
   }
 
   @Post(':id/cancel')
