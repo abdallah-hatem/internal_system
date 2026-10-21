@@ -238,7 +238,9 @@ for (const path of ['sales', 'payments'] as const) {
     const search = path === 'sales' ? en.sales.search : en.payments.search;
     await page.getByPlaceholder(search).fill(stamp);
     const rows = page.getByTestId(`${path}-table`).locator('tbody tr');
-    await expect(rows.first()).toBeVisible();
+    // The search narrows the list as it applies: count once it has, not the
+    // whole list a moment before (the shop has two sales; one payment here).
+    await expect(rows).toHaveCount(path === 'sales' ? 2 : 1);
     const before = await rows.count();
 
     let release: () => void = () => {};

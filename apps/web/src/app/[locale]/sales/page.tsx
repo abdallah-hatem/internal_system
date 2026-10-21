@@ -526,8 +526,10 @@ function SalesPageContent() {
       cell: (order) => channelBadge(order.channel),
     },
     {
-      // Wide enough for "Samples · 12 units" (§4) in either language.
-      key: 'status', header: tc('status'), width: '12.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
+      // Wide enough for its longest pill, "Samples written off" (128px; "Samples · 12 units"
+      // is 122px) in either language. It was 12.5rem, which squeezed Customer to its
+      // minimum at 1440 and wrapped a plain shop name onto two lines (2026-10-21).
+      key: 'status', header: tc('status'), width: '10.5rem', skeleton: { kind: 'pill', share: 'w-3/4' },
       cell: (order) => statusBadge(order.status, order),
     },
     {
@@ -541,14 +543,14 @@ function SalesPageContent() {
       cell: (order) => outstandingCell(order),
     },
     {
-      key: 'date', header: t('date'), width: '7.5rem', kind: 'value', className: 'text-gray-500 text-xs',
+      key: 'date', header: t('date'), width: '7rem', kind: 'value', className: 'text-gray-500 text-xs',
       skeleton: { kind: 'text', share: 'w-3/4' },
       // The day it was sold, which a back-dated sale has before the day it was typed in (§4).
       cell: (order) => formatDate(order.orderedAt ?? order.createdAt),
     },
     {
       // The real badges sit on the text's baseline, which makes the line 21px, not 20.
-      key: 'actions', header: tc('actions'), width: '6rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
+      key: 'actions', header: tc('actions'), width: '5.5rem', skeleton: { kind: 'text', share: 'w-2/3', line: 'h-5.25' },
       cell: (order) => (
         <button
           type="button"

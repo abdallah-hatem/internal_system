@@ -203,6 +203,13 @@ function SkeletonCell({ shape, align }: { shape: SkeletonShape; align?: 'start' 
 }
 
 /**
+ * For a table printed or turned into a PDF (an invoice, a statement): on paper
+ * it fills the sheet's width instead of keeping its screen minimum, so the
+ * flexible column wraps rather than the last column running off A4.
+ */
+export const PAPER_FIT = 'print:!min-w-0 sheet:!min-w-0';
+
+/**
  * One skeleton row of a table: each column's `skeleton`, in its own padding.
  * DataTable draws its loading rows with it; a page uses it for a row it adds
  * around them (`beforeRows`, `afterRows`).

@@ -33,7 +33,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { useNumberFormat } from '@/lib/numbers';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 import { listPriceOf, type ListPrice, type ListPrices } from '@/lib/list-price';
-import { DefaultPriceHint } from '@/components/products/default-price-hint';
+import { DefaultPriceTag } from '@/components/products/default-price-hint';
 
 /** The status filter: Active by default (§3, 2026-10-14). */
 const STATUS_FILTERS = ['ACTIVE', 'INACTIVE', 'ALL'] as const;
@@ -85,16 +85,17 @@ interface Product {
 
 // ─── Price cell ───────────────────────────────────────────────────────
 
-/** A channel's price, with "Default (landed + 20%)" under one nobody set. */
+/**
+ * A channel's price, with a "Default" tag beside one nobody set — on the same
+ * line, the full "Default (landed + 20%)" on hover (owner 2026-10-21), so every
+ * row is one line tall. A price too wide for both wraps the tag under it.
+ */
 function PriceCell({ price }: { price: ListPrice | null }) {
   if (!price) return <>—</>;
   return (
-    <span>
+    <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       <Money value={Number(price.amount)} currency={price.currency} />
-      {/* Wraps rather than runs past the column: a price column is sized for
-          "123,456.00 EGP", and "Default (landed + 20%)" is wider in both
-          languages (TC-COL-03). */}
-      <DefaultPriceHint price={price} className="block whitespace-normal text-[11px] font-normal leading-tight text-muted-foreground" />
+      <DefaultPriceTag price={price} />
     </span>
   );
 }
@@ -309,7 +310,7 @@ export default function ProductsPage() {
       cell: (p) => <ProductLink id={p.id} name={p.displayName} />,
     },
     {
-      key: 'category', header: t('category'), width: '9rem', className: 'text-gray-600',
+      key: 'category', header: t('category'), width: '7.5rem', className: 'text-gray-600',
       skeleton: { kind: 'pill', share: 'w-3/4' },
       cell: (p) => (
         <span
@@ -322,19 +323,19 @@ export default function ProductsPage() {
       ),
     },
     {
-      key: 'b2b', header: t('b2bPrice'), width: '9rem', kind: 'value', className: 'text-gray-700',
+      key: 'b2b', header: t('b2bPrice'), width: '10.5rem', kind: 'value', className: 'text-gray-700',
       skeleton: { kind: 'text', share: 'w-2/3' },
       cell: (p) => <PriceCell price={p.b2bPrice} />,
     },
     {
-      key: 'b2c', header: t('b2cPrice'), width: '9rem', kind: 'value', className: 'text-gray-700',
+      key: 'b2c', header: t('b2cPrice'), width: '10.5rem', kind: 'value', className: 'text-gray-700',
       skeleton: { kind: 'text', share: 'w-2/3' },
       cell: (p) => <PriceCell price={p.b2cPrice} />,
     },
     {
       // In place of Min stock (owner, 2026-10-17): how many are on the shelf,
       // red at or under the product's minimum — the low-stock rule's own test.
-      key: 'onHand', header: t('inStock'), width: '7rem', kind: 'value', skeleton: { kind: 'text', share: 'w-1/4' },
+      key: 'onHand', header: t('inStock'), width: '6rem', kind: 'value', skeleton: { kind: 'text', share: 'w-1/4' },
       cell: (p) =>
         p.onHand == null ? (
           '—'
@@ -434,6 +435,9 @@ export default function ProductsPage() {
       {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
       <DataTable
         className="hidden md:block"
+        // The name keeps 13rem at least, so the whole table fits its card at 1440
+        // beside the wider price columns that hold a price and its Default tag.
+        autoMin="13rem"
         columns={columns}
         rows={paginated}
         rowKey={(p) => p.id}

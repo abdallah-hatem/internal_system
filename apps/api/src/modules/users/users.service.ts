@@ -12,6 +12,22 @@ import {
 
 import { conflict, notFound } from '../../common/api-error';
 import { assertStrongPassword } from '../../common/assert-password';
+/** How many cycle projections the Partners page runs at once. */
+const PROJECTION_CONCURRENCY = 4;
+
+/** `fn` over every item, at most `size` at a time; results in input order. */
+async function inBatches<T, R>(
+  items: T[],
+  size: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
+  }
+  return out;
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -163,10 +179,18 @@ export class UsersService {
       ),
     ];
     const accrued = new Map<string, Prisma.Decimal>();
-    for (const cycleId of openCycleIds) {
-      const projected = await this.settlements
-        .project(cycleId)
-        .catch(() => null);
+    // Only the cycles where something has moved the profit: every other open
+    // cycle projects exactly zero, and projecting each in turn made this page
+    // take 15 s+ once a few hundred cycles were open (2026-10-21). The rest
+    // run a few at a time rather than strictly one after another.
+    const active =
+      await this.settlements.cyclesWithProfitActivity(openCycleIds);
+    const projections = await inBatches(
+      openCycleIds.filter((id) => active.has(id)),
+      PROJECTION_CONCURRENCY,
+      (cycleId) => this.settlements.project(cycleId).catch(() => null),
+    );
+    for (const projected of projections) {
       if (!projected) continue;
       for (const line of projected.distribution.lines) {
         // netProfit, not grossProfit: an investor's fee has already moved to

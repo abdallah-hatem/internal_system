@@ -181,6 +181,9 @@ async function addToBasket(page: Page, sku: string, term?: string) {
  */
 async function openBasket(page: Page) {
   await tab(page, 'requests').click();
+  // Wait for the page itself: until then the product page and its "Added to your
+  // request" button are still on screen.
+  await expect(page).toHaveURL(/\/requests$/);
   await page.getByRole('button', { name: /Your request/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 }
@@ -472,6 +475,9 @@ test.describe('Asking for stock', () => {
     await page.getByRole('button', { name: /أضف إلى الطلب/ }).click();
 
     await tab(page, 'requests').click();
+    // The tap only starts the navigation: until the address changes the product
+    // page is still there, and its own button now reads "أُضيف إلى طلبك".
+    await expect(page).toHaveURL(/\/ar\/requests$/);
     await page.getByRole('button', { name: /طلبك/ }).click();
     const sheet = page.getByRole('dialog');
 
@@ -995,6 +1001,9 @@ test.describe('The controls it is made of', () => {
 
     await page.getByRole('button', { name: /أضف إلى الطلب/ }).click();
     await tab(page, 'requests').click();
+    // The tap only starts the navigation: until the address changes the product
+    // page is still there, and its own button now reads "أُضيف إلى طلبك".
+    await expect(page).toHaveURL(/\/ar\/requests$/);
     await page.getByRole('button', { name: /طلبك/ }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(native, 'the basket sheet holds a native select').toHaveCount(0);
@@ -1032,6 +1041,7 @@ test.describe('The controls it is made of', () => {
 
     await page.getByRole('button', { name: /Add to request/ }).click();
     await tab(page, 'requests').click();
+    await expect(page).toHaveURL(/\/requests$/);
     await page.getByRole('button', { name: /Your request/ }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     expect(await arrowCursors(page), 'the basket sheet').toEqual([]);

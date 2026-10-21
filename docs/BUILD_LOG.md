@@ -7,9 +7,24 @@ date — on the working tree, NOT committed: the owner tests locally first and s
 before it — the 2026-10-18/19 batch — is live.
 
 ## Current stage
-2026-10-20/21 — the "Next up" batch is built on the working tree, uncommitted, waiting for the owner's local test
-("dont push or commit anything until i test locally and say so"). Production is unchanged: `origin/master` (`73e8c29`).
-In the batch (each in BUSINESS_LOGIC, dated):
+2026-10-21 — production runs the 2026-10-19 "Next up" batch (`b19b06f`, shipped 2026-10-21 at the owner's word after
+his local test) and its follow-up (items 5 and 6: the Partners page's speed and the e2e specs that also failed on
+`master`), shipped the same day. Nothing is merged locally and waiting. No migration in either. Next: the owner answers
+the guesses and open questions on the Rules Review page (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`, answers
+saved for Claude), then the backup test (Queued). State of the product and of production's data:
+`docs/where-things-stand.md`.
+
+## Live in production (newest first, last two weeks)
+Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-21 — shipped (follow-up, no migration):
+  - The Partners page projects only the open cycles where something can have moved the profit
+    (`SettlementsService.cyclesWithProfitActivity`, beside `project`), four at a time: 6 s → 0.2 s with 200 open cycles,
+    the same figures (profit-activity.db.spec, specs 42, 46, 99-running-costs).
+  - Products list: a default price is a "Default" tag on the price's line (owner's choice), price columns 10.5rem.
+  - Sales list: Status 10.5rem, so shop names stop wrapping; customer phone cards and the cycle's place cards load
+    as skeletons of their real height; contracts' actions column 4rem; the invoice and statement fit A4 on paper.
+  - The e2e specs that also failed on `master` brought up to date (Known e2e debt).
+- 2026-10-21 — shipped (`b19b06f`, no migration), the 2026-10-19 "Next up" batch:
 - The Settlement button on a cycle's page opens Partners → Settlements with that cycle chosen (`?cycle=<id>`; §8).
 - Profit and loss opens on This month; All time is `?period=all` (§12).
 - No investor signs in to the office: login `OFFICE_NOT_FOR_INVESTORS`, refresh ends their sign-in, the investor
@@ -32,10 +47,6 @@ In the batch (each in BUSINESS_LOGIC, dated):
 - 2026-10-21 (owner, testing locally): the invoice has no signature lines, and wears the contract's header (logo,
   title, tagline, number and date over a heavy rule) — one `DocumentHeader` for both (§4).
 - Windows: the e2e seed step runs `npx` through a shell on win32; `apps/api/.env.example` documents the VAPID keys.
-State of the product and of production's data: `docs/where-things-stand.md`.
-
-## Live in production (newest first, last two weeks)
-Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-19 (evening) — shipped (`73e8c29`, no migration):
   - The partners repay a friend who paid for a cycle, in any split (`072d645`; §18 "The partners repay the friend"):
     his payment is a loan, Split equally divides the whole cost, Enter amounts takes amounts or %, profit follows the
@@ -109,22 +120,31 @@ Older history: "History" at the foot of this file, and `git log`.
 ## Known e2e debt
 Full run 2026-10-20 (Windows laptop, agent database, 1,219 tests incl. storefront, 4.1 h): 1,006 passed, 135 failed,
 59 did not run. Every failure was then re-run, and the ones still failing were run against an untouched `master`
-worktree to tell old breakage from new. After the fixes (Current stage), what still fails — each also fails on
-`master`, i.e. not from this batch:
-- 99-skeletons: Dashboard (skeleton rows 18 vs 23 at 1440, 16 at 390), a customer (14 rows vs 10), a cycle and
-  Categories (row heights 1px off). Product issue, as before.
-- 54-storefront TC-STORE-07 (the basket sheet's quantity field) and TC-STORE-16 (the basket sheet does not open).
-- 99-table-columns TC-COL-04.03/04.10 and TC-COL-05 (as before; not re-measured).
-Fragile, not failing alone: 99-skeletons-storefront TC-SKEL-STORE-01 passes alone and on `master`, failed late in the full
-run (card heights depend on the names earlier specs give products).
-Found while running it, not fixed (its own piece of work): `GET /users/participation` runs the settlement projection
-for every open cycle one after another, so the Partners page takes 15 s+ once a few hundred cycles are open (late in a
-full run; production has one). 99-running-costs waits 30 s for it.
+worktree to tell old breakage from new. 2026-10-21 (owner: "do 5 and 6") the old breakage was fixed too:
+- 99-skeletons: the Dashboard and customer row counts were stale (13 tiles since 2026-10-18, contracts since
+  2026-10-17); the place cards' skeleton traced the old side-by-side layout; the customer page's phone card skeleton
+  was 12px short; Sales rows wrapped the shop name (Status 12.5rem → 10.5rem); Products rows with a default price
+  were two lines (now a "Default" tag on the price's line, owner's choice); the spec's cycle is funded (an unfunded
+  one shows the funding note above the cards, which no skeleton can predict).
+- 99-table-columns: Inventory has 7 columns; screen-reader-only titles are not measured; cells are measured once no
+  transition runs; the contracts' actions column fits its button (3rem → 4rem); the invoice and statement drop their
+  screen minimum width on paper (`PAPER_FIT`), so they fit A4; Products fits its card (price columns 10.5rem, name
+  min 13rem).
+- 54-storefront TC-STORE-07/16: the test tapped Requests and clicked "طلبك" before the page changed, hitting the
+  product page's "أُضيف إلى طلبك" button; it waits for the address now. The store was fine.
+- 07 TC-SALE-04 and 95 TC-DR-07 were upset by the summary cards ("all" matched "Most revenue, all time"; a count
+  read before the search applied).
+- `GET /users/participation` (the Partners page) projected every open cycle one after another: 6 s with 200 open
+  cycles, 0.2 s now — only cycles with something that can move profit are projected (`cyclesWithProfitActivity`,
+  beside `project`; profit-activity.db.spec), four at a time.
 Windows notes: `npm run` scripts that are shell scripts need Git Bash (`bash scripts/reset-db.sh`); `db:seed:history`'s
 quoting fails in cmd — run its `ts-node` line from Git Bash; `nest start --watch` can stop the API after a spurious
 file event — run `node dist/src/main` for long e2e runs.
 
 ## Waiting on the owner
+- Every guess the system is built on and every open question (88 items) is on the Rules Review page,
+  `https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`; his answers are saved in its database (`answers`, one document per
+  item) for Claude to read and apply, with BUSINESS_LOGIC updated from them.
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
 - Leg 2 (Dubai → Cairo) of CYC-2026-0001: is 20 AED per piece right, and is 14 EGP/AED the rate? (Saved that way; edit the leg when confirmed.)
 - UAE costs for this shipment (wrapping paper, fuel in the UAE…): each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
@@ -136,9 +156,7 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
-Built 2026-10-20/21 and waiting for the owner's local test (see Current stage): the Settlement button's cycle, the
-P&L's This month, no investor sign-in, the product page's cards, the assistant's samples tools, the tab summary
-cards, the Calculate/Approve race, and the full e2e run. Left below, each with why:
+Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last
@@ -163,6 +181,12 @@ cards, the Calculate/Approve race, and the full e2e run. Left below, each with w
   R1's reference-data guesses for investors (moot while no investor uses the office app, owner 2026-10-18).
 
 ## Queued, not started
+- Test the backups (owner 2026-10-21: "we need to test backups of course"; for later). Nothing has ever been
+  restored. Plan: (1) read Neon's point-in-time restore window for the plan production is on; (2) restore without
+  touching production — a Neon branch from production at a past moment, `scripts/check-data.sh` against it, record
+  counts compared with production, then delete the branch; (3) a backup that does not depend on Neon alone — a
+  scheduled `pg_dump` of production to storage the owner controls, and one dump restored into a scratch database to
+  prove it. Needs the owner's Neon access (console, or the Neon CLI with a key) — steps 1–2 with him.
 - Selling on Amazon (Egypt + UAE) — BUSINESS_LOGIC §17, PLANNED, six questions still OPEN.
 
 ## Phases

@@ -269,13 +269,17 @@ export function GoodsLocationSkeleton({ direct = false, products = 2 }: { direct
       <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
       <div className={`grid grid-cols-2 gap-3 ${GRID[places.length]}`}>
         {places.map((place) => (
+          // The real card's own structure (Option A, 2026-10-19: the badge above the
+          // label) and its own type classes, so each line is as tall as the real one:
+          // the old side-by-side trace came out a pixel short on every width.
           <div key={place} data-testid="skeleton-row" className="min-h-11 rounded-xl border border-border bg-card p-3 sm:p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground sm:text-sm">{t(place)}</p>
-                <SkeletonText size="base" className="w-10" lineClassName="mt-1 sm:h-8" />
-              </div>
-              <Skeleton className={`hidden size-8 shrink-0 rounded-lg sm:block ${places.length >= 6 ? 'xl:hidden' : ''}`} />
+            <Skeleton className="mb-2 hidden size-8 rounded-lg sm:block" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground sm:text-sm">{t(place)}</p>
+              <p className="mt-1 text-base font-bold tabular-nums sm:text-2xl">
+                {/* An inline block on its own line still gets the paragraph's line box, so the line is the real one's height. */}
+                <span className="inline-block h-[0.75em] w-10 rounded bg-muted align-middle motion-safe:animate-pulse" />
+              </p>
             </div>
           </div>
         ))}

@@ -1,4 +1,4 @@
-# Where things stand — 21 October 2026
+# Where things stand — 21 October 2026 (evening)
 
 A snapshot for someone picking this up, or for you in three months. What the
 business does, what is built, what is live, and what is knowingly unfinished.
@@ -122,16 +122,13 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` at `73e8c29` (shipped the evening of 2026-10-19, no migration: the partners
-repay a friend in any split, the goods cards' icons, Stock value in place of Reserved, the P&L tooltip fix — see
-BUILD_LOG). Before that `415ccf9` (shipped 2026-10-19; migration
-`20261018200000_samples_at_shops` applied first). That batch added: samples at
-shops (rounds 1 and 2); default price = landed cost + 20% (B2B and B2C); the cycle
-wizard ending at step 3 with a funding note on the cycle page and funding locked
-once the settlement is approved; a cancelled order owes nothing; Profit and loss
-redesigned (Option A, weeks on a phone); Analytics' top five; the Partners tab
-refreshing after a settlement action; `db:seed:history` (local only). Nothing is
-merged locally and waiting. How to ship: `docs/deployment.md` "Shipping a release".
+Production runs `origin/master` with the 2026-10-19 "Next up" batch (`b19b06f`, shipped 2026-10-21) and its follow-up
+the same day, no migration in either: the Settlement button carries its cycle; Profit and loss opens on This month; no
+investor signs in to the office; the product page without Suppliers/Compatibility; the assistant's samples tools;
+summary cards on Cycles, Products and Sales; the invoice with the contract's header and no signature lines; the
+Calculate/Approve race and the login's lost typing fixed; the Partners page fast with many open cycles; a default price
+shown as a "Default" tag in the Products list. Before that `73e8c29` (2026-10-19 evening) and `415ccf9` (2026-10-19,
+migration `20261018200000_samples_at_shops`) — BUILD_LOG "Live in production". Nothing is merged locally and waiting. How to ship: `docs/deployment.md` "Shipping a release".
 
 ### The data in production (2026-10-18, checked again 2026-10-19)
 
@@ -169,27 +166,20 @@ cash payment).
 
 Ordered by what would hurt first.
 
-- **The full e2e suite ran 2026-10-20** (1,219 tests): after bringing ~45 stale specs
-  up to date, what still fails also fails on `master` — the office skeleton counts
-  and heights, two storefront basket tests, the table-column widths (BUILD_LOG
-  "Known e2e debt"). The Partners page is slow once hundreds of cycles are open
-  (`/users/participation` projects each in turn) — not yet a problem in production.
+- **The full e2e suite ran 2026-10-20** (1,219 tests), and on 2026-10-21 every spec that failed — the stale ones and
+  those that also failed on `master` — was brought up to date and passes (BUILD_LOG "Known e2e debt"). The suite takes
+  4 h on the Windows laptop; run it in parts.
 - **No rate limiting anywhere.** `POST /auth/portal/signup` is public; ten requests
   in a second all succeed. `@nestjs/throttler` is the fix; the limits are a
   judgement call nobody has made.
 - **Backups have never been tested.** Neon's restore window has not been checked
   and no restore has been tried. Production is backed up only when the owner asks.
+  The plan is in BUILD_LOG "Queued, not started" (needs the owner's Neon access).
 - **Guesses waiting for the owner.** Every rule built on a guess is marked GUESS
-  in BUSINESS_LOGIC; the list of open ones is in BUILD_LOG "Next up". The biggest
+  in BUSINESS_LOGIC; all 88, with the open questions, are on the Rules Review page for him to answer (BUILD_LOG
+  "Waiting on the owner"). The biggest
   for money: running-cost shares (§8), samples kept free and write-offs (§4), the
   default price's basis and rounding (§3), the P&L's dates and buckets.
-- **Built, not yet committed (2026-10-20/21)**: the owner's 2026-10-19 "Next up" —
-  the Settlement button carries its cycle, Profit and loss opens on This month, no
-  investor sign-in, the product page without Suppliers/Compatibility, the
-  assistant's samples tools, summary cards on Cycles/Products/Sales, the
-  Calculate/Approve race fixed, the login keeping what was typed before the page
-  hydrated. On the working tree, waiting for the owner's local test (BUILD_LOG
-  "Current stage").
 - **Queued features**: selling on Amazon (§17, six questions open).
 - **Smaller**: `/inventory` returns every batch with no paging; system-written
   ledger reasons are stored in English; no dark theme; the push language is always Arabic (nothing records a

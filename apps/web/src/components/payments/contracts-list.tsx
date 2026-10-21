@@ -187,7 +187,7 @@ export function ContractsList({ customerId }: { customerId?: string }) {
       skeleton: { kind: 'text', share: 'w-3/4' },
       cell: nextCell,
     },
-    { key: 'actions', header: <span className="sr-only">{tc('actions')}</span>, width: '3rem', align: 'end', skeleton: { kind: 'buttons', count: 1 }, cell: actionsCell },
+    { key: 'actions', header: <span className="sr-only">{tc('actions')}</span>, width: '4rem', align: 'end', skeleton: { kind: 'buttons', count: 1 }, cell: actionsCell },
   ];
 
   if (isError) {

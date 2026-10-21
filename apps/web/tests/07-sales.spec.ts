@@ -48,18 +48,15 @@ test.describe('Sales Orders Flow', () => {
     await page.goto(`${BASE}/en/sales`);
     await page.waitForTimeout(2000);
 
-    // Check for filter tabs
-    const allTab = page.getByRole('button', { name: /all|filter/i }).first();
-    if (await allTab.isVisible()) {
-      await allTab.click();
-      await page.waitForTimeout(500);
-    }
+    // The status filter's own buttons. By name, "all" also matched the summary
+    // card "Most revenue, all time" (2026-10-20), which opens an order instead.
+    const allTab = page.locator('button[data-value="all"]').first();
+    await allTab.click();
+    await expect(allTab).toHaveAttribute('aria-pressed', 'true');
 
-    const draftTab = page.getByRole('button', { name: /draft/i }).first();
-    if (await draftTab.isVisible()) {
-      await draftTab.click();
-      await page.waitForTimeout(500);
-    }
+    const draftTab = page.locator('button[data-value="draft"]').first();
+    await draftTab.click();
+    await expect(draftTab).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('TC-SALE-05: Sales status badges show correct statuses', async ({ page }) => {

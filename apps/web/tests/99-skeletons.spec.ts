@@ -25,7 +25,7 @@
  *  (LEARNINGS 2026-10-11); only the login page is opened by address.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { apiCtx, owedOrder, stockedProduct } from './support/fixtures';
+import { API, apiCtx, owedOrder, stockedProduct } from './support/fixtures';
 import { login, messages } from './support/ui';
 import { gateApi, go, type Gate } from './support/gate';
 
@@ -35,18 +35,20 @@ const PAGE_SIZE = 10;
  * The skeleton rows a detail screen or the dashboard holds: the sum of its
  * sections' `repeat(n, …RowSkeleton)` — the tiles, lists and tables each
  * section normally shows. A list screen holds a page, PAGE_SIZE.
- * - Dashboard: figure tiles, the attention list, top products and your cycles
+ * - Dashboard: the 13 figure tiles (a phone shows the first six until See
+ *   more, 2026-10-18), five top products and five shops to collect from
  *   (dashboard/page.tsx, components/dashboard/*) — recent activity's ten rows
  *   went with the panel (owner, 2026-10-17);
- * - a customer: three rows each in Sales Orders and Payments, two plan rows,
- *   and the statement's lines on this width (customers/[id], customer-statement);
+ * - a customer: three rows each in Sales Orders and Payments, four contracts
+ *   (they replaced the two plan rows, 2026-10-17) and the statement's four lines
+ *   (customers/[id], contracts-list, customer-statement);
  * - a cycle: the place cards of Where the goods are (four: the fixture is a
  *   UAE-direct cycle, which the list it is opened from knows), three rows each in
  *   Participants, Purchases and Inventory, and the
  *   Shipment panel's two product lines (cycles/[cycleId]/details, ShipmentPanel).
  */
-const DASHBOARD_ROWS = 18;
-const CUSTOMER_ROWS = 10;
+const DASHBOARD_ROWS = (width: number) => (width < 640 ? 6 : 13) + 5 + 5;
+const CUSTOMER_ROWS = 3 + 3 + 4 + 4;
 const CYCLE_ROWS = 15;
 const stamp = Date.now().toString(36).toUpperCase();
 const CUSTOMER = `Skeleton Shop ${stamp}`;
@@ -62,6 +64,14 @@ test.beforeAll(async ({ request }) => {
   const { product, cycle } = await stockedProduct(request, headers, mk, `Skeleton ${stamp}`, 20);
   await owedOrder(mk, customer.id, product.id, 1_000);
   await mk('payments', { customerId: customer.id, amount: 400, currency: 'EGP', method: 'CASH' });
+  // Funded, as a cycle normally is: an unfunded one shows the "Funding not
+  // entered yet" note above its cards once it loads (§8, 2026-10-18), which no
+  // skeleton can know is coming, and every card lands lower.
+  const detail = await (await request.get(`${API}/cycles/${cycle.id}`, { headers })).json();
+  for (const p of (detail.data ?? detail).participants ?? []) {
+    const put = await request.put(`${API}/cycles/participants/${p.id}`, { headers, data: { contributionAmount: 1_000 } });
+    expect(put.ok(), await put.text()).toBeTruthy();
+  }
   cycleCode = cycle.code;
 });
 
@@ -189,7 +199,7 @@ for (const viewport of [
       const gate = await gateApi(page);
       gate.hold();
       await login(page);
-      const box = await expectSkeleton(page, DASHBOARD_ROWS);
+      const box = await expectSkeleton(page, DASHBOARD_ROWS(viewport.width));
       gate.release();
       await expectSameHeight(page, box);
     });

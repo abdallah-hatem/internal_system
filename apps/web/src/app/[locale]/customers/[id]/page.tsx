@@ -460,9 +460,12 @@ function PhoneCardSkeleton() {
   return (
     <li data-testid="skeleton-row" className="rounded-lg border border-border p-3">
       <SkeletonGroup>
-        <div className="flex justify-between"><SkeletonText className="w-28" /><SkeletonText className="w-16" /></div>
-        <div className="mt-1 flex justify-between"><SkeletonText size="xs" className="w-20" /><SkeletonText className="w-24" /></div>
-        <div className="mt-2 flex justify-between border-t border-border pt-2"><SkeletonText size="xs" className="w-16" /><SkeletonText className="w-24" /></div>
+        {/* Each row of the real card is a line of the page's base text (its outer
+            spans set no size), so 24px, not the 20px of text-sm: three rows of
+            text-sm came out 12px short of the card that replaced them. */}
+        <div className="flex justify-between"><SkeletonText size="base" className="w-28" /><SkeletonText size="base" className="w-16" /></div>
+        <div className="mt-1 flex justify-between"><SkeletonText size="base" className="w-20" /><SkeletonText size="base" className="w-24" /></div>
+        <div className="mt-2 flex justify-between border-t border-border pt-2"><SkeletonText size="base" className="w-16" /><SkeletonText size="base" className="w-24" /></div>
       </SkeletonGroup>
     </li>
   );

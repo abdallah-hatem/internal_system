@@ -112,6 +112,11 @@ function headerProblems(page: Page) {
       for (const th of table.querySelectorAll(':scope > thead th')) {
         const el = th as HTMLElement;
         if (!el.offsetParent || !el.textContent?.trim()) continue;
+        // A title only a screen reader hears (an actions column's `sr-only`
+        // "Actions") is never drawn, so it cannot wrap or overflow on screen;
+        // measured, its text came out wider than the 1px box that holds it.
+        const hidden = [...el.querySelectorAll('.sr-only')].map((n) => n.textContent ?? '').join('').trim();
+        if (hidden && hidden === el.textContent.trim()) continue;
         const cs = getComputedStyle(el);
         const content = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
         const range = document.createRange();
@@ -151,7 +156,11 @@ function scrollProblems(page: Page) {
  * inside something that clips (a cut label, a two-line name) are skipped —
  * the clipping box itself is measured.
  */
-function cellProblems(page: Page) {
+async function cellProblems(page: Page) {
+  // Measured once nothing is moving: an expanded row's chevron turns with a CSS
+  // transition, and mid-turn its box is a couple of pixels wider than the cell
+  // ("" spills 2px, 2026-10-20), which no reader ever sees at rest.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
   return page.evaluate(() => {
     const out: string[] = [];
     const clips = (el: Element) => {
@@ -230,7 +239,8 @@ type NavKey = keyof ReturnType<typeof messages>['nav'];
 const LISTS: { name: string; nav: NavKey; columns: number }[] = [
   { name: 'Products', nav: 'products', columns: 8 },
   // On the shelf, At shops and All since samples (2026-10-18), with the expander and the product.
-  { name: 'Inventory', nav: 'inventory', columns: 8 },
+  // Seven since the always-zero Reserved column went (2026-10-19).
+  { name: 'Inventory', nav: 'inventory', columns: 7 },
   { name: 'Sales', nav: 'sales', columns: 8 },
   { name: 'Customers', nav: 'customers', columns: 6 },
   { name: 'Ledger', nav: 'ledger', columns: 7 },

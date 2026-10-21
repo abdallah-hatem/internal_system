@@ -486,6 +486,59 @@ export class SettlementsService {
   }
 
   /**
+   * Of these cycles, the ones with anything that can move the profit
+   * `project` works out: a sale or return drawn from their stock (samples
+   * written off included), a ledger row in a category it reads, goods lost on
+   * the way, a repayment to a friend. Each query is a superset of what
+   * `project` reads, so a cycle left out projects a profit of exactly zero —
+   * and asking it costs ten queries for that zero. Four queries for the lot.
+   *
+   * Kept beside `project` on purpose: a new input there must be added here.
+   */
+  async cyclesWithProfitActivity(cycleIds: string[]): Promise<Set<string>> {
+    if (cycleIds.length === 0) return new Set();
+    const [batches, ledger, losses, repayments] = await Promise.all([
+      this.prisma.inventoryBatch.findMany({
+        where: {
+          cycleId: { in: cycleIds },
+          OR: [
+            { saleItemAllocations: { some: {} } },
+            { returnItems: { some: {} } },
+          ],
+        },
+        select: { cycleId: true },
+        distinct: ['cycleId'],
+      }),
+      this.prisma.financialTransaction.findMany({
+        where: {
+          cycleId: { in: cycleIds },
+          OR: [
+            { category: { notIn: [...NOT_OPERATING_EXPENSE] } },
+            { category: { in: [...OTHER_INCOME_CATEGORIES] } },
+            { category: { in: [...COST_RECOVERY_CATEGORIES] } },
+          ],
+        },
+        select: { cycleId: true },
+        distinct: ['cycleId'],
+      }),
+      this.prisma.shipmentLoss.findMany({
+        where: { leg: { cycleId: { in: cycleIds } } },
+        select: { leg: { select: { cycleId: true } } },
+      }),
+      this.prisma.lenderRepayment.findMany({
+        where: { financing: { cycleId: { in: cycleIds } } },
+        select: { financing: { select: { cycleId: true } } },
+      }),
+    ]);
+    return new Set<string>([
+      ...batches.map((b) => b.cycleId),
+      ...ledger.map((t) => t.cycleId as string),
+      ...losses.map((l) => l.leg.cycleId),
+      ...repayments.map((r) => r.financing.cycleId),
+    ]);
+  }
+
+  /**
    * What `calculate` would produce, without producing it.
    *
    * Lets a cycle still selling be asked what it has earned so far — which the

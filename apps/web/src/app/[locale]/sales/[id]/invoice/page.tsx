@@ -16,7 +16,7 @@ import { LatinText } from '@/components/ui/latin-text';
 import { BackLink } from '@/components/ui/back-link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRegion, SkeletonText } from '@/components/ui/skeleton';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { DataTable, PAPER_FIT, type Column } from '@/components/ui/data-table';
 import { DocumentActions } from '@/components/ui/document-actions';
 import { DocumentHeader } from '@/components/ui/document-header';
 import { DOCUMENT_TAGLINE } from '@/components/ui/document-tagline';
@@ -357,6 +357,9 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
         frame="none"
         density="compact"
         autoMin="10rem"
+        // On paper the table takes A4's width, not its screen minimum: the product
+        // name wraps rather than the last column running off the sheet (TC-COL-05).
+        tableClassName={PAPER_FIT}
         tableTestId="invoice-lines"
         rows={data.lines}
         rowKey={(line) => line.id}

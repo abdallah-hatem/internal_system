@@ -16,7 +16,7 @@ import { LatinText } from '@/components/ui/latin-text';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
 import { isolateCodes } from '@/components/layout/isolate-codes';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
-import { DataTable, DataTableSkeletonRow, cellPadding, type Column } from '@/components/ui/data-table';
+import { DataTable, DataTableSkeletonRow, PAPER_FIT, cellPadding, type Column } from '@/components/ui/data-table';
 
 /** One row of `GET /customers/:id/statement` (api common/customer-statement.ts). */
 export interface StatementRow {
@@ -302,6 +302,8 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
             frame="none"
             density="compact"
             autoMin="10rem"
+            // On paper, A4's width rather than its screen minimum (TC-COL-05).
+            tableClassName={PAPER_FIT}
             tableTestId="statement-table"
             rows={data.rows}
             rowKey={(row, i) => `${row.kind}-${row.reference}-${i}`}

@@ -101,7 +101,9 @@ function wrap(ui: ReactNode, locale: 'en' | 'ar' = 'en') {
 }
 
 describe('the products list', () => {
-  it('a channel with no price set shows the default with the hint; a set one shows bare', async () => {
+  // Since 2026-10-21 (owner) a small "Default" tag on the price's own line, the
+  // full wording on hover and for a screen reader, so every row is one line tall.
+  it('a channel with no price set shows the default with its tag; a set one shows bare', async () => {
     wrap(<ProductsPage />);
     await screen.findAllByText('BRK-1');
     const hints = screen.getAllByTestId('default-price-hint');
@@ -109,7 +111,11 @@ describe('the products list', () => {
     // never for B2C.
     expect(hints.length).toBeGreaterThan(0);
     for (const h of hints) {
-      expect(h.textContent).toBe('Default (landed + 20%)');
+      expect(h.textContent).toBe('Default');
+      expect(h.getAttribute('title')).toBe('Default (landed + 20%)');
+      expect(h.getAttribute('aria-label')).toBe('Default (landed + 20%)');
+      // Beside the price, not under it.
+      expect(h.parentElement?.className).toContain('inline-flex');
       expect(h.parentElement?.textContent).toMatch(/120\.00/);
       expect(h.parentElement?.textContent).not.toMatch(/150\.00/);
     }
@@ -120,7 +126,8 @@ describe('the products list', () => {
     wrap(<ProductsPage />, 'ar');
     await screen.findAllByText('BRK-1');
     for (const h of screen.getAllByTestId('default-price-hint')) {
-      expect(h.textContent).toBe('افتراضي (التكلفة الإجمالية + 20٪)');
+      expect(h.textContent).toBe('افتراضي');
+      expect(h.getAttribute('title')).toBe('افتراضي (التكلفة الإجمالية + 20٪)');
     }
   });
 });
