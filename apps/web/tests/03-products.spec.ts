@@ -6,6 +6,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { WEB as BASE } from './support/env';
+import { API, apiCtx } from './support/fixtures';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -144,4 +145,20 @@ test.describe('Products Management Flow', () => {
     const count = await editButtons.count();
     expect(count).toBeGreaterThan(0);
   });
+});
+
+// Owner 2026-10-18: "remove the Suppliers and Compatibility cards from the
+// product details page". Price history and the rest of the page stay.
+test('TC-PROD-CARDS-01: a product page has no Suppliers or Compatibility card', async ({ page, request }) => {
+  const { headers } = await apiCtx(request);
+  const list = await (await request.get(`${API}/products?limit=1`, { headers })).json();
+  const product = (list.data?.items ?? list.data)[0];
+  expect(product, 'the reference seed has products').toBeTruthy();
+  await login(page);
+  await page.goto(`${BASE}/en/products/${product.id}`);
+  const main = page.getByRole('main');
+  await expect(main.getByText(product.sku).first()).toBeVisible({ timeout: 15000 });
+  await expect(main.getByRole('heading', { name: /price history/i })).toBeVisible();
+  await expect(main.getByRole('heading', { name: /^suppliers$/i })).toHaveCount(0);
+  await expect(main.getByRole('heading', { name: /^compatibility$/i })).toHaveCount(0);
 });

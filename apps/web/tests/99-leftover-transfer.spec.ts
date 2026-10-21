@@ -21,11 +21,10 @@ import path from 'path';
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { psqlStdin } from './support/database';
 import { DB_CONTAINER, DB_NAME } from './support/env';
-import { API, apiCtx, PASSWORD, refusedCallers } from './support/fixtures';
+import { API, apiCtx, refusedCallers } from './support/fixtures';
 import { leftoverWorld } from './support/leftovers';
-import { BASE, login, messages, openView, type Locale } from './support/ui';
+import { login, messages, openView, type Locale } from './support/ui';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
 const SHOTS = process.env.L5_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l5';
 type Headers = Record<string, string>;
@@ -252,20 +251,8 @@ test.describe('What is refused, and to whom', () => {
     }
   });
 
-  test('TC-L5-05: the investor on both cycles reads the transfers and the cards, and is offered neither Move nor Undo', async ({ page, request }) => {
-    const { mk, a, b, pad } = await leftoverWorld(request, 'L5 Investor', { investor: true });
-    await mk(`cycles/${a.id}/transfers`, { toCycleId: b.id, reason: 'Season end', lines: [{ productId: pad.id, qty: 5 }] });
-    await page.goto(`${BASE}/en/login`);
-    await page.locator('input[type="email"]').fill(INVESTOR_EMAIL);
-    await page.locator('input[type="password"]').fill(PASSWORD);
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/dashboard/, { timeout: 20000 });
-    await openCycle(page, a.code, a.id);
-    expect((await cards(page)).moved).toBe('5');
-    await expect(page.getByTestId('transfer-row')).toHaveCount(1);
-    await expect(page.getByTestId('move-leftovers')).toHaveCount(0);
-    await expect(page.getByTestId('transfer-undo')).toHaveCount(0);
-  });
+  // TC-L5-05 (the investor on both cycles reads the transfers, offered neither Move nor Undo) removed
+  // (owner 2026-10-19): only the partners use the office; investors are refused at the door.
 });
 
 test.describe('In Arabic', () => {

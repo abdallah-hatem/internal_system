@@ -3,7 +3,7 @@
 import { formatMoney, formatNumber } from '@/lib/numbers';
 import { localName } from '@/lib/localized-name';
 import { LatinText } from '@/components/ui/latin-text';
-import { BrandMark } from '@/components/layout/brand-mark';
+import { DocumentHeader } from '@/components/ui/document-header';
 import { DOCUMENT_FONT } from '@/components/ui/document-language';
 import { CONTRACT_TEXT, contractDay, type ContractLanguage } from './contract-text';
 
@@ -74,28 +74,19 @@ export function ContractDocument({
       }
       style={{ fontFamily: DOCUMENT_FONT }}
     >
-      <header className="flex items-start justify-between gap-4 border-b-2 border-foreground pb-3" data-print-keep>
-        <div className="flex items-center gap-3">
-          <BrandMark size={44} />
-          <div>
-            <h1 className="text-[22px] font-bold leading-tight" data-testid="contract-title">{w.title}</h1>
-            <p className="text-xs text-muted-foreground">{w.tagline}</p>
-          </div>
+      <DocumentHeader title={w.title} tagline={w.tagline} titleTestId="contract-title">
+        <div>
+          <dt className="inline">{w.number}: </dt>
+          <dd className="inline whitespace-nowrap font-semibold text-foreground" data-testid="contract-number">
+            <bdi dir="ltr">{c.number}</bdi>
+          </dd>
         </div>
-        <dl className="shrink-0 text-xs text-muted-foreground">
-          <div>
-            <dt className="inline">{w.number}: </dt>
-            <dd className="inline whitespace-nowrap font-semibold text-foreground" data-testid="contract-number">
-              <bdi dir="ltr">{c.number}</bdi>
-            </dd>
-          </div>
-          <div>
-            <dt className="inline">{w.date}: </dt>
-            <dd className="inline" data-testid="contract-date">{day(c.date)}</dd>
-          </div>
-          <div>{w.city}</div>
-        </dl>
-      </header>
+        <div>
+          <dt className="inline">{w.date}: </dt>
+          <dd className="inline" data-testid="contract-date">{day(c.date)}</dd>
+        </div>
+        <div>{w.city}</div>
+      </DocumentHeader>
 
       <Section title={w.parties}>
         <div className="grid grid-cols-2 gap-4" data-print-keep>

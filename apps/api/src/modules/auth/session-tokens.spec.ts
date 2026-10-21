@@ -275,6 +275,33 @@ describe('a partner who may no longer come in', () => {
     expect(await refusal(sessions.rotate(token))).toBe('SESSION_INVALID');
   });
 
+  // Owner 2026-10-19: only the three partners use the office app.
+  it('an investor holds no office sign-in: refused at refresh, and every one they hold ends', async () => {
+    const u = addUser({ role: 'TEMP_INVESTOR', partner: null });
+    const phone = await sessions.issue(u.id);
+    await sessions.issue(u.id);
+    expect(await refusal(sessions.rotate(phone))).toBe('SESSION_INVALID');
+    expect(live({ userId: u.id })).toHaveLength(0);
+  });
+
+  it('a partner who became an investor is signed out at the next refresh', async () => {
+    const u = addUser();
+    const token = await sessions.issue(u.id);
+    const once = await sessions.rotate(token);
+    u.role = 'TEMP_INVESTOR';
+    expect(await refusal(sessions.rotate(once.refreshToken))).toBe(
+      'SESSION_INVALID',
+    );
+  });
+
+  it('the admin-support role still refreshes (the other half: a guard that refuses everyone passes half a suite)', async () => {
+    const u = addUser({ role: 'ADMIN_SUPPORT' });
+    const token = await sessions.issue(u.id);
+    await expect(sessions.rotate(token)).resolves.toMatchObject({
+      user: { id: u.id },
+    });
+  });
+
   it('a deleted user is refused, not a 500', async () => {
     const u = addUser();
     const token = await sessions.issue(u.id);

@@ -17,7 +17,6 @@ import {
   dashboardView,
   tileHref,
   type TileKey, PHONE_FIRST_TILES } from '../../../components/dashboard/dashboard-model';
-import { YourCycles } from '../../../components/dashboard/your-cycles';
 import { ToCollect } from '../../../components/dashboard/to-collect';
 import { Money } from '../../../components/ui/money';
 import {
@@ -113,8 +112,7 @@ export default function DashboardPage() {
   const { formatMoney: egp, formatNumber } = useNumberFormat();
   const { user } = useAuth();
   const role = user?.role;
-  // A temporary investor sees only their own cycles (R1): the business-wide
-  // figures are refused them, so they are neither fetched nor shown.
+  // Only the roles the business-wide figures let in fetch them (dashboardView).
   const view = dashboardView(role);
   // A phone shows PHONE_FIRST_TILES until this is opened; wider screens, all.
   const [allTiles, setAllTiles] = useState(false);
@@ -212,13 +210,8 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-          {view === 'cycles' && (
-            <p className="mt-1 text-sm text-muted-foreground">{t('investorSubtitle')}</p>
-          )}
         </div>
-        {view === 'cycles' ? (
-          <YourCycles />
-        ) : (
+        {view === 'loading' && (
           <>
             <LoadingStatus />
             <StatTilesSkeleton />

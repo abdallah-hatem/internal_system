@@ -21,6 +21,7 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { badRequest } from '../../common/api-error';
+import { SALES_PARTNER_ROLES, SALES_ROLES } from './sales-roles';
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -30,7 +31,7 @@ import { badRequest } from '../../common/api-error';
  * No role guard existed here, so any logged-in account could cancel an order.
  */
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+@Roles(...SALES_ROLES)
 @Controller('sales/orders')
 export class SalesController {
   constructor(private salesService: SalesService) {}
@@ -100,7 +101,7 @@ export class SalesController {
   }
 
   @Post(':id/cancel')
-  @Roles('CORE_PARTNER')
+  @Roles(...SALES_PARTNER_ROLES)
   @ApiOperation({
     summary:
       'Cancel a sale order and release allocations. On samples still at a shop it is "Returned".',
@@ -137,7 +138,7 @@ export class SalesController {
   /** The units are gone for good and their cost lands on their cycles: a partner's call. */
   @Post(':id/samples/write-off')
   @HttpCode(200)
-  @Roles('CORE_PARTNER')
+  @Roles(...SALES_PARTNER_ROLES)
   @ApiOperation({
     summary:
       'The shop kept the samples or they were lost: their landed cost becomes a cost of the cycles they came from.',
@@ -163,7 +164,7 @@ export class SalesController {
 @ApiTags('Sales')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+@Roles(...SALES_ROLES)
 @Controller('sales')
 export class PriceCheckController {
   constructor(private salesService: SalesService) {}

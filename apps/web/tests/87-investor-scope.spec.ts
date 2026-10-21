@@ -7,32 +7,25 @@
  *  settlement and their own payout — and nothing else. The server enforces it
  *  on every read; the menu only follows (rule 12).
  *
- *  Logged in as the seeded investor (investor@motoparts.com, prisma/seed.ts
- *  `seedTempInvestor`). Each test builds its own cycles through the API as a
- *  core partner: one the investor is on, one they are not.
+ *  Each test has an investor of its own (fixtures `investorSession`): since
+ *  2026-10-19 an investor cannot sign in at the office, so the token is signed
+ *  by hand the way the API signs one, and the guards and scoping behind it are
+ *  what is tested. Cycles are built through the API as a core partner: one the
+ *  investor is on, one they are not.
  *
  *  Only the three partners use the office app (owner 2026-10-18), so the
  *  investor's menu and screens were dropped from this suite; what stays is the
  *  API refusing and scoping him, which is still the rule (rule 12).
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { API, apiCtx, EMAIL, PASSWORD } from './support/fixtures';
+import { API, apiCtx, investorSession } from './support/fixtures';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
-
-async function tokenFor(request: APIRequestContext, email: string) {
-  const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-  expect(r.ok(), `login ${email}: ${await r.text()}`).toBeTruthy();
-  return { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
-}
-
-/** A cycle the seeded investor is on, and one they are not. */
+/** A cycle a fresh investor is on, and one they are not. */
 async function twoCycles(request: APIRequestContext) {
   const { headers, mk } = await apiCtx(request);
-  const investorHeaders = await tokenFor(request, INVESTOR_EMAIL);
-  const me = await (await request.get(`${API}/auth/profile`, { headers: investorHeaders })).json();
-  const investorId: string = (me.data?.data ?? me.data ?? me).id;
-  expect(investorId, 'the seeded investor has an id').toBeTruthy();
+  const investor = await investorSession(request, 'scope');
+  const investorHeaders = investor.headers;
+  const investorId = investor.user.id;
 
   const theirs = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
   await mk(`cycles/${theirs.id}/participants`, {
@@ -66,8 +59,8 @@ test.describe('R1 — an investor sees only their own cycles', () => {
   });
 
   test('TC-INV-05: customers, payment plans, returns and business-wide analytics refuse the investor with a code; a core partner still reads them', async ({ request }) => {
-    const investorHeaders = await tokenFor(request, INVESTOR_EMAIL);
-    const partnerHeaders = await tokenFor(request, EMAIL);
+    const { headers: investorHeaders } = await investorSession(request, 'scope');
+    const { headers: partnerHeaders } = await apiCtx(request);
     for (const path of [
       '/customers', '/payment-plans', '/payment-plans/overdue', '/returns',
       '/analytics/dashboard', '/analytics/revenue-by-month', '/analytics/top-products',

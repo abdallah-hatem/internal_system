@@ -68,6 +68,8 @@ export interface ProfitAndLoss {
 
 export const PERIODS = ['month', 'lastMonth', 'year', 'all', 'custom'] as const;
 export type PeriodKey = (typeof PERIODS)[number];
+/** What the section opens on when the address names no period. */
+export const DEFAULT_PERIOD: PeriodKey = 'month';
 
 /** How many expense categories show before the rest fold away. */
 export const TOP_CATEGORIES = 4;
@@ -109,10 +111,13 @@ export function periodParams(key: PeriodKey, today: string, custom: DayRange): {
   }
 }
 
-/** The period the address names; anything unknown is the default, all time. */
+/**
+ * The period the address names; anything unknown is the default, this month
+ * (owner 2026-10-19 — it was all time). Days with no period are a custom range.
+ */
 export function periodOf(value: string | null, hasDays: boolean): PeriodKey {
   if (value && (PERIODS as readonly string[]).includes(value)) return value as PeriodKey;
-  return hasDays ? 'custom' : 'all';
+  return hasDays ? 'custom' : DEFAULT_PERIOD;
 }
 
 /**
@@ -186,7 +191,7 @@ export function ProfitAndLossSection() {
     const q = new URLSearchParams(searchParams.toString());
     q.delete('from');
     q.delete('to');
-    if (next === 'all') q.delete('period');
+    if (next === DEFAULT_PERIOD) q.delete('period');
     else q.set('period', next);
     if (next === 'custom') {
       // A fresh custom range starts on this month so far, ready to change.

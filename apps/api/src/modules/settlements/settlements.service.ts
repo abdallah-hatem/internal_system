@@ -606,6 +606,22 @@ export class SettlementsService {
 
     // --- Persist -----------------------------------------------------------
     const settlement = await this.prisma.$transaction(async (tx) => {
+      // Under the cycle's lock, which Approve takes too: a Calculate and an
+      // Approve racing on one cycle run one after the other, never with the
+      // draft deleted underneath the approval (that answered 500, P2025).
+      await lockCycle(tx, cycleId);
+      // Approved while this was being worked out: not superseded after all.
+      const settledMeanwhile = await tx.settlement.findFirst({
+        where: { cycleId, status: { in: ['APPROVED', 'PAID'] } },
+        select: { status: true },
+      });
+      if (settledMeanwhile) {
+        throw badRequest(
+          'SETTLEMENT_LOCKED',
+          `Cycle already has a ${settledMeanwhile.status} settlement. Reverse it before recalculating.`,
+          { status: settledMeanwhile.status },
+        );
+      }
       // Supersede any existing draft rather than stacking duplicates.
       const drafts = await tx.settlement.findMany({
         where: { cycleId, status: 'DRAFT' },
@@ -747,6 +763,20 @@ export class SettlementsService {
       // the same gate the plain transition to SETTLEMENT runs, under the
       // cycle's lock so a loss taken back cannot slip in between.
       await lockCycle(tx, settlement.cycleId);
+      // Read again under the lock: a Calculate that finished while this
+      // waited has replaced the draft (gone: not found, with its code — the
+      // new draft is the one to approve) or another Approve got there first.
+      const current = await tx.settlement.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+      if (!current) throw notFound('settlement');
+      if (current.status !== 'DRAFT') {
+        throw badRequest(
+          'ONLY_DRAFT_APPROVABLE',
+          'Only DRAFT settlements can be approved',
+        );
+      }
       // Funding changed after this draft was calculated (owner 2026-10-18):
       // its split is no longer the cycle's. Calculating again supersedes it.
       if (

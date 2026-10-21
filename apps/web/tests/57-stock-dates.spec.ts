@@ -264,10 +264,8 @@ test.describe('When stock arrived', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/products/${product.id}`);
-    await page
-      .locator('main .animate-spin')
-      .waitFor({ state: 'detached', timeout: 15_000 })
-      .catch(() => {});
+    // Skeletons, not a spinner, since 2026-10-15: wait for the batches themselves.
+    await expect(page.locator('main')).toContainText('Arrived', { timeout: 15_000 });
 
     const body = await page.locator('main').innerText();
     expect(body).toContain('Arrived');

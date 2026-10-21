@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Money } from '@/components/ui/money';
@@ -70,7 +71,23 @@ export default function SettlementsPage() {
   const tc = useTranslations('common');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
-  const [selectedCycle, setSelectedCycle] = useState('');
+  // The cycle to calculate lives in the address (`?view=settlements&cycle=<id>`), so the
+  // Settlement button on a cycle's page lands here with that cycle already chosen
+  // (owner 2026-10-19). A cycle picked here stays picked when the address names none.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlCycle = searchParams.get('cycle') ?? '';
+  const [pickedCycle, setPickedCycle] = useState('');
+  const selectedCycle = urlCycle || pickedCycle;
+  const setSelectedCycle = (next: string) => {
+    setPickedCycle(next);
+    const q = new URLSearchParams(searchParams.toString());
+    if (next) q.set('cycle', next);
+    else q.delete('cycle');
+    const query = q.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
   const [warnings, setWarnings] = useState<SettlementWarning[]>([]);
   // An investor reads their cycles' settlements and their own line; every
   // write here is a partner's (R1b). Each flag mirrors its endpoint's @Roles.
@@ -198,6 +215,9 @@ export default function SettlementsPage() {
 
   const list: Settlement[] = Array.isArray(settlements) ? settlements : [];
   const cycleList: any[] = Array.isArray(cycles) ? cycles : [];
+  // An address naming a cycle that is not in the list (deleted, mistyped) picks nothing,
+  // rather than a blank picker whose Calculate would answer "not found".
+  const chosenCycle = cycleList.some((c) => c.id === selectedCycle) ? selectedCycle : '';
 
   return (
     <div className="space-y-6">
@@ -214,7 +234,7 @@ export default function SettlementsPage() {
           <Select
             id="cycle-select"
             className="min-w-0 flex-1 sm:w-64 sm:flex-none"
-            value={selectedCycle}
+            value={chosenCycle}
             onChange={setSelectedCycle}
             placeholder={t('selectCycle')}
             searchPlaceholder={tph('searchCycles')}
@@ -226,8 +246,8 @@ export default function SettlementsPage() {
           />
           <button
             type="button"
-            onClick={() => calcMutation.mutate(selectedCycle)}
-            disabled={!selectedCycle || calcMutation.isPending}
+            onClick={() => calcMutation.mutate(chosenCycle)}
+            disabled={!chosenCycle || calcMutation.isPending}
             className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {calcMutation.isPending ? (

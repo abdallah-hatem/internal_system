@@ -11,6 +11,7 @@
  */
 import { expect, APIRequestContext, APIResponse } from '@playwright/test';
 import { API } from './env';
+import { sign } from './api-jwt';
 
 /** Local by default; `API_BASE` aims the same fixtures at the deployed API (support/env.ts). */
 export { API };
@@ -74,7 +75,9 @@ const WALKED = [
  * owner does, and `docs/BUSINESS_LOGIC.md` says so.
  */
 export async function aCorePartnerUser(request: APIRequestContext, headers: any) {
-  const res = await request.get(`${API}/users`, { headers });
+  // By role: the list is newest first, 20 a page, and the suite creates many
+  // investors (investorSession), so the seed's partners fall off the first page.
+  const res = await request.get(`${API}/users?role=CORE_PARTNER&limit=100`, { headers });
   const body = await res.json();
   const users: any[] = body.data?.items ?? body.data ?? body;
 
@@ -84,7 +87,7 @@ export async function aCorePartnerUser(request: APIRequestContext, headers: any)
 }
 
 export async function anInvestorUser(request: APIRequestContext, headers: any) {
-  const res = await request.get(`${API}/users`, { headers });
+  const res = await request.get(`${API}/users?limit=100`, { headers });
   const body = await res.json();
   const users: any[] = body.data?.items ?? body.data ?? body;
 
@@ -141,26 +144,48 @@ export async function apiCtx(request: APIRequestContext) {
 }
 
 /**
- * The callers who must not move money, each with the code its refusal carries.
+ * An investor account, and the office token it would carry.
  *
- * An investor signs in at the office door and is refused by the role guard. A
- * shop owner cannot be registered as one (registration offers office roles
- * only, since the portal fence of 2026-08-30) and cannot sign in at the office
- * door at all (USE_PORTAL_LOGIN), so the token a shop owner really holds is a
- * portal one — and the office API refuses that before any role is read, with
- * WRONG_SURFACE. Both are refusals with a code; they are different codes.
+ * Since 2026-10-19 (owner: only the three partners use the office app) an
+ * investor cannot sign in at the office door — login answers
+ * OFFICE_NOT_FOR_INVESTORS, and this checks it does. The role guards behind
+ * every route stay (CLAUDE.md §12), so the token here is signed by hand the way
+ * the API signs one: what an investor would hold had they signed in before the
+ * door closed. A refusal test with it proves the guard, not the door.
  */
-export async function refusedCallers(request: APIRequestContext, label: string) {
+export async function investorSession(request: APIRequestContext, label: string) {
   const { headers } = await apiCtx(request);
   const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
-  const email = `${label}-investor-${stamp}@motoparts.com`;
+  const email = `${label.toLowerCase()}-investor-${stamp}@motoparts.com`;
   const made = await request.post(`${API}/auth/register`, {
     headers,
     data: { email, password: PASSWORD, displayName: `${label} ${stamp}`, role: 'TEMP_INVESTOR' },
   });
   expect(made.ok(), `create investor: ${await made.text()}`).toBeTruthy();
-  const investor = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-  expect(investor.ok(), `investor login: ${await investor.text()}`).toBeTruthy();
+  const user = ((await made.json()) as { data: { id: string; email: string } }).data;
+
+  const door = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
+  expect(door.status(), 'an investor must not get an office sign-in').toBe(401);
+  expect(((await door.json()) as { error: { code: string } }).error.code).toBe('OFFICE_NOT_FOR_INVESTORS');
+
+  const now = Math.floor(Date.now() / 1000);
+  const token = sign({ sub: user.id, email, role: 'TEMP_INVESTOR', aud: 'internal', iat: now, exp: now + 3600 });
+  return { user, email, password: PASSWORD, headers: { Authorization: `Bearer ${token}` } };
+}
+
+/**
+ * The callers who must not move money, each with the code its refusal carries.
+ *
+ * An investor's token is refused by the role guard (it can no longer be got by
+ * signing in — investorSession above). A shop owner cannot be registered as
+ * one (registration offers office roles only, since the portal fence of
+ * 2026-08-30) and cannot sign in at the office door at all (USE_PORTAL_LOGIN),
+ * so the token a shop owner really holds is a portal one — and the office API
+ * refuses that before any role is read, with WRONG_SURFACE. Both are refusals
+ * with a code; they are different codes.
+ */
+export async function refusedCallers(request: APIRequestContext, label: string) {
+  const investor = await investorSession(request, label);
 
   const shop = await request.post(`${API}/auth/portal/login`, {
     data: { email: SHOP_OWNER_EMAIL, password: PASSWORD },
@@ -172,7 +197,7 @@ export async function refusedCallers(request: APIRequestContext, label: string) 
     return { Authorization: `Bearer ${body.data.accessToken}` };
   };
   return [
-    { who: 'TEMP_INVESTOR', headers: await bearer(investor), code: 'ROLE_NOT_ALLOWED' },
+    { who: 'TEMP_INVESTOR', headers: investor.headers, code: 'ROLE_NOT_ALLOWED' },
     { who: 'shop owner (portal token)', headers: await bearer(shop), code: 'WRONG_SURFACE' },
   ];
 }
@@ -276,4 +301,48 @@ export async function owedOrder(mk: Mk, customerId: string, productId: string, a
 export async function outstandingOf(request: APIRequestContext, headers: any, id: string) {
   const res = await request.get(`${API}/sales/orders/${id}`, { headers });
   return Number(((await res.json()).data ?? {}).outstanding);
+}
+
+/**
+ * Every row of a list, page by page. The API serves at most 200 a page
+ * (MAX_PAGE_SIZE), newest first, so `?limit=1000` quietly returned the newest
+ * 200: a test netting "the whole ledger", or looking for a seeded cycle by its
+ * code, read a window that moved as the suite wrote rows, and failed by
+ * whatever fell out of it.
+ */
+/** A list row as the API sends it, read field by field. */
+export type ApiRow = Record<string, string | number | boolean | null | undefined>;
+
+export async function allPages(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  path: string,
+): Promise<ApiRow[]> {
+  const rows: ApiRow[] = [];
+  const sep = path.includes('?') ? '&' : '?';
+  let cursor: string | null = null;
+  do {
+    const query: string = cursor ? `&cursor=${cursor}` : '';
+    const res = await request.get(`${API}/${path}${sep}limit=200${query}`, { headers });
+    expect(res.ok(), `${path} page: ${res.status()}`).toBeTruthy();
+    const body = await res.json();
+    rows.push(...(body.data?.items ?? body.data ?? []));
+    cursor = body.meta?.nextCursor ?? null;
+  } while (cursor);
+  return rows;
+}
+
+/** Every ledger row (allPages). */
+export const allLedgerRows = (request: APIRequestContext, headers: Record<string, string>) =>
+  allPages(request, headers, 'ledger');
+
+/** A cycle by its code, from every page of the list (allPages). */
+export async function cycleByCode(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  code: string,
+): Promise<{ id: string; code: string; status: string }> {
+  const cycle = (await allPages(request, headers, 'cycles')).find((c) => c.code === code);
+  expect(cycle, `cycle ${code} is listed`).toBeTruthy();
+  return cycle as { id: string; code: string; status: string };
 }

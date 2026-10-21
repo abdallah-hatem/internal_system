@@ -100,9 +100,14 @@ test.describe('Analytics figures', () => {
 
     for (const c of cycles) {
       // Profit is revenue less the cost of what sold, plus anything a supplier
-      // gave back — a refund recovers cost without re-pricing any batch.
-      expect(Number(c.profit)).toBeCloseTo(
-        Number(c.totalRevenue) - Number(c.totalCost) + Number(c.supplierRefundsEgp ?? 0),
+      // gave back — a refund recovers cost without re-pricing any batch — less
+      // goods lost and samples written off (§2, §4), expenses charged to the
+      // cycle, plus other income credited to it (L6), less the exchange
+      // difference on repaying a friend (§18). Each figure is in the response.
+      const n = (v: unknown) => Number(v ?? 0);
+      expect(Number(c.profit), c.cycleCode).toBeCloseTo(
+        n(c.totalRevenue) - n(c.totalCost) + n(c.supplierRefundsEgp) - n(c.lossesEgp)
+          - n(c.expensesEgp) + n(c.otherIncomeEgp) - n(c.exchangeDifferenceEgp),
         2,
       );
     }
@@ -126,7 +131,8 @@ test.describe('Analytics figures', () => {
 test.describe('Analytics page', () => {
   test('TC-ANA-05: the profit and loss chart shows every bucket without scrolling sideways', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/en/analytics`);
+    // All time: the chart's layout is the point, and this month may hold nothing yet.
+    await page.goto(`${BASE}/en/analytics?period=all`);
 
     // The old Revenue by month strip scrolled, and its one bar with data sat
     // past the right edge. The chart that replaced it (2026-10-18) fits its
@@ -138,7 +144,7 @@ test.describe('Analytics page', () => {
 
   test('TC-ANA-06: columns have height, not just labels', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/en/analytics`);
+    await page.goto(`${BASE}/en/analytics?period=all`);
     await expect(page.getByTestId('pnl-chart').locator('[data-bar]').first()).toBeAttached({ timeout: 10000 });
 
     // A percentage height inside an auto-height column collapses to nothing,
@@ -148,6 +154,24 @@ test.describe('Analytics page', () => {
       .locator('[data-bar]')
       .evaluateAll((els) => Math.max(0, ...els.map((e) => (e as HTMLElement).getBoundingClientRect().height)));
     expect(tallest).toBeGreaterThan(20);
+  });
+
+  test('TC-ANA-09: Profit and loss opens on This month; an address naming a period still wins', async ({ page }) => {
+    // Owner 2026-10-19: it opened on All time.
+    await login(page);
+    await page.getByRole('link', { name: /^analytics$/i }).first().click();
+    await expect(page).toHaveURL(/\/en\/analytics/, { timeout: 15000 });
+    const periods = page.getByTestId('pnl-period');
+    await expect(periods.getByRole('button', { name: 'This month' })).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 });
+    await expect(periods.getByRole('button', { name: 'All time' })).toHaveAttribute('aria-pressed', 'false');
+
+    await periods.getByRole('button', { name: 'All time' }).click();
+    await expect(page).toHaveURL(/period=all/);
+    await page.reload();
+    await expect(page.getByTestId('pnl-period').getByRole('button', { name: 'All time' })).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 });
+
+    await page.goto(`${BASE}/en/analytics?period=year`);
+    await expect(page.getByTestId('pnl-period').getByRole('button', { name: 'This year' })).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 });
   });
 
   test('TC-ANA-07: products show money, not only unit counts', async ({ page }) => {

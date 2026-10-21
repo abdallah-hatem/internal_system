@@ -20,7 +20,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 
-import { API, apiCtx } from './support/fixtures';
+import { API, apiCtx, investorSession } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
 /** OAuth lives at the host's root, outside `api/v1`, where clients look. */
@@ -260,8 +260,8 @@ test.describe('Claude connections — the API', () => {
   });
 
   test('an investor is refused with ROLE_NOT_ALLOWED, on every route', async ({ request }) => {
-    const investor = await newAccount(request, 'TEMP_INVESTOR');
-    const headers = await officeHeaders(request, investor);
+    // An investor cannot sign in at the office (2026-10-19); the guard is proved with investorSession's token.
+    const { headers } = await investorSession(request, 'conn');
     for (const res of [
       await request.get(CONNECTIONS, { headers }),
       await request.delete(CONNECTIONS, { headers }),
@@ -384,12 +384,5 @@ test.describe('Claude connections — the Settings screen', () => {
     await expect(section.getByText(/Disconnect|not connected/)).toHaveCount(0);
   });
 
-  test('(ui) an investor sees no Claude connections section', async ({ page, request }) => {
-    const investor = await newAccount(request, 'TEMP_INVESTOR');
-    await login(page, investor);
-    await page.getByRole('link', { name: 'Settings', exact: true }).first().click();
-    await expect(page).toHaveURL(/\/settings/, { timeout: 10000 });
-    await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
-    await expect(page.getByTestId('claude-connections')).toHaveCount(0);
-  });
+  // '(ui) an investor sees no Claude connections section' removed (owner 2026-10-19): only the partners use the office; investors are refused at the door.
 });

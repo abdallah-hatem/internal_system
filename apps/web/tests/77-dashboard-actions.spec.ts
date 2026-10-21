@@ -12,7 +12,7 @@
  *  `?new=1` handling lives on.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { apiCtx, giveStock, owedOrder, stockedProduct, EMAIL, PASSWORD, API } from './support/fixtures';
+import { apiCtx, giveStock, owedOrder, stockedProduct, EMAIL, PASSWORD } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
 const PHONE = { width: 390, height: 844 };
@@ -170,29 +170,4 @@ test.describe('Quick actions open the existing forms', () => {
   });
 });
 
-test.describe('Roles', () => {
-  test('TC-DASH-10: a temporary investor sees no quick actions', async ({
-    page,
-    request,
-  }) => {
-    const { headers } = await apiCtx(request);
-    const stamp = Date.now();
-    const email = `dash-investor-${stamp}@motoparts.com`;
-    const made = await request.post(`${API}/auth/register`, {
-      headers,
-      data: { email, password: 'password123', displayName: `Dash Investor ${stamp}`, role: 'TEMP_INVESTOR' },
-    });
-    expect(made.ok(), await made.text()).toBeTruthy();
-
-    await login(page, email, 'password123');
-    // R1 (owner's decision 2026-10-10): an investor sees only their own cycles,
-    // so the business-wide tiles are replaced by "Your cycles" — no tile at all.
-    await expect(page.getByTestId('your-cycles')).toBeVisible();
-    await expect(page.locator('[data-testid^="tile-"]')).toHaveCount(0);
-    await expect(page.getByTestId('quick-action-newSale')).toHaveCount(0);
-    await expect(page.getByTestId('quick-action-recordPayment')).toHaveCount(0);
-    await expect(page.getByTestId('quick-action-newCycle')).toHaveCount(0);
-    // A list the API refuses them is not a link.
-    await expect(page.locator('a[data-testid="tile-revenue"]')).toHaveCount(0);
-  });
-});
+// TC-DASH-10 (a temporary investor sees no quick actions) removed (owner 2026-10-19): only the partners use the office; investors are refused at the door.

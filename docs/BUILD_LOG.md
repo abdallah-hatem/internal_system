@@ -2,17 +2,37 @@
 
 Run mode: fully autonomous — chosen by the user on 2026-10-10 (this run). The MCP run before it was
 fully autonomous too, chosen 2026-09-19.
-Goal (current, 2026-10-19): the 2026-10-18/19 batch is live. Next: the assistant gets the samples flow (Next up),
-then the full e2e run before the next big ship. The goal before it — walk-in sales + the assistant records sales (plan
-`docs/superpowers/plans/2026-10-11-walk-in-and-assistant-sales.md`) — shipped 2026-10-11.
+Goal (current, 2026-10-20): every 2026-10-19 "Next up" item built, and the full e2e suite run and brought up to
+date — on the working tree, NOT committed: the owner tests locally first and says when to commit (2026-10-20). The goal
+before it — the 2026-10-18/19 batch — is live.
 
 ## Current stage
-2026-10-19 (evening) — production runs `origin/master` (`73e8c29`): the second 2026-10-19 batch shipped at the owner's
-word ("ship to production now"), no migration (status "up to date" before the push). Nothing is merged locally and
-waiting. Standing: no e2e unless the owner asks (the full run before the next big ship is his ask); keep flows small;
-docs move with the code. e2e specs edited to today's rules but not run: 34 (TC-INV-45/46/47), 98-lender-financing,
-99-assistant-lenders, and the 63 test files moved to the renamed seed logins. State of the product and of production's
-data: `docs/where-things-stand.md`.
+2026-10-20/21 — the "Next up" batch is built on the working tree, uncommitted, waiting for the owner's local test
+("dont push or commit anything until i test locally and say so"). Production is unchanged: `origin/master` (`73e8c29`).
+In the batch (each in BUSINESS_LOGIC, dated):
+- The Settlement button on a cycle's page opens Partners → Settlements with that cycle chosen (`?cycle=<id>`; §8).
+- Profit and loss opens on This month; All time is `?period=all` (§12).
+- No investor signs in to the office: login `OFFICE_NOT_FOR_INVESTORS`, refresh ends their sign-in, the investor
+  dashboard ("your cycles") removed (§12; `mayHoldOfficeSession`). Specs that refused an investor at the API now use a
+  hand-signed investor token (`investorSession` in tests/support/fixtures.ts); investor UI specs removed.
+- The product page lost its Suppliers and Compatibility cards (§3).
+- The assistant's samples tools: `leave_samples`, `list_samples`, `complete_samples_sale`, `return_samples`,
+  `write_off_samples` (§4, §16; roles in `modules/sales/sales-roles.ts`).
+- Summary cards at the top of Cycles, Products and Sales (`components/ui/summary-strip.tsx`, `GET /analytics/top-orders`; §12).
+- Fixed: Calculate and Approve racing on a settlement answered 500 — both take the cycle's lock now (§8, TC-SET-17);
+  the Partners tab mounted its running-costs section twice on a fresh load; the office login lost what was typed before
+  the page hydrated and sent the form blank (uncontrolled fields, Login disabled until hydrated).
+- Tests brought up to date: the two API real-database suites that pinned the clock; the assistant's read-tools fixture
+  (a batch with no landed cost); ~40 stale e2e specs (Categories as a tab, purchases at `/cycles?view=purchases`, the
+  wizard's Finish, the shared dialog's footer, Arabic-first invoices, default prices, renamed seed logins, phone cards,
+  ledger reads capped at 200 rows a page — `allLedgerRows`, the users list newest-first — partners by role).
+- 2026-10-21 (owner, testing locally): the tab bar on tabbed pages (Partners | Settlements, Cycles | Purchases |
+  Shipments, …) showed a vertical scrollbar — the tabs' underline overflowed it by 1px; it scrolls sideways only now
+  (`components/ui/tab-bar.tsx`).
+- 2026-10-21 (owner, testing locally): the invoice has no signature lines, and wears the contract's header (logo,
+  title, tagline, number and date over a heavy rule) — one `DocumentHeader` for both (§4).
+- Windows: the e2e seed step runs `npx` through a shell on win32; `apps/api/.env.example` documents the VAPID keys.
+State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
@@ -87,19 +107,22 @@ Older history: "History" at the foot of this file, and `git log`.
   isolated e2e per agent.
 
 ## Known e2e debt
-Targeted pass 2026-10-19 (owner chose the cheaper run): invariants TC-INV-72..83 added and passing (spec 34 87/87);
-the specs stale from the menu tabs, folded legs, 3-step wizard and funding note fixed and passing (27, 17, 40, 47,
-50, 51, 64, 72, 78, 80, 85, 86, 87, 89, 90, 91, 98, 99-*); investor-UI tests deleted (only the partners use the app),
-their API refusal tests kept. Still failing or unrun:
-- Full suite (466 tests) not run since the 2026-10-18 batches; it runs before the next big production ship (Next up).
-- 99-skeletons: Dashboard, Products, Sales, a customer and a cycle — skeleton rows no longer match the real rows' count
-  or height (Products: the default-price hint makes rows taller). Product issue, not a stale test.
-- 99-table-columns TC-COL-04.03 (statement) and 04.10 (contracts): the screen-reader-only "Actions" header is wider
-  than its cell; TC-COL-05: invoice and statement wider than A4. Pre-existing, not from 2026-10-18/19.
-- API real-database suites: 64/66 pass; walk-in.db "Payment dated now, in Cairo" and references.db "22:30 UTC on the
-  10th" fail because their fixtures pin the clock before the back-dated-sales rule (2026-10-16). Fixtures to update.
-- 61-production-browser edited, not run (production only). TC-NOT-05 / TC-UI-02 as before.
-- Partners view draws its running-costs section twice on a fresh load (closes an open period picker); tests wait.
+Full run 2026-10-20 (Windows laptop, agent database, 1,219 tests incl. storefront, 4.1 h): 1,006 passed, 135 failed,
+59 did not run. Every failure was then re-run, and the ones still failing were run against an untouched `master`
+worktree to tell old breakage from new. After the fixes (Current stage), what still fails — each also fails on
+`master`, i.e. not from this batch:
+- 99-skeletons: Dashboard (skeleton rows 18 vs 23 at 1440, 16 at 390), a customer (14 rows vs 10), a cycle and
+  Categories (row heights 1px off). Product issue, as before.
+- 54-storefront TC-STORE-07 (the basket sheet's quantity field) and TC-STORE-16 (the basket sheet does not open).
+- 99-table-columns TC-COL-04.03/04.10 and TC-COL-05 (as before; not re-measured).
+Fragile, not failing alone: 99-skeletons-storefront TC-SKEL-STORE-01 passes alone and on `master`, failed late in the full
+run (card heights depend on the names earlier specs give products).
+Found while running it, not fixed (its own piece of work): `GET /users/participation` runs the settlement projection
+for every open cycle one after another, so the Partners page takes 15 s+ once a few hundred cycles are open (late in a
+full run; production has one). 99-running-costs waits 30 s for it.
+Windows notes: `npm run` scripts that are shell scripts need Git Bash (`bash scripts/reset-db.sh`); `db:seed:history`'s
+quoting fails in cmd — run its `ts-node` line from Git Bash; `nest start --watch` can stop the API after a spurious
+file event — run `node dist/src/main` for long e2e runs.
 
 ## Waiting on the owner
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
@@ -113,26 +136,9 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 _(none)_
 
 ## Next up
-- Later (owner, 2026-10-19): the Settlement button on a cycle's page opens the Settlements tab with that cycle
-  already picked. Today it opens the tab with nothing chosen (`router.push(viewPath('settlements'))` in the cycle
-  details page); pass the cycle in the URL (`?cycle=<id>`, filter state in the URL) and have the Settlements tab
-  read it, keeping a cycle chosen there when the URL names none.
-- Later (owner, 2026-10-19): Profit and loss on Analytics opens on **This month** by default instead of All time
-  (a URL `?period=` still wins); update §12 and the section's tests.
-- Later (owner, 2026-10-19): no investor account can sign in to the office app — refuse TEMP_INVESTOR at the office
-  login (and on refresh), like shop accounts (`auth.service.ts`); only the three partners use it. Tidy the
-  investor-only UI and specs that would then be unreachable.
-- Before the next big production ship (owner, 2026-10-19): run the FULL e2e suite (466 tests, in ~3-minute groups on
-  an agent database). A targeted pass (invariants for today's rules + the known-stale specs + the real-database API
-  suites) was run first, at the owner's choice, to save tokens.
-- Later (owner, 2026-10-18): remove the Suppliers and Compatibility cards from the product details page.
-- After the owner approves samples + default price locally (2026-10-18): give the assistant the samples flow — leave
-  samples, list what is out, "they're buying" (complete the sale), returned, write off — through the same service
-  methods and roles as the office, with the usual preview/confirm; find_products already returns the default price.
-- Future (owner, 2026-10-18): a few simple summary cards or small charts at the top of each tab, about that tab —
-  e.g. top-earning cycles on Cycles, top-selling products on Products, the order with the most revenue and the
-  largest order on Sales. Build it once there is enough data for a "top" to mean something (today: one cycle, five
-  orders, five products); one shared summary-strip component, figures from the existing analytics definitions.
+Built 2026-10-20/21 and waiting for the owner's local test (see Current stage): the Settlement button's cycle, the
+P&L's This month, no investor sign-in, the product page's cards, the assistant's samples tools, the tab summary
+cards, the Calculate/Approve race, and the full e2e run. Left below, each with why:
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last
@@ -143,15 +149,16 @@ _(none)_
   the cap, the partner who leaves); §1 L8 guesses; §3 product-deactivate guesses (storefront visibility,
   import-request answer refused); §4, §7b, §16 I2 guesses. Today's batch adds the guesses marked in §3 (default
   price), §4 (samples), §8 (wizard/funding lock) and the P&L passage (buckets, the Saturday–Friday week).
-- Seen, not fixed (L1, 2026-10-11): approving a settlement while a recalculation replaces its draft answers 500
-  (P2025) instead of NOT_FOUND — a race between Calculate and Approve.
-- Observation: the dashboard's cash on hand counts a friend's payment as money in at once while the purchase is only
+  2026-10-20 adds: §12 the investor door (admin support still signs in; an issued access token lives out its hour),
+  §4/§16 the samples tools' guesses, §12 the summary cards' guesses.
+- Not done 2026-10-20 — a business rule (CLAUDE.md §5), for the owner to decide. Observation: the dashboard's cash on hand counts a friend's payment as money in at once while the purchase is only
   booked out at receipt — the same timing every partner-funded cycle already has (contribution in, purchase out at
   receipt). Not a new bug; consider booking purchases out when the order is confirmed.
-- Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
-- Rotate the seeded `password123` on partner accounts — production no longer has them (the owner replaced the logins
+- Not done 2026-10-20 — needs a real cycle in transit in production. Live assistant: delivery-note test once a real cycle is in transit (see notes/assistant-live-test-2026-10-11.md).
+- Not done 2026-10-20 — the owner set the local logins to `password123` on 2026-10-19 (CLAUDE.md §8), so rotating
+  them is his call. Rotate the seeded `password123` on partner accounts — production no longer has them (the owner replaced the logins
   with his own passwords via `scripts/prod-reset-partners.sh`, 2026-10-14); local and demo seeds still do.
-- Queued from the 2026-10-10/11 run: system-written ledger reasons are stored in English (needs a code/params
+- Not done 2026-10-20 — each is its own piece of work (a migration; a theme); asked to be scheduled. Queued from the 2026-10-10/11 run: system-written ledger reasons are stored in English (needs a code/params
   migration); the app has no dark theme; audit nits #39–#46; §3 vs §12 reservations contradiction (Still open);
   R1's reference-data guesses for investors (moot while no investor uses the office app, owner 2026-10-18).
 

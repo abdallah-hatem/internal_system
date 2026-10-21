@@ -102,7 +102,7 @@ test.describe('Signing in to /mcp', () => {
     request,
   }) => {
     const { headers } = await apiCtx(request);
-    const list = await (await request.get(`${API}/users`, { headers })).json();
+    const list = await (await request.get(`${API}/users?role=TEMP_INVESTOR&limit=100`, { headers })).json();
     const users: Array<{ id: string; role: string; status: string }> = list.data?.items ?? list.data ?? list;
     const investor = users.find((u) => u.role === 'TEMP_INVESTOR' && u.status === 'ACTIVE');
     expect(investor, 'the reference seed has a temporary investor').toBeTruthy();

@@ -14,7 +14,7 @@
  *  and every API response on the way is watched for a 403.
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { API, apiCtx, EMAIL, PASSWORD } from './support/fixtures';
+import { API, apiCtx, EMAIL, investorSession, PASSWORD } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 import { PAGE_VIEWS } from '../src/lib/page-views';
 import en from '../src/i18n/locales/en.json';
@@ -73,9 +73,8 @@ const sidebarHrefs = async (page: Page) => [
 
 test.describe('The menu', () => {
   test('TC-MENU-03: the books an investor would have read refuse him with a code', async ({ request }) => {
-    const email = await accountWithRole(request, 'TEMP_INVESTOR');
-    const signedIn = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-    const headers = { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
+    // An investor cannot sign in at the office (2026-10-19); investorSession's token proves the guard.
+    const { headers } = await investorSession(request, 'menu');
     for (const path of [
       '/analytics/revenue-by-month', '/order-requests/pending', '/sales/orders', '/customers',
       '/payments', '/lenders', '/ledger', '/users/participation', '/audit-logs',
@@ -89,13 +88,13 @@ test.describe('The menu', () => {
   });
 
   test('TC-MENU-04: the audit log refuses an investor with a code, and lets a partner and support in', async ({ request }) => {
-    const investor = await accountWithRole(request, 'TEMP_INVESTOR');
+    const investor = await investorSession(request, 'menu');
     const support = await accountWithRole(request, 'ADMIN_SUPPORT');
     const tokenFor = async (email: string) => {
       const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
       return { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
     };
-    const refused = await request.get(`${API}/audit-logs`, { headers: await tokenFor(investor) });
+    const refused = await request.get(`${API}/audit-logs`, { headers: investor.headers });
     expect(refused.status()).toBe(403);
     expect((await refused.json()).error.code).toBe('ROLE_NOT_ALLOWED');
 

@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -439,6 +439,10 @@ stock physically held. Cancelling or returning restores it.
 holding stock against a quote, which is a real future feature, but nothing
 drives it today and reserved quantity is honestly zero.
 
+**DECIDED 2026-10-18 (owner), built 2026-10-20 — the product page has no Suppliers or Compatibility card.** Both
+cards are gone from a product's page; the data stays where it is (a product's suppliers and motorcycle models are still
+stored and still read by the API) — only the cards were removed. TC-PROD-CARDS-01.
+
 **DECIDED 2026-10-19 (owner) — no "Reserved" on screen; a product shows its stock value instead.**
 The product page's Reserved tile and the Inventory table's Reserved column read the batch field
 above, which nothing writes, so they always said 0; both are removed. Storefront order-request holds
@@ -749,8 +753,11 @@ with a *Print* button (the browser's print onto A4; no menu, buttons or chrome o
 the paper). It shows the business name, "Sales invoice / Delivery note", the order
 number and date, the shop (name, phone), every line (product and SKU, quantity,
 unit price, discount, line total), subtotal, discounts, order total, what has been
-paid on this order and what it still owes, and "Received by / Delivered by" lines
-to sign. A draft and a cancelled order have no invoice (`INVOICE_DRAFT`,
+paid on this order and what it still owes. **2026-10-21 (owner):** no "Received by /
+Delivered by" lines to sign any more, and its header is the contract's — the logo, the
+title, "S&F — Motorcycle parts and accessories", the number and date, over a heavy rule
+(one `DocumentHeader`, `components/ui/document-header.tsx`; the tagline once in
+`document-tagline.ts`). A draft and a cancelled order have no invoice (`INVOICE_DRAFT`,
 `INVOICE_CANCELLED`) and offer no button. Guesses, open until confirmed (2026-10-11):
 - **The shop's balance on the invoice is its balance at the moment of this sale**:
   "balance before this sale", "this invoice", "balance after this sale" — the
@@ -1001,9 +1008,28 @@ orders in all, and per order the shop, the units, how long ago they were left, l
 Samples total — the prices card below it still shows and sets both B2B and B2C prices (only the card was removed;
 B2C pricing is unchanged everywhere else).
 
-**The assistant** (§16): `list_sales` labels each order `kind: "SALE"` or `"SAMPLES"`, gives a samples order's units at
-the shop, day left and reminder day, reports its outstanding as 0.00 whatever is stored, and its description says a
-samples order is not a sale and is never owed. No new tool.
+**The assistant** (§16; tools built 2026-10-20, owner's queue of 2026-10-18): `list_sales` labels each order `kind:
+"SALE"` or `"SAMPLES"` as before. Five tools carry the flow, each the office endpoint's own `SalesService` call,
+previewed by that call rolled back and committed with the confirmation token (`tools/samples.ts`):
+- `leave_samples` (= `POST /sales/orders` with `samples: true`): a shop on file only — walk-in `SAMPLES_NEED_SHOP`,
+  none `CUSTOMER_REQUIRED`; a price is only noted.
+- `list_samples`: open samples orders per order, per shop and per product, as the Sales list and a product's Samples
+  card show them.
+- `complete_samples_sale` (= `…/samples/convert`): the lines the shop buys, or none for "exactly what was left"; a
+  line without a price takes the price noted when left, else the list price, marked for the partner to confirm; a
+  `PRICE_NEEDED` question when neither exists.
+- `return_samples` (= `…/samples/return`): always the whole order — quantities the partner names must be exactly what
+  went out: more is `SAMPLES_RETURN_MORE_THAN_OUT`, less is `SAMPLES_RETURN_NOT_ALL` (which points at recording the
+  rest as a sale).
+- `write_off_samples` (= `…/samples/write-off`): the preview shows the cost written off.
+Roles are the office endpoints', defined once in `modules/sales/sales-roles.ts` (`SALES_ROLES`; write-off
+`SALES_PARTNER_ROLES`). Guesses, open until confirmed (2026-10-20):
+- A noted price of 0 is read as "no price noted" (the service stores 0 when none was given).
+- With no noted, list or default price the assistant asks (`PRICE_NEEDED`); the office popup falls back to 0.
+- `complete_samples_sale` keeps the samples order's channel and currency; the assistant offers no channel change.
+- The quantity check on `return_samples` and its two codes are the assistant's own; the service has no partial return.
+- `list_samples` reads at most 20 pages of 100 open samples orders.
+- `leave_samples` uses the B2B channel for a B2B customer and B2C otherwise, as `record_sale` does.
 
 **Who.** Leaving samples, "They're buying" and "Returned": the sales roles (core partners and admin support), as
 selling is. "Write off": core partners only (GUESS — it moves cost onto a cycle, like cancelling a sale).
@@ -1621,6 +1647,17 @@ shops"). Units at shops count as unsold stock in every unsold figure.
 
 ---
 
+**The Settlement button carries its cycle — built 2026-10-20 (owner 2026-10-19).** The Settlement button on a cycle's
+page opens Partners → Settlements with that cycle already chosen in the Calculate picker
+(`/partners?view=settlements&cycle=<id>`). The choice lives in the address, so a refresh keeps it; a cycle picked on
+the tab replaces the address's; an address naming a cycle that is not in the list picks nothing (Calculate stays
+disabled) rather than a blank picker.
+
+**Calculate and Approve no longer race — fixed 2026-10-20** (seen 2026-10-11, L1). Approving a draft while a
+recalculation replaced it answered 500 (Prisma P2025). Both now take the cycle's lock (`lockCycle`), so they run one
+after the other: an Approve that waited finds its draft gone (`notFound('settlement')`) or already approved
+(`ONLY_DRAFT_APPROVABLE`); a Calculate that waited for an Approve is refused `SETTLEMENT_LOCKED`. TC-SET-17.
+
 ## 9. The ledger
 
 **Financial history is never rewritten** (BRD §10). A correction is a balancing
@@ -1973,6 +2010,21 @@ carry no role checks, while the sidebar, More and the phone bar still hide the b
 core partner and admin support (`components/layout/nav-model.ts`). The investor rules in this section and R1 below
 are built and enforced by the server; they describe nobody who uses the app today.
 
+**DECIDED 2026-10-19 (owner), built 2026-10-20 — an investor cannot sign in to the office.** "No investor account
+can sign in to the office app ... only the three partners use it." `POST /auth/login` refuses a temporary investor
+with `OFFICE_NOT_FOR_INVESTORS` (401), after the password is checked, so the page cannot be used to learn what kind of
+account an email is; `/auth/refresh` ends every sign-in an investor holds (`SESSION_INVALID`), so a partner whose role
+is changed to investor is signed out at the next refresh; a password change hands an investor no refresh token. Who may
+hold an office sign-in is one function, `mayHoldOfficeSession` (`modules/auth/session-tokens.service.ts`). The
+investor stays a participant on the cycles they funded (§8), and every server-side role guard stays as it was (CLAUDE.md
+§12). The investor's own dashboard ("your cycles", R1) was removed as unreachable; a role the business figures refuse
+now sees only the Dashboard title. Guesses, open until confirmed:
+- **Admin support still signs in.** The owner named investors; support is a role the code knows and nobody holds.
+- **An inactive investor is told it is the wrong door**, not that the account is inactive (the role is asked first).
+- **An investor's access token issued before this change keeps working until its hour ends**; the role guards still
+  refuse it everything they refused before. The access token is not checked against the door on every request.
+- The assistant's OAuth sign-in already took core partners only (§16); unchanged.
+
 **DECIDED 2026-10-10 by the owner — a temporary investor sees only their own
 cycles.** *Built 2026-10-11 (R1, R1b, R1c).* The cycles they put money into, and for each: their
 contribution, the cycle's costs, deliveries, losses, profit and settlement, and
@@ -2025,10 +2077,28 @@ highest profit first, equal profit by code; the API still sends every cycle in c
 cycle's page read that full list), so the ranking and the cut are the web app's (`components/analytics/analytics-top.ts`).
 The dashboard's own Top products card is unchanged.
 
+**Summary cards at the top of Cycles, Products and Sales — owner 2026-10-18 ("a few simple summary cards … about that
+tab"); built 2026-10-20, the choices below GUESSED.** One shared strip (`components/ui/summary-strip.tsx`, cards in
+`components/summary/tab-summaries.tsx`), at most three cards, nothing drawn when there is nothing to show, skeleton
+cards while loading. Every figure is an Analytics figure, picked with Analytics' own rules
+(`components/analytics/analytics-top.ts`); the browser sums nothing (rule 11).
+- **Cycles:** the three most profitable cycles from `GET /analytics/cycle-profitability`, highest profit first, equal
+  profit by code. A cycle with a loss or zero profit is not "top-earning" and takes no card (GUESS).
+- **Products:** the three best sellers by **units** (GUESS: the dashboard's default) from
+  `GET /analytics/top-products?limit=3&by=units`. A product that sold nothing net of returns takes no card.
+- **Sales:** two cards from `GET /analytics/top-orders` (core partners and support), both **all time** whatever the
+  list's date filter (GUESS). *Most revenue:* the realised sale (Confirmed, Partly paid, Paid) whose total less its
+  refunds is highest. *Largest order:* the sale with the most units, net of returned units (GUESS: units, not lines),
+  its line count shown. Ties fall to the other measure, then the order number (GUESS). A sale with nothing left after
+  returns is never picked; drafts, cancelled and samples orders never are. One sale may fill both cards (GUESS). A card
+  opens its order.
+
 **Profit and loss on Analytics — DECIDED 2026-10-18 (owner, mockup approved), dates GUESSED from how the
 dashboard already counts.** "A proper place to see total net profit, with time, and with expenses and sales as
-summary, not details." At the top of Analytics: a period (This month · Last month · This year · All time, the
-default · Custom days, kept in the address as `?period=` / `?from=&to=`), net profit large with its share of
+summary, not details." At the top of Analytics: a period (This month — the default since 2026-10-20, owner
+2026-10-19; All time was the default until then — · Last month · This year · All time, `?period=all` · Custom days,
+kept in the address as `?period=` / `?from=&to=`; an address naming a period always wins, an unknown one is This
+month), net profit large with its share of
 sales, the summary Sales − Cost of goods sold = Gross profit, − Expenses, then Recovered, Other income and
 Exchange difference only when not zero, = Net profit; expenses by category (one total each, largest first,
 goods lost on the way as its own line); net profit by month (superseded 2026-10-18 by Option A below: one chart in
@@ -2519,6 +2589,12 @@ it). The confirmation binds the lines, what still waits after them, and the stat
 departure or a delivery into the origin in between is `PREVIEW_CHANGED`. `get_cycle` shows, per
 leg and product, what waits at the origin and each departure. Undoing a departure stays in the
 office app.
+
+**Samples at shops (2026-10-20; §4).** Leave samples with a shop, list what is out, record the shop buying (the sale
+completed in place), everything returned, or a write-off — `leave_samples`, `list_samples`, `complete_samples_sale`,
+`return_samples`, `write_off_samples`. The same service calls and roles as the office; every write is a preview then a
+confirmed commit. `return_samples` is not a return of a sale (that stays office-only), and `write_off_samples` is not
+goods lost on the way (that stays office-only). Details and guesses in §4.
 
 **Correcting a leg's cost (2026-10-17, owner: "did we add it to the assistant as well?"; §2).**
 `update_leg_cost` changes only a leg's cost — basis, amount or rate, pieces or weight, currency, rate

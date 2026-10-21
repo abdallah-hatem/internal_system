@@ -16,26 +16,22 @@
  *  Both directions, on the same records: a core partner still sees every
  *  action, so a guard that hid them from everyone fails here too (rule 12).
  *
- *  Logged in as the seeded investor (investor@motoparts.com). Pages are reached
- *  by clicking, as a person does, and every API response on the way is watched
- *  for a 403 or 5xx.
+ *  Signed in as the seeded partner; the investor on the cycles is a fresh one
+ *  (fixtures `investorSession` — an investor cannot sign in at the office since
+ *  2026-10-19). Pages are reached by clicking, as a person does, and every API
+ *  response on the way is watched for a 403 or 5xx.
  *
  *  Not run at the time of writing (R1b was told not to run Playwright).
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { API, apiCtx, EMAIL, PASSWORD, daysAgo, aCorePartnerUser } from './support/fixtures';
+import { API, apiCtx, EMAIL, PASSWORD, daysAgo, aCorePartnerUser, investorSession } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import { WEB as BASE } from './support/env';
 import { openView } from './support/ui';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
-
+/** A fresh investor's id, to put on the cycles (fixtures `investorSession`). */
 async function investorId(request: APIRequestContext) {
-  const r = await request.post(`${API}/auth/login`, { data: { email: INVESTOR_EMAIL, password: PASSWORD } });
-  expect(r.ok(), `investor login: ${await r.text()}`).toBeTruthy();
-  const headers = { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
-  const me = await (await request.get(`${API}/auth/profile`, { headers })).json();
-  return (me.data?.data ?? me.data ?? me).id as string;
+  return (await investorSession(request, 'r1b')).user.id;
 }
 
 /**

@@ -17,24 +17,18 @@
  *  `I3_SHOTS=1` also writes the review screenshots to .ui-audit/i3/.
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { aCorePartnerUser, API, apiCtx, daysAgo, PASSWORD } from './support/fixtures';
-import { BASE, login, messages, type Locale } from './support/ui';
+import { aCorePartnerUser, API, apiCtx, daysAgo, investorSession } from './support/fixtures';
+import { login, messages, type Locale } from './support/ui';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
 const SHOTS = process.env.I3_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/i3';
 
 type Headers = Record<string, string>;
 
-async function tokenFor(request: APIRequestContext, email: string): Promise<Headers> {
-  const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-  expect(r.ok(), `login ${email}: ${await r.text()}`).toBeTruthy();
-  return { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
-}
-
 /**
  * A cycle with two products ordered (40 pads, 10 chains), its legs recorded
- * and none departed unless asked. The investor is on it, so they can open it.
+ * and none departed unless asked. A fresh investor is on it (fixtures
+ * `investorSession`); `investor` is the token they would hold.
  */
 async function cycleWithLegs(
   request: APIRequestContext,
@@ -42,9 +36,8 @@ async function cycleWithLegs(
   opts: { departed?: number[]; status?: string[] } = {},
 ) {
   const { headers, mk } = await apiCtx(request);
-  const investor = await tokenFor(request, INVESTOR_EMAIL);
-  const me = await (await request.get(`${API}/auth/profile`, { headers: investor })).json();
-  const investorId = (me.data?.data ?? me.data ?? me).id as string;
+  const investorSide = await investorSession(request, 'i3');
+  const investorId = investorSide.user.id;
   const partner = await aCorePartnerUser(request, headers);
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const pad = await mk('products', { name: `I3 ${stamp} Brake pad`, minStock: 0 });
@@ -84,7 +77,7 @@ async function cycleWithLegs(
   const items = (full.data ?? full).purchaseOrders[0].items as Array<{ id: string; productId: string }>;
   const padItem = items.find((x) => x.productId === pad.id)!;
   const chainItem = items.find((x) => x.productId === chain.id)!;
-  return { headers, mk, cycle, legs, pad, chain, padItem, chainItem };
+  return { headers, mk, cycle, legs, pad, chain, padItem, chainItem, investor: investorSide.headers };
 }
 
 /** Menu → Cycles → search the code → the row → its details page. */
@@ -193,22 +186,10 @@ test.describe('A leg leaves and arrives from the cycle page', () => {
     expect(leg1.delivered).toBe(15);
   });
 
-  test('TC-I3-02: an investor on the cycle reads the cards and the legs, and is offered neither action; the API refuses them a departure', async ({ page, request }) => {
-    const { cycle, legs } = await cycleWithLegs(request, 'CHINA', { departed: [1] });
-    await page.goto(`${BASE}/en/login`);
-    await page.locator('input[type="email"]').fill(INVESTOR_EMAIL);
-    await page.locator('input[type="password"]').fill(PASSWORD);
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/dashboard/, { timeout: 20000 });
-    await openCycle(page, cycle.code, cycle.id);
-
-    expect((await cards(page)).toUae).toBe('50');
-    await expect(page.getByTestId('shipment-leg')).toHaveCount(2);
-    await expect(page.getByTestId('record-departure')).toHaveCount(0);
-    await expect(page.getByTestId('record-delivery')).toHaveCount(0);
-    await expect(page.getByTestId('change-status')).toHaveCount(0);
-
-    const investor = await tokenFor(request, INVESTOR_EMAIL);
+  // TC-I3-02's screen half (the investor reads the cards and legs, offered neither action) removed
+  // (owner 2026-10-19): only the partners use the office; investors are refused at the door.
+  test('TC-I3-02: the API refuses an investor on the cycle a departure', async ({ request }) => {
+    const { legs, investor } = await cycleWithLegs(request, 'CHINA', { departed: [1] });
     const r = await request.put(`${API}/shipping/legs/${legs[1].id}`, { headers: investor, data: { departedOn: daysAgo(1) } });
     expect(r.status()).toBe(403);
     expect((await r.json()).error?.code).toBe('ROLE_NOT_ALLOWED');

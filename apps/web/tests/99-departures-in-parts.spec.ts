@@ -19,10 +19,9 @@
  *  `L8_SHOTS=1` also writes the review screenshots to .ui-audit/l8/.
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { API, apiCtx, daysAgo, PASSWORD, today } from './support/fixtures';
+import { API, apiCtx, daysAgo, investorSession, today } from './support/fixtures';
 import { BASE, login, messages, openView, type Locale } from './support/ui';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
 const SHOTS = process.env.L8_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l8';
 type Headers = Record<string, string>;
@@ -92,11 +91,6 @@ async function shipment(request: APIRequestContext, h: Headers, cycleId: string)
 async function statusOf(request: APIRequestContext, h: Headers, id: string) {
   const r = await (await request.get(`${API}/cycles/${id}`, { headers: h })).json();
   return (r.data ?? r).status as string;
-}
-async function tokenFor(request: APIRequestContext, email: string): Promise<Headers> {
-  const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-  expect(r.ok(), await r.text()).toBeTruthy();
-  return { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
 }
 
 /** Menu → Cycles → search → the row → its details page. */
@@ -344,7 +338,8 @@ test.describe('Departures through the API', () => {
 
   test('TC-L8-09: an investor is refused both departure endpoints with a code; a partner still gets through', async ({ request }) => {
     const { headers, legs, padItem } = await cycleWithLegs(request, 'UAE_DIRECT');
-    const investor = await tokenFor(request, INVESTOR_EMAIL);
+    // An investor cannot sign in at the office (2026-10-19); investorSession's token proves the guard.
+    const { headers: investor } = await investorSession(request, 'l8');
     const r = await depart(request, investor, legs[0].id, daysAgo(5), [[padItem, 1]]);
     expect(r.status).toBe(403);
     expect(r.code).toBe('ROLE_NOT_ALLOWED');

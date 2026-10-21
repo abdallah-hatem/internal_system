@@ -104,7 +104,7 @@ test.describe('Cross-Cutting Concerns', () => {
   test('TC-XCUT-07: Settings page loads', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/settings`);
-    await expect(page.getByRole('heading', { name: /Setting|Profile/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Setting|Profile/i, level: 1 })).toBeVisible({ timeout: 10000 });
   });
 
   test('TC-XCUT-08: Settings shows user profile info', async ({ page }) => {
@@ -152,7 +152,7 @@ test.describe('Cross-Cutting Concerns', () => {
   test('TC-XCUT-13: Partners page loads', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/en/partners`);
-    await expect(page.getByRole('heading', { name: /Partner/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Partner/i, level: 1 })).toBeVisible({ timeout: 10000 });
   });
 
   // ── User Profile ────────────────────────────────────────────────────

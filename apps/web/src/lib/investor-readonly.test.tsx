@@ -30,6 +30,9 @@ vi.mock('@/lib/auth-context', () => ({
 vi.mock('next/navigation', () => ({
   useParams: () => ({ cycleId: 'c-1', locale: 'en' }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  // The Settlements tab keeps its chosen cycle in the address (2026-10-20).
+  usePathname: () => '/en/partners',
+  useSearchParams: () => new URLSearchParams('view=settlements'),
 }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,

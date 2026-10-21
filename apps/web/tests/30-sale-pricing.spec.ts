@@ -203,7 +203,10 @@ test.describe('Sale line pricing', () => {
     await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2B');
   });
 
-  test('TC-PRICE-05: a product with no price for the channel says so', async ({
+  // Since 2026-10-18 (§3) a product with no price set sells at its default,
+  // landed cost + 20%, and a stocked product always has a landed cost — so the
+  // line takes the default and says where it came from, never a silent zero.
+  test('TC-PRICE-05: a product with no price for the channel takes its default, and says so', async ({
     page,
     request,
   }) => {
@@ -227,7 +230,8 @@ test.describe('Sale line pricing', () => {
     await pickProduct(page, `Unpriced Part ${stamp}`);
 
     // Silence here would read as "zero is the price".
-    await expect(page.getByText(/no b2b price set/i)).toBeVisible();
+    await expect(page.getByText(/default \(landed \+ 20%\)/i).first()).toBeVisible();
+    await expect(page.locator('[data-field="unitPrice"]').first()).not.toHaveValue(/^0?$/);
   });
 });
 

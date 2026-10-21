@@ -134,7 +134,7 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     // Wait for the partner cards: while the page is its skeleton the
     // running-costs section is drawn inside it and replaced when they land,
     // taking an open period picker with it.
-    await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible({ timeout: 30_000 });
     const section = page.getByTestId('running-costs');
     await section.getByRole('combobox').click();
     await page.getByRole('option', { name: m.partners.periodAll }).click();
@@ -142,6 +142,8 @@ test.describe('A payout takes his share of the running costs and says so (L7, §
     await expect(rowA.locator('td').nth(3)).toHaveText(/^0\.00/);
     const partnerA = page.locator('[data-testid="partner-card"][data-email="abdallah@motoparts.com"]');
     const payout = partnerA.getByTestId('payout-history').getByRole('button').filter({ hasText: w.cycle.code });
+    // The refetch after paying is /users/participation, slow late in a full run (above).
+    await expect(payout).toBeVisible({ timeout: 30_000 });
     await payout.click();
     await expect(partnerA.getByTestId(`breakdown-${pidA}`)).toContainText(today());
 
@@ -194,7 +196,9 @@ test.describe('Screens, line by line, in both languages (L7)', () => {
         await go(page, 'partners', locale);
         // The partner cards have landed: until then the page is its skeleton,
         // and the running-costs section drawn inside it is replaced when they do.
-        await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible();
+        // 30s: /users/participation projects every open cycle in turn, and late in a
+        // full run there are hundreds (BUILD_LOG "Known e2e debt", 2026-10-21).
+        await expect(page.locator('[data-testid="partner-card"]').first()).toBeVisible({ timeout: 30_000 });
         const rc = page.getByTestId('running-costs');
         await expect(rc).toContainText(m.partners.runningCostsTitle);
         await expect(rc.getByTestId('running-costs-residual')).toBeVisible();

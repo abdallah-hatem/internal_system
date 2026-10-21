@@ -26,6 +26,17 @@ async function token(request: any) {
   return (await auth.json()).data.accessToken;
 }
 
+/**
+ * Find a supplier the way a person does once the list is longer than a page:
+ * the search box. The list pages itself on screen (20 a page), and a full run
+ * makes dozens of suppliers, so a seeded one is rarely on page one.
+ */
+async function findSupplier(page: Page, name: string) {
+  const box = page.getByPlaceholder('Search suppliers by name, country, phone or email');
+  await box.fill(name);
+  await expect(box).toHaveValue(name);
+}
+
 test.describe('Suppliers', () => {
   test('TC-SUP-UI-01: the sidebar reaches the page and it lists the seeded suppliers', async ({ page }) => {
     await login(page);
@@ -34,7 +45,8 @@ test.describe('Suppliers', () => {
     await expect(page.getByRole('heading', { name: 'Suppliers' })).toBeVisible();
     // The desktop table and the mobile card both render the name; the mobile
     // block is hidden by CSS but still in the DOM.
-    await expect(page.getByText('Alibaba Supplier - Hangzhou Parts Co.').first()).toBeVisible({ timeout: 10000 });
+    await findSupplier(page, 'Alibaba Supplier - Hangzhou Parts Co.');
+    await expect(page.getByText('Alibaba Supplier - Hangzhou Parts Co.').filter({ visible: true }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('TC-SUP-UI-02: a supplier can be created, edited and deleted', async ({ page }) => {
@@ -51,6 +63,7 @@ test.describe('Suppliers', () => {
     await page.locator('input[name="phone"]').fill('+20-2-5550100');
     await page.getByRole('button', { name: /^create$/i }).click();
 
+    await findSupplier(page, 'Cairo Moto Imports');
     const row = page.locator('tr', { hasText: 'Cairo Moto Imports' });
     await expect(row).toBeVisible({ timeout: 10000 });
     await expect(row).toContainText('Egypt');
@@ -61,7 +74,8 @@ test.describe('Suppliers', () => {
     await row.getByTitle('Edit').click();
     await page.getByRole('combobox').filter({ hasText: 'Egypt' }).click();
     await page.getByPlaceholder('Search by country name or code').fill('India');
-    await page.getByRole('option', { name: 'India' }).click();
+    // Exactly India: "British Indian Ocean Territory" matches the search too.
+    await page.getByRole('option', { name: 'India', exact: true }).click();
     await page.getByRole('button', { name: /^save$/i }).click();
     await expect(page.locator('tr', { hasText: 'Cairo Moto Imports' })).toContainText('India', { timeout: 10000 });
     await expect(page.locator('tr', { hasText: 'Cairo Moto Imports' })).toContainText('+20-2-5550100');
@@ -90,6 +104,7 @@ test.describe('Suppliers', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/suppliers`);
+    await findSupplier(page, used.name);
     await page.locator('tr', { hasText: used.name }).first().getByTitle('Delete').click();
     await expect(page.getByText(/cannot be deleted/i)).toBeVisible();
   });

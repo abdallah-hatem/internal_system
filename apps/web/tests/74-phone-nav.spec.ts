@@ -131,8 +131,9 @@ test.describe('Phone navigation', () => {
     // The reference seed has products; on a phone each is a card with a View button.
     await page.getByRole('button', { name: 'View', exact: true }).first().click();
     await expect(page).toHaveURL(/\/en\/products\/[^/]+$/);
+    // Measured once the page has settled: the skeleton's back link is replaced
+    // by the loaded page's, so a box read the moment one appears can be null.
     const back = page.getByTestId('back-link');
-    const box = await back.boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await expect.poll(async () => (await back.boundingBox())?.height ?? 0, { timeout: 15000 }).toBeGreaterThanOrEqual(44);
   });
 });

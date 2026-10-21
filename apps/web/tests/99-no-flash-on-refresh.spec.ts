@@ -15,7 +15,8 @@ import { WEB as BASE } from './support/env';
 
 const PASSWORD = 'password123';
 const PARTNER = 'abdallah@motoparts.com';
-const INVESTOR = 'investor@motoparts.com';
+/** The second partner: "someone else" now that only the partners sign in (2026-10-19). */
+const OTHER_PARTNER = 'shady@motoparts.com';
 const COOKIE = 'sf_session_user';
 
 async function login(page: Page, email: string) {
@@ -74,19 +75,8 @@ test.describe('No flash on refresh', () => {
     expect(await page.getByRole('navigation').first().getByRole('link').allTextContents()).toEqual(before);
   });
 
-  test('TC-FLASH-04: an investor\'s paint is the investor\'s screen — no partner button, not even for a moment', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await login(page, INVESTOR);
-    await page.goto(`${BASE}/en/products`);
-    await expect(page.getByTestId('account-menu-trigger')).toBeVisible();
-    await expect(page.getByTestId('create-action')).toHaveCount(0);
-    const menu = await page.getByRole('navigation').first().getByRole('link').allTextContents();
-
-    await reloadFrozen(page);
-    await expect(page.getByTestId('account-menu-trigger')).toBeVisible();
-    await expect(page.getByTestId('create-action')).toHaveCount(0);
-    expect(await page.getByRole('navigation').first().getByRole('link').allTextContents()).toEqual(menu);
-  });
+  // TC-FLASH-04 (an investor's paint is the investor's screen) removed (owner 2026-10-19):
+  // only the partners use the office; investors are refused at the door.
 
   test('TC-FLASH-05: the cookie follows the session — set at sign-in, gone at sign-out, back after a sign-in as someone else', async ({ page }) => {
     await login(page, PARTNER);
@@ -100,8 +90,10 @@ test.describe('No flash on refresh', () => {
     await expect(page).toHaveURL(/login/);
     expect(await sessionCookie(page)).toBeUndefined();
 
-    await login(page, INVESTOR);
-    expect(decodeURIComponent((await sessionCookie(page))!.value)).toContain('"role":"TEMP_INVESTOR"');
+    await login(page, OTHER_PARTNER);
+    const second = decodeURIComponent((await sessionCookie(page))!.value);
+    expect(second).toContain(`"email":"${OTHER_PARTNER}"`);
+    expect(second).not.toContain(PARTNER);
   });
 
   test('TC-FLASH-06: a session from before the cookie existed draws a placeholder card for that first paint, then writes the cookie', async ({ page }) => {
@@ -122,15 +114,6 @@ test.describe('No flash on refresh', () => {
     await expect.poll(async () => !!(await sessionCookie(page))).toBe(true);
   });
 
-  test('TC-FLASH-07: a cookie edited by hand to say partner changes nothing the investor can do', async ({ page, context }) => {
-    await login(page, INVESTOR);
-    const c = (await sessionCookie(page))!;
-    const forged = encodeURIComponent(decodeURIComponent(c.value).replace('TEMP_INVESTOR', 'CORE_PARTNER'));
-    await context.addCookies([{ ...c, value: forged }]);
-    await page.goto(`${BASE}/en/products`);
-    // Once the scripts run, storage — the real session — decides, and the
-    // cookie is rewritten to match it.
-    await expect(page.getByTestId('create-action')).toHaveCount(0);
-    await expect.poll(async () => decodeURIComponent((await sessionCookie(page))!.value)).toContain('TEMP_INVESTOR');
-  });
+  // TC-FLASH-07 (a cookie edited to say partner changes nothing the investor can do) removed
+  // (owner 2026-10-19): only the partners use the office; investors are refused at the door.
 });

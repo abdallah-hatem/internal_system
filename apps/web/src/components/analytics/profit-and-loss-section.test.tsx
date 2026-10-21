@@ -154,10 +154,11 @@ describe('niceScale — the chart’s pounds axis', () => {
 });
 
 describe('the tiles', () => {
-  it('all time by default: asks for no days; four tiles, compact, the exact amount on hover', async () => {
+  it('this month by default (owner 2026-10-19): asks for this month’s days; four tiles, compact, the exact amount on hover', async () => {
     renderIn();
     const net = await screen.findByTestId('pnl-net-value');
-    expect(get).toHaveBeenCalledWith('/analytics/profit-and-loss', {});
+    expect(get).toHaveBeenCalledWith('/analytics/profit-and-loss', { from: '2026-10-01', to: '2026-10-31' });
+    expect(get).not.toHaveBeenCalledWith('/analytics/profit-and-loss', {});
     const value = (id: string) => screen.getByTestId(`${id}-value`);
     expect(value('pnl-tile-sales').textContent).toBe('1.34MEGP');
     expect(value('pnl-tile-sales').getAttribute('title')).toBe('1,342,567.89 EGP');
@@ -172,7 +173,8 @@ describe('the tiles', () => {
     expect(screen.getByTestId('pnl-tile-sales').textContent).toContain('Cost of goods 832K');
     expect(screen.getByTestId('pnl-tile-expenses').textContent).toContain('6 categories');
     expect(screen.getByTestId('pnl-range').textContent).toBe('Sep 1, 2026 – today');
-    expect(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'All time' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'This month' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'All time' }).getAttribute('aria-pressed')).toBe('false');
   });
 
   it('no sales: both shares of sales are a dash, never NaN% or Infinity%', async () => {
@@ -356,27 +358,25 @@ describe('the expenses', () => {
 });
 
 describe('the section in its place', () => {
-  it('choosing This month writes it to the address, and the address is what is asked for', async () => {
+  it('choosing All time writes it to the address, and the address is what is asked for', async () => {
     const { again } = renderIn();
     await screen.findByTestId('pnl-net');
-    fireEvent.click(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'This month' }));
-    expect(nav.push).toHaveBeenCalledWith('/en/analytics?period=month', { scroll: false });
+    fireEvent.click(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'All time' }));
+    expect(nav.push).toHaveBeenCalledWith('/en/analytics?period=all', { scroll: false });
 
     // The router changed the address: the section reads it back.
-    nav.query = 'period=month';
+    nav.query = 'period=all';
     again();
-    await vi.waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith('/analytics/profit-and-loss', { from: '2026-10-01', to: '2026-10-31' }),
-    );
-    expect(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'This month' }).getAttribute('aria-pressed')).toBe('true');
+    await vi.waitFor(() => expect(get).toHaveBeenLastCalledWith('/analytics/profit-and-loss', {}));
+    expect(within(screen.getByTestId('pnl-period')).getByRole('button', { name: 'All time' }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('back to All time drops the period from the address; Custom starts on this month so far', async () => {
+  it('back to This month drops the period from the address; Custom starts on this month so far', async () => {
     nav.query = 'period=year';
     renderIn();
     await screen.findByTestId('pnl-net');
     expect(get).toHaveBeenCalledWith('/analytics/profit-and-loss', { from: '2026-01-01', to: '2026-12-31' });
-    fireEvent.click(screen.getByRole('button', { name: 'All time' }));
+    fireEvent.click(screen.getByRole('button', { name: 'This month' }));
     expect(nav.push).toHaveBeenLastCalledWith('/en/analytics', { scroll: false });
     fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
     expect(nav.push).toHaveBeenLastCalledWith('/en/analytics?period=custom&from=2026-10-01&to=2026-10-18', { scroll: false });
@@ -398,11 +398,11 @@ describe('the section in its place', () => {
     expect(screen.getByRole('button', { name: 'Custom' }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('an unknown period in the address is all time', async () => {
+  it('an unknown period in the address is the default, this month', async () => {
     nav.query = 'period=fortnight';
     renderIn();
     await screen.findByTestId('pnl-net');
-    expect(get).toHaveBeenCalledWith('/analytics/profit-and-loss', {});
+    expect(get).toHaveBeenCalledWith('/analytics/profit-and-loss', { from: '2026-10-01', to: '2026-10-31' });
   });
 
   it('while it loads: a skeleton in the new shape — four tiles, the chart, the expense rows — and no spinner', async () => {

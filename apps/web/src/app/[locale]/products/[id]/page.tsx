@@ -10,7 +10,7 @@ import { MoneyInput } from '../../../../components/ui/money-input';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  Package, Tag, Barcode, DollarSign, TrendingUp, TrendingDown,
+  Package, Barcode, DollarSign, TrendingUp, TrendingDown,
   Boxes, AlertTriangle, ShoppingCart, Truck, Store, Loader2, ChevronDown,
   ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check, PackageOpen,
 } from 'lucide-react';
@@ -43,10 +43,8 @@ interface Product {
   minStock?: number;
   createdAt?: string;
   category?: { id: string; name: string; nameAr?: string | null };
-  suppliers?: { supplier: { id: string; name: string } }[];
   prices?: PriceEntry[];
   listPrices?: ListPrices | null;
-  compatibilities?: { motorcycleModel: { id: string; name: string } }[];
 }
 
 interface PriceEntry {
@@ -776,55 +774,7 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* ── Suppliers ──────────────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Truck className="h-4 w-4 text-gray-400" />
-              {t('suppliers') ?? 'Suppliers'}
-            </h2>
-            {!productData.suppliers || productData.suppliers.length === 0 ? (
-              <EmptyState size="compact" icon={Truck} title={t('noSuppliersTitle')} description={t('noSuppliersHint')} />
-            ) : (
-              <div className="space-y-2">
-                {productData.suppliers.map((s, idx) => (
-                  <div
-                    key={s.supplier?.id ?? idx}
-                    className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2.5"
-                  >
-                    <div className="h-7 w-7 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
-                      {s.supplier?.name?.[0]?.toUpperCase() ?? '?'}
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {s.supplier?.name ?? '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Compatibility ──────────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Tag className="h-4 w-4 text-gray-400" />
-              {t('compatibility') ?? 'Compatibility'}
-            </h2>
-            {!productData.compatibilities || productData.compatibilities.length === 0 ? (
-              <EmptyState size="compact" icon={Tag} title={t('noCompatibilityTitle')} description={t('noCompatibilityHint')} />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {productData.compatibilities.map((c, idx) => (
-                  <span
-                    key={c.motorcycleModel?.id ?? idx}
-                    className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2.5 py-1 text-xs font-medium text-gray-700"
-                  >
-                    <Tag className="h-3 w-3 text-gray-400" />
-                    {c.motorcycleModel?.name ?? '—'}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Suppliers and Compatibility cards removed (owner 2026-10-18). */}
         </div>
       </div>
     </div>

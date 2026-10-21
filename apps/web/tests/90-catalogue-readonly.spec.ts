@@ -20,20 +20,18 @@
  *  Not run at the time of writing (R1c was told not to run Playwright).
  */
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { API, apiCtx, EMAIL, PASSWORD, today, aCorePartnerUser } from './support/fixtures';
+import { apiCtx, EMAIL, PASSWORD, today, aCorePartnerUser, investorSession } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import { WEB as BASE } from './support/env';
 import { openView } from './support/ui';
 import { pageOfView } from '../src/lib/page-views';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
-
+/**
+ * A fresh investor's id, to put on the cycle. An investor cannot sign in at the
+ * office since 2026-10-19, so fixtures `investorSession` makes one.
+ */
 async function investorId(request: APIRequestContext) {
-  const r = await request.post(`${API}/auth/login`, { data: { email: INVESTOR_EMAIL, password: PASSWORD } });
-  expect(r.ok(), `investor login: ${await r.text()}`).toBeTruthy();
-  const headers = { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
-  const me = await (await request.get(`${API}/auth/profile`, { headers })).json();
-  return (me.data?.data ?? me.data ?? me).id as string;
+  return (await investorSession(request, 'r1c')).user.id;
 }
 
 /**

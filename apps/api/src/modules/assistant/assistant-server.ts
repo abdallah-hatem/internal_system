@@ -11,6 +11,7 @@ import { registerReadTools } from './tools/read';
 import { registerReceiptTools } from './tools/receipt';
 import { registerCycleTools } from './tools/cycle';
 import { registerSalesTools } from './tools/sales';
+import { registerSamplesTools } from './tools/samples';
 import { registerPaymentTools } from './tools/payments';
 import { registerLenderTools } from './tools/lenders';
 import { registerCategoryTools } from './tools/categories';
@@ -44,6 +45,7 @@ export class AssistantServer {
     registerReceiptTools(server, ctx);
     registerCycleTools(server, ctx);
     registerSalesTools(server, ctx);
+    registerSamplesTools(server, ctx);
     registerPaymentTools(server, ctx);
     registerLenderTools(server, ctx);
     registerCategoryTools(server, ctx);

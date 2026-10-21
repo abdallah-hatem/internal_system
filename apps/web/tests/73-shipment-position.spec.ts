@@ -13,7 +13,7 @@
  *  these cases do not assert on delivered quantities.
  */
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { apiCtx, API, today } from './support/fixtures';
+import { apiCtx, API, investorSession, today } from './support/fixtures';
 
 async function accountWithRole(request: APIRequestContext, role: string) {
   const { headers } = await apiCtx(request);
@@ -81,7 +81,8 @@ test.describe('GET /cycles/:id/shipment', () => {
     // shipments, and another cycle is NOT_FOUND rather than 403, so its
     // existence is not disclosed. The investor-on-the-cycle 200 is spec 87.
     const { cycle } = await orderedCycle(request);
-    const headers = await accountWithRole(request, 'TEMP_INVESTOR');
+    // An investor cannot sign in at the office (2026-10-19); investorSession's token reaches the scope check.
+    const { headers } = await investorSession(request, 'ship');
     const res = await request.get(`${API}/cycles/${cycle.id}/shipment`, { headers });
     expect(res.status()).toBe(404);
     const body = await res.json();

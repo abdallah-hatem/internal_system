@@ -411,9 +411,18 @@ suite('walk-in sales against Postgres', () => {
 
     it('Payment dated now, in Cairo', async () => {
       const product = await stocked(5);
-      // 22:30 UTC on the 10th is 01:30 on the 11th in Cairo.
+
+      // 22:30 UTC is already the next day in Cairo (00:30, or 01:30 in summer time).
+      // Tomorrow's, not a fixed day: since back-dated sales (2026-10-16) a sale
+      // draws only stock received by its day, and this stock arrived today.
+      const at = new Date();
+      at.setUTCDate(at.getUTCDate() + 1);
+      at.setUTCHours(22, 30, 0, 0);
+      const cairoDay = new Date(at.getTime() + 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
       jest.useFakeTimers({
-        now: new Date('2026-10-10T22:30:00Z'),
+        now: at,
         doNotFake: [
           'hrtime',
           'nextTick',
@@ -432,7 +441,7 @@ suite('walk-in sales against Postgres', () => {
 
       const [order] = await ordersOf(product.id);
       const received = order.paymentAllocations[0].payment.receivedOn;
-      expect(received.toISOString().slice(0, 10)).toBe('2026-10-11');
+      expect(received.toISOString().slice(0, 10)).toBe(cairoDay);
     });
   });
 });

@@ -17,36 +17,26 @@
  *     the cycle; changing status is a button on the details page.
  *
  *  Reached by clicking, as a person does (CLAUDE.md §2). Both directions on
- *  roles (§12): an investor is refused, a partner still gets it.
+ *  roles (§12): an investor is refused, a partner still gets it. Only the
+ *  partners use the office since 2026-10-19 (investors are refused at the
+ *  door), so the investor's side is the API's alone, with investorSession's
+ *  hand-signed token.
  */
 import { test, expect, Page, APIRequestContext, Locator } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
-import { API, apiCtx, PASSWORD, EMAIL, aCorePartnerUser } from './support/fixtures';
+import { API, apiCtx, PASSWORD, EMAIL, aCorePartnerUser, investorSession } from './support/fixtures';
 import { measureFieldRows, worst } from './support/row-alignment';
 import { WEB as BASE } from './support/env';
 
-const INVESTOR_EMAIL = 'investor@motoparts.com';
 const MSG = { en, ar } as const;
 
-async function login(page: Page, locale: 'en' | 'ar' = 'en', email = EMAIL) {
+async function login(page: Page, locale: 'en' | 'ar' = 'en') {
   await page.goto(`${BASE}/${locale}/login`);
-  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="email"]').fill(EMAIL);
   await page.locator('input[type="password"]').fill(PASSWORD);
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/dashboard/, { timeout: 20000 });
-}
-
-async function tokenFor(request: APIRequestContext, email: string) {
-  const r = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-  expect(r.ok(), `login ${email}: ${await r.text()}`).toBeTruthy();
-  return { Authorization: `Bearer ${(await r.json()).data.accessToken}` };
-}
-
-async function investorId(request: APIRequestContext) {
-  const headers = await tokenFor(request, INVESTOR_EMAIL);
-  const me = await (await request.get(`${API}/auth/profile`, { headers })).json();
-  return (me.data?.data ?? me.data ?? me).id as string;
 }
 
 async function statusOf(request: APIRequestContext, headers: Record<string, string>, id: string) {
@@ -72,20 +62,21 @@ async function box(l: Locator) {
 
 /**
  * A PLANNING cycle (setup still to do), a CANCELLED one (nothing left to set
- * up, nowhere to move), both with the investor on them so the investor can see
- * them. Built through the API as a partner (rule 4).
+ * up, nowhere to move), both with a fresh investor on them so the investor can
+ * see them. Built through the API as a partner (rule 4).
  */
 async function cycles(request: APIRequestContext) {
   const { headers, mk } = await apiCtx(request);
   const partner = await aCorePartnerUser(request, headers);
+  const investor = await investorSession(request, 'nav');
   const participants = [
-    { participantType: 'TEMP_INVESTOR', investorUserId: await investorId(request), contributionAmount: 400, investorFeePct: 10 },
+    { participantType: 'TEMP_INVESTOR', investorUserId: investor.user.id, contributionAmount: 400, investorFeePct: 10 },
     { participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 600 },
   ];
   const cancelled = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP', participants });
   await mk(`cycles/${cancelled.id}/transition`, { status: 'CANCELLED' });
   const planning = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP', participants });
-  return { headers, planning, cancelled };
+  return { headers, planning, cancelled, investor: investor.headers };
 }
 
 // ─── 1. Field rows ──────────────────────────────────────────────────────
@@ -102,8 +93,9 @@ test.describe('Field rows stay level when one shows its error', () => {
         await login(page, locale);
         // Straight to the page: nothing cached matters to the layout, and on a
         // phone the menu is a drawer.
+        // Purchases are a tab of Cycles since 2026-10-18; the old address lands on it.
         await page.goto(`${BASE}/${locale}/purchases`);
-        await expect(page).toHaveURL(new RegExp(`/${locale}/purchases$`), { timeout: 15000 });
+        await expect(page).toHaveURL(new RegExp(`/${locale}/cycles\\?view=purchases$`), { timeout: 15000 });
         await page.getByRole('button', { name: m.purchases.create }).first().click();
         await page.getByRole('button', { name: m.purchases.addItem }).first().click();
 
@@ -252,26 +244,11 @@ test.describe('A cycle opens its page; Continue setup resumes the wizard', () =>
     });
   }
 
-  test('TC-NAV-04: an investor opens the cycle\'s page but is never offered setup or a status change, and the server refuses the move', async ({ page, request }) => {
-    const { headers, planning } = await cycles(request);
-    await login(page, 'en', INVESTOR_EMAIL);
-    await openCycles(page);
-
-    const row = rowOf(page, planning.code);
-    await expect(row).toBeVisible();
-    await expect(row.getByTestId('continue-setup')).toHaveCount(0);
-    await row.locator('td').first().click();
-    await expect(page).toHaveURL(new RegExp(`/cycles/${planning.id}/details$`), { timeout: 15000 });
-    await expect(page.getByTestId('cycle-status')).toBeVisible();
-    await expect(page.getByTestId('continue-setup')).toHaveCount(0);
-    await expect(page.getByTestId('change-status')).toHaveCount(0);
-
-    // Typing the wizard's address lands on the details page instead.
-    await page.goto(`${BASE}/en/cycles/${planning.id}`);
-    await expect(page).toHaveURL(new RegExp(`/cycles/${planning.id}/details$`), { timeout: 15000 });
-
-    // The API, which the screens are only one caller of.
-    const investor = await tokenFor(request, INVESTOR_EMAIL);
+  // TC-NAV-04's screen half (the investor opens the page, is offered no setup or
+  // status change) removed (owner 2026-10-19): only the partners use the office;
+  // investors are refused at the door. The server's refusal stays.
+  test('TC-NAV-04: the server refuses an investor on the cycle a status change', async ({ request }) => {
+    const { headers, planning, investor } = await cycles(request);
     const refused = await request.post(`${API}/cycles/${planning.id}/transition`, {
       headers: investor,
       data: { status: 'FUNDING' },

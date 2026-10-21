@@ -47,7 +47,10 @@ export function TabBar<K extends string>({
   };
 
   return (
-    <div role="tablist" aria-label={label} className={cn('scrollbar-clean flex gap-1 overflow-x-auto border-b border-border', className)}>
+    // Sideways on a narrow phone only. overflow-x alone makes the other axis scroll
+    // too, and the tabs' -mb-px underline is 1px taller than the bar: a vertical
+    // scrollbar beside the tabs (owner, 2026-10-21).
+    <div role="tablist" aria-label={label} className={cn('scrollbar-clean flex gap-1 overflow-x-auto overflow-y-hidden border-b border-border', className)}>
       {tabs.map((tab, i) => {
         const selected = tab.key === value;
         return (

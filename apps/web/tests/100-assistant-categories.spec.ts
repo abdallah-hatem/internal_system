@@ -13,9 +13,10 @@
  *  clicking to Categories from the menu.
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
-import { API, apiCtx, EMAIL, PASSWORD } from './support/fixtures';
+import { API, apiCtx, EMAIL, investorSession, PASSWORD } from './support/fixtures';
 import { assistantToken, mcpTokenFor } from './support/assistant-token';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
 
 const ROOT = API.replace(/\/api\/v1\/?$/, '');
 const MCP = `${ROOT}/mcp`;
@@ -140,8 +141,8 @@ test.describe('the assistant and categories', () => {
 
     // Seen the way a partner sees it: signed in, clicking to Categories.
     await login(page);
-    await page.getByRole('navigation').getByRole('link', { name: /^categories$/i }).first().click();
-    await expect(page).toHaveURL(/\/categories/);
+    // Categories are a tab of Products since 2026-10-18.
+    await openView(page, 'categories');
     const row = page.getByTestId('category-row').filter({ has: page.getByText(args.name, { exact: true }) });
     await expect(row).toBeVisible();
     await expect(page.getByRole('main').getByText(parent.name, { exact: true })).toBeVisible();
@@ -178,19 +179,11 @@ test.describe('the assistant and categories', () => {
     request,
   }) => {
     const { headers } = await apiCtx(request);
-    const stamp = `${Date.now()}`;
-    const email = `cat-investor-${stamp}@motoparts.com`;
-    const made = await request.post(`${API}/auth/register`, {
-      headers,
-      data: { email, password: PASSWORD, displayName: `Cat ${stamp}`, role: 'TEMP_INVESTOR' },
-    });
-    expect(made.ok(), await made.text()).toBeTruthy();
-    const signedIn = await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } });
-    expect(signedIn.ok(), await signedIn.text()).toBeTruthy();
-    const session = (await signedIn.json()).data;
-    expect(session.user.role).toBe('TEMP_INVESTOR');
-    const investorId = session.user.id as string;
-    const investorHeaders = { Authorization: `Bearer ${session.accessToken}` };
+    // An investor cannot sign in at the office (2026-10-19); investorSession's
+    // hand-signed token reaches the guard.
+    const investor = await investorSession(request, 'cat');
+    const investorId = investor.user.id;
+    const investorHeaders = investor.headers;
     const k = key();
 
     const office = await request.post(`${API}/categories`, { headers: investorHeaders, data: { name: `${k} Inv` } });

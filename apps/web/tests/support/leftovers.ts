@@ -4,34 +4,21 @@
  * money invariants in 34.
  */
 import { expect, type APIRequestContext } from '@playwright/test';
-import { aCorePartnerUser, API, apiCtx, daysAgo, PASSWORD } from './fixtures';
-
-const INVESTOR_EMAIL = 'investor@motoparts.com';
+import { aCorePartnerUser, API, apiCtx, daysAgo } from './fixtures';
 
 /**
  * A: 40 brake pads at 100 (free freight: 100.00 a unit landed), funded 4,000
  * by a partner, all delivered and checked in — selling — and 10 sold at 200.
  * 30 are left on the shelf. B: a new cycle, still being planned.
- * `investor`: the seeded investor is on both, so he can open them.
  */
 export async function leftoverWorld(
   request: APIRequestContext,
   label: string,
-  opts: { investor?: boolean; bFunding?: number } = {},
+  opts: { bFunding?: number } = {},
 ) {
   const { headers, mk } = await apiCtx(request);
   const partner = await aCorePartnerUser(request, headers);
   const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  let investorId: string | undefined;
-  if (opts.investor) {
-    const login = await request.post(`${API}/auth/login`, { data: { email: INVESTOR_EMAIL, password: PASSWORD } });
-    const token = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
-    const me = await (await request.get(`${API}/auth/profile`, { headers: token })).json();
-    investorId = (me.data?.data ?? me.data ?? me).id;
-  }
-  const investorRow = investorId
-    ? [{ participantType: 'TEMP_INVESTOR', investorUserId: investorId, contributionAmount: 0 }]
-    : [];
   const pad = await mk('products', { name: `${label} ${stamp} Brake pad`, minStock: 0 });
   const supplier = await mk('suppliers', { name: `${label} ${stamp} Supplier`, country: 'AE' });
   const customer = await mk('customers', { displayName: `${label} ${stamp} Shop`, type: 'B2B' });
@@ -39,7 +26,7 @@ export async function leftoverWorld(
   const a = await mk('cycles', {
     originType: 'UAE_DIRECT',
     currency: 'EGP',
-    participants: [{ participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 4000 }, ...investorRow],
+    participants: [{ participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: 4000 }],
   });
   await mk(`cycles/${a.id}/purchases`, {
     supplierId: supplier.id, currency: 'EGP', fxRateToEgp: 1, orderedOn: daysAgo(25),
@@ -65,8 +52,8 @@ export async function leftoverWorld(
     originType: 'UAE_DIRECT',
     currency: 'EGP',
     participants:
-      investorRow.length || opts.bFunding !== undefined
-        ? [{ participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: opts.bFunding ?? 0 }, ...investorRow]
+      opts.bFunding !== undefined
+        ? [{ participantType: 'CORE_PARTNER', partnerUserId: partner.id, contributionAmount: opts.bFunding }]
         : undefined,
   });
   const aNow = await (await request.get(`${API}/cycles/${a.id}`, { headers })).json();

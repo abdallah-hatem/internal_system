@@ -18,7 +18,7 @@
  *  business works that way; skipping one has to be refused, not tolerated.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, daysAgo, Mk } from './support/fixtures';
+import { allLedgerRows, apiCtx, API, daysAgo, Mk } from './support/fixtures';
 
 /** Every status a UAE-direct cycle passes through, in order. */
 const UAE_ROUTE = [
@@ -189,18 +189,12 @@ async function stockOf(request: APIRequestContext, headers: any, productId: stri
 
 /** The net of the whole ledger: money in, less money out. */
 async function ledgerNet(request: APIRequestContext, headers: any) {
-  const res = await request.get(`${API}/ledger?limit=1000`, { headers });
-  const body = await res.json();
-  const rows = body.data?.items ?? body.data ?? [];
-  return netOf(rows);
+  return netOf(await allLedgerRows(request, headers));
 }
 
 /** Every ledger row raised against one cycle. */
 async function cycleLedger(request: APIRequestContext, headers: any, cycleId: string) {
-  const res = await request.get(`${API}/ledger?limit=500`, { headers });
-  const body = await res.json();
-  const rows = body.data?.items ?? body.data ?? [];
-  return rows.filter((r: any) => r.cycleId === cycleId);
+  return (await allLedgerRows(request, headers)).filter((r: any) => r.cycleId === cycleId);
 }
 
 const netOf = (rows: any[]) =>

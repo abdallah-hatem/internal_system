@@ -18,7 +18,8 @@
  *  coming in, so netting it gave −62,325 on a cycle that owed nobody anything.
  */
 import { test, expect, Page } from '@playwright/test';
-import { apiCtx, API } from './support/fixtures';
+import { allLedgerRows, apiCtx, API, investorSession } from './support/fixtures';
+import { NOT_CASH_CATEGORIES, NOT_CASH_TYPES } from '../../api/src/common/ledger-categories';
 import { WEB as BASE } from './support/env';
 
 const EMAIL = 'abdallah@motoparts.com';
@@ -34,7 +35,11 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 }
 
-/** A logged-in account with the given role, created by a partner. */
+/**
+ * A logged-in account with the given role, created by a partner. Office roles
+ * only: an investor cannot sign in at the office (2026-10-19), so the investor
+ * tests below hold investorSession's hand-signed token instead.
+ */
 async function accountWithRole(request: any, role: string) {
   const { headers } = await apiCtx(request);
   const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
@@ -73,7 +78,7 @@ test.describe('Creating accounts', () => {
   test('TC-SEC-02: an investor cannot create accounts either', async ({ request }) => {
     // Being logged in is not the same as being allowed. An investor promoting
     // themselves would put the door straight back.
-    const investor = await accountWithRole(request, 'TEMP_INVESTOR');
+    const investor = await investorSession(request, 'sec');
 
     const res = await request.post(`${API}/auth/register`, {
       headers: investor.headers,
@@ -116,7 +121,7 @@ test.describe('What an investor login may touch', () => {
   }) => {
     // The sharpest case: an outside investor approving the settlement that
     // pays them out.
-    const investor = await accountWithRole(request, 'TEMP_INVESTOR');
+    const investor = await investorSession(request, 'sec');
     const fake = '00000000-0000-4000-8000-000000000999';
 
     for (const path of [`settlements/${fake}/approve`, `settlements/${fake}/pay`]) {
@@ -134,7 +139,7 @@ test.describe('What an investor login may touch', () => {
   test('TC-SEC-05: an investor cannot reverse a payment or a ledger entry', async ({
     request,
   }) => {
-    const investor = await accountWithRole(request, 'TEMP_INVESTOR');
+    const investor = await investorSession(request, 'sec');
     const fake = '00000000-0000-4000-8000-000000000999';
 
     for (const path of [`payments/${fake}/reverse`, `ledger/${fake}/reverse`]) {
@@ -190,12 +195,18 @@ test.describe('Cash on hand', () => {
     const d = (await (await request.get(`${API}/analytics/dashboard`, { headers })).json())
       .data;
 
-    const ledger = await (await request.get(`${API}/ledger?limit=500`, { headers })).json();
-    const rows = ledger.data?.items ?? ledger.data ?? [];
-    const net = rows.reduce(
-      (s: number, r: any) => s + (r.direction === 'INFLOW' ? num(r.amount) : -num(r.amount)),
-      0,
-    );
+    // Cash is the ledger less the rows that move no money: a partner's share of
+    // running costs taken from his payout and a transfer of leftovers (§8, L5,
+    // L7), a return's sale undone, and an entry undone together with its undo
+    // (common/cash-position.ts). Read from the API's own lists, not a copy
+    // (rule 11): summing every row was right until L7, then 300 a partner off.
+    const rows = await allLedgerRows(request, headers);
+    const undone = new Set(rows.filter((r) => r.reversalOfId).map((r) => r.reversalOfId));
+    const net = rows
+      .filter((r) => !(NOT_CASH_CATEGORIES as readonly string[]).includes(String(r.category)))
+      .filter((r) => !(NOT_CASH_TYPES as readonly string[]).includes(String(r.type)))
+      .filter((r) => !r.reversalOfId && !undone.has(r.id))
+      .reduce((s: number, r) => s + (r.direction === 'INFLOW' ? num(r.amount) : -num(r.amount)), 0);
 
     expect(num(d.cashOnHand)).toBeCloseTo(net, 2);
     expect(num(d.totalCashIn) - num(d.totalCashOut)).toBeCloseTo(num(d.cashOnHand), 2);

@@ -8,6 +8,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { apiCtx } from './support/fixtures';
 import { WEB as BASE } from './support/env';
+import { openView } from './support/ui';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -36,9 +37,9 @@ async function family(request: Parameters<typeof apiCtx>[0]) {
   return { parent, childA, childB, grand, other, otherChild };
 }
 
+// Categories are a tab of Products since 2026-10-18 (lib/page-views.ts), no longer a menu entry.
 async function openCategories(page: Page) {
-  await page.getByRole('navigation').getByRole('link', { name: /^categories$/i }).first().click();
-  await expect(page).toHaveURL(/\/categories/);
+  await openView(page, 'categories');
 }
 
 const row = (page: Page, name: string) =>

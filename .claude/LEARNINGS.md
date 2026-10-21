@@ -360,3 +360,18 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   `docs/where-things-stand.md`; CLAUDE.md §8 when a reset/seed level changes. Every agent brief says so, and a merge
   is not finished until the docs describe what was merged. `where-things-stand.md` had gone a month stale
   (last touched 2026-09-19) when this was said.
+
+## Lists in tests
+
+- A list endpoint serves at most 200 rows a page, newest first, whatever `?limit=` asks. Tests that read
+  `ledger?limit=1000` as "the whole ledger", or looked for a seeded cycle or partner on page one, passed early in a run
+  and failed late, by whatever had fallen out of the window (2026-10-20 full run: cash off by 900, "no core partner in
+  the seed"). Page through (`allPages` in tests/support/fixtures.ts) or ask by role/code. — 2026-10-21
+- A test that recomputes a figure the API owns imports the API's own definition (`NOT_CASH_CATEGORIES`) instead of a
+  sum of its own: TC-CASH-01 summed every ledger row and was wrong from L7 on, hidden by the window above. — 2026-10-21
+
+## The login page on a slow machine
+
+- What is typed before the page hydrates was reset by controlled inputs and the form went out blank ("not valid:
+  email, password"): ~60 e2e logins failed on a slower Windows laptop. The office login reads its fields on submit and
+  keeps Login disabled until hydrated. Check a form a person fills the moment it appears the same way. — 2026-10-21

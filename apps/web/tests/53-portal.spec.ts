@@ -112,10 +112,19 @@ test.describe('The shop window', () => {
     expect(anon.data.channel).toBe('B2C');
     expect(shop.data.channel).toBe('B2B');
 
-    const priced = anon.data.items.find((i: any) => i.price);
-    expect(priced, 'no priced product in the seed').toBeTruthy();
-    const same = shop.data.items.find((i: any) => i.sku === priced.sku);
-    expect(same.price).not.toBe(priced.price);
+    // Not "the first priced item": since 2026-10-18 (§3) a product with no price
+    // set is quoted at its default, landed + 20%, which is the same on both lists.
+    // The seed's priced products carry different B2B and B2C prices.
+    type Item = { sku: string; price: string | null };
+    const anonItems: Item[] = anon.data.items;
+    const shopItems: Item[] = shop.data.items;
+    const priced = anonItems.filter((i) => i.price);
+    expect(priced.length, 'no priced product in the seed').toBeGreaterThan(0);
+    const differs = priced.filter((p) => {
+      const same = shopItems.find((i) => i.sku === p.sku);
+      return same && same.price !== p.price;
+    });
+    expect(differs.length, 'every product quoted the same to a shop and a stranger').toBeGreaterThan(0);
   });
 
   test('TC-PORTAL-05: the card and the product page quote the same figure', async ({

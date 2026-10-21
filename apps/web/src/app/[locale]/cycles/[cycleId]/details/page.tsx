@@ -325,7 +325,7 @@ export default function CycleDetailsPage() {
           <MoveLeftoversButton cycleId={cycle.id} cycleCode={cycle.code} status={cycle.status} />
           <button
             type="button"
-            onClick={() => router.push(`/${locale}${viewPath('settlements')}`)}
+            onClick={() => router.push(`/${locale}${viewPath('settlements', { cycle: cycle.id })}`)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <Scale className="h-4 w-4" /> {t('settlement')}

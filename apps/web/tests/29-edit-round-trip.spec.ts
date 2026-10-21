@@ -141,6 +141,12 @@ async function cycleWithALeg(request: APIRequestContext) {
  * Where it resumes depends on how complete the cycle is, so the step is
  * selected explicitly rather than assumed.
  */
+/**
+ * The shipping step is the wizard's last since 2026-10-18 (§8), so its save
+ * button reads Finish, not Save & Continue.
+ */
+const saveLegStep = (page: Page) => page.getByRole('button', { name: /^(save & continue|finish)$/i }).click();
+
 async function openShippingStep(page: Page, cycleId: string) {
   await page.goto(`${BASE}/en/cycles/${cycleId}`);
   await page.getByText('Shipping Leg', { exact: true }).click();
@@ -189,7 +195,7 @@ test.describe('Editing a saved record round-trips', () => {
     await pickDate(page, 'leg1_departedOn', '2026-08-11');
     await pickDate(page, 'leg1_arrivedOn', '2026-08-19');
     await page.locator('input[name="leg1_trackingRef"]').fill('RT-AFTER');
-    await page.getByRole('button', { name: /save & continue/i }).click();
+    await saveLegStep(page);
 
     // The assertion the suite never made anywhere: what the API now holds.
     // Without it the old code passed — it advanced a step and wrote nothing.
@@ -213,7 +219,7 @@ test.describe('Editing a saved record round-trips', () => {
     await login(page);
     await openShippingStep(page, cycleId);
     await pickDate(page, 'leg1_departedOn', '2026-08-11');
-    await page.getByRole('button', { name: /save & continue/i }).click();
+    await saveLegStep(page);
 
     await expect
       .poll(
@@ -241,7 +247,7 @@ test.describe('Editing a saved record round-trips', () => {
     await login(page);
     await openShippingStep(page, cycleId);
     await page.locator('input[name="leg1_origin"]').fill('Sharjah, UAE');
-    await page.getByRole('button', { name: /save & continue/i }).click();
+    await saveLegStep(page);
 
     // These two were missing from the update endpoint entirely, so the change
     // reached the server and was thrown away by validation stripping.

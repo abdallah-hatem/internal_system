@@ -151,7 +151,47 @@ export default function PartnersPage() {
             {/* Capital in and Profit earned carry no hint; the other three do. */}
             {repeat(5, (i) => <TotalSkeleton key={i} hint={i >= 2} />)}
           </SkeletonGroup>
-          <RunningCostsSection />
+        </>
+      )}
+      {!isLoading && corePartners.length > 0 && (
+        // The three partners fund cycles together, so the combined position
+        // is worth stating once rather than making it a mental sum of the
+        // cards below.
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <Total label={t('capitalIn')} value={egp(totals.contributed)} icon={Wallet} tone="text-emerald-600" />
+          <Total label={t('profitEarned')} value={egp(totals.profit)} icon={TrendingUp} tone="text-blue-600" />
+          <Total
+            label={t('accrued')}
+            value={egp(totals.accrued)}
+            icon={Hourglass}
+            tone={totals.accrued > 0 ? 'text-violet-600' : 'text-gray-400'}
+            hint={t('accruedHint')}
+          />
+          <Total
+            label={t('atRisk')}
+            value={egp(totals.atRisk)}
+            icon={Clock}
+            tone={totals.atRisk > 0 ? 'text-amber-600' : 'text-gray-400'}
+            hint={t('atRiskHint')}
+          />
+          <Total
+            label={t('runningCosts')}
+            value={egp(totals.runningCosts)}
+            icon={Receipt}
+            tone={totals.runningCosts > 0 ? 'text-foreground' : 'text-muted-foreground'}
+            hint={t('runningCostsHint')}
+          />
+        </div>
+      )}
+
+      {/* The business's general costs, and each core partner's share (§8, L7).
+          One slot for it, loading or loaded: drawn in the loading branch and
+          again in the loaded one, React mounted it twice, and the second
+          mount closed a period picker opened in the first. */}
+      {(isLoading || corePartners.length > 0) && <RunningCostsSection />}
+
+      {isLoading && (
+        <>
           <section>
             <h2 className="text-lg font-semibold text-foreground mb-4">{t('partners')}</h2>
             <SkeletonGroup className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -169,40 +209,6 @@ export default function PartnersPage() {
 
       {!isLoading && (
         <>
-          {/* The three partners fund cycles together, so the combined position
-              is worth stating once rather than making it a mental sum of the
-              cards below. */}
-          {corePartners.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-              <Total label={t('capitalIn')} value={egp(totals.contributed)} icon={Wallet} tone="text-emerald-600" />
-              <Total label={t('profitEarned')} value={egp(totals.profit)} icon={TrendingUp} tone="text-blue-600" />
-              <Total
-                label={t('accrued')}
-                value={egp(totals.accrued)}
-                icon={Hourglass}
-                tone={totals.accrued > 0 ? 'text-violet-600' : 'text-gray-400'}
-                hint={t('accruedHint')}
-              />
-              <Total
-                label={t('atRisk')}
-                value={egp(totals.atRisk)}
-                icon={Clock}
-                tone={totals.atRisk > 0 ? 'text-amber-600' : 'text-gray-400'}
-                hint={t('atRiskHint')}
-              />
-              <Total
-                label={t('runningCosts')}
-                value={egp(totals.runningCosts)}
-                icon={Receipt}
-                tone={totals.runningCosts > 0 ? 'text-foreground' : 'text-muted-foreground'}
-                hint={t('runningCostsHint')}
-              />
-            </div>
-          )}
-
-          {/* The business's general costs, and each core partner's share (§8, L7). */}
-          {corePartners.length > 0 && <RunningCostsSection />}
-
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('partners')}</h2>
             {corePartners.length === 0 && search ? (

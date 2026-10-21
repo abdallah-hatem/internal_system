@@ -124,17 +124,17 @@ export function quickActionsFor(role: string | undefined): QuickAction[] {
 }
 
 /**
- * Which dashboard a role gets (R1, owner 2026-10-10).
+ * Which dashboard a role gets.
  *
  *   'business' — the figures, top products and who to collect from: the API's
  *                /analytics/dashboard and /top-products let these roles in.
- *   'cycles'   — a temporary investor, or any role the business-wide reads
- *                refuse: their own cycles' profitability, which the API scopes.
- *   'loading'  — the role is not known yet, so nothing is fetched; fetching
- *                the business figures first would put a 403 in front of an
- *                investor on every visit.
+ *   'none'     — any other role: nothing is fetched or shown. Since 2026-10-19
+ *                only the partners sign in to the office (an investor is refused
+ *                at the door, OFFICE_NOT_FOR_INVESTORS), so the investor's own
+ *                "your cycles" dashboard (R1) was removed as unreachable.
+ *   'loading'  — the role is not known yet, so nothing is fetched.
  */
-export function dashboardView(role: string | undefined): 'business' | 'cycles' | 'loading' {
+export function dashboardView(role: string | undefined): 'business' | 'none' | 'loading' {
   if (role === undefined) return 'loading';
-  return allows(SELLING_ROLES, role) ? 'business' : 'cycles';
+  return allows(SELLING_ROLES, role) ? 'business' : 'none';
 }

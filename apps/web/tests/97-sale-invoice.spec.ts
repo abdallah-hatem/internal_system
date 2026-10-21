@@ -107,6 +107,8 @@ test.describe('Sale invoice / delivery note (§4, 2026-10-11)', () => {
     const { order } = await invoiced(request, 'IV03');
     await login(page);
     await openInvoice(page, order.orderNo);
+    // Documents open in Arabic first since 2026-10-17 (owner); this one is checked in English.
+    await page.getByTestId('invoice-lang-en').click();
 
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('aside')).toBeHidden();

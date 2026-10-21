@@ -913,6 +913,85 @@ export class AnalyticsService {
   }
 
   /**
+   * The two stand-out sales for the Sales tab's summary (owner 2026-10-18:
+   * "the order with the most revenue and the largest order"): the one that
+   * brought in the most, and the one that sent out the most units. Realised
+   * sales only, net of returns — revenue is the order's total less its
+   * refunds, as the dashboard and revenue-by-month count it, and units are
+   * the lines' quantities less what came back, as the top products count
+   * them. A sale with nothing left after returns is not a candidate. Ties
+   * fall to the other measure, then the order number, so the answer never
+   * depends on the database's order. Null when nothing has sold.
+   */
+  async getTopOrders() {
+    const D = (v: unknown) =>
+      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+
+    const orders = await this.prisma.saleOrder.findMany({
+      where: { status: { in: [...REALISED_SALE_STATUSES] } },
+      select: {
+        id: true,
+        orderNo: true,
+        orderedAt: true,
+        total: true,
+        customer: { select: { id: true, displayName: true, isWalkIn: true } },
+        returns: { select: { refundEgp: true } },
+        items: {
+          select: { quantity: true, returnItems: { select: { qty: true } } },
+        },
+      },
+    });
+
+    const candidates = orders
+      .map((o) => {
+        const revenue = o.returns.reduce(
+          (sum, r) => sum.sub(D(r.refundEgp)),
+          D(o.total),
+        );
+        const units = o.items.reduce(
+          (sum, i) =>
+            i.returnItems.reduce(
+              (s2, r) => s2.sub(D(r.qty)),
+              sum.add(D(i.quantity)),
+            ),
+          D(0),
+        );
+        return {
+          orderId: o.id,
+          orderNo: o.orderNo,
+          orderedAt: o.orderedAt,
+          customer: o.customer,
+          revenueEgp: Number(revenue.toDecimalPlaces(2)),
+          units: Number(units.toDecimalPlaces(3)),
+          lines: o.items.length,
+        };
+      })
+      .filter((o) => o.revenueEgp > 0 && o.units > 0);
+
+    type Candidate = (typeof candidates)[number];
+    const best = (cmp: (a: Candidate, b: Candidate) => number) =>
+      candidates.reduce<Candidate | null>(
+        (top, o) => (top === null || cmp(o, top) < 0 ? o : top),
+        null,
+      );
+    const byOrderNo = (a: Candidate, b: Candidate) =>
+      a.orderNo.localeCompare(b.orderNo);
+
+    return {
+      data: {
+        mostRevenue: best(
+          (a, b) =>
+            b.revenueEgp - a.revenueEgp || b.units - a.units || byOrderNo(a, b),
+        ),
+        mostUnits: best(
+          (a, b) =>
+            b.units - a.units || b.revenueEgp - a.revenueEgp || byOrderNo(a, b),
+        ),
+      },
+    };
+  }
+
+  /**
    * Per-cycle economics, for comparing cycles against each other (BRD 11).
    *
    * Revenue and cost are attributed through batch allocations, not through the

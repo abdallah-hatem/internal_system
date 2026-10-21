@@ -809,6 +809,8 @@ describe('find_products', () => {
       remainingQty: 8,
       reservedQty: 1,
       saleableQty: 7,
+      // A real batch always carries its landed cost; the stock value (2026-10-19) reads it.
+      landedUnitCostEgp: 40,
       createdAt: new Date(),
       product: { name: 'Brake Pad Front' },
       cycle: { code: 'C', shippingLegs: [] },
@@ -1281,10 +1283,23 @@ const LENDER_WRITES = new Set([
   'record_lender_repayment',
 ]);
 
+/**
+ * §4 "Samples at shops", §16: leaving samples and recording what the shop
+ * decided — the office's own SalesService calls. return_samples puts samples
+ * back on the shelf; it is not a return of a sale, which stays office-only.
+ */
+const SAMPLES_WRITES = new Set([
+  'leave_samples',
+  'complete_samples_sale',
+  'return_samples',
+  'write_off_samples',
+]);
+
 function forbiddenWrites(tools: Tool[]): string[] {
   return tools
     .filter((t) => t.annotations?.readOnlyHint !== true)
     .filter((t) => !SALE_WRITES.has(t.name))
+    .filter((t) => !SAMPLES_WRITES.has(t.name))
     .filter((t) => !LENDER_WRITES.has(t.name))
     .filter((t) => !INTAKE_WRITES.has(t.name) || OFFICE_ONLY.test(t.name))
     .map((t) => t.name);
@@ -1321,6 +1336,7 @@ describe('What the assistant offers', () => {
       'list_lenders',
       'get_lender',
       'list_categories',
+      'list_samples',
     ];
     const byName = new Map(tools.map((t) => [t.name, t]));
     for (const name of reads) {
@@ -1373,9 +1389,15 @@ describe('What the assistant offers', () => {
     const names = tools.map((t) => t.name);
 
     expect(names).toContain('record_delivery');
-    expect(names.filter((n) => /los[st]|refund|write_?off/i.test(n))).toEqual(
-      [],
-    );
+    // Samples a shop kept or lost are written off through the assistant
+    // (§4 samples at shops, §16): the office's own SalesService call, not a
+    // loss on the way. Nothing else writes a loss off.
+    expect(
+      names.filter(
+        (n) =>
+          /los[st]|refund|write_?off/i.test(n) && n !== 'write_off_samples',
+      ),
+    ).toEqual([]);
     // No tool takes a loss in through a side door either: nothing writes
     // with a field named for one.
     const lossFields = tools.flatMap((t) =>

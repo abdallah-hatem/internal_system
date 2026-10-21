@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
+import { useNumberFormat } from '@/lib/numbers';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import {
   amountFromPct,
@@ -63,6 +64,7 @@ export function AmountsForm<P extends AmountsParticipant>({
 }) {
   const t = useTranslations('cycles');
   const tph = useTranslations('placeholders');
+  const { formatNumber } = useNumberFormat();
   const tc = useTranslations('common');
 
   const isPartner = (p: AmountsParticipant) => p.participantType === 'CORE_PARTNER';
@@ -123,7 +125,7 @@ export function AmountsForm<P extends AmountsParticipant>({
   const equalPct = partners.length ? String(Math.round(10000 / partners.length) / 100) : '';
   const exampleAmount = (i: number) =>
     base > 0 && equal[i] !== undefined
-      ? equal[i].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ? formatNumber(equal[i], { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : tph('money');
 
   const field =

@@ -17,7 +17,7 @@
  *  breaking.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers } from './support/fixtures';
+import { alreadyWalked, anInvestorUser, apiCtx, giveStock, stockedProduct, owedOrder, outstandingOf, refusedCallers, investorSession } from './support/fixtures';
 import { psqlQuery, psqlStdin } from './support/database';
 import { leftoverWorld } from './support/leftovers';
 import { approved, cents, recordCost, runningCosts, settlement, settlementRows, soldOutCycle, usersByEmail, waitingFor } from './support/running-costs';
@@ -599,10 +599,8 @@ test.describe('An overdue instalment is told once, to every partner (§7 — 202
 
   test('TC-INV-22: an investor is not told about shops’ debts', async ({ request }) => {
     // Customer data is the office's (roles, 2026-10-10): the check names only core partners.
-    const login = await request.post(`${API}/auth/login`, {
-      data: { email: 'investor@motoparts.com', password: PASSWORD },
-    });
-    const headers = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
+    // An investor no longer signs in at the office (2026-10-19), so the token is investorSession's.
+    const { headers } = await investorSession(request, 'inv22');
     await request.get(`${API}/jobs/overdue-payments`, { headers: { Authorization: `Bearer ${CRON}` } });
     const notes = (await (await request.get(`${API}/notifications?limit=100`, { headers })).json()).data ?? [];
     expect(notes.filter((n: any) => n.eventType === 'PAYMENT_OVERDUE')).toEqual([]);
@@ -2028,7 +2026,8 @@ test.describe('A running cost’s shares are fixed on its own day (L7 review, §
   test('TC-INV-65: C leaves with his share unpaid — A and B are never charged more than their own share, and C’s stays waiting, shown as his', async ({ request }) => {
     const { headers } = await apiCtx(request);
     const user = await usersByEmail(request, headers);
-    const [a, b, c] = ['a', 'b', 'c'].map((x) => user(`partner.${x}@motoparts.com`));
+    // The seed's partners by name since 2026-10-19 (partner.a/b/c until then).
+    const [a, b, c] = ['abdallah', 'shady', 'fares'].map((x) => user(`${x}@motoparts.com`));
     const before = await runningCosts(request, headers);
     await recordCost(request, headers, { amount: 900 });
     const after = await runningCosts(request, headers);

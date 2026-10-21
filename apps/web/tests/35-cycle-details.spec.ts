@@ -37,7 +37,7 @@ async function aCycle(request: APIRequestContext) {
   // state the business does not recognise, and one the server now refuses.
   // Two of these tests expect a 400 for an unrelated reason, so a shop account
   // here would have had them passing for the wrong one.
-  const body = await (await request.get(`${API}/users`, { headers })).json();
+  const body = await (await request.get(`${API}/users?limit=100`, { headers })).json();
   const all: any[] = body.data?.items ?? body.data ?? body;
   const users = all.filter(
     (u) => u.status === 'ACTIVE' && (u.role === 'CORE_PARTNER' || u.role === 'TEMP_INVESTOR'),
@@ -65,10 +65,13 @@ test.describe('Cycle details', () => {
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
     await expect(page.getByRole('heading', { name: cycle.code })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('CLOSED')).toBeVisible();
+    // The status badge, not the funding note that also says the cycle is closed (2026-10-18).
+    await expect(page.getByTestId('cycle-status')).toHaveText(/closed/i);
 
-    // Readable, not editable: a closed cycle is history.
-    await expect(page.getByRole('button', { name: /add participant/i })).toHaveCount(0);
+    // Readable, not editable: a closed cycle is history. Since 2026-10-18 the
+    // funding controls stay on screen, switched off, and say why (§8).
+    await expect(page.getByRole('button', { name: /add participant/i })).toBeDisabled();
+    await expect(page.getByTestId('funding-locked')).toBeVisible();
   });
 
   test('TC-CYC-D3: a participant can be added, which nothing could do before', async ({
@@ -173,7 +176,7 @@ test.describe('The three partners fund a cycle equally by default', () => {
     const res = await request.get(`${API}/cycles/${cycle.id}`, { headers });
     const participants = (await res.json()).data.participants ?? [];
 
-    const users = await (await request.get(`${API}/users`, { headers })).json();
+    const users = await (await request.get(`${API}/users?role=CORE_PARTNER&limit=100`, { headers })).json();
     const corePartners = (users.data ?? users).filter((u: any) => u.role === 'CORE_PARTNER');
 
     expect(participants).toHaveLength(corePartners.length);
@@ -224,7 +227,8 @@ test.describe('The three partners fund a cycle equally by default', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
-    await page.getByRole('button', { name: /split equally/i }).click();
+    // The participants card's own button; the funding note above it has one too (2026-10-18).
+    await page.getByTestId('participants-card').getByRole('button', { name: /split equally/i }).click();
 
     await expect
       .poll(async () => {
@@ -274,7 +278,8 @@ test.describe('The three partners fund a cycle equally by default', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
-    await page.getByRole('button', { name: /split equally/i }).click();
+    // The participants card's own button; the funding note above it has one too (2026-10-18).
+    await page.getByTestId('participants-card').getByRole('button', { name: /split equally/i }).click();
 
     // 10,000 cost, 4,000 from the investor: the partners cover the other 6,000.
     await expect
@@ -293,5 +298,40 @@ test.describe('The three partners fund a cycle equally by default', () => {
       (p: any) => p.participantType === 'TEMP_INVESTOR',
     );
     expect(Number(inv.contributionAmount)).toBe(4000);
+  });
+});
+
+// Owner 2026-10-19: the Settlement button opened the Settlements tab with no
+// cycle chosen, so the cycle you came from had to be found again in the picker.
+test.describe('Settlement button carries its cycle', () => {
+  test('TC-CYC-D-SET1: the Settlements tab opens with that cycle picked, and keeps a cycle picked there', async ({ page, request }) => {
+    const { mk, cycle } = await aCycle(request);
+    const other = await mk('cycles', { originType: 'UAE_DIRECT', currency: 'EGP' });
+    await login(page);
+    await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
+    await expect(page.getByRole('heading', { name: cycle.code })).toBeVisible({ timeout: 15000 });
+
+    // Reached by clicking, the way a partner gets there — not by typing the address.
+    await page.getByRole('main').getByRole('button', { name: /^settlement$/i }).click();
+    await expect(page).toHaveURL(new RegExp(`/en/partners\?.*cycle=${cycle.id}`), { timeout: 15000 });
+    const picker = page.locator('#cycle-select');
+    await expect(picker).toContainText(cycle.code, { timeout: 15000 });
+    await expect(page.getByRole('button', { name: /calculate/i })).toBeEnabled();
+
+    // The second time: choosing another cycle here replaces the one from the
+    // address, and the address follows, so a refresh keeps it.
+    await picker.click();
+    await page.getByRole('option', { name: new RegExp(other.code) }).click();
+    await expect(picker).toContainText(other.code);
+    await expect(page).toHaveURL(new RegExp(`cycle=${other.id}`));
+    await page.reload();
+    await expect(page.locator('#cycle-select')).toContainText(other.code, { timeout: 15000 });
+  });
+
+  test('TC-CYC-D-SET2: an address naming a cycle that does not exist picks nothing', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/en/partners?view=settlements&cycle=00000000-0000-0000-0000-000000000000`);
+    await expect(page.locator('#cycle-select')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: /calculate/i })).toBeDisabled();
   });
 });

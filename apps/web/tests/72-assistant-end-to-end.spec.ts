@@ -67,6 +67,8 @@ const EXPECTED_TOOLS = [
   'list_lenders', 'get_lender', 'record_lender_financing', 'record_lender_repayment',
   // categories (added 2026-10-15: the owner asked the assistant to create categories, §16)
   'list_categories', 'create_category',
+  // samples at shops (added 2026-10-20, §4 §16)
+  'leave_samples', 'list_samples', 'complete_samples_sale', 'return_samples', 'write_off_samples',
 ];
 
 /** The intake path, receipt to sellable stock — the only things it may change (§16). */
@@ -78,6 +80,7 @@ const WRITE_TOOLS = [
   'record_payment',
   'record_lender_financing', 'record_lender_repayment',
   'create_category',
+  'leave_samples', 'complete_samples_sale', 'return_samples', 'write_off_samples',
 ];
 
 /**

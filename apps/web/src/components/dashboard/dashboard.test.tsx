@@ -143,43 +143,23 @@ describe('dashboard tiles lead to their lists', () => {
   });
 });
 
-// ── R1: a temporary investor sees only their own cycles ──────────────
-describe('a temporary investor sees only their own cycles (R1)', () => {
-  beforeEach(() => {
-    auth.role = 'TEMP_INVESTOR';
-  });
-
-  it('no business-wide tile or top products, and those endpoints (403 for them) are never called', async () => {
+// ── A role the business figures refuse: nothing at all ──────────────
+// The investor's own "your cycles" dashboard (R1) went on 2026-10-19 with the
+// owner's word that only the partners use the office: an investor is refused
+// at the door (OFFICE_NOT_FOR_INVESTORS). A role that still got here sees no
+// figures, and nothing it would be refused is asked for.
+describe('a role the business-wide figures refuse', () => {
+  it.each(['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL'])('%s: the title only, no tile, no top products, nothing fetched', async (role) => {
+    auth.role = role;
     renderPage();
-    await screen.findByTestId('your-cycles');
+    await screen.findByRole('heading', { name: 'Dashboard' });
     expect(screen.queryByTestId('tile-revenue')).toBeNull();
     expect(screen.queryByText('Top products')).toBeNull();
+    expect(screen.queryByTestId('your-cycles')).toBeNull();
     const urls = get.mock.calls.map((c) => String(c[0]));
-    for (const refused of ['/analytics/dashboard', '/analytics/top-products']) {
+    for (const refused of ['/analytics/dashboard', '/analytics/top-products', '/analytics/cycle-profitability']) {
       expect(urls.some((u) => u.startsWith(refused)), refused).toBe(false);
     }
-  });
-
-  it('their cycles, each with its profit so far and a link to the cycle', async () => {
-    responses.cycles = [
-      { cycleId: 'c1', cycleCode: 'CYC-1', status: 'SELLING', totalRevenue: 300, totalCost: 210, profit: 90 },
-      { cycleId: 'c3', cycleCode: 'CYC-3', status: 'CLOSED', totalRevenue: 50, totalCost: 80, profit: -30 },
-    ];
-    renderPage();
-    const link = (await screen.findByText('CYC-1')).closest('a');
-    expect(link?.getAttribute('href')).toBe('/cycles/c1/details');
-    expect(screen.getByText('CYC-3')).toBeTruthy();
-    expect(screen.getAllByText('Profit so far')).toHaveLength(2);
-  });
-
-  it('an investor with no cycle stock yet → the empty state, not an error', async () => {
-    renderPage();
-    expect(await screen.findByText('None of your cycles has stock yet')).toBeTruthy();
-  });
-
-  it('renders in Arabic', async () => {
-    renderPage('ar');
-    expect(await screen.findByText('دوراتك')).toBeTruthy();
   });
 });
 
@@ -209,7 +189,7 @@ describe('quick actions follow the API roles', () => {
   it.each(['TEMP_INVESTOR', 'SHOP_OWNER_PORTAL'])('%s sees no quick actions at all', async (role) => {
     auth.role = role;
     renderPage();
-    await screen.findByTestId('your-cycles');
+    await screen.findByRole('heading', { name: 'Dashboard' });
     expect(screen.queryByRole('navigation', { name: 'Quick actions' })).toBeNull();
     expect(screen.queryByText('New sale')).toBeNull();
     expect(screen.queryByText('Record payment')).toBeNull();
@@ -258,7 +238,7 @@ describe('the dashboard has no Fuel quick action', () => {
       auth.role = role;
       renderPage();
       if (role === 'CORE_PARTNER' || role === 'ADMIN_SUPPORT') await tile('revenue');
-      else if (role) await screen.findByTestId('your-cycles');
+      else if (role) await screen.findByRole('heading', { name: 'Dashboard' });
       expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
       expect(document.querySelector('[data-ledger-entry-dialog]')).toBeNull();
       const nav = screen.queryByRole('navigation', { name: en.dashboard.quickActions });
@@ -343,7 +323,7 @@ describe('a phone shows six figures, then See more', () => {
   it('an investor, who has no business tiles, gets no toggle', async () => {
     auth.role = 'TEMP_INVESTOR';
     renderPage();
-    await screen.findByTestId('your-cycles');
+    await screen.findByRole('heading', { name: 'Dashboard' });
     expect(screen.queryByTestId('tiles-toggle')).toBeNull();
   });
 });

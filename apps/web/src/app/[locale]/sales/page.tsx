@@ -55,6 +55,7 @@ import { ContractButton, ContractPlanDialog, type ContractSale } from '@/compone
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
 import { useCan } from '@/lib/can';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
+import { SalesSummary } from '@/components/summary/tab-summaries';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
   id: string;
@@ -248,6 +249,18 @@ function SalesPageContent() {
       router.replace(`/${locale}/sales`, { scroll: false });
     }
     setOpenedOrder(order);
+  };
+  // A summary card opens its order here: from the list when the order is on
+  // it, otherwise fetched into the detail's own cache entry first, so the
+  // dialog opens with the whole order rather than a half-drawn one.
+  const openOrderById = async (id: string) => {
+    const listed = (orders as SaleOrder[]).find((o) => o.id === id);
+    if (listed) return setViewingOrder(listed);
+    const order = await queryClient.fetchQuery({
+      queryKey: ['sale', id],
+      queryFn: () => api.get(`/sales/orders/${id}`).then((r) => r.data.data ?? r.data),
+    });
+    setViewingOrder(order as SaleOrder);
   };
   const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDates({ from: '', to: '' }); };
   const { items: customers } = useAllRecords(['customers'], '/customers');
@@ -694,6 +707,9 @@ function SalesPageContent() {
         </button>
         </div>
       </div>
+
+      {/* The sale that brought in the most and the largest one (owner 2026-10-18). */}
+      <SalesSummary onOpen={(id) => void openOrderById(id).catch((e) => addToast(apiError(e, tc('error')), 'error'))} />
 
       {/* Search + Filter Tabs */}
       <ListToolbar

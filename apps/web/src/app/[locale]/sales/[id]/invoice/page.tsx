@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { FileX } from 'lucide-react';
 
@@ -18,6 +18,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRegion, SkeletonText } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { DocumentActions } from '@/components/ui/document-actions';
+import { DocumentHeader } from '@/components/ui/document-header';
+import { DOCUMENT_TAGLINE } from '@/components/ui/document-tagline';
 import {
   DEFAULT_DOCUMENT_LANGUAGE,
   DOCUMENT_FONT,
@@ -137,27 +139,25 @@ function useInvoiceColumns(currency?: string): Column<InvoiceLine>[] {
 /**
  * The invoice before it arrives, traced from the article below: the header
  * with its number and date, Bill to, the lines table, the totals beside the
- * account box, and the two signature lines.
+ * account box.
  */
 function InvoiceSkeleton() {
   const t = useTranslations('sales.invoice');
-  const tc = useTranslations('common');
+  const locale = useLocale();
   const columns = useInvoiceColumns();
   // Every word that needs no data is the real word; only the figures wait.
   return (
     <div className="mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
-      <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-lg font-bold text-foreground">{tc('brand')}</p>
-          <p className="mt-1 text-xl font-semibold text-foreground">{t('title')}</p>
+      <DocumentHeader title={t('title')} tagline={DOCUMENT_TAGLINE[locale === 'ar' ? 'ar' : 'en']}>
+        <div className="flex items-center gap-1">
+          <dt>{t('number')}: </dt>
+          <dd><SkeletonText size="xs" className="w-24" /></dd>
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm sm:text-end">
-          <dt className="text-muted-foreground">{t('number')}</dt>
-          <dd><SkeletonText lineClassName="sm:justify-end" className="w-28" /></dd>
-          <dt className="text-muted-foreground">{t('date')}</dt>
-          <dd><SkeletonText lineClassName="sm:justify-end" className="w-24" /></dd>
-        </dl>
-      </div>
+        <div className="flex items-center gap-1">
+          <dt>{t('date')}: </dt>
+          <dd><SkeletonText size="xs" className="w-20" /></dd>
+        </div>
+      </DocumentHeader>
 
       <div className="border-b border-border py-4 text-sm">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('billTo')}</p>
@@ -185,10 +185,6 @@ function InvoiceSkeleton() {
         </div>
       </div>
 
-      <div className="mt-10 grid grid-cols-2 gap-8 text-sm text-muted-foreground">
-        <div className="border-t border-border pt-2">{t('receivedBy')}</div>
-        <div className="border-t border-border pt-2">{t('deliveredBy')}</div>
-      </div>
     </div>
   );
 }
@@ -317,7 +313,6 @@ function InvoiceDocument({ data, lang, sheet = false }: { data: Invoice; lang: D
 function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLanguage; sheet: boolean }) {
   const t = useTranslations('sales.invoice');
   const columns = useInvoiceColumns(data.currency);
-  const tc = useTranslations('common');
   const { formatDate } = useDateFormat();
   const walkIn = data.customer.isWalkIn;
 
@@ -330,21 +325,19 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
     style={{ fontFamily: DOCUMENT_FONT }}
     className={`text-start ${sheet ? 'bg-card' : 'mx-auto max-w-4xl rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8'}`}
   >
-    {/* Who and what */}
-    <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between sheet:flex-row sheet:items-start sheet:justify-between" data-print-keep>
+    {/* Who and what: the contract's header (owner, 2026-10-21). */}
+    <DocumentHeader title={t('title')} tagline={DOCUMENT_TAGLINE[lang]}>
       <div>
-        <p className="text-lg font-bold text-foreground">{tc('brand')}</p>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">{t('title')}</h1>
-      </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 whitespace-nowrap text-sm sm:text-end sheet:text-end">
-        <dt className="text-muted-foreground">{t('number')}</dt>
-        <dd className="whitespace-nowrap font-mono font-semibold text-foreground" data-testid="invoice-number">
+        <dt className="inline">{t('number')}: </dt>
+        <dd className="inline whitespace-nowrap font-mono font-semibold text-foreground" data-testid="invoice-number">
           <bdi dir="ltr">{data.orderNo}</bdi>
         </dd>
-        <dt className="text-muted-foreground">{t('date')}</dt>
-        <dd className="text-foreground">{formatDate(noon(data.date))}</dd>
-      </dl>
-    </header>
+      </div>
+      <div>
+        <dt className="inline">{t('date')}: </dt>
+        <dd className="inline text-foreground">{formatDate(noon(data.date))}</dd>
+      </div>
+    </DocumentHeader>
 
     <section className="border-b border-border py-4 text-sm" data-print-keep>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('billTo')}</p>
@@ -420,11 +413,6 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
       </dl>
     </div>
 
-    {/* A delivery note is signed for. */}
-    <footer className="mt-10 grid grid-cols-2 gap-8 text-sm text-muted-foreground" data-print-keep>
-      <div className="border-t border-border pt-2">{t('receivedBy')}</div>
-      <div className="border-t border-border pt-2">{t('deliveredBy')}</div>
-    </footer>
     <p className="mt-6 hidden text-xs text-muted-foreground print:block sheet:block">
       {t('printedOn', { date: formatDate(new Date().toISOString()) })}
     </p>

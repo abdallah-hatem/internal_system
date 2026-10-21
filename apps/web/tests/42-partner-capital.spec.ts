@@ -19,7 +19,7 @@
  *  raise double-counting, a backfill running twice.
  */
 import { test, expect, Page } from '@playwright/test';
-import { apiCtx, API } from './support/fixtures';
+import { allLedgerRows, apiCtx, API } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
 const EMAIL = 'abdallah@motoparts.com';
@@ -165,8 +165,7 @@ test.describe('Partner capital', () => {
     ).json();
     expect(body.data).toBeTruthy();
 
-    const ledger = await (await request.get(`${API}/ledger?limit=500`, { headers })).json();
-    const rows = ledger.data?.items ?? ledger.data ?? [];
+    const rows = await allLedgerRows(request, headers);
 
     const contributions = rows
       .filter((r: any) => r.category === 'contribution')

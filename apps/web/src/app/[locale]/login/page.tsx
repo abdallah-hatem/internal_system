@@ -6,7 +6,7 @@ import { useRouter } from '../../../i18n/navigation';
 import { useApiError } from '../../../lib/api-error';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { BrandMark } from '@/components/layout/brand-mark';
-import { useState } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { ValidatedForm } from '@/components/ui/validated-form';
 
 export default function LoginPage() {
@@ -16,8 +16,19 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Read from the fields when the form is sent, not kept in state: on a slow
+  // phone, what is typed before the page hydrates would otherwise be reset to
+  // the empty state by hydration, and the form sent blank ("not valid: email,
+  // password"). Uncontrolled fields keep it.
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  // False in the server's HTML, true once hydrated. Until then the button is
+  // disabled: a click before then would send the browser's own empty submit.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +37,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(emailRef.current?.value ?? '', passwordRef.current?.value ?? '');
       router.push('/dashboard');
     } catch (err: any) {
       // Was `err.response?.data?.error?.message` — the API's English sentence,
@@ -63,8 +74,8 @@ export default function LoginPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
               <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                ref={emailRef}
+                autoComplete="email"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder={tph('email')}
                 required
@@ -75,8 +86,8 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  ref={passwordRef}
+                  autoComplete="current-password"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   placeholder={tph('password')}
                   required
@@ -92,7 +103,7 @@ export default function LoginPage() {
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !hydrated}
               className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

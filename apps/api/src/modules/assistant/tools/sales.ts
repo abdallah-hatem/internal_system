@@ -124,7 +124,7 @@ type SaleInput = {
   orderedOn?: string;
 };
 
-interface CatalogueProduct {
+export interface CatalogueProduct {
   id: string;
   name: string;
   /** Matched as well as the English name (§3, 2026-10-14). */
@@ -134,7 +134,7 @@ interface CatalogueProduct {
   listPrices: ListPrices;
 }
 
-interface CatalogueCustomer {
+export interface CatalogueCustomer {
   id: string;
   name: string;
   type: string;
@@ -333,11 +333,11 @@ export function resolveSale(
 }
 
 /** A NUMERIC(18,2) as two decimals — a Decimal prints "300", not "300.00". */
-function money2(value: unknown): string {
+export function money2(value: unknown): string {
   return Number(value).toFixed(2);
 }
 
-function options<T extends { id: string }>(
+export function options<T extends { id: string }>(
   found: NameMatch<T>,
   label: (item: T) => string,
 ): SaleQuestion['options'] {
@@ -347,6 +347,60 @@ function options<T extends { id: string }>(
     label: label(c.item),
     score: c.score,
   }));
+}
+
+/**
+ * What a sale is matched against: the products that can be sold and the
+ * customers that can be named. Shared with the samples tools (`samples.ts`),
+ * so leaving samples matches exactly what a sale would.
+ *
+ * `alsoProducts` adds products by id whatever their status — the products
+ * already out on a samples order, which can be bought back from it even once
+ * switched off with an empty shelf.
+ */
+export async function loadSaleCatalogue(
+  prisma: PrismaService,
+  alsoProducts: readonly string[] = [],
+): Promise<{ products: CatalogueProduct[]; customers: CatalogueCustomer[] }> {
+  const [products, customers] = await Promise.all([
+    // What can be sold (§3, owner 2026-10-14): a switched-off product is
+    // still sold from the shelf, and is not matched once the shelf is empty.
+    prisma.product.findMany({
+      where: alsoProducts.length
+        ? { OR: [SELLABLE, { id: { in: [...alsoProducts] } }] }
+        : SELLABLE,
+      select: {
+        id: true,
+        name: true,
+        nameAr: true,
+        sku: true,
+        prices: {
+          where: { effectiveTo: null },
+          select: { channel: true, amount: true, effectiveTo: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    }),
+    // The walk-in record is never a customer you name (§4): a walk-in
+    // sale says walkIn.
+    prisma.customer.findMany({
+      where: { isWalkIn: false },
+      select: { id: true, displayName: true, type: true },
+      orderBy: { displayName: 'asc' },
+    }),
+  ]);
+  const listPrices = await listPricesFor(prisma, products);
+  return {
+    products: products.map(({ prices: _prices, ...p }): CatalogueProduct => ({
+      ...p,
+      listPrices: listPrices.get(p.id)!,
+    })),
+    customers: customers.map((c) => ({
+      id: c.id,
+      name: c.displayName,
+      type: c.type,
+    })),
+  };
 }
 
 /** What a dry-run order looked like before it was rolled back. */
@@ -366,45 +420,7 @@ export function registerSalesTools(
   const prisma = () => ctx.resolve(PrismaService);
   const audit = () => ctx.resolve(AuditService);
 
-  async function catalogue() {
-    const [products, customers] = await Promise.all([
-      // What can be sold (§3, owner 2026-10-14): a switched-off product is
-      // still sold from the shelf, and is not matched once the shelf is empty.
-      prisma().product.findMany({
-        where: SELLABLE,
-        select: {
-          id: true,
-          name: true,
-          nameAr: true,
-          sku: true,
-          prices: {
-            where: { effectiveTo: null },
-            select: { channel: true, amount: true, effectiveTo: true },
-          },
-        },
-        orderBy: { name: 'asc' },
-      }),
-      // The walk-in record is never a customer you name (§4): a walk-in
-      // sale says walkIn.
-      prisma().customer.findMany({
-        where: { isWalkIn: false },
-        select: { id: true, displayName: true, type: true },
-        orderBy: { displayName: 'asc' },
-      }),
-    ]);
-    const listPrices = await listPricesFor(prisma(), products);
-    return {
-      products: products.map(({ prices: _prices, ...p }): CatalogueProduct => ({
-        ...p,
-        listPrices: listPrices.get(p.id)!,
-      })),
-      customers: customers.map((c) => ({
-        id: c.id,
-        name: c.displayName,
-        type: c.type,
-      })),
-    };
-  }
+  const catalogue = () => loadSaleCatalogue(prisma());
 
   /** The sale as the sales service would make it, rolled back. */
   async function dryRun(body: CreateSaleOrderInput): Promise<SeenOrder> {

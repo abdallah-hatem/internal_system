@@ -22,6 +22,7 @@ import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { ListToolbar } from '@/components/ui/list-toolbar';
+import { CyclesSummary } from '@/components/summary/tab-summaries';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Cycle {
   id: string;
@@ -263,6 +264,9 @@ export default function CyclesPage() {
         </Link>
         )}
       </div>
+
+      {/* The most profitable cycles, from Analytics' figure (owner 2026-10-18). */}
+      <CyclesSummary />
 
       {/* Status filter tabs */}
       <div className="scrollbar-clean scrollbar-x flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">

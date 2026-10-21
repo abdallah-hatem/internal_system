@@ -283,7 +283,7 @@ suite('reference numbers and dates against Postgres', () => {
   describe('an undated payment', () => {
     afterEach(() => jest.useRealTimers());
 
-    it('at 22:30 UTC on the 10th is received on the 11th — the Cairo day', async () => {
+    it('at 22:30 UTC it is received on the next day — the Cairo day', async () => {
       const customer = await shop();
       const product = await stocked(5);
       const order = (await sales.create(
@@ -291,8 +291,17 @@ suite('reference numbers and dates against Postgres', () => {
         actor,
       )) as Made;
 
+      // Tomorrow's 22:30 UTC, not a fixed day: a payment cannot be received
+      // before its order (placed today), and 22:30 UTC is already the next
+      // day in Cairo.
+      const at = new Date();
+      at.setUTCDate(at.getUTCDate() + 1);
+      at.setUTCHours(22, 30, 0, 0);
+      const cairoDay = new Date(at.getTime() + 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
       jest.useFakeTimers({
-        now: new Date('2026-10-10T22:30:00Z'),
+        now: at,
         doNotFake: [
           'hrtime',
           'nextTick',
@@ -320,7 +329,7 @@ suite('reference numbers and dates against Postgres', () => {
       const stored = await prisma.payment.findUniqueOrThrow({
         where: { id: data.id },
       });
-      expect(stored.receivedOn.toISOString().slice(0, 10)).toBe('2026-10-11');
+      expect(stored.receivedOn.toISOString().slice(0, 10)).toBe(cairoDay);
     });
   });
 });

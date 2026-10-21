@@ -93,7 +93,8 @@ test.describe('Notification bell', () => {
   test('TC-NOT-04: the panel links through to the full list', async ({ page }) => {
     await login(page);
     await bell(page).click();
-    await page.getByRole('link', { name: /view all/i }).click();
+    // The panel's own link: the dashboard's To collect card has a "View all" too.
+    await page.getByRole('dialog').or(page.locator('[data-radix-popper-content-wrapper]')).getByRole('link', { name: /view all/i }).click();
 
     await expect(page).toHaveURL(/\/notifications/, { timeout: 10000 });
   });
@@ -102,6 +103,7 @@ test.describe('Notification bell', () => {
     await login(page);
     // Was a hardcoded "Admin / Core Partner", so every partner saw the same
     // name — on a system where every action is attributed to a person.
-    await expect(page.getByText(EMAIL).first()).toBeVisible();
+    // The header names the partner (2026-10-15: from the session cookie), not the email.
+    await expect(page.getByRole('banner').getByText('Abdallah').first()).toBeVisible();
   });
 });

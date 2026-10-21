@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import InvoicePage from './page';
+import { DOCUMENT_TAGLINE } from '@/components/ui/document-tagline';
 
 /**
  * The invoice's Download PDF / Share PDF / Print — the same DocumentActions as
@@ -143,6 +144,34 @@ describe('the invoice in Arabic or English, Arabic first (owner, 2026-10-17)', (
     expect(sheet.getAttribute('dir')).toBe('rtl');
     expect(sheet.textContent).toContain(ar.sales.invoice.title);
     expect(options.pageLabel(1, 2)).toBe('صفحة 1 من 2');
+  });
+});
+
+describe('the invoice wears the contract’s header, and has no signature lines (owner, 2026-10-21)', () => {
+  it('the logo, the title, who it is from, and the number and date beside them — in the document’s language', async () => {
+    renderPage('en');
+    const doc = await screen.findByTestId('invoice');
+    const header = doc.querySelector('header')!;
+    expect(header.querySelector('img')?.getAttribute('alt')).toBe('S&F');
+    expect(header.querySelector('h1')?.textContent).toBe(ar.sales.invoice.title);
+    expect(header.textContent).toContain(DOCUMENT_TAGLINE.ar);
+    expect(header.querySelector('[data-testid="invoice-number"]')?.textContent).toContain('ORD-');
+    // The contract's rule under it, so the two papers match.
+    expect(header.className).toContain('border-b-2');
+
+    fireEvent.click(screen.getByTestId('invoice-lang-en'));
+    const english = screen.getByTestId('invoice').querySelector('header')!;
+    expect(english.querySelector('h1')?.textContent).toBe(en.sales.invoice.title);
+    expect(english.textContent).toContain(DOCUMENT_TAGLINE.en);
+  });
+
+  it('nothing to sign: no "Received by" or "Delivered by", in either language', async () => {
+    renderPage('en');
+    const doc = await screen.findByTestId('invoice');
+    for (const word of ['Received by', 'Delivered by', 'المستلم', 'المسلّم']) {
+      expect(doc.textContent).not.toContain(word);
+    }
+    expect(doc.querySelector('footer')).toBeNull();
   });
 });
 

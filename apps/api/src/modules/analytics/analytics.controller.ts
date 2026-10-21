@@ -76,6 +76,17 @@ export class AnalyticsController {
     );
   }
 
+  /** The sale that brought in the most and the one that sent out the most units, net of returns. */
+  @Get('top-orders')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary: 'The sale with the most revenue and the one with the most units',
+  })
+  getTopOrders() {
+    return this.analyticsService.getTopOrders();
+  }
+
   /** Every role; an investor gets only the cycles they participate in. */
   @Get('cycle-profitability')
   @ApiOperation({

@@ -18,6 +18,16 @@ export type SessionClock = () => Date;
 export const OFFICE_ACCESS_TTL = '1h';
 
 /**
+ * Who may hold an office sign-in: the partners, and the admin-support role the
+ * code still knows. Not a shop (its door is the store) and, since the owner's
+ * word of 2026-10-19, not a temporary investor — only the three partners use
+ * the office app. Asked at login, at every refresh and after a password change.
+ */
+export function mayHoldOfficeSession(role: string): boolean {
+  return role === 'CORE_PARTNER' || role === 'ADMIN_SUPPORT';
+}
+
+/**
  * Thirty days of not opening the app, and the sign-in ends. Rolling: every
  * refresh starts the thirty days again, so someone who opens the office at
  * least once a month never sees the login page.
@@ -131,13 +141,10 @@ export class SessionTokensService {
         partner: { select: { displayName: true } },
       },
     });
-    // A deactivated partner, or an account that became a shop's, holds no
-    // office sign-in. End all of theirs rather than just refuse this one.
-    if (
-      !user ||
-      user.status !== 'ACTIVE' ||
-      user.role === 'SHOP_OWNER_PORTAL'
-    ) {
+    // A deactivated partner, an account that became a shop's, or an investor
+    // (owner 2026-10-19) holds no office sign-in. End all of theirs rather
+    // than just refuse this one.
+    if (!user || user.status !== 'ACTIVE' || !mayHoldOfficeSession(user.role)) {
       await this.revokeAllForUser(row.userId);
       throw unauthorized('SESSION_INVALID', 'Your session is no longer valid');
     }

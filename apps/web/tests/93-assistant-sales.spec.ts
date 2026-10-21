@@ -205,10 +205,14 @@ test.describe('record_sale (§16, 2026-10-11)', () => {
     expect(writes).toContain('record_sale');
     // record_payment added 2026-10-11 (I2), approved by the owner (§16).
     // record_lender_repayment added 2026-10-11 (L2): repaying a friend in pounds (§18).
+    // complete_samples_sale and return_samples added 2026-10-20 (§4): the shop buying its samples, and
+    // samples coming back — neither is a return of a sale, which stays office-only.
     expect(writes.filter((n) => /sale|payment|instal|settle|return|refund|ledger/i.test(n)).sort()).toEqual([
+      'complete_samples_sale',
       'record_lender_repayment',
       'record_payment',
       'record_sale',
+      'return_samples',
     ]);
   });
 });

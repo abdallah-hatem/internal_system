@@ -7,6 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { API } from './support/env';
+import { cycleByCode } from './support/fixtures';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -24,10 +25,7 @@ async function settleableCycle(request: any, h: any) {
   return cycles.find((c: any) => c.status !== 'CLOSED' && Number(c.totalRevenue) > 0);
 }
 
-async function cycleByCode(request: any, h: any, code: string) {
-  const list = (await (await request.get(`${API}/cycles?limit=200`, { headers: h })).json()).data;
-  return list.find((c: any) => c.code === code);
-}
+
 
 test.describe('Settlement close', () => {
   test('TC-SET-10: paying refuses while stock is still on the shelf', async ({ request }) => {
@@ -151,4 +149,40 @@ test.describe('Settlement close', () => {
     });
     expect(res.status()).toBe(400);
   });
+});
+
+// Seen 2026-10-11 (L1), fixed 2026-10-20: approving a draft while a
+// recalculation replaced it answered 500 (Prisma P2025) instead of a code.
+// Calculate and Approve now take the cycle's lock, so they run one after the
+// other: whichever is second gets a coded refusal, never a 500.
+test('TC-SET-17: Calculate and Approve fired together never answer 500', async ({ request }) => {
+  const h = { Authorization: `Bearer ${await token(request)}` };
+  const target = await settleableCycle(request, h);
+  test.skip(!target, 'no open cycle with sales');
+  const cycle = await cycleByCode(request, h, target.cycleCode);
+
+  for (let round = 0; round < 5; round++) {
+    const draft = await request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h });
+    if (!draft.ok()) {
+      // A cycle another test left settled: nothing to race here.
+      test.skip(true, `calculate refused: ${(await draft.json()).error?.code}`);
+    }
+    const { id } = (await draft.json()).data;
+    const [calc, approve] = await Promise.all([
+      request.post(`${API}/settlements/calculate/${cycle.id}`, { headers: h }),
+      request.post(`${API}/settlements/${id}/approve`, { headers: h }),
+    ]);
+    for (const res of [calc, approve]) {
+      expect(res.status(), await res.text()).toBeLessThan(500);
+      if (!res.ok()) expect((await res.json()).error?.code).toBeTruthy();
+    }
+    // Exactly one of the two outcomes stands: the draft approved, or replaced.
+    if (approve.ok()) {
+      expect(calc.ok()).toBe(false);
+      expect((await calc.json()).error.code).toBe('SETTLEMENT_LOCKED');
+      await request.post(`${API}/settlements/${id}/reverse`, {
+        headers: h, data: { reason: 'Race test — reopened' },
+      });
+    }
+  }
 });

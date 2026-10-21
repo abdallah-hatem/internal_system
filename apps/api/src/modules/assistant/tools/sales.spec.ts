@@ -963,10 +963,14 @@ describe('record_sale — what the assistant offers', () => {
         )
         .sort(),
     ).toEqual([
+      // §4 samples at shops (§16): the shop buying from samples, and every
+      // sample coming back to the shelf — not a return of a sale.
+      'complete_samples_sale',
       // L2, 2026-10-11 (§16, §18): repaying a friend, not a shop's payment.
       'record_lender_repayment',
       'record_payment',
       'record_sale',
+      'return_samples',
     ]);
     const sale = tools.find((t) => t.name === 'record_sale')!;
     expect(sale.annotations?.readOnlyHint).toBe(false);

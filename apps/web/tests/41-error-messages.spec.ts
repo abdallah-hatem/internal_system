@@ -141,7 +141,8 @@ test.describe('API error messages', () => {
     const name = page.locator('input[name="name"]');
     await expect(name).toBeVisible({ timeout: 15000 });
     await name.fill(existing.name);
-    await page.locator('form').getByRole('button', { name: ar.common.create }).click();
+    // The shared dialog (2026-10-15) keeps its actions in a footer outside the form.
+    await page.getByRole('dialog').getByRole('button', { name: ar.common.create, exact: true }).click();
 
     await expect(page.getByText(ar.errors.CATEGORY_NAME_TAKEN)).toBeVisible({
       timeout: 15000,

@@ -12,6 +12,7 @@ import { assertStrongPassword } from '../../common/assert-password';
 import {
   OFFICE_ACCESS_TTL,
   SessionTokensService,
+  mayHoldOfficeSession,
   type SessionUserRow,
 } from './session-tokens.service';
 @Injectable()
@@ -62,6 +63,16 @@ export class AuthService {
       throw unauthorized(
         'USE_PORTAL_LOGIN',
         'Shop accounts sign in on the store, not here.',
+      );
+    }
+
+    // Only the partners use the office app (owner, 2026-10-19). An investor
+    // stays a participant on the cycles they put money into, but holds no
+    // sign-in here; the role guards behind every route stay as they were.
+    if (!mayHoldOfficeSession(user.role)) {
+      throw unauthorized(
+        'OFFICE_NOT_FOR_INVESTORS',
+        'Investor accounts do not sign in to the office.',
       );
     }
 
@@ -306,11 +317,10 @@ export class AuthService {
     });
 
     await this.sessions.revokeAllForUser(userId);
-    // Portal accounts have no office sign-in to continue.
-    const refreshToken =
-      user.role === 'SHOP_OWNER_PORTAL'
-        ? undefined
-        : await this.sessions.issue(userId);
+    // Portal and investor accounts have no office sign-in to continue.
+    const refreshToken = !mayHoldOfficeSession(user.role)
+      ? undefined
+      : await this.sessions.issue(userId);
 
     return { data: { message: 'Password changed successfully', refreshToken } };
   }

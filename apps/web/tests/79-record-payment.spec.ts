@@ -182,7 +182,8 @@ test.describe('The one payment form elsewhere', () => {
 
     // The balance counts the two confirmed orders only.
     await expect(page.getByText('1,100.00').first()).toBeVisible();
-    await expect(page.getByTestId('outstanding').filter({ hasText: en.sales.notConfirmed })).toHaveCount(1);
+    // The visible one: the orders are drawn as a table and, for a phone, as cards (2026-10-17).
+    await expect(page.getByTestId('outstanding').filter({ hasText: en.sales.notConfirmed }).filter({ visible: true })).toHaveCount(1);
     // No payments yet: the empty state says so and offers the action.
     await expect(page.getByText(en.customers.noPayments)).toBeVisible();
   });

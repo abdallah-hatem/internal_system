@@ -14,7 +14,7 @@
  *  verified receipt (rule 4), via `stockedProduct`.
  */
 import { test, expect, type Page, type APIRequestContext, type Locator } from '@playwright/test';
-import { API, EMAIL, PASSWORD, apiCtx, stockedProduct } from './support/fixtures';
+import { API, EMAIL, PASSWORD, apiCtx, investorSession, stockedProduct } from './support/fixtures';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
 import { WEB as BASE } from './support/env';
@@ -192,15 +192,8 @@ test.describe('Create & confirm (BUSINESS_LOGIC §4)', () => {
 
   test('TC-CC-05: an investor → refused with a code, nothing saved', async ({ request }) => {
     const { headers, customer, product } = await shopAndStock(request, 'CC05', 10);
-    const stamp = `${Date.now()}`;
-    const email = `cc05-investor-${stamp}@motoparts.com`;
-    const made = await request.post(`${API}/auth/register`, {
-      headers,
-      data: { email, password: 'password123', displayName: `Investor ${stamp}`, role: 'TEMP_INVESTOR' },
-    });
-    expect(made.ok(), await made.text()).toBeTruthy();
-    const login = await request.post(`${API}/auth/login`, { data: { email, password: 'password123' } });
-    const investor = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
+    // An investor cannot sign in at the office (2026-10-19); investorSession's token proves the guard.
+    const { headers: investor } = await investorSession(request, 'cc05');
 
     const res = await request.post(`${API}/sales/orders`, {
       headers: investor,

@@ -3,10 +3,15 @@
  *  TEST SUITE: Authentication
  * ═══════════════════════════════════════════════════════════════════════
  *  Login, session persistence, and the route guard that keeps an
- *  unauthenticated visitor out of the internal application.
+ *  unauthenticated visitor out of the internal application. Only the partners
+ *  use the office (owner 2026-10-19): an investor with the right password is
+ *  refused at the door, in the reader's language (TC-AUTH-15).
  */
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE, API } from './support/env';
+import { apiCtx } from './support/fixtures';
+import en from '../src/i18n/locales/en.json';
+import ar from '../src/i18n/locales/ar.json';
 
 const VALID_EMAIL = 'abdallah@motoparts.com';
 const VALID_PASSWORD = 'password123';
@@ -132,6 +137,40 @@ test.describe('Authentication', () => {
       await expect(page, `/${path} should be guarded`).toHaveURL(/\/login/, { timeout: 10000 });
     }
   });
+
+  for (const [locale, msg] of [['en', en], ['ar', ar]] as const) {
+    test(`TC-AUTH-15 (${locale}): an investor with the right password stays on the login page and is told the office is for the partners`, async ({ page, request }) => {
+      // A real investor account, made by a partner the way the office makes one.
+      const { headers } = await apiCtx(request);
+      const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+      const email = `auth15-${locale}-investor-${stamp}@motoparts.com`;
+      const made = await request.post(`${API}/auth/register`, {
+        headers,
+        data: { email, password: VALID_PASSWORD, displayName: `Auth15 ${stamp}`, role: 'TEMP_INVESTOR' },
+      });
+      expect(made.ok(), `create investor: ${await made.text()}`).toBeTruthy();
+
+      await page.goto(`${BASE}/${locale}/login`);
+      const refused = page.waitForResponse(
+        (r) => r.url().includes('/auth/login') && r.request().method() === 'POST',
+      );
+      await emailBox(page).fill(email);
+      await passwordBox(page).fill(VALID_PASSWORD);
+      await page.getByRole('button', { name: msg.auth.login, exact: true }).click();
+      const res = await refused;
+      expect(res.status()).toBe(401);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe('OFFICE_NOT_FOR_INVESTORS');
+
+      // What the investor sees: the refusal in their language, and still the login page.
+      await expect(page.getByText(msg.errors.OFFICE_NOT_FOR_INVESTORS, { exact: true })).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/${locale}/login`));
+      await expect(emailBox(page)).toBeVisible();
+      expect(await storedToken(page)).toBeNull();
+      if (locale === 'ar') {
+        await expect(page.getByText(en.errors.OFFICE_NOT_FOR_INVESTORS)).toHaveCount(0);
+      }
+    });
+  }
 });
 
 test.describe('Authentication API', () => {

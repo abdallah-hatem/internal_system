@@ -22,24 +22,9 @@
  *    the clock.
  */
 import { test, expect, APIRequestContext } from '@playwright/test';
-import { apiCtx, API, daysAgo, departAllWaiting } from './support/fixtures';
+import { apiCtx, API, daysAgo, departAllWaiting, investorSession } from './support/fixtures';
 
 type Headers = Record<string, string>;
-
-async function accountWithRole(request: APIRequestContext, role: string) {
-  const { headers } = await apiCtx(request);
-  const stamp = `${Date.now()}${Math.floor(performance.now() % 1000)}`;
-  const email = `receipts-${role.toLowerCase()}-${stamp}@motoparts.com`;
-  const made = await request.post(`${API}/auth/register`, {
-    headers,
-    data: { email, password: 'password123', displayName: `Receipts ${stamp}`, role },
-  });
-  expect(made.ok(), `create ${role}: ${await made.text()}`).toBeTruthy();
-  const signedIn = await request.post(`${API}/auth/login`, {
-    data: { email, password: 'password123' },
-  });
-  return { Authorization: `Bearer ${(await signedIn.json()).data.accessToken}` };
-}
 
 /**
  * 40 of one product ordered at 100, its legs departed 20 days ago, nothing
@@ -272,7 +257,8 @@ test.describe('POST /receipts/verify', () => {
     const { headers, mk, cycle, leg, item } = await departedCycle(request);
     const d = await deliver(request, headers, leg.id, item, 15);
     await toArrivedEgypt(mk, cycle);
-    const investor = await accountWithRole(request, 'TEMP_INVESTOR');
+    // An investor cannot sign in at the office (2026-10-19); investorSession's token proves the guard.
+    const { headers: investor } = await investorSession(request, 'rcv');
     const r = await receive(request, investor, cycle.id, d, 15);
     expect(r.status).toBe(403);
     expect(r.code).toBe('ROLE_NOT_ALLOWED');

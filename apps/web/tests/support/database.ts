@@ -201,5 +201,7 @@ export function resetToSeed(): void {
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
     stdio: ['pipe', 'pipe', 'pipe'],
+    // On Windows `npx` is `npx.cmd`, which Node starts only through a shell.
+    shell: process.platform === 'win32',
   });
 }

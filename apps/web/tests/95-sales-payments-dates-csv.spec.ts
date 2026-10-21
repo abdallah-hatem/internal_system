@@ -16,7 +16,7 @@ import { readFileSync } from 'fs';
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
 import ar from '../src/i18n/locales/ar.json';
-import { API, apiCtx, EMAIL, PASSWORD, owedOrder, stockedProduct } from './support/fixtures';
+import { API, apiCtx, EMAIL, investorSession, PASSWORD, owedOrder, stockedProduct } from './support/fixtures';
 import { WEB as BASE } from './support/env';
 
 /** A calendar day `n` days from today, local, YYYY-MM-DD. */
@@ -197,10 +197,8 @@ test.describe('Sales and Payments: date range and CSV (I1)', () => {
     }
 
     // Customer money is the office's: an investor cannot list it by date either (§12).
-    const login = await request.post(`${API}/auth/login`, {
-      data: { email: 'investor@motoparts.com', password: PASSWORD },
-    });
-    const investor = { Authorization: `Bearer ${(await login.json()).data.accessToken}` };
+    // An investor cannot sign in at the office (2026-10-19); investorSession's token proves the guard.
+    const { headers: investor } = await investorSession(request, 'dr');
     for (const path of ['sales/orders', 'payments']) {
       const res = await request.get(`${API}/${path}?from=${day(-30)}&to=${day(0)}`, { headers: investor });
       expect([path, res.status()]).toEqual([path, 403]);

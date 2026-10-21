@@ -5,6 +5,7 @@ import { ProductLink } from '@/components/ui/entity-link';
 import { Money } from '@/components/ui/money';
 
 import { useTranslations } from 'next-intl';
+import { ProductsSummary } from '@/components/summary/tab-summaries';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -396,6 +397,9 @@ export default function ProductsPage() {
         </button>
         )}
       </div>
+
+      {/* The best sellers, from Analytics' top products (owner 2026-10-18). */}
+      <ProductsSummary />
 
       {/* Search + Filters — the shared toolbar every list uses. */}
       <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>

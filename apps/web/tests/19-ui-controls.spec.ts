@@ -53,7 +53,12 @@ test.describe('Searchable select', () => {
 
     await panelSearch(page).fill('Brake');
     await expect.poll(() => page.getByRole('listbox').getByRole('option').count()).toBeLessThan(before);
-    await expect(page.getByRole('listbox').getByRole('option').first()).toContainText('Brake Parts');
+    // Among them the seeded one; earlier tests make other "Brake …" categories,
+    // which may sort first. Every option left matches what was typed.
+    await expect(page.getByRole('listbox').getByRole('option').filter({ hasText: 'Brake Parts' }).first()).toBeVisible();
+    for (const text of await page.getByRole('listbox').getByRole('option').allInnerTexts()) {
+      expect(text.toLowerCase()).toContain('brake');
+    }
   });
 
   test('TC-UI-03: a search matching nothing says so instead of showing an empty box', async ({ page }) => {

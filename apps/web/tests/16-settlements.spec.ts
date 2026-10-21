@@ -7,6 +7,7 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE, API } from './support/env';
+import { allPages, cycleByCode } from './support/fixtures';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -69,10 +70,7 @@ test.describe('Settlements', () => {
     // is that nothing is truncated at the default page size, and that has to
     // hold whether the database has two cycles or two hundred.
     const t = await token(request);
-    const res = await request.get(`${API}/cycles?limit=200`, {
-      headers: { Authorization: `Bearer ${t}` },
-    });
-    const total = ((await res.json()).data ?? []).length;
+    const total = (await allPages(request, { Authorization: `Bearer ${t}` }, 'cycles')).length;
 
     await page.goto(`${BASE}/en/settlements`);
     await page.locator('#cycle-select').click();
@@ -149,10 +147,7 @@ test.describe('Settlements', () => {
     });
     const token = (await auth.json()).data.accessToken;
 
-    const cycles = await request.get(`${API}/cycles?limit=200`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const cycle = (await cycles.json()).data.find((c: any) => c.code === 'CYC-DEMO-001');
+    const cycle = await cycleByCode(request, { Authorization: `Bearer ${token}` }, 'CYC-DEMO-001');
     expect(cycle).toBeTruthy();
 
     const res = await request.post(`${API}/settlements/calculate/${cycle.id}`, {
@@ -217,8 +212,7 @@ test.describe('Settlement actions from the page', () => {
     );
     if (!target) return null;
 
-    const cycles = (await (await request.get(`${API}/cycles?limit=200`, { headers: h })).json()).data;
-    const cycle = cycles.find((c: any) => c.code === target.cycleCode);
+    const cycle = await cycleByCode(request, h, target.cycleCode);
     if (!cycle) return null;
 
     const settlement = (await (

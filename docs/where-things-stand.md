@@ -1,4 +1,4 @@
-# Where things stand — 19 October 2026
+# Where things stand — 21 October 2026
 
 A snapshot for someone picking this up, or for you in three months. What the
 business does, what is built, what is live, and what is knowingly unfinished.
@@ -56,7 +56,7 @@ Samples can be left at a shop free until it decides to buy, return or keep them.
 |---|---|
 | **Core partners** | the office app — only the three partners use it (owner, 2026-10-18) |
 | **Admin support** | a role the code knows (sells, records payments, reads the books); the production logins are the three partners |
-| **Temporary investors** | built and enforced server-side (own cycles only); no investor uses the app |
+| **Temporary investors** | participants on cycles they fund; cannot sign in to the office since 2026-10-20 (`OFFICE_NOT_FOR_INVESTORS`); the server's role guards stay |
 | **Shop owners** | the storefront — browse, ask to buy, ask us to import |
 | **The assistant** | Claude or ChatGPT over MCP, signed in as a partner: reads the books, records sales, payments, receipts, legs and lenders with a preview before every write |
 
@@ -169,10 +169,11 @@ cash payment).
 
 Ordered by what would hurt first.
 
-- **The full e2e suite has not run since the 2026-10-18 batches.** It runs before
-  the next big ship. Known stale specs (old menu entries, the old payment-plans
-  page, finished legs now folded, the removed Recent Activity panel, two that fail
-  on master too) are listed in BUILD_LOG "Known e2e debt".
+- **The full e2e suite ran 2026-10-20** (1,219 tests): after bringing ~45 stale specs
+  up to date, what still fails also fails on `master` — the office skeleton counts
+  and heights, two storefront basket tests, the table-column widths (BUILD_LOG
+  "Known e2e debt"). The Partners page is slow once hundreds of cycles are open
+  (`/users/participation` projects each in turn) — not yet a problem in production.
 - **No rate limiting anywhere.** `POST /auth/portal/signup` is public; ten requests
   in a second all succeed. `@nestjs/throttler` is the fix; the limits are a
   judgement call nobody has made.
@@ -182,13 +183,16 @@ Ordered by what would hurt first.
   in BUSINESS_LOGIC; the list of open ones is in BUILD_LOG "Next up". The biggest
   for money: running-cost shares (§8), samples kept free and write-offs (§4), the
   default price's basis and rounding (§3), the P&L's dates and buckets.
-- **Queued features**: the assistant's samples tools (after the owner approves
-  samples), removing the Suppliers and Compatibility cards from a product's page,
-  per-tab summary cards once there is data, selling on Amazon (§17, six questions
-  open).
+- **Built, not yet committed (2026-10-20/21)**: the owner's 2026-10-19 "Next up" —
+  the Settlement button carries its cycle, Profit and loss opens on This month, no
+  investor sign-in, the product page without Suppliers/Compatibility, the
+  assistant's samples tools, summary cards on Cycles/Products/Sales, the
+  Calculate/Approve race fixed, the login keeping what was typed before the page
+  hydrated. On the working tree, waiting for the owner's local test (BUILD_LOG
+  "Current stage").
+- **Queued features**: selling on Amazon (§17, six questions open).
 - **Smaller**: `/inventory` returns every batch with no paging; system-written
-  ledger reasons are stored in English; no dark theme; a Calculate/Approve race on
-  a settlement answers 500; the push language is always Arabic (nothing records a
+  ledger reasons are stored in English; no dark theme; the push language is always Arabic (nothing records a
   partner's language); the daily cron makes the "six hours before a hold lapses"
   warning unreliable (Hobby plan); the storefront's basket only shows on "My orders"
   (§13, open).

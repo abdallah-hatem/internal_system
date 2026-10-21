@@ -10,6 +10,8 @@
  * the mock. He may change it later; it lives here, once.
  */
 
+import { DOCUMENT_TAGLINE } from '@/components/ui/document-tagline';
+
 export type ContractLanguage = 'ar' | 'en';
 
 export interface ContractText {
@@ -52,7 +54,7 @@ export interface ContractText {
 export const CONTRACT_TEXT: Record<ContractLanguage, ContractText> = {
   ar: {
     title: 'عقد بيع بالتقسيط',
-    tagline: 'S&F — قطع غيار وإكسسوارات الموتوسيكلات',
+    tagline: DOCUMENT_TAGLINE.ar,
     number: 'رقم العقد',
     date: 'التاريخ',
     city: 'القاهرة',
@@ -93,7 +95,7 @@ export const CONTRACT_TEXT: Record<ContractLanguage, ContractText> = {
   },
   en: {
     title: 'Instalment Sale Contract',
-    tagline: 'S&F — Motorcycle parts and accessories',
+    tagline: DOCUMENT_TAGLINE.en,
     number: 'Contract no.',
     date: 'Date',
     city: 'Cairo',
