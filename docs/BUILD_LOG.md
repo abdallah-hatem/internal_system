@@ -152,7 +152,7 @@ Data the owner will send when he has it (asked 2026-10-17/18; ask again at the s
 - Repayments already made to Ahmad Eraiby or Mohamed Abu Setta: amount, date, method each.
 - Koshary (ORD-2026-00002): the owner said on 2026-10-22 "drop 100 egp on each product koshary has right now". He holds
   3 Q58 (1,250), 10 Y20 MAX (1,150), 10 Y30 (1,200) after returns RET-2026-00001/00003; 5,000 cash already paid and
-  allocated; owes 22,250. Open: 100 off every unit (−2,300 → owes 19,950) or off each line (−300 → owes 21,950). Apply it
+  allocated; owes 22,250. Decided 2026-10-22 (owner): **100 off every unit** he holds — −2,300, he then owes 19,950. Apply it
   through the price-adjustment feature (Next up) once built, not by cancelling and re-entering (that would break the
   returns and payment).
 
@@ -164,6 +164,14 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
 - Next (owner, 2026-10-22): lower a price after an order is confirmed — a dated price adjustment on a confirmed order's
   line, for the units the shop still holds, counted on the adjustment's day (BUSINESS_LOGIC §4 "Lowering a price after
   the order is confirmed"; rules and limits there, GUESSES marked). Koshary's 100 EGP off is its first real use.
+- Next (owner, 2026-10-22): an order's full history, on the order itself — "what products he started with, then what he
+  returned, and any price change, a complete view". One timeline, oldest first, each event dated and with who did it:
+  created (draft) and confirmed with its lines and prices; each return (reference, products, units, refund, reason);
+  each price adjustment (line, old → new price, units it covered); each payment allocated to it (amount, method, date)
+  and any reversal; samples left / bought / returned / written off; cancellation. Beside it, per product: started
+  with, returned, holds now, price now. Read from the records that already exist (sale items, returns, allocations,
+  adjustments, the audit log) — no second copy of the figures; the running "owes" after each event must end on the
+  order's own outstanding. Build it with the price adjustment, which adds the one event that has no record today.
 - Later (owner, 2026-10-20): a shipping leg's starting values follow where it leaves from. Leaving China: **USD** and
   **Charged by: flat amount**. Leaving the UAE: **AED**, today's basis. The currency's rate prefilled. Today both the
   wizard's leg step and the cycle page's leg form (`CycleWizard.tsx`, `shipment/LegForm.tsx`) start on EGP (the leg
