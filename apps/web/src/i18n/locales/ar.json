@@ -700,6 +700,12 @@
       "emptyHint": "تظهر أحداثه هنا عند حدوثها.",
       "error": "تعذّر تحميل سجل الطلب",
       "retry": "حاول مرة أخرى"
+    },
+    "valueNow": {
+      "soldAt": "بيع بـ <amount></amount>",
+      "was": "كان <amount></amount>",
+      "held": "{returned} مرتجع · {held} لدى المحل",
+      "nowTitle": "القيمة الآن بعد المرتجعات وتخفيض الأسعار"
     }
   },
   "customers": {

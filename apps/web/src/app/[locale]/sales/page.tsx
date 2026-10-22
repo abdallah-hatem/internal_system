@@ -54,6 +54,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
 import { AdjustPriceButton, AdjustPriceDialog } from '@/components/sales/adjust-price';
 import { OrderHistory } from '@/components/sales/order-history';
+import { LineHeldNote, LineTotalNow, LineUnitPrice, OrderTotal } from '@/components/sales/value-now';
 import { TabBar } from '@/components/ui/tab-bar';
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
 import { useCan } from '@/lib/can';
@@ -69,6 +70,8 @@ interface SaleOrder {
   channel: string;
   status: string;
   total: number;
+  /** What it is worth now: sold less returns less price cuts (§4, 2026-10-22), the API's figure. */
+  valueNowEgp?: string;
   outstanding: number;
   currency: string;
   version: number;
@@ -110,6 +113,13 @@ interface SaleOrderItem {
   unitPrice: number;
   discount: number;
   lineTotal?: number | string;
+  /** The line now (§4, 2026-10-22), from the API: units back and held, price and worth now. */
+  returnedQty?: string;
+  heldQty?: string;
+  soldUnitPrice?: string;
+  unitPriceNow?: string;
+  priceCut?: boolean;
+  lineValueNow?: string;
   allocatedQty: number;
   allocations?: {
     id: string;
@@ -542,7 +552,9 @@ function SalesPageContent() {
       cell: (order) => statusBadge(order.status, order),
     },
     {
-      key: 'total', header: t('total'), width: '9.5rem', kind: 'value', align: 'end',
+      // Wide enough for "sold at -123,456.00 EGP" under the value now (§4,
+      // 2026-10-22): 134px at text-xs; 9.5rem left 120.
+      key: 'total', header: t('total'), width: '10.5rem', kind: 'value', align: 'end',
       className: 'text-gray-900 font-medium', skeleton: { kind: 'text', share: 'w-2/3' },
       cell: (order) => totalCell(order),
     },
@@ -587,12 +599,16 @@ function SalesPageContent() {
             <ProductLink id={item.productId} name={localName(item.product, locale)} />
           </p>
           <p className="text-xs text-muted-foreground"><LatinText dir="ltr" truncate>{item.product?.sku}</LatinText></p>
+          <LineHeldNote line={item} />
           <p data-testid="item-phone-figures" className="sm:hidden mt-0.5 text-xs text-muted-foreground tabular-nums">
             <LatinText dir="ltr" className="whitespace-nowrap">
               {/* Samples with no price noted: the quantity alone, not "× 0.00" (§4). */}
               {isSamplesStatus(detail?.status ?? '') && !(Number(item.unitPrice) > 0)
                 ? item.quantity
                 : `${item.quantity} × ${formatAmount(item.unitPrice)}`}
+              {/* Lowered after the sale (§4): the price now follows, in the same
+                  left-to-right run so the arrow points the same way in Arabic. */}
+              {item.priceCut && item.unitPriceNow != null && ` → ${formatAmount(item.unitPriceNow)}`}
             </LatinText>
             {item.discount > 0 && (
               <>
@@ -617,7 +633,7 @@ function SalesPageContent() {
         isSamplesStatus(detail?.status ?? '') && !(Number(item.unitPrice) > 0) ? (
           '—'
         ) : (
-          <bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi>
+          <LineUnitPrice line={item} sold={<bdi dir="ltr">{formatAmount(item.unitPrice)}</bdi>} />
         ),
     },
     {
@@ -626,14 +642,16 @@ function SalesPageContent() {
       cell: (item) => (item.discount > 0 ? <bdi dir="ltr">- {formatAmount(item.discount)}</bdi> : '—'),
     },
     {
-      // What the server stored for the line, not a re-derivation of it.
-      key: 'lineTotal', header: t('lineTotal'), width: '8.5rem', kind: 'value', align: 'end',
+      // The server's figures for the line, not a re-derivation of them: what
+      // it is worth now, and what it was sold at beneath when that differs (§4).
+      // 9rem: "sold at 123,456.00 EGP" is 129px at text-xs; 8.5rem left 128.
+      key: 'lineTotal', header: t('lineTotal'), width: '9rem', kind: 'value', align: 'end',
       className: 'font-medium text-gray-900',
       cell: (item) =>
         isSamplesStatus(detail?.status ?? '') ? (
           <span className="text-xs font-normal text-muted-foreground">{tsm('noChargeCell')}</span>
         ) : (
-          <Money value={item.lineTotal} currency={detail?.currency} />
+          <LineTotalNow line={item} currency={detail?.currency} />
         ),
     },
   ];
@@ -656,7 +674,7 @@ function SalesPageContent() {
     isSamplesStatus(order.status) ? (
       <span className="text-xs font-normal text-muted-foreground">{tsm('noChargeCell')}</span>
     ) : (
-      <Money value={order.total} currency={order.currency} />
+      <OrderTotal total={order.total} valueNow={order.valueNowEgp} currency={order.currency} />
     );
   const channelBadge = (channel: string) => (
     <span

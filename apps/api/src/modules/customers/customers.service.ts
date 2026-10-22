@@ -10,6 +10,10 @@ import {
 import { badRequest, notFound } from '../../common/api-error';
 import { isUuid } from '../../common/uuid';
 import {
+  VALUE_NOW_ITEM_INCLUDE,
+  withValueNow,
+} from '../../common/order-value-now';
+import {
   buildStatement,
   loadStatementSource,
 } from '../../common/customer-statement';
@@ -156,7 +160,7 @@ export class CustomersService {
           // The latest sales by the day they were made (§4, 2026-10-16).
           orderBy: [{ orderedAt: 'desc' }, { createdAt: 'desc' }],
           take: 10,
-          include: { items: true },
+          include: { items: { include: VALUE_NOW_ITEM_INCLUDE } },
         },
         payments: {
           orderBy: { createdAt: 'desc' },
@@ -168,7 +172,14 @@ export class CustomersService {
     // What the shop owes, by the same rule that refuses a payment larger than
     // it — so the balance shown and the balance enforced cannot disagree.
     const outstandingBalance = await owedBy(this.prisma, id);
-    return { data: { ...customer, outstandingBalance } };
+    // Each order says what it is worth now, as the Sales list does (§4).
+    return {
+      data: {
+        ...customer,
+        saleOrders: customer.saleOrders.map(withValueNow),
+        outstandingBalance,
+      },
+    };
   }
 
   /**

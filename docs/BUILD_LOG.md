@@ -7,7 +7,12 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-22 — built on branch `worktree-agent-a22fde29e831a71c8`, not merged, waiting for the owner's local test: the
+2026-10-22 — built on branch `worktree-agent-a8504ef748f4d4272`, not merged, waiting for the owner's local test: an
+order's Total shows what it is worth now (sold less returns less price cuts) with "sold at …" beneath, and the order
+popup's Items show each line's price now ("was …"), worth now ("sold at …") and "1 returned · 3 held" — owner's
+Option A, BUSINESS_LOGIC §4 "What the order is worth now" (`common/order-value-now.ts`, one definition). Also there:
+the shared DataTable's narrowest width counts only the columns a phone shows (the popup's Items had Line total out of
+sight at 375 px). Also 2026-10-22 — built on branch `worktree-agent-a22fde29e831a71c8`, not merged, waiting for the owner's local test: the
 office screens of the price adjustment ("Adjust price" in the sale order popup) and of an order's full history (a
 "History" tab in the same popup), BUSINESS_LOGIC §4 both sections, "Office screen". Before that, 2026-10-22 — shipped: a new leg starts from where it leaves, Delete delivery only where it works, the place cards'
 icons on a phone, and the API of the price adjustment after confirm and of an order's full history (migration

@@ -700,6 +700,12 @@
       "emptyHint": "Its events appear here as they happen.",
       "error": "Could not load the order's history",
       "retry": "Try again"
+    },
+    "valueNow": {
+      "soldAt": "sold at <amount></amount>",
+      "was": "was <amount></amount>",
+      "held": "{returned} returned · {held} held",
+      "nowTitle": "Worth now, after returns and price cuts"
     }
   },
   "customers": {

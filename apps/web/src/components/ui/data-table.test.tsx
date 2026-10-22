@@ -145,4 +145,24 @@ describe('DataTable', () => {
     // The skeleton body is hidden from assistive technology, so count by tag.
     expect(table().querySelectorAll('tbody tr')).toHaveLength(2);
   });
+
+  it('on a phone the narrowest it gets counts only the columns a phone shows (2026-10-22)', () => {
+    // The order popup's Items: four columns hidden below sm counted toward the
+    // minimum anyway, so at 375 px the table scrolled sideways and Line total
+    // sat out of sight.
+    const cols: Column<Row>[] = [
+      { key: 'name', header: 'Name', width: 'auto', kind: 'name', cell: (r) => r.name },
+      { key: 'sku', header: 'SKU', width: '7rem', hiddenBelow: 'sm', cell: (r) => r.sku },
+      { key: 'status', header: 'Status', width: '6rem', hiddenBelow: 'md', cell: () => 'Active' },
+      { key: 'amount', header: 'Amount', width: '9rem', kind: 'value', align: 'end', cell: (r) => r.amount },
+    ];
+    render(<DataTable columns={cols} rows={ROWS} rowKey={(r) => r.id} autoMin="9rem" />);
+    const style = table().style;
+    expect(style.getPropertyValue('--dt-min-xs')).toBe('calc(9rem + 9rem)');
+    expect(style.getPropertyValue('--dt-min-sm')).toBe('calc(9rem + 7rem + 9rem)');
+    expect(style.getPropertyValue('--dt-min')).toBe('calc(9rem + 7rem + 6rem + 9rem)');
+    expect(table().className).toContain('min-w-(--dt-min-xs)');
+    expect(table().className).toContain('sm:min-w-(--dt-min-sm)');
+    expect(table().className).toContain('md:min-w-(--dt-min)');
+  });
 });

@@ -13,6 +13,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import { useCan } from '@/lib/can';
 import { Dialog } from '@/components/ui/dialog';
 import { DatePicker } from '@/components/ui/date-picker';
+import { OrderTotal } from '@/components/sales/value-now';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
 import { Select } from '@/components/ui/select';
@@ -41,6 +42,8 @@ export interface ContractSale {
   status: string;
   currency: string;
   total: number | string;
+  /** What the sale is worth now, after returns and price cuts (§4, 2026-10-22). */
+  valueNowEgp?: string;
   outstanding: number | string;
   customer?: { isWalkIn?: boolean } | null;
   /** From `GET /sales/orders/:id`: the sale's live plan, or null. */
@@ -201,7 +204,9 @@ export function ContractPlanDialog({
   const locale = useLocale();
 
   const remaining = Number(sale.outstanding);
-  const paid = Number(sale.total) - remaining;
+  // Paid is what it is worth now less what remains: a return or a lower price
+  // took money off the sale, and is not money the shop paid (§4, 2026-10-22).
+  const paid = Number(sale.valueNowEgp ?? sale.total) - remaining;
 
   const [countText, setCountText] = useState(String(DEFAULT_COUNT));
   const [interval, setIntervalKey] = useState<PlanInterval>(DEFAULT_INTERVAL);
@@ -337,7 +342,7 @@ export function ContractPlanDialog({
     >
       <div className="space-y-4">
         <dl className="grid grid-cols-3 gap-2 text-sm">
-          <Figure label={t('total')} value={<Money value={sale.total} currency={sale.currency} />} />
+          <Figure label={t('total')} value={<OrderTotal total={sale.total} valueNow={sale.valueNowEgp} currency={sale.currency} />} />
           <Figure label={t('paid')} value={<Money value={paid} currency={sale.currency} />} />
           <Figure
             label={t('remaining')}

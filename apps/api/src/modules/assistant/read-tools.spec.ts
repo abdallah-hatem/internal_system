@@ -151,11 +151,19 @@ function fakePrisma(db: Db) {
     supplierRefund: { findMany: findMany(() => []) },
     supplier: { findMany: findMany(() => db.suppliers) },
     customer: {
-      findUnique: findUnique(() => db.customers),
+      // As Prisma answers `include: { saleOrders }`: the shop's orders, none here.
+      findUnique: jest.fn((args: { where: Where }) =>
+        Promise.resolve(
+          ((r) => (r ? { saleOrders: [], ...r } : null))(
+            db.customers.find((c) => matches(c, args.where)),
+          ),
+        ),
+      ),
       findMany: findMany(() => db.customers),
     },
     saleOrder: {
-      findMany: findMany(() => db.orders),
+      // Lines as Prisma includes them; these worlds record none.
+      findMany: findMany(() => db.orders.map((o) => ({ items: [], ...o }))),
       aggregate: jest.fn((args: { where: Where }) => {
         const sum = db.orders
           .filter((o) => matches(o, args.where))
