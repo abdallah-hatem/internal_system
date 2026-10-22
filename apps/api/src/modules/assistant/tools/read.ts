@@ -507,6 +507,8 @@ export function registerReadTools(
           status: o.status,
           currency: o.currency,
           total: dec(o.total),
+          // Sold less returns and price cuts (§4, 2026-10-22), as the office shows it.
+          valueNow: o.valueNowEgp,
           discount: dec(o.discount),
           outstanding: samples ? '0.00' : dec(o.outstanding),
           ...(o.samples
@@ -610,6 +612,7 @@ export function registerReadTools(
           orderNo: o.orderNo,
           status: o.status,
           total: dec(o.total),
+          valueNow: o.valueNowEgp,
           outstanding: dec(o.outstanding),
           orderedAt: instant(o.orderedAt),
         }));

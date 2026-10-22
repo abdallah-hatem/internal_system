@@ -40,11 +40,14 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { BackLink } from '../../../../components/ui/back-link';
 import { CustomerStatement } from '../../../../components/customers/customer-statement';
 import { ContractsList } from '@/components/payments/contracts-list';
+import { OrderTotal } from '@/components/sales/value-now';
 interface SaleOrder {
   id: string;
   orderNo: string;
   status: string;
   total: number | string;
+  /** Worth now, after returns and price cuts (§4, 2026-10-22), from the API. */
+  valueNowEgp?: string;
   outstanding: number | string;
   currency: string;
   createdAt: string;
@@ -142,8 +145,9 @@ export default function CustomerPage() {
     },
     { key: 'status', header: tc('status'), width: 'auto', kind: 'label', cell: (o) => codeLabel('orderStatus', o.status) },
     {
-      key: 'total', header: ts('total'), width: '9.5rem', kind: 'value', align: 'end',
-      cell: (o) => <Money value={num(o.total)} currency={o.currency} />,
+      // Room for "sold at -123,456.00 EGP" under the value now (§4, 2026-10-22).
+      key: 'total', header: ts('total'), width: '10.5rem', kind: 'value', align: 'end',
+      cell: (o) => <OrderTotal total={o.total} valueNow={o.valueNowEgp} currency={o.currency} />,
     },
     { key: 'outstanding', header: ts('outstanding'), width: '9.5rem', kind: 'value', align: 'end', cell: outstandingOf },
   ];
@@ -283,7 +287,7 @@ export default function CustomerPage() {
                       topStart={<bdi dir="ltr" className="font-mono text-xs text-muted-foreground">{o.orderNo}</bdi>}
                       topEnd={<span className="text-sm text-foreground">{codeLabel('orderStatus', o.status)}</span>}
                       midStart={<span className="text-xs text-muted-foreground">{formatDate(o.orderedAt ?? o.createdAt)}</span>}
-                      midEnd={<span className="text-sm font-medium text-foreground"><Money value={num(o.total)} currency={o.currency} /></span>}
+                      midEnd={<span className="text-sm font-medium text-foreground"><OrderTotal total={o.total} valueNow={o.valueNowEgp} currency={o.currency} /></span>}
                       bottomLabel={ts('outstanding')}
                       bottom={outstandingOf(o)}
                     />

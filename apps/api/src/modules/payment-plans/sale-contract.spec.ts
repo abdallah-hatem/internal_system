@@ -113,6 +113,12 @@ function fakePrisma(w: World) {
         if (!s) return Promise.resolve(null);
         return Promise.resolve({
           ...s,
+          // Nothing returned or lowered on these lines, as Prisma's include says.
+          items: s.items.map((i: any) => ({
+            returnItems: [],
+            priceAdjustments: [],
+            ...i,
+          })),
           customer: customerOf(s.customerId),
           paymentPlan: planOfSale(s.id),
           paymentAllocations: [],

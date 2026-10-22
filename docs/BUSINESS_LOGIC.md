@@ -1060,7 +1060,7 @@ a balance or money on it; an open one whose batches do not hold its lines; one w
 
 ---
 
-### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API built 2026-10-22, office screen built 2026-10-22 (branch `worktree-agent-a22fde29e831a71c8`, waiting for the owner's local test)
+### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API built 2026-10-22, office screen built 2026-10-22 (branch `worktree-agent-a22fde29e831a71c8`, waiting for the owner's local test); the order's total as its value now DECIDED 2026-10-22 (Option A, branch `worktree-agent-a8504ef748f4d4272`)
 
 **What happens in the business.** A shop's price is lowered after its order was confirmed — Koshary
 (ORD-2026-00002) was given 100 EGP off per product on 2026-10-22, after two returns and a 5,000 cash payment.
@@ -1084,9 +1084,12 @@ confirm?" — yes.
 `sale_price_adjustment_items` (migration `20261022100000_sale_price_adjustments`). Where it differs from, or adds
 to, the table above:
 
-- **GUESS (changed from the table): the order's total does not drop** — it stays what was sold, as it does after a
-  return; what it owes drops, and the invoice shows the cut on its own line, "Price lowered" (total − paid − price
-  lowered − returns credited = owes). Every revenue figure takes the cut off on the adjustment's day: dashboard,
+- ~~GUESS (changed from the table): the order's total does not drop~~ — **superseded, DECIDED 2026-10-22 (owner,
+  "Option A", from a rendered sample he picked; he found the Total staying at what was first sold "a bit
+  misleading"): the office shows what the order is worth now, the sold total beneath it** — see "What the order is
+  worth now" below. The stored `total` still stays what was sold (the line is never edited); the invoice and the
+  statement are unchanged and still show the cut on its own line, "Price lowered" (total − paid − price lowered −
+  returns credited = owes). Every revenue figure takes the cut off on the adjustment's day: dashboard,
   P&L, revenue by month, top products and top orders, each cycle's profit and its settlement, the shop's statement
   (an "ADJUSTMENT" row), `check-data` 13.1 (and 13.2: a cut's batch shares add up to it).
 - **Per batch, so each cycle loses its own units' revenue** (§8): the held units are split by the batches they came
@@ -1123,8 +1126,35 @@ screen's own choices, each a GUESS until the owner says otherwise:
 - GUESS: the note is capped at 500 characters in the form (the server sets no limit).
 - GUESS: Save is enabled only once the preview of exactly what is typed has come back without a refusal; every
   other refusal (cycle settled, more off than owed, not lower) is the server's, said in the reader's language.
-- The order's Items table still shows the price each line was sold at (the line is never edited); the price now is
-  in its History.
+- ~~The order's Items table still shows the price each line was sold at; the price now is in its History.~~
+  Superseded 2026-10-22 (owner, Option A) — below.
+
+**What the order is worth now — DECIDED 2026-10-22 (owner, Option A); built 2026-10-22 on branch
+`worktree-agent-a8504ef748f4d4272`, waiting for the owner's local test.**
+
+- **An order's Total is what it is worth now**: what was sold, less what came back at the price it was refunded at,
+  less every price cut. The sold total is under it in small muted text, "sold at 30,300.00 EGP", only when the two
+  differ; an order with no returns and no cuts shows one figure, as before. Where: the Sales list (table and phone
+  card), the order popup's header, a shop's page (its orders), the Contract popup's "Sale total" (whose "Paid so far"
+  is now value now − remaining: a return or a cut is not money paid).
+- **In the order's Items**: a line whose price was cut shows the price now with "was 1,250.00" under it, and its line
+  total is what it is worth now (units held × price now; nothing for returned units) with "sold at 5,000.00 EGP"
+  under it. A line with a return but no cut: its price as sold, line total now with "sold at …". The quantity column
+  keeps the sold quantity; under the product's name "1 returned · 3 held" once anything came back. On a phone the
+  figures under the name read "4 × 1,250.00 → 1,150.00".
+- **One definition, on the server** (CLAUDE.md §11): `apps/api/src/common/order-value-now.ts`, beside and using
+  `held-price.ts`. Per order `valueNowEgp` = total − Σ return lines' `refundEgp` − Σ adjustments' `amountEgp`; per
+  line `returnedQty`, `heldQty`, `soldUnitPrice` (line total ÷ quantity, as History's "sold at"), `unitPriceNow`
+  (`heldUnitPrice`), `priceCut`, `lineValueNow`. Read from the stored figures the outstanding was moved by, so for an
+  order still owed: **value now − payments standing + cash refunded = outstanding** (a cash refund hands the money
+  back instead of lowering what is owed — §5). Returned by `GET /sales/orders` (each row, in the same queries as the
+  page: no query per row), `GET /sales/orders/:id`, `GET /customers/:id` (its orders) and the assistant's sales and
+  customer reads (`valueNow` beside `total`). The Sales list has no sort or filter by total.
+- GUESS: "was" is the price per unit as sold after the line's discount (what History calls "sold at"), not the
+  price before the discount; the Discount column still shows the discount given at the sale.
+- GUESS: a credit note larger than what the order still owed is clamped at zero by the return (§5), so on such an
+  order the value now can be below what was paid; the identity above then reads as a surplus nobody holds. Not
+  changed here.
 
 Koshary's 100 off is not applied yet: once the Adjust price button is in production, or through the API when the owner
 says so.

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, type HTMLAttributes, type ReactNode, type ThHTMLAttributes } from 'react';
+import { Fragment, type CSSProperties, type HTMLAttributes, type ReactNode, type ThHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 import { PAGE_SIZE } from '@/components/ui/pagination';
 import { Skeleton, SkeletonGroup, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
@@ -278,8 +278,21 @@ export function DataTable<Row>({
       <table
         data-testid={tableTestId}
         data-slot="data-table"
-        className={cn('w-full table-fixed text-sm', tableClassName)}
-        style={{ minWidth: minTableWidth(widths, autoMin) }}
+        // The narrowest it may get counts only the columns shown at that width:
+        // a phone hides the `hiddenBelow` ones, and counting them anyway made the
+        // order popup's Items scroll sideways with Line total out of sight
+        // (2026-10-22, 375 px: 38rem of table in a 295 px card).
+        className={cn(
+          'w-full table-fixed text-sm min-w-(--dt-min-xs) sm:min-w-(--dt-min-sm) md:min-w-(--dt-min)',
+          tableClassName,
+        )}
+        style={
+          {
+            '--dt-min-xs': minTableWidth(columns.filter((c) => !c.hiddenBelow).map((c) => c.width), autoMin),
+            '--dt-min-sm': minTableWidth(columns.filter((c) => c.hiddenBelow !== 'md').map((c) => c.width), autoMin),
+            '--dt-min': minTableWidth(widths, autoMin),
+          } as CSSProperties
+        }
       >
         {caption && <caption className="sr-only">{caption}</caption>}
         <ColGroup widths={widths} classNames={columns.map((c) => (c.hiddenBelow ? HIDDEN_COL[c.hiddenBelow] : undefined))} />

@@ -18,6 +18,10 @@ import {
   instantRange,
 } from '../../common/dates';
 import { isUuid } from '../../common/uuid';
+import {
+  VALUE_NOW_ITEM_INCLUDE,
+  withValueNow,
+} from '../../common/order-value-now';
 import { OWED_STATUSES } from '../../common/customer-balance';
 import {
   buildStatement,
@@ -374,14 +378,16 @@ export class SalesService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         customer: true,
-        items: { include: { product: true } },
+        // What each order is worth now (§4, 2026-10-22) comes with the page:
+        // Prisma loads the returns and the cuts once for every row on it.
+        items: { include: { product: true, ...VALUE_NOW_ITEM_INCLUDE } },
       },
     });
 
     const hasMore = items.length > limit;
     const now = new Date();
     const data = (hasMore ? items.slice(0, limit) : items).map((o) => ({
-      ...o,
+      ...withValueNow(o),
       samples: samplesSummary(o, now),
     }));
     return {
@@ -402,6 +408,7 @@ export class SalesService {
           include: {
             product: true,
             allocations: { include: { inventoryBatch: true } },
+            ...VALUE_NOW_ITEM_INCLUDE,
           },
         },
         paymentAllocations: { include: { payment: true } },
@@ -416,7 +423,11 @@ export class SalesService {
     const contractPlan =
       paymentPlan && paymentPlan.status !== 'CANCELLED' ? paymentPlan : null;
     return {
-      data: { ...rest, contractPlan, samples: samplesSummary(order) },
+      data: {
+        ...withValueNow(rest),
+        contractPlan,
+        samples: samplesSummary(order),
+      },
     };
   }
 
