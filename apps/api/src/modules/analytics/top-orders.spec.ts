@@ -29,6 +29,7 @@ function order(
     total: D(total),
     customer: { id: 'c1', displayName: 'Delta Motors', isWalkIn: false },
     returns: refunds.map((r) => ({ refundEgp: D(r) })),
+    priceAdjustments: [] as { amountEgp: ReturnType<typeof D> }[],
     items: lines.map(([qty, returned]) => ({
       quantity: D(qty),
       returnItems: returned ? [{ qty: D(returned) }] : [],

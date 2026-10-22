@@ -54,6 +54,8 @@ interface Invoice {
   total: string;
   paid: string;
   credited: string;
+  /** Prices lowered after the sale (§4, 2026-10-22); absent from an older API. */
+  priceLowered?: string;
   returned: boolean;
   owes: string;
   account: { balanceBefore: string; balanceAfter: string; balanceNow: string } | null;
@@ -399,6 +401,13 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
         )}
         <Figure testId="invoice-total" label={t('total')} value={<Money value={data.total} currency={data.currency} />} strong />
         <Figure testId="invoice-paid" label={t('paid')} value={<Money value={data.paid} currency={data.currency} />} />
+        {Number(data.priceLowered ?? 0) > 0 && (
+          <Figure
+            testId="invoice-price-lowered"
+            label={t('priceLowered')}
+            value={<bdi dir="ltr">- <Money value={data.priceLowered!} currency={data.currency} /></bdi>}
+          />
+        )}
         {Number(data.credited) > 0 && (
           <Figure
             testId="invoice-credited"

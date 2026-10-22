@@ -1,7 +1,9 @@
 import { badRequest, notFound } from '../../common/api-error';
 import { assertNotFuture, businessDay } from '../../common/dates';
 import {
+  legsThatMustHaveDelivered,
   legsThatMustHaveDeparted,
+  positionOf,
   type LoadedShipment,
 } from '../../common/shipment-load';
 import {
@@ -215,6 +217,84 @@ export function departureUndoBlock(
     return {
       why: 'status',
       english: `Cycle ${cycle.code} is ${cycle.status} because this leg has left, so its only departure cannot be undone. Move the cycle back first.`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Why a delivery cannot be deleted, or null when it can (spec amendment 7).
+ * The one definition: `deleteDelivery` refuses with it, and the shipment marks
+ * each delivery with it so the panel offers Delete only where it would work
+ * (owner, 2026-10-20).
+ * - `received` — stock was received from it.
+ * - `carried` — without it, a leg would hold less than it delivered, lost or
+ *   sent on: a later leg carried its goods on (L8).
+ * - `status` — it is the leg's only delivery and the cycle's status says the
+ *   goods reached that leg's end (§1, L3).
+ */
+export function deliveryDeleteBlock(
+  cycle: LoadedShipment,
+  deliveryId: string,
+): { why: 'received' | 'carried' | 'status'; english: string } | null {
+  const leg = cycle.shippingLegs.find((l) =>
+    l.deliveries.some((d) => d.id === deliveryId),
+  );
+  if (!leg) return null;
+  const delivery = leg.deliveries.find((d) => d.id === deliveryId)!;
+
+  const lineIds = new Set(delivery.lines.map((l) => l.id));
+  if (
+    cycle.inventoryBatches.some(
+      (b) => b.sourceDeliveryLineId && lineIds.has(b.sourceDeliveryLineId),
+    )
+  ) {
+    return {
+      why: 'received',
+      english:
+        'Stock was received from this delivery, so it cannot be deleted.',
+    };
+  }
+
+  // The shipment as it would be without this delivery: nothing may leave a
+  // leg that did not enter it.
+  const without: LoadedShipment = {
+    ...cycle,
+    shippingLegs: cycle.shippingLegs.map((l) =>
+      l.id === leg.id
+        ? { ...l, deliveries: l.deliveries.filter((d) => d.id !== deliveryId) }
+        : l,
+    ),
+  };
+  const impossible = positionOf(without).legs.some((lp) =>
+    lp.lines.some(
+      (ll) =>
+        milli(ll.delivered) + milli(ll.lost) > milli(ll.entered) ||
+        // L8: a later leg sent on goods this delivery brought.
+        milli(ll.departed) > milli(ll.entered) ||
+        (ll.received !== null &&
+          milli(ll.received) + milli(ll.lost) > milli(ll.entered)),
+    ),
+  );
+  if (impossible) {
+    return {
+      why: 'carried',
+      english:
+        'A later leg has carried on goods from this delivery, so it cannot be deleted.',
+    };
+  }
+
+  const legs = cycle.shippingLegs;
+  const isFirst = legs[0]?.id === leg.id;
+  const isLast = legs[legs.length - 1]?.id === leg.id;
+  const need = legsThatMustHaveDelivered(cycle.originType, cycle.status);
+  if (
+    leg.deliveries.length === 1 &&
+    ((isFirst && need.includes('first')) || (isLast && need.includes('last')))
+  ) {
+    return {
+      why: 'status',
+      english: `Cycle ${cycle.code} is ${cycle.status} because of this delivery, so it cannot be deleted. Move the cycle back first.`,
     };
   }
   return null;

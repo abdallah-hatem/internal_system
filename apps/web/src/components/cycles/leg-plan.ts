@@ -29,3 +29,23 @@ export function expectedLegsOf(originType: string | undefined): PlannedLeg[] {
 export function nextLegToAdd(originType: string | undefined, recorded: number[]): PlannedLeg | null {
   return expectedLegsOf(originType).find((l) => !recorded.includes(l.sequence)) ?? null;
 }
+
+/** Where a leg of this route leaves from: a China cycle's first leg leaves China; every other leg leaves the UAE. */
+export function legLeavesFrom(originType: string | undefined, sequence: number): 'CHINA' | 'UAE' {
+  return originType !== 'UAE_DIRECT' && sequence === 1 ? 'CHINA' : 'UAE';
+}
+
+/**
+ * A new leg's starting currency and basis (owner, 2026-10-20): leaving China the
+ * merchant quotes one figure in dollars, so **USD** and **a flat amount**; leaving
+ * the UAE the shipping company bills in dirhams, so **AED**, with the form's usual
+ * basis. Starting values only: a leg already saved keeps its own, and anything
+ * picked on the form is never changed. The rate comes from the Exchange rates
+ * page as for any currency (ShippingCostFields).
+ */
+export function legCostStart(
+  originType: string | undefined,
+  sequence: number,
+): { currency: string; costBasis?: 'FLAT' } {
+  return legLeavesFrom(originType, sequence) === 'CHINA' ? { currency: 'USD', costBasis: 'FLAT' } : { currency: 'AED' };
+}

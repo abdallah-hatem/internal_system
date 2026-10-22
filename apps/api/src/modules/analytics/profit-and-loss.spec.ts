@@ -139,6 +139,7 @@ function fakeDb(world: World) {
     groupBy: () => Promise.resolve([]),
   };
   const models: Record<string, unknown> = {
+    salePriceAdjustment: empty,
     saleOrder: {
       ...empty,
       findMany: ({ where }: { where: W }) =>
@@ -920,7 +921,7 @@ describe('profit and loss — the chart’s buckets', () => {
     expect(p.to).toBe('2026-10-18');
   });
 
-  it('the query count does not grow with the buckets: twelve for a 31-day month, a week view or all time', async () => {
+  it('the query count does not grow with the buckets: thirteen for a 31-day month, a week view or all time (twelve before price adjustments, 2026-10-22)', async () => {
     const w = spread();
     const now = cairo('2026-10-18', 15);
     const count = async (from?: string, to?: string) => {
@@ -928,12 +929,12 @@ describe('profit and loss — the chart’s buckets', () => {
       await service(w).getProfitAndLoss(from, to, now);
       return calls.n;
     };
-    expect(await count('2026-08-01', '2026-08-31')).toBe(12);
-    expect(await count('2026-07-04', '2026-09-20')).toBe(12);
-    expect(await count(undefined, undefined)).toBe(12);
-    // And the dashboard's reading is unchanged: twelve sums.
+    expect(await count('2026-08-01', '2026-08-31')).toBe(13);
+    expect(await count('2026-07-04', '2026-09-20')).toBe(13);
+    expect(await count(undefined, undefined)).toBe(13);
+    // And the dashboard's reading is unchanged: thirteen sums.
     calls.n = 0;
     await service(w).profitFigures();
-    expect(calls.n).toBe(12);
+    expect(calls.n).toBe(13);
   });
 });

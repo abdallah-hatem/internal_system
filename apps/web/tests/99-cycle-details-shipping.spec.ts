@@ -19,6 +19,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { aCorePartnerUser, API, apiCtx, daysAgo, investorSession } from './support/fixtures';
 import { login, messages, type Locale } from './support/ui';
+import { WEB } from './support/env';
 
 const SHOTS = process.env.I3_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/i3';
@@ -367,6 +368,47 @@ test.describe('Where the goods are', () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
+});
+
+test.describe('The place cards on a phone (owner, 2026-10-20)', () => {
+  for (const locale of ['en', 'ar'] as const) {
+    test(`TC-I3-12 (${locale}): every card shows its icon, and each row's labels and numbers sit level`, async ({ page, request }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      const { cycle } = await cycleWithLegs(request, 'CHINA', { departed: [1] });
+      await login(page, locale);
+      // A layout check, not a cache one: the page is opened by its address
+      // (the menu's way there is TC-I3-11's).
+      await page.goto(`${WEB}/${locale}/cycles/${cycle.id}/details`);
+      const cardsOnPage = page.getByTestId('goods-location').getByTestId('location-card');
+      await expect(cardsOnPage.first()).toBeVisible();
+      const all = await cardsOnPage.all();
+      expect(all.length).toBeGreaterThanOrEqual(4);
+      const boxes = [];
+      for (const c of all) {
+        const badge = c.getByTestId('location-badge');
+        await expect(badge).toBeVisible();
+        const [card, icon, label, value] = await Promise.all([
+          c.boundingBox(),
+          badge.boundingBox(),
+          c.locator('p').first().boundingBox(),
+          c.getByTestId('location-value').boundingBox(),
+        ]);
+        boxes.push({ card: card!, icon: icon!, label: label!, value: value! });
+      }
+      // Two to a row on a phone: in each row the icons, the labels and the
+      // numbers start at the same height, and the cards are as tall.
+      for (let i = 0; i + 1 < boxes.length; i += 2) {
+        const [a, b] = [boxes[i], boxes[i + 1]];
+        expect(Math.abs(a.card.y - b.card.y), `row ${i / 2}`).toBeLessThanOrEqual(1);
+        for (const part of ['icon', 'label', 'value'] as const) {
+          expect(Math.abs(a[part].y - b[part].y), `row ${i / 2} ${part}`).toBeLessThanOrEqual(1);
+        }
+        expect(Math.abs(a.card.height - b.card.height), `row ${i / 2} height`).toBeLessThanOrEqual(1);
+      }
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+    });
+  }
 });
 
 // ─── Screenshots for review (I3_SHOTS=1) ────────────────────────────────

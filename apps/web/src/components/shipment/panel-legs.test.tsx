@@ -34,6 +34,8 @@ const state = vi.hoisted(() => ({
   writes: [] as Array<{ method: string; url: string; body?: Record<string, unknown> }>,
   /** The leg row's cost, over the flat 400 every leg has by default. */
   legCost: {} as Record<string, unknown>,
+  /** Deliveries per leg sequence, as the server marks them. */
+  deliveries: {} as Record<number, Array<Record<string, unknown>>>,
 }));
 
 vi.mock('@/lib/auth-context', () => ({
@@ -66,7 +68,7 @@ const legPosition = (sequence: number) => ({
   destination: sequence === 1 && state.originType === 'CHINA' ? 'Dubai, UAE' : 'Cairo, Egypt',
   lines: [{ purchaseOrderItemId: 'poi-1', entered: 40, departed: 40, atOrigin: 0, delivered: 0, lost: 0, onTheWay: 40, received: 0, waiting: 0 }],
   departures: [{ id: `dep-${sequence}`, departedOn: '2026-09-01', lines: [{ purchaseOrderItemId: 'poi-1', qty: 40 }], undoable: false }],
-  deliveries: [],
+  deliveries: state.deliveries[sequence] ?? [],
   losses: [],
 });
 
@@ -92,6 +94,7 @@ vi.mock('@/lib/api', () => {
       get: (url: string) => {
         if (url.endsWith('/shipment')) return Promise.resolve({ data: { data: shipment() } });
         if (url === '/providers') return Promise.resolve({ data: { data: [{ id: 'prov-1', name: 'Nile Freight' }] } });
+        if (url === '/currency-rates/map') return Promise.resolve({ data: { data: { USD: 50.5, AED: 13.85 } } });
         return Promise.resolve({ data: { data: [] } });
       },
       post: write('post'),
@@ -118,6 +121,7 @@ beforeEach(() => {
   state.cost = { costEditable: true, costLockedReason: null, costLockedParams: {}, costChangeRecosts: false };
   state.writes = [];
   state.legCost = {};
+  state.deliveries = {};
 });
 afterEach(() => cleanup());
 
@@ -196,7 +200,7 @@ describe('Add next leg', () => {
     const f = form('add-leg')!;
     fireEvent.click(within(f).getAllByRole('combobox')[0]);
     fireEvent.click(await screen.findByRole('option', { name: /Nile Freight/ }));
-    // Charged per piece, the form's default basis.
+    // Leaving the UAE: AED at today's rate, charged per piece (§2, 2026-10-20).
     fireEvent.change(f.querySelector<HTMLInputElement>('input[data-field="ratePerUnit"]')!, { target: { value: '2.5' } });
     fireEvent.change(field(f, 'chargeablePieces')!, { target: { value: '40' } });
     fireEvent.click(within(f).getByRole('button', { name: en.common.create }));
@@ -212,11 +216,42 @@ describe('Add next leg', () => {
         costBasis: 'PER_PIECE',
         ratePerUnit: 2.5,
         chargeablePieces: 40,
+        currency: 'AED',
+        fxRateToEgp: 13.85,
       }),
     });
     // The body carries no cycle id of its own: the URL names the cycle.
     expect(state.writes[0].body).not.toHaveProperty('cycleId');
     await waitFor(() => expect(form('add-leg')).toBeNull());
+  });
+
+  it('the new leg starts from where it leaves: Dubai → Egypt in AED per piece, a UAE-direct leg 1 the same, a China leg 1 in USD at a flat amount — each at today’s rate (§2, 2026-10-20)', async () => {
+    const costOf = () => {
+      const f = form('add-leg')!;
+      return {
+        currency: field(f, 'currency')?.value,
+        basis: field(f, 'costBasis')?.value,
+        fx: field(f, 'fxRateToEgp')?.value,
+      };
+    };
+    const cases: Array<[typeof state.originType, number[], ReturnType<typeof costOf>]> = [
+      ['CHINA', [1], { currency: 'AED', basis: 'PER_PIECE', fx: '13.85' }],
+      ['UAE_DIRECT', [], { currency: 'AED', basis: 'PER_PIECE', fx: '13.85' }],
+      ['CHINA', [2], { currency: 'USD', basis: 'FLAT', fx: '50.5' }],
+    ];
+    for (const [origin, legs, expected] of cases) {
+      cleanup();
+      state.originType = origin;
+      state.legs = legs;
+      wrap();
+      fireEvent.click(
+        legs.length
+          ? await screen.findByTestId('add-next-leg')
+          : await screen.findByRole('button', { name: en.shipment.addLeg.replace('{leg}', '1') }),
+      );
+      await waitFor(() => expect(costOf().fx, `${origin} ${String(legs)}`).toBe(expected.fx));
+      expect(costOf(), `${origin} ${String(legs)}`).toEqual(expected);
+    }
   });
 
   it('every way out clears it: cancel, then open again starts from the route, not what was typed', async () => {
@@ -387,5 +422,61 @@ describe('a per-piece cost is for the pieces that travelled on the leg', () => {
     fireEvent.click(within(f).getByRole('button', { name: en.common.save }));
     await waitFor(() => expect(state.writes).toHaveLength(1));
     expect(state.writes[0].body).toEqual(expect.objectContaining({ costBasis: 'PER_PIECE', chargeablePieces: 40, ratePerUnit: 20 }));
+  });
+});
+
+describe('Delete delivery — offered only where it would work (owner, 2026-10-20)', () => {
+  const delivery = (id: string, mark: Record<string, unknown>) => ({
+    id,
+    arrivedOn: '2026-09-10',
+    lines: [{ id: `${id}-l`, purchaseOrderItemId: 'poi-1', qty: 20, received: 0 }],
+    ...mark,
+  });
+
+  it('a deletable delivery: the button is on, and opens the confirm', async () => {
+    state.deliveries = { 1: [delivery('dl-1', { deletable: true, deleteBlockedBy: null })] };
+    wrap();
+    const button = await screen.findByTestId('delete-delivery');
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByTestId('delivery-locked')).toBeNull();
+    fireEvent.click(button);
+    expect(await screen.findByText(en.shipment.deleteDeliveryTitle)).toBeTruthy();
+  });
+
+  it('each refusal: the button is off, the reason beside it, and clicking sends nothing', async () => {
+    for (const why of ['received', 'carried', 'status'] as const) {
+      cleanup();
+      state.writes = [];
+      state.deliveries = { 1: [delivery('dl-1', { deletable: false, deleteBlockedBy: why })] };
+      wrap();
+      const button = (await screen.findByTestId('delete-delivery')) as HTMLButtonElement;
+      expect(button.disabled, why).toBe(true);
+      const reason = screen.getByTestId('delivery-locked');
+      expect(reason.textContent, why).toBe(en.shipment.deliveryLocked[why]);
+      expect(button.getAttribute('aria-describedby')).toBe(reason.id);
+      fireEvent.click(button);
+      expect(screen.queryByText(en.shipment.deleteDeliveryTitle), why).toBeNull();
+      expect(state.writes, why).toEqual([]);
+    }
+  });
+
+  it('two deliveries on one leg are marked one by one: only the blocked one is off', async () => {
+    state.deliveries = {
+      1: [
+        delivery('dl-1', { deletable: false, deleteBlockedBy: 'received' }),
+        delivery('dl-2', { deletable: true, deleteBlockedBy: null }),
+      ],
+    };
+    wrap();
+    await screen.findAllByTestId('delete-delivery');
+    const buttons = screen.getAllByTestId('delete-delivery') as HTMLButtonElement[];
+    expect(buttons.map((b) => b.disabled)).toEqual([true, false]);
+    expect(screen.getAllByTestId('delivery-locked')).toHaveLength(1);
+  });
+
+  it('an older server that marks nothing: the button stays on, as before', async () => {
+    state.deliveries = { 1: [delivery('dl-1', {})] };
+    wrap();
+    expect(((await screen.findByTestId('delete-delivery')) as HTMLButtonElement).disabled).toBe(false);
   });
 });

@@ -34,7 +34,8 @@ import { SAMPLES_STATUSES } from './samples';
  * no statement.
  */
 
-export type StatementKind = 'SALE' | 'PAYMENT' | 'RETURN' | 'REVERSAL';
+export type StatementKind =
+  'SALE' | 'PAYMENT' | 'RETURN' | 'REVERSAL' | 'ADJUSTMENT';
 
 export interface StatementRow {
   kind: StatementKind;
@@ -106,6 +107,14 @@ export interface StatementSource {
     createdAt: Date;
     items: { saleItemId: string; qty: Prisma.Decimal | number | string }[];
   }[];
+  /** Prices lowered after the sale (§4, 2026-10-22): owed less, on that day. */
+  adjustments?: {
+    id: string;
+    saleOrderId: string;
+    adjustedOn: Date;
+    amountEgp: Prisma.Decimal | number | string;
+    createdAt: Date;
+  }[];
 }
 
 /**
@@ -146,13 +155,15 @@ const RANK: Record<StatementKind, number> = {
   PAYMENT: 1,
   RETURN: 2,
   REVERSAL: 3,
+  ADJUSTMENT: 4,
 };
 
 /** What happens to one order's outstanding, and when. */
 type Change =
   | { type: 'ALLOCATE'; at: number; cents: number; paymentId: string }
   | { type: 'RETURN'; at: number; returnId: string }
-  | { type: 'REVERSE'; at: number; cents: number; paymentId: string };
+  | { type: 'REVERSE'; at: number; cents: number; paymentId: string }
+  | { type: 'ADJUST'; at: number; cents: number; adjustmentId: string };
 
 /**
  * The statement, from what is stored. Pure: the rows are handed in.
@@ -170,11 +181,15 @@ export function buildStatement(
   const orders = source.orders.filter((o) => !NEVER_OWED.includes(o.status));
   const byOrder = new Map(orders.map((o) => [o.id, o]));
   const returns = source.returns.filter((r) => byOrder.has(r.saleOrderId));
+  const adjustments = (source.adjustments ?? []).filter((a) =>
+    byOrder.has(a.saleOrderId),
+  );
 
   // ── Each order's own history, replayed in the order it happened ─────────
   const allocationEffect = new Map<string, number>(); // payment → effect
   const reversalEffect = new Map<string, number>(); // payment → effect
   const returnEffect = new Map<string, number>(); // return → effect
+  const adjustmentEffect = new Map<string, number>(); // adjustment → effect
 
   for (const order of orders) {
     const changes: Change[] = [];
@@ -205,6 +220,15 @@ export function buildStatement(
           returnId: r.id,
         });
     }
+    for (const a of adjustments) {
+      if (a.saleOrderId === order.id)
+        changes.push({
+          type: 'ADJUST',
+          at: a.createdAt.getTime(),
+          cents: cents(a.amountEgp),
+          adjustmentId: a.id,
+        });
+    }
     changes.sort((x, y) => x.at - y.at);
 
     let outstanding = cents(order.total);
@@ -218,6 +242,8 @@ export function buildStatement(
       } else if (change.type === 'REVERSE') {
         outstanding += change.cents;
         returned = false;
+      } else if (change.type === 'ADJUST') {
+        outstanding -= change.cents;
       } else {
         const r = returns.find((x) => x.id === change.returnId)!;
         if (r.refundMethod === 'CREDIT_NOTE') {
@@ -243,8 +269,15 @@ export function buildStatement(
           ? allocationEffect
           : change.type === 'REVERSE'
             ? reversalEffect
-            : returnEffect;
-      const id = change.type === 'RETURN' ? change.returnId : change.paymentId;
+            : change.type === 'ADJUST'
+              ? adjustmentEffect
+              : returnEffect;
+      const id =
+        change.type === 'RETURN'
+          ? change.returnId
+          : change.type === 'ADJUST'
+            ? change.adjustmentId
+            : change.paymentId;
       bucket.set(id, (bucket.get(id) ?? 0) + delta);
     }
   }
@@ -319,6 +352,23 @@ export function buildStatement(
     });
   }
 
+  for (const a of adjustments) {
+    const orderNo = byOrder.get(a.saleOrderId)!.orderNo;
+    events.push({
+      kind: 'ADJUSTMENT',
+      date: a.adjustedOn.toISOString().slice(0, 10),
+      at: a.createdAt.getTime(),
+      rank: RANK.ADJUSTMENT,
+      key: a.id,
+      reference: orderNo,
+      orders: [orderNo],
+      amount: cents(a.amountEgp),
+      effect: adjustmentEffect.get(a.id) ?? 0,
+      method: null,
+      orderId: a.saleOrderId,
+    });
+  }
+
   events.sort(
     (a, b) =>
       (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) ||
@@ -373,7 +423,7 @@ export function buildStatement(
 
 type Db = Pick<
   Prisma.TransactionClient,
-  'customer' | 'saleOrder' | 'payment' | 'saleReturn'
+  'customer' | 'saleOrder' | 'payment' | 'saleReturn' | 'salePriceAdjustment'
 >;
 
 /** Reads one shop's history for `buildStatement`. */
@@ -381,7 +431,7 @@ export async function loadStatementSource(
   db: Db,
   customerId: string,
 ): Promise<StatementSource> {
-  const [orders, payments, returns] = await Promise.all([
+  const [orders, payments, returns, adjustments] = await Promise.all([
     db.saleOrder.findMany({
       where: {
         customerId,
@@ -425,6 +475,16 @@ export async function loadStatementSource(
         items: { select: { saleItemId: true, qty: true } },
       },
     }),
+    db.salePriceAdjustment.findMany({
+      where: { saleOrder: { customerId } },
+      select: {
+        id: true,
+        saleOrderId: true,
+        adjustedOn: true,
+        amountEgp: true,
+        createdAt: true,
+      },
+    }),
   ]);
-  return { orders, payments, returns };
+  return { orders, payments, returns, adjustments };
 }

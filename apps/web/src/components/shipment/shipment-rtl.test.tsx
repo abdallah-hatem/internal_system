@@ -214,7 +214,11 @@ describe('Shipment panel in Arabic', () => {
   it('a delivery is never called a payment: the Arabic delivery wording does not use دفعة', () => {
     const deliveryKeys = Object.entries(ar.shipment).filter(([k]) => /deliver|Deliver|waitingHint|nothingWaitingHint|noLegsHint|receiveTitle/.test(k));
     expect(deliveryKeys.length).toBeGreaterThan(5);
-    for (const [key, text] of deliveryKeys) expect(text, key).not.toMatch(/دفع/);
+    // A group of strings (deliveryLocked's reasons) is read string by string.
+    const strings = deliveryKeys.flatMap(([key, text]) =>
+      typeof text === 'string' ? [[key, text]] : Object.entries(text as Record<string, string>).map(([k, v]) => [`${key}.${k}`, v]),
+    );
+    for (const [key, text] of strings) expect(text, key).not.toMatch(/دفع/);
     expect(ar.shipments.arrivalsAreDeliveries).not.toMatch(/دفع/);
   });
 });

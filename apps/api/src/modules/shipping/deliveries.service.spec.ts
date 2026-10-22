@@ -526,6 +526,69 @@ describe('DELETE /shipping/deliveries/:id', () => {
     expect(r.params).toEqual({ why: 'received' });
   });
 
+  // The panel offers Delete only where it would work (owner, 2026-10-20): the
+  // shipment's mark is the same check the delete refuses with, in each case.
+  async function markOf(cycleId: string, deliveryId: string) {
+    const { data } = await cycles.getShipment(cycleId);
+    const found = data.legs
+      .flatMap((l) => l.deliveries)
+      .find((d) => d.id === deliveryId);
+    return { deletable: found?.deletable, why: found?.deleteBlockedBy };
+  }
+
+  it('the shipment marks each delivery deletable or not, with the reason the delete would give', async () => {
+    const { cycle, item, leg1, leg2 } = twoLegs();
+    const { data: first } = await deliver(leg1, item, 20, '2026-09-05');
+    const { data: second } = await deliver(leg1, item, 20, '2026-09-08');
+    departLeg2(leg2);
+    const { data: early } = await deliver(leg2, item, 15, '2026-09-20');
+    const { data: late } = await deliver(leg2, item, 15, '2026-09-22');
+
+    expect(await markOf(cycle.id, first.id)).toEqual({
+      deletable: false,
+      why: 'carried',
+    });
+    expect(await markOf(cycle.id, second.id)).toEqual({
+      deletable: false,
+      why: 'carried',
+    });
+    // Leg 2 reached Egypt twice: either delivery can go, the other still says so.
+    expect(await markOf(cycle.id, early.id)).toEqual({
+      deletable: true,
+      why: null,
+    });
+    expect(await markOf(cycle.id, late.id)).toEqual({
+      deletable: true,
+      why: null,
+    });
+
+    await deliveries.deleteDelivery(early.id, ACTOR);
+    // The second time: now the cycle's Arrived Egypt rests on the one left.
+    expect(await markOf(cycle.id, late.id)).toEqual({
+      deletable: false,
+      why: 'status',
+    });
+    expect(
+      (await refusal(deliveries.deleteDelivery(late.id, ACTOR))).params,
+    ).toEqual({ why: 'status' });
+    expect(db.deliveries).toHaveLength(3);
+  });
+
+  it('a delivery received into stock is marked not deletable, "received"; its untouched sibling stays deletable', async () => {
+    const { cycle, item, leg } = oneLeg('SELLING');
+    const { data: untouched } = await deliver(leg, item, 10, '2026-09-10');
+    const { data } = await deliver(leg, item, 10, '2026-09-20');
+    receive(db, cycle, data.lines[0], 4);
+    expect(await markOf(cycle.id, data.id)).toEqual({
+      deletable: false,
+      why: 'received',
+    });
+    expect(await markOf(cycle.id, untouched.id)).toEqual({
+      deletable: true,
+      why: null,
+    });
+  });
+
   it('Delete a delivery that was not received → removed, and the leg status is re-derived', async () => {
     const { item, leg } = oneLeg();
     await deliver(leg, item, 30, '2026-09-10');

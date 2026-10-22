@@ -27,6 +27,7 @@ function service(sales: Sale[]) {
         ),
     },
     saleReturn: { findMany: () => Promise.resolve([]) },
+    salePriceAdjustment: { findMany: () => Promise.resolve([]) },
   };
   return new AnalyticsService(prisma as never);
 }

@@ -129,8 +129,7 @@ export function ShippingCostFields({
           options={[
             // A shipping bill is often one total (owner 2026-10-17: "why am I
             // entering the number of pieces?"), so the flat amount is offered
-            // first. A new leg still starts per piece: the wizard fills the
-            // piece count in from the orders.
+            // first. Where a new leg starts is legCostStart's (leg-plan.ts).
             { value: 'FLAT', label: codeLabel('costBasis', 'FLAT') },
             { value: 'PER_PIECE', label: codeLabel('costBasis', 'PER_PIECE') },
             { value: 'PER_WEIGHT', label: t('perWeightKg') },

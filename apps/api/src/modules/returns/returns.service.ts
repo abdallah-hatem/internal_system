@@ -9,6 +9,7 @@ import {
 } from '../../common/dto/pagination.dto';
 import { Prisma, RefundMethod } from '@prisma/client';
 import { CreateReturnDto } from './dto/return.dto';
+import { heldUnitPrice } from '../../common/held-price';
 
 import { badRequest, notFound } from '../../common/api-error';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
@@ -87,6 +88,9 @@ export class ReturnsService {
           include: {
             allocations: { include: { inventoryBatch: true } },
             returnItems: true,
+            priceAdjustments: {
+              select: { newUnitPrice: true, createdAt: true },
+            },
             product: { select: { name: true } },
           },
         },
@@ -148,9 +152,10 @@ export class ReturnsService {
         );
       }
 
-      // Selling price per unit from this line, so a line discount is refunded
-      // in the same proportion it was given.
-      const unitPrice = sold.gt(0) ? D(saleItem.lineTotal).div(sold) : D(0);
+      // What the shop holds the units at: the line's price, so a line discount
+      // is refunded in the same proportion it was given — or, once the price
+      // was lowered, the lower price (§4, 2026-10-22; common/held-price.ts).
+      const unitPrice = heldUnitPrice(saleItem);
 
       let outstanding = wanted;
       const allocations = [...saleItem.allocations].sort(

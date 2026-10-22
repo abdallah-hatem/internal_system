@@ -122,7 +122,10 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` with the 2026-10-19 "Next up" batch (`b19b06f`, shipped 2026-10-21) and its follow-up
+Production runs `origin/master` with the 2026-10-22 release (migration `20261022100000_sale_price_adjustments`): a
+new leg starts in USD flat out of China and AED per piece out of the UAE; Delete delivery only where it works; the
+place cards' icons on a phone; and the API — not yet the screens — of lowering a confirmed sale's price and of an
+order's full history (§4). Before it, the 2026-10-19 "Next up" batch (`b19b06f`, shipped 2026-10-21) and its follow-up
 the same day, no migration in either: the Settlement button carries its cycle; Profit and loss opens on This month; no
 investor signs in to the office; the product page without Suppliers/Compatibility; the assistant's samples tools;
 summary cards on Cycles, Products and Sales; the invoice with the contract's header and no signature lines; the
@@ -157,8 +160,8 @@ the owner's test sales were deleted.
 
 Waiting on the owner (also in BUILD_LOG): leg 2's rate and per-piece price, the
 UAE costs, Mohamed Abu Setta's payment, repayments already made to either lender,
-and Koshary's new prices (then his order is re-entered at them, with his 5,000
-cash payment).
+and — decided 2026-10-22 — Koshary's 100 off every unit he holds (3 Q58, 10 Y20 MAX, 10 Y30: −2,300, he then
+owes 19,950), to be applied with the price adjustment once its screen is built, not by re-entering the order.
 
 ---
 
@@ -180,6 +183,7 @@ Ordered by what would hurt first.
   "Waiting on the owner"). The biggest
   for money: running-cost shares (§8), samples kept free and write-offs (§4), the
   default price's basis and rounding (§3), the P&L's dates and buckets.
+- **The price adjustment and the order history have no screen yet** (API shipped 2026-10-22; BUILD_LOG Next up).
 - **Queued features**: selling on Amazon (§17, six questions open).
 - **Smaller**: `/inventory` returns every batch with no paging; system-written
   ledger reasons are stored in English; no dark theme; the push language is always Arabic (nothing records a

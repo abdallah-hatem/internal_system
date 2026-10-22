@@ -259,7 +259,7 @@ export class AnalyticsService {
    * the same filters, the same per-row rules (`operatingExpenseEgp` and its
    * siblings) — one part per row with its day, so Analytics can cut a period
    * into days, weeks or months in memory and the buckets add up to the totals
-   * by construction (owner 2026-10-18, "Option A"). Either way it is twelve
+   * by construction (owner 2026-10-18, "Option A"). Either way it is thirteen
    * queries, however many buckets: asking `profitFigures` once per bucket
    * cost twelve per bucket, 372 for a month drawn by day.
    */
@@ -324,6 +324,27 @@ export class AnalyticsService {
       });
       add('revenue', null, D(_sum.refundEgp).neg());
       add('cogs', null, D(_sum.cogsReversedEgp).neg());
+    }
+
+    // Less prices lowered after the sale (§4, 2026-10-22), on the day they
+    // were lowered — a report already looked at does not change. No cost moves.
+    const adjustmentWhere = {
+      saleOrder: { status: { in: [...REALISED] } },
+      ...(days ? { adjustedOn: days } : {}),
+    } satisfies Prisma.SalePriceAdjustmentWhereInput;
+    if (itemised) {
+      for (const a of await this.prisma.salePriceAdjustment.findMany({
+        where: adjustmentWhere,
+        select: { adjustedOn: true, amountEgp: true },
+      })) {
+        add('revenue', dateColumnDay(a.adjustedOn), D(a.amountEgp).neg());
+      }
+    } else {
+      const { _sum } = await this.prisma.salePriceAdjustment.aggregate({
+        where: adjustmentWhere,
+        _sum: { amountEgp: true },
+      });
+      add('revenue', null, D(_sum.amountEgp).neg());
     }
 
     // Cost of the units actually sold, taken from the batch allocation made at
@@ -809,6 +830,20 @@ export class AnalyticsService {
         (revenueByMonth[monthKey] || 0) - Number(ret.refundEgp);
     }
 
+    // A price lowered after the sale reduces the month it was lowered in (§4).
+    const adjustments = await this.prisma.salePriceAdjustment.findMany({
+      where: {
+        adjustedOn: { gte: since },
+        saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } },
+      },
+      select: { adjustedOn: true, amountEgp: true },
+    });
+    for (const a of adjustments) {
+      const monthKey = a.adjustedOn.toISOString().slice(0, 7);
+      revenueByMonth[monthKey] =
+        (revenueByMonth[monthKey] || 0) - Number(a.amountEgp);
+    }
+
     // Every bucket, including the current month, and zero for the quiet ones.
     const result = keys.map((key) => ({
       month: key,
@@ -848,6 +883,7 @@ export class AnalyticsService {
             returnItems: {
               select: { qty: true, unitPrice: true, cogsReversedEgp: true },
             },
+            priceAdjustments: { select: { amountEgp: true } },
           },
         },
       },
@@ -865,11 +901,15 @@ export class AnalyticsService {
             ),
           D(0),
         );
+        // Less prices lowered after the sale (§4, 2026-10-22).
         const revenue = p.saleItems.reduce(
           (sum, i) =>
-            i.returnItems.reduce(
-              (s2, r) => s2.sub(D(r.unitPrice).mul(D(r.qty))),
-              sum.add(D(i.lineTotal)),
+            i.priceAdjustments.reduce(
+              (s2, a) => s2.sub(D(a.amountEgp)),
+              i.returnItems.reduce(
+                (s2, r) => s2.sub(D(r.unitPrice).mul(D(r.qty))),
+                sum.add(D(i.lineTotal)),
+              ),
             ),
           D(0),
         );
@@ -936,6 +976,7 @@ export class AnalyticsService {
         total: true,
         customer: { select: { id: true, displayName: true, isWalkIn: true } },
         returns: { select: { refundEgp: true } },
+        priceAdjustments: { select: { amountEgp: true } },
         items: {
           select: { quantity: true, returnItems: { select: { qty: true } } },
         },
@@ -944,9 +985,10 @@ export class AnalyticsService {
 
     const candidates = orders
       .map((o) => {
-        const revenue = o.returns.reduce(
-          (sum, r) => sum.sub(D(r.refundEgp)),
-          D(o.total),
+        // Less refunds and prices lowered after the sale (§4, 2026-10-22).
+        const revenue = o.priceAdjustments.reduce(
+          (sum, a) => sum.sub(D(a.amountEgp)),
+          o.returns.reduce((sum, r) => sum.sub(D(r.refundEgp)), D(o.total)),
         );
         const units = o.items.reduce(
           (sum, i) =>
@@ -1056,6 +1098,15 @@ export class AnalyticsService {
               },
               select: { qty: true, unitPrice: true, cogsReversedEgp: true },
             },
+            // This batch's share of prices lowered after the sale (§4).
+            priceAdjustmentItems: {
+              where: {
+                adjustment: {
+                  saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } },
+                },
+              },
+              select: { amountEgp: true },
+            },
           },
         },
       },
@@ -1103,6 +1154,10 @@ export class AnalyticsService {
           unitsSold = unitsSold.sub(qty);
           revenue = revenue.sub(D(ret.unitPrice).mul(qty));
           cogs = cogs.sub(D(ret.cogsReversedEgp));
+        }
+
+        for (const adj of batch.priceAdjustmentItems) {
+          revenue = revenue.sub(D(adj.amountEgp));
         }
 
         for (const alloc of batch.saleItemAllocations) {

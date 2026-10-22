@@ -228,6 +228,8 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- gives its allocation back to outstanding, so it is left out. An order with
   -- a credit-note return is skipped: the credit lowers outstanding with no
   -- allocation, clamped at zero, so its paid figure cannot be rebuilt here.
+  -- A price lowered after the sale (§4, 2026-10-22) lowers outstanding with no
+  -- allocation too, never below zero, so it is added back exactly.
   UNION ALL SELECT 13.1, 'order shows money paid that no payment allocated to it',
          count(*) FROM sale_orders o
    WHERE o.status NOT IN ('DRAFT', 'CANCELLED')
@@ -235,11 +237,24 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
        SELECT 1 FROM sale_returns r
         WHERE r.sale_order_id = o.id AND r.refund_method = 'CREDIT_NOTE'
      )
-     AND o.total - o.outstanding <> (
+     AND o.total - o.outstanding - (
+       SELECT coalesce(sum(pa.amount_egp), 0) FROM sale_price_adjustments pa
+        WHERE pa.sale_order_id = o.id
+     ) <> (
        SELECT coalesce(sum(a.amount), 0) FROM payment_allocations a
          JOIN payments p ON p.id = a.payment_id
         WHERE a.sale_order_id = o.id AND p.status <> 'REVERSED'
      )
+  -- A price adjustment's per-batch shares must add up to it (§4, 2026-10-22).
+  UNION ALL SELECT 13.2, 'price adjustment whose batch shares do not add up to it',
+         count(*) FROM sale_price_adjustments pa
+   WHERE pa.amount_egp <> (
+           SELECT coalesce(sum(i.amount_egp), 0) FROM sale_price_adjustment_items i
+            WHERE i.adjustment_id = pa.id)
+      OR pa.qty <> (
+           SELECT coalesce(sum(i.qty), 0) FROM sale_price_adjustment_items i
+            WHERE i.adjustment_id = pa.id)
+      OR pa.new_unit_price < 0 OR pa.new_unit_price >= pa.previous_unit_price
   UNION ALL SELECT 14, 'partner capital declared but never recorded as arriving',
          count(*) FROM cycle_participants cp
    WHERE cp.contribution_amount > 0
