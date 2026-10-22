@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Boxes, DollarSign, HandCoins, Package, ShoppingCart, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Boxes, DollarSign, HandCoins, Package, ShoppingCart, TrendingUp, Users, Wallet } from '@/components/ui/icons';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Money } from '@/components/ui/money';

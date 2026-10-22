@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, History as HistoryIcon } from 'lucide-react';
+import { AlertTriangle, History as HistoryIcon } from '@/components/ui/icons';
 
 import { api } from '@/lib/api';
 import { useDateFormat } from '@/lib/dates';

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { FileSignature, Loader2, Plus, Scale, Trash2 } from 'lucide-react';
+import { FileSignature, Loader2, Plus, Scale, Trash2 } from '@/components/ui/icons';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';

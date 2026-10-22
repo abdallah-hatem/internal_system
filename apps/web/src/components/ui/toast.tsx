@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslations } from 'next-intl';
-import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Info, X } from '@/components/ui/icons';
 
 // ---------------------------------------------------------------------------
 // Types

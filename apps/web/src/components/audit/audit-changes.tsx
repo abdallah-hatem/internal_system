@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useNumberFormat } from '@/lib/numbers';
 import { useDateFormat } from '@/lib/dates';

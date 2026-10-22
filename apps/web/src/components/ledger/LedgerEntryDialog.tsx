@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog } from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDownRight, ArrowUpRight, Loader2 } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Loader2 } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCodeLabel } from '@/lib/labels';

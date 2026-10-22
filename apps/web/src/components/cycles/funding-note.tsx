@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { AlertTriangle, HandCoins, Loader2, PencilLine, Scale } from 'lucide-react';
+import { AlertTriangle, HandCoins, Loader2, PencilLine, Scale } from '@/components/ui/icons';
 import { Money } from '@/components/ui/money';
 
 /**

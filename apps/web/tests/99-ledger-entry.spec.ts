@@ -33,7 +33,7 @@ async function openLedger(page: Page, locale: Locale = 'en') {
   const phone = (page.viewportSize()?.width ?? 1440) < 768;
   if (phone) {
     await hideDevBadge(page);
-    await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+    await page.locator('button:has(svg.icon-menu)').filter({ visible: true }).first().click();
     await page.locator(`a[href="/${locale}/ledger"]`).filter({ visible: true }).first().click();
   } else {
     await page.locator(`aside a[href="/${locale}/ledger"]`).filter({ visible: true }).first().click();

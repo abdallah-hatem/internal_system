@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
-import { Package } from 'lucide-react';
+import { Package } from '@/components/ui/icons';
 import { SummaryStrip, type SummaryCard } from './summary-strip';
 import {
   CustomersSummary,

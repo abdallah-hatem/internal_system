@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, CircleCheck, Clock, LogOut, Store } from 'lucide-react';
+import { CircleAlert, CircleCheck, Clock, LogOut, Store } from '@/components/ui/icons';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { Link } from '../../i18n/navigation';

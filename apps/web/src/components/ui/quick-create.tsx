@@ -3,7 +3,7 @@
 import { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus } from '@/components/ui/icons';
 import { api } from '../../lib/api';
 import { useToast } from './toast';
 import { useApiError } from '../../lib/api-error';

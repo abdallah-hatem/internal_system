@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Forklift, Loader2 } from 'lucide-react';
+import { Forklift, Loader2 } from '@/components/ui/icons';
 import { useCan } from '@/lib/can';
 import { MoveLeftoversDialog } from '@/components/cycles/move-leftovers-dialog';
 import { Dialog, DialogCancel } from '@/components/ui/dialog';

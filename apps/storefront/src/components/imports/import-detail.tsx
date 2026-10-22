@@ -7,7 +7,7 @@ import {
   ExternalLink,
   LoaderCircle,
   Package,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '../../lib/localized-name';
 import { useState } from 'react';

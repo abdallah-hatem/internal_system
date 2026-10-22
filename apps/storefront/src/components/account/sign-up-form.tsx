@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleCheck } from 'lucide-react';
+import { CircleCheck } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ImageOff } from 'lucide-react';
+import { ImageOff } from '@/components/ui/icons';
 
 import { imageSrc } from './image-src';
 

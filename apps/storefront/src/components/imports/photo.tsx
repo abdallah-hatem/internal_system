@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageOff, LoaderCircle } from 'lucide-react';
+import { ImageOff, LoaderCircle } from '@/components/ui/icons';
 import { useEffect, useState } from 'react';
 
 import { api } from '../../lib/api';

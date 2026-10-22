@@ -8,7 +8,7 @@ import { useDateFormat } from '../../../lib/dates';
 import {
   Bell, CheckCheck, Check,
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
 import { Link } from '../../../i18n/navigation';

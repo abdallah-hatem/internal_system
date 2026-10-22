@@ -3,7 +3,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Ban, FileSignature } from 'lucide-react';
+import { AlertTriangle, Ban, FileSignature } from '@/components/ui/icons';
 
 import { Link, useRouter } from '@/i18n/navigation';
 import { api } from '@/lib/api';

@@ -22,7 +22,7 @@ import { Money } from '../../../components/ui/money';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
   Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins, Boxes,
-  type LucideIcon, ChevronDown } from 'lucide-react';
+  type IconComponent, ChevronDown } from '@/components/ui/icons';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -152,7 +152,7 @@ export default function DashboardPage() {
 
   const owedLines = data.owedToLenders?.lines ?? [];
 
-  const stats: { key: TileKey; value: string; icon: LucideIcon; color: string; sub?: React.ReactNode }[] = [
+  const stats: { key: TileKey; value: string; icon: IconComponent; color: string; sub?: React.ReactNode }[] = [
     // Sold, collected and still owed sit together on purpose: the first two
     // differ by the third, and a strong month of selling with an empty till
     // looks identical to a strong month of collecting if only one is shown.

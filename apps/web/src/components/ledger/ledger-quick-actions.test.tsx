@@ -87,11 +87,11 @@ describe('the ledger page has the Fuel quick action', () => {
     expect(screen.queryByTestId('quick-action-recordFuel')).toBeNull();
     const onDashboard = screen.getByTestId('quick-action-recordPayment');
     const look = onDashboard.className;
-    const icon = onDashboard.querySelector('svg')?.getAttribute('class')?.split(' ').filter((c) => !c.startsWith('lucide'));
+    const icon = onDashboard.querySelector('svg')?.getAttribute('class')?.split(' ').filter((c) => c !== 'icon' && !c.startsWith('icon-'));
     cleanup();
     await renderLedger();
     expect(fuel()!.className).toBe(look);
-    const fuelIcon = fuel()!.querySelector('svg')?.getAttribute('class')?.split(' ').filter((c) => !c.startsWith('lucide'));
+    const fuelIcon = fuel()!.querySelector('svg')?.getAttribute('class')?.split(' ').filter((c) => c !== 'icon' && !c.startsWith('icon-'));
     expect(fuelIcon).toEqual(icon);
   });
 

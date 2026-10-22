@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, CircleAlert, RotateCcw, X } from 'lucide-react';
+import { Camera, CircleAlert, RotateCcw, X } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 

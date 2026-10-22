@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ChevronDown, TrendingDown, TrendingUp } from 'lucide-react';
+import { ChevronDown, TrendingDown, TrendingUp } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { businessToday, useDateFormat } from '@/lib/dates';

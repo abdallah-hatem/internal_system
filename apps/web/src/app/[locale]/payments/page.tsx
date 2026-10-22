@@ -25,7 +25,7 @@ import {
 import {
   Plus, Eye, Loader2,
   ArrowRightLeft, RotateCcw, Download,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
 import { downloadCsv, datedFilename } from '@/lib/export-csv';
 

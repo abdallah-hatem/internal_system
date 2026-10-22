@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
+import { Search, X } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 
 /**

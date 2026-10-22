@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Loader2, LogOut } from 'lucide-react';
+import { Loader2, LogOut } from '@/components/ui/icons';
 import { useAuth } from '@/lib/auth-context';
 import { useCodeLabel } from '@/lib/labels';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

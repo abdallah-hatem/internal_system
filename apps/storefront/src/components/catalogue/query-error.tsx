@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 
 import { useApiError } from '../../lib/api-error';

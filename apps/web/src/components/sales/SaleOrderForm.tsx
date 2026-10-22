@@ -4,7 +4,7 @@ import { localName, otherName } from '@/lib/localized-name';
 import { useId, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
-import { CheckCircle, Loader2, MinusCircle, PackageCheck, PackageOpen, Plus, Wallet } from 'lucide-react';
+import { CheckCircle, Loader2, MinusCircle, PackageCheck, PackageOpen, Plus, Wallet } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { isOffered, isSellable } from '@/lib/product-status';

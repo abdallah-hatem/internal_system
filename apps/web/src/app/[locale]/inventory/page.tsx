@@ -16,7 +16,7 @@ import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/paginati
 import {
   ChevronDown, AlertTriangle,
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { useCodeLabel } from '@/lib/labels';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';

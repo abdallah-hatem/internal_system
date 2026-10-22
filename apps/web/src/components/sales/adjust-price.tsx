@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, TrendingDown } from 'lucide-react';
+import { Loader2, TrendingDown } from '@/components/ui/icons';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';

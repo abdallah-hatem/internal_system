@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronsUpDown, X } from 'lucide-react';
+import { Check, ChevronsUpDown, X } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
 import { searchFinds } from '@/lib/localized-name';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

@@ -34,7 +34,7 @@ import {
   Plus, Loader2,
   ChevronRight, CheckCircle, Ban, Package,
   Undo2, ShoppingCart, Wallet, FileText, PackageOpen, PackageX, PackageCheck,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import Link from 'next/link';
 import {
   RecordPaymentDialog,
@@ -47,7 +47,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
 import { downloadCsv, datedFilename } from '@/lib/export-csv';
 import { businessToday } from '@/lib/dates';
-import { Download } from 'lucide-react';
+import { Download } from '@/components/ui/icons';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';

@@ -11,7 +11,7 @@ import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import { TextareaField } from '@/components/ui/textarea-field';
 import {
   Truck, Plus, Edit, Loader2, Phone, Mail, User, Trash2,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '@/lib/api-error';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';

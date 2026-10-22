@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import Link from 'next/link';
-import { Route, Plus } from 'lucide-react';
+import { Route, Plus } from '@/components/ui/icons';
 
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';

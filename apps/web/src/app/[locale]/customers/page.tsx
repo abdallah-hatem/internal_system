@@ -19,7 +19,7 @@ import {
   Users, Plus, Eye, Edit, Loader2,
   ChevronRight, Phone, Mail, DollarSign, ShoppingCart,
   ShieldAlert, ShieldCheck,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';

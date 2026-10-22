@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Download, FileText, Printer } from 'lucide-react';
+import { Download, FileText, Printer } from '@/components/ui/icons';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';

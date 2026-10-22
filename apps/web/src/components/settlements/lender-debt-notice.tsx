@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { Money } from '@/components/ui/money';
 import { LenderLink } from '@/components/ui/entity-link';

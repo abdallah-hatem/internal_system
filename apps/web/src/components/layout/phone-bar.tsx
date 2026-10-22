@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Menu } from 'lucide-react';
+import { Menu } from '@/components/ui/icons';
 import { Link } from '../../i18n/navigation';
 import { isActiveHref, isMoreActive, type NavItem } from './nav-model';
 

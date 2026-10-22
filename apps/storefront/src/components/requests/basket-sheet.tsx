@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, Clock, LoaderCircle, ShoppingCart, Trash2 } from 'lucide-react';
+import { CircleAlert, Clock, LoaderCircle, ShoppingCart, Trash2 } from '@/components/ui/icons';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useState } from 'react';
 

@@ -13,7 +13,7 @@ import {
   Package, Barcode, DollarSign, TrendingUp, TrendingDown,
   Boxes, AlertTriangle, ShoppingCart, Truck, Store, Loader2, ChevronDown,
   ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check, PackageOpen,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { ProductSamplesCard, useProductSamples } from '@/components/products/product-samples';
 
 import { useApiError } from '../../../../lib/api-error';

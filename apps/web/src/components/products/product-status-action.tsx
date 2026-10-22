@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Power, PowerOff } from 'lucide-react';
+import { Loader2, Power, PowerOff } from '@/components/ui/icons';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';

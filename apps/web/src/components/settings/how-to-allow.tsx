@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Share } from 'lucide-react';
+import { Share } from '@/components/ui/icons';
 
 import { browserFamily, type BrowserFamily } from '../../lib/push';
 

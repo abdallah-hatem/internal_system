@@ -31,7 +31,7 @@ import { selectOnFocus } from '../../../../../lib/select-on-focus';
 import { MoneyInput } from '../../../../../components/ui/money-input';
 import {
   Loader2, Users, ShoppingCart, Boxes, Plus, Scale, TrendingUp, PencilLine,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '../../../../../lib/api-error';
 import { BackLink } from '../../../../../components/ui/back-link';

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Loader2, Plus, Send } from 'lucide-react';
+import { ArrowRightLeft, Loader2, Plus, Send } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';
 import { useCan } from '@/lib/can';

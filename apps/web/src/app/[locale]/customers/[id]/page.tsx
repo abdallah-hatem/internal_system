@@ -33,7 +33,7 @@ import {
 } from '../../../../components/payments/RecordPaymentDialog';
 import {
   Wallet, ShoppingCart, FileSignature, AlertTriangle, Plus,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 import { DataTable, type Column } from '@/components/ui/data-table';

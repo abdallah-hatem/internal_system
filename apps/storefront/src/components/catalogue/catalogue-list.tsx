@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PackageSearch } from 'lucide-react';
+import { PackageSearch } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 
 import { CategoryFilter } from './category-filter';

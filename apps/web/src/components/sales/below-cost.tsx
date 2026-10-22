@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from '@/components/ui/icons';
 import { useNumberFormat } from '@/lib/numbers';
 import type { PriceCheckLine, PriceCheckResult } from '@/lib/price-check';
 

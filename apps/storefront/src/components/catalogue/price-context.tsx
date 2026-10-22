@@ -1,6 +1,6 @@
 'use client';
 
-import { Info } from 'lucide-react';
+import { Info } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 
 import { Link } from '../../i18n/navigation';

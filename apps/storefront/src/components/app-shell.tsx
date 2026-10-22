@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Package, ClipboardList, Ship, User } from 'lucide-react';
+import { Package, ClipboardList, Ship, User } from '@/components/ui/icons';
 
 import { Link, usePathname } from '../i18n/navigation';
 import { AlertsPrompt } from './account/alerts-prompt';

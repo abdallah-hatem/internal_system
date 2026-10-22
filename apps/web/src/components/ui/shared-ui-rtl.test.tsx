@@ -2,7 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
-import { Wallet } from 'lucide-react';
+import { Wallet } from '@/components/ui/icons';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
 import { Money } from './money';

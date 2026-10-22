@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { X } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';

@@ -43,7 +43,7 @@ async function openCycle(page: Page, code: string, id: string, locale: Locale = 
   const phone = (page.viewportSize()?.width ?? 1440) < 768;
   if (phone) {
     await hideDevBadge(page);
-    await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+    await page.locator('button:has(svg.icon-menu)').filter({ visible: true }).first().click();
     await page.locator(`a[href="/${locale}/cycles"]`).filter({ visible: true }).first().click();
   } else {
     await page.locator(`aside a[href="/${locale}/cycles"]`).filter({ visible: true }).first().click();
@@ -361,7 +361,7 @@ test.describe('Screenshots', () => {
         await mk(`settlements/${draft.id}/approve`, {});
         if (width < 768) {
           await hideDevBadge(page);
-          await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+          await page.locator('button:has(svg.icon-menu)').filter({ visible: true }).first().click();
           await page.locator(`a[href="/${locale}/settlements"]`).filter({ visible: true }).first().click();
         } else {
           await page.locator(`aside a[href="/${locale}/settlements"]`).filter({ visible: true }).first().click();

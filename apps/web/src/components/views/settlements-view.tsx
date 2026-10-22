@@ -15,7 +15,7 @@ import { useNumberFormat } from '@/lib/numbers';
 import {
   Scale, Loader2, TrendingUp, TrendingDown,
   CheckCircle2, Wallet, RotateCcw, Calculator, 
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/empty-state';
 
 import { useApiError } from '@/lib/api-error';

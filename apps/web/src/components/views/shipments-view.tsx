@@ -9,7 +9,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   Plus, Edit, MapPin,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { LegRoute } from '@/components/shipment/LegRoute';

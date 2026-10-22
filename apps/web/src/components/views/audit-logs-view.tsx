@@ -11,7 +11,7 @@ import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import { Select } from '@/components/ui/select';
 import { ListToolbar } from '@/components/ui/list-toolbar';
-import { Eye } from 'lucide-react';
+import { Eye } from '@/components/ui/icons';
 import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';

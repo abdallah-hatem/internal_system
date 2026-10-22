@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from '@/components/ui/icons';
 import { notFound } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 

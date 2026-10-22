@@ -14,7 +14,7 @@ import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   ShoppingCart, Plus, Eye, MinusCircle, ChevronRight,
   Package, DollarSign,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { useDateFormat } from '@/lib/dates';
 import { useToast } from '@/components/ui/toast';
 import { TextareaField } from '@/components/ui/textarea-field';

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Edit, HandCoins, Loader2, RotateCcw, Trash2, Wallet } from 'lucide-react';
+import { CalendarClock, Edit, HandCoins, Loader2, RotateCcw, Trash2, Wallet } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useCan } from '@/lib/can';
 import { useDateFormat } from '@/lib/dates';

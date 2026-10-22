@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, CircleAlert, Clock, LoaderCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleAlert, Clock, LoaderCircle } from '@/components/ui/icons';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 

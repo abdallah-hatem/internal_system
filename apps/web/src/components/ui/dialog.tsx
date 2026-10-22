@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, type FormEvent, type HTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
 import { useEscapeToClose } from '@/lib/use-escape-to-close';
 import { LatinText } from '@/components/ui/latin-text';

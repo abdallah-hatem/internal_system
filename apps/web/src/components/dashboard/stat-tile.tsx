@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import type { IconComponent } from '@/components/ui/icons';
 import { Link } from '@/i18n/navigation';
 import { Money } from '@/components/ui/money';
 import { parseDisplayedMoney, useNumberFormat } from '@/lib/numbers';
@@ -13,7 +13,7 @@ export interface StatTileProps {
    * count with Latin digits. Text that is not a figure is shown as given.
    */
   value: string | number;
-  icon: LucideIcon;
+  icon: IconComponent;
   /** Background class of the icon badge. */
   color: string;
   /** The list behind the figure. Null renders a plain tile (the role cannot open it). */

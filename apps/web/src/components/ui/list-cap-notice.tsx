@@ -1,6 +1,6 @@
 'use client';
 import { useTranslations } from 'next-intl';
-import { Info } from 'lucide-react';
+import { Info } from '@/components/ui/icons';
 import { useNumberFormat } from '@/lib/numbers';
 
 /**

@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { Banknote } from 'lucide-react';
+import { Banknote } from '@/components/ui/icons';
 import { Link, useRouter } from '@/i18n/navigation';
 import { api } from '@/lib/api';
 import { useNumberFormat } from '@/lib/numbers';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Search } from 'lucide-react';
+import { Search } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@/components/ui/empty-state';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, Eye, EyeOff } from 'lucide-react';
+import { CircleAlert, Eye, EyeOff } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 

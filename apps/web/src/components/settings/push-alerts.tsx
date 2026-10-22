@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, BellOff, BellRing, Info, Loader2 } from 'lucide-react';
+import { Bell, BellOff, BellRing, Info, Loader2 } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';

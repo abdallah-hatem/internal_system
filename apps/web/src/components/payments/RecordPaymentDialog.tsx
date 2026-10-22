@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Dialog } from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2 } from '@/components/ui/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';

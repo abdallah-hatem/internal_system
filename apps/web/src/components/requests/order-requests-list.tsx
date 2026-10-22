@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Clock, Loader2, Store, X } from 'lucide-react';
+import { Check, Clock, Loader2, Store, X } from '@/components/ui/icons';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Money } from '@/components/ui/money';

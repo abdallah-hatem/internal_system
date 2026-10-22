@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, BellOff, Info, LoaderCircle } from 'lucide-react';
+import { Bell, BellOff, Info, LoaderCircle } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 

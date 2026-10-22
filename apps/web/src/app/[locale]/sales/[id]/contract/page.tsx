@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { FileX } from 'lucide-react';
+import { FileX } from '@/components/ui/icons';
 
 import { DocumentActions } from '@/components/ui/document-actions';
 import { DEFAULT_DOCUMENT_LANGUAGE, DocumentLanguageSwitch } from '@/components/ui/document-language';

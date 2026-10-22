@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Edit } from 'lucide-react';
+import { ChevronDown, PackageCheck, PackageX, Plus, Send, Trash2, Undo2, HandCoins, Truck, MapPin, Edit } from '@/components/ui/icons';
 import { legCostStart, nextLegToAdd } from '@/components/cycles/leg-plan';
 import { LegCreateForm, LegEditForm, type LegRow } from './LegForm';
 import { api } from '@/lib/api';

@@ -10,7 +10,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   Tag, Plus, Edit, Loader2, Trash2, ChevronRight, ChevronDown,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '@/lib/api-error';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';

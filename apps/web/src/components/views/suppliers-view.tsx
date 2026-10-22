@@ -13,7 +13,7 @@ import { FormActions } from '@/components/ui/fields';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';
 import {
   Plus, Edit, Loader2, Phone, Mail, MessageCircle, Trash2, ShoppingCart,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '@/lib/api-error';
 import { ValidatedForm } from '@/components/ui/validated-form';

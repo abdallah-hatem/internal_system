@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Banknote, Fuel, Plus, Ship, Zap } from 'lucide-react';
+import { Banknote, Fuel, Plus, Ship, Zap } from '@/components/ui/icons';
 import { LedgerEntryDialog } from '@/components/ledger/LedgerEntryDialog';
 import { Link } from '@/i18n/navigation';
 import { canRecordFuel, quickActionsFor, type QuickActionKey } from './dashboard-model';

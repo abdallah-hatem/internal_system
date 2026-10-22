@@ -17,15 +17,21 @@ test runs (`motorcycle_parts_db` container name), unfixed. State of the product 
 `docs/where-things-stand.md`.
 
 ## Built, on the working tree — not committed (the owner looks at the screenshots first)
-- 2026-10-22 (owner): the tabs' cards reshaped (§12) — Products and Inventory: products and units in stock (the
+- 2026-10-22 (owner, picked on the icon-set comparison page `https://claude.ai/artifact/KrNYT7m3mEUoXGYtP5rHxd`):
+  every icon in the office app and the storefront is Hugeicons (free, stroke-rounded) — building-frontends 1.54.0
+  "icons never look stock". One module per app, `src/components/ui/icons.tsx`, exports the drawings under the names
+  the code already used (104 office, 36 storefront); `lucide-react` uninstalled from both and refused by lint
+  (`no-restricted-imports`). Each icon carries `icon icon-<name>` (the e2e phone-menu selector is
+  `svg.icon-menu` now) and `aria-hidden`.
+
+## Live in production (newest first, last two weeks)
+Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-22 — shipped (`a5bae77`, no migration): the tabs' cards reshaped (§12) — Products and Inventory: products and units in stock (the
   dashboard's figures, `GET /analytics/stock-summary`); Customers: how many, and who paid the most
   (`…/customer-summary`); Payments: the largest payment and who paid it (`…/payment-summary`); Sales' largest order
   counts products, not lines; every card has the dashboard's icon badge; the ledger has a By column. Tests:
   `summary-strip.test.tsx`, `tab-summaries.db.spec.ts` (reversed payments never count), spec 102 (TC-TABSUM-02..08),
-  each break-checked. Screenshots: `D:\Personal\screenshots-2026-10-22\`.
-
-## Live in production (newest first, last two weeks)
-Older history: "History" at the foot of this file, and `git log`.
+  each break-checked.
 - 2026-10-22 (afternoon) — shipped, no migration:
   - "Adjust price" on a confirmed order and its "History" tab (`e286f9c`; §4 "Office screen" guesses).
   - An order's Total is what it is worth now, "sold at …" beneath; Items show price now / "was", worth now and

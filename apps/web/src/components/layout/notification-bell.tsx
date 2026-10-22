@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, Check } from 'lucide-react';
+import { Bell, Check } from '@/components/ui/icons';
 import { api } from '../../lib/api';
 import { Link } from '../../i18n/navigation';
 import { useDateFormat } from '../../lib/dates';

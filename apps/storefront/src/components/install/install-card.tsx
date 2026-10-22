@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Smartphone } from 'lucide-react';
+import { Smartphone } from '@/components/ui/icons';
 
 import { Dialog, DialogContent } from '../ui/dialog';
 import { InstallGuide, useShouldOfferInstall } from './install-guide';

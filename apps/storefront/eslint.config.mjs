@@ -365,6 +365,25 @@ export default defineConfig([
     },
   },
 
+  // One icon set (owner 2026-10-22: Hugeicons; building-frontends "icons never look stock"):
+  // every icon comes from src/components/ui/icons.tsx, never lucide-react.
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "lucide-react",
+              message: "Icons come from @/components/ui/icons (Hugeicons). Add the one you need there.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // 9. Prettier last — turns off stylistic rules that conflict with Prettier
   prettier,
 ]);

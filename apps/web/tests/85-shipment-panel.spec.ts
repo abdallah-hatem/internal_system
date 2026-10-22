@@ -36,7 +36,7 @@ async function login(page: Page, locale: 'en' | 'ar' = 'en') {
 async function openNav(page: Page, name: string) {
   const link = () => page.getByRole('link', { name, exact: true }).filter({ visible: true }).first();
   if ((await link().count()) === 0) {
-    await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+    await page.locator('button:has(svg.icon-menu)').filter({ visible: true }).first().click();
   }
   await link().click();
 }

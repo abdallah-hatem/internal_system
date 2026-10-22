@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { ChevronRight, PackageOpen } from 'lucide-react';
+import { ChevronRight, PackageOpen } from '@/components/ui/icons';
 import { Link } from '@/i18n/navigation';
 import { useAllRecords } from '@/lib/list-all';
 import { useNumberFormat } from '@/lib/numbers';

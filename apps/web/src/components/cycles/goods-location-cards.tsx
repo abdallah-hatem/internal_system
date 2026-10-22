@@ -3,8 +3,8 @@
 import { useMemo } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
-import type { LucideIcon } from 'lucide-react';
-import { ArrowRightLeft, Factory, PackageX, ShoppingBag, Ship, Store, Truck, Warehouse } from 'lucide-react';
+import type { IconComponent } from '@/components/ui/icons';
+import { ArrowRightLeft, Factory, PackageX, ShoppingBag, Ship, Store, Truck, Warehouse } from '@/components/ui/icons';
 import { Link } from '@/i18n/navigation';
 import type { Shipment } from '@/components/shipment/shipment-model';
 import { LatinText } from '@/components/ui/latin-text';
@@ -16,7 +16,7 @@ import { locateGoods, type GoodsBuckets, type LocationBatch, type LocationTransf
 type Place = 'inChina' | 'toUae' | 'inUae' | 'toEgypt' | 'inEgypt' | 'sold' | 'lost' | 'moved';
 
 /** Icon and badge colour per place, in the dashboard tiles' look. */
-const LOOK: Record<Place, { icon: LucideIcon; color: string }> = {
+const LOOK: Record<Place, { icon: IconComponent; color: string }> = {
   inChina: { icon: Factory, color: 'bg-slate-500' },
   toUae: { icon: Ship, color: 'bg-sky-500' },
   inUae: { icon: Warehouse, color: 'bg-amber-500' },

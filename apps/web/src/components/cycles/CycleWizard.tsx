@@ -38,7 +38,7 @@ import {
   X,
   ArrowLeft,
   Loader2,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '../../lib/api-error';
 import { FieldWithQuickCreate } from '../ui/quick-create';

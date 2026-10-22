@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '../../../lib/auth-context';
 import { useRouter } from '../../../i18n/navigation';
 import { useApiError } from '../../../lib/api-error';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from '@/components/ui/icons';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { ValidatedForm } from '@/components/ui/validated-form';

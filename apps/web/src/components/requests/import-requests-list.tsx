@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { localName, otherName } from '@/lib/localized-name';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, PackageSearch, Search, X } from 'lucide-react';
+import { Check, Loader2, PackageSearch, Search, X } from '@/components/ui/icons';
 import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 

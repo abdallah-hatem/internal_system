@@ -38,7 +38,7 @@ import {
   Truck,
   Users,
   X,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { PhoneBar } from './phone-bar';
 import { ENABLED_FEATURES } from '../../lib/features';

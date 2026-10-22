@@ -3,7 +3,7 @@
 import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
-import { Download, Loader2, Printer, Share2 } from 'lucide-react';
+import { Download, Loader2, Printer, Share2 } from '@/components/ui/icons';
 
 import {
   DOCUMENT_CANVAS_FONT,

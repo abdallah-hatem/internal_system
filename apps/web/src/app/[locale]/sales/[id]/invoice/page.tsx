@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { FileX } from 'lucide-react';
+import { FileX } from '@/components/ui/icons';
 
 import { api } from '@/lib/api';
 import { useApiError } from '@/lib/api-error';

@@ -11,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import {
   TrendingUp, TrendingDown, Package, Route,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { useCodeLabel } from '@/lib/labels';
 import { useNumberFormat } from '@/lib/numbers';
 import { EmptyState } from '@/components/ui/empty-state';

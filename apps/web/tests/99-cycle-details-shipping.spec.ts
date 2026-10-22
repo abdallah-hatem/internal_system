@@ -94,7 +94,7 @@ async function openCycle(page: Page, code: string, id: string, locale: Locale = 
 
 /** Same, on a phone: the list shows cards and the menu sits behind a button. */
 async function openCyclePhone(page: Page, code: string, id: string, locale: Locale = 'en') {
-  await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+  await page.locator('button:has(svg.icon-menu)').filter({ visible: true }).first().click();
   await page.locator(`a[href="/${locale}/cycles"]`).filter({ visible: true }).first().click();
   await expect(page).toHaveURL(new RegExp(`/${locale}/cycles$`), { timeout: 15000 });
   const main = page.getByRole('main');

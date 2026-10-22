@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import type { IconComponent } from '@/components/ui/icons';
 import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { LatinText } from '@/components/ui/latin-text';
@@ -19,7 +19,7 @@ export interface SummaryCard {
   label: string;
   /** The record the card is about — a name or code, isolated for RTL. A count has none. */
   subject?: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   /** Background class of the icon badge, as on the dashboard. */
   color: string;
   value: ReactNode;

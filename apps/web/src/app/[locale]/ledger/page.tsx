@@ -13,7 +13,7 @@ import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/paginati
 import {
   Plus, Eye, 
   RotateCcw, ArrowUpRight, ArrowDownRight,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { useDateFormat } from '../../../lib/dates';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
@@ -22,7 +22,7 @@ import { LedgerQuickActions } from '@/components/dashboard/quick-actions';
 import { useAuth } from '@/lib/auth-context';
 import { MANUAL_CATEGORIES, manualKindOf } from '@/lib/ledger-categories';
 import { downloadCsv, datedFilename } from '../../../lib/export-csv';
-import { Download } from 'lucide-react';
+import { Download } from '@/components/ui/icons';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCodeLabel } from '@/lib/labels';

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/ui/icons';
 import { useCan } from '@/lib/can';
 import { WIZARD_STATUSES } from './wizard-walk';
 

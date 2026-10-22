@@ -86,7 +86,7 @@ async function aWorld(request: any, label: string) {
 async function go(page: Page, path: 'settlements' | 'partners', locale: Locale = 'en') {
   if ((page.viewportSize()?.width ?? 1440) < 768) {
     await hideDevBadge(page);
-    await page.locator('button:has(svg.lucide-menu)').filter({ visible: true }).first().click();
+    await page.locator('button:has(svg.icon-menu)').filter({ visible: true }).first().click();
     await page.locator(`a[href="/${locale}/partners"]`).filter({ visible: true }).first().click();
     await expect(page).toHaveURL(new RegExp(`/${locale}/partners$`), { timeout: 15000 });
     if (path === 'settlements') {

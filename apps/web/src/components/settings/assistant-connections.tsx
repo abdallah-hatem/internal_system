@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Loader2, Unplug } from 'lucide-react';
+import { Bot, Loader2, Unplug } from '@/components/ui/icons';
 
 import { api, MCP_SERVER_URL } from '../../lib/api';
 import { useApiError } from '../../lib/api-error';

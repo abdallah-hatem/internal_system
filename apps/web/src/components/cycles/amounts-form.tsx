@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Loader2 } from 'lucide-react';
+import { Loader2 } from '@/components/ui/icons';
 import { MoneyInput } from '@/components/ui/money-input';
 import { Money } from '@/components/ui/money';
 import { useNumberFormat } from '@/lib/numbers';

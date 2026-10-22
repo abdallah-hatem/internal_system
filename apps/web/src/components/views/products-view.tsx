@@ -14,7 +14,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   Plus, Edit, Eye, Tag,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 
 import { useApiError } from '@/lib/api-error';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';

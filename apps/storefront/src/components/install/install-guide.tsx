@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { Share, MoreVertical, Plus, Check } from 'lucide-react';
+import { Share, MoreVertical, Plus, Check } from '@/components/ui/icons';
 
 import { isIos, isStandalone } from '../account/push';
 

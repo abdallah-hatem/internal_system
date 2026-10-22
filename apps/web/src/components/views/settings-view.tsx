@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/toast';
 import { useState } from 'react';
 import {
   Settings as SettingsIcon, User, ShieldCheck, Globe, Loader2, Check,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { PushAlerts } from '@/components/settings/push-alerts';
 import { AssistantConnections } from '@/components/settings/assistant-connections';
 import { useCodeLabel } from '@/lib/labels';

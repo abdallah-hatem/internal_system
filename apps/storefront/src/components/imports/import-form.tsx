@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, LoaderCircle, Plus } from 'lucide-react';
+import { CircleAlert, LoaderCircle, Plus } from '@/components/ui/icons';
 import { useTranslations } from 'next-intl';
 import { useCallback, useId, useState } from 'react';
 

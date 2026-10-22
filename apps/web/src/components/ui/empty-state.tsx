@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Inbox, type LucideIcon } from 'lucide-react';
+import { Inbox, type IconComponent } from '@/components/ui/icons';
 import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ export interface EmptyStateProps {
   /** The list's main action ("New sale"), so the empty screen is not a dead end. */
   action?: EmptyStateAction;
   /** A lucide icon component or any node. Defaults to an inbox. Pass `null` for none. */
-  icon?: LucideIcon | ReactNode;
+  icon?: IconComponent | ReactNode;
   /**
    * `default` for a page or a whole list; `compact` for a section inside a card,
    * a popover or a picker — the same look with less room around it, so a small
@@ -99,11 +99,11 @@ export function EmptyState({
   );
 }
 
-function renderIcon(icon: LucideIcon | ReactNode, compact: boolean): ReactNode {
+function renderIcon(icon: IconComponent | ReactNode, compact: boolean): ReactNode {
   if (icon === null || icon === false) return null;
   // A lucide icon is a forwardRef component: an object (or function) with a render.
   if (typeof icon === 'function' || (typeof icon === 'object' && icon !== null && 'render' in icon)) {
-    const Icon = icon as LucideIcon;
+    const Icon = icon as IconComponent;
     return <Icon className={compact ? 'size-4' : 'size-6'} />;
   }
   return icon as ReactNode;

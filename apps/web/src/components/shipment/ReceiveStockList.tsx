@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import { useQueries } from '@tanstack/react-query';
-import { PackageCheck } from 'lucide-react';
+import { PackageCheck } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { useCodeLabel } from '@/lib/labels';
 import { useDateFormat } from '@/lib/dates';
