@@ -60,13 +60,28 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
 /** Any icon from this module — what a prop or a lookup table holds. */
 export type IconComponent = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
 
+/**
+ * The stroke every icon draws with, in 24-unit viewBox units (owner 2026-10-22:
+ * "huge icons are a bit smaller than lucide?"). Measured against the lucide
+ * glyphs they replaced, 38 icons at 16px: the drawn extent is the same (median
+ * 0.3px smaller), but Hugeicons ships stroke 1.5 where lucide drew 2, so the
+ * ink was 74% of lucide's — lighter, which reads as smaller. At 2 the median
+ * ink is 100% of lucide's and the extent matches to 0.0px. The glyph is not
+ * scaled and the box (the h-4 w-4 class) is untouched, so nothing moves; at 2
+ * every icon here still sits ≥0.75 units inside its viewBox, so none clips.
+ * A caller's own `strokeWidth` still wins (the install guide's 2.5 and 3).
+ * The same value as the office's module; unit/icon-stroke.test.mjs pins it.
+ */
+const ICON_STROKE_WIDTH = 2;
+
 function icon(svg: IconSvgElement, name: string): IconComponent {
-  const Icon = forwardRef<SVGSVGElement, IconProps>(function Icon({ className, ...rest }, ref) {
+  const Icon = forwardRef<SVGSVGElement, IconProps>(function Icon({ className, strokeWidth = ICON_STROKE_WIDTH, ...rest }, ref) {
     return (
       <HugeiconsIcon
         ref={ref}
         icon={svg}
         aria-hidden="true"
+        strokeWidth={strokeWidth}
         {...rest}
         className={className ? `icon icon-${name} ${className}` : `icon icon-${name}`}
       />
