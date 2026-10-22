@@ -7,7 +7,9 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-22 — shipped: a new leg starts from where it leaves, Delete delivery only where it works, the place cards'
+2026-10-22 — built on branch `worktree-agent-a22fde29e831a71c8`, not merged, waiting for the owner's local test: the
+office screens of the price adjustment ("Adjust price" in the sale order popup) and of an order's full history (a
+"History" tab in the same popup), BUSINESS_LOGIC §4 both sections, "Office screen". Before that, 2026-10-22 — shipped: a new leg starts from where it leaves, Delete delivery only where it works, the place cards'
 icons on a phone, and the API of the price adjustment after confirm and of an order's full history (migration
 `20261022100000_sale_price_adjustments`, applied to production before the push). Not started, by the owner's word:
 their office screens (Next up). Koshary's 100 off is not applied. Still waiting on the owner: the Rules Review answers
@@ -175,8 +177,9 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Next (owner, 2026-10-22; API shipped 2026-10-22, the owner stopped there): the office screens for the price
-  adjustment and the order history (BUSINESS_LOGIC §4, both sections, "As built"). An "Adjust price" button on a
+- Next (owner, 2026-10-22; API shipped 2026-10-22, the owner stopped there; **office screens built on branch
+  `worktree-agent-a22fde29e831a71c8` 2026-10-22, waiting for the owner's local test before merge**): the office
+  screens for the price adjustment and the order history (BUSINESS_LOGIC §4, both sections, "As built"). An "Adjust price" button on a
   confirmed order's popup (`app/[locale]/sales/page.tsx`, `sale.adjustPrice` in `lib/permissions.ts` already):
   pick a line, type the new price and the day, and see from `…/price-adjustments/preview` what the shop will owe
   before saving; and a History section in the same popup from `GET /sales/orders/:id/history` — the timeline with
