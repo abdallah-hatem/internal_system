@@ -170,7 +170,7 @@ file event — run `node dist/src/main` for long e2e runs.
   green, red, blue, 20.31 per pack (four products, sold per pack); 10× Bicycle phone holder (octopus handlebar style)
   14.36 each. A friend paid it in AED; the partners repaid him in EGP in **3 instalments, all paid**: 15 Aug at 14, 15 Sep at
   14.50, 15 Oct at 14.90 EGP/AED. Shipping: the owner gives one full fee for them (China → UAE → Egypt), not per piece.
-  Still needed: which friend; his total AED (with these) and the day he paid; each instalment's amount (equal thirds?); the
+  Still needed: which friend; his total AED (with these) and the day he paid; the instalments are **equal thirds** of his AED total (owner); the
   shipping fee, its currency and whether it covers both legs. Then: a one-off production correction (PO lines,
   deliveries, receipt, the friend's financing, his plan and repayments, the shipping cost), shown to the owner first.
 - Every guess the system is built on and every open question (88 items) is on the Rules Review page,
