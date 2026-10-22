@@ -163,6 +163,16 @@ quoting fails in cmd — run its `ts-node` line from Git Bash; `nest start --wat
 file event — run `node dist/src/main` for long e2e runs.
 
 ## Waiting on the owner
+- **Extra pieces on CYC-2026-0001 (owner, 2026-10-22)** — forgotten when the cycle was entered; same shipment, same
+  Alibaba order PO-2026-0001, extra pieces (not inside the 230), **none sold yet**. Nine new products, 18 pieces, 353.09 AED:
+  1× Hard motorcycle bag (waist bag) 29.27; 1× Tactical Knight motorcycle bag (leg bag) 34.35; 1× Tactical motorcycle leg
+  bag 30.53; 1× Men's multifunctional tactical leg bag 34.10; universal motorcycle screws 177 pcs, one pack each of white,
+  green, red, blue, 20.31 per pack (four products, sold per pack); 10× Bicycle phone holder (octopus handlebar style)
+  14.36 each. A friend paid it in AED; the partners repaid him in EGP in **3 instalments, all paid**, at rates 14, 14.50
+  and 14.90. Shipping: the owner gives one full fee for them (China → UAE → Egypt), not per piece.
+  Still needed: which friend; his total AED (with these) and the day he paid; each instalment's date and amount; the
+  shipping fee, its currency and whether it covers both legs. Then: a one-off production correction (PO lines,
+  deliveries, receipt, the friend's financing, his plan and repayments, the shipping cost), shown to the owner first.
 - Every guess the system is built on and every open question (88 items) is on the Rules Review page,
   `https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`; his answers are saved in its database (`answers`, one document per
   item) for Claude to read and apply, with BUSINESS_LOGIC updated from them.
