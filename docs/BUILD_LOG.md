@@ -7,29 +7,27 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-22 — production runs `origin/master` with the office screens of the price adjustment ("Adjust price" in the
-sale order popup) and of an order's full history ("History" tab), and an order's Total shown as what it is worth now
-(owner's Option A), shipped at the owner's word ("ship to prod"), no migration. Nothing is merged locally and waiting.
-Next: Koshary's 100 off every unit through Adjust price (owner to confirm when); the extra pieces on CYC-2026-0001
-(Waiting on the owner — friend, his AED total and day, the shipping fee); the Rules Review answers
+2026-10-22 (evening) — production runs `origin/master` with the product page audit fixes and the icons drawn at lucide's
+weight, shipped at the owner's word after his local look ("looks great … update docs and ship"), no migration. Nothing
+is merged locally and waiting. Next: Koshary's 100 off every unit through Adjust price (owner to confirm when); the extra
+pieces on CYC-2026-0001 (Waiting on the owner — friend, his AED total and day, the shipping fee); the Rules Review answers
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
-test runs (`motorcycle_parts_db` container name), unfixed. State of the product and of production's data:
+test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes
+("Batch #a744f2c4"), seen in the product page audit, not fixed. State of the product and of production's data:
 `docs/where-things-stand.md`.
-Also 2026-10-22, on branch `worktree-agent-a3d775a88381b6775`, waiting for the owner's local test: the product page
-audit fixes (batches a table on desktop and a card per batch on a phone, under the two columns at full width; movements
-only under an opened batch, by record number ORD-/RET-/PO- as links — the API now sends those numbers; "Checked in" for
-the date, "Received" for the quantity; prices first on a phone; no default figure as the price field's placeholder).
-
-## Built, on the working tree — not committed (the owner looks at the screenshots first)
-- 2026-10-22 (owner, picked on the icon-set comparison page `https://claude.ai/artifact/KrNYT7m3mEUoXGYtP5rHxd`):
-  every icon in the office app and the storefront is Hugeicons (free, stroke-rounded) — building-frontends 1.54.0
-  "icons never look stock". One module per app, `src/components/ui/icons.tsx`, exports the drawings under the names
-  the code already used (104 office, 36 storefront); `lucide-react` uninstalled from both and refused by lint
-  (`no-restricted-imports`). Each icon carries `icon icon-<name>` (the e2e phone-menu selector is
-  `svg.icon-menu` now) and `aria-hidden`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-22 (evening) — shipped, no migration:
+  - Product page audit (`326b567`): batches are a DataTable on desktop and a card per batch on a phone, full width under
+    the two columns (two columns from 1280px); movements only under an opened batch, each by its record number
+    (ORD-/RET-/PO-) as a link — the batch movements endpoint sends `reference`; "Received" is the quantity, "Checked in"
+    the date; prices first on a phone; the price field's placeholder is empty, the default on the line beneath; Save
+    44px on a phone; the SKU under the name. The Inventory page's movements use the same component.
+  - Icons drawn at lucide's weight (`16d8ca7`): Hugeicons' default stroke 1.5 carried ~74% of lucide's ink, so every
+    icon read smaller; both icon modules pass stroke 2 by default (box unchanged, nothing clipped; unit tests pin it).
+  - Hugeicons everywhere (`fc4221d`, the other machine, earlier the same day): one icon module per app, lucide-react
+    uninstalled and refused by lint.
 - 2026-10-22 — shipped (`a5bae77`, no migration): the tabs' cards reshaped (§12) — Products and Inventory: products and units in stock (the
   dashboard's figures, `GET /analytics/stock-summary`); Customers: how many, and who paid the most
   (`…/customer-summary`); Payments: the largest payment and who paid it (`…/payment-summary`); Sales' largest order

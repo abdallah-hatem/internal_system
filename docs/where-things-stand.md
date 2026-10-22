@@ -122,7 +122,8 @@ The parts worth knowing about:
 > a different Vercel account. It returns 200 on `/`, which is why it went
 > unnoticed for two sessions. Test on a route only this app has, never `/`.
 
-Production runs `origin/master` with the 2026-10-22 release (migration `20261022100000_sale_price_adjustments`): a
+Production runs `origin/master` with the evening 2026-10-22 release (the product page audit fixes, icons at lucide's
+weight — no migration; BUILD_LOG). Before that, the 2026-10-22 release (migration `20261022100000_sale_price_adjustments`): a
 new leg starts in USD flat out of China and AED per piece out of the UAE; Delete delivery only where it works; the
 place cards' icons on a phone; and the API — not yet the screens — of lowering a confirmed sale's price and of an
 order's full history (§4). Before it, the 2026-10-19 "Next up" batch (`b19b06f`, shipped 2026-10-21) and its follow-up
