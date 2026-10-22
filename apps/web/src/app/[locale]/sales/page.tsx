@@ -52,6 +52,9 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
+import { AdjustPriceButton, AdjustPriceDialog } from '@/components/sales/adjust-price';
+import { OrderHistory } from '@/components/sales/order-history';
+import { TabBar } from '@/components/ui/tab-bar';
 import { isSamplesStatus, samplesUnits } from '@/lib/samples';
 import { useCan } from '@/lib/can';
 import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
@@ -173,6 +176,7 @@ function SalesPageContent() {
   const tc = useTranslations('common');
   const tp = useTranslations('payments');
   const tph = useTranslations('placeholders');
+  const th = useTranslations('sales.history');
   const { formatAmount } = useNumberFormat();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -199,6 +203,10 @@ function SalesPageContent() {
   const [payingOrder, setPayingOrder] = useState<SaleOrder | null>(null);
   // The Contract button's plan popup (§7, 2026-10-16).
   const [contractFor, setContractFor] = useState<SaleOrder | null>(null);
+  // Lowering a price after the order is confirmed (§4, 2026-10-22).
+  const [adjustingOrder, setAdjustingOrder] = useState<SaleOrder | null>(null);
+  // The popup's two views: the order as it stands, and how it got there (§4).
+  const [orderView, setOrderView] = useState<'orderDetails' | 'orderHistory'>('orderDetails');
   // Samples at a shop (§4): what the shop decided.
   // "They're buying" opens the New Order popup on the samples (§4 round 2).
   const [completingSamples, setCompletingSamples] = useState<SaleOrder | null>(null);
@@ -248,6 +256,7 @@ function SalesPageContent() {
       setLinkedOrderId(null);
       router.replace(`/${locale}/sales`, { scroll: false });
     }
+    setOrderView('orderDetails');
     setOpenedOrder(order);
   };
   // A summary card opens its order here: from the list when the order is on
@@ -874,7 +883,13 @@ function SalesPageContent() {
             ) : isSamplesStatus(detail.status) ||
             // A cancelled order offers nothing to do; an empty bar would only say so.
             (detail.status === 'CANCELLED' && !canTakePayment(detail)) ? undefined : (
-              <>
+              // Two to a row on a phone, Record payment first across the row: a
+              // confirmed sale has five actions, and one per row put a third of
+              // the screen under the buttons.
+              <div
+                data-testid="order-actions"
+                className="grid w-full grid-cols-2 gap-2 max-sm:[&>*]:justify-center max-sm:[&>*]:px-2 max-sm:[&>*]:whitespace-nowrap sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-3"
+              >
               {/* A confirmed sale has an invoice / delivery note; a draft is
                   not a sale yet and a cancelled order never happened (§4). */}
               {detail.status !== 'DRAFT' && detail.status !== 'CANCELLED' && (
@@ -892,12 +907,15 @@ function SalesPageContent() {
               {orderDetail && (
                 <ContractButton sale={detail} onAgree={() => setContractFor(detail)} />
               )}
+              {orderDetail && (
+                <AdjustPriceButton sale={detail} onOpen={() => setAdjustingOrder(detail)} />
+              )}
               {canTakePayment(detail) && (
                 <button
                   type="button"
                   data-testid="order-record-payment"
                   onClick={() => setPayingOrder(detail)}
-                  className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                  className="max-sm:order-first max-sm:col-span-2 inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                 >
                   <Wallet className="h-4 w-4" />
                   {tp('recordPayment')}
@@ -945,10 +963,23 @@ function SalesPageContent() {
                   {t('cancel')}
                 </button>
               )}
-              </>
+              </div>
             )
           }
         >
+          <TabBar
+            className="mb-4"
+            label={th('tabsLabel')}
+            value={orderView}
+            onChange={setOrderView}
+            tabs={[
+              { key: 'orderDetails', label: th('detailsTab') },
+              { key: 'orderHistory', label: th('tab') },
+            ]}
+          />
+          {orderView === 'orderHistory' ? (
+            <OrderHistory orderId={detail.id} currency={detail.currency} />
+          ) : (
           <div className="space-y-6">
             {/* Samples at a shop (§4): where they are, since when, the reminder. */}
             {detail.samples && <SamplesPanel order={detail} />}
@@ -1075,11 +1106,16 @@ function SalesPageContent() {
 
             {/* Actions */}
           </div>
+          )}
         </Dialog>
       )}
 
       {contractFor && (
         <ContractPlanDialog sale={contractFor} onClose={() => setContractFor(null)} />
+      )}
+
+      {adjustingOrder && (
+        <AdjustPriceDialog sale={adjustingOrder} onClose={() => setAdjustingOrder(null)} />
       )}
 
       {completingSamples && (() => {

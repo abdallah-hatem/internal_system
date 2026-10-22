@@ -1060,7 +1060,7 @@ a balance or money on it; an open one whose batches do not hold its lines; one w
 
 ---
 
-### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API built 2026-10-22 (office screen not yet)
+### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API built 2026-10-22, office screen built 2026-10-22 (branch `worktree-agent-a22fde29e831a71c8`, waiting for the owner's local test)
 
 **What happens in the business.** A shop's price is lowered after its order was confirmed — Koshary
 (ORD-2026-00002) was given 100 EGP off per product on 2026-10-22, after two returns and a 5,000 cash payment.
@@ -1078,7 +1078,7 @@ confirm?" — yes.
 | Who | Core partners (rule 12). | GUESS |
 | Where | An "Adjust price" action on the confirmed order's popup: pick a line, type the new price, see what the shop will owe before saving. | GUESS |
 
-**As built (2026-10-22, API only — the popup's Adjust price button is not built yet).** `POST
+**As built (2026-10-22, API; the office screen below).** `POST
 /sales/orders/:id/price-adjustments` (and `…/preview`, which writes nothing), core partners only;
 `modules/sales/price-adjustments.service.ts`, table `sale_price_adjustments` with its per-batch shares in
 `sale_price_adjustment_items` (migration `20261022100000_sale_price_adjustments`). Where it differs from, or adds
@@ -1107,10 +1107,29 @@ to, the table above:
 - **Two at once lower it once:** the order's row is locked while the cut is checked and written.
 - The audit log records `PRICE_ADJUSTED` on the order. No ledger row (no money moved).
 
-Koshary's 100 off is not applied yet: once the Adjust price button is built, or through the API when the owner
+**Office screen (built 2026-10-22, on its branch until the owner has tried it locally).** "Adjust price" in the
+sale order popup's actions (`components/sales/adjust-price.tsx`): pick the line, type the new unit price, the day
+and an optional note; the server's own preview (`…/preview`) shows units covered, what it takes off and what the
+shop owes before → after as the person types (350 ms after the typing pauses), and Save sends exactly that. The
+screen's own choices, each a GUESS until the owner says otherwise:
+
+- GUESS: the button shows only on a confirmed or partly paid sale, for a core partner — the statuses the server
+  takes (a draft, paid, returned, cancelled or samples order never shows it). A sale under an instalment contract
+  still shows it, and the popup says why it cannot (`PRICE_ADJUSTMENT_UNDER_CONTRACT`) instead of a form.
+- GUESS: the line picker lists only lines the shop still holds units of, each with units held and its price now;
+  with one such line it is chosen already.
+- GUESS: the price field starts empty and is never filled in for the person — the current price is shown under it.
+- GUESS: the day starts on Cairo's today; days before the sale and after today cannot be picked.
+- GUESS: the note is capped at 500 characters in the form (the server sets no limit).
+- GUESS: Save is enabled only once the preview of exactly what is typed has come back without a refusal; every
+  other refusal (cycle settled, more off than owed, not lower) is the server's, said in the reader's language.
+- The order's Items table still shows the price each line was sold at (the line is never edited); the price now is
+  in its History.
+
+Koshary's 100 off is not applied yet: once the Adjust price button is in production, or through the API when the owner
 says so.
 
-### An order's full history  — DECIDED 2026-10-22 (owner), API built 2026-10-22 (office screen not yet)
+### An order's full history  — DECIDED 2026-10-22 (owner), API built 2026-10-22, office screen built 2026-10-22 (branch `worktree-agent-a22fde29e831a71c8`, waiting for the owner's local test)
 
 `GET /sales/orders/:id/history` (`modules/sales/order-history.service.ts`): one timeline, oldest first, each event
 with its day and who recorded it — created and confirmed with its lines and prices, samples left / bought /
@@ -1121,6 +1140,14 @@ confirmed or cancelled); no second copy of the figures. What the order owed afte
 order things were recorded, as the statement replays it, and ends on the order's own outstanding (`replayedOwes`
 beside `owes`, equal unless stored figures disagree). GUESS: a sale entered later is shown on its own day (its
 `orderedAt`), created and confirmed alike.
+
+**Office screen (built 2026-10-22).** A "History" tab beside "Order" in the sale order popup
+(`components/sales/order-history.tsx`): the per-product table (started with, returned, holds now, sold at, price
+now), then the timeline oldest first — each event's day, who, what (lines and prices, a return's reference, lines,
+refund, method and reason, a price cut's old → new and units, a payment's method and reference) and what the order
+owed after it — and under it both "history ends at" and "the order owes now", as the API sends them. Nothing is
+summed in the browser. GUESS: when the two differ the tab says so in red and points at the data check, rather than
+showing one of them. GUESS: on a phone the per-product table is one card per product (five columns do not fit).
 
 ## 5. Returns
 
