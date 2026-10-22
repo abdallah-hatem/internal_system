@@ -139,11 +139,12 @@ describe('the product page, B2B price card', () => {
     const line = await screen.findByTestId('default-price');
     expect(line.textContent).toMatch(/120\.00/);
     expect(within(line).getByTestId('default-price-hint').textContent).toBe('Default (landed + 20%)');
-    // The B2B field is empty (placeholder 120); Save is off until a price is typed.
+    // The B2B field is empty, and so is its placeholder: grey "120" read as a typed
+    // price (2026-10-22). Save is off until a price is typed.
     const card = line.parentElement!;
     const input = card.querySelector('input')!;
     expect(input.value).toBe('');
-    expect(input.placeholder).toBe('120');
+    expect(input.placeholder).toBe('');
     expect(within(card).getByTestId('set-price-action').hasAttribute('disabled')).toBe(true);
     expect(post).not.toHaveBeenCalledWith(expect.stringMatching(/\/prices$/), expect.anything());
     // Only one hint on the page: the set B2C price carries none.
@@ -176,7 +177,7 @@ describe('the product page, B2C price card', () => {
     expect(card.textContent).toContain(en.products.b2cPrice);
     const input = card.querySelector('input')!;
     expect(input.value).toBe('');
-    expect(input.placeholder).toBe('120');
+    expect(input.placeholder).toBe('');
     expect(within(card).getByTestId('set-price-action').hasAttribute('disabled')).toBe(true);
     expect(post).not.toHaveBeenCalledWith(expect.stringMatching(/\/prices$/), expect.anything());
     // The set B2B price carries no hint: one hint on the page.

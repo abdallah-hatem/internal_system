@@ -22,6 +22,7 @@ import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
+import { BatchMovementList, type BatchMovement } from '@/components/inventory/batch-movements';
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface InventorySummary {
@@ -40,14 +41,6 @@ interface InventorySummary {
   batches: any[];
 }
 
-interface Movement {
-  id: string;
-  movementType: string;
-  qtyDelta: number;
-  occurredAt: string;
-  referenceType?: string;
-  referenceId?: string;
-}
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The table's skeleton rows are drawn by DataTable from each column's
@@ -117,7 +110,7 @@ function InventoryPageContent() {
     queryFn: () => api.get('/inventory').then((r) => r.data.data ?? r.data),
   });
 
-  const { data: movements = [] } = useQuery({
+  const { data: movements = [], isLoading: loadingMovements } = useQuery({
     queryKey: ['inventoryMovements', selectedBatchId],
     queryFn: () =>
       api.get(`/inventory/batches/${selectedBatchId}/movements`).then((r) => r.data.data ?? r.data),
@@ -126,7 +119,7 @@ function InventoryPageContent() {
 
   // ── Derived ───────────────────────────────────────────────────────
   const inventoryList: InventorySummary[] = Array.isArray(inventory) ? inventory : [];
-  const movementList: Movement[] = Array.isArray(movements) ? movements : [];
+  const movementList: BatchMovement[] = Array.isArray(movements) ? movements : [];
 
   const filtered = inventoryList.filter((item) => {
     if (lowOnly && !isBelowMinStock(item)) return false;
@@ -283,28 +276,7 @@ function InventoryPageContent() {
               {selectedBatchId && (
                 <div className="bg-white rounded-lg border border-gray-200 p-4">
                   <h4 className="text-sm font-semibold text-gray-900 mb-3">{t('movements')}</h4>
-                  {movementList.length === 0 ? (
-                    <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
-                  ) : (
-                    <div className="space-y-2">
-                      {movementList.map((mov) => (
-                        <div key={mov.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              mov.movementType === 'RECEIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                            }`}>
-                              {codeLabel('movementType', mov.movementType)}
-                            </span>
-                            <span className="text-gray-700">{mov.qtyDelta}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-gray-500 text-xs">{formatDate(mov.occurredAt)}</span>
-                            {(mov.referenceType || mov.referenceId) && <p className="text-xs text-gray-400">{codeLabel('referenceType', mov.referenceType)}{mov.referenceId ? ` (${mov.referenceId})` : ''}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <BatchMovementList movements={movementList} loading={loadingMovements} />
                 </div>
               )}
             </div>

@@ -670,6 +670,87 @@ export class InventoryService {
       orderBy: { occurredAt: 'desc' },
     });
 
-    return { data: movements };
+    const refs = await this.movementReferences(movements);
+    return {
+      data: movements.map((m) => ({
+        ...m,
+        reference: (m.referenceId && refs.get(m.referenceId)) || null,
+      })),
+    };
   }
+
+  /**
+   * The record each movement came from, by the number a person knows it by —
+   * ORD-…, RET-…, PO-… — with the ids a screen needs to open it (2026-10-22).
+   * `referenceId` alone is a database id, which the product page used to print.
+   *
+   * One query per kind of record present (at most three), never one per row.
+   */
+  private async movementReferences(
+    movements: { referenceType: string | null; referenceId: string | null }[],
+  ): Promise<Map<string, MovementReference>> {
+    const idsOf = (types: readonly string[]) => [
+      ...new Set(
+        movements
+          .filter((m) => m.referenceId && types.includes(m.referenceType ?? ''))
+          .map((m) => m.referenceId!),
+      ),
+    ];
+    const orderIds = idsOf(SALE_ORDER_REFERENCES);
+    const returnIds = idsOf(['SALE_RETURN']);
+    const poItemIds = idsOf(['PURCHASE_ORDER_ITEM']);
+
+    const [orders, returns, poItems] = await Promise.all([
+      orderIds.length
+        ? this.prisma.saleOrder.findMany({
+            where: { id: { in: orderIds } },
+            select: { id: true, orderNo: true },
+          })
+        : [],
+      returnIds.length
+        ? this.prisma.saleReturn.findMany({
+            where: { id: { in: returnIds } },
+            select: { id: true, reference: true, saleOrderId: true },
+          })
+        : [],
+      poItemIds.length
+        ? this.prisma.purchaseOrderItem.findMany({
+            where: { id: { in: poItemIds } },
+            select: {
+              id: true,
+              purchaseOrder: { select: { id: true, reference: true } },
+            },
+          })
+        : [],
+    ]);
+
+    const refs = new Map<string, MovementReference>();
+    for (const o of orders)
+      refs.set(o.id, { number: o.orderNo, saleOrderId: o.id });
+    for (const r of returns)
+      refs.set(r.id, { number: r.reference, saleOrderId: r.saleOrderId });
+    for (const i of poItems)
+      refs.set(i.id, {
+        number: i.purchaseOrder.reference,
+        purchaseOrderId: i.purchaseOrder.id,
+      });
+    return refs;
+  }
+}
+
+/** Movement reference types whose id is a sale order's own. */
+const SALE_ORDER_REFERENCES = [
+  'SALE_ORDER',
+  'SALE_ORDER_CANCEL',
+  'SAMPLES_ORDER',
+] as const;
+
+/** What a movement's `referenceId` names, as a person reads it. */
+export interface MovementReference {
+  /** ORD-2026-0001, RET-2026-0001, PO-2026-0001. */
+  number: string;
+  /** The sale order to open: the order itself, or the one a return was made on. */
+  saleOrderId?: string;
+  /** The purchase order a receipt's line belongs to. */
+  purchaseOrderId?: string;
 }

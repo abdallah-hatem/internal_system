@@ -10,6 +10,8 @@ import { localName, otherName } from '@/lib/localized-name';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { viewPath } from '@/lib/page-views';
 import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   ShoppingCart, Plus, Eye, MinusCircle, ChevronRight,
@@ -112,7 +114,7 @@ export default function PurchasesPage() {
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSupplierId, setNewSupplierId] = useState('');
-  const [viewingPO, setViewingPO] = useState<PurchaseOrder | null>(null);
+  const [openedPO, setOpenedPO] = useState<PurchaseOrder | null>(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [lineItems, setLineItems] = useState<Array<{ productId: string; orderedQty: number; unitPrice: number; discount: number }>>([]);
 
@@ -121,6 +123,24 @@ export default function PurchasesPage() {
 
   // ── Queries ───────────────────────────────────────────────────────
   const { items: purchases, capped, isLoading } = useAllRecords(['purchases'], '/purchases');
+
+  // `?open=<id>` — a link from elsewhere (a product's stock movement names the
+  // order it was received on, 2026-10-22) — opens that order once its row is on
+  // the list, then leaves the address so a refresh does not open it again.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [linkedPoId, setLinkedPoId] = useState(() => searchParams.get('open'));
+  const linkedPO = linkedPoId
+    ? ((purchases as PurchaseOrder[]).find((p) => p.id === linkedPoId) ?? null)
+    : null;
+  const viewingPO = openedPO ?? linkedPO;
+  const setViewingPO = (po: PurchaseOrder | null) => {
+    if (linkedPoId) {
+      setLinkedPoId(null);
+      router.replace(`/${locale}${viewPath('purchases')}`, { scroll: false });
+    }
+    setOpenedPO(po);
+  };
   const { items: cycles } = useAllRecords(['cycles'], '/cycles');
   const { items: suppliers } = useAllRecords(['suppliers'], '/suppliers');
   const { items: products } = useAllRecords(['products'], '/products');
