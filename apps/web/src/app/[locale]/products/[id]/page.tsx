@@ -10,9 +10,8 @@ import { MoneyInput } from '../../../../components/ui/money-input';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  Package, Barcode, DollarSign, TrendingUp, TrendingDown,
-  Boxes, AlertTriangle, ShoppingCart, Truck, Store, Loader2, ChevronDown,
-  ChevronUp, Layers, History, ArrowUpRight, ArrowDownRight, Check, PackageOpen,
+  Package, DollarSign, TrendingUp, Boxes, ShoppingCart, Truck, Store, Loader2,
+  History, Check, PackageOpen,
 } from '@/components/ui/icons';
 import { ProductSamplesCard, useProductSamples } from '@/components/products/product-samples';
 
@@ -26,10 +25,11 @@ import { useNumberFormat } from '@/lib/numbers';
 import { usePriceCheck } from '@/lib/price-check';
 import { BelowCostPrice } from '@/components/sales/below-cost';
 import { ProductStatusAction } from '@/components/products/product-status-action';
-import { localDescription, localName } from '@/lib/localized-name';
-import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { localName } from '@/lib/localized-name';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { listPriceOf, type ListPrice, type ListPrices } from '@/lib/list-price';
 import { DefaultPriceHint } from '@/components/products/default-price-hint';
+import { ProductBatches, ProductBatchesSkeleton, type ProductBatch } from '@/components/products/product-batches';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Product {
   id: string;
@@ -73,63 +73,41 @@ interface StockSummary {
   availableStock: number;
   /** Remaining units × landed cost, the dashboard's Inventory Value for this product. */
   stockValueEgp?: number;
-  batches: Batch[];
+  batches: ProductBatch[];
 }
 
-interface Batch {
-  id: string;
-  batchNo?: string;
-  cycleId: string;
-  cycle?: { code: string };
-  receivedQty: number;
-  remainingQty: number;
-  landedUnitCostEgp: number;
-  /** When the shipment landed. Null until the shipping leg carries a date. */
-  arrivedOn?: string | null;
-  /** When it was verified into stock. Always present — it is the batch's own
-   *  creation, and it is the order FIFO consumes in. */
-  receivedAt?: string | null;
-}
+// ─── Layout ───────────────────────────────────────────────────────────
+// One arrangement, used by the page and its skeleton alike (2026-10-22 audit):
+//
+//   xl (1280+)  photos · details   | current prices · price history · samples
+//               the batches, the whole width beneath both
+//   narrower    one column: current prices first, right under the stock tiles
+//               — the figure a partner opens the page for — then price
+//               history, samples, photos, details, batches.
+//
+// The prices come first in the markup and are placed in the third column on a
+// wide screen, so a phone (and a screen reader) meets them first. The right
+// column used to end ~820px above the left, which carried the batches and a
+// Movement History card besides. Two columns start at xl, not lg: at 1024 the
+// sidebar leaves 718px, a third of which squeezed the price field to 35px.
+const GRID = 'grid grid-cols-1 gap-6 xl:grid-cols-3 xl:items-start';
+const SIDE = 'space-y-6 xl:col-start-3 xl:row-start-1';
+const MAIN = 'space-y-6 xl:col-span-2 xl:col-start-1 xl:row-start-1';
 
-interface Movement {
-  id: string;
-  movementType: string;
-  qtyDelta: number;
-  occurredAt: string;
-  referenceType?: string;
-  referenceId?: string;
-}
+/** Icon above the figure where a tile is narrow — a phone's two columns, md–lg's four — beside it otherwise. */
+const STAT_LAYOUT =
+  'flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3 md:flex-col md:items-start md:gap-2 xl:flex-row xl:items-center xl:gap-3';
 
-// ─── Movement badge helpers ───────────────────────────────────────────
-function movementTypeBadge(type: string): string {
-  switch (type) {
-    case 'PURCHASE_RECEIPT':
-      return 'bg-green-100 text-green-700';
-    case 'SALE_ALLOCATION':
-      return 'bg-blue-100 text-blue-700';
-    case 'ADJUSTMENT':
-      return 'bg-amber-100 text-amber-700';
-    default:
-      return 'bg-gray-100 text-gray-600';
-  }
-}
-
-function movementTypeIcon(type: string) {
-  switch (type) {
-    case 'PURCHASE_RECEIPT':
-      return <ArrowDownRight className="h-3.5 w-3.5" />;
-    case 'SALE_ALLOCATION':
-      return <ArrowUpRight className="h-3.5 w-3.5" />;
-    case 'ADJUSTMENT':
-      return <AlertTriangle className="h-3.5 w-3.5" />;
-    default:
-      return <Package className="h-3.5 w-3.5" />;
-  }
-}
+/** `full`: the whole row at every width. `wide`: the whole row on a phone, one column from md. */
+type DetailSpan = 'full' | 'wide';
+const DETAIL_SPAN: Record<DetailSpan, string> = {
+  full: 'col-span-2 md:col-span-3',
+  wide: 'col-span-2 md:col-span-1',
+};
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // Traced from the page below and its sub-components: the same header, the
-// same four stat cards, the same two columns of cards. Change one, change the
+// same four stat cards, the same columns of cards. Change one, change the
 // other.
 
 /** A card of the page — `p-5`, a text-sm heading line with `mb-4` under it. */
@@ -142,11 +120,11 @@ function SectionCardSkeleton({ children, heading = 'w-32' }: { children: React.R
   );
 }
 
-/** `StatCard`: a 40px icon square beside a text-xs label over a text-lg figure. */
+/** `StatCard`: a 40px icon square beside (on a phone, above) a text-xs label over the figure. */
 function StatCardSkeleton() {
   return (
     <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
-      <div className="flex items-center gap-3">
+      <div className={STAT_LAYOUT}>
         <Skeleton className="h-10 w-10 rounded-lg" />
         <div>
           <SkeletonText size="xs" className="w-16" />
@@ -158,26 +136,11 @@ function StatCardSkeleton() {
 }
 
 /** `DetailItem`: a text-xs label over a text-sm value. */
-function DetailItemSkeleton({ full = false }: { full?: boolean }) {
+function DetailItemSkeleton({ span }: { span?: DetailSpan }) {
   return (
-    <div className={full ? 'col-span-2 md:col-span-3' : ''}>
+    <div className={span ? DETAIL_SPAN[span] : ''}>
       <SkeletonText size="xs" lineClassName="mb-0.5" className="w-16" />
-      <SkeletonText className={full ? 'w-2/3' : 'w-24'} />
-    </div>
-  );
-}
-
-/** One batch's header button: a single text-sm line of figures and a chevron. */
-function BatchRowSkeleton() {
-  return (
-    <div className="border border-muted rounded-lg overflow-hidden">
-      <div className="w-full flex items-center justify-between gap-4 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-4">
-          <SkeletonText size="xs" lineClassName="h-5" className="w-16" />
-          {repeat(3, (i) => <SkeletonText key={i} className="w-20" />)}
-        </div>
-        <Skeleton className="size-4 shrink-0 rounded" />
-      </div>
+      <SkeletonText className={span === 'full' ? 'w-2/3' : 'w-24'} />
     </div>
   );
 }
@@ -192,8 +155,8 @@ function PriceRowSkeleton() {
       </div>
       <div className="flex items-center gap-2">
         <SkeletonText size="xs" className="w-7" />
-        <Skeleton className="h-[34px] flex-1 rounded-lg" />
-        <Skeleton className="h-7 w-16 shrink-0 rounded-lg" />
+        <Skeleton className="h-11 flex-1 rounded-lg sm:h-[34px]" />
+        <Skeleton className="h-11 w-20 shrink-0 rounded-lg sm:h-[34px] sm:w-16" />
       </div>
     </div>
   );
@@ -212,71 +175,28 @@ function PriceHistoryRowSkeleton() {
   );
 }
 
-/** One movement inside an opened batch: badge and quantity, the date at the end. */
-function BatchMovementRowSkeleton() {
-  return (
-    <div data-testid="skeleton-row" className="flex items-center justify-between bg-card rounded-lg px-3 py-2 border border-muted">
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-5 w-24 rounded-full" />
-        <SkeletonText className="w-6" />
-      </div>
-      <div className="flex flex-col items-end">
-        <SkeletonText size="xs" className="w-28" />
-        <SkeletonText size="xs" className="w-20" />
-      </div>
-    </div>
-  );
-}
-
 /** The whole page before the product and its stock arrive. */
 function ProductDetailSkeleton() {
   return (
     <SkeletonRegion className="space-y-6">
-      {/* Header: name, status badge, the status button at the end, SKU under. */}
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <SkeletonText size="2xl" className="w-56" />
-          <Skeleton className="h-5 w-14 rounded-full" />
-          <div className="sm:ms-auto">
-            <Skeleton className="h-11 w-32 rounded-lg sm:h-9" />
+      {/* Header: name and status badge, the SKU under them, the status button at the end. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <SkeletonText size="2xl" className="w-56" />
+            <Skeleton className="h-5 w-14 rounded-full" />
           </div>
+          <SkeletonText className="w-24" />
         </div>
-        <SkeletonText className="w-24" />
+        <Skeleton className="h-11 w-32 rounded-lg sm:h-9" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {repeat(4, (i) => <StatCardSkeleton key={i} />)}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Photos: heading and Add photo button, the empty line under. */}
-          <div className="bg-card rounded-xl border border-border p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <SkeletonText className="w-16" />
-              <Skeleton className="h-[34px] w-28 rounded-lg" />
-            </div>
-            <Skeleton className="h-[68px] w-full rounded-lg" />
-          </div>
-          <SectionCardSkeleton heading="w-20">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {repeat(6, (i) => <DetailItemSkeleton key={i} />)}
-              <DetailItemSkeleton full />
-              <DetailItemSkeleton full />
-              <DetailItemSkeleton />
-            </div>
-          </SectionCardSkeleton>
-          <SectionCardSkeleton heading="w-20">
-            <div className="space-y-2">{repeat(1, (i) => <PriceHistoryRowSkeleton key={i} />)}</div>
-          </SectionCardSkeleton>
-          <SectionCardSkeleton>
-            <div className="space-y-3">{repeat(2, (i) => <BatchRowSkeleton key={i} />)}</div>
-          </SectionCardSkeleton>
-          <SectionCardSkeleton>
-            <Skeleton className="h-[134px] w-full rounded-lg" />
-          </SectionCardSkeleton>
-        </div>
-        <div className="space-y-6">
+      <div className={GRID}>
+        <div className={SIDE}>
           <SectionCardSkeleton>
             <div className="space-y-3">{repeat(2, (i) => <PriceRowSkeleton key={i} />)}</div>
           </SectionCardSkeleton>
@@ -289,13 +209,28 @@ function ProductDetailSkeleton() {
               <SkeletonText className="w-28" />
             </div>
           </SectionCardSkeleton>
-          <SectionCardSkeleton heading="w-24">
-            <div className="flex flex-wrap gap-2">
-              {repeat(3, (i) => <Skeleton key={i} className="h-6 w-20 rounded-full" />)}
+        </div>
+        <div className={MAIN}>
+          {/* Photos: heading and Add photo button, the empty line under. */}
+          <div className="bg-card rounded-xl border border-border p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <SkeletonText className="w-16" />
+              <Skeleton className="h-[34px] w-28 rounded-lg" />
+            </div>
+            <Skeleton className="h-[68px] w-full rounded-lg" />
+          </div>
+          <SectionCardSkeleton heading="w-20">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {repeat(6, (i) => <DetailItemSkeleton key={i} />)}
+              <DetailItemSkeleton span="full" />
+              <DetailItemSkeleton span="full" />
+              <DetailItemSkeleton span="wide" />
             </div>
           </SectionCardSkeleton>
         </div>
       </div>
+
+      <ProductBatchesSkeleton />
     </SkeletonRegion>
   );
 }
@@ -305,17 +240,12 @@ export default function ProductDetailPage() {
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const t = useTranslations('products');
-  // Inventory owns these two labels; they are the same words the
-  // inventory screen uses and should not be a second translation of them.
-  const tInv = useTranslations('inventory');
   const tc = useTranslations('common');
   const { formatMoney, formatNumber } = useNumberFormat();
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
   const locale = String(params.locale ?? 'en');
-
-  const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { data: product, isLoading: loadingProduct } = useQuery({
@@ -340,13 +270,6 @@ export default function ProductDetailPage() {
     ? inventory.find((item: StockSummary) => item.productId === productId)
     : undefined;
 
-  const { data: batchMovements = [], isLoading: loadingMovements } = useQuery({
-    queryKey: ['batchMovements', expandedBatch],
-    queryFn: () =>
-      api.get(`/inventory/batches/${expandedBatch}/movements`).then((r) => r.data.data ?? r.data),
-    enabled: !!expandedBatch,
-  });
-
   // ── Derived data ──────────────────────────────────────────────────
   const productData: Product | null = product ?? null;
 
@@ -358,11 +281,6 @@ export default function ProductDetailPage() {
   const activeB2C = activePrices.find((p) => p.channel === 'B2C');
 
   const samplesOut = useProductSamples(productId);
-
-  const allMovements: Movement[] = Array.isArray(batchMovements) ? batchMovements : [];
-
-  // Collect all movements from all batches if no specific batch is expanded
-  const batchIds: string[] = Array.isArray(stock?.batches) ? stock.batches.map((b: Batch) => b.id) : [];
 
   const isLoading = loadingProduct || loadingInventory;
 
@@ -401,23 +319,31 @@ export default function ProductDetailPage() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="space-y-3">
         <BackLink onClick={() => router.back()} />
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900" data-testid="product-title">
-            {localName(productData, locale)}
-          </h1>
-          <span
-            data-testid="product-status"
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {isActive ? t('active') : t('inactive')}
-          </span>
-          <div className="sm:ms-auto">
+        {/* The SKU sits under the name it belongs to and the status action at
+            the end, beside them — on a phone it used to fall between the two. */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="min-w-0 break-words text-2xl font-bold text-gray-900" data-testid="product-title">
+                {localName(productData, locale)}
+              </h1>
+              <span
+                data-testid="product-status"
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {isActive ? t('active') : t('inactive')}
+              </span>
+            </div>
+            <p data-testid="product-sku" className="font-mono text-sm text-gray-500">
+              <bdi dir="ltr">{productData.sku}</bdi>
+            </p>
+          </div>
+          <div className="shrink-0">
             <ProductStatusAction product={productData} look="button" />
           </div>
         </div>
-        <p className="font-mono text-sm text-gray-500">{productData.sku}</p>
         {!isActive && (
           <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
             {t('inactiveNotice')}
@@ -446,7 +372,11 @@ export default function ProductDetailPage() {
         <StatCard
           icon={<DollarSign className="h-5 w-5" />}
           label={t('stockValue')}
-          value={<span data-testid="product-stock-value">{formatMoney(stock?.stockValueEgp ?? 0)}</span>}
+          value={
+            <bdi dir="ltr" data-testid="product-stock-value">
+              {formatMoney(stock?.stockValueEgp ?? 0)}
+            </bdi>
+          }
           iconBg="bg-orange-100 text-orange-600"
         />
         {/* Units out as samples at shops (§4, owner 2026-10-18 round 2), in
@@ -461,249 +391,13 @@ export default function ProductDetailPage() {
         />
       </div>
 
-      {/* ── Two-column Layout ───────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ── Left Column ─────────────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* First, because it is what a shop sees first. The catalogue card
-              and the product page in the store both render these. */}
-          <ProductPhotos productId={productId} />
-
-          {/* ── Product Details ──────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Package className="h-4 w-4 text-gray-400" />
-              {tc('details')}
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailItem label={t('sku')} value={productData.sku} mono />
-              {/* Both names as stored, whichever the title shows — so a partner
-                  on /en can see the Arabic is there, and on /ar the English. */}
-              <DetailItem label={t('name')} value={productData.name} />
-              <DetailItem label={t('nameAr')} value={productData.nameAr || '—'} rtl />
-              <DetailItem
-                label={t('category')}
-                value={productData.category ? localName(productData.category, locale) : '—'}
-              />
-              <DetailItem
-                label={t('barcode')}
-                value={productData.barcode ?? '—'}
-                mono
-              />
-              <DetailItem
-                label={t('minStock')}
-                value={String(productData.minStock ?? 0)}
-              />
-              <DetailItem
-                label={t('description')}
-                value={productData.description || '—'}
-                full
-              />
-              <DetailItem
-                label={t('descriptionAr')}
-                value={productData.descriptionAr || '—'}
-                rtl
-                full
-              />
-              <DetailItem
-                label={t('createdAt')}
-                value={formatDate(productData.createdAt, { includeTime: true })}
-              />
-            </div>
-          </div>
-
-          {/* ── Samples at shops ─────────────────────────────────── */}
-          <ProductSamplesCard productId={productId} />
-
-          {/* ── Inventory Batches ────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-gray-400" />
-              {t('inventoryBatches') ?? 'Inventory Batches'}
-            </h2>
-            {!stock || !stock.batches || stock.batches.length === 0 ? (
-              <EmptyState size="compact" icon={Layers} title={t('noBatchesTitle')} description={t('noBatchesHint')} />
-            ) : (
-              <div className="space-y-3">
-                {stock.batches.map((batch: Batch) => {
-                  const isExpanded = expandedBatch === batch.id;
-                  return (
-                    <div
-                      key={batch.id}
-                      className="border border-gray-100 rounded-lg overflow-hidden"
-                    >
-                      <button
-                        onClick={() => setExpandedBatch(isExpanded ? null : batch.id)}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-start"
-                      >
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="font-mono text-xs text-gray-500">
-                            #{batch.batchNo ?? batch.id.slice(0, 8)}
-                          </span>
-                          <span className="text-gray-600">
-                            {t('cycle')}: {batch.cycle?.code ?? '—'}
-                          </span>
-                          <span className="text-gray-600">
-                            {t('receivedQty')}: {batch.receivedQty}
-                          </span>
-                          <span className="text-gray-600">
-                            {t('remainingQty')}: {batch.remainingQty}
-                          </span>
-                          <span className="text-gray-600">
-                            {t('landedCost')}:{' '}
-                            <Money value={batch.landedUnitCostEgp} />
-                          </span>
-                          {/* When it landed, and when it was booked in. Both,
-                              because a gap between them is stock that sat
-                              unrecorded — and only one of the two is ever the
-                              answer to "how old is this". */}
-                          <span className="text-gray-600">
-                            {tInv('arrived')}:{' '}
-                            {batch.arrivedOn ? formatDate(batch.arrivedOn) : tInv('notArrivedYet')}
-                          </span>
-                          <span className="text-gray-600">
-                            {tInv('received')}: {formatDate(batch.receivedAt)}
-                          </span>
-                        </div>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-gray-400 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
-                        )}
-                      </button>
-                      {isExpanded && (
-                        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-                          {loadingMovements ? (
-                            <>
-                              <LoadingStatus />
-                              <SkeletonGroup className="space-y-2">
-                                {repeat(2, (i) => <BatchMovementRowSkeleton key={i} />)}
-                              </SkeletonGroup>
-                            </>
-                          ) : allMovements.length === 0 ? (
-                            <EmptyState size="compact" icon={null} title={t('noMovementsTitle')} />
-                          ) : (
-                            <div className="space-y-2">
-                              {allMovements.map((mov) => (
-                                <div
-                                  key={mov.id}
-                                  className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm border border-gray-100"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${movementTypeBadge(mov.movementType)}`}
-                                    >
-                                      {movementTypeIcon(mov.movementType)}
-                                      {codeLabel('movementType', mov.movementType)}
-                                    </span>
-                                    <span
-                                      className={`font-medium ${mov.qtyDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                                    >
-                                      {mov.qtyDelta >= 0 ? '+' : ''}
-                                      {mov.qtyDelta}
-                                    </span>
-                                  </div>
-                                  <div className="text-end">
-                                    <span className="text-gray-500 text-xs">
-                                      {formatDate(mov.occurredAt, { includeTime: true })}
-                                    </span>
-                                    {(mov.referenceType || mov.referenceId) && (
-                                      <p className="text-xs text-gray-400">
-                                        {codeLabel('referenceType', mov.referenceType)}
-                                        {mov.referenceId ? ` (${mov.referenceId})` : ''}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Movement History ──────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <History className="h-4 w-4 text-gray-400" />
-              {t('movementHistory') ?? 'Movement History'}
-            </h2>
-            {allMovements.length === 0 ? (
-              <EmptyState
-                size="compact"
-                icon={History}
-                title={expandedBatch ? t('noMovementsTitle') : t('pickBatchTitle')}
-                description={expandedBatch ? undefined : t('pickBatchHint')}
-              />
-            ) : (
-              <div className="relative">
-                {/* Timeline line */}
-                <div className="absolute start-[18px] top-0 bottom-0 w-px bg-gray-200" />
-                <div className="space-y-4">
-                  {[...allMovements]
-                    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
-                    .map((mov) => (
-                      <div key={mov.id} className="relative flex items-start gap-4 ps-0">
-                        {/* Timeline dot */}
-                        <div
-                          className={`relative z-10 h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
-                            mov.movementType === 'PURCHASE_RECEIPT'
-                              ? 'bg-green-100 text-green-600'
-                              : mov.movementType === 'SALE_ALLOCATION'
-                                ? 'bg-blue-100 text-blue-600'
-                                : mov.movementType === 'ADJUSTMENT'
-                                  ? 'bg-amber-100 text-amber-600'
-                                  : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {movementTypeIcon(mov.movementType)}
-                        </div>
-                        <div className="flex-1 bg-gray-50 rounded-lg px-4 py-3 border border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${movementTypeBadge(mov.movementType)}`}
-                              >
-                                {codeLabel('movementType', mov.movementType)}
-                              </span>
-                              <span
-                                className={`text-sm font-semibold ${mov.qtyDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                              >
-                                {mov.qtyDelta >= 0 ? '+' : ''}
-                                {mov.qtyDelta}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {formatDate(mov.occurredAt, { includeTime: true })}
-                            </span>
-                          </div>
-                          {(mov.referenceType || mov.referenceId) && (
-                            <p className="text-xs text-gray-400 mt-1">
-                              {codeLabel('referenceType', mov.referenceType)}
-                              {mov.referenceId ? ` (${mov.referenceId})` : ''}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Right Column ─────────────────────────────────────────── */}
-        <div className="space-y-6">
-          {/* ── Current Prices ────────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className={GRID}>
+        {/* ── Prices: first on a phone, the third column on a wide screen ── */}
+        <div className={SIDE}>
+          <div data-testid="current-prices" className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-gray-400" />
-              {t('currentPrices') ?? 'Current Prices'}
+              {t('currentPrices')}
             </h2>
             <div className="space-y-3">
               <PriceRow
@@ -764,7 +458,7 @@ export default function ProductDetailPage() {
                       <span className="text-sm font-medium text-gray-900">
                         <Money value={entry.amount} currency={entry.currency} />
                       </span>
-                      <p className="text-xs text-gray-500">
+                      <p className="whitespace-nowrap text-xs text-gray-500">
                         {formatDate(entry.effectiveFrom)}
                       </p>
                     </div>
@@ -774,14 +468,77 @@ export default function ProductDetailPage() {
             )}
           </div>
 
+          {/* ── Samples at shops ─────────────────────────────────── */}
+          {/* In this column, not under the details: there the left ran ~210px
+              past the prices at 1440 (measured 2026-10-22). */}
+          <ProductSamplesCard productId={productId} />
+
           {/* Suppliers and Compatibility cards removed (owner 2026-10-18). */}
         </div>
+
+        {/* ── Photos, details, samples ─────────────────────────────── */}
+        <div className={MAIN}>
+          {/* First, because it is what a shop sees first. The catalogue card
+              and the product page in the store both render these. */}
+          <ProductPhotos productId={productId} />
+
+          {/* ── Product Details ──────────────────────────────────── */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Package className="h-4 w-4 text-gray-400" />
+              {tc('details')}
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <DetailItem label={t('sku')} value={productData.sku} mono />
+              {/* Both names as stored, whichever the title shows — so a partner
+                  on /en can see the Arabic is there, and on /ar the English. */}
+              <DetailItem label={t('name')} value={productData.name} />
+              <DetailItem label={t('nameAr')} value={productData.nameAr || '—'} rtl />
+              <DetailItem
+                label={t('category')}
+                value={productData.category ? localName(productData.category, locale) : '—'}
+              />
+              <DetailItem
+                label={t('barcode')}
+                value={productData.barcode ?? '—'}
+                mono
+              />
+              <DetailItem
+                label={t('minStock')}
+                value={String(productData.minStock ?? 0)}
+              />
+              <DetailItem
+                label={t('description')}
+                value={productData.description || '—'}
+                span="full"
+              />
+              <DetailItem
+                label={t('descriptionAr')}
+                value={productData.descriptionAr || '—'}
+                rtl
+                span="full"
+              />
+              {/* A date with its time does not fit half a phone's width: the
+                  whole row there, one column of three on a wider screen. */}
+              <DetailItem
+                label={t('createdAt')}
+                value={formatDate(productData.createdAt, { includeTime: true })}
+                span="wide"
+              />
+            </div>
+          </div>
+
+        </div>
       </div>
+
+      {/* ── Inventory Batches: the whole width, beneath both columns ── */}
+      <ProductBatches batches={Array.isArray(stock?.batches) ? stock.batches : []} />
     </div>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────
+
 function StatCard({
   icon,
   label,
@@ -797,30 +554,32 @@ function StatCard({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center gap-3">
-        <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${iconBg}`}>
+      <div className={STAT_LAYOUT}>
+        <div className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${iconBg}`}>
           {icon}
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-xs text-gray-500">{label}</p>
-          <p className={`text-lg font-bold ${valueColor}`}>{value}</p>
+          {/* One line, always: "2,034.40 EGP" broke in two on a phone. */}
+          <p className={`whitespace-nowrap text-base font-bold tabular-nums xl:text-lg ${valueColor}`}>{value}</p>
         </div>
       </div>
     </div>
   );
 }
 
+
 function DetailItem({
   label,
   value,
   mono = false,
-  full = false,
+  span,
   rtl = false,
 }: {
   label: string;
   value: string;
   mono?: boolean;
-  full?: boolean;
+  span?: DetailSpan;
   /**
    * Arabic text: ordered right to left even on /en, so "هوندا CBR 150" does
    * not come out scrambled, while the cell stays aligned with its neighbours.
@@ -828,10 +587,11 @@ function DetailItem({
   rtl?: boolean;
 }) {
   return (
-    <div className={full ? 'col-span-2 md:col-span-3' : ''}>
+    <div className={span ? DETAIL_SPAN[span] : ''}>
       <span className="text-xs text-gray-500 block mb-0.5">{label}</span>
       <p className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>
-        {rtl ? <bdi dir="rtl">{value}</bdi> : value}
+        {/* Each value is its own run: an English description on /ar put its full stop first. */}
+        {rtl ? <bdi dir="rtl">{value}</bdi> : <bdi>{value}</bdi>}
       </p>
     </div>
   );
@@ -940,15 +700,20 @@ function PriceRow({
         <MoneyInput
           value={value}
           onChange={setValue}
-          placeholder={fallback ? String(Number(fallback.amount)) : tph('money')}
-          className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          // Never the default figure: grey "1221" in the box read as a price
+          // already typed (2026-10-22 audit). The default is the line under
+          // the field, with its figure and what it is.
+          placeholder={fallback ? '' : tph('money')}
+          aria-describedby={fallback ? `default-price-${channel}` : undefined}
+          className="h-11 w-full min-w-0 rounded-lg border border-gray-200 px-3 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 sm:h-[34px]"
         />
         <button
           type="button"
           data-testid="set-price-action"
           onClick={() => save.mutate()}
           disabled={!changed || !valid || save.isPending}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-40"
+          // 44px to a thumb on a phone, the field's own height from sm.
+          className="inline-flex h-11 shrink-0 items-center gap-1 rounded-lg bg-primary-600 px-4 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-40 sm:h-[34px] sm:px-3 sm:text-xs"
         >
           {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           {tc('save')}
@@ -956,7 +721,7 @@ function PriceRow({
       </div>
       )}
       {maySet && fallback && (
-        <p data-testid="default-price" className="mt-1 text-xs text-muted-foreground">
+        <p id={`default-price-${channel}`} data-testid="default-price" className="mt-1.5 text-xs text-muted-foreground">
           <Money value={Number(fallback.amount)} currency={fallback.currency} />{' '}
           <DefaultPriceHint price={fallback} className="inline" />
         </p>

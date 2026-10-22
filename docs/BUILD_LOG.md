@@ -15,6 +15,10 @@ Next: Koshary's 100 off every unit through Adjust price (owner to confirm when);
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
 test runs (`motorcycle_parts_db` container name), unfixed. State of the product and of production's data:
 `docs/where-things-stand.md`.
+Also 2026-10-22, on branch `worktree-agent-a3d775a88381b6775`, waiting for the owner's local test: the product page
+audit fixes (batches a table on desktop and a card per batch on a phone, under the two columns at full width; movements
+only under an opened batch, by record number ORD-/RET-/PO- as links — the API now sends those numbers; "Checked in" for
+the date, "Received" for the quantity; prices first on a phone; no default figure as the price field's placeholder).
 
 ## Built, on the working tree — not committed (the owner looks at the screenshots first)
 - 2026-10-22 (owner, picked on the icon-set comparison page `https://claude.ai/artifact/KrNYT7m3mEUoXGYtP5rHxd`):
