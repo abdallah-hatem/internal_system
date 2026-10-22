@@ -7,22 +7,25 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-22 — built on branch `worktree-agent-a8504ef748f4d4272`, not merged, waiting for the owner's local test: an
-order's Total shows what it is worth now (sold less returns less price cuts) with "sold at …" beneath, and the order
-popup's Items show each line's price now ("was …"), worth now ("sold at …") and "1 returned · 3 held" — owner's
-Option A, BUSINESS_LOGIC §4 "What the order is worth now" (`common/order-value-now.ts`, one definition). Also there:
-the shared DataTable's narrowest width counts only the columns a phone shows (the popup's Items had Line total out of
-sight at 375 px). Also 2026-10-22 — built on branch `worktree-agent-a22fde29e831a71c8`, not merged, waiting for the owner's local test: the
-office screens of the price adjustment ("Adjust price" in the sale order popup) and of an order's full history (a
-"History" tab in the same popup), BUSINESS_LOGIC §4 both sections, "Office screen". Before that, 2026-10-22 — shipped: a new leg starts from where it leaves, Delete delivery only where it works, the place cards'
-icons on a phone, and the API of the price adjustment after confirm and of an order's full history (migration
-`20261022100000_sale_price_adjustments`, applied to production before the push). Not started, by the owner's word:
-their office screens (Next up). Koshary's 100 off is not applied. Still waiting on the owner: the Rules Review answers
-(`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`), the backup test (Queued). State of the product and of
-production's data: `docs/where-things-stand.md`.
+2026-10-22 — production runs `origin/master` with the office screens of the price adjustment ("Adjust price" in the
+sale order popup) and of an order's full history ("History" tab), and an order's Total shown as what it is worth now
+(owner's Option A), shipped at the owner's word ("ship to prod"), no migration. Nothing is merged locally and waiting.
+Next: Koshary's 100 off every unit through Adjust price (owner to confirm when); the extra pieces on CYC-2026-0001
+(Waiting on the owner — friend, his AED total and day, the shipping fee); the Rules Review answers
+(`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
+test runs (`motorcycle_parts_db` container name), unfixed. State of the product and of production's data:
+`docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-22 (afternoon) — shipped, no migration:
+  - "Adjust price" on a confirmed order and its "History" tab (`e286f9c`; §4 "Office screen" guesses).
+  - An order's Total is what it is worth now, "sold at …" beneath; Items show price now / "was", worth now and
+    "returned · held" (`50454df`; §4 "What the order is worth now", `common/order-value-now.ts`). The shared DataTable
+    sizes for a phone's columns only; the Contract popup's "Paid so far" reads the value now.
+- 2026-10-22 (morning) — shipped (PR #1, migration `20261022100000_sale_price_adjustments` applied first): a leg starts
+  from where it leaves; Delete delivery only where it works; goods-card icons on a phone; the price-adjustment and
+  order-history API.
 - 2026-10-22 — shipped (migration `20261022100000_sale_price_adjustments` first — two new tables, no data rewritten):
   - A new shipping leg starts from where it leaves: out of China USD at a flat amount, out of the UAE AED per piece,
     the rate filled in (`legCostStart` in `cycles/leg-plan.ts`, for the wizard and the cycle page's Add leg; §2).
