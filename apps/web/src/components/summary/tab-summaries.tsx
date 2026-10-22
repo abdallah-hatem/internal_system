@@ -1,19 +1,24 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Boxes, DollarSign, HandCoins, Package, ShoppingCart, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Money } from '@/components/ui/money';
 import { SummaryStrip, SUMMARY_MAX, type SummaryCard } from '@/components/ui/summary-strip';
-import { mostProfitableCycles, topSoldProducts } from '@/components/analytics/analytics-top';
-import { useLocalName } from '@/lib/localized-name';
+import { mostProfitableCycles } from '@/components/analytics/analytics-top';
 import { useNumberFormat } from '@/lib/numbers';
+import { useDateFormat } from '@/lib/dates';
+import { useCodeLabel } from '@/lib/labels';
 
 /**
- * The summary at the top of Cycles, Products and Sales (owner 2026-10-18).
- * Each reads the endpoint Analytics already reads — cycle profitability, top
- * products, top orders — and picks with Analytics' own rules
- * (`analytics-top.ts`), so a figure here is the figure there (rule 11).
+ * The summary at the top of Cycles, Products, Inventory, Sales, Customers and
+ * Payments (owner 2026-10-18, reshaped 2026-10-22). Each reads an analytics
+ * endpoint and shows its figures as given — cycle profitability, the
+ * dashboard's product and stock counts, top orders, the customer and payment
+ * summaries — so a figure here is the figure there (rule 11). Every card wears
+ * the dashboard tiles' icon badge, in the dashboard's colours where it has the
+ * same figure.
  */
 
 /** One line of GET /analytics/cycle-profitability. */
@@ -24,14 +29,6 @@ export interface CycleProfitRow {
   roiPct: number | null;
 }
 
-/** One line of GET /analytics/top-products. */
-export interface TopProductRow {
-  productId: string;
-  name: string;
-  nameAr?: string | null;
-  totalQuantitySold: number;
-  revenueEgp: number;
-}
 
 /** One side of GET /analytics/top-orders. */
 export interface TopOrder {
@@ -41,6 +38,8 @@ export interface TopOrder {
   revenueEgp: number;
   units: number;
   lines: number;
+  /** Kinds of product on the order; absent from an API before 2026-10-22. */
+  products?: number;
 }
 export interface TopOrders {
   mostRevenue: TopOrder | null;
@@ -75,30 +74,62 @@ export function CyclesSummary() {
     value: <Money value={c.profit} className="text-success" />,
     sub: c.roiPct == null ? undefined : t('roi', { pct: formatNumber(c.roiPct, { maximumFractionDigits: 1 }) }),
     href: `/cycles/${c.cycleId}/details`,
+    icon: TrendingUp,
+    color: 'bg-blue-500',
   }));
   return <SummaryStrip cards={cards} isLoading={isLoading} label={t('cyclesLabel')} testId="cycles-summary" />;
 }
 
-/** Products: the best sellers by units, as the dashboard's default ranking. */
-export function ProductsSummary() {
+/** GET /analytics/stock-summary: the dashboard's product count and units in stock. */
+export interface StockSummaryData {
+  totalProducts: number;
+  unitsInStock: number;
+}
+
+/**
+ * Products and Inventory: how many products there are and how many units are
+ * on the shelf (owner 2026-10-22, replacing the best sellers) — the
+ * dashboard's Units in stock, in its icon and colour.
+ */
+export function StockSummary({ testId = 'stock-summary' }: { testId?: string }) {
   const t = useTranslations('tabSummary');
-  const name = useLocalName();
   const { formatNumber } = useNumberFormat();
   const { data, isLoading } = useQuery({
-    queryKey: ['analytics', 'top-products', 'summary'],
-    queryFn: () =>
-      api.get(`/analytics/top-products?limit=${SUMMARY_MAX}&by=units`).then(rows<TopProductRow[]>),
+    queryKey: ['inventory', 'stock-summary'],
+    queryFn: () => api.get('/analytics/stock-summary').then(rows<StockSummaryData>),
   });
-  const top = topSoldProducts(Array.isArray(data) ? data : []).slice(0, SUMMARY_MAX);
-  const cards: SummaryCard[] = top.map((p, i) => ({
-    key: p.productId,
-    label: t('productRank', { rank: formatNumber(i + 1) }),
-    subject: name(p),
-    value: t('unitsSold', { units: formatNumber(p.totalQuantitySold, UNITS) }),
-    sub: <Money value={p.revenueEgp} />,
-    href: `/products/${p.productId}`,
-  }));
-  return <SummaryStrip cards={cards} isLoading={isLoading} label={t('productsLabel')} testId="products-summary" />;
+  const cards: SummaryCard[] = data
+    ? [
+        {
+          key: 'products',
+          label: t('products'),
+          value: formatNumber(data.totalProducts),
+          sub: t('productsSub'),
+          href: '/products',
+          icon: Package,
+          color: 'bg-indigo-500',
+        },
+        {
+          key: 'units-in-stock',
+          label: t('unitsInStock'),
+          value: formatNumber(data.unitsInStock, UNITS),
+          sub: t('unitsInStockSub'),
+          href: '/inventory',
+          icon: Boxes,
+          color: 'bg-orange-400',
+        },
+      ]
+    : [];
+  return (
+    <SummaryStrip
+      cards={cards}
+      isLoading={isLoading}
+      label={t('stockLabel')}
+      testId={testId}
+      skeletonCount={2}
+      skeletonSubject={false}
+    />
+  );
 }
 
 /**
@@ -125,6 +156,8 @@ export function SalesSummary({ onOpen }: { onOpen: (orderId: string) => void }) 
       value: <Money value={o.revenueEgp} />,
       sub: <bdi>{buyer(o)}</bdi>,
       onClick: () => onOpen(o.orderId),
+      icon: DollarSign,
+      color: 'bg-green-500',
     });
   }
   if (data?.mostUnits) {
@@ -134,11 +167,120 @@ export function SalesSummary({ onOpen }: { onOpen: (orderId: string) => void }) 
       label: t('mostUnits'),
       subject: o.orderNo,
       value: t('units', { units: formatNumber(o.units, UNITS) }),
-      sub: t('lines', { count: o.lines, lines: formatNumber(o.lines) }),
+      // Kinds of product, not order lines (owner 2026-10-22: "products instead").
+      sub: t('productKinds', { count: o.products ?? o.lines, products: formatNumber(o.products ?? o.lines) }),
       onClick: () => onOpen(o.orderId),
+      icon: ShoppingCart,
+      color: 'bg-orange-500',
     });
   }
   return (
     <SummaryStrip cards={cards} isLoading={isLoading} label={t('salesLabel')} testId="sales-summary" skeletonCount={2} />
+  );
+}
+
+/** GET /analytics/customer-summary. */
+export interface CustomerSummaryData {
+  totalCustomers: number;
+  topPayer: { customerId: string; displayName: string; paidEgp: number } | null;
+}
+
+/**
+ * Customers: how many there are, and the one who has paid the most, all time
+ * (owner 2026-10-22). Under the `customers` key so a new customer refreshes it.
+ */
+export function CustomersSummary() {
+  const t = useTranslations('tabSummary');
+  const { formatNumber } = useNumberFormat();
+  const { data, isLoading } = useQuery({
+    queryKey: ['customers', 'customer-summary'],
+    queryFn: () => api.get('/analytics/customer-summary').then(rows<CustomerSummaryData>),
+  });
+  const cards: SummaryCard[] = [];
+  if (data) {
+    cards.push({
+      key: 'customers',
+      label: t('customers'),
+      value: formatNumber(data.totalCustomers),
+      sub: t('customersSub'),
+      icon: Users,
+      color: 'bg-blue-500',
+    });
+    if (data.topPayer) {
+      cards.push({
+        key: 'top-payer',
+        label: t('topPayer'),
+        subject: data.topPayer.displayName,
+        value: <Money value={data.topPayer.paidEgp} />,
+        sub: t('allTime'),
+        href: `/customers/${data.topPayer.customerId}`,
+        icon: HandCoins,
+        color: 'bg-emerald-600',
+      });
+    }
+  }
+  return (
+    <SummaryStrip
+      cards={cards}
+      isLoading={isLoading}
+      label={t('customersLabel')}
+      testId="customers-summary"
+      skeletonCount={2}
+      skeletonSubject={[false, true]}
+    />
+  );
+}
+
+/** GET /analytics/payment-summary. */
+export interface PaymentSummaryData {
+  largest: {
+    paymentId: string;
+    amount: number;
+    currency: string;
+    receivedOn: string;
+    reference: string | null;
+    method: string | null;
+    customer: { id: string; displayName: string; isWalkIn?: boolean } | null;
+  } | null;
+}
+
+/**
+ * Payments: the largest payment standing, and who paid it (owner 2026-10-22).
+ * Under the `payments` key so a payment recorded or reversed refreshes it.
+ */
+export function PaymentsSummary() {
+  const t = useTranslations('tabSummary');
+  const ts = useTranslations('sales');
+  const codeLabel = useCodeLabel();
+  const { formatDate } = useDateFormat();
+  const { data, isLoading } = useQuery({
+    queryKey: ['payments', 'payment-summary'],
+    queryFn: () => api.get('/analytics/payment-summary').then(rows<PaymentSummaryData>),
+  });
+  const p = data?.largest;
+  const cards: SummaryCard[] = p
+    ? [
+        {
+          key: 'largest-payment',
+          label: t('largestPayment'),
+          subject: p.customer?.isWalkIn ? ts('walkInCustomer') : (p.customer?.displayName ?? '—'),
+          value: <Money value={p.amount} currency={p.currency} />,
+          sub: [formatDate(`${p.receivedOn}T12:00:00Z`), p.method ? codeLabel('paymentMethod', p.method) : null]
+            .filter(Boolean)
+            .join(' · '),
+          href: p.customer && !p.customer.isWalkIn ? `/customers/${p.customer.id}` : undefined,
+          icon: Wallet,
+          color: 'bg-emerald-600',
+        },
+      ]
+    : [];
+  return (
+    <SummaryStrip
+      cards={cards}
+      isLoading={isLoading}
+      label={t('paymentsLabel')}
+      testId="payments-summary"
+      skeletonCount={1}
+    />
   );
 }

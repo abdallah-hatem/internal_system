@@ -32,6 +32,7 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ListToolbar } from '@/components/ui/list-toolbar';
+import { CustomersSummary } from '@/components/summary/tab-summaries';
 const CUSTOMER_TYPES = ['B2B', 'B2C'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -350,6 +351,9 @@ function CustomersPageContent() {
           {t('create')}
         </button>
       </div>
+
+      {/* How many customers, and who has paid the most (owner 2026-10-22). */}
+      <CustomersSummary />
 
       {/* Search + verification filter */}
       <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>

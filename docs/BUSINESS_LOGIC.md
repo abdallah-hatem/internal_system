@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -2227,14 +2227,31 @@ cards while loading. Every figure is an Analytics figure, picked with Analytics'
 (`components/analytics/analytics-top.ts`); the browser sums nothing (rule 11).
 - **Cycles:** the three most profitable cycles from `GET /analytics/cycle-profitability`, highest profit first, equal
   profit by code. A cycle with a loss or zero profit is not "top-earning" and takes no card (GUESS).
-- **Products:** the three best sellers by **units** (GUESS: the dashboard's default) from
-  `GET /analytics/top-products?limit=3&by=units`. A product that sold nothing net of returns takes no card.
+- ~~**Products:** the three best sellers by units.~~ Replaced 2026-10-22 (owner: "remove the cards on top in the
+  products tab"), below.
 - **Sales:** two cards from `GET /analytics/top-orders` (core partners and support), both **all time** whatever the
   list's date filter (GUESS). *Most revenue:* the realised sale (Confirmed, Partly paid, Paid) whose total less its
   refunds is highest. *Largest order:* the sale with the most units, net of returned units (GUESS: units, not lines),
-  its line count shown. Ties fall to the other measure, then the order number (GUESS). A sale with nothing left after
+  how many kinds of product it holds shown (owner 2026-10-22: "products instead" of lines). Ties fall to the other measure, then the order number (GUESS). A sale with nothing left after
   returns is never picked; drafts, cancelled and samples orders never are. One sale may fill both cards (GUESS). A card
   opens its order.
+
+**The tabs' cards, reshaped — owner 2026-10-22, built 2026-10-22, the choices below GUESSED.** Every card wears the
+dashboard tiles' icon badge, in the dashboard's colour where it shows the same figure ("all cards need icons like in
+dashboard"); on a phone the badge sits above the label, as on the dashboard.
+- **Products and Inventory:** the same two cards — *Products*, the active products (the dashboard's Products count,
+  GUESS: active only), and *Units in stock*, every batch's remaining quantity summed (the dashboard's Units in stock).
+  `GET /analytics/stock-summary`; both read the dashboard's own definitions (`productCount`, `unitsOnShelf` in
+  `analytics.service.ts`). A count of 0 is shown, not hidden.
+- **Customers:** *Customers*, every customer but the shared walk-in record (the dashboard's count), and *Paid the
+  most*, the customer whose payments standing (a reversed one paid nothing) add up highest, all time, opening that
+  customer; ties by name (GUESS). Nobody has paid: the count alone. `GET /analytics/customer-summary`.
+- **Payments:** *Largest payment*, the single largest payment standing, all time, with who paid it, its day and
+  method, opening the customer (a walk-in buyer's says Walk-in and opens nothing); a tie falls to the earlier one
+  (GUESS). `GET /analytics/payment-summary`.
+- All three endpoints: core partners and support, as the rest of Analytics.
+- **The ledger's By column:** who recorded each row — the partner's name, else the login's email; "—" for a row from
+  before anyone was recorded. In the CSV export too.
 
 **Profit and loss on Analytics — DECIDED 2026-10-18 (owner, mockup approved), dates GUESSED from how the
 dashboard already counts.** "A proper place to see total net profit, with time, and with expenses and sales as

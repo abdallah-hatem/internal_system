@@ -1,21 +1,27 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { LatinText } from '@/components/ui/latin-text';
-import { SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 
 /**
  * One card of a tab's summary: what it is ("No. 1 by profit"), whom it is
  * about (a cycle code, a product, an order number), the figure, and a line
- * under it. `href` makes the whole card a link; `onClick` a button.
+ * under it, with the dashboard tiles' icon badge (owner 2026-10-22: "all
+ * cards need icons like in dashboard"). `href` makes the whole card a link;
+ * `onClick` a button.
  */
 export interface SummaryCard {
   key: string;
   label: string;
-  /** The record the card is about — a name or code, isolated for RTL. */
-  subject: string;
+  /** The record the card is about — a name or code, isolated for RTL. A count has none. */
+  subject?: string;
+  icon: LucideIcon;
+  /** Background class of the icon badge, as on the dashboard. */
+  color: string;
   value: ReactNode;
   sub?: ReactNode;
   href?: string;
@@ -41,6 +47,7 @@ export function SummaryStrip({
   label,
   testId = 'summary-strip',
   skeletonCount = SUMMARY_MAX,
+  skeletonSubject = true,
 }: {
   cards: readonly SummaryCard[];
   isLoading?: boolean;
@@ -48,12 +55,17 @@ export function SummaryStrip({
   label: string;
   testId?: string;
   skeletonCount?: number;
+  /** False (per card, or for all) where a card is a count with no subject line, so the skeleton traces it. */
+  skeletonSubject?: boolean | readonly boolean[];
 }) {
   if (isLoading) {
     return (
       <SkeletonRegion className={STRIP} testId={`${testId}-skeleton`}>
         {repeat(Math.min(skeletonCount, SUMMARY_MAX), (i) => (
-          <SummaryCardSkeleton key={i} />
+          <SummaryCardSkeleton
+            key={i}
+            subject={typeof skeletonSubject === 'boolean' ? skeletonSubject : (skeletonSubject[i] ?? true)}
+          />
         ))}
       </SkeletonRegion>
     );
@@ -79,15 +91,25 @@ const ACTIVE =
   'cursor-pointer touch-manipulation transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
 function SummaryCardView({ card }: { card: SummaryCard }) {
+  const Icon = card.icon;
+  // The dashboard tile's layout (stat-tile.tsx): on a phone the badge sits
+  // above the label, from sm up beside the text.
   const body = (
-    <>
-      <p className="truncate text-xs font-medium text-muted-foreground">{card.label}</p>
-      <LatinText truncate className="mt-1 text-sm font-semibold text-card-foreground">
-        {card.subject}
-      </LatinText>
-      <div className="mt-1 truncate text-lg font-bold text-card-foreground">{card.value}</div>
-      {card.sub && <div className="truncate text-xs text-muted-foreground">{card.sub}</div>}
-    </>
+    <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium text-muted-foreground">{card.label}</p>
+        {card.subject && (
+          <LatinText truncate className="mt-1 text-sm font-semibold text-card-foreground">
+            {card.subject}
+          </LatinText>
+        )}
+        <div className="mt-1 truncate text-lg font-bold text-card-foreground">{card.value}</div>
+        {card.sub && <div className="truncate text-xs text-muted-foreground">{card.sub}</div>}
+      </div>
+      <div data-testid="summary-card-icon" className={`${card.color} shrink-0 rounded-lg p-1.5 sm:p-2.5`} aria-hidden="true">
+        <Icon className="size-4 text-primary-foreground sm:size-5" />
+      </div>
+    </div>
   );
   if (card.href) {
     return (
@@ -110,14 +132,23 @@ function SummaryCardView({ card }: { card: SummaryCard }) {
   );
 }
 
-/** A card that has not arrived: the label, subject, figure and sub lines at their sizes. */
-function SummaryCardSkeleton() {
+/**
+ * A card that has not arrived, traced from the real one: the badge, and the
+ * label, subject, figure and sub lines at their sizes (`subject: false` for a
+ * count card, which has none).
+ */
+function SummaryCardSkeleton({ subject = true }: { subject?: boolean }) {
   return (
     <div data-testid="summary-card-skeleton" className={FRAME}>
-      <SkeletonText size="xs" className="w-24" />
-      <SkeletonText size="sm" lineClassName="mt-1" className="w-32" />
-      <SkeletonText size="lg" lineClassName="mt-1" className="w-28" />
-      <SkeletonText size="xs" className="w-20" />
+      <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <SkeletonText size="xs" className="w-24" />
+          {subject && <SkeletonText size="sm" lineClassName="mt-1" className="w-32" />}
+          <SkeletonText size="lg" lineClassName="mt-1" className="w-28" />
+          <SkeletonText size="xs" className="w-20" />
+        </div>
+        <Skeleton className="size-7 shrink-0 rounded-lg sm:size-10" />
+      </div>
     </div>
   );
 }

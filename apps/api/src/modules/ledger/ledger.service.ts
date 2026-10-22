@@ -61,6 +61,14 @@ export class LedgerService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         cycle: { select: { id: true, code: true } },
+        // Who recorded it (owner 2026-10-22: a column for the user).
+        actor: {
+          select: {
+            id: true,
+            email: true,
+            partner: { select: { displayName: true } },
+          },
+        },
       },
     });
 

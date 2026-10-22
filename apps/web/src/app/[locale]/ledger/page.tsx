@@ -27,11 +27,15 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCodeLabel } from '@/lib/labels';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
+import { LatinText } from '@/components/ui/latin-text';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 
 // ─── Types ────────────────────────────────────────────────────────────
+/** Who recorded a ledger row: the partner's name, else the login's email. */
+const actorName = (e: { actor?: LedgerEntry['actor'] }) => e.actor?.partner?.displayName ?? e.actor?.email ?? '—';
+
 interface LedgerEntry {
   id: string;
   type: string;
@@ -41,6 +45,8 @@ interface LedgerEntry {
   currency: string;
   fxRateToEgp?: number;
   cycle?: { id: string; code: string };
+  /** Who recorded it (owner 2026-10-22); null on rows from before anyone was recorded. */
+  actor?: { id: string; email: string; partner?: { displayName: string } | null } | null;
   relatedType?: string;
   relatedId?: string;
   reason?: string;
@@ -251,8 +257,14 @@ export default function LedgerPage() {
       skeleton: { kind: 'text', share: 'w-2/3' }, cell: (e) => <Money value={e.amount} currency={e.currency} />,
     },
     {
-      key: 'cycle', header: t('cycle'), width: '9rem', kind: 'label', className: 'text-gray-600',
+      key: 'cycle', header: t('cycle'), width: '8rem', kind: 'label', className: 'text-gray-600',
       title: (e) => e.cycle?.code, skeleton: { kind: 'text', share: 'w-2/3' }, cell: (e) => e.cycle?.code ?? '—',
+    },
+    {
+      // Who recorded the row (owner 2026-10-22): the partner's name, else the login.
+      key: 'by', header: t('by'), width: '8rem', kind: 'label', className: 'text-gray-600',
+      title: (e) => actorName(e), skeleton: { kind: 'text', share: 'w-2/3' },
+      cell: (e) => <LatinText truncate>{actorName(e)}</LatinText>,
     },
     {
       // Most rows are a flow's, which has only the View button (a hand-written
@@ -306,6 +318,7 @@ export default function LedgerPage() {
               { header: tc('amount'), value: (e) => e.amount },
               { header: t('currency'), value: (e) => e.currency },
               { header: t('cycle'), value: (e) => e.cycle?.code ?? '' },
+              { header: t('by'), value: (e) => (e.actor ? actorName(e) : '') },
               { header: t('reason'), value: (e) => e.reason ?? '' },
             ])
           }
@@ -382,6 +395,9 @@ export default function LedgerPage() {
       {/* Desktop Table — the shared one (components/ui/data-table.tsx). */}
       <DataTable
         className="hidden md:block"
+        // Categories are short labels; with the By column (2026-10-22) the
+        // default 14rem pushed the table past a 1440px page.
+        autoMin="9rem"
         columns={columns}
         rows={paginated}
         rowKey={(e) => e.id}

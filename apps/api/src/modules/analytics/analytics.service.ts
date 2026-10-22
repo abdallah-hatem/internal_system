@@ -66,6 +66,19 @@ export const ACTIVE_CYCLE_WHERE = {
   status: { notIn: [...CLOSED_CYCLE_STATUSES] as CycleStatus[] },
 } satisfies Prisma.ImportCycleWhereInput;
 
+/**
+ * Units on the shelf: each batch's remaining quantity, summed — the same
+ * "stock on hand" the low-stock rule counts (§3). The dashboard's Units in
+ * stock and the Products and Inventory tabs' card read it.
+ */
+function unitsOnShelf(batches: { remainingQty: Prisma.Decimal.Value }[]) {
+  return Number(
+    batches
+      .reduce((sum, b) => sum.add(b.remainingQty), new Prisma.Decimal(0))
+      .toDecimalPlaces(2),
+  );
+}
+
 /** How the top products are ranked. */
 export const TOP_PRODUCTS_BY = ['revenue', 'units'] as const;
 export type TopProductsBy = (typeof TOP_PRODUCTS_BY)[number];
@@ -695,11 +708,9 @@ export class AnalyticsService {
     });
     // One definition with a product page's Stock value (CLAUDE.md §11).
     const inventoryValue = stockValueEgp(inventoryBatches);
-    // Units on the shelf across every product: the same "stock on hand" the
-    // low-stock rule counts — each batch's remaining quantity, summed (§3).
-    const unitsInStock = money(
-      inventoryBatches.reduce((sum, b) => sum.add(D(b.remainingQty)), D(0)),
-    );
+    // Units on the shelf across every product (§3) — one definition with the
+    // Products and Inventory tabs' card (`stockCounts`).
+    const unitsInStock = unitsOnShelf(inventoryBatches);
 
     // Receivables: sum of outstanding > 0 from confirmed sales orders
     const receivableOrders = await this.prisma.saleOrder.findMany({
@@ -730,15 +741,8 @@ export class AnalyticsService {
     });
     const collected = money(D(collectedAgg._sum.amount));
 
-    // The walk-in record is not a customer the business has (§4).
-    const totalCustomers = await this.prisma.customer.count({
-      where: { isWalkIn: false },
-    });
-
-    // Total active products
-    const totalProducts = await this.prisma.product.count({
-      where: { status: 'ACTIVE' },
-    });
+    const totalCustomers = await this.customerCount();
+    const totalProducts = await this.productCount();
 
     /**
      * Money actually in hand: everything in, less everything out.
@@ -963,6 +967,119 @@ export class AnalyticsService {
    * fall to the other measure, then the order number, so the answer never
    * depends on the database's order. Null when nothing has sold.
    */
+  /** Products for sale: the active ones (the dashboard's and the Products tab's count). */
+  private productCount() {
+    return this.prisma.product.count({ where: { status: 'ACTIVE' } });
+  }
+
+  /** The shops the business has: the walk-in record is not one of them (§4). */
+  private customerCount() {
+    return this.prisma.customer.count({ where: { isWalkIn: false } });
+  }
+
+  /**
+   * The Products and Inventory tabs' cards (owner 2026-10-22): how many
+   * products there are and how many units are on the shelf — the dashboard's
+   * own figures, from the same definitions.
+   */
+  async getStockSummary() {
+    const batches = await this.prisma.inventoryBatch.findMany({
+      select: { remainingQty: true },
+    });
+    return {
+      data: {
+        totalProducts: await this.productCount(),
+        unitsInStock: unitsOnShelf(batches),
+      },
+    };
+  }
+
+  /**
+   * The Customers tab's cards (owner 2026-10-22): how many customers there
+   * are, and the one who has paid the most — every payment standing (a
+   * reversed one no longer paid anything), all time. Walk-in buyers share one
+   * record that is not a customer, so it never takes the card. A tie falls to
+   * the name, so the card never depends on the database's order.
+   */
+  async getCustomerSummary() {
+    const paid = await this.prisma.payment.groupBy({
+      by: ['customerId'],
+      where: { status: 'RECORDED', customer: { isWalkIn: false } },
+      _sum: { amount: true },
+    });
+    const customers = await this.prisma.customer.findMany({
+      where: { id: { in: paid.map((p) => p.customerId) } },
+      select: { id: true, displayName: true },
+    });
+    const ranked = paid
+      .map((p) => ({
+        customer: customers.find((c) => c.id === p.customerId),
+        paidEgp: Number(
+          new Prisma.Decimal(p._sum.amount ?? 0).toDecimalPlaces(2),
+        ),
+      }))
+      .filter((p) => p.customer && p.paidEgp > 0)
+      .sort(
+        (a, b) =>
+          b.paidEgp - a.paidEgp ||
+          a.customer!.displayName.localeCompare(b.customer!.displayName),
+      );
+    const top = ranked[0];
+    return {
+      data: {
+        totalCustomers: await this.customerCount(),
+        topPayer: top
+          ? {
+              customerId: top.customer!.id,
+              displayName: top.customer!.displayName,
+              paidEgp: top.paidEgp,
+            }
+          : null,
+      },
+    };
+  }
+
+  /**
+   * The Payments tab's card (owner 2026-10-22): the largest payment standing
+   * (not reversed), and who paid it. A tie falls to the earlier one.
+   */
+  async getPaymentSummary() {
+    const largest = await this.prisma.payment.findFirst({
+      where: { status: 'RECORDED' },
+      orderBy: [
+        { amount: 'desc' },
+        { receivedOn: 'asc' },
+        { createdAt: 'asc' },
+      ],
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        receivedOn: true,
+        reference: true,
+        method: true,
+        customer: { select: { id: true, displayName: true, isWalkIn: true } },
+      },
+    });
+    return {
+      data: {
+        largest: largest
+          ? {
+              paymentId: largest.id,
+              amount: Number(
+                new Prisma.Decimal(largest.amount).toDecimalPlaces(2),
+              ),
+              currency: largest.currency,
+              receivedOn: largest.receivedOn.toISOString().slice(0, 10),
+              reference: largest.reference,
+              method: largest.method,
+              customer: largest.customer,
+            }
+          : null,
+      },
+    };
+  }
+
   async getTopOrders() {
     const D = (v: unknown) =>
       new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
@@ -978,7 +1095,11 @@ export class AnalyticsService {
         returns: { select: { refundEgp: true } },
         priceAdjustments: { select: { amountEgp: true } },
         items: {
-          select: { quantity: true, returnItems: { select: { qty: true } } },
+          select: {
+            productId: true,
+            quantity: true,
+            returnItems: { select: { qty: true } },
+          },
         },
       },
     });
@@ -1006,6 +1127,8 @@ export class AnalyticsService {
           revenueEgp: Number(revenue.toDecimalPlaces(2)),
           units: Number(units.toDecimalPlaces(3)),
           lines: o.items.length,
+          // Kinds of product on it (owner 2026-10-22: "products instead" of lines).
+          products: new Set(o.items.map((i) => i.productId)).size,
         };
       })
       .filter((o) => o.revenueEgp > 0 && o.units > 0);

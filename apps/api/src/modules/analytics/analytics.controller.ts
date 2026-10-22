@@ -87,6 +87,39 @@ export class AnalyticsController {
     return this.analyticsService.getTopOrders();
   }
 
+  /** The Products and Inventory tabs' cards: products, and units on the shelf. */
+  @Get('stock-summary')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary: 'Active products and units in stock (the dashboard’s figures)',
+  })
+  getStockSummary() {
+    return this.analyticsService.getStockSummary();
+  }
+
+  /** The Customers tab's cards: how many customers, and who has paid the most. */
+  @Get('customer-summary')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary: 'Customer count and the customer who has paid the most',
+  })
+  getCustomerSummary() {
+    return this.analyticsService.getCustomerSummary();
+  }
+
+  /** The Payments tab's card: the largest payment standing, and who paid it. */
+  @Get('payment-summary')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary: 'The largest payment not reversed, and who paid it',
+  })
+  getPaymentSummary() {
+    return this.analyticsService.getPaymentSummary();
+  }
+
   /** Every role; an investor gets only the cycles they participate in. */
   @Get('cycle-profitability')
   @ApiOperation({

@@ -16,6 +16,14 @@ Next: Koshary's 100 off every unit through Adjust price (owner to confirm when);
 test runs (`motorcycle_parts_db` container name), unfixed. State of the product and of production's data:
 `docs/where-things-stand.md`.
 
+## Built, on the working tree — not committed (the owner looks at the screenshots first)
+- 2026-10-22 (owner): the tabs' cards reshaped (§12) — Products and Inventory: products and units in stock (the
+  dashboard's figures, `GET /analytics/stock-summary`); Customers: how many, and who paid the most
+  (`…/customer-summary`); Payments: the largest payment and who paid it (`…/payment-summary`); Sales' largest order
+  counts products, not lines; every card has the dashboard's icon badge; the ledger has a By column. Tests:
+  `summary-strip.test.tsx`, `tab-summaries.db.spec.ts` (reversed payments never count), spec 102 (TC-TABSUM-02..08),
+  each break-checked. Screenshots: `D:\Personal\screenshots-2026-10-22\`.
+
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-22 (afternoon) — shipped, no migration:

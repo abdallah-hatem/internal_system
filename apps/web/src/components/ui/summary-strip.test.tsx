@@ -5,18 +5,22 @@ import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
 import ar from '@/i18n/locales/ar.json';
+import { Package } from 'lucide-react';
 import { SummaryStrip, type SummaryCard } from './summary-strip';
 import {
+  CustomersSummary,
   CyclesSummary,
-  ProductsSummary,
+  PaymentsSummary,
   SalesSummary,
+  StockSummary,
   topEarningCycles,
 } from '../summary/tab-summaries';
 
 /**
- * The summary strip at the top of Cycles, Products and Sales (owner
- * 2026-10-18). The strip lays out what it is given; the tab summaries pick
- * with Analytics' own rules from the API's figures and never add up money.
+ * The summary strip at the top of Cycles, Products, Inventory, Sales,
+ * Customers and Payments (owner 2026-10-18, reshaped 2026-10-22). The strip
+ * lays out what it is given, each card with the dashboard tiles' icon badge;
+ * the tab summaries show the API's figures and never add up money.
  */
 
 vi.mock('@/i18n/navigation', () => ({
@@ -64,6 +68,8 @@ const card = (n: number, extra: Partial<SummaryCard> = {}): SummaryCard => ({
   label: `Label ${n}`,
   subject: `Subject ${n}`,
   value: `Value ${n}`,
+  icon: Package,
+  color: 'bg-indigo-500',
   ...extra,
 });
 
@@ -75,6 +81,33 @@ describe('SummaryStrip', () => {
     expect(within(strip).getByText('Subject 1')).toBeTruthy();
     expect(within(strip).getByText('Value 1')).toBeTruthy();
     expect(within(strip).getByText('Sub 1')).toBeTruthy();
+  });
+
+  it('every card wears its icon badge, in its colour, hidden from a screen reader', () => {
+    show(<SummaryStrip label="Top" cards={[card(1), card(2, { color: 'bg-emerald-600' })]} />);
+    const badges = screen.getAllByTestId('summary-card-icon');
+    expect(badges).toHaveLength(2);
+    expect(badges[0].className).toContain('bg-indigo-500');
+    expect(badges[1].className).toContain('bg-emerald-600');
+    expect(badges[0].getAttribute('aria-hidden')).toBe('true');
+    expect(badges[0].querySelector('svg')).toBeTruthy();
+  });
+
+  it('a count card has no subject line: label, figure, sub — nothing empty between them', () => {
+    show(<SummaryStrip label="Top" cards={[card(1, { subject: undefined, sub: 'Sub 1' })]} />);
+    const c = screen.getByTestId('summary-card');
+    expect(c.textContent).toBe('Label 1Value 1Sub 1');
+    expect(c.querySelector('[dir="auto"]')).toBeNull();
+  });
+
+  it('the skeleton traces each card: the badge, and a subject line only where the card has one', () => {
+    const { container } = show(
+      <SummaryStrip label="Top" cards={[]} isLoading skeletonCount={2} skeletonSubject={[false, true]} />,
+    );
+    const [count, named] = [...container.querySelectorAll('[data-testid="summary-card-skeleton"]')];
+    // Each skeleton: its text lines and the badge's block.
+    const lines = (el: Element) => el.querySelectorAll('.animate-pulse, [class*="animate-pulse"]').length;
+    expect(lines(named) - lines(count)).toBe(1);
   });
 
   it('no cards draws nothing at all — not an empty frame, not zeros', () => {
@@ -191,45 +224,45 @@ describe('CyclesSummary', () => {
   });
 });
 
-const product = (name: string, units: number, revenue: number) => ({
-  productId: `id-${name}`,
-  name,
-  nameAr: `ع-${name}`,
-  totalQuantitySold: units,
-  revenueEgp: revenue,
-});
-
-describe('ProductsSummary', () => {
-  it('asks the API for its top three by units and keeps its order', async () => {
-    answer({ '/analytics/top-products': [product('Y20', 28, 25000), product('Y30', 21, 25200)] });
-    show(<ProductsSummary />);
+describe('StockSummary — the Products and Inventory tabs (owner 2026-10-22)', () => {
+  it('two cards: products and units in stock, the API’s figures as given, each with its icon', async () => {
+    answer({ '/analytics/stock-summary': { totalProducts: 42, unitsInStock: 1234.5 } });
+    show(<StockSummary testId="products-summary" />);
     const strip = await screen.findByTestId('products-summary');
-    expect(get).toHaveBeenCalledWith('/analytics/top-products?limit=3&by=units');
-    const cards = within(strip).getAllByTestId('summary-card');
-    expect(cards.map((c) => c.getAttribute('href'))).toEqual(['/products/id-Y20', '/products/id-Y30']);
-    expect(cards[0].textContent).toContain('28 sold');
-    expect(cards[0].textContent).toContain('25,000.00 EGP');
+    const [products, units] = within(strip).getAllByTestId('summary-card');
+    expect(products.textContent).toContain(en.tabSummary.products);
+    expect(products.textContent).toContain('42');
+    expect(products.getAttribute('href')).toBe('/products');
+    expect(units.textContent).toContain(en.tabSummary.unitsInStock);
+    expect(units.textContent).toContain('1,234.5');
+    expect(units.getAttribute('href')).toBe('/inventory');
+    // The dashboard's Units in stock badge.
+    expect(within(units).getByTestId('summary-card-icon').className).toContain('bg-orange-400');
+    expect(within(strip).getAllByTestId('summary-card-icon')).toHaveLength(2);
   });
 
-  it('a product that sold nothing net of returns takes no card (the Analytics rule)', async () => {
-    answer({ '/analytics/top-products': [product('A', 3, 30), product('B', 0, 0)] });
-    show(<ProductsSummary />);
-    const strip = await screen.findByTestId('products-summary');
-    expect(within(strip).getAllByTestId('summary-card')).toHaveLength(1);
+  it('none yet: the cards say 0, not nothing — a count is a figure', async () => {
+    answer({ '/analytics/stock-summary': { totalProducts: 0, unitsInStock: 0 } });
+    show(<StockSummary />);
+    const strip = await screen.findByTestId('stock-summary');
+    expect(within(strip).getAllByTestId('summary-card').map((c) => c.textContent?.includes('0'))).toEqual([true, true]);
   });
 
-  it('the API refusing (a role that may not read it) leaves the tab as it was', async () => {
-    answer({ '/analytics/top-products': new Error('403') });
-    const { container } = show(<ProductsSummary />);
+  it('the API refusing leaves the tab as it was', async () => {
+    answer({ '/analytics/stock-summary': new Error('403') });
+    const { container } = show(<StockSummary />);
     await waitFor(() => expect(get).toHaveBeenCalled());
-    await waitFor(() => expect(container.querySelector('[data-testid="products-summary-skeleton"]')).toBeNull());
+    await waitFor(() => expect(container.querySelector('[data-testid="stock-summary-skeleton"]')).toBeNull());
     expect(container.textContent).toBe('');
   });
 
-  it('shows the Arabic name in Arabic', async () => {
-    answer({ '/analytics/top-products': [product('Y20', 2, 200)] });
-    show(<ProductsSummary />, 'ar');
-    expect(await screen.findByText('ع-Y20')).toBeTruthy();
+  it('in Arabic: translated, Latin digits', async () => {
+    answer({ '/analytics/stock-summary': { totalProducts: 1500, unitsInStock: 20 } });
+    show(<StockSummary />, 'ar');
+    const strip = await screen.findByTestId('stock-summary');
+    expect(strip.textContent).toContain(ar.tabSummary.unitsInStock);
+    expect(strip.textContent).toContain('1,500');
+    expect(strip.textContent).not.toMatch(/[٠-٩]/);
   });
 });
 
@@ -255,12 +288,12 @@ describe('SalesSummary', () => {
     expect(rev.textContent).toContain('50,000.00 EGP');
     expect(rev.textContent).toContain('Delta Motors');
     expect(units.textContent).toContain('65 units');
-    expect(units.textContent).toContain('3 lines');
+    expect(units.textContent).toContain('3 products');
     fireEvent.click(units);
     expect(onOpen).toHaveBeenCalledWith('id-SO-2');
   });
 
-  it('a walk-in sale says Walk-in, never the shared record’s name; one line is singular', async () => {
+  it('a walk-in sale says Walk-in, never the shared record’s name; one product is singular', async () => {
     answer({
       '/analytics/top-orders': { mostRevenue: order('SO-9', 100, 1, 1, true), mostUnits: order('SO-9', 100, 1, 1, true) },
     });
@@ -268,8 +301,18 @@ describe('SalesSummary', () => {
     const strip = await screen.findByTestId('sales-summary');
     expect(strip.textContent).toContain('Walk-in');
     expect(strip.textContent).not.toContain('Delta Motors');
-    expect(strip.textContent).toContain('1 line');
-    expect(strip.textContent).not.toContain('1 lines');
+    expect(strip.textContent).toContain('1 product');
+    expect(strip.textContent).not.toContain('1 products');
+  });
+
+  it('the largest order counts kinds of product, not lines: two lines of one product read "1 product"', async () => {
+    answer({
+      '/analytics/top-orders': { mostRevenue: null, mostUnits: { ...order('SO-3', 900, 30, 2), products: 1 } },
+    });
+    show(<SalesSummary onOpen={() => {}} />);
+    const strip = await screen.findByTestId('sales-summary');
+    expect(strip.textContent).toContain('1 product');
+    expect(strip.textContent).not.toMatch(/line/);
   });
 
   it('nothing sold: nothing drawn', async () => {
@@ -290,5 +333,104 @@ describe('SalesSummary', () => {
     expect(strip.textContent).toContain('65');
     expect(strip.textContent).not.toMatch(/[٠-٩]/);
     expect(strip.textContent).not.toMatch(/tabSummary\./);
+  });
+});
+
+describe('CustomersSummary (owner 2026-10-22)', () => {
+  it('how many customers, and who has paid the most — linked to that customer', async () => {
+    answer({
+      '/analytics/customer-summary': {
+        totalCustomers: 17,
+        topPayer: { customerId: 'cust-1', displayName: 'Koshary', paidEgp: 5000 },
+      },
+    });
+    show(<CustomersSummary />);
+    const strip = await screen.findByTestId('customers-summary');
+    const [count, top] = within(strip).getAllByTestId('summary-card');
+    expect(count.textContent).toContain('17');
+    expect(count.tagName).toBe('DIV');
+    expect(top.textContent).toContain('Koshary');
+    expect(top.textContent).toContain('5,000.00 EGP');
+    expect(top.getAttribute('href')).toBe('/customers/cust-1');
+    expect(within(strip).getAllByTestId('summary-card-icon')).toHaveLength(2);
+  });
+
+  it('nobody has paid yet: the count alone, no empty "paid the most" card', async () => {
+    answer({ '/analytics/customer-summary': { totalCustomers: 3, topPayer: null } });
+    show(<CustomersSummary />);
+    const strip = await screen.findByTestId('customers-summary');
+    expect(within(strip).getAllByTestId('summary-card')).toHaveLength(1);
+    expect(strip.textContent).not.toContain(en.tabSummary.topPayer);
+  });
+
+  it('in Arabic: translated, the shop’s name isolated, Latin digits', async () => {
+    answer({
+      '/analytics/customer-summary': {
+        totalCustomers: 2,
+        topPayer: { customerId: 'c', displayName: 'Koshary Motors', paidEgp: 12500 },
+      },
+    });
+    show(<CustomersSummary />, 'ar');
+    const strip = await screen.findByTestId('customers-summary');
+    expect(strip.textContent).toContain(ar.tabSummary.topPayer);
+    expect(screen.getByText('Koshary Motors').getAttribute('dir')).toBe('auto');
+    expect(strip.textContent).toContain('12,500.00 EGP');
+    expect(strip.textContent).not.toMatch(/[٠-٩]/);
+  });
+});
+
+const payment = (extra: Record<string, unknown> = {}) => ({
+  paymentId: 'pay-1',
+  amount: 25000,
+  currency: 'EGP',
+  receivedOn: '2026-10-18',
+  reference: 'PAY-7',
+  method: 'CASH',
+  customer: { id: 'cust-9', displayName: 'Flesteeny', isWalkIn: false },
+  ...extra,
+});
+
+describe('PaymentsSummary (owner 2026-10-22)', () => {
+  it('the largest payment, who paid it, on which day and how — linked to the customer', async () => {
+    answer({ '/analytics/payment-summary': { largest: payment() } });
+    show(<PaymentsSummary />);
+    const strip = await screen.findByTestId('payments-summary');
+    const c = within(strip).getByTestId('summary-card');
+    expect(c.textContent).toContain(en.tabSummary.largestPayment);
+    expect(c.textContent).toContain('Flesteeny');
+    expect(c.textContent).toContain('25,000.00 EGP');
+    expect(c.textContent).toContain(en.codes.paymentMethod.CASH);
+    expect(c.getAttribute('href')).toBe('/customers/cust-9');
+    expect(within(c).getByTestId('summary-card-icon')).toBeTruthy();
+  });
+
+  it('a walk-in buyer says Walk-in and links nowhere (the shared record is not a customer)', async () => {
+    answer({
+      '/analytics/payment-summary': {
+        largest: payment({ customer: { id: 'walk', displayName: 'Walk-in record', isWalkIn: true } }),
+      },
+    });
+    show(<PaymentsSummary />);
+    const c = within(await screen.findByTestId('payments-summary')).getByTestId('summary-card');
+    expect(c.textContent).toContain('Walk-in');
+    expect(c.textContent).not.toContain('Walk-in record');
+    expect(c.tagName).toBe('DIV');
+  });
+
+  it('no payment yet: nothing drawn', async () => {
+    answer({ '/analytics/payment-summary': { largest: null } });
+    const { container } = show(<PaymentsSummary />);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    await waitFor(() => expect(container.querySelector('[data-testid="payments-summary-skeleton"]')).toBeNull());
+    expect(container.querySelector('[data-testid="payments-summary"]')).toBeNull();
+  });
+
+  it('in Arabic: translated, Latin digits', async () => {
+    answer({ '/analytics/payment-summary': { largest: payment() } });
+    show(<PaymentsSummary />, 'ar');
+    const strip = await screen.findByTestId('payments-summary');
+    expect(strip.textContent).toContain(ar.tabSummary.largestPayment);
+    expect(strip.textContent).toContain('25,000.00 EGP');
+    expect(strip.textContent).not.toMatch(/[٠-٩]/);
   });
 });

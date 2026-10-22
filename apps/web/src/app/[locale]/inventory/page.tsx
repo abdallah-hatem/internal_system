@@ -333,6 +333,9 @@ function InventoryPageContent() {
         )}
       </div>
 
+      {/* The Products tab's two cards (owner 2026-10-22). */}
+      <StockSummary testId="inventory-summary" />
+
       {canReceive && showReceive && <ReceiveStockList />}
 
       {/* Search */}
@@ -517,6 +520,7 @@ function InventoryPageContent() {
 
 import { useDateFormat } from '../../../lib/dates';
 import { ListToolbar } from '@/components/ui/list-toolbar';
+import { StockSummary } from '@/components/summary/tab-summaries';
 function VerificationBadge({ status }: { status: string }) {
   const t = useTranslations('inventory');
   if (status === 'VERIFIED') {

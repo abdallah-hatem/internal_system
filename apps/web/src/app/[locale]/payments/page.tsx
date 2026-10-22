@@ -39,6 +39,7 @@ import { TabBar } from '@/components/ui/tab-bar';
 import { ContractsList } from '@/components/payments/contracts-list';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ListToolbar } from '@/components/ui/list-toolbar';
+import { PaymentsSummary } from '@/components/summary/tab-summaries';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Payment {
   id: string;
@@ -425,6 +426,9 @@ function PaymentsPageContent() {
           </button>
         </div>
       </div>
+
+      {/* The largest payment, and who paid it (owner 2026-10-22). */}
+      <PaymentsSummary />
 
       {/* Search + days received */}
       <ListToolbar
