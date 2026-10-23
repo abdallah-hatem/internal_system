@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { localName } from '@/lib/localized-name';
 import type { IconComponent } from '@/components/ui/icons';
-import { ArrowRightLeft, Factory, PackageX, ShoppingBag, Ship, Store, Truck, Warehouse } from '@/components/ui/icons';
+import { ArrowRightLeft, ChevronDown, Factory, PackageX, ShoppingBag, Ship, Store, Truck, Warehouse } from '@/components/ui/icons';
 import { Link } from '@/i18n/navigation';
 import type { Shipment } from '@/components/shipment/shipment-model';
 import { LatinText } from '@/components/ui/latin-text';
@@ -32,6 +32,9 @@ const LOOK: Record<Place, { icon: IconComponent; color: string }> = {
  * five in a row from 1024px; six in two rows of three, then one row from
  * 1024px (the badge sits above the label, owner 2026-10-19); seven in a row from 1280px. Written out whole for Tailwind.
  */
+/** How many product cards a phone shows before "See more". */
+const PHONE_FIRST_PRODUCTS = 3;
+
 const GRID: Record<number, string> = {
   4: 'sm:grid-cols-4',
   5: 'sm:grid-cols-3 lg:grid-cols-5',
@@ -129,6 +132,8 @@ export function GoodsLocationCards({
   transfers?: { out: LocationTransfer[]; in: LocationTransfer[] };
 }) {
   const t = useTranslations('goodsLocation');
+  // A phone lists the first few products until "See more", as the dashboard's tiles do (owner 2026-10-23).
+  const [allProducts, setAllProducts] = useState(false);
   const locale = useLocale();
   const { formatNumber } = useNumberFormat();
   const located = useMemo(
@@ -189,7 +194,7 @@ export function GoodsLocationCards({
             columns={columns}
           />
           <ul className="space-y-2 sm:hidden">
-            {located.products.map((p) => (
+            {(allProducts ? located.products : located.products.slice(0, PHONE_FIRST_PRODUCTS)).map((p) => (
               <li key={p.productId} data-testid="location-product-card" data-product={p.productName} className="rounded-lg border border-border bg-card p-3">
                 <p className="break-words text-sm font-medium text-foreground">
                   <LatinText>{localName({ name: p.productName, nameAr: p.productNameAr }, locale)}</LatinText>
@@ -212,6 +217,18 @@ export function GoodsLocationCards({
               </li>
             ))}
           </ul>
+          {located.products.length > PHONE_FIRST_PRODUCTS && (
+            <button
+              type="button"
+              data-testid="location-products-toggle"
+              aria-expanded={allProducts}
+              onClick={() => setAllProducts((v) => !v)}
+              className="mt-2 inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-sm font-medium text-primary hover:bg-muted sm:hidden"
+            >
+              {allProducts ? t('seeLess') : t('seeMore', { count: located.products.length - PHONE_FIRST_PRODUCTS })}
+              <ChevronDown aria-hidden="true" className={`size-4 transition-transform ${allProducts ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </>
       )}
 

@@ -2127,6 +2127,8 @@
     }
   },
   "goodsLocation": {
+    "seeMore": "عرض المزيد ({count})",
+    "seeLess": "عرض أقل",
     "title": "أين البضاعة",
     "inChina": "في الصين",
     "toUae": "إلى الإمارات",

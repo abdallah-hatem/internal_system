@@ -2127,6 +2127,8 @@
     }
   },
   "goodsLocation": {
+    "seeMore": "See more ({count})",
+    "seeLess": "See less",
     "title": "Where the goods are",
     "inChina": "In China",
     "toUae": "To UAE",

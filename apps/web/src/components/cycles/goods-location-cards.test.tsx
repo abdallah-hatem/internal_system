@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
@@ -184,6 +184,46 @@ describe('where the goods are, at the top of cycle details', () => {
     expect(frame.className).toContain('hidden');
     expect(frame.className).toContain('sm:block');
     expect(phoneCards[0].parentElement!.className).toContain('sm:hidden');
+  });
+
+  it('a phone lists the first three products, then "See more" shows the rest and "See less" folds them (owner 2026-10-23)', async () => {
+    const names = ['Brake pad', 'Chain kit', 'Clutch plate', 'Helmet', 'Mirror'];
+    const many = names.map((productName, i) => ({
+      purchaseOrderItemId: `poi-${i}`, productId: `p-${i}`, productName, ordered: 10,
+      received: 0, lost: 0, onTheWay: 0, waiting: 0, accounted: false,
+    }));
+    state.batches = [];
+    state.shipment = {
+      cycleId: 'c-1', code: 'CYC-1', status: 'IN_TRANSIT', accounted: false,
+      totals: { ordered: 50, received: 0, lost: 0, onTheWay: 0, waiting: 0 }, lines: many,
+      legs: [
+        leg(1, false, '2026-09-01', many.map((l) => legLine(l.purchaseOrderItemId, { entered: 10, onTheWay: 10 }))),
+        leg(2, true, null, many.map((l) => legLine(l.purchaseOrderItemId, { received: 0, waiting: 0 }))),
+      ],
+    };
+    wrap();
+    const section = await screen.findByTestId('goods-location');
+    const shown = () => within(section).getAllByTestId('location-product-card').map((c) => c.dataset.product);
+    expect(shown()).toEqual(names.slice(0, 3));
+    const toggle = within(section).getByTestId('location-products-toggle');
+    expect(toggle.textContent).toContain(en.goodsLocation.seeMore.replace('{count}', '2'));
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('type')).toBe('button');
+    expect(toggle.className).toContain('sm:hidden');
+    fireEvent.click(toggle);
+    expect(shown()).toEqual(names);
+    expect(toggle.textContent).toContain(en.goodsLocation.seeLess);
+    fireEvent.click(toggle);
+    expect(shown()).toEqual(names.slice(0, 3));
+    // The desktop table always lists every product.
+    expect(within(section).getAllByTestId('location-row')).toHaveLength(5);
+  });
+
+  it('three products or fewer: every card shows and there is no toggle', async () => {
+    wrap();
+    const section = await screen.findByTestId('goods-location');
+    expect(within(section).getAllByTestId('location-product-card')).toHaveLength(2);
+    expect(within(section).queryByTestId('location-products-toggle')).toBeNull();
   });
 
   it('nothing ordered: no cards at all', async () => {
