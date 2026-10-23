@@ -35,7 +35,10 @@ import { QUICK_ACTIONS, quickActionsFor } from '@/components/dashboard/dashboard
 const KPIS = {
   totalRevenue: 1000, totalExpenses: 50, totalCogs: 400, totalCashOut: 600, totalCashIn: 700,
   cashOnHand: 100, netProfit: 550, activeCycles: 2, inventoryValue: 3000, receivables: 300,
-  collected: 700, lowStockAlerts: 3, totalCustomers: 4, totalProducts: 5,
+  collected: 700, lowStockAlerts: 3, totalCustomers: 4, totalProducts: 5, unitsInStock: 42,
+  // This calendar month — deliberately unlike the all-time figures above, so
+  // a tile reading the wrong one shows the wrong number.
+  month: { from: '2026-10-01', to: '2026-10-23', revenue: 123.45, collected: 67.8, netProfit: -9.5, expenses: 21.25 },
 };
 
 beforeEach(() => {
@@ -81,13 +84,12 @@ describe('dashboard tiles lead to their lists', () => {
     ['revenue', '/sales'],
     ['collected', '/payments'],
     ['receivables', '/customers?sort=balance'],
-    ['cogs', '/analytics'],
     ['expenses', '/ledger'],
     ['netProfit', '/analytics'],
-    ['cashOut', '/ledger'],
     ['cashOnHand', '/ledger'],
     ['activeCycles', '/cycles'],
     ['inventoryValue', '/inventory'],
+    ['unitsInStock', '/inventory'],
     ['lowStockAlerts', '/inventory?stock=low'],
     ['owedToLenders', '/lenders'],
   ])('%s → %s', async (key, href) => {
@@ -121,11 +123,13 @@ describe('dashboard tiles lead to their lists', () => {
     expect(within(el).getByTestId('owed-to-lenders-lines').textContent).toContain('20,000.00 AED');
   });
 
-  it('thirteen tiles leave no lone tile: the last one takes the whole row, in two columns and in three', async () => {
+  it('cost of goods sold and cash paid out are not on the dashboard (owner 2026-10-23: on Analytics)', async () => {
     renderPage();
-    const last = await tile('owedToLenders');
-    expect(last.className.split(/\s+/)).toEqual(expect.arrayContaining(['col-span-2', 'lg:col-span-3']));
-    expect((await tile('lowStockAlerts')).className).not.toMatch(/col-span/);
+    await tile('revenue');
+    expect(screen.queryByTestId('tile-cogs')).toBeNull();
+    expect(screen.queryByTestId('tile-cashOut')).toBeNull();
+    expect(screen.queryByText('Cost of Goods Sold')).toBeNull();
+    expect(screen.queryByText('Cash Paid Out')).toBeNull();
   });
 
   it('admin support gets the same business figures', async () => {
@@ -270,7 +274,7 @@ describe('every tile shows its icon on a phone too', () => {
     renderPage();
     const el = await tile('revenue');
     const icons = screen.getAllByTestId('tile-icon');
-    expect(icons.length).toBeGreaterThanOrEqual(13);
+    expect(icons).toHaveLength(11);
     for (const icon of icons) {
       expect(icon.className.split(/\s+/)).not.toContain('hidden');
       expect(icon.querySelector('svg')).toBeTruthy();
@@ -283,41 +287,44 @@ describe('every tile shows its icon on a phone too', () => {
   });
 });
 
-// Owner 2026-10-18: "maybe show some, then a see more?" — a phone shows six
-// figures, the rest behind See more; a wider screen shows every tile.
-describe('a phone shows six figures, then See more', () => {
-  const FIRST = ['revenue', 'collected', 'receivables', 'netProfit', 'cashOnHand', 'inventoryValue'];
+// Owner 2026-10-23: a phone shows the first four Right now figures and the
+// four of This month; the other three Right now tiles wait behind See more (3).
+// A wider screen shows every tile.
+describe('a phone shows four and four, then See more', () => {
+  const FIRST = ['cashOnHand', 'receivables', 'owedToLenders', 'inventoryValue', 'revenue', 'collected', 'netProfit', 'expenses'];
+  const LATER = ['unitsInStock', 'lowStockAlerts', 'activeCycles'];
   const phoneHidden = (key: string) => screen.getByTestId(`tile-${key}`).className.split(/\s+/).includes('max-sm:hidden');
 
-  it('the six show, the other seven wait — on a phone only', async () => {
+  it('the eight show, the other three wait — on a phone only', async () => {
     renderPage();
     await tile('revenue');
     for (const key of FIRST) expect(phoneHidden(key), key).toBe(false);
-    for (const key of ['cogs', 'expenses', 'cashOut', 'activeCycles', 'unitsInStock', 'lowStockAlerts', 'owedToLenders']) {
-      expect(phoneHidden(key), key).toBe(true);
-    }
+    for (const key of LATER) expect(phoneHidden(key), key).toBe(true);
     const toggle = screen.getByTestId('tiles-toggle');
-    expect(toggle.textContent).toContain('See more (7)');
+    expect(toggle.textContent).toContain('See more (3)');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.className.split(/\s+/)).toContain('sm:hidden');
+    // The toggle sits in Right now, under its tiles, before This month begins.
+    expect(within(screen.getByTestId('dashboard-right-now')).getByTestId('tiles-toggle')).toBe(toggle);
   });
 
   it('See more shows them all; See less folds them again', async () => {
     renderPage();
     await tile('revenue');
     fireEvent.click(screen.getByTestId('tiles-toggle'));
-    expect(phoneHidden('cogs')).toBe(false);
-    expect(phoneHidden('owedToLenders')).toBe(false);
+    for (const key of LATER) expect(phoneHidden(key), key).toBe(false);
     expect(screen.getByTestId('tiles-toggle').textContent).toContain('See less');
     expect(screen.getByTestId('tiles-toggle').getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(screen.getByTestId('tiles-toggle'));
-    expect(phoneHidden('cogs')).toBe(true);
+    expect(phoneHidden('activeCycles')).toBe(true);
+    // Folding again never hides one of the eight.
+    for (const key of FIRST) expect(phoneHidden(key), key).toBe(false);
   });
 
   it('reads in Arabic', async () => {
     renderPage('ar');
     await tile('revenue');
-    expect(screen.getByTestId('tiles-toggle').textContent).toContain('عرض المزيد (7)');
+    expect(screen.getByTestId('tiles-toggle').textContent).toContain('عرض المزيد (3)');
   });
 
   it('an investor, who has no business tiles, gets no toggle', async () => {
@@ -325,6 +332,127 @@ describe('a phone shows six figures, then See more', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Dashboard' });
     expect(screen.queryByTestId('tiles-toggle')).toBeNull();
+  });
+});
+
+// Owner 2026-10-23, picked from a rendered sample, after asking "are the data
+// filtered or all time, like net profit?" — the figures sit in two headed groups.
+describe('two groups: Right now, then This month', () => {
+  const keysIn = (group: string) =>
+    [...screen.getByTestId(group).querySelectorAll('[data-testid^="tile-"]')]
+      .map((el) => el.getAttribute('data-testid') ?? '')
+      .filter((id) => id !== 'tile-icon')
+      .map((id) => id.replace(/^tile-/, ''));
+  const classes = async (key: string) => (await tile(key)).className.split(/\s+/);
+
+  it('Right now holds today’s figures in the stated order; This month the month’s', async () => {
+    renderPage();
+    await tile('revenue');
+    expect(keysIn('dashboard-right-now')).toEqual([
+      'cashOnHand', 'receivables', 'owedToLenders', 'inventoryValue', 'unitsInStock', 'lowStockAlerts', 'activeCycles',
+    ]);
+    expect(keysIn('dashboard-this-month')).toEqual(['revenue', 'collected', 'netProfit', 'expenses']);
+    // Right now comes first on the page.
+    const first = screen.getByTestId('dashboard-right-now');
+    const second = screen.getByTestId('dashboard-this-month');
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('each group is headed, in English and in Arabic', async () => {
+    renderPage();
+    await tile('revenue');
+    expect(within(screen.getByTestId('dashboard-right-now')).getByRole('heading', { name: 'Right now' })).toBeTruthy();
+    expect(within(screen.getByTestId('dashboard-this-month')).getByRole('heading', { name: 'This month' })).toBeTruthy();
+    cleanup();
+    renderPage('ar');
+    await tile('revenue');
+    expect(within(screen.getByTestId('dashboard-right-now')).getByRole('heading', { name: 'الآن' })).toBeTruthy();
+    expect(within(screen.getByTestId('dashboard-this-month')).getByRole('heading', { name: 'هذا الشهر' })).toBeTruthy();
+  });
+
+  it('the labels say what each figure is: To collect, Stock value', async () => {
+    renderPage();
+    expect((await tile('receivables')).textContent).toContain('To collect');
+    expect((await tile('inventoryValue')).textContent).toContain('Stock value');
+  });
+
+  it('This month’s figures are the API’s month block, not the all-time ones', async () => {
+    renderPage();
+    expect((await tile('revenue')).textContent).toContain('123.45');
+    expect((await tile('revenue')).textContent).not.toContain('1,000.00');
+    expect((await tile('collected')).textContent).toContain('67.80');
+    expect((await tile('netProfit')).textContent).toContain('9.50');
+    expect((await tile('netProfit')).textContent).not.toContain('550.00');
+    expect((await tile('expenses')).textContent).toContain('21.25');
+    // Right now still reads the figures of today.
+    expect((await tile('cashOnHand')).textContent).toContain('100.00');
+    expect((await tile('receivables')).textContent).toContain('300.00');
+  });
+
+  it('an API without the month block shows zeros, never the all-time figures under a This month heading', async () => {
+    const old: Record<string, unknown> = { ...KPIS };
+    delete old.month;
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return Promise.resolve({ data: { data: old } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    expect((await tile('revenue')).textContent).toContain('0.00');
+    expect((await tile('revenue')).textContent).not.toContain('1,000.00');
+  });
+
+  it('This month links to Analytics’ Profit and loss on This month', async () => {
+    renderPage();
+    await tile('revenue');
+    const link = screen.getByTestId('dashboard-pnl-link');
+    expect(link.getAttribute('href')).toBe('/analytics?period=month');
+    expect(link.textContent).toContain('Profit and loss');
+    cleanup();
+    renderPage('ar');
+    await tile('revenue');
+    expect(screen.getByTestId('dashboard-pnl-link').textContent).toContain(ar.analytics.pnl.title);
+  });
+
+  it('a wide screen: a row of four then a row of three, each filling its width; no lone tile in two columns', async () => {
+    renderPage();
+    await tile('revenue');
+    for (const key of ['cashOnHand', 'receivables', 'owedToLenders', 'inventoryValue']) {
+      expect(await classes(key), key).toContain('@[68rem]:col-span-3');
+    }
+    for (const key of ['unitsInStock', 'lowStockAlerts', 'activeCycles']) {
+      expect(await classes(key), key).toContain('@[68rem]:col-span-4');
+    }
+    expect(screen.getByTestId('dashboard-right-now-grid').className.split(/\s+/)).toContain('@[68rem]:grid-cols-12');
+    // Seven in two columns: the last takes the row.
+    expect(await classes('activeCycles')).toContain('col-span-2');
+    expect(await classes('lowStockAlerts')).not.toContain('col-span-2');
+    // Four in This month: two rows of two on a phone, one row of four wide.
+    expect(screen.getByTestId('dashboard-this-month-grid').className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['grid-cols-2', '@[68rem]:grid-cols-4']),
+    );
+    for (const key of ['revenue', 'collected', 'netProfit', 'expenses']) {
+      expect((await classes(key)).some((c) => c.includes('col-span')), key).toBe(false);
+    }
+  });
+
+  it('the skeleton traces the two groups: headed, seven then four, with the tiles’ own spans', async () => {
+    get.mockImplementation((url: string) => {
+      if (url.startsWith('/analytics/dashboard')) return new Promise(() => {});
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    const first = await screen.findByTestId('dashboard-right-now');
+    const second = screen.getByTestId('dashboard-this-month');
+    expect(within(first).getAllByTestId('skeleton-row')).toHaveLength(7);
+    expect(within(second).getAllByTestId('skeleton-row')).toHaveLength(4);
+    expect(within(first).getByRole('heading', { name: 'Right now' })).toBeTruthy();
+    expect(within(second).getByRole('heading', { name: 'This month' })).toBeTruthy();
+    // The same spans as the tiles, so nothing moves when the figures land.
+    const rn = within(first).getAllByTestId('skeleton-row').map((el) => el.className.split(/\s+/));
+    expect(rn.slice(0, 4).every((c) => c.includes('@[68rem]:col-span-3'))).toBe(true);
+    expect(rn.slice(4).every((c) => c.includes('@[68rem]:col-span-4'))).toBe(true);
+    expect(rn[6]).toContain('col-span-2');
+    expect(rn.slice(4).every((c) => c.includes('max-sm:hidden'))).toBe(true);
   });
 });
 

@@ -2211,8 +2211,43 @@ products. Each kind of event still has its own list: Sales, Payments, Inventory.
 **The dashboard, 2026-10-17/18 (owner).** Quick actions: New sale, Record payment, New cycle. **Fuel** left
 the dashboard on 2026-10-18 (owner: "remove fuel from dashboard"); it is recorded from the Ledger page's quick
 actions only (§9).
-On a phone every figure tile keeps its icon, and only six show — Revenue, Collected, Receivables, Net profit,
-Cash on hand, Inventory value — with "See more" for the rest; wider screens show every tile.
+On a phone every figure tile keeps its icon (superseded 2026-10-23, below: six showed, then "See more").
+
+**The dashboard in two groups — DECIDED 2026-10-23 (owner, picked from a rendered sample), built 2026-10-23.**
+The owner asked "are the data filtered or all time, like net profit?": thirteen equal tiles mixed all-time and
+right-now figures with nothing saying which. Now two headed groups:
+- **Right now** first — Cash on hand, To collect (what customers owe today, the old Receivables), Owed to lenders
+  (with its per-currency line), Stock value (the product page's word since 2026-10-22, the same
+  `common/stock-value.ts`), Items in stock, Low stock alerts, Active cycles. Wide: a row of four, then a row of
+  three, each filling the width.
+- **This month** second — Revenue, Collected, Net profit, Expenses for **this calendar month in Cairo, from its
+  1st to today**, with a "Profit and loss →" link to Analytics on This month (`/analytics?period=month`). The
+  figures are `GET /analytics/dashboard`'s `month` block, computed by `profitFigures` for exactly the days
+  Profit and loss's This month asks for (`thisMonthPeriod`: the 1st to today, which is what the API caps P&L's
+  "1st to the month's last day" to) — one definition (rule 11), so the two net profits agree to the piastre.
+  The all-time fields stay in the response (the assistant's `get_dashboard` reads them, and now `month` too).
+- **Cost of goods sold and Cash paid out left the dashboard** for Analytics' Profit and loss: COGS is the Sales
+  tile's second line and a line of "How it adds up", as before; Cash paid out is a new figure under "How it adds
+  up", for the selected period, set apart from the arithmetic with a note that it is not a cost
+  (`cashOutEgp` from `common/cash-position.ts`, the dashboard's old `totalCashOut` reading, cut to the period's
+  ledger days by `ledgerDayWhere`).
+- **Phone:** Right now first, then This month. Shown: the first four Right now tiles and the four of This month;
+  Items in stock, Low stock alerts and Active cycles wait behind "See more (3)". Seven in two columns leave one
+  alone, so Active cycles takes the row. Every tile keeps its icon and links where it did.
+- GUESS: **This month's Collected** is payments not undone whose received day (`receivedOn`, a Cairo calendar
+  day) falls in the month — the all-time Collected's reading cut to the month. Profit and loss shows no
+  Collected, so there is nothing on Analytics to compare it with.
+- GUESS: **Cash paid out for a period** is the money-out rows whose ledger day (`occurredOn`, else the Cairo day
+  entered) falls in it; an entry undone and its undo are left out together whatever periods they fall in, as
+  the all-time figure does. Shown inside "How it adds up" (folded) rather than as a fifth tile.
+- GUESS: "a row of four then a row of three" applies once the group is at least 68rem wide (a 1440 screen with
+  the sidebar); narrower — a 1280 laptop — four figures do not fit on one line beside their badges, so the
+  groups stay two to a row (Active cycles spanning the last). From 68rem to 76rem the figures are a size
+  smaller so "669,584.64 EGP" stays on one line. English labels are in sentence case (Cash on hand, Net profit,
+  Low stock alerts, Active cycles), as the owner wrote them.
+- GUESS: an API without the `month` block makes This month read zeros, never the all-time figures under a This
+  month heading. Arabic headings "الآن" and "هذا الشهر"; "النقد المدفوع" for Cash paid out on Analytics — the
+  agent's wording, not the owner's.
 **Top products** rank by **units sold** (default) or **revenue**, a switch on the dashboard card and on
 Analytics' table, remembered on the device; `GET /analytics/top-products?by=units|revenue` (default revenue
 for other callers), returns netted out, ties broken by the other measure then the name. The card shows the
@@ -2317,6 +2352,9 @@ day, week or month buckets). `GET /analytics/profit-and-loss?from=&to=`
     longer starts it — it counts nowhere in profit). A row dated after today (check-data 25) still counts
     in all time's totals, so the buckets run on to its day rather than drop it.
   - A samples write-off with no recorded moment (none should exist) falls on its order's day.
+  - **Cash paid out — added 2026-10-23 (owner), when it left the dashboard.** Under "How it adds up", apart
+    from its lines: the money out of the ledger in the period, stock bought included — not a cost and not in
+    net profit (`cashOutEgp`, `common/cash-position.ts`). It costs two queries, so a period is fifteen.
 
 **Notifications are recorded first and delivered second.** Every event writes a
 notification row, then attempts a push. A push that fails must never mean a lost

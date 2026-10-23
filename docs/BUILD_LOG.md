@@ -14,6 +14,9 @@ and his three repayments, contributions 67,056.33 each. Nothing is merged locall
 The 9 new products stay on their default prices; the price is set on each sale as needed (owner, 2026-10-23). Next: the Rules Review answers
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
+Waiting for the owner's local test, on its own branch (`worktree-agent-abb597bc675d704df`, not merged): the dashboard
+in two groups, Right now and This month (this month from Profit and loss's own computation), with Cost of goods sold
+and Cash paid out moved to Analytics' Profit and loss (BUSINESS_LOGIC, "The dashboard in two groups", 2026-10-23).
 State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)

@@ -61,6 +61,12 @@ export interface ProfitAndLoss {
   exchangeDifferenceEgp: number;
   netProfitEgp: number;
   netProfitPctOfSales: number | null;
+  /**
+   * Money paid out of the ledger in the period, stock bought included — the
+   * dashboard's old Cash paid out, moved here 2026-10-23. Not a cost, so not
+   * in the arithmetic above it. Absent from an older API.
+   */
+  cashOutEgp?: number;
   expensesByCategory: { category: string; amountEgp: number }[];
   granularity: Granularity;
   buckets: PnlBucket[];
@@ -431,6 +437,22 @@ function AddsUp({ data }: { data: ProfitAndLoss }) {
             </div>
           ))}
       </dl>
+      {/* Cash is not profit: shown under the account, apart from it, with no sign
+          (owner 2026-10-23 — it left the dashboard for here). */}
+      {data.cashOutEgp !== undefined && (
+        <div data-testid="pnl-cash-out" className="mt-2 max-w-md border-t border-dashed border-border pt-2 text-sm">
+          <div className="flex items-baseline justify-between gap-3 py-1">
+            <span className="flex min-w-0 items-baseline gap-2 text-foreground">
+              <span aria-hidden="true" className="w-3 shrink-0" />
+              <span className="min-w-0">{t('pnl.cashOut')}</span>
+            </span>
+            <span className="whitespace-nowrap tabular-nums text-foreground">
+              <Money value={data.cashOutEgp} />
+            </span>
+          </div>
+          <p className="ps-5 text-xs text-muted-foreground">{t('pnl.cashOutHint')}</p>
+        </div>
+      )}
       </CollapsibleContent>
     </Collapsible>
   );

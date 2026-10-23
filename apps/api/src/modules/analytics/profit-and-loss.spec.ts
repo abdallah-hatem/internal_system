@@ -32,6 +32,7 @@ interface W {
   returnedOn?: Range;
   paidOn?: Range;
   samplesDecidedAt?: Range;
+  receivedOn?: Range;
 }
 
 interface Order {
@@ -67,7 +68,14 @@ interface Repayment {
   paidOn: Date;
   exchangeDiffEgp: number;
 }
+/** A customer's payment: the Cairo day it was received, and whether it was undone. */
+interface Pay {
+  receivedOn: Date;
+  amount: number;
+  status: string;
+}
 interface World {
+  payments?: Pay[];
   orders: Order[];
   returns: Return[];
   tx: Tx[];
@@ -140,6 +148,22 @@ function fakeDb(world: World) {
   };
   const models: Record<string, unknown> = {
     salePriceAdjustment: empty,
+    payment: {
+      ...empty,
+      aggregate: ({ where = {} }: { where?: W }) =>
+        Promise.resolve({
+          _sum: {
+            amount: sum(
+              (world.payments ?? []).filter(
+                (p) =>
+                  statusOk(p.status, where.status) &&
+                  inRange(p.receivedOn, where.receivedOn),
+              ),
+              (p) => p.amount,
+            ),
+          },
+        }),
+    },
     saleOrder: {
       ...empty,
       findMany: ({ where }: { where: W }) =>
@@ -921,7 +945,7 @@ describe('profit and loss — the chart’s buckets', () => {
     expect(p.to).toBe('2026-10-18');
   });
 
-  it('the query count does not grow with the buckets: thirteen for a 31-day month, a week view or all time (twelve before price adjustments, 2026-10-22)', async () => {
+  it('the query count does not grow with the buckets: fifteen for a 31-day month, a week view or all time (thirteen sums and cash paid out’s two, 2026-10-23)', async () => {
     const w = spread();
     const now = cairo('2026-10-18', 15);
     const count = async (from?: string, to?: string) => {
@@ -929,12 +953,170 @@ describe('profit and loss — the chart’s buckets', () => {
       await service(w).getProfitAndLoss(from, to, now);
       return calls.n;
     };
-    expect(await count('2026-08-01', '2026-08-31')).toBe(13);
-    expect(await count('2026-07-04', '2026-09-20')).toBe(13);
-    expect(await count(undefined, undefined)).toBe(13);
+    expect(await count('2026-08-01', '2026-08-31')).toBe(15);
+    expect(await count('2026-07-04', '2026-09-20')).toBe(15);
+    expect(await count(undefined, undefined)).toBe(15);
     // And the dashboard's reading is unchanged: thirteen sums.
     calls.n = 0;
     await service(w).profitFigures();
     expect(calls.n).toBe(13);
+  });
+});
+
+describe('the dashboard’s This month — P&L’s This month, to the piastre (owner 2026-10-23)', () => {
+  /**
+   * The month's edges in Cairo, not UTC: a sale at 00:30 on 1 October is
+   * 30 September in UTC (21:30) and October's here; one at 23:30 on
+   * 30 September is September's. A payment received on the 31st, entered at
+   * 23:30 that night, is October's.
+   */
+  function edges(): World {
+    const w = busy();
+    w.orders.push(
+      sale('2026-10-01', 2_500, 1_000, 'CONFIRMED', cairo('2026-10-01', 0, 30)),
+      sale(
+        '2026-09-30',
+        9_000,
+        4_000,
+        'CONFIRMED',
+        cairo('2026-09-30', 23, 30),
+      ),
+    );
+    // A flow's ledger row with no occurredOn, entered at 23:30 on the last day.
+    w.tx.push(
+      tx('OUTFLOW', 'bank_fees', 65, null, {
+        createdAt: cairo('2026-10-31', 23, 30),
+      }),
+    );
+    w.payments = [
+      { receivedOn: dateCol('2026-09-30'), amount: 7_000, status: 'RECORDED' },
+      { receivedOn: dateCol('2026-10-01'), amount: 1_200, status: 'RECORDED' },
+      { receivedOn: dateCol('2026-10-31'), amount: 800.5, status: 'RECORDED' },
+      // Undone: collected nothing.
+      { receivedOn: dateCol('2026-10-15'), amount: 999, status: 'REVERSED' },
+    ];
+    return w;
+  }
+  /** The last minutes of October in Cairo — 21:45 UTC the same day. */
+  const LAST = cairo('2026-10-31', 23, 45);
+
+  it('its month is P&L’s This month, figure for figure, at the month’s last minutes', async () => {
+    const w = edges();
+    // The 00:30 sale really is the day before in UTC.
+    expect(cairo('2026-10-01', 0, 30).toISOString().slice(0, 10)).toBe(
+      '2026-09-30',
+    );
+    const { month } = (await service(w).getDashboardKPIs(LAST)).data;
+    // What the web asks for This month: the 1st to the month's last day.
+    const p = (
+      await service(w).getProfitAndLoss('2026-10-01', '2026-10-31', LAST)
+    ).data;
+    expect(month).toMatchObject({ from: '2026-10-01', to: '2026-10-31' });
+    expect({
+      revenue: month.revenue,
+      expenses: month.expenses,
+      netProfit: month.netProfit,
+    }).toEqual({
+      revenue: p.salesEgp,
+      expenses: p.expensesEgp,
+      netProfit: p.netProfitEgp,
+    });
+    // And the figures are the rows' own, so the equality is not two zeros:
+    // October sold 8,000 + 3,000 + the 00:30 sale's 2,500, less the 1,000 return.
+    expect(month.revenue).toBe(12_500);
+    // rent 1,500 + fuel 250.5 + salaries −4,000 (undone) + bank 35 + the 23:30 bank 65
+    expect(month.expenses).toBe(-2_149.5);
+    // cogs 5,000 + 2,000 + 1,000 − 600 reversed = 7,400; + 120 interest − 210 exchange
+    expect(month.netProfit).toBe(12_500 - 7_400 + 2_149.5 + 120 - 210);
+    expect(month.netProfit).not.toBe(0);
+    // Collected: the 1st and the 31st; not September's, not the undone one.
+    expect(month.collected).toBe(2_000.5);
+  });
+
+  it('on the 1st just after midnight the month is a few minutes old: the 00:30 sale is all of it', async () => {
+    const w = edges();
+    const justAfter = cairo('2026-10-01', 0, 45);
+    const { month } = (await service(w).getDashboardKPIs(justAfter)).data;
+    expect(month).toMatchObject({
+      from: '2026-10-01',
+      to: '2026-10-01',
+      revenue: 2_500,
+      collected: 1_200,
+    });
+    const p = (
+      await service(w).getProfitAndLoss('2026-10-01', '2026-10-31', justAfter)
+    ).data;
+    expect(month.netProfit).toBe(p.netProfitEgp);
+    // A UTC reading of "this month" would still be September at this instant.
+    expect(justAfter.toISOString().slice(0, 7)).toBe('2026-09');
+  });
+
+  it('every month of a three-year span: the dashboard’s month equals P&L’s This month', async () => {
+    const w = world({});
+    for (let y = 2026; y <= 2028; y++) {
+      for (let m = 1; m <= 12; m++) {
+        const first = `${y}-${String(m).padStart(2, '0')}-01`;
+        const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+        w.orders.push(
+          sale(first, 100 + m, 10, 'CONFIRMED', cairo(first, 0, 30)),
+          sale(last, 1_000 + m, 20, 'CONFIRMED', cairo(last, 23, 30)),
+        );
+        w.tx.push(
+          tx('OUTFLOW', 'rent', 50 + m, null, {
+            createdAt: cairo(last, 23, 30),
+          }),
+        );
+      }
+    }
+    for (let y = 2026; y <= 2028; y++) {
+      for (let m = 1; m <= 12; m++) {
+        const first = `${y}-${String(m).padStart(2, '0')}-01`;
+        const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+        const at = cairo(last, 23, 45);
+        const { month } = (await service(w).getDashboardKPIs(at)).data;
+        const p = (await service(w).getProfitAndLoss(first, last, at)).data;
+        expect([first, month.revenue, month.netProfit]).toEqual([
+          first,
+          p.salesEgp,
+          p.netProfitEgp,
+        ]);
+        expect(month.revenue).toBe(1_100 + 2 * m);
+      }
+    }
+  });
+
+  it('the all-time figures are untouched by the month block', async () => {
+    const w = edges();
+    const dash = (await service(w).getDashboardKPIs(LAST)).data;
+    const all = await pnl(w);
+    expect(dash.totalRevenue).toBe(all.salesEgp);
+    expect(dash.netProfit).toBe(all.netProfitEgp);
+    expect(dash.totalRevenue).not.toBe(dash.month.revenue);
+    // Collected all time: every payment not undone.
+    expect(dash.collected).toBe(7_000 + 1_200 + 800.5);
+  });
+});
+
+describe('profit and loss — cash paid out, moved from the dashboard (owner 2026-10-23)', () => {
+  it('all time is the dashboard’s Cash paid out', async () => {
+    const w = busy();
+    const dash = (await service(w).getDashboardKPIs(NOW)).data;
+    const p = await pnl(w);
+    expect(p.cashOutEgp).toBe(dash.totalCashOut);
+    expect(p.cashOutEgp).toBeGreaterThan(0);
+  });
+
+  it('a period is the money out on its own ledger days — the purchase included, an undone pair left out', async () => {
+    const w = busy();
+    // September: rent 1,500 + fuel 300.25 + purchase 50,000; the salary was undone in October, so neither half is cash.
+    expect((await pnl(w, '2026-09-01', '2026-09-30')).cashOutEgp).toBe(
+      51_800.25,
+    );
+    // October: rent 1,500 + fuel 250.5 + settlement 9,000 + bank 35.
+    expect((await pnl(w, '2026-10-01', '2026-10-31')).cashOutEgp).toBe(
+      10_785.5,
+    );
+    // Nothing in a quiet period, never NaN.
+    expect((await pnl(w, '2026-08-01', '2026-08-31')).cashOutEgp).toBe(0);
   });
 });

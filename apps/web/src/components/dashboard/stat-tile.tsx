@@ -26,6 +26,20 @@ export interface StatTileProps {
 }
 
 /**
+ * Four tiles across a row leave a figure about 170px beside its badge, and
+ * "669,584.64 EGP" in the 2xl face is 200px — so it broke onto two lines at
+ * 1440 (2026-10-23). Read off the width of the group the tile sits in (an
+ * `@container`, the dashboard's TileGroup), not the screen: from 68rem, where
+ * the group goes four across, the figure and badge step down a size, and back
+ * up from 76rem, where four 2xl figures fit. Outside a container nothing changes.
+ */
+const FOUR_ACROSS_FIGURE = '@[68rem]:text-xl @[76rem]:text-2xl';
+const FOUR_ACROSS_FIGURE_LINE = '@[68rem]:h-7 @[76rem]:h-8';
+const FOUR_ACROSS_BADGE = '@[68rem]:p-2 @[76rem]:p-3';
+const FOUR_ACROSS_ICON = '@[68rem]:size-5 @[76rem]:size-6';
+const FOUR_ACROSS_BADGE_SKELETON = '@[68rem]:size-9 @[76rem]:size-12';
+
+/**
  * One dashboard figure. With an `href` the whole tile is the link, so the
  * target is the full card on a phone rather than a small "view" word.
  */
@@ -38,11 +52,11 @@ export function StatTile({ label, value, icon: Icon, color, href, testId, sub, c
     <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
-        <p className="mt-1 break-words text-base font-bold text-card-foreground sm:text-2xl">{figure}</p>
+        <p className={`mt-1 break-words text-base font-bold text-card-foreground sm:text-2xl ${FOUR_ACROSS_FIGURE}`}>{figure}</p>
         {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </div>
-      <div data-testid="tile-icon" className={`${color} flex-shrink-0 rounded-lg p-1.5 sm:p-3`} aria-hidden="true">
-        <Icon className="size-4 text-primary-foreground sm:size-6" />
+      <div data-testid="tile-icon" className={`${color} flex-shrink-0 rounded-lg p-1.5 sm:p-3 ${FOUR_ACROSS_BADGE}`} aria-hidden="true">
+        <Icon className={`size-4 text-primary-foreground sm:size-6 ${FOUR_ACROSS_ICON}`} />
       </div>
     </div>
   );
@@ -80,10 +94,10 @@ export function StatTileSkeleton({ sub = false, className = '' }: { sub?: boolea
       <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between">
         <div className="min-w-0 w-full flex-1">
           <SkeletonText size="xs" lineClassName="sm:h-5" className="w-20 sm:h-3 sm:w-24" />
-          <SkeletonText size="base" lineClassName="mt-1 sm:h-8" className="w-24 sm:h-5 sm:w-36" />
+          <SkeletonText size="base" lineClassName={`mt-1 sm:h-8 ${FOUR_ACROSS_FIGURE_LINE}`} className="w-24 sm:h-5 sm:w-36" />
           {sub && <SkeletonText size="xs" lineClassName="mt-1" className="w-28" />}
         </div>
-        <Skeleton className="size-7 flex-shrink-0 rounded-lg sm:size-12" />
+        <Skeleton className={`size-7 flex-shrink-0 rounded-lg sm:size-12 ${FOUR_ACROSS_BADGE_SKELETON}`} />
       </div>
     </div>
   );

@@ -16,22 +16,36 @@ import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '..
 import {
   dashboardView,
   tileHref,
+  PNL_THIS_MONTH_HREF,
+  RIGHT_NOW_TILES,
+  THIS_MONTH_TILES,
   type TileKey, PHONE_FIRST_TILES } from '../../../components/dashboard/dashboard-model';
 import { ToCollect } from '../../../components/dashboard/to-collect';
 import { Money } from '../../../components/ui/money';
+import { Link } from '@/i18n/navigation';
 import {
   TrendingUp, Package, AlertTriangle, DollarSign,
   Activity, Route, Wallet, Clock, Receipt, Landmark, HandCoins, Boxes,
-  type IconComponent, ChevronDown } from '@/components/ui/icons';
+  type IconComponent, ChevronDown, ArrowRight } from '@/components/ui/icons';
 
 // ─── Types ────────────────────────────────────────────────────────────
+/** This calendar month in Cairo — Analytics' profit and loss This month, figure for figure. */
+interface MonthFigures {
+  from: string;
+  to: string;
+  revenue: number;
+  collected: number;
+  netProfit: number;
+  expenses: number;
+}
+
 interface DashboardData {
   totalRevenue: number;
   totalExpenses: number;
-  totalCogs?: number;
-  totalCashOut?: number;
   totalCashIn?: number;
   cashOnHand?: number;
+  /** Absent from an API older than 2026-10-23: This month then reads zeros, never all time. */
+  month?: MonthFigures;
   netProfit: number;
   activeCycles: number;
   inventoryValue: number;
@@ -60,31 +74,108 @@ interface TopProduct {
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 
-/** How many tiles the business dashboard shows; the last one carries a second line. */
-const TILE_COUNT = 13;
+/** How many Right now tiles a phone shows before "See more" (the rest of PHONE_FIRST_TILES is This month). */
+const PHONE_RIGHT_NOW = RIGHT_NOW_TILES.filter((k) => PHONE_FIRST_TILES.includes(k)).length;
 
 /**
- * Thirteen tiles leave one alone on the last row in two columns and in three,
- * so the last tile — the one with a second line — takes the whole row.
+ * A Right now tile's span. Four across, the grid has twelve columns: the first four
+ * take three each and the last three four each — a row of four, then a row of
+ * three, both filling the width (owner 2026-10-23). In two columns seven
+ * leave one alone, so the last takes the whole row.
  */
-const LAST_TILE_SPAN = 'col-span-2 lg:col-span-3';
+function rightNowSpan(i: number): string {
+  const wide = i < 4 ? '@[68rem]:col-span-3' : '@[68rem]:col-span-4';
+  return i === RIGHT_NOW_TILES.length - 1 ? `col-span-2 ${wide}` : wide;
+}
+
+/** Hidden on a phone until "See more", unless it is one of the first figures. */
+function phoneClass(key: TileKey, allTiles: boolean): string {
+  return allTiles || PHONE_FIRST_TILES.includes(key) ? '' : 'max-sm:hidden';
+}
 
 /**
- * The tile grid before the figures arrive — the same grid, one skeleton per
- * tile. The page renders the one "Loading" announcement beside it.
+ * Two columns until the group itself is 68rem wide (a 1440 screen with the
+ * sidebar is 71rem), then four across — read off the group's width, not the
+ * screen's, because four tiles need room for their figures whatever the
+ * sidebar takes (stat-tile.tsx).
+ */
+const RIGHT_NOW_GRID = 'grid grid-cols-2 gap-3 sm:gap-4 @[68rem]:grid-cols-12';
+const THIS_MONTH_GRID = 'grid grid-cols-2 gap-3 sm:gap-4 @[68rem]:grid-cols-4';
+
+/**
+ * One headed group of tiles. The heading is what tells a reader whether a
+ * figure is today's or this month's (owner 2026-10-23: "are the data
+ * filtered or all time?"); This month's carries the way to its full account.
+ */
+function TileGroup({
+  testId,
+  title,
+  withPnlLink = false,
+  gridClass,
+  skeleton = false,
+  children,
+}: {
+  testId: string;
+  title: string;
+  withPnlLink?: boolean;
+  gridClass: string;
+  /** The figures have not arrived: the heading is real, the grid a skeleton. */
+  skeleton?: boolean;
+  children: React.ReactNode;
+}) {
+  const ta = useTranslations('analytics');
+  return (
+    <section data-testid={testId} aria-labelledby={`${testId}-title`} className="@container space-y-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id={`${testId}-title`} className="text-base font-semibold text-foreground">
+          {title}
+        </h2>
+        {withPnlLink && (
+          <Link
+            href={PNL_THIS_MONTH_HREF}
+            data-testid="dashboard-pnl-link"
+            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary-600 hover:underline"
+          >
+            {ta('pnl.title')}
+            <ArrowRight aria-hidden="true" className="size-4 rtl:rotate-180" />
+          </Link>
+        )}
+      </div>
+      {skeleton ? (
+        <SkeletonGroup className={gridClass}>{children}</SkeletonGroup>
+      ) : (
+        <div data-testid={`${testId}-grid`} className={gridClass}>
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The two groups before the figures arrive — the real headings over the same
+ * grids and spans, one skeleton per tile, the phone's hidden ones hidden too.
+ * The page renders the one "Loading" announcement beside it.
  */
 function StatTilesSkeleton() {
+  const t = useTranslations('dashboard');
   return (
-    <SkeletonGroup className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-      {repeat(TILE_COUNT, (i) => (
-        <StatTileSkeleton
-          key={i}
-          sub={i === TILE_COUNT - 1}
-          // A phone shows the first six until "See more".
-          className={`${i === TILE_COUNT - 1 ? LAST_TILE_SPAN : ''} ${i >= PHONE_FIRST_TILES.length ? 'max-sm:hidden' : ''}`}
-        />
-      ))}
-    </SkeletonGroup>
+    <div className="space-y-6">
+      <TileGroup testId="dashboard-right-now" title={t('rightNow')} gridClass={RIGHT_NOW_GRID} skeleton>
+        {RIGHT_NOW_TILES.map((key, i) => (
+          <StatTileSkeleton
+            key={key}
+            sub={key === 'owedToLenders'}
+            className={`${rightNowSpan(i)} ${phoneClass(key, false)}`}
+          />
+        ))}
+      </TileGroup>
+      <TileGroup testId="dashboard-this-month" title={t('thisMonth')} withPnlLink gridClass={THIS_MONTH_GRID} skeleton>
+        {THIS_MONTH_TILES.map((key) => (
+          <StatTileSkeleton key={key} />
+        ))}
+      </TileGroup>
+    </div>
   );
 }
 
@@ -134,8 +225,6 @@ export default function DashboardPage() {
   const data: DashboardData = dashData ?? {
     totalRevenue: 0,
     totalExpenses: 0,
-    totalCogs: 0,
-    totalCashOut: 0,
     totalCashIn: 0,
     cashOnHand: 0,
     netProfit: 0,
@@ -147,45 +236,32 @@ export default function DashboardPage() {
     totalCustomers: 0,
     totalProducts: 0,
   };
+  // The month's own figures from the server, never the all-time ones under a
+  // This month heading, and never summed here (LEARNINGS).
+  const month: Omit<MonthFigures, 'from' | 'to'> = data.month ?? { revenue: 0, collected: 0, netProfit: 0, expenses: 0 };
 
   const productList: TopProduct[] = Array.isArray(topProducts) ? topProducts : [];
 
   const owedLines = data.owedToLenders?.lines ?? [];
 
-  const stats: { key: TileKey; value: string; icon: IconComponent; color: string; sub?: React.ReactNode }[] = [
-    // Sold, collected and still owed sit together on purpose: the first two
-    // differ by the third, and a strong month of selling with an empty till
-    // looks identical to a strong month of collecting if only one is shown.
-    { key: 'revenue', value: egp(data.totalRevenue), icon: DollarSign, color: 'bg-green-500' },
-    { key: 'collected', value: egp(data.collected), icon: Wallet, color: 'bg-emerald-600' },
-    { key: 'receivables', value: egp(data.receivables), icon: Clock, color: 'bg-yellow-500' },
-    { key: 'cogs', value: egp(data.totalCogs), icon: Package, color: 'bg-slate-500' },
-    // Net profit subtracts this, and it was fetched and then never shown — so
-    // revenue less cost of goods did not equal the profit on screen and nothing
-    // accounted for the difference. Buying stock is not here: it converts cash
-    // into inventory and becomes a cost when the goods sell.
-    { key: 'expenses', value: egp(data.totalExpenses), icon: Receipt, color: 'bg-rose-500' },
-    { key: 'netProfit', value: egp(data.netProfit), icon: TrendingUp, color: 'bg-blue-500' },
-    { key: 'cashOut', value: egp(data.totalCashOut), icon: DollarSign, color: 'bg-teal-600' },
+  const tiles: Record<TileKey, { label: string; value: string; icon: IconComponent; color: string; sub?: React.ReactNode }> = {
+    // ── Right now ──
     // Everything in less everything out. It could not be shown before
     // contributions were recorded: the ledger held the purchase going out and
     // nothing for the capital coming in, so the figure was short by exactly
     // what the partners had put in.
-    {
-      key: 'cashOnHand',
+    cashOnHand: {
+      label: t('cashOnHand'),
       value: egp(data.cashOnHand ?? 0),
       icon: Landmark,
       color: (data.cashOnHand ?? 0) < 0 ? 'bg-red-600' : 'bg-cyan-600',
     },
-    { key: 'activeCycles', value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
-    { key: 'inventoryValue', value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
-    // Every unit on the shelf, all products together — not how many products exist.
-    { key: 'unitsInStock', value: formatNumber(Number(data.unitsInStock ?? 0), { maximumFractionDigits: 3 }), icon: Boxes, color: 'bg-orange-400' },
-    { key: 'lowStockAlerts', value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
+    // What customers owe today: confirmed sales not fully paid.
+    receivables: { label: t('toCollect'), value: egp(data.receivables), icon: Clock, color: 'bg-yellow-500' },
     // In each friend's currency — the debt itself — and in pounds at today's
     // rate, which is what paying it all today would cost (§18).
-    {
-      key: 'owedToLenders',
+    owedToLenders: {
+      label: t('owedToLenders'),
       value: egp(Number(data.owedToLenders?.totalEgp ?? 0)),
       icon: HandCoins,
       color: 'bg-accent-600',
@@ -203,7 +279,44 @@ export default function DashboardPage() {
           </span>
         ),
     },
-  ];
+    // "Stock value", the product page's word since 2026-10-22, from the same
+    // common/stock-value.ts.
+    inventoryValue: { label: t('inventoryValue'), value: egp(data.inventoryValue), icon: Package, color: 'bg-orange-500' },
+    // Every unit on the shelf, all products together — not how many products exist.
+    unitsInStock: {
+      label: t('unitsInStock'),
+      value: formatNumber(Number(data.unitsInStock ?? 0), { maximumFractionDigits: 3 }),
+      icon: Boxes,
+      color: 'bg-orange-400',
+    },
+    lowStockAlerts: { label: t('lowStockAlerts'), value: data.lowStockAlerts?.toString() ?? '0', icon: AlertTriangle, color: 'bg-red-500' },
+    activeCycles: { label: t('activeCycles'), value: data.activeCycles?.toString() ?? '0', icon: Activity, color: 'bg-purple-500' },
+    // ── This month ──
+    // Sold and collected sit together on purpose: a strong month of selling
+    // with an empty till looks identical to a strong month of collecting if
+    // only one is shown. Net profit subtracts the expenses beside it.
+    revenue: { label: t('revenue'), value: egp(month.revenue), icon: DollarSign, color: 'bg-green-500' },
+    collected: { label: t('collected'), value: egp(month.collected), icon: Wallet, color: 'bg-emerald-600' },
+    netProfit: { label: t('netProfit'), value: egp(month.netProfit), icon: TrendingUp, color: 'bg-blue-500' },
+    expenses: { label: t('expenses'), value: egp(month.expenses), icon: Receipt, color: 'bg-rose-500' },
+  };
+
+  const renderTile = (key: TileKey, className: string) => {
+    const tile = tiles[key];
+    return (
+      <StatTile
+        key={key}
+        testId={`tile-${key}`}
+        label={tile.label}
+        value={tile.value}
+        icon={tile.icon}
+        color={tile.color}
+        href={tileHref(key, role)}
+        sub={tile.sub}
+        className={className}
+      />
+    );
+  };
 
   if (view !== 'business') {
     return (
@@ -235,38 +348,30 @@ export default function DashboardPage() {
 
       {(loadingDash || loadingProducts) && <LoadingStatus />}
 
-      {/* Stat tiles — two columns on a phone, each one a link to its list. */}
+      {/* Two headed groups — Right now, then This month (owner 2026-10-23) —
+          two columns on a phone, each tile a link to its list. */}
       {loadingDash ? (
         <StatTilesSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          {stats.map((stat, i) => (
-            <StatTile
-              key={stat.key}
-              testId={`tile-${stat.key}`}
-              label={t(stat.key)}
-              value={stat.value}
-              icon={stat.icon}
-              color={stat.color}
-              href={tileHref(stat.key, role)}
-              sub={stat.sub}
-              className={`${i === stats.length - 1 ? LAST_TILE_SPAN : ''} ${
-                allTiles || PHONE_FIRST_TILES.includes(stat.key) ? '' : 'max-sm:hidden'
-              }`}
-            />
-          ))}
-          {stats.length > PHONE_FIRST_TILES.length && (
-            <button
-              type="button"
-              data-testid="tiles-toggle"
-              aria-expanded={allTiles}
-              onClick={() => setAllTiles((v) => !v)}
-              className="col-span-2 inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-sm font-medium text-primary hover:bg-muted sm:hidden"
-            >
-              {allTiles ? t('seeLess') : t('seeMore', { count: stats.length - PHONE_FIRST_TILES.length })}
-              <ChevronDown aria-hidden="true" className={`size-4 transition-transform ${allTiles ? 'rotate-180' : ''}`} />
-            </button>
-          )}
+        <div className="space-y-6">
+          <TileGroup testId="dashboard-right-now" title={t('rightNow')} gridClass={RIGHT_NOW_GRID}>
+            {RIGHT_NOW_TILES.map((key, i) => renderTile(key, `${rightNowSpan(i)} ${phoneClass(key, allTiles)}`))}
+            {RIGHT_NOW_TILES.length > PHONE_RIGHT_NOW && (
+              <button
+                type="button"
+                data-testid="tiles-toggle"
+                aria-expanded={allTiles}
+                onClick={() => setAllTiles((v) => !v)}
+                className="col-span-2 inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-sm font-medium text-primary hover:bg-muted sm:hidden"
+              >
+                {allTiles ? t('seeLess') : t('seeMore', { count: RIGHT_NOW_TILES.length - PHONE_RIGHT_NOW })}
+                <ChevronDown aria-hidden="true" className={`size-4 transition-transform ${allTiles ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </TileGroup>
+          <TileGroup testId="dashboard-this-month" title={t('thisMonth')} withPnlLink gridClass={THIS_MONTH_GRID}>
+            {THIS_MONTH_TILES.map((key) => renderTile(key, phoneClass(key, allTiles)))}
+          </TileGroup>
         </div>
       )}
 
