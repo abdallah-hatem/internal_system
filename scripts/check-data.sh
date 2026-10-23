@@ -245,7 +245,9 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          JOIN payments p ON p.id = a.payment_id
         WHERE a.sale_order_id = o.id AND p.status <> 'REVERSED'
      )
-  -- A price adjustment's per-batch shares must add up to it (§4, 2026-10-22).
+  -- The per-batch shares of a price adjustment must add up to it (§4, 2026-10-22).
+  -- (No apostrophe in these comments: macOS bash 3.2 reads one inside a
+  -- heredoc inside $(...) as an open quote and the whole script fails to parse.)
   UNION ALL SELECT 13.2, 'price adjustment whose batch shares do not add up to it',
          count(*) FROM sale_price_adjustments pa
    WHERE pa.amount_egp <> (
