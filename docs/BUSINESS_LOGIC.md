@@ -434,6 +434,12 @@ piece — it does not know where the leg leaves from until a cycle is chosen.
 
 ---
 
+**DECIDED 2026-10-23 (owner) — a leg's cost is shared equally per piece, whatever the product.** Raised by CYC-2026-0001's
+correction: on a mixed shipment a 20.31 AED pack of screws carries the same ~383 EGP of freight as a helmet headset, so
+its default price comes out at 797 EGP. Sharing by value or by weight was offered; the owner: "I guess a landed cost is a
+landed cost whatever the product". Unchanged: every piece on a leg carries an equal share of it; a price the owner
+sets replaces the default where the default is too high.
+
 ## 3. Inventory
 
 **Stock is tracked in batches, and this is the one rule the BRD marks CRITICAL.**
