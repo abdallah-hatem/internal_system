@@ -213,6 +213,11 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- In progress (owner, 2026-10-23, picked from a rendered sample): a **Profit** column on a customer's Statement, green for
+  profit and red for a loss, with the shop's net profit for the dates on the closing row. A sale: its total less the
+  landed cost of the units it drew (green, or red if sold below cost); a return: the profit on the returned units given
+  back (red); a price cut: the cut (red); a payment or reversal: "—" (cash, not profit). Figures from the server, from
+  the same costs the cycle's profit uses (sale allocations' COGS, returns' reversed COGS) — never summed in the browser.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
   (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
   (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's
