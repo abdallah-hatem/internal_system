@@ -10,9 +10,8 @@ history as their API only. The goal before it — the 2026-10-19 batch — is li
 2026-10-23 — production runs `origin/master`; CYC-2026-0001's data was corrected in production at the owner's word
 ("re-cost sold, keep it and set prices, names ok, go"), after a rehearsal on a copy (`.backups/prod-20261023-050844.sql`,
 taken before any change, is the way back): the 18 forgotten pieces, leg 2 at 5,250 AED, Ahmad Eraiby's 13,905.69 AED
-and his three repayments, contributions 67,056.33 each. The owner sets the new products' own prices (their defaults
-carry ~383 EGP of leg freight per piece — a pack of screws defaults to 797 EGP). Nothing is merged locally and waiting.
-Next: the owner sets the 9 new products' own prices (on defaults now); the Rules Review answers
+and his three repayments, contributions 67,056.33 each. Nothing is merged locally and waiting.
+The 9 new products stay on their default prices; the price is set on each sale as needed (owner, 2026-10-23). Next: the Rules Review answers
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
 State of the product and of production's data: `docs/where-things-stand.md`.

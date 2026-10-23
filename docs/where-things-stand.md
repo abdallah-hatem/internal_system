@@ -157,8 +157,7 @@ the owner's test sales were deleted.
   partners' contributions are each partner's equal third of repaying Ahmad: 67,056.33 EGP each (since 2026-10-23;
   the 64,400.97 stand-in is gone).
 
-Waiting on the owner (also in BUILD_LOG): any UAE costs beyond leg 2's 5,250 AED, prices for the 9 new products
-(their defaults carry heavy per-piece freight), and the small UAE costs he expects. Koshary's 100 off every unit he holds was applied by the owner through Adjust
+Waiting on the owner (also in BUILD_LOG): the small UAE costs he expects beyond leg 2's 5,250 AED. Koshary's 100 off every unit he holds was applied by the owner through Adjust
 price on 2026-10-23.
 
 ---
