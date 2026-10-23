@@ -143,26 +143,23 @@ the owner's test sales were deleted.
 
 - **CYC-2026-0001** — the first real cycle, entered mid-cycle (an Alibaba order,
   PO-2026-0001). Received in Egypt 9 Sep (the owner's date; China/UAE dates
-  estimated 20 Jul / 10 Aug / 28 Aug). Now **SELLING**. Leg 2 Dubai → Cairo saved
-  as 20 AED × 230 pieces = 4,600 AED at 14 = 64,400 EGP — rate not confirmed.
+  estimated 20 Jul / 10 Aug / 28 Aug). Now **SELLING**. Corrected 2026-10-23 (BUILD_LOG):
+  18 forgotten pieces added (9 new products, 3 new categories); leg 2 Dubai → Cairo is 5,250 AED flat at 14 =
+  73,500 EGP for all 248 pieces; profit 11,904.07 EGP after a 7,788.12 EGP exchange difference.
 - **Sales** ORD-2026-00001..00005, dated 12–16 Oct: Sameh (paid cash), Koshary,
   Flesteeny (5,000 paid), Ahmad Emad, Hussien El Sayed.
-- **Lenders**: Ahmad Eraiby is recorded (renamed 2026-10-17). Mohamed Abu Setta,
-  the second lender, is not recorded yet.
+- **Lenders**: Ahmad Eraiby paid the whole cycle, 13,905.69 AED (15 Jul, blended 13.9066), and was repaid in
+  three thirds on 15 Aug / 15 Sep / 15 Oct at 14 / 14.50 / 14.90 (201,168.99 EGP); he is owed nothing.
 - **Ledger checked 2026-10-18**: receipts = goods + legs to the piastre;
   collected + receivables = revenue; cash on hand 34,800 = collected. On 2026-10-19
   collected read 39,800: a 5,000 payment on Koshary's ORD-2026-00002 was recorded
   on 2026-10-18 (presumably his first cash payment). The
-  partners' capital of 64,400.97 (21,466.99 / 21,466.99 / 21,467 by Split equally)
-  is a **stand-in** for leg 2's cost until Mohamed Abu Setta's payment is recorded.
-  Under the 2026-10-19 rule the partners' contributions on CYC-2026-0001 are each
-  partner's share of repaying both friends (the owner gives the split) — not 0, and
-  not this stand-in.
+  partners' contributions are each partner's equal third of repaying Ahmad: 67,056.33 EGP each (since 2026-10-23;
+  the 64,400.97 stand-in is gone).
 
-Waiting on the owner (also in BUILD_LOG): leg 2's rate and per-piece price, the
-UAE costs, Mohamed Abu Setta's payment, repayments already made to either lender,
-and — decided 2026-10-22 — Koshary's 100 off every unit he holds (3 Q58, 10 Y20 MAX, 10 Y30: −2,300, he then
-owes 19,950), to be applied with the price adjustment once its screen is built, not by re-entering the order.
+Waiting on the owner (also in BUILD_LOG): any UAE costs beyond leg 2's 5,250 AED, prices for the 9 new products
+(their defaults carry heavy per-piece freight), and — decided 2026-10-22 — Koshary's 100 off every unit he holds (3 Q58, 10 Y20 MAX, 10 Y30: −2,300, he then
+owes 19,950), to be applied through Adjust price (live since 2026-10-22), not by re-entering the order.
 
 ---
 

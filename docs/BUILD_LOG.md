@@ -7,17 +7,29 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-22 (evening) — production runs `origin/master` with the product page audit fixes and the icons drawn at lucide's
-weight, shipped at the owner's word after his local look ("looks great … update docs and ship"), no migration. Nothing
-is merged locally and waiting. Next: Koshary's 100 off every unit through Adjust price (owner to confirm when); the extra
-pieces on CYC-2026-0001 (Waiting on the owner — friend, his AED total and day, the shipping fee); the Rules Review answers
+2026-10-23 — production runs `origin/master`; CYC-2026-0001's data was corrected in production at the owner's word
+("re-cost sold, keep it and set prices, names ok, go"), after a rehearsal on a copy (`.backups/prod-20261023-050844.sql`,
+taken before any change, is the way back): the 18 forgotten pieces, leg 2 at 5,250 AED, Ahmad Eraiby's 13,905.69 AED
+and his three repayments, contributions 67,056.33 each. The owner sets the new products' own prices (their defaults
+carry ~383 EGP of leg freight per piece — a pack of screws defaults to 797 EGP). Nothing is merged locally and waiting.
+Next: Koshary's 100 off every unit through Adjust price (owner to confirm when); the Rules Review answers
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
-test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes
-("Batch #a744f2c4"), seen in the product page audit, not fixed. State of the product and of production's data:
-`docs/where-things-stand.md`.
+test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
+State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-23 — production data corrected (no deploy needed for it): CYC-2026-0001 gets the 18 pieces forgotten when it
+  was entered — 3 new categories (Bags, Screws, Phone holders; Arabic حقائب / مسامير / حوامل هواتف, Claude's wording,
+  owner OK) and 9 products (PRD-000006…014) on PO-2026-0001 at 13.85, through both legs (10 Aug, 9 Sep) and received
+  9 Sep; leg 2 FLAT 5,250 AED at 14 (73,500 EGP, was 20 × 230 = 4,600 AED) — the cycle re-costed, sold units' COGS
+  +767.15 EGP across 7 orders (owner: "re-cost sold"); Ahmad Eraiby's financing re-recorded as 13,905.69 AED at the
+  blended 13.9066 (193,380.87 EGP) on 15 Jul, repaid in thirds 15 Aug / 15 Sep / 15 Oct at 14 / 14.50 / 14.90
+  (201,168.99 EGP), owes 0; exchange difference 7,788.12 EGP; contributions 67,056.33 × 3 (equal, owner). Cycle profit
+  20,459.34 → 11,904.07 EGP. Script `apps/api/prisma/one-off/2026-10-23-cyc-0001-extras.ts` (`00c90c4`; refuses a second
+  run); rehearsed on a production copy first, where check-data's 66 checks were all 0. `scripts/check-data.sh` fixed to
+  run under macOS bash 3.2 (an apostrophe in a SQL comment).
+- 2026-10-23 — shipped: on a phone "Where the goods are" lists the first three products, then See more (`72a3b41`).
 - 2026-10-22 (evening) — shipped, no migration:
   - Product page audit (`326b567`): batches are a DataTable on desktop and a card per batch on a phone, full width under
     the two columns (two columns from 1280px); movements only under an opened batch, each by its record number
@@ -182,30 +194,17 @@ quoting fails in cmd — run its `ts-node` line from Git Bash; `nest start --wat
 file event — run `node dist/src/main` for long e2e runs.
 
 ## Waiting on the owner
-- **Extra pieces on CYC-2026-0001 (owner, 2026-10-22)** — forgotten when the cycle was entered; same shipment, same
-  Alibaba order PO-2026-0001, extra pieces (not inside the 230), **none sold yet**. Nine new products, 18 pieces, 353.09 AED:
-  1× Hard motorcycle bag (waist bag) 29.27; 1× Tactical Knight motorcycle bag (leg bag) 34.35; 1× Tactical motorcycle leg
-  bag 30.53; 1× Men's multifunctional tactical leg bag 34.10; universal motorcycle screws 177 pcs, one pack each of white,
-  green, red, blue, 20.31 per pack (four products, sold per pack); 10× Bicycle phone holder (octopus handlebar style)
-  14.36 each. A friend paid it in AED; the partners repaid him in EGP in **3 instalments, all paid**: 15 Aug at 14, 15 Sep at
-  14.50, 15 Oct at 14.90 EGP/AED. Shipping (owner, 2026-10-23): **leg 2, Dubai → Cairo, is 5,250 AED for all the goods** (230 + 18 pieces), as one flat
-  amount — replacing the unconfirmed 20 AED × 230 = 4,600 AED. Leg 1 (China → UAE, 1,551.74 AED, in Ahmad Eraiby's
-  8,302.60 AED of 15 Jul at 13.85) is unchanged.
-  Ahmad Eraiby paid the extras too (owner, 2026-10-23: "its more of course"): his payment becomes 8,302.60 + 353.09 = **8,655.69 AED**, assumed the same payment of 15 Jul at 13.85 (extras 4,890.30 EGP). Still needed: leg 2's rate (saved at 14, unconfirmed) and who paid leg 2; the instalments are **equal thirds** of his AED total (owner); the
-  shipping fee, its currency and whether it covers both legs. Then: a one-off production correction (PO lines,
-  deliveries, receipt, the friend's financing, his plan and repayments, the shipping cost), shown to the owner first.
 - Every guess the system is built on and every open question (88 items) is on the Rules Review page,
   `https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`; his answers are saved in its database (`answers`, one document per
   item) for Claude to read and apply, with BUSINESS_LOGIC updated from them.
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
-- Leg 2 (Dubai → Cairo) of CYC-2026-0001: is 20 AED per piece right, and is 14 EGP/AED the rate? (Saved that way; edit the leg when confirmed.)
-- UAE costs for this shipment (wrapping paper, fuel in the UAE…): each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
-- Mohamed Abu Setta, the second lender: what he paid in total, currency, date, what it covered. Then: record his financing on PO-2026-0001, and set the three partners' contributions (64,400.97, a stand-in) to each partner's share of repaying both friends — the owner gives the split (equal or e.g. 30/30/40). Since 2026-10-19 a friend's payment is a loan the partners repay, so their contributions are not 0 (§18 "The partners repay the friend"). Production data is not changed until he says.
-- Repayments already made to Ahmad Eraiby or Mohamed Abu Setta: amount, date, method each.
+- UAE costs for this shipment (wrapping paper, fuel in the UAE…), if any beyond leg 2's 5,250 AED: each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
+- (Answered 2026-10-23, applied in production: leg 2 is 5,250 AED flat at 14; Ahmad Eraiby paid everything and was
+  repaid in three thirds; contributions 67,056.33 each. Mohamed Abu Setta is not a lender on CYC-2026-0001.)
 - Koshary (ORD-2026-00002): the owner said on 2026-10-22 "drop 100 egp on each product koshary has right now". He holds
   3 Q58 (1,250), 10 Y20 MAX (1,150), 10 Y30 (1,200) after returns RET-2026-00001/00003; 5,000 cash already paid and
   allocated; owes 22,250. Decided 2026-10-22 (owner): **100 off every unit** he holds — −2,300, he then owes 19,950. Apply it
-  through the price-adjustment feature (Next up) once built, not by cancelling and re-entering (that would break the
+  through Adjust price (built and live since 2026-10-22), not by cancelling and re-entering (that would break the
   returns and payment).
 
 ## Blocked
