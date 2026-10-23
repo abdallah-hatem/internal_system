@@ -243,7 +243,8 @@ const LISTS: { name: string; nav: NavKey; columns: number }[] = [
   { name: 'Inventory', nav: 'inventory', columns: 7 },
   { name: 'Sales', nav: 'sales', columns: 8 },
   { name: 'Customers', nav: 'customers', columns: 6 },
-  { name: 'Ledger', nav: 'ledger', columns: 7 },
+  // + By, who recorded the row (owner 2026-10-22).
+  { name: 'Ledger', nav: 'ledger', columns: 8 },
   { name: 'Payments', nav: 'payments', columns: 8 },
   { name: 'Purchases', nav: 'purchases', columns: 8 },
   { name: 'Shipments', nav: 'shipments', columns: 9 },
@@ -445,14 +446,22 @@ for (const locale of ['en', 'ar'] as const) {
       const fit = await page.getByTestId(doc.table).evaluate((t) => {
         let box = t.parentElement!;
         while (getComputedStyle(box).overflowX === 'visible' && box.parentElement) box = box.parentElement;
+        const off = [...t.querySelectorAll('thead th')].filter((th) => getComputedStyle(th).display === 'none');
         return {
-          hidden: [...t.querySelectorAll('thead th')].filter((th) => getComputedStyle(th).display === 'none').length,
+          // A screen-only column (the statement's Profit, owner 2026-10-23) is
+          // meant to stay off paper; every other one prints.
+          hidden: off.filter((th) => !th.className.includes('print:hidden')).length,
+          screenOnly: off.map((th) => th.textContent?.trim()),
           width: Math.round(t.getBoundingClientRect().width),
           room: box.clientWidth,
           scroll: box.scrollWidth,
         };
       });
       expect(fit.hidden, 'every column printed').toBe(0);
+      if (doc.table === 'statement-table') {
+        // The shop may get the paper: its Profit never prints.
+        expect(fit.screenOnly).toEqual([messages(locale).customers.statement.profit]);
+      }
       expect(fit.scroll, `table ${fit.width}px on ${fit.room}px of paper`).toBeLessThanOrEqual(fit.room + 1);
       expect(await cellProblems(page), 'TC-COL-03 on paper').toEqual([]);
       await shot(page, `print-${doc.table}-${locale}`);

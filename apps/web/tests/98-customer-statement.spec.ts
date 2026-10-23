@@ -13,7 +13,7 @@
  *  stock that came through a cycle (§4).
  */
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { apiCtx, owedOrder, stockedProduct } from './support/fixtures';
+import { API, apiCtx, owedOrder, stockedProduct } from './support/fixtures';
 import { day, exportCsv, login, messages, openCustomer, pickDate } from './support/ui';
 
 const stamp = () => `${Date.now()}${Math.floor(performance.now() % 1000)}`;
@@ -152,5 +152,33 @@ test.describe('Customer statement (§7b, 2026-10-11)', () => {
     await expect(st.getByRole('heading', { name: messages('ar').customers.statement.title })).toBeVisible();
     expect(await st.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
     await expect(st.getByTestId('statement-closing-balance')).toHaveText('3,500.00 EGP');
+  });
+  test('TC-ST-08: the Profit column — the server’s profit on each sale, "—" on a payment, the period’s total on the closing row; never on paper (owner 2026-10-23)', async ({ page, request }) => {
+    const { shop, headers } = await shopWithHistory(request, 'ST08');
+    const res = await request.get(`${API}/customers/${shop.id}/statement`, { headers });
+    const statement = (await res.json()).data;
+    // Each sale made money: two units at their price, drawn from a cycle at its landed cost.
+    expect(statement.rows.map((r: any) => r.kind)).toEqual(['SALE', 'SALE', 'PAYMENT']);
+    expect(statement.rows[2].profit).toBeNull();
+    const total = statement.rows.reduce((sum: number, r: any) => sum + Number(r.profit ?? 0), 0);
+    expect(Number(statement.profit)).toBeCloseTo(total, 2);
+
+    await login(page);
+    await openCustomer(page, shop.displayName);
+    const st = page.getByTestId('customer-statement');
+    await expect(st.getByTestId('statement-row')).toHaveCount(3);
+    const money = (v: string) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v))} EGP`;
+    const cells = st.getByTestId('statement-profit');
+    await expect(cells.nth(0)).toHaveText(money(statement.rows[0].profit));
+    await expect(cells.nth(1)).toHaveText(money(statement.rows[1].profit));
+    await expect(cells.nth(2)).toHaveText('—');
+    await expect(st.getByTestId('statement-closing-profit')).toHaveText(money(statement.profit));
+
+    // On paper the shop may get it: no Profit header, no profit cell, the rest printed.
+    await page.emulateMedia({ media: 'print' });
+    await expect(st.getByRole('columnheader', { name: en.customers.statement.profit })).toBeHidden();
+    await expect(cells.first()).toBeHidden();
+    await expect(st.getByTestId('statement-closing-profit')).toBeHidden();
+    await expect(st.getByTestId('statement-closing-balance')).toBeVisible();
   });
 });

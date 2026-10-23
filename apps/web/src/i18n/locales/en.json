@@ -757,6 +757,8 @@
       "debit": "Owes more",
       "credit": "Owes less",
       "balance": "Balance",
+      "profit": "Profit",
+      "profitTotal": "Profit in these dates",
       "kind": {
         "SALE": "Sale {order}",
         "PAYMENT": "Payment",

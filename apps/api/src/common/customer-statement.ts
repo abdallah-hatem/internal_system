@@ -53,6 +53,13 @@ export interface StatementRow {
   balance: string;
   /** Payment method, or a return's refund method. */
   method: string | null;
+  /**
+   * What it did to the profit (owner 2026-10-23): a sale its total less the
+   * landed cost of the units it drew; a return the profit on the units given
+   * back, negative; a price cut the cut, negative. Null for money moving — a
+   * payment or a reversal is cash, not profit.
+   */
+  profit: string | null;
   /** A payment's money that went on no order, so changed nothing owed. */
   unapplied?: string;
   /** Ids for the client to link to. */
@@ -70,6 +77,8 @@ export interface Statement {
   debits: string;
   credits: string;
   closingBalance: string;
+  /** The shop's profit within the range: its rows' profit, summed. */
+  profit: string;
 }
 
 /** Everything about one shop the replay needs. */
@@ -80,7 +89,12 @@ export interface StatementSource {
     status: string;
     total: Prisma.Decimal | number | string;
     orderedAt: Date;
-    items: { id: string; quantity: Prisma.Decimal | number | string }[];
+    items: {
+      id: string;
+      quantity: Prisma.Decimal | number | string;
+      /** The landed cost of the units each line drew (its allocations' COGS). */
+      allocations?: { cogsEgp: Prisma.Decimal | number | string }[];
+    }[];
   }[];
   payments: {
     id: string;
@@ -104,6 +118,8 @@ export interface StatementSource {
     returnedOn: Date;
     refundMethod: string;
     refundEgp: Prisma.Decimal | number | string;
+    /** The cost put back with the units (zero for damaged goods, which stay spent). */
+    cogsReversedEgp?: Prisma.Decimal | number | string;
     createdAt: Date;
     items: { saleItemId: string; qty: Prisma.Decimal | number | string }[];
   }[];
@@ -145,6 +161,8 @@ interface Event {
   amount: number;
   effect: number;
   method: string | null;
+  /** Cents of profit, or null for cash moving. */
+  profit: number | null;
   unapplied?: number;
   orderId?: string;
   paymentId?: string;
@@ -296,6 +314,15 @@ export function buildStatement(
       amount: cents(o.total),
       effect: cents(o.total),
       method: null,
+      // The sale's total less what its units cost (the cycle's own COGS).
+      profit:
+        cents(o.total) -
+        o.items.reduce(
+          (sum, it) =>
+            sum +
+            (it.allocations ?? []).reduce((c, a) => c + cents(a.cogsEgp), 0),
+          0,
+        ),
       orderId: o.id,
     });
   }
@@ -317,6 +344,7 @@ export function buildStatement(
       amount: cents(p.amount),
       effect: allocationEffect.get(p.id) ?? 0,
       method: p.method,
+      profit: null,
       unapplied: cents(p.amount) - applied,
       paymentId: p.id,
     });
@@ -332,6 +360,7 @@ export function buildStatement(
         amount: applied,
         effect: reversalEffect.get(p.id) ?? 0,
         method: p.method,
+        profit: null,
         paymentId: p.id,
       });
     }
@@ -348,6 +377,9 @@ export function buildStatement(
       amount: cents(r.refundEgp),
       effect: returnEffect.get(r.id) ?? 0,
       method: r.refundMethod,
+      // The profit on the units given back: their price less the cost that
+      // came back with them (a damaged unit's cost stays spent).
+      profit: -(cents(r.refundEgp) - cents(r.cogsReversedEgp ?? 0)),
       orderId: r.saleOrderId,
     });
   }
@@ -365,6 +397,8 @@ export function buildStatement(
       amount: cents(a.amountEgp),
       effect: adjustmentEffect.get(a.id) ?? 0,
       method: null,
+      // A lower price is profit given up, all of it (§4).
+      profit: -cents(a.amountEgp),
       orderId: a.saleOrderId,
     });
   }
@@ -383,6 +417,7 @@ export function buildStatement(
   let running = 0;
   let debits = 0;
   let credits = 0;
+  let profit = 0;
   const rows: StatementRow[] = [];
   for (const e of events) {
     if (to && e.date > to) continue;
@@ -394,6 +429,7 @@ export function buildStatement(
     running += e.effect;
     if (e.effect > 0) debits += e.effect;
     else credits -= e.effect;
+    profit += e.profit ?? 0;
     rows.push({
       kind: e.kind,
       date: e.date,
@@ -403,6 +439,7 @@ export function buildStatement(
       effect: money(e.effect),
       balance: money(running),
       method: e.method,
+      profit: e.profit === null ? null : money(e.profit),
       ...(e.unapplied ? { unapplied: money(e.unapplied) } : {}),
       ...(e.orderId ? { orderId: e.orderId } : {}),
       ...(e.paymentId ? { paymentId: e.paymentId } : {}),
@@ -418,6 +455,7 @@ export function buildStatement(
     debits: money(debits),
     credits: money(credits),
     closingBalance: money(running),
+    profit: money(profit),
   };
 }
 
@@ -443,7 +481,13 @@ export async function loadStatementSource(
         status: true,
         total: true,
         orderedAt: true,
-        items: { select: { id: true, quantity: true } },
+        items: {
+          select: {
+            id: true,
+            quantity: true,
+            allocations: { select: { cogsEgp: true } },
+          },
+        },
       },
     }),
     db.payment.findMany({
@@ -471,6 +515,7 @@ export async function loadStatementSource(
         returnedOn: true,
         refundMethod: true,
         refundEgp: true,
+        cogsReversedEgp: true,
         createdAt: true,
         items: { select: { saleItemId: true, qty: true } },
       },

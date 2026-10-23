@@ -757,6 +757,8 @@
       "debit": "مدين",
       "credit": "دائن",
       "balance": "الرصيد",
+      "profit": "الربح",
+      "profitTotal": "الربح في هذه الفترة",
       "kind": {
         "SALE": "بيع {order}",
         "PAYMENT": "دفعة",

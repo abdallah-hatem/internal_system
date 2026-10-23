@@ -16,6 +16,13 @@ The 9 new products stay on their default prices; the price is set on each sale a
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
+## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23)
+- 2026-10-23: the customer statement's **Profit** column (§7b) — the server's profit on each sale (total less its
+  units' landed cost), return (the profit given back) and price cut (the cut), "—" on cash, the period's profit on the
+  closing row; screen only, never on paper, the PDF or the CSV (GUESS). Tests: `customer-statement.spec.ts` (6),
+  `price-adjustment.db.spec.ts` (statement = the cycles' profit), `customer-statement.test.tsx` (7), spec 98 TC-ST-08,
+  each break-checked.
+
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-23 — shipped, no migration: the dashboard in two groups (`2248549`; BUSINESS_LOGIC "The dashboard in two
@@ -213,11 +220,6 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Later (owner, 2026-10-23, picked from a rendered sample; queued only, not to be built until he says): a **Profit** column on a customer's Statement, green for
-  profit and red for a loss, with the shop's net profit for the dates on the closing row. A sale: its total less the
-  landed cost of the units it drew (green, or red if sold below cost); a return: the profit on the returned units given
-  back (red); a price cut: the cut (red); a payment or reversal: "—" (cash, not profit). Figures from the server, from
-  the same costs the cycle's profit uses (sale allocations' COGS, returns' reversed COGS) — never summed in the browser.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
   (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
   (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's

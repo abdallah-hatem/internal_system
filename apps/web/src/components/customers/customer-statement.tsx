@@ -16,7 +16,7 @@ import { LatinText } from '@/components/ui/latin-text';
 import { DateRangeFilter, type DayRange } from '@/components/ui/date-range-filter';
 import { isolateCodes } from '@/components/layout/isolate-codes';
 import { LoadingStatus, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
-import { DataTable, DataTableSkeletonRow, PAPER_FIT, cellPadding, type Column } from '@/components/ui/data-table';
+import { DataTable, DataTableSkeletonRow, PAPER_FIT, SCREEN_ONLY, cellPadding, type Column } from '@/components/ui/data-table';
 
 /** One row of `GET /customers/:id/statement` (api common/customer-statement.ts). */
 export interface StatementRow {
@@ -28,6 +28,8 @@ export interface StatementRow {
   effect: string;
   balance: string;
   method: string | null;
+  /** What it did to the profit; null for cash moving. Absent from an API before 2026-10-23. */
+  profit?: string | null;
   unapplied?: string;
 }
 
@@ -40,6 +42,8 @@ export interface Statement {
   debits: string;
   credits: string;
   closingBalance: string;
+  /** The shop's profit in the range. Absent from an API before 2026-10-23. */
+  profit?: string;
 }
 
 /** A calendar day at noon UTC, so no browser timezone can move it a day. */
@@ -177,6 +181,18 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
   const amountCell = (value: string | null) =>
     value === null ? <span className="text-muted-foreground">—</span> : <Money value={value} currency="EGP" />;
 
+  // Profit (owner 2026-10-23): green made, red lost, "—" for cash moving. The
+  // server's figure, never summed here; on screen only — a printed statement
+  // may go to the shop, so paper, the PDF and the CSV never carry it (GUESS).
+  const profitTone = (value: string) => (Number(value) < 0 ? 'text-destructive' : Number(value) > 0 ? 'text-success' : '');
+  const profitCell = (value: string | null | undefined) =>
+    value == null ? (
+      <span className="text-muted-foreground">—</span>
+    ) : (
+      <Money value={value} currency="EGP" className={profitTone(value)} />
+    );
+  const hasProfit = data?.profit !== undefined;
+
   // One table for the statement and its skeleton (components/ui/data-table.tsx):
   // date, description, debit, credit, balance. The amounts fit
   // "123,456.00 EGP" and never cut; the description takes what is left and,
@@ -207,6 +223,15 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
       key: 'balance', header: t('balance'), width: '8.5rem', kind: 'value', align: 'end', className: 'font-medium',
       skeleton: { kind: 'text', share: 'w-3/4' }, cell: (row) => <Money value={row.balance} />,
     },
+    ...(hasProfit || isLoading
+      ? [
+          {
+            key: 'profit', header: t('profit'), width: '8.5rem', kind: 'value', align: 'end', screenOnly: true,
+            cellProps: () => ({ 'data-testid': 'statement-profit' }),
+            skeleton: { kind: 'text', share: 'w-2/3' }, cell: (row: StatementRow) => profitCell(row.profit),
+          } satisfies Column<StatementRow>,
+        ]
+      : []),
   ];
   const pad = cellPadding('compact');
   const money = `${pad} whitespace-nowrap text-end tabular-nums`;
@@ -318,6 +343,7 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
                 <td className={pad} />
                 <td className={pad} />
                 <td className={money}><Money value={data.openingBalance} /></td>
+                {hasProfit && <td className={`${pad} ${SCREEN_ONLY}`} />}
               </tr>
             }
             afterRows={
@@ -329,6 +355,11 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
                 <td data-testid="statement-closing-balance" className={money}>
                   <Money value={data.closingBalance} />
                 </td>
+                {hasProfit && (
+                  <td data-testid="statement-closing-profit" className={`${money} ${SCREEN_ONLY}`} title={t('profitTotal')}>
+                    {profitCell(data.profit)}
+                  </td>
+                )}
               </tr>
             }
             columns={columns}
@@ -354,6 +385,13 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
                     {t('balance')}: <Money value={row.balance} className="font-medium text-foreground" />
                   </span>
                 </div>
+                {hasProfit && row.profit != null && (
+                  <div data-testid="statement-card-profit" className="mt-0.5 flex justify-end text-xs text-muted-foreground">
+                    <span>
+                      {t('profit')}: {profitCell(row.profit)}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
             {data.rows.length === 0 && <p className="py-3 text-center text-sm text-muted-foreground">{t('empty')}</p>}
@@ -361,6 +399,12 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
               <span>{t('closing')}</span>
               <Money value={data.closingBalance} />
             </div>
+            {hasProfit && (
+              <div data-testid="statement-card-closing-profit" className="flex items-center justify-between px-3 text-sm">
+                <span className="text-muted-foreground">{t('profitTotal')}</span>
+                {profitCell(data.profit)}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

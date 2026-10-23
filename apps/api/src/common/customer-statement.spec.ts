@@ -300,3 +300,109 @@ describe('buildStatement', () => {
     ).toBe('BAD_DATE');
   });
 });
+
+describe('the Profit column (owner 2026-10-23)', () => {
+  // Two units sold at 1,000 each that cost 600 each: 800 profit.
+  const sold = {
+    ...order('o1', 2000, '2026-10-01T10:00:00Z'),
+    items: [
+      {
+        id: 'o1-i1',
+        quantity: 2,
+        allocations: [{ cogsEgp: 700 }, { cogsEgp: 500 }],
+      },
+    ],
+  };
+
+  it('a sale is its total less what its units cost; a payment and a reversal are cash, not profit', () => {
+    const s = buildStatement(SHOP, {
+      orders: [sold],
+      payments: [
+        payment('p1', 900, '2026-10-02', [{ saleOrderId: 'o1', amount: 900 }], {
+          status: 'REVERSED',
+          updatedAt: at('2026-10-03T09:00:00Z'),
+        }),
+      ],
+      returns: [],
+    });
+    expect(s.rows.map((r) => [r.kind, r.profit])).toEqual([
+      ['SALE', '800.00'],
+      ['PAYMENT', null],
+      ['REVERSAL', null],
+    ]);
+    expect(s.profit).toBe('800.00');
+  });
+
+  it('a return gives back the profit on its units; a damaged one gives back its whole price (its cost stays spent)', () => {
+    const back = {
+      ...ret('r1', 'o1', 1000, '2026-10-05', 'CREDIT_NOTE', 1),
+      cogsReversedEgp: 600,
+    };
+    const damaged = {
+      ...ret('r2', 'o1', 1000, '2026-10-06', 'CREDIT_NOTE', 1),
+      cogsReversedEgp: 0,
+    };
+    const s = buildStatement(SHOP, {
+      orders: [sold],
+      payments: [],
+      returns: [back, damaged],
+    });
+    expect(s.rows.map((r) => [r.kind, r.profit])).toEqual([
+      ['SALE', '800.00'],
+      ['RETURN', '-400.00'],
+      ['RETURN', '-1000.00'],
+    ]);
+    // Sold for 2,000, everything back, one unit's 600 cost never returned: a loss of 600.
+    expect(s.profit).toBe('-600.00');
+  });
+
+  it('a price cut is profit given up, all of it', () => {
+    const s = buildStatement(SHOP, {
+      orders: [sold],
+      payments: [],
+      returns: [],
+      adjustments: [
+        {
+          id: 'a1',
+          saleOrderId: 'o1',
+          adjustedOn: day('2026-10-04'),
+          amountEgp: 300,
+          createdAt: at('2026-10-04T10:00:00Z'),
+        },
+      ],
+    });
+    expect(s.rows.map((r) => r.profit)).toEqual(['800.00', '-300.00']);
+    expect(s.profit).toBe('500.00');
+  });
+
+  it('a sale below cost shows its loss', () => {
+    const below = { ...sold, total: 1000 };
+    expect(
+      buildStatement(SHOP, { orders: [below], payments: [], returns: [] })
+        .rows[0].profit,
+    ).toBe('-200.00');
+  });
+
+  it('the period’s profit counts only the rows in it, not the opening history', () => {
+    const later = {
+      ...order('o2', 500, '2026-10-20T10:00:00Z'),
+      items: [{ id: 'o2-i1', quantity: 1, allocations: [{ cogsEgp: 450 }] }],
+    };
+    const s = buildStatement(
+      SHOP,
+      { orders: [sold, later], payments: [], returns: [] },
+      { from: '2026-10-10' },
+    );
+    expect(s.rows.map((r) => r.profit)).toEqual(['50.00']);
+    expect(s.profit).toBe('50.00');
+  });
+
+  it('a source with no costs (an older caller) counts the whole total, never fails', () => {
+    const s = buildStatement(SHOP, {
+      orders: [order('o3', 750, '2026-10-01T10:00:00Z')],
+      payments: [],
+      returns: [],
+    });
+    expect(s.rows[0].profit).toBe('750.00');
+  });
+});

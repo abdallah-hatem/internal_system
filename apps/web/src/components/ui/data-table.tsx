@@ -73,6 +73,12 @@ export interface Column<Row> {
   headerProps?: ThHTMLAttributes<HTMLTableCellElement>;
   /** Hidden, with its cells and its width, below this breakpoint (printed always). */
   hiddenBelow?: 'sm' | 'md';
+  /**
+   * On screen only: left off paper and a PDF's sheet — a figure for the office
+   * that a document handed to someone outside it must not carry (the
+   * statement's Profit, owner 2026-10-23).
+   */
+  screenOnly?: boolean;
   /** Extra attributes for this column's cells (data-testid). */
   cellProps?: (row: Row) => HTMLAttributes<HTMLTableCellElement> & Record<`data-${string}`, string | undefined>;
 }
@@ -158,6 +164,12 @@ const HIDDEN_COL = {
   sm: 'hidden sm:table-column print:table-column sheet:table-column',
   md: 'hidden md:table-column print:table-column sheet:table-column',
 } as const;
+/** A `screenOnly` column's cells and `<col>`: shown on screen, never on paper. */
+export const SCREEN_ONLY = 'print:hidden sheet:hidden';
+const cellHidden = (c: { hiddenBelow?: 'sm' | 'md'; screenOnly?: boolean }) =>
+  cn(c.hiddenBelow && HIDDEN_CELL[c.hiddenBelow], c.screenOnly && SCREEN_ONLY) || undefined;
+const colHidden = (c: { hiddenBelow?: 'sm' | 'md'; screenOnly?: boolean }) =>
+  cn(c.hiddenBelow && HIDDEN_COL[c.hiddenBelow], c.screenOnly && SCREEN_ONLY) || undefined;
 
 const KIND_CLASS: Record<ColumnKind, string> = {
   name: '',
@@ -230,7 +242,7 @@ export function DataTableSkeletonRow<Row>({
   return (
     <tr data-testid={testId ?? undefined} className={className}>
       {columns.map((c) => (
-        <td key={c.key} className={cn(pad, c.hiddenBelow && HIDDEN_CELL[c.hiddenBelow])}>
+        <td key={c.key} className={cn(pad, cellHidden(c))}>
           <SkeletonCell shape={c.skeleton ?? { kind: 'text' }} align={c.align} />
         </td>
       ))}
@@ -269,7 +281,7 @@ export function DataTable<Row>({
   const pad = PAD[density];
   const head = HEAD[density];
   const alignClass = (c: Column<Row>) => (c.align === 'end' ? 'text-end' : 'text-start');
-  const hidden = (c: Column<Row>) => (c.hiddenBelow ? HIDDEN_CELL[c.hiddenBelow] : undefined);
+  const hidden = (c: Column<Row>) => cellHidden(c);
 
   const table = (
     // Only sideways; in a card it stops short of the rounded bottom so the bar
@@ -295,7 +307,7 @@ export function DataTable<Row>({
         }
       >
         {caption && <caption className="sr-only">{caption}</caption>}
-        <ColGroup widths={widths} classNames={columns.map((c) => (c.hiddenBelow ? HIDDEN_COL[c.hiddenBelow] : undefined))} />
+        <ColGroup widths={widths} classNames={columns.map(colHidden)} />
         <thead>
           <tr className={head.row}>
             {columns.map((c) => (

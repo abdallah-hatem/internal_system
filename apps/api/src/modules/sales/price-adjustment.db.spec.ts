@@ -362,6 +362,32 @@ suite('lowering a price after the order is confirmed (Postgres)', () => {
     expect(await cycleRevenue(k.older.id)).toBe(olderBefore);
   });
 
+  it('the statement’s profit: the sale less its landed cost, the return and the cut given back — and the same total as the two cycles’ profit (owner 2026-10-23)', async () => {
+    const k = await koshary();
+    await adjust.create(
+      k.orderId,
+      { saleItemId: k.line.id, newUnitPrice: 1150, adjustedOn: daysAgo(1) },
+      partner,
+    );
+    const statement = buildStatement(
+      { id: k.shop.id, displayName: k.shop.displayName, phone: null },
+      await loadStatementSource(prisma, k.shop.id),
+    );
+    // 10 at 1,250 that cost 6 × 900 + 4 × 950 = 9,200: 3,300. Two back from the
+    // newer batch: 2,500 refunded, 1,900 of cost back, 600 given back. The cut: 800.
+    expect(statement.rows.map((r) => [r.kind, r.profit])).toEqual([
+      ['SALE', '3300.00'],
+      ['PAYMENT', null],
+      ['RETURN', '-600.00'],
+      ['ADJUSTMENT', '-800.00'],
+    ]);
+    expect(statement.profit).toBe('1900.00');
+    // The cycles count the same sale the same way (rule 11).
+    const cycles = await Promise.all([k.older.id, k.newer.id].map((id) => settlements.project(id)));
+    const fromCycles = cycles.reduce((sum, c) => sum + Number(c!.pnl.revenue.sub(c!.pnl.cogs)), 0);
+    expect(fromCycles.toFixed(2)).toBe('1900.00');
+  });
+
   it('the statement shows the lower price on its day, and closes on what the order owes', async () => {
     const k = await koshary();
     await adjust.create(
