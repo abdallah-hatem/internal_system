@@ -12,7 +12,7 @@ history as their API only. The goal before it — the 2026-10-19 batch — is li
 taken before any change, is the way back): the 18 forgotten pieces, leg 2 at 5,250 AED, Ahmad Eraiby's 13,905.69 AED
 and his three repayments, contributions 67,056.33 each. The owner sets the new products' own prices (their defaults
 carry ~383 EGP of leg freight per piece — a pack of screws defaults to 797 EGP). Nothing is merged locally and waiting.
-Next: Koshary's 100 off every unit through Adjust price (owner to confirm when); the Rules Review answers
+Next: the owner sets the 9 new products' own prices (on defaults now); the Rules Review answers
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
 State of the product and of production's data: `docs/where-things-stand.md`.
@@ -198,14 +198,10 @@ file event — run `node dist/src/main` for long e2e runs.
   `https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`; his answers are saved in its database (`answers`, one document per
   item) for Claude to read and apply, with BUSINESS_LOGIC updated from them.
 Data the owner will send when he has it (asked 2026-10-17/18; ask again at the start of the next session):
-- UAE costs for this shipment (wrapping paper, fuel in the UAE…), if any beyond leg 2's 5,250 AED: each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
+- UAE costs for this shipment (wrapping paper, fuel in the UAE…) beyond leg 2's 5,250 AED — the owner expects some, small (2026-10-23): each amount, currency, what it was — goods-related ones go into leg 2's cost, others as cycle expenses.
 - (Answered 2026-10-23, applied in production: leg 2 is 5,250 AED flat at 14; Ahmad Eraiby paid everything and was
   repaid in three thirds; contributions 67,056.33 each. Mohamed Abu Setta is not a lender on CYC-2026-0001.)
-- Koshary (ORD-2026-00002): the owner said on 2026-10-22 "drop 100 egp on each product koshary has right now". He holds
-  3 Q58 (1,250), 10 Y20 MAX (1,150), 10 Y30 (1,200) after returns RET-2026-00001/00003; 5,000 cash already paid and
-  allocated; owes 22,250. Decided 2026-10-22 (owner): **100 off every unit** he holds — −2,300, he then owes 19,950. Apply it
-  through Adjust price (built and live since 2026-10-22), not by cancelling and re-entering (that would break the
-  returns and payment).
+- (Done 2026-10-23 by the owner himself through Adjust price: Koshary's 100 off every unit he holds.)
 
 ## Blocked
 _(none)_

@@ -158,8 +158,8 @@ the owner's test sales were deleted.
   the 64,400.97 stand-in is gone).
 
 Waiting on the owner (also in BUILD_LOG): any UAE costs beyond leg 2's 5,250 AED, prices for the 9 new products
-(their defaults carry heavy per-piece freight), and — decided 2026-10-22 — Koshary's 100 off every unit he holds (3 Q58, 10 Y20 MAX, 10 Y30: −2,300, he then
-owes 19,950), to be applied through Adjust price (live since 2026-10-22), not by re-entering the order.
+(their defaults carry heavy per-piece freight), and the small UAE costs he expects. Koshary's 100 off every unit he holds was applied by the owner through Adjust
+price on 2026-10-23.
 
 ---
 
