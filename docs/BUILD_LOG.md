@@ -220,6 +220,10 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-23; queued only, not to be built until he says): on a **phone**, opening a picker does not
+  focus its search field — so the keyboard does not jump up over the list (e.g. the customer picker in the New Order
+  popup). Across the app, phone only (desktop keeps the focus); one change in the shared `components/ui/select.tsx`
+  (Radix Popover + cmdk), so every picker follows. Tapping the search field still focuses it.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
   (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
   (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's
