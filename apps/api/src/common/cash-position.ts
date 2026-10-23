@@ -15,12 +15,21 @@ import { NOT_CASH_CATEGORIES, NOT_CASH_TYPES } from './ledger-categories';
  * a category added on one side and forgotten on the other is how the figure
  * drifted before.
  */
-export async function cashPosition(db: {
-  financialTransaction: Pick<
-    Prisma.TransactionClient['financialTransaction'],
-    'groupBy' | 'findMany'
-  >;
-}) {
+export async function cashPosition(
+  db: {
+    financialTransaction: Pick<
+      Prisma.TransactionClient['financialTransaction'],
+      'groupBy' | 'findMany'
+    >;
+  },
+  /**
+   * Only the rows of a period — Analytics' profit and loss passes its days
+   * (`ledgerDayWhere`), so its Cash paid out is this same reading cut to the
+   * period (owner 2026-10-23). Left out, all time: the dashboard's figures.
+   * An undone pair is left out whichever period each half falls in.
+   */
+  within: Prisma.FinancialTransactionWhereInput = {},
+) {
   // An entry that was undone, and the undo itself, are not money that moved:
   // the pair records a mistake and its correction. Counting them put a
   // corrected lender payment into cash in AND cash out — 90,161.56 each way
@@ -38,6 +47,7 @@ export async function cashPosition(db: {
   const flows = await db.financialTransaction.groupBy({
     by: ['direction'],
     where: {
+      ...within,
       category: { notIn: [...NOT_CASH_CATEGORIES] },
       type: { notIn: [...NOT_CASH_TYPES] },
       reversalOfId: null,

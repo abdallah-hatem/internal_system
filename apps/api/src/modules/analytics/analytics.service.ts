@@ -223,6 +223,18 @@ export function expenseWhere(
   };
 }
 
+/**
+ * "This month" as Analytics' profit and loss reads it (web `periodParams`
+ * 'month': the 1st to the month's last day, capped by the API at today): the
+ * Cairo calendar month `now` falls in, from its 1st to today. The dashboard's
+ * This month group asks `profitFigures` for exactly these days, so its figures
+ * are P&L's This month to the piastre (owner 2026-10-23, rule 11).
+ */
+export function thisMonthPeriod(now = new Date()): Required<DayPeriod> {
+  const today = businessToday(now);
+  return { from: `${today.slice(0, 8)}01`, to: today };
+}
+
 /** A day from a query string: '' or absent is none; anything else is checked by assertDayRange. */
 function dayParam(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
@@ -631,6 +643,11 @@ export class AnalyticsService {
       );
 
     const grossProfit = figures.revenue.sub(figures.cogs);
+    // Money out of the ledger in the period — the dashboard's Cash paid out
+    // (BRD 11), moved here when it left the dashboard (owner 2026-10-23). Not
+    // a cost: buying stock is in it. The one reading of which rows are cash
+    // (common/cash-position.ts), cut to the period's ledger days.
+    const { cashOut } = await cashPosition(this.prisma, ledgerDayWhere(period));
     return {
       data: {
         /** The days covered, resolved: null for all time's open start. */
@@ -649,6 +666,8 @@ export class AnalyticsService {
         netProfitEgp: money(figures.netProfit),
         /** Net profit as a share of sales; null when nothing was sold. */
         netProfitPctOfSales: pctOf(figures.netProfit, figures.revenue),
+        /** Money paid out of the ledger in the period: not a cost (BRD 11). */
+        cashOutEgp: money(cashOut),
         expensesByCategory,
         /** How the chart's buckets are cut: day, week (Sat–Fri) or month. */
         granularity,
@@ -666,9 +685,21 @@ export class AnalyticsService {
     };
   }
 
-  async getDashboardKPIs() {
-    const D = (v: unknown) =>
-      new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
+  /**
+   * What customers paid: payments not undone, on the day each was received
+   * (`receivedOn`, a Cairo calendar day). No period is all time. One reading
+   * for the dashboard's all-time Collected and its This month (rule 11).
+   */
+  private async collectedEgp(period?: DayPeriod): Promise<Prisma.Decimal> {
+    const days = period ? calendarRange(period.from, period.to) : undefined;
+    const { _sum } = await this.prisma.payment.aggregate({
+      where: { status: 'RECORDED', ...(days ? { receivedOn: days } : {}) },
+      _sum: { amount: true },
+    });
+    return new Prisma.Decimal(_sum?.amount ?? 0);
+  }
+
+  async getDashboardKPIs(now = new Date()) {
     const money = (v: Prisma.Decimal) => Number(v.toDecimalPlaces(2));
 
     // Revenue, COGS, expenses and net profit: the one computation Analytics'
@@ -735,11 +766,21 @@ export class AnalyticsService {
     // it. The two differ by the receivables below, and keeping them apart is
     // the whole point: a good month of selling and an empty till look
     // identical if only one number is shown.
-    const collectedAgg = await this.prisma.payment.aggregate({
-      where: { status: 'RECORDED' },
-      _sum: { amount: true },
-    });
-    const collected = money(D(collectedAgg._sum.amount));
+    const collected = money(await this.collectedEgp());
+
+    // This calendar month in Cairo, as Analytics' profit and loss reads its
+    // This month — the same days through the same computation (owner
+    // 2026-10-23, rule 11), so the two net profits agree to the piastre.
+    const monthDays = thisMonthPeriod(now);
+    const monthFigures = await this.profitFigures(monthDays);
+    const month = {
+      from: monthDays.from,
+      to: monthDays.to,
+      revenue: money(monthFigures.revenue),
+      collected: money(await this.collectedEgp(monthDays)),
+      expenses: money(monthFigures.operatingExpenses),
+      netProfit: money(monthFigures.netProfit),
+    };
 
     const totalCustomers = await this.customerCount();
     const totalProducts = await this.productCount();
@@ -784,6 +825,11 @@ export class AnalyticsService {
         lowStockAlerts,
         totalCustomers,
         totalProducts,
+        /**
+         * This calendar month in Cairo, from its 1st to today — Analytics'
+         * profit and loss This month, figure for figure (owner 2026-10-23).
+         */
+        month,
       },
     };
   }

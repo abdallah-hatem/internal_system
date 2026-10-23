@@ -26,10 +26,8 @@ export type TileKey =
   | 'revenue'
   | 'collected'
   | 'receivables'
-  | 'cogs'
   | 'expenses'
   | 'netProfit'
-  | 'cashOut'
   | 'cashOnHand'
   | 'activeCycles'
   | 'inventoryValue'
@@ -52,10 +50,8 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
   revenue: { href: '/sales', roles: SELLING_ROLES },
   collected: { href: '/payments', roles: SELLING_ROLES },
   receivables: { href: '/customers?sort=balance', roles: SELLING_ROLES },
-  cogs: { href: '/analytics', roles: SELLING_ROLES },
   expenses: { href: '/ledger', roles: SELLING_ROLES },
   netProfit: { href: '/analytics', roles: SELLING_ROLES },
-  cashOut: { href: '/ledger', roles: SELLING_ROLES },
   cashOnHand: { href: '/ledger', roles: SELLING_ROLES },
   activeCycles: { href: '/cycles' },
   inventoryValue: { href: '/inventory' },
@@ -66,17 +62,46 @@ export const TILE_TARGETS: Record<TileKey, TileTarget> = {
 };
 
 /**
- * The figures a phone shows before "See more" (owner 2026-10-18): what was
- * sold, collected and is owed, the profit, the cash, the stock's worth — three
- * rows. The rest are a tap away; a wider screen shows every tile.
+ * The dashboard in two groups (owner 2026-10-23, picked from a rendered
+ * sample), so no figure reads as all time when it is today's or the other way
+ * round. Cost of goods sold and cash paid out left it for Analytics' profit
+ * and loss.
+ *
+ * Right now: what the business holds, is owed and owes at this moment. A wide
+ * screen lays it out as a row of four, then a row of three.
  */
-export const PHONE_FIRST_TILES: readonly TileKey[] = [
+export const RIGHT_NOW_TILES = [
+  'cashOnHand',
+  'receivables',
+  'owedToLenders',
+  'inventoryValue',
+  'unitsInStock',
+  'lowStockAlerts',
+  'activeCycles',
+] as const satisfies readonly TileKey[];
+
+/**
+ * This month: this calendar month in Cairo, from the API's `month` block —
+ * Analytics' profit and loss This month, figure for figure (rule 11).
+ */
+export const THIS_MONTH_TILES = [
   'revenue',
   'collected',
-  'receivables',
   'netProfit',
-  'cashOnHand',
-  'inventoryValue',
+  'expenses',
+] as const satisfies readonly TileKey[];
+
+/** Where the This month heading leads: Analytics' profit and loss, on This month. */
+export const PNL_THIS_MONTH_HREF = '/analytics?period=month';
+
+/**
+ * The figures a phone shows before "See more": the first four of Right now and
+ * all of This month. The other three Right now tiles are a tap away; a wider
+ * screen shows every tile.
+ */
+export const PHONE_FIRST_TILES: readonly TileKey[] = [
+  ...RIGHT_NOW_TILES.slice(0, 4),
+  ...THIS_MONTH_TILES,
 ];
 
 /**

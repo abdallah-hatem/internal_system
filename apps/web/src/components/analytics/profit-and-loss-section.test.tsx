@@ -77,6 +77,7 @@ const PNL: ProfitAndLoss = {
   exchangeDifferenceEgp: 210,
   netProfitEgp: 125_045.49,
   netProfitPctOfSales: 9.3,
+  cashOutEgp: 912_345.67,
   expensesByCategory: [
     { category: 'rent', amountEgp: 200_000 },
     { category: 'goods_lost', amountEgp: 100_000 },
@@ -235,6 +236,34 @@ describe('the tiles', () => {
     expect(line('recovered')).toContain('400.00');
     expect(line('exchange')).toContain('210.00');
     expect(line('net')).toContain('125,045.49');
+  });
+
+  // Owner 2026-10-23: Cash paid out left the dashboard; it lives here, for the period.
+  it('cash paid out for the period sits under the account, apart from it — not one of its lines', async () => {
+    renderIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'How it adds up' }));
+    const cash = screen.getByTestId('pnl-cash-out');
+    expect(cash.textContent).toContain('Cash paid out');
+    expect(cash.textContent).toContain('912,345.67');
+    expect(cash.textContent).toContain('Not a cost');
+    // Outside the arithmetic: no sign, no data-line.
+    expect(screen.getByTestId('pnl-summary').contains(cash)).toBe(false);
+    expect(cash.querySelector('[data-line]')).toBeNull();
+  });
+
+  it('cash paid out in Arabic', async () => {
+    renderIn('ar');
+    fireEvent.click(await screen.findByRole('button', { name: ar.analytics.pnl.howItAddsUp }));
+    expect(screen.getByTestId('pnl-cash-out').textContent).toContain(ar.analytics.pnl.cashOut);
+  });
+
+  it('an older API with no cash figure shows no line rather than a zero', async () => {
+    const { cashOutEgp: _c, ...old } = PNL;
+    void _c;
+    reply = () => Promise.resolve(old);
+    renderIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'How it adds up' }));
+    expect(screen.queryByTestId('pnl-cash-out')).toBeNull();
   });
 });
 

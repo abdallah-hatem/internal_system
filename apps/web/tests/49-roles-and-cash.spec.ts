@@ -212,7 +212,7 @@ test.describe('Cash on hand', () => {
     expect(num(d.totalCashIn) - num(d.totalCashOut)).toBeCloseTo(num(d.cashOnHand), 2);
 
     await login(page);
-    await expect(page.getByText('Cash on Hand')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Cash on hand')).toBeVisible({ timeout: 15000 });
   });
 
   test('TC-CASH-02: capital in and out net to nothing', async ({ request }) => {

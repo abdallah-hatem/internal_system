@@ -148,29 +148,38 @@ test.describe('The dashboard adds up', () => {
     );
   });
 
-  test('TC-DASH-02: every figure the profit depends on is on the page', async ({
+  test('TC-DASH-02: This month shows the figures its profit is made of, and leads to the account', async ({
     page,
     request,
   }) => {
     // Net profit subtracted expenses and the card was never rendered, so the
     // arithmetic could not be followed and the difference looked like an error.
+    // Since 2026-10-23 (owner) the dashboard's money figures are this month's,
+    // and the full account — cost of goods sold included — is Analytics'
+    // Profit and loss, one link away.
     const { headers } = await apiCtx(request);
     const d = (await (await request.get(`${API}/analytics/dashboard`, { headers })).json()).data;
 
     await login(page);
-    const main = page.locator('main').first();
-    await expect(main).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Net Profit')).toBeVisible({ timeout: 15000 });
+    const month = page.getByTestId('dashboard-this-month');
+    await expect(month).toBeVisible({ timeout: 15000 });
+    await expect(month.getByRole('heading', { name: 'This month' })).toBeVisible();
 
-    const text = await main.innerText();
-    for (const label of ['Revenue', 'Cost of Goods Sold', 'Expenses', 'Net Profit']) {
+    const text = await month.innerText();
+    for (const label of ['Revenue', 'Collected', 'Expenses', 'Net profit']) {
       expect(text).toContain(label);
     }
+    // Cost of goods sold is not on the dashboard any more.
+    expect(await page.locator('main').first().innerText()).not.toContain('Cost of Goods Sold');
 
-    // And the expenses card shows the figure the profit was computed from,
-    // rather than a label with something else under it.
+    // And the expenses card shows the month's figure the month's profit was
+    // computed from, rather than a label with something else under it.
     const shown = (n: number) =>
       n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    expect(text).toContain(shown(num(d.totalExpenses)));
+    expect(text).toContain(shown(num(d.month.expenses)));
+
+    await page.getByTestId('dashboard-pnl-link').click();
+    await expect(page).toHaveURL(/\/en\/analytics\?period=month$/);
+    await expect(page.getByTestId('pnl-net-value')).toBeVisible({ timeout: 15000 });
   });
 });
