@@ -78,7 +78,9 @@ jest and web unit suites.
 
 The office, by menu entry (13 since 2026-10-18; related pages are tabs of one page):
 
-- **Dashboard** — figure tiles (six then See more on a phone), To collect, Top
+- **Dashboard** — two groups of tiles (owner 2026-10-23): Right now (cash on hand, to collect, owed to lenders,
+  stock value, items in stock, low stock, active cycles) and This month (revenue, collected, net profit,
+  expenses — the Profit and loss computation); on a phone four + four, then See more. To collect, Top
   products by units or revenue; quick actions New sale, Record payment, New cycle.
 - **Cycles | Purchases | Shipments** — a three-step wizard (info, purchase order,
   shipping leg), then everything on the cycle page: departures and deliveries in
