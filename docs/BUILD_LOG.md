@@ -14,13 +14,16 @@ and his three repayments, contributions 67,056.33 each. Nothing is merged locall
 The 9 new products stay on their default prices; the price is set on each sale as needed (owner, 2026-10-23). Next: the Rules Review answers
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
-Waiting for the owner's local test, on its own branch (`worktree-agent-abb597bc675d704df`, not merged): the dashboard
-in two groups, Right now and This month (this month from Profit and loss's own computation), with Cost of goods sold
-and Cash paid out moved to Analytics' Profit and loss (BUSINESS_LOGIC, "The dashboard in two groups", 2026-10-23).
 State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-23 — shipped, no migration: the dashboard in two groups (`2248549`; BUSINESS_LOGIC "The dashboard in two
+  groups"): Right now (cash on hand, to collect, owed to lenders, stock value, items in stock, low stock alerts, active
+  cycles) and This month (revenue, collected, net profit, expenses — `profitFigures`, the same computation as P&L's This
+  month, Cairo month; `GET /analytics/dashboard` adds `month`); a phone shows four + four, See more (3). Cost of goods
+  sold stays in P&L; Cash paid out joins P&L's "How it adds up" for the period (`cashPosition(db, within)`). Picked by
+  the owner from a rendered sample; looked at from the agent's screenshots.
 - 2026-10-23 — production data corrected (no deploy needed for it): CYC-2026-0001 gets the 18 pieces forgotten when it
   was entered — 3 new categories (Bags, Screws, Phone holders; Arabic حقائب / مسامير / حوامل هواتف, Claude's wording,
   owner OK) and 9 products (PRD-000006…014) on PO-2026-0001 at 13.85, through both legs (10 Aug, 9 Sep) and received
@@ -210,14 +213,6 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Next (owner, 2026-10-22; API shipped 2026-10-22, the owner stopped there; **office screens built on branch
-  `worktree-agent-a22fde29e831a71c8` 2026-10-22, waiting for the owner's local test before merge**): the office
-  screens for the price adjustment and the order history (BUSINESS_LOGIC §4, both sections, "As built"). An "Adjust price" button on a
-  confirmed order's popup (`app/[locale]/sales/page.tsx`, `sale.adjustPrice` in `lib/permissions.ts` already):
-  pick a line, type the new price and the day, and see from `…/price-adjustments/preview` what the shop will owe
-  before saving; and a History section in the same popup from `GET /sales/orders/:id/history` — the timeline with
-  what was owed after each event, and per product started with / returned / holds / price now; en and ar, phone
-  widths, e2e that tries to break it. Then Koshary's 100 off (Waiting on the owner): his three lines, 100 off each.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
   (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
   (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's
