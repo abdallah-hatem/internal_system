@@ -213,7 +213,7 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- In progress (owner, 2026-10-23, picked from a rendered sample): a **Profit** column on a customer's Statement, green for
+- Later (owner, 2026-10-23, picked from a rendered sample; queued only, not to be built until he says): a **Profit** column on a customer's Statement, green for
   profit and red for a loss, with the shop's net profit for the dates on the closing row. A sale: its total less the
   landed cost of the units it drew (green, or red if sold below cost); a return: the profit on the returned units given
   back (red); a price cut: the cut (red); a payment or reversal: "—" (cash, not profit). Figures from the server, from
