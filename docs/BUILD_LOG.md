@@ -188,8 +188,10 @@ file event — run `node dist/src/main` for long e2e runs.
   bag 30.53; 1× Men's multifunctional tactical leg bag 34.10; universal motorcycle screws 177 pcs, one pack each of white,
   green, red, blue, 20.31 per pack (four products, sold per pack); 10× Bicycle phone holder (octopus handlebar style)
   14.36 each. A friend paid it in AED; the partners repaid him in EGP in **3 instalments, all paid**: 15 Aug at 14, 15 Sep at
-  14.50, 15 Oct at 14.90 EGP/AED. Shipping: the owner gives one full fee for them (China → UAE → Egypt), not per piece.
-  Still needed: which friend; his total AED (with these) and the day he paid; the instalments are **equal thirds** of his AED total (owner); the
+  14.50, 15 Oct at 14.90 EGP/AED. Shipping (owner, 2026-10-23): **leg 2, Dubai → Cairo, is 5,250 AED for all the goods** (230 + 18 pieces), as one flat
+  amount — replacing the unconfirmed 20 AED × 230 = 4,600 AED. Leg 1 (China → UAE, 1,551.74 AED, in Ahmad Eraiby's
+  8,302.60 AED of 15 Jul at 13.85) is unchanged.
+  Still needed: whether Ahmad Eraiby's 8,302.60 AED (goods 6,509.87 + leg 1 1,551.74 + card fee 241.07) included the extras' 353.09 or he paid more; leg 2's rate (saved at 14, unconfirmed) and who paid leg 2; the instalments are **equal thirds** of his AED total (owner); the
   shipping fee, its currency and whether it covers both legs. Then: a one-off production correction (PO lines,
   deliveries, receipt, the friend's financing, his plan and repayments, the shipping cost), shown to the owner first.
 - Every guess the system is built on and every open question (88 items) is on the Rules Review page,
