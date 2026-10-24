@@ -17,6 +17,7 @@
  *  steps is a full load that wipes the client cache, which is where "the list
  *  still shows the old state" and "the form forgot what I typed" bugs live.
  */
+import { pickCard } from './support/ui';
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import en from '../src/i18n/locales/en.json';
 import { apiCtx, API, EMAIL, PASSWORD, daysAgo, stockedProduct } from './support/fixtures';
@@ -126,8 +127,8 @@ test.describe('The wizard ends at ordered / in transit', () => {
     await page.getByRole('link', { name: /New Cycle/i }).click();
 
     // Step 1
-    await choose(page, 'originType', 'UAE Direct');
-    await choose(page, 'currency', 'AED');
+    await pickCard(page, 'originType', 'UAE_DIRECT');
+    await pickCard(page, 'currency', 'AED');
     await page.getByRole('button', { name: /save & continue/i }).click();
 
     // Step 2 — the order date is already today, and there is already one row.

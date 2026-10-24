@@ -112,7 +112,12 @@ export function invalidFields(form: HTMLFormElement): Field[] {
  * The required mark and "(Optional)" are stripped.
  */
 function labelOf(el: Field): string {
-  let text = el.labels?.[0]?.textContent ?? null;
+  // A radio's own label is one answer ("China"); the question is the group's
+  // legend ("Origin") — the shared ChoiceCards.
+  let text =
+    el instanceof HTMLInputElement && el.type === 'radio'
+      ? (el.closest('fieldset')?.querySelector('legend')?.textContent ?? null)
+      : (el.labels?.[0]?.textContent ?? null);
   // Climb to the nearest group that holds a label — never past the form.
   let node = el.parentElement;
   for (let i = 0; !text && node && node.tagName !== 'FORM' && i < 4; i++) {

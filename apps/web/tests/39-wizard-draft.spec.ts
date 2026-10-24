@@ -12,6 +12,7 @@
  *  that cannot be dismissed, and — the expensive one — a restored cycleId that
  *  gets ignored, leaving a second cycle behind on every reload.
  */
+import { pickCard } from './support/ui';
 import { test, expect, Page } from '@playwright/test';
 import { apiCtx, API } from './support/fixtures';
 import { WEB as BASE } from './support/env';
@@ -63,9 +64,9 @@ const readDraft = (page: Page) =>
  */
 async function startNewCycle(page: Page) {
   await page.goto(`${BASE}/en/cycles/new`);
-  await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
-  await choose(page, 'originType', 0);
-  await choose(page, 'currency', 0);
+  await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
+  await pickCard(page, 'originType', 0);
+  await pickCard(page, 'currency', 0);
   await page.getByRole('button', { name: /next|continue|create/i }).first().click();
   await expect(pickerFor(page, 'supplierId')).toBeVisible({ timeout: 15000 });
 }
@@ -130,10 +131,10 @@ test.describe('New-cycle wizard draft', () => {
     // Reopening a blank form and being told work was restored is worse than
     // saying nothing at all.
     await page.goto(`${BASE}/en/cycles/new`);
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
 
     await page.reload();
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
 
     await expect(banner(page)).toHaveCount(0);
     // Either no key at all or a key holding no draft — both mean "saved nothing".
@@ -150,10 +151,10 @@ test.describe('New-cycle wizard draft', () => {
     await expect(banner(page)).toBeVisible({ timeout: 15000 });
     await banner(page).getByRole('button', { name: /start over/i }).click();
     await expect(banner(page)).toHaveCount(0);
-    await expect(pickerFor(page, 'originType')).toBeVisible();
+    await expect(page.getByTestId('choice-originType')).toBeVisible();
 
     await page.reload();
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
     await expect(banner(page)).toHaveCount(0);
 
     // And nothing is left in storage to come back later.
@@ -184,7 +185,7 @@ test.describe('New-cycle wizard draft', () => {
     }, DRAFT_KEY);
 
     await page.reload();
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
     await expect(banner(page)).toHaveCount(0);
   });
 
@@ -206,7 +207,7 @@ test.describe('New-cycle wizard draft', () => {
     await page.goto(`${BASE}/en/cycles/new`);
 
     // The wizard still opens, on step 1, with nothing thrown behind it.
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
 
     // React paints before it runs effects, so the form is on screen a moment
     // before the restore effect would throw. Asserting straight after the

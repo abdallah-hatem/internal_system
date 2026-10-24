@@ -5,6 +5,7 @@
  *  Covers the two route shapes (China→UAE→Egypt and UAE→Egypt), per-piece
  *  and per-weight charging, and shipping reaching landed unit cost.
  */
+import { pickCard } from './support/ui';
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE, API } from './support/env';
 
@@ -153,8 +154,8 @@ test.describe('Shipment costing', () => {
     await login(page);
     await page.goto(`${BASE}/en/cycles/new`);
 
-    await pickValueByName(page, 'originType', 'China');
-    await pickValueByName(page, 'currency', 'USD');
+    await pickCard(page, 'originType', 'CHINA');
+    await pickCard(page, 'currency', 'USD');
     await page.getByRole('button', { name: /save & continue/i }).click();
 
     // Step 2 — minimal purchase order

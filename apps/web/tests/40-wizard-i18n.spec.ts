@@ -12,6 +12,7 @@
  *  checks below are about absence: no key that the component asks for missing
  *  from either locale, no English left on an Arabic screen, no raw key names.
  */
+import { pickCard } from './support/ui';
 import { test, expect, Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -141,12 +142,7 @@ test.describe('Cycle wizard translations', () => {
     await page.goto(`${BASE}/en/cycles/new`);
     await expect(page.locator('form')).toBeVisible({ timeout: 15000 });
 
-    const originPicker = page
-      .locator('input[type="hidden"][name="originType"]')
-      .locator('..')
-      .getByRole('combobox');
-    await originPicker.click();
-    await page.getByRole('listbox').getByRole('option').first().click();
+    await pickCard(page, 'originType', 0);
     await page.waitForFunction((k) => !!localStorage.getItem(k), DRAFT_KEY);
 
     const before = await page.evaluate(
@@ -158,8 +154,6 @@ test.describe('Cycle wizard translations', () => {
     await page.goto(`${BASE}/ar/cycles/new`);
     await expect(page.locator('form')).toBeVisible({ timeout: 15000 });
 
-    await expect(page.locator('input[type="hidden"][name="originType"]')).toHaveValue(
-      before,
-    );
+    await expect(page.locator(`input[type="radio"][name="originType"][value="${before}"]`)).toBeChecked();
   });
 });

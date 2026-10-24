@@ -86,7 +86,7 @@ test.describe('A draft whose records are gone', () => {
     await page.goto(`${BASE}/en/cycles/new`);
 
     // Step 1, clean — not step 3 holding a cycle that does not exist.
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
     await expect(banner(page)).toHaveCount(0);
   });
 
@@ -97,7 +97,7 @@ test.describe('A draft whose records are gone', () => {
     await seedDraft(page, staleDraft());
 
     await page.goto(`${BASE}/en/cycles/new`);
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
 
     // The guard confirms the cycle over the network before dropping the draft,
     // so step 1 is on screen a moment before storage is cleared. Reloading
@@ -112,7 +112,7 @@ test.describe('A draft whose records are gone', () => {
     );
 
     await page.reload();
-    await expect(pickerFor(page, 'originType')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('choice-originType')).toBeVisible({ timeout: 15000 });
     await expect(banner(page)).toHaveCount(0);
 
     const stored = await page.evaluate((k) => {
@@ -161,9 +161,7 @@ test.describe('A draft whose records are gone', () => {
 
     await page.goto(`${BASE}/en/cycles/new`);
     await expect(banner(page)).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('input[type="hidden"][name="originType"]')).toHaveValue(
-      'UAE_DIRECT',
-    );
+    await expect(page.locator('input[type="radio"][name="originType"][value="UAE_DIRECT"]')).toBeChecked();
   });
 });
 

@@ -118,3 +118,29 @@ function csvCells(line: string): string[] {
   cells.push(cell);
   return cells;
 }
+
+/**
+ * A choice card (components/ui/choice-cards.tsx — the cycle wizard's origin and
+ * currency, owner 2026-10-24), tapped as a person taps it: by its value
+ * ('UAE_DIRECT'), its label ('UAE direct') or its place (0, 1, …).
+ */
+export async function pickCard(page: Page, name: string, which: string | number) {
+  const cards = page.getByTestId(`choice-${name}`).getByTestId('choice-card');
+  // Wait for the cards before deciding how to find one: counting too early
+  // found no value and fell back to the label.
+  await expect(cards.first()).toBeVisible({ timeout: 15000 });
+  const card =
+    typeof which === 'number'
+      ? cards.nth(which)
+      : (await cards.filter({ has: page.locator(`[value="${which}"]`) }).count())
+        ? cards.filter({ has: page.locator(`[value="${which}"]`) })
+        : cards.filter({ hasText: which }).first();
+  await card.click();
+  await expect(card).toHaveAttribute('data-checked', 'true');
+}
+
+/** The value of the picked card in a ChoiceCards group, or '' when none is. */
+export async function cardValue(page: Page, name: string) {
+  const picked = page.locator(`input[type="radio"][name="${name}"]:checked`);
+  return (await picked.count()) ? picked.inputValue() : '';
+}

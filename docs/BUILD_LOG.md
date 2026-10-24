@@ -16,7 +16,16 @@ The 9 new products stay on their default prices; the price is set on each sale a
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
 State of the product and of production's data: `docs/where-things-stand.md`.
 
-## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23)
+## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
+- 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
+  — two routes (China: China → UAE → Egypt; UAE direct: UAE → Egypt), three currencies with today's rate — one shared
+  `components/ui/choice-cards.tsx` (real radios underneath: arrows, screen reader, `required`, FormData unchanged;
+  "required" under an unanswered group, the form's line names the question). Built without the sample the queue asked
+  for, at the owner's word; screenshots sent after. GUESS: currency cards show the symbol (¥, د.إ, $) as their mark.
+- 2026-10-24 (owner): opening a picker on a **touch screen** (phone or tablet, the installed app and the website,
+  either orientation — `(hover: none) and (pointer: coarse)`) no longer focuses its search box, so the keyboard does
+  not cover the list; tapping the box still does. One change in each app's shared `select.tsx` (office and storefront
+  — GUESS: the storefront too, the shops use it on phones). Computers unchanged.
 - 2026-10-23: the customer statement's **Profit** column (§7b) — the server's profit on each sale (total less its
   units' landed cost), return (the profit given back) and price cut (the cut), "—" on cash, the period's profit on the
   closing row; screen only, never on paper, the PDF or the CSV (GUESS). Tests: `customer-statement.spec.ts` (6),
@@ -220,15 +229,6 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Later (owner, 2026-10-24; queued only, not to be built until he says): the cycle wizard's step 1 picks its two
-  choices from cards instead of dropdowns — "easier and looks better". Origin: two cards, China (China → UAE → Egypt)
-  and UAE direct (UAE → Egypt); currency: three cards, CNY / AED / USD (`CycleWizard.tsx`, step 1, today two `Select`s).
-  One shared choice-card component (keyboard and screen-reader: a radio group), en + ar, phone and desktop. Render a
-  sample for the owner before building (LEARNINGS: he judges by looking).
-- Later (owner, 2026-10-23, repeated 2026-10-24; queued only, not to be built until he says): on a **phone** — the
-  installed app (PWA) and the phone website alike — opening a picker does not focus its search field — so the keyboard does not jump up over the list (e.g. the customer picker in the New Order
-  popup). Across the app, phone only (desktop keeps the focus); one change in the shared `components/ui/select.tsx`
-  (Radix Popover + cmdk), so every picker follows. Tapping the search field still focuses it.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
   (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
   (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's

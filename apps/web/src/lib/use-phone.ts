@@ -25,3 +25,15 @@ const snapshot = () => typeof window !== 'undefined' && !!window.matchMedia && w
 export function useIsPhone(): boolean {
   return useSyncExternalStore(subscribe, snapshot, () => false);
 }
+
+/**
+ * Whether this is a touch screen with no mouse — a phone or tablet, the
+ * installed app (PWA) and the website alike, in either orientation. Read at
+ * the moment it matters (a picker opening), so it needs no hook. A browser with
+ * no `matchMedia` answers "no": the desktop behaviour.
+ */
+export const TOUCH_QUERY = '(hover: none) and (pointer: coarse)';
+
+export function isTouchScreen(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(TOUCH_QUERY).matches;
+}

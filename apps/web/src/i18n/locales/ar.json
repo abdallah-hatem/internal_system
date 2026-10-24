@@ -1412,6 +1412,8 @@
     "legsUpdated": "{count, plural, one {تم تحديث الشحنة} other {تم تحديث الشحنات}}",
     "china": "الصين",
     "uaeDirect": "إمارات مباشرة",
+    "routeChina": "الصين ← الإمارات ← مصر",
+    "routeUaeDirect": "الإمارات ← مصر",
     "legChinaToUae": "من الصين إلى الإمارات",
     "legUaeToEgypt": "من الإمارات إلى مصر",
     "twoLegNote": "تُشحن هذه الدورة على مرحلتين. سجّل تكلفة كل مرحلة.",

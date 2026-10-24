@@ -1345,6 +1345,8 @@
     "legsUpdated": "{count, plural, one {Shipping leg updated} other {Shipping legs updated}}",
     "china": "China",
     "uaeDirect": "UAE Direct",
+    "routeChina": "China → UAE → Egypt",
+    "routeUaeDirect": "UAE → Egypt",
     "legChinaToUae": "China to UAE",
     "legUaeToEgypt": "UAE to Egypt",
     "twoLegNote": "This cycle ships in two legs. Record the cost of each one.",

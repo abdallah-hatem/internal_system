@@ -4,6 +4,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  *  Tests: create cycle, view details, status transitions, participants
  */
+import { pickCard } from './support/ui';
 import { test, expect } from '@playwright/test';
 import { apiCtx } from './support/fixtures';
 import { WEB as BASE, API } from './support/env';
@@ -11,15 +12,6 @@ import { WEB as BASE, API } from './support/env';
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
 
-/** Choose from one of the wizard's Selects by its hidden input's name. */
-async function pick(page: any, name: string, label: string) {
-  await page
-    .locator(`input[type="hidden"][name="${name}"]`)
-    .locator('..')
-    .getByRole('combobox')
-    .click();
-  await page.getByRole('listbox').getByRole('option').filter({ hasText: label }).first().click();
-}
 
 // Login helper
 async function login(page: any) {
@@ -96,8 +88,8 @@ test.describe('Import Cycles Flow', () => {
     // asked for a decision that did not matter.
     await expect(page.getByText(/start date/i)).toHaveCount(0);
 
-    await pick(page, 'originType', 'UAE Direct');
-    await pick(page, 'currency', 'USD');
+    await pickCard(page, 'originType', 'UAE_DIRECT');
+    await pickCard(page, 'currency', 'USD');
     await page.getByRole('button', { name: /save & continue/i }).click();
 
     // Reaching step 2 means the cycle was created without one.

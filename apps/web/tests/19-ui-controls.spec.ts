@@ -7,6 +7,7 @@
  *  money is rendered through one component so Decimal values arriving as
  *  strings still format. All three are easy to regress silently.
  */
+import { pickCard } from './support/ui';
 import { test, expect, Page } from '@playwright/test';
 import { WEB as BASE } from './support/env';
 
@@ -39,6 +40,21 @@ test.describe('Searchable select', () => {
   function panelSearch(page: Page) {
     return page.locator('[data-slot="command-input"]');
   }
+
+  test('TC-UI-01b: on a phone, opening does not focus the search box — no keyboard over the list; tapping it does (owner 2026-10-24)', async ({ browser }) => {
+    // A phone as the browser presents one: touch, no mouse, a phone's width.
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const page = await ctx.newPage();
+    expect(await page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches)).toBe(true);
+    await openCategories(page);
+    await expect(panelSearch(page)).toBeVisible();
+    await expect(panelSearch(page)).not.toBeFocused();
+    await expect(page.getByRole('listbox').getByRole('option').first()).toBeVisible();
+    // The search is still one tap away, and typing in it narrows the list.
+    await panelSearch(page).tap();
+    await expect(panelSearch(page)).toBeFocused();
+    await ctx.close();
+  });
 
   test('TC-UI-01: opening focuses the search box so you can type straight away', async ({ page }) => {
     await openCategories(page);
@@ -282,16 +298,15 @@ test.describe('Select — short lists', () => {
     await page.goto(`${BASE}/en/cycles/new`);
     await page.getByRole('button', { name: /save & continue/i }).click();
 
-    // The value lives in a hidden input. If its required-mirror has no box, the
-    // browser blocks the submit, cannot focus the field, and gives up silently —
-    // the button reads as broken. Both required pickers must own up instead.
-    await expect(page.locator('[data-slot="select-error"]')).toHaveCount(2);
+    // Step 1 is two groups of choice cards now (owner 2026-10-24). Unanswered,
+    // the submit is blocked and each group says so — the button never reads
+    // as broken.
+    await expect(page.locator('[data-slot="choice-error"]')).toHaveCount(2);
     await expect(page.getByText('Cycle Information')).toBeVisible();
 
-    // …and the message clears as soon as the field is answered.
-    await page.locator('input[type="hidden"][name="originType"]').locator('..').getByRole('combobox').click();
-    await page.getByRole('listbox').getByRole('option').first().click();
-    await expect(page.locator('[data-slot="select-error"]')).toHaveCount(1);
+    // …and the message clears as soon as the question is answered.
+    await pickCard(page, 'originType', 0);
+    await expect(page.locator('[data-slot="choice-error"]')).toHaveCount(1);
   });
 
   test('TC-UI-18: a short list keeps the value the native select would have submitted', async ({ page }) => {
@@ -301,5 +316,23 @@ test.describe('Select — short lists', () => {
     await expect(page.locator('input[type="hidden"][name="currency"]')).toHaveValue('EGP');
     // L6: no type picker any more — the kind cards decide it.
     await expect(page.locator('input[type="hidden"][name="type"]')).toHaveCount(0);
+  });
+});
+
+test.describe('Choice cards (owner 2026-10-24)', () => {
+  test('TC-UI-20: the wizard’s origin and currency are cards; arrows move the choice, as radios do', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/en/cycles/new`);
+    const origin = page.getByTestId('choice-originType');
+    await expect(origin.getByRole('radiogroup')).toBeVisible({ timeout: 15000 });
+    await expect(origin.getByTestId('choice-card')).toHaveCount(2);
+    await expect(page.getByTestId('choice-currency').getByTestId('choice-card')).toHaveCount(3);
+    // No dropdowns left on step 1.
+    await expect(page.locator('input[type="hidden"][name="originType"]')).toHaveCount(0);
+
+    await pickCard(page, 'originType', 'CHINA');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('input[type="radio"][name="originType"][value="UAE_DIRECT"]')).toBeChecked();
+    await expect(origin.locator('[data-testid="choice-card"][data-checked="true"]')).toContainText('UAE');
   });
 });

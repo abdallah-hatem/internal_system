@@ -16,7 +16,7 @@
  */
 import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { apiCtx, daysAgo } from './support/fixtures';
-import { login, messages, type Locale } from './support/ui';
+import { login, messages, type Locale, pickCard } from './support/ui';
 
 const SHOTS = process.env.L3_SHOTS === '1';
 const SHOT_DIR = '../../.ui-audit/l3';
@@ -158,11 +158,7 @@ for (const locale of ['en', 'ar'] as Locale[]) {
       await go(page, locale, m.nav.cycles, phone);
       await page.getByRole('main').getByRole('button', { name: m.cycles.create }).or(page.getByRole('main').getByRole('link', { name: m.cycles.create })).filter({ visible: true }).first().click();
       // Step 1 asks no number; its route and currency, then the order step's lines.
-      for (const name of ['originType', 'currency']) {
-        await page.locator(`input[type="hidden"][name="${name}"]`).locator('..').getByRole('combobox').click();
-        await page.getByRole('listbox').getByRole('option').first().click();
-        await expect(page.getByRole('listbox')).toHaveCount(0);
-      }
+      for (const name of ['originType', 'currency']) await pickCard(page, name, 0);
       await page.getByRole('main').getByRole('button', { name: m.wizard.saveAndContinueBtn }).click();
       // Step 2 opens with one line ready: its quantity and price.
       await expect(page.getByTestId('wizard-line-item')).toHaveCount(1, { timeout: 15000 });

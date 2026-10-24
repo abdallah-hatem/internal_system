@@ -4,6 +4,7 @@ import { useAllRecords } from '@/lib/list-all';
 import { offeredOnly } from '@/lib/product-status';
 import { LeftoversReturnLink } from './leftovers-return-link';
 import { Select } from '../ui/select';
+import { ChoiceCards } from '../ui/choice-cards';
 import { DatePicker } from '../ui/date-picker';
 import { useCurrencyRates } from '../../lib/currency-rates';
 
@@ -29,16 +30,7 @@ import {
   type CycleWizardDraft,
   type WizardLineItem,
 } from '../../stores/cycle-wizard-draft';
-import {
-  Route,
-  ShoppingCart,
-  Truck,
-  CheckCircle2,
-  Plus,
-  X,
-  ArrowLeft,
-  Loader2,
-} from '@/components/ui/icons';
+import { ArrowLeft, CheckCircle2, Loader2, Plus, Route, Ship, ShoppingCart, Truck, X } from '@/components/ui/icons';
 
 import { useApiError } from '../../lib/api-error';
 import { FieldWithQuickCreate } from '../ui/quick-create';
@@ -964,43 +956,39 @@ export default function CycleWizard({ existingCycleId }: { existingCycleId?: str
           <ValidatedForm onSubmit={handleStep1Submit} className="space-y-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('cycleInformation')}</h2>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('originType')} <span className="text-red-500">*</span>
-              </label>
-              <Select
-                name="originType"
-                required
-                value={originType || cycle?.originType || ''}
-                onChange={setOriginType}
-                placeholder={t('selectOriginType')}
-                options={[
-                  { value: 'CHINA', label: t('china') },
-                  { value: 'UAE_DIRECT', label: t('uaeDirect') },
-                ]}
-              />
-            </div>
+            {/* Cards, not dropdowns (owner 2026-10-24): two routes, three
+                currencies, each seen at once. Real radios underneath, so the
+                form, the keyboard and a screen reader work as before. */}
+            <ChoiceCards
+              name="originType"
+              required
+              legend={<>{t('originType')} <span className="text-red-500">*</span></>}
+              value={originType || cycle?.originType || ''}
+              onChange={setOriginType}
+              options={[
+                { value: 'CHINA', label: t('china'), description: t('routeChina'), icon: Ship },
+                { value: 'UAE_DIRECT', label: t('uaeDirect'), description: t('routeUaeDirect'), icon: Truck },
+              ]}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('currency')} <span className="text-red-500">*</span>
-              </label>
-              <Select
-                name="currency"
-                required
-                value={effectivePoCurrency}
-                onChange={setPoCurrency}
-                placeholder={t('selectCurrency')}
-                options={[
-                  { value: 'CNY', label: 'CNY (¥)' },
-                  { value: 'AED', label: 'AED' },
-                  { value: 'USD', label: 'USD ($)' },
-                ].map((o) => ({
-                  ...o,
-                  hint: rates[o.value] != null ? `${rates[o.value]} EGP` : t('noRateSet'),
-                }))}
-              />
-            </div>
+            <ChoiceCards
+              name="currency"
+              required
+              legend={<>{t('currency')} <span className="text-red-500">*</span></>}
+              value={effectivePoCurrency}
+              onChange={setPoCurrency}
+              // Stacked on a phone: three side by side left no room for the rate.
+              columns="sm:grid-cols-3"
+              options={[
+                { value: 'CNY', label: 'CNY', mark: '¥' },
+                { value: 'AED', label: 'AED', mark: 'د.إ' },
+                { value: 'USD', label: 'USD', mark: '$' },
+              ].map((o) => ({
+                ...o,
+                // Isolated left-to-right: in Arabic the figure and "EGP" swapped places.
+                description: rates[o.value] != null ? <bdi dir="ltr">{rates[o.value]} EGP</bdi> : t('noRateSet'),
+              }))}
+            />
 
             <div className="flex justify-end pt-2">
               <button

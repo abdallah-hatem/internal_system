@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, X } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
 import { searchFinds } from '@/lib/localized-name';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { isTouchScreen } from '@/lib/touch';
 import {
   Command,
   CommandEmpty,
@@ -188,17 +189,17 @@ export function Select({
           sideOffset={4}
           style={width ? { width } : undefined}
           className="p-0"
-          onOpenAutoFocus={
-            showSearch
-              ? undefined
-              : (e) => {
-                  // No search box means nothing inside is tabbable, so Radix would
-                  // leave focus on the panel and cmdk — which listens on its own
-                  // root — would never see the arrow keys.
-                  e.preventDefault();
-                  commandRef.current?.focus();
-                }
-          }
+          onOpenAutoFocus={(e) => {
+            // With a search box on a computer, Radix puts the cursor in it.
+            if (showSearch && !isTouchScreen()) return;
+            // No search box: nothing inside is tabbable, so Radix would leave
+            // focus on the panel and cmdk — which listens on its own root —
+            // would never see the arrow keys. On a touch screen, the search box
+            // waits to be tapped: focusing it raised the keyboard over the list
+            // it was opened to show (owner 2026-10-23/24).
+            e.preventDefault();
+            commandRef.current?.focus();
+          }}
         >
           <Command
             ref={commandRef}
