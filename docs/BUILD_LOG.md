@@ -225,8 +225,8 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   and UAE direct (UAE → Egypt); currency: three cards, CNY / AED / USD (`CycleWizard.tsx`, step 1, today two `Select`s).
   One shared choice-card component (keyboard and screen-reader: a radio group), en + ar, phone and desktop. Render a
   sample for the owner before building (LEARNINGS: he judges by looking).
-- Later (owner, 2026-10-23; queued only, not to be built until he says): on a **phone**, opening a picker does not
-  focus its search field — so the keyboard does not jump up over the list (e.g. the customer picker in the New Order
+- Later (owner, 2026-10-23, repeated 2026-10-24; queued only, not to be built until he says): on a **phone** — the
+  installed app (PWA) and the phone website alike — opening a picker does not focus its search field — so the keyboard does not jump up over the list (e.g. the customer picker in the New Order
   popup). Across the app, phone only (desktop keeps the focus); one change in the shared `components/ui/select.tsx`
   (Radix Popover + cmdk), so every picker follows. Tapping the search field still focuses it.
 - Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
