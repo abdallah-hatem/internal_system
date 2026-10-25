@@ -26,6 +26,11 @@ import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
 import { Dialog } from '@/components/ui/dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 import { businessToday } from '@/lib/dates';
+import {
+  SamplesAtShopHint,
+  useSamplesAtShop,
+  type ShopSamplesOrder,
+} from '@/components/sales/samples-at-shop-hint';
 
 export interface SaleFormCustomer {
   id: string;
@@ -187,6 +192,11 @@ function newIdempotencyKey(): string {
  * One button, "Complete sale", sends the lines to `…/samples/convert`, where
  * the server keeps what went out, puts the rest back and draws anything more.
  *
+ * **The shop holds samples** (§4, owner 2026-10-25): picking a shop with
+ * samples out shows what it holds above the lines, with a link to that samples
+ * order's "They're buying" (`onOpenSamples`). A hint only — a separate
+ * purchase while a sample is on trial is valid, so nothing is blocked.
+ *
  * Required pickers are checked the way `ValidatedForm` checks them — the
  * constraint API, so each empty picker shows its own "Required" and the first
  * takes the focus — but the line naming them is worked out from the form's
@@ -203,7 +213,13 @@ export function SaleOrderForm({
   onSaved,
   title,
   fromSamples,
+  onOpenSamples,
 }: {
+  /**
+   * The samples hint's link (§4, owner 2026-10-25): leave this form for that
+   * samples order's "They're buying". Without it the hint has no link.
+   */
+  onOpenSamples?: (order: ShopSamplesOrder) => void;
   /** The dialog's title: the form renders in the shared dialog, its actions in the fixed footer. */
   title: string;
   customers: SaleFormCustomer[];
@@ -343,6 +359,13 @@ export function SaleOrderForm({
     enabled: !samples && !fromSamples,
     orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
   });
+
+  // What the shop already holds as samples (§4, owner 2026-10-25): a hint
+  // above the lines, read for the shop on screen — a walk-in has no shop, and
+  // completing samples is already that order. Keyed by the shop, so another
+  // shop's hint never stays behind. Neither button looks at it.
+  const samplesAtShop = useSamplesAtShop(customerId, !walkIn && !fromSamples);
+  const heldAtShop = !walkIn && !fromSamples ? samplesAtShop.data : undefined;
 
   // What is still empty, from state — never a snapshot taken at submit.
   const missing = [
@@ -619,6 +642,8 @@ export function SaleOrderForm({
           />
         </div>
       </div>
+
+      <SamplesAtShopHint orders={heldAtShop} onOpen={onOpenSamples} />
 
       <div>
         <div className="mb-2 flex items-center justify-between">

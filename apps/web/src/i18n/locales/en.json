@@ -634,7 +634,10 @@
       "writeOffReasonPlaceholder": "Kept for the shop window — two helmets",
       "complete": "Complete sale",
       "completeTitle": "Complete sale from samples {orderNo}",
-      "completeNote": "{units, plural, one {# unit was} other {# units were}} out as samples; anything you remove goes back to the shelf."
+      "completeNote": "{units, plural, one {# unit was} other {# units were}} out as samples; anything you remove goes back to the shelf.",
+      "holds": "This shop holds {items} as {units, plural, one {a sample} other {samples}} ({orderNo}, left {date}).",
+      "holdsHint": "If those are what they're buying, complete that samples order instead: a new order takes more units off the shelf while the samples still count as out. A separate purchase is fine.",
+      "holdsOpen": "They're buying — open {orderNo}"
     },
     "adjustPrice": {
       "open": "Adjust price",

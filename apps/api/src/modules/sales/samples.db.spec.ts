@@ -1132,4 +1132,152 @@ suite('samples at shops against Postgres', () => {
     expect(a.data.id).toBe(b.data.id);
     expect(await shelf(batches[0].id)).toEqual([3, 3]);
   });
+
+  // ─── What a shop holds: New Order's hint (§4, owner 2026-10-25) ──────
+
+  /** The hint's reading, as the endpoint sends it. */
+  const held = async (customerId: string) =>
+    (await sales.samplesAtShop(customerId)).data.map((o) => ({
+      orderNo: o.orderNo,
+      lines: o.lines.map((l) => [l.productId, l.units]),
+    }));
+
+  it('the hint lists each open samples order with every product and its units — drawn from two batches, still one line', async () => {
+    const helmet = await stocked([
+      { qty: 1, cost: 100, daysAgo: 9 },
+      { qty: 5, cost: 120, daysAgo: 3 },
+    ]);
+    const gloves = await stocked([{ qty: 10, cost: 50, daysAgo: 3 }]);
+    const s = await shop();
+    const yesterday = addDays(businessToday(), -1);
+    const first = await leave(
+      s.id,
+      [
+        { productId: helmet.product.id, quantity: 3 } as never,
+        { productId: gloves.product.id, quantity: 2 } as never,
+      ],
+      { orderedOn: yesterday },
+    );
+    const second = await leave(s.id, [
+      { productId: gloves.product.id, quantity: 1 } as never,
+    ]);
+
+    const [a, b] = (await sales.samplesAtShop(s.id)).data;
+    // Oldest first, each with the day it was left.
+    expect([a.orderNo, a.leftOn, b.orderNo]).toEqual([
+      first.data.orderNo,
+      yesterday,
+      second.data.orderNo,
+    ]);
+    expect(a.id).toBe(first.data.id);
+    expect(
+      a.lines.map((l) => [l.productId, l.units, l.name, l.sku]).sort(),
+    ).toEqual(
+      [
+        [helmet.product.id, '3', helmet.product.name, helmet.product.sku],
+        [gloves.product.id, '2', gloves.product.name, gloves.product.sku],
+      ].sort(),
+    );
+    expect(b.lines.map((l) => [l.productId, l.units])).toEqual([
+      [gloves.product.id, '1'],
+    ]);
+  });
+
+  it('the hint is empty for a shop with no samples — and for one whose only orders are a draft and a confirmed sale', async () => {
+    const { product } = await stocked([{ qty: 10, cost: 100, daysAgo: 3 }]);
+    const none = await shop();
+    expect(await held(none.id)).toEqual([]);
+
+    // A samples order is never a draft (SAMPLES_NEED_SHOP aside, the service
+    // has no such state): a draft is an ordinary order and holds nothing.
+    const s = await shop();
+    await sales.create(
+      {
+        customerId: s.id,
+        channel: 'B2B',
+        currency: 'EGP',
+        items: [{ productId: product.id, quantity: 2, unitPrice: 300 }],
+      },
+      actor,
+    );
+    await sales.create(
+      {
+        customerId: s.id,
+        channel: 'B2B',
+        currency: 'EGP',
+        confirm: true,
+        items: [{ productId: product.id, quantity: 1, unitPrice: 300 }],
+      },
+      actor,
+    );
+    expect(await held(s.id)).toEqual([]);
+  });
+
+  it('samples returned, cancelled, written off or bought leave the hint; the one still out stays', async () => {
+    const { product } = await stocked([{ qty: 20, cost: 100, daysAgo: 3 }]);
+    const s = await shop();
+    const one = { productId: product.id, quantity: 1 } as never;
+    const returned = await leave(s.id, [one]);
+    const cancelled = await leave(s.id, [one]);
+    const writtenOff = await leave(s.id, [one]);
+    const bought = await leave(s.id, [one]);
+    const stillOut = await leave(s.id, [
+      { productId: product.id, quantity: 2 } as never,
+    ]);
+    expect((await held(s.id)).map((o) => o.orderNo)).toHaveLength(5);
+
+    await sales.returnSamples(returned.data.id, actor);
+    await sales.cancelOrder(cancelled.data.id, actor);
+    await sales.writeOffSamples(writtenOff.data.id, {}, actor);
+    await convert(bought.data.id, [
+      { productId: product.id, quantity: 1, unitPrice: 300 },
+    ]);
+
+    expect(await held(s.id)).toEqual([
+      { orderNo: stillOut.data.orderNo, lines: [[product.id, '2']] },
+    ]);
+  });
+
+  it("another shop's samples are never in this shop's hint", async () => {
+    const { product } = await stocked([{ qty: 10, cost: 100, daysAgo: 3 }]);
+    const mine = await shop();
+    const theirs = await shop();
+    await leave(theirs.id, [{ productId: product.id, quantity: 4 } as never]);
+    expect(await held(mine.id)).toEqual([]);
+    expect(await held(theirs.id)).toEqual([
+      expect.objectContaining({ lines: [[product.id, '4']] }),
+    ]);
+  });
+
+  it('the hint never blocks: a new order to a shop holding samples is created and confirmed, and the samples stay out', async () => {
+    const { product } = await stocked([{ qty: 10, cost: 100, daysAgo: 3 }]);
+    const s = await shop();
+    const left = await leave(s.id, [
+      { productId: product.id, quantity: 1 } as never,
+    ]);
+    const sale = (await sales.create(
+      {
+        customerId: s.id,
+        channel: 'B2B',
+        currency: 'EGP',
+        confirm: true,
+        items: [{ productId: product.id, quantity: 5, unitPrice: 300 }],
+      },
+      actor,
+    )) as { data: { status: string } };
+    expect(sale.data.status).toBe('CONFIRMED');
+    // The case the hint is for: the shelf gave 5 more, the sample is still out.
+    expect(await shelfOf(product.id)).toBe(4);
+    expect(await held(s.id)).toEqual([
+      { orderNo: left.data.orderNo, lines: [[product.id, '1']] },
+    ]);
+  });
+
+  it('the hint asks for a real shop: none → CUSTOMER_REQUIRED, an unknown or malformed id → NOT_FOUND, never a 500', async () => {
+    expect(await refusal(sales.samplesAtShop(undefined))).toBe(
+      'CUSTOMER_REQUIRED',
+    );
+    expect(await refusal(sales.samplesAtShop(randomUUID()))).toBe('NOT_FOUND');
+    expect(await refusal(sales.samplesAtShop('not-a-uuid'))).toBe('NOT_FOUND');
+  });
 });

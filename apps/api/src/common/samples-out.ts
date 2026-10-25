@@ -21,24 +21,38 @@ type Db = {
   >;
 };
 
-/** The allocations of open samples orders, optionally one cycle's. */
-function openSampleDraws(db: Db, where: Prisma.InventoryBatchWhereInput) {
+/**
+ * The allocations of open samples orders, optionally one cycle's or one
+ * shop's: the one definition of "samples out" every reader below shares.
+ */
+function openSampleDraws(
+  db: Db,
+  where: Prisma.InventoryBatchWhereInput,
+  order: { customerId?: string } = {},
+) {
   return db.saleItemAllocation.findMany({
     where: {
       inventoryBatch: where,
-      saleItem: { saleOrder: { status: SAMPLES_OPEN_STATUS } },
+      saleItem: { saleOrder: { ...order, status: SAMPLES_OPEN_STATUS } },
     },
     select: {
       qty: true,
       unitCostEgp: true,
       inventoryBatchId: true,
-      inventoryBatch: { select: { productId: true, cycleId: true } },
+      inventoryBatch: {
+        select: {
+          productId: true,
+          cycleId: true,
+          product: { select: { name: true, nameAr: true, sku: true } },
+        },
+      },
       saleItem: {
         select: {
           saleOrder: {
             select: {
               id: true,
               orderNo: true,
+              samplesLeftAt: true,
               customer: { select: { displayName: true } },
             },
           },
@@ -46,6 +60,77 @@ function openSampleDraws(db: Db, where: Prisma.InventoryBatchWhereInput) {
       },
     },
   });
+}
+
+/** One product a shop holds as samples, on one samples order. */
+export interface ShopSampleLine {
+  productId: string;
+  name: string;
+  nameAr: string | null;
+  sku: string;
+  /** Units at the shop, as a decimal string ("1", "2.5"). */
+  units: string;
+}
+
+/** One open samples order at a shop, and what is on it. */
+export interface ShopSamplesOrder {
+  id: string;
+  orderNo: string;
+  /** When the samples were left; null only for a record that predates the field. */
+  leftAt: Date | null;
+  lines: ShopSampleLine[];
+}
+
+/**
+ * What a shop holds as samples right now (§4, "New Order warns when the shop
+ * holds samples", owner 2026-10-25): its open samples orders, oldest first,
+ * each with every product on it and its units — read from the same draws as
+ * Inventory's "At shops" and the settlement gate, so the hint, the stock and
+ * the gate cannot disagree. Returned, written-off and bought samples are no
+ * longer SAMPLES and are not here; another shop's are not here either.
+ */
+export async function samplesAtShop(
+  db: Db,
+  customerId: string,
+): Promise<ShopSamplesOrder[]> {
+  const draws = await openSampleDraws(db, {}, { customerId });
+  const orders = new Map<
+    string,
+    ShopSamplesOrder & { units: Map<string, ShopSampleLine> }
+  >();
+  for (const d of draws) {
+    const o = d.saleItem.saleOrder;
+    let entry = orders.get(o.id);
+    if (!entry) {
+      entry = {
+        id: o.id,
+        orderNo: o.orderNo,
+        leftAt: o.samplesLeftAt,
+        lines: [],
+        units: new Map(),
+      };
+      orders.set(o.id, entry);
+    }
+    const { productId, product } = d.inventoryBatch;
+    const line = entry.units.get(productId);
+    entry.units.set(productId, {
+      productId,
+      name: product.name,
+      nameAr: product.nameAr,
+      sku: product.sku,
+      units: new Prisma.Decimal(line?.units ?? 0).add(d.qty).toString(),
+    });
+  }
+  return [...orders.values()]
+    .map(({ units, ...o }) => ({
+      ...o,
+      lines: [...units.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort(
+      (a, b) =>
+        (a.leftAt?.getTime() ?? 0) - (b.leftAt?.getTime() ?? 0) ||
+        a.orderNo.localeCompare(b.orderNo),
+    );
 }
 
 /** Units of a cycle at shops, and what they cost: unsold stock away from the shelf. */

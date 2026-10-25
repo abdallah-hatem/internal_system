@@ -718,6 +718,66 @@ suite('assistant samples tools against Postgres', () => {
 
   // ── The roles the office endpoints carry (CLAUDE.md §12) ─────────────
 
+  // ── record_sale says what the shop holds (§4, owner 2026-10-25) ─────
+
+  it('record_sale to a shop holding samples: the preview names each product and its units and the samples order, and the sale still goes through', async () => {
+    const { call, product, shop: s, order } = await leftWith(1, 10);
+    const args = {
+      customer: s.displayName,
+      lines: [{ product: product.name, qty: 5, unitPrice: 300 }],
+    };
+    const { shown, done } = await previewAndCommit(call, 'record_sale', args);
+    expect(shown.text).toContain('Samples at this shop:');
+    expect(shown.text).toContain(`${order.orderNo}`);
+    expect(shown.text).toContain(`1 × ${product.name} (${product.sku})`);
+    expect(shown.text).toContain('complete_samples_sale');
+    expect(shown.s.data.samplesAtShop).toEqual([
+      expect.objectContaining({
+        id: order.orderId,
+        orderNo: order.orderNo,
+        lines: [expect.objectContaining({ productId: product.id, units: '1' })],
+      }),
+    ]);
+    // A hint, never a refusal: the sale is recorded, the sample stays out.
+    expect(done.s.status).toBe('committed');
+    expect(done.s.data.status).toBe('CONFIRMED');
+    // The second sale's preview still says so: the sample is still out.
+    const again = await call('record_sale', {
+      ...args,
+      lines: [{ product: product.name, qty: 1, unitPrice: 300 }],
+    });
+    expect(again.s.status).toBe('preview');
+    expect(again.s.data.samplesAtShop).toHaveLength(1);
+  });
+
+  it("record_sale says nothing about samples for a shop with none, once they are returned, or for another shop's", async () => {
+    const { call, product, shop: holder, order } = await leftWith(2, 10);
+    const other = await shop();
+    const toOther = await call('record_sale', {
+      customer: other.displayName,
+      lines: [{ product: product.name, qty: 1, unitPrice: 300 }],
+    });
+    expect(toOther.s.status).toBe('preview');
+    expect(toOther.text).not.toContain('Samples at this shop:');
+    expect(toOther.s.data.samplesAtShop).toEqual([]);
+
+    await previewAndCommit(call, 'return_samples', {
+      order: order.orderNo,
+    });
+    const toHolder = await call('record_sale', {
+      customer: holder.displayName,
+      lines: [{ product: product.name, qty: 1, unitPrice: 300 }],
+    });
+    expect(toHolder.text).not.toContain('Samples at this shop:');
+    expect(toHolder.s.data.samplesAtShop).toEqual([]);
+
+    const walkIn = await call('record_sale', {
+      walkIn: true,
+      lines: [{ product: product.name, qty: 1, unitPrice: 300 }],
+    });
+    expect(walkIn.s.data.samplesAtShop).toEqual([]);
+  });
+
   it('office support may leave and return samples but not write them off', async () => {
     const support = await as('ADMIN_SUPPORT');
     const { product, batch } = await stocked(5);

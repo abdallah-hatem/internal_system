@@ -10,6 +10,7 @@ import { badRequest, forbidden } from '../../../common/api-error';
 import { businessToday, startOfBusinessDay } from '../../../common/dates';
 import { AssistantServer } from '../assistant-server';
 import type { AssistantUser } from '../tool-kit';
+import { SAMPLES_AT_SHOP_NOTE, type ShopSamples } from '../tools/sales';
 import {
   AiProvider,
   portableSchema,
@@ -70,6 +71,12 @@ export interface PendingAction {
   token: string;
   expiresAt: string | null;
   summary: string;
+  /**
+   * What the shop already holds as samples (§4, owner 2026-10-25): the
+   * record_sale preview's note, which the app shows as its own translated
+   * hint with a link to "They're buying". Empty for anything else.
+   */
+  samplesAtShop: ShopSamples;
 }
 
 @Injectable()
@@ -180,6 +187,7 @@ export class AssistantChatService {
                 status?: string;
                 confirmationToken?: string;
                 expiresAt?: string;
+                data?: { samplesAtShop?: ShopSamples } | null;
               }
             | undefined;
           let forModel = text;
@@ -189,12 +197,18 @@ export class AssistantChatService {
             structured.confirmationToken
           ) {
             const summary = text.split('\n\nNothing has been saved yet.')[0];
+            const samplesAtShop = structured.data?.samplesAtShop ?? [];
             pending.push({
               tool: name,
               args,
               token: structured.confirmationToken,
               expiresAt: structured.expiresAt ?? null,
-              summary,
+              // The samples note is shown as the app's own hint, in the
+              // reader's language; the model still reads it in full below.
+              summary: samplesAtShop.length
+                ? summary.split(`\n\n${SAMPLES_AT_SHOP_NOTE}`)[0]
+                : summary,
+              samplesAtShop,
             });
             forModel =
               `${summary}\n\nThis preview is now shown to the partner with Confirm and Cancel buttons; ` +
