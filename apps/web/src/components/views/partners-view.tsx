@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { Route, TrendingUp, Wallet, Clock, Hourglass, Download, Receipt } from '@/components/ui/icons';
 import { RunningCostsSection } from '@/components/partners/running-costs-section';
+import { PartnerAccountsSection } from '@/components/partners/partner-accounts-section';
 import { PayoutHistory, type PartnerPayout } from '@/components/partners/payout-history';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
@@ -188,6 +189,9 @@ export default function PartnersPage() {
           One slot for it, loading or loaded: drawn in the loading branch and
           again in the loaded one, React mounted it twice, and the second
           mount closed a period picker opened in the first. */}
+      {/* Each core partner's running account (§8, owner 2026-10-25). */}
+      <PartnerAccountsSection />
+
       {(isLoading || corePartners.length > 0) && <RunningCostsSection />}
 
       {isLoading && (

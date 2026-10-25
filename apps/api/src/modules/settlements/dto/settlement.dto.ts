@@ -1,4 +1,11 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class MarkSettlementPaidDto {
   /**
@@ -9,6 +16,15 @@ export class MarkSettlementPaidDto {
   @IsOptional()
   @IsBoolean()
   acceptRemainingStock?: boolean;
+
+  /**
+   * Core partners who leave their payout in their running account (§8,
+   * owner 2026-10-25, phase 2).
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  leaveInPartnerUserIds?: string[];
 }
 
 export class ReverseSettlementDto {

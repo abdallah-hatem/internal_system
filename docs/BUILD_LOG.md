@@ -240,8 +240,15 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Later (owner, 2026-10-25, "a great idea an account"; queued only, not to be built until he says): **a running
-  account per partner**, and funding a cycle through it. Each partner's balance = what the business holds of his.
+- **BUILT 2026-10-25 (phases 1 and 2), branch `agent-partner-accounts`, migration
+  `20261025100000_partner_running_accounts`** — rules and guesses in BUSINESS_LOGIC §8 "A running account per
+  partner". The owner waived the sample ("go ahead no need for mockups now"); static mockups made before that are in
+  `docs/samples/partner-accounts/`. Tests: `apps/api/src/modules/partner-accounts/partner-accounts.db.spec.ts`
+  (Postgres, opt-in `INTEGRATION_DATABASE_URL`), `apps/api/src/common/partner-account.spec.ts`, vitest
+  `account-funding-panel.test.tsx` and `partner-accounts-section.test.tsx`, all break-verified. e2e written, not run —
+  owner said not for now (`99-partner-accounts.spec.ts`, 34 TC-INV-84..88). The example below (Fares −266.67) is now
+  refused (no negative account). Was: Later (owner, 2026-10-25, "a great idea an account"; queued only, not to be
+  built until he says): **a running account per partner**, and funding a cycle through it. Each partner's balance = what the business holds of his.
   + a payment he made from his own pocket for a cycle (**"paid so far"** — an advance, dated, amount and currency at
   that day's rate, a note; not yet a contribution); + a settlement payout he leaves in; − a contribution to a cycle
   (taken from his account, not his pocket); − money he takes out. On the cycle: an optional **funding target** (e.g.
