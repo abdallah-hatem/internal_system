@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ahmad Zogmar — branches sample</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  // The office app's tokens (apps/web/src/app/globals.css), so the sample reads as the real app.
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"IBM Plex Sans"', '"IBM Plex Sans Arabic"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        },
+        colors: {
+          primary: { DEFAULT: '#2563eb', foreground: '#ffffff', 50: '#eff6ff', 100: '#dbeafe', 600: '#2563eb', 700: '#1d4ed8' },
+          foreground: '#111827', 'muted-foreground': '#6b7280', muted: '#f3f4f6',
+          border: '#e5e7eb', input: '#e5e7eb', card: '#ffffff', destructive: '#ef4444', success: '#16a34a',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  table, .tabular-nums { font-variant-numeric: tabular-nums; }
+  /* Marks what this sample adds to today's page. */
+  .new { position: relative; outline: 2px dashed #f59e0b; outline-offset: 3px; }
+  .new-tag { position: absolute; top: -10px; inset-inline-end: 12px; background: #f59e0b; color: #fff;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; }
+  body.plain .new { outline: none; } body.plain .new-tag { display: none; }
+</style>
+</head>
+<body class="min-h-screen bg-gray-50 font-sans text-gray-900 antialiased">
+<div class="relative flex h-dvh overflow-hidden bg-gray-50">
+
+  <!-- Sidebar: as the app shell draws it -->
+  <aside class="hidden w-64 shrink-0 border-e border-gray-200 bg-white lg:block">
+    <div class="flex h-16 items-center gap-2 border-b border-gray-200 px-4">
+      <span class="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-[10px] font-bold text-white">S&amp;F</span>
+      <span class="text-sm font-bold text-gray-900">S&amp;F</span>
+    </div>
+    <nav class="p-3 text-sm">
+      <div class="mb-3"><p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Overview</p>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Dashboard</a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Analytics</a></div>
+      <div class="mb-3"><p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Importing</p>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Import Cycles</a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Suppliers</a></div>
+      <div class="mb-3"><p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Products &amp; Stock</p>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Products</a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Inventory</a></div>
+      <div class="mb-3"><p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Sales &amp; Customers</p>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Requests</a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Sales</a>
+        <a class="flex items-center gap-3 rounded-lg bg-primary-50 px-3 py-2 font-medium text-primary-700">Customers</a></div>
+      <div class="mb-3"><p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Money</p>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Payments</a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-gray-600">Ledger</a></div>
+    </nav>
+  </aside>
+
+  <div class="flex flex-1 flex-col overflow-hidden">
+    <header class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4">
+      <label class="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+        <input type="checkbox" checked onchange="document.body.classList.toggle('plain', !this.checked)">
+        Sample — mark what is new (dashed)
+      </label>
+      <div class="ms-auto flex items-center gap-3 text-sm text-gray-600">
+        <span class="rounded-lg px-3 py-1.5">English ▾</span>
+        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">AB</span>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto px-4 pt-4 pb-6 sm:px-6 sm:pt-6">
+    <div class="space-y-6">
+
+      <button type="button" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900">← Back</button>
+
+      <!-- Header -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Ahmad Zogmar</h1>
+          <p class="mt-1 text-sm text-gray-500">B2B · <bdi dir="ltr">+20 100 000 0000</bdi>
+            <span class="new ms-1 inline-block rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">Owner · 3 branches<span class="new-tag" style="top:-14px">new</span></span>
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">▣ Record Payment</button>
+          <button type="button" class="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">+ New Order</button>
+        </div>
+      </div>
+
+      <!-- Tiles: same three, now the owner's totals across his branches -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="new rounded-xl border border-gray-200 bg-white p-4">
+          <span class="new-tag">changed</span>
+          <p class="text-xs text-gray-500">Owes us</p>
+          <p class="mt-1 text-xl font-bold text-red-600">21,150.00 EGP</p>
+          <p class="mt-0.5 text-xs text-gray-500">across 3 branches</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+          <p class="text-xs text-gray-500">Payments</p>
+          <p class="mt-1 text-xl font-bold text-gray-900">15,000.00 EGP</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+          <p class="text-xs text-gray-500">Sales Orders</p>
+          <p class="mt-1 text-xl font-bold text-gray-900">6</p>
+        </div>
+      </div>
+
+      <!-- Credit & contract: the owner's, across all branches -->
+      <div class="new grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-5 sm:grid-cols-2">
+        <span class="new-tag">new</span>
+        <div>
+          <h2 class="mb-2 text-sm font-semibold text-gray-900">Credit (the owner's, all branches)</h2>
+          <div class="flex items-baseline justify-between text-sm"><span class="text-gray-500">Owes now</span><span class="font-medium tabular-nums">21,150.00 EGP</span></div>
+          <div class="flex items-baseline justify-between text-sm"><span class="text-gray-500">Limit</span><span class="font-medium tabular-nums">50,000.00 EGP</span></div>
+          <div class="mt-2 h-2 rounded-full bg-gray-100"><div class="h-2 rounded-full bg-primary-600" style="width:42.3%"></div></div>
+          <p class="mt-1 text-xs text-gray-500">28,850.00 EGP left before the limit · <span class="text-amber-700">open question: is there a limit, and does it warn or refuse?</span></p>
+        </div>
+        <div>
+          <h2 class="mb-2 text-sm font-semibold text-gray-900">Contract (instalments)</h2>
+          <div class="flex items-baseline justify-between text-sm"><span class="text-gray-500">Active plan</span><span class="font-medium">ORD-2026-00412 · Master</span></div>
+          <div class="flex items-baseline justify-between text-sm"><span class="text-gray-500">Remaining</span><span class="font-medium tabular-nums">6,000.00 EGP</span></div>
+          <div class="flex items-baseline justify-between text-sm"><span class="text-gray-500">Next due</span><span class="font-medium">Sun 1 Nov 2026 · 2,000.00 EGP</span></div>
+          <p class="mt-1 text-xs text-gray-500">Agreed with the owner. The plan sits on one order, so it names that order's branch.</p>
+        </div>
+      </div>
+
+      <!-- Branches card -->
+      <div class="new rounded-xl border border-gray-200 bg-white p-5">
+        <span class="new-tag">new</span>
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-900"><span class="text-gray-400">⌂</span>Branches</h2>
+          <button type="button" class="text-xs font-medium text-primary-600 hover:text-primary-700">+ Add branch</button>
+        </div>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-gray-200 text-xs font-medium text-gray-500">
+            <th class="py-2 pe-2 text-start">Branch</th>
+            <th class="px-2 py-2 text-start">Address · phone</th>
+            <th class="px-2 py-2 text-end">Orders</th>
+            <th class="px-2 py-2 text-end">Sold</th>
+            <th class="px-2 py-2 text-end">Paid</th>
+            <th class="py-2 ps-2 text-end">Owes</th>
+          </tr></thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="py-2 pe-2 font-medium">Mokattam <span class="new ms-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Default</span></td><td class="px-2 py-2 text-xs text-gray-500">Street 9, Mokattam · <bdi dir="ltr">+20 100 111 1111</bdi></td>
+              <td class="px-2 py-2 text-end">3</td><td class="px-2 py-2 text-end">18,400.00 EGP</td><td class="px-2 py-2 text-end">6,000.00 EGP</td>
+              <td class="py-2 ps-2 text-end font-medium text-destructive">12,400.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-medium">Master <button type="button" class="ms-1.5 text-[11px] font-normal text-primary-600 hover:text-primary-700">Make default</button></td><td class="px-2 py-2 text-xs text-gray-500">Master area · <bdi dir="ltr">+20 100 222 2222</bdi></td>
+              <td class="px-2 py-2 text-end">2</td><td class="px-2 py-2 text-end">14,750.00 EGP</td><td class="px-2 py-2 text-end">6,000.00 EGP</td>
+              <td class="py-2 ps-2 text-end font-medium text-destructive">8,750.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-medium">LS2 <button type="button" class="ms-1.5 text-[11px] font-normal text-primary-600 hover:text-primary-700">Make default</button></td><td class="px-2 py-2 text-xs text-gray-500">— · <bdi dir="ltr">+20 100 333 3333</bdi></td>
+              <td class="px-2 py-2 text-end">1</td><td class="px-2 py-2 text-end">3,000.00 EGP</td><td class="px-2 py-2 text-end">3,000.00 EGP</td>
+              <td class="py-2 ps-2 text-end font-medium text-success">0.00 EGP</td></tr>
+          </tbody>
+          <tfoot><tr class="border-t border-gray-200 font-semibold">
+            <td class="py-2 pe-2" colspan="2">All branches (= Owes us)</td>
+            <td class="px-2 py-2 text-end">6</td><td class="px-2 py-2 text-end">36,150.00 EGP</td><td class="px-2 py-2 text-end">15,000.00 EGP</td>
+            <td class="py-2 ps-2 text-end text-destructive">21,150.00 EGP</td></tr></tfoot>
+        </table>
+        <p class="mt-2 text-xs text-gray-500">Each branch: its own orders, balance and statement. Click a branch to filter the orders and the statement below to it.<br><b>Default</b>: the branch New Order picks for you when this customer is chosen (it can be changed or cleared there). "Make default" moves it; with no default, a new order starts on the owner, with no branch.</p>
+      </div>
+
+      <!-- Orders, with a Branch column and filter -->
+      <div class="rounded-xl border border-gray-200 bg-white p-5">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-900"><span class="text-gray-400">🛒</span>Sales Orders</h2>
+          <div class="new flex gap-1 text-xs">
+            <span class="new-tag">new</span>
+            <span class="rounded-full bg-primary-50 px-2.5 py-1 font-medium text-primary-700">All</span>
+            <span class="rounded-full px-2.5 py-1 text-gray-600 hover:bg-gray-100">Mokattam</span>
+            <span class="rounded-full px-2.5 py-1 text-gray-600 hover:bg-gray-100">Master</span>
+            <span class="rounded-full px-2.5 py-1 text-gray-600 hover:bg-gray-100">LS2</span>
+          </div>
+        </div>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-gray-200 text-xs font-medium text-gray-500">
+            <th class="py-2 pe-2 text-start">Order #</th><th class="px-2 py-2 text-start">Date</th>
+            <th class="new px-2 py-2 text-start">Branch</th>
+            <th class="px-2 py-2 text-start">Status</th><th class="px-2 py-2 text-end">Total</th><th class="py-2 ps-2 text-end">Outstanding</th></tr></thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="py-2 pe-2 font-mono text-xs text-muted-foreground">ORD-2026-00431</td><td class="px-2 py-2 text-xs text-muted-foreground">22 Oct 2026</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Confirmed</td><td class="px-2 py-2 text-end">7,400.00 EGP</td><td class="py-2 ps-2 text-end font-medium text-destructive">7,400.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-mono text-xs text-muted-foreground">ORD-2026-00427</td><td class="px-2 py-2 text-xs text-muted-foreground">20 Oct 2026</td><td class="px-2 py-2">LS2</td><td class="px-2 py-2">Paid</td><td class="px-2 py-2 text-end">3,000.00 EGP</td><td class="py-2 ps-2 text-end font-medium text-success">0.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-mono text-xs text-muted-foreground">ORD-2026-00419</td><td class="px-2 py-2 text-xs text-muted-foreground">15 Oct 2026</td><td class="px-2 py-2">Master</td><td class="px-2 py-2">Confirmed</td><td class="px-2 py-2 text-end">2,750.00 EGP</td><td class="py-2 ps-2 text-end font-medium text-destructive">2,750.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-mono text-xs text-muted-foreground">ORD-2026-00412</td><td class="px-2 py-2 text-xs text-muted-foreground">8 Oct 2026</td><td class="px-2 py-2">Master</td><td class="px-2 py-2">Partly paid</td><td class="px-2 py-2 text-end">12,000.00 EGP</td><td class="py-2 ps-2 text-end font-medium text-destructive">6,000.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-mono text-xs text-muted-foreground">ORD-2026-00405</td><td class="px-2 py-2 text-xs text-muted-foreground">2 Oct 2026</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Partly paid</td><td class="px-2 py-2 text-end">8,000.00 EGP</td><td class="py-2 ps-2 text-end font-medium text-destructive">5,000.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 font-mono text-xs text-muted-foreground">ORD-2026-00398</td><td class="px-2 py-2 text-xs text-muted-foreground">28 Sep 2026</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Paid</td><td class="px-2 py-2 text-end">3,000.00 EGP</td><td class="py-2 ps-2 text-end font-medium text-destructive">0.00 EGP</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Payments: the owner's, with where each went -->
+      <div class="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><span class="text-gray-400">▣</span>Payments</h2>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-gray-200 text-xs font-medium text-gray-500">
+            <th class="py-2 pe-2 text-start">Received Date</th><th class="px-2 py-2 text-start">Method</th>
+            <th class="new px-2 py-2 text-start">Went to</th>
+            <th class="px-2 py-2 text-start">Status</th><th class="py-2 ps-2 text-end">Amount</th></tr></thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">21 Oct 2026</td><td class="px-2 py-2">Cash</td><td class="px-2 py-2 text-xs">LS2 · ORD-2026-00427</td><td class="px-2 py-2 text-xs text-muted-foreground">Recorded</td><td class="py-2 ps-2 text-end font-medium">3,000.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">12 Oct 2026</td><td class="px-2 py-2">Bank transfer</td><td class="px-2 py-2 text-xs">Mokattam 3,000.00 · Master 6,000.00 <span class="text-gray-400">(orders chosen, two branches)</span></td><td class="px-2 py-2 text-xs text-muted-foreground">Recorded</td><td class="py-2 ps-2 text-end font-medium">9,000.00 EGP</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">5 Oct 2026</td><td class="px-2 py-2">Cash</td><td class="px-2 py-2 text-xs">Mokattam · ORD-2026-00398</td><td class="px-2 py-2 text-xs text-muted-foreground">Recorded</td><td class="py-2 ps-2 text-end font-medium">3,000.00 EGP</td></tr>
+          </tbody>
+        </table>
+        <p class="new mt-3 rounded-lg bg-muted p-3 text-xs text-gray-600"><span class="new-tag">new</span>
+          <b>Record Payment</b> for an owner asks: <b>All branches</b> (oldest first across every branch) or <b>one branch</b> (oldest first on that branch only). Never more than what is owed in what was chosen.</p>
+      </div>
+
+      <!-- Contracts -->
+      <div class="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><span class="text-gray-400">✎</span>Contracts</h2>
+        <div class="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+          <span><bdi dir="ltr" class="font-mono text-xs text-muted-foreground">ORD-2026-00412</bdi> · <span class="new rounded bg-gray-100 px-1.5 text-xs">Master</span> · 3 instalments</span>
+          <span class="font-medium">6,000.00 EGP remaining</span>
+        </div>
+      </div>
+
+      <!-- Statement: one across branches, branch on every row -->
+      <div class="rounded-xl border border-gray-200 bg-white p-5">
+        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900">Statement</h2>
+            <p class="mt-0.5 text-xs text-muted-foreground">Every sale, payment and return in these dates, with the balance after each.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="new rounded-lg border border-gray-200 px-3 py-1.5">Branch: All branches ▾</span>
+            <span class="rounded-lg border border-gray-200 px-3 py-1.5">All dates ▾</span>
+            <span class="rounded-lg border border-gray-200 px-3 py-1.5">Print</span>
+            <span class="rounded-lg border border-gray-200 px-3 py-1.5">CSV</span>
+          </div>
+        </div>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-gray-200 text-xs font-medium text-gray-500">
+            <th class="py-2 pe-2 text-start">Date</th>
+            <th class="new px-2 py-2 text-start">Branch</th>
+            <th class="px-2 py-2 text-start">Description</th>
+            <th class="px-2 py-2 text-end">Owes more</th><th class="px-2 py-2 text-end">Owes less</th>
+            <th class="px-2 py-2 text-end">Balance</th><th class="py-2 ps-2 text-end">Profit</th></tr></thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr class="text-gray-500"><td class="py-2 pe-2 text-xs"></td><td></td><td class="px-2 py-2">Opening balance</td><td></td><td></td><td class="px-2 py-2 text-end font-medium text-gray-900">0.00</td><td></td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">28 Sep</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Sale ORD-2026-00398</td><td class="px-2 py-2 text-end">3,000.00</td><td></td><td class="px-2 py-2 text-end font-medium">3,000.00</td><td class="py-2 ps-2 text-end text-success">540.00</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">2 Oct</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Sale ORD-2026-00405</td><td class="px-2 py-2 text-end">8,000.00</td><td></td><td class="px-2 py-2 text-end font-medium">11,000.00</td><td class="py-2 ps-2 text-end text-success">1,350.00</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">5 Oct</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Payment · on ORD-2026-00398</td><td></td><td class="px-2 py-2 text-end">3,000.00</td><td class="px-2 py-2 text-end font-medium">8,000.00</td><td class="py-2 ps-2 text-end text-gray-400">—</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">8 Oct</td><td class="px-2 py-2">Master</td><td class="px-2 py-2">Sale ORD-2026-00412</td><td class="px-2 py-2 text-end">12,000.00</td><td></td><td class="px-2 py-2 text-end font-medium">20,000.00</td><td class="py-2 ps-2 text-end text-success">2,100.00</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">12 Oct</td><td class="px-2 py-2">Mokattam, Master</td><td class="px-2 py-2">Payment · on ORD-2026-00405 (3,000.00), ORD-2026-00412 (6,000.00)</td><td></td><td class="px-2 py-2 text-end">9,000.00</td><td class="px-2 py-2 text-end font-medium">11,000.00</td><td class="py-2 ps-2 text-end text-gray-400">—</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">15 Oct</td><td class="px-2 py-2">Master</td><td class="px-2 py-2">Sale ORD-2026-00419</td><td class="px-2 py-2 text-end">2,750.00</td><td></td><td class="px-2 py-2 text-end font-medium">13,750.00</td><td class="py-2 ps-2 text-end text-success">410.00</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">20 Oct</td><td class="px-2 py-2">LS2</td><td class="px-2 py-2">Sale ORD-2026-00427</td><td class="px-2 py-2 text-end">3,000.00</td><td></td><td class="px-2 py-2 text-end font-medium">16,750.00</td><td class="py-2 ps-2 text-end text-success">520.00</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">21 Oct</td><td class="px-2 py-2">LS2</td><td class="px-2 py-2">Payment · on ORD-2026-00427</td><td></td><td class="px-2 py-2 text-end">3,000.00</td><td class="px-2 py-2 text-end font-medium">13,750.00</td><td class="py-2 ps-2 text-end text-gray-400">—</td></tr>
+            <tr><td class="py-2 pe-2 text-xs text-muted-foreground">22 Oct</td><td class="px-2 py-2">Mokattam</td><td class="px-2 py-2">Sale ORD-2026-00431</td><td class="px-2 py-2 text-end">7,400.00</td><td></td><td class="px-2 py-2 text-end font-medium">21,150.00</td><td class="py-2 ps-2 text-end text-success">1,260.00</td></tr>
+          </tbody>
+          <tfoot><tr class="border-t border-gray-200 font-semibold"><td></td><td></td><td class="px-2 py-2">Closing balance</td><td class="px-2 py-2 text-end">36,150.00</td><td class="px-2 py-2 text-end">15,000.00</td><td class="px-2 py-2 text-end text-destructive">21,150.00</td><td class="py-2 ps-2 text-end text-success">6,180.00</td></tr></tfoot>
+        </table>
+        <p class="mt-2 text-xs text-gray-500">Filtered to one branch, the same statement shows only that branch's rows and closes at its balance (Mokattam 12,400.00, Master 8,750.00, LS2 0.00). The printed copy is headed with the owner's name, and the branch when filtered.</p>
+      </div>
+
+      <p class="pb-4 text-center text-xs text-gray-400">Sample only — figures are made up. Ahmad Zogmar owes 0 today.</p>
+    </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

@@ -286,24 +286,35 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
     and statement, the cycle's profit, the dashboard, Analytics, inventory and the product page's stock value,
     check-data (all zero).
   - Through the assistant/office chat too, if exposed there (same service, preview/confirm).
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **a customer with branches** — "now a customer
-  can have multiple branches, and a different sale per branch … one owner pays for all". One customer (the owner, e.g.
-  Koshary) with branches under it (e.g. Dokki, Nasr City). Each branch: its own orders, balance, statement (with the
-  Profit column) and address/phone. The customer's page: every branch's balance and the combined total owed, all
-  branches' orders, and one statement across them (branch named on each row). New Order: when a customer has more than
-  one branch, pick the branch (a picker, never free text; a customer with one branch picks none). A payment from the
-  owner: to one branch, or spread across branches' orders (oldest first unless chosen), never more than the combined
-  owed. Contracts, samples, returns and price adjustments stay per order, so per branch. Existing customers become a
-  customer with no branches (no data change for them); a branch is never a separate customer record. Decided (owner,
-  2026-10-25: "owner, owner, owner"): credit and contract limits are the **owner's**, across all branches; the
-  storefront login is the **owner's** (one login for all branches; he picks the branch when ordering); the invoice
-  header names the **owner** (the branch can appear as the delivery line — Claude's suggestion, confirm when the
-  sample is shown).
-  First use once built (owner, 2026-10-25): **Ahmad Zogmar** (production customer `ceadced7-457a-4803-9241-3520b6bda1ac`,
-  B2B, owes 0 today, no open orders) gets three branches — **Mokattam**, **Master** and **LS2** (names as the owner gave
-  them; spelling to confirm when entering). His existing record becomes the owner; any orders he already has stay on
-  him until a branch is picked for them (ask the owner which branch each belongs to). Render a sample of the customer page and New Order
-  before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
+- BUILT 2026-10-25 (branch `agent-branches-sample`, not merged, not pushed; owner: "make full branches again",
+  then "not required because default to the default"): **a customer with branches** — one owner pays for all. Rules
+  in BUSINESS_LOGIC §7 "A customer with branches". A `customer_branches` table (name, address, phone, default,
+  archived) under the customer and an optional `sale_orders.branch_id`; a branch is never a customer. Names once per
+  customer ignoring case, at most one default — both also unique indexes. A sale order with no branch goes on the
+  customer's default branch: one rule in `resolveSaleBranch`, for the office form, drafts, samples, walk-in, the
+  assistant's `record_sale` (which also takes a branch by name) and the office chat. Another customer's branch and an
+  archived branch are refused (`BRANCH_NOT_THIS_CUSTOMER`, `BRANCH_ARCHIVED`). The customer page: an "Owner · 3
+  branches" tag, the balance tile "across 3 branches", a Branches card (each branch's orders and what it owes, the
+  orders on the owner, the total = Owes us; add, edit, make default, archive, restore — core partners), a Branch
+  column and filter on the orders, and the statement with a Branch column, narrowed to one branch on a click (it
+  then closes at that branch's balance). Record payment: "Pay to" all branches (oldest first, as before) or one branch
+  (oldest first on its orders, never more than it owes — `PAYMENT_EXCEEDS_BRANCH_OWED`, `BRANCH_OWES_NOTHING`). New
+  Order: a Branch picker for a customer with two or more open branches, starting on the default; switching customer
+  drops the old branch at once. The invoice: billed to the owner, "Deliver to" the branch with its address and phone.
+  The Sales list and the order popup name the branch. Not changed: credit and contract limits (there are none in
+  the app today), contracts, samples, returns and price cuts stay per order; the storefront login is the owner's and
+  shows nothing new yet. Not done: a branch filter on the Sales list (the list's toolbar is being reworked by another
+  run). Tests: `customer-branches.db.spec.ts` (20, real Postgres: names, defaults, the default fallback on every
+  path incl. `record_sale`, another customer's and archived branches, per-branch caps, balances and statements that
+  add up), `SaleOrderForm.branches.test.tsx` (8: the default, a picked branch, a switched customer — also while its
+  branches load), e2e `104-customer-branches`, `src/one-off/ahmad-zogmar-branches.spec.ts`; each guard was undone
+  once and its test seen to fail. `check-data` 27.1–27.3: an order on another customer's branch, two defaults, an
+  archived default.
+  **Ahmad Zogmar** (production `ceadced7-457a-4803-9241-3520b6bda1ac`): `prisma/one-off/2026-10-25-ahmad-zogmar-branches.ts`
+  adds Mokattam, Master and LS2 with **no default**; it refuses any database not on this machine, and has not been
+  run against production. Waiting on the owner: which branch is his default; the names' spelling; whether an order
+  for a customer with branches and no default should stay on the owner (what it does now, GUESS). His existing
+  orders stay on him. The design sample is `docs/samples/branches/`.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale, a payment, a return, a payment
   reversed and an order cancelled notify the other partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a
   sale and the owner was not told: a sale only notified through low stock. A sale confirmed (incl. walk-in and one-step

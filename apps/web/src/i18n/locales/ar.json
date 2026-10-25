@@ -1504,7 +1504,8 @@
       "lenderRepayment": "السداد",
       "lenderPlan": "خطة السداد",
       "shipmentDeparture": "المغادرة",
-      "currencyRate": "العملة"
+      "currencyRate": "العملة",
+      "customerBranch": "الفرع"
     },
     "generic": "حدث خطأ ما. حاول مرة أخرى.",
     "ACCOUNT_INACTIVE": "هذا الحساب غير مُفعّل.",
@@ -1782,7 +1783,15 @@
     "AI_PROVIDER_FAILED": "لم تستجب خدمة الذكاء الاصطناعي. حاول بعد قليل.",
     "AI_PROVIDER_BUSY": "خدمة الذكاء الاصطناعي مشغولة أو انتهت حصتها المجانية حاليًا. حاول لاحقًا.",
     "AI_CONFIRM_INVALID": "لا يوجد ما يُؤكَّد.",
-    "AI_PROVIDER_TOO_SMALL": "حصة مزوّد الذكاء الاصطناعي هذا أصغر من سؤال واحد مع أدوات المساعد. استخدم مزوّدًا بحصة أكبر (حصة Gemini المجانية تكفي)."
+    "AI_PROVIDER_TOO_SMALL": "حصة مزوّد الذكاء الاصطناعي هذا أصغر من سؤال واحد مع أدوات المساعد. استخدم مزوّدًا بحصة أكبر (حصة Gemini المجانية تكفي).",
+    "BRANCH_NOT_THIS_CUSTOMER": "الفرع {branch} تابع لعميل آخر.",
+    "BRANCH_ARCHIVED": "الفرع {branch} مؤرشف: لا يستقبل طلبات جديدة.",
+    "BRANCH_NAME_TAKEN": "لدى هذا العميل فرع باسم {branch} بالفعل.",
+    "BRANCH_NAME_REQUIRED": "الفرع يحتاج إلى اسم.",
+    "BRANCH_NAME_TOO_LONG": "اسم الفرع لا يزيد عن {max} حرفاً.",
+    "BRANCH_DEFAULT_CHANGED": "تغيّر الفرع الافتراضي في اللحظة نفسها. راجع ثم أعد المحاولة.",
+    "PAYMENT_EXCEEDS_BRANCH_OWED": "المستحق على الفرع {branch} هو {owed}، لذا لا يمكن استلام {amount} مقابله.",
+    "BRANCH_OWES_NOTHING": "لا يوجد مستحق على الفرع {branch}، فلا شيء ليُدفع."
   },
   "requests": {
     "tabs": {
@@ -2582,7 +2591,10 @@
     "searchLenders": "ابحث باسم المُقرض",
     "searchTypes": "ابحث بالنوع",
     "currencyCode": "GBP",
-    "instalmentCount": "3"
+    "instalmentCount": "3",
+    "branchName": "مدينة نصر",
+    "branchAddress": "12 شارع 9، المقطم، القاهرة",
+    "chooseBranch": "اختر فرعاً"
   },
   "fxRates": {
     "title": "أسعار الصرف",
@@ -2654,5 +2666,46 @@
     "usedUp": "انتهت رسائل اليوم",
     "send": "إرسال",
     "failed": "لم يتمكن المساعد من الرد."
+  },
+  "branches": {
+    "title": "الفروع",
+    "column": "الفرع",
+    "ownerTag": "المالك · {count, plural, one {فرع واحد} two {فرعان} few {# فروع} many {# فرعاً} other {# فرع}}",
+    "acrossBranches": "على {count, plural, one {فرع واحد} two {فرعين} few {# فروع} many {# فرعاً} other {# فرع}}",
+    "add": "إضافة فرع",
+    "edit": "تعديل الفرع",
+    "name": "الاسم",
+    "address": "العنوان",
+    "phone": "الهاتف",
+    "isDefault": "الفرع الافتراضي",
+    "defaultHint": "أي طلب جديد لهذا العميل يذهب إلى هذا الفرع ما لم يُختر فرع آخر.",
+    "defaultTag": "الافتراضي",
+    "makeDefault": "اجعله الافتراضي",
+    "archivedTag": "مؤرشف",
+    "archive": "أرشفة",
+    "restore": "استعادة",
+    "archiveTitle": "أرشفة {name}؟",
+    "archiveBody": "لن يستقبل طلبات جديدة. تبقى طلباته ورصيده وكشف حسابه، ويمكن الدفع له.",
+    "orders": "الطلبات",
+    "owes": "المستحق",
+    "owesAmount": "المستحق {amount}",
+    "allBranches": "كل الفروع",
+    "noBranch": "على المالك",
+    "noBranchHint": "طلبات من قبل الفروع، أو بيعت بلا فرع افتراضي.",
+    "total": "كل الفروع (= المستحق عليه)",
+    "hint": "لكل فرع طلباته ورصيده وكشف حسابه. اختر فرعاً لعرض طلباته وكشف حسابه فقط.",
+    "emptyTitle": "لا توجد فروع",
+    "emptyHint": "المحل الذي له عدة فروع له مالك واحد يدفع عنها كلها. أضف فرعاً للبيع له.",
+    "saved": "تم حفظ الفرع",
+    "archived": "تمت أرشفة الفرع",
+    "restored": "تمت استعادة الفرع",
+    "saveFailed": "تعذّر حفظ الفرع",
+    "pickedDefault": "اخترناه لك: الفرع الافتراضي. غيّره إذا كان الطلب لفرع آخر.",
+    "noDefault": "لا يوجد فرع افتراضي: يبقى الطلب على المالك ما لم تختر فرعاً.",
+    "payTo": "الدفع إلى",
+    "payAll": "كل الفروع، الأقدم أولاً",
+    "payBranchHint": "الأقدم أولاً على طلبات هذا الفرع، ولا يزيد عمّا عليه.",
+    "deliverTo": "التسليم إلى",
+    "showing": "عرض {name}"
   }
 }

@@ -1504,7 +1504,8 @@
       "lenderRepayment": "Repayment",
       "lenderPlan": "Repayment plan",
       "shipmentDeparture": "Departure",
-      "currencyRate": "Currency"
+      "currencyRate": "Currency",
+      "customerBranch": "Branch"
     },
     "generic": "Something went wrong. Please try again.",
     "ACCOUNT_INACTIVE": "This account is not active.",
@@ -1782,7 +1783,15 @@
     "AI_PROVIDER_FAILED": "The AI service did not answer. Try again in a moment.",
     "AI_PROVIDER_BUSY": "The AI service is busy or its free allowance is used up for now. Try again later.",
     "AI_CONFIRM_INVALID": "Nothing to confirm.",
-    "AI_PROVIDER_TOO_SMALL": "This AI provider's allowance is too small for one question with the assistant's tools. Switch to one with a larger allowance (Gemini's free tier fits)."
+    "AI_PROVIDER_TOO_SMALL": "This AI provider's allowance is too small for one question with the assistant's tools. Switch to one with a larger allowance (Gemini's free tier fits).",
+    "BRANCH_NOT_THIS_CUSTOMER": "The branch {branch} belongs to another customer.",
+    "BRANCH_ARCHIVED": "The branch {branch} is archived: it takes no new orders.",
+    "BRANCH_NAME_TAKEN": "This customer already has a branch called {branch}.",
+    "BRANCH_NAME_REQUIRED": "A branch needs a name.",
+    "BRANCH_NAME_TOO_LONG": "A branch name can be at most {max} characters.",
+    "BRANCH_DEFAULT_CHANGED": "The default branch was changed at the same moment. Look again and retry.",
+    "PAYMENT_EXCEEDS_BRANCH_OWED": "The branch {branch} owes {owed}, so {amount} cannot be received against it.",
+    "BRANCH_OWES_NOTHING": "The branch {branch} does not owe anything, so there is nothing to pay."
   },
   "requests": {
     "tabs": {
@@ -2582,7 +2591,10 @@
     "searchLenders": "Search by lender name",
     "searchTypes": "Search by type",
     "currencyCode": "GBP",
-    "instalmentCount": "3"
+    "instalmentCount": "3",
+    "branchName": "Nasr City",
+    "branchAddress": "12 Street 9, Mokattam, Cairo",
+    "chooseBranch": "Choose a branch"
   },
   "fxRates": {
     "title": "Exchange rates",
@@ -2654,5 +2666,46 @@
     "usedUp": "Today's messages are used up",
     "send": "Send",
     "failed": "The assistant could not answer."
+  },
+  "branches": {
+    "title": "Branches",
+    "column": "Branch",
+    "ownerTag": "Owner · {count, plural, one {# branch} other {# branches}}",
+    "acrossBranches": "across {count, plural, one {# branch} other {# branches}}",
+    "add": "Add branch",
+    "edit": "Edit branch",
+    "name": "Name",
+    "address": "Address",
+    "phone": "Phone",
+    "isDefault": "The default branch",
+    "defaultHint": "A new order for this customer goes on this branch unless another is picked.",
+    "defaultTag": "Default",
+    "makeDefault": "Make default",
+    "archivedTag": "Archived",
+    "archive": "Archive",
+    "restore": "Restore",
+    "archiveTitle": "Archive {name}?",
+    "archiveBody": "It takes no new orders. Its orders, balance and statement stay, and it can still be paid.",
+    "orders": "Orders",
+    "owes": "Owes",
+    "owesAmount": "owes {amount}",
+    "allBranches": "All branches",
+    "noBranch": "On the owner",
+    "noBranchHint": "Orders from before the branches, or sold with no default branch.",
+    "total": "All branches (= Owes us)",
+    "hint": "Each branch has its own orders, balance and statement. Pick one to show only its orders and statement.",
+    "emptyTitle": "No branches",
+    "emptyHint": "A shop with several branches has one owner who pays for all of them. Add a branch to sell to it.",
+    "saved": "Branch saved",
+    "archived": "Branch archived",
+    "restored": "Branch restored",
+    "saveFailed": "The branch could not be saved",
+    "pickedDefault": "Picked for you: the default branch. Change it if this order is for another branch.",
+    "noDefault": "No default branch: the order stays on the owner unless you pick one.",
+    "payTo": "Pay to",
+    "payAll": "All branches, oldest first",
+    "payBranchHint": "Oldest first on this branch's orders, never more than it owes.",
+    "deliverTo": "Deliver to",
+    "showing": "Showing {name}"
   }
 }

@@ -64,6 +64,15 @@ const saleShape = {
     .describe(
       'The customer (a shop) by name or id. Leave out for a walk-in sale. Never a new customer — they are added in the office app.',
     ),
+  branch: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      "The customer's branch by name — ONLY when the partner names one. Left out, the sale goes on the customer's default branch (or on the customer when no default is set). Not for a walk-in sale.",
+    ),
   walkIn: z
     .boolean()
     .optional()
@@ -113,6 +122,7 @@ const saleShape = {
 
 type SaleInput = {
   customer?: string;
+  branch?: string;
   walkIn?: boolean;
   lines: {
     product: string;
@@ -138,6 +148,8 @@ export interface CatalogueCustomer {
   id: string;
   name: string;
   type: string;
+  /** Its open branches (§7, 2026-10-25); archived ones take no sale. */
+  branches?: { id: string; name: string }[];
 }
 
 export interface SaleQuestion {
@@ -145,6 +157,7 @@ export interface SaleQuestion {
   kind:
     | 'CUSTOMER_WHICH'
     | 'CUSTOMER_UNKNOWN'
+    | 'BRANCH_WHICH'
     | 'LINE_WHICH'
     | 'LINE_UNKNOWN'
     | 'PRICE_NEEDED';
@@ -173,6 +186,8 @@ type Plan =
       status: 'ready';
       walkIn: boolean;
       customer: { id: string; name: string } | null;
+      /** The branch named; null leaves it to the default (§7). */
+      branch: { id: string; name: string } | null;
       channel: PriceChannel;
       lines: PlannedLine[];
       body: CreateSaleOrderInput;
@@ -192,6 +207,13 @@ export function resolveSale(
       'VALIDATION_FAILED',
       'A walk-in sale has no customer; send walkIn or customer, not both.',
       { fields: 'customer' },
+    );
+  }
+  if (walkIn && input.branch) {
+    throw badRequest(
+      'VALIDATION_FAILED',
+      'A walk-in sale has no customer, so it has no branch.',
+      { fields: 'branch' },
     );
   }
   if (!walkIn && !input.customer) {
@@ -227,6 +249,30 @@ export function resolveSale(
         kind: 'CUSTOMER_WHICH',
         text: `"${named}" is not an exact match for a customer on file. Which customer is it?`,
         options: options(found, (c) => c.name),
+      });
+    }
+  }
+
+  // The branch, only when one was named (§7, 2026-10-25). Matched exactly,
+  // ignoring case, among the customer's open branches; anything else is a
+  // question. Not named, the service puts the sale on the default branch —
+  // the same rule the office form and every other path get.
+  let branch: { id: string; name: string } | null = null;
+  if (customer && input.branch) {
+    const named = input.branch.trim().toLowerCase();
+    const open = customer.branches ?? [];
+    branch =
+      open.find(
+        (b) => b.id === input.branch || b.name.toLowerCase() === named,
+      ) ?? null;
+    if (!branch) {
+      questions.push({
+        id: 'BRANCH_WHICH',
+        kind: 'BRANCH_WHICH',
+        text: open.length
+          ? `"${input.branch}" is not one of ${customer.name}'s branches. Which branch is it?`
+          : `${customer.name} has no branches on file; leave the branch out.`,
+        options: open.map((b) => ({ value: b.id, label: b.name })),
       });
     }
   }
@@ -308,10 +354,12 @@ export function resolveSale(
     status: 'ready',
     walkIn,
     customer: customer ? { id: customer.id, name: customer.name } : null,
+    branch,
     channel,
     lines,
     body: {
       ...(walkIn ? { walkIn: true } : { customerId: customer!.id }),
+      ...(branch ? { branchId: branch.id } : {}),
       channel,
       currency: CURRENCY,
       confirm: true,
@@ -385,7 +433,16 @@ export async function loadSaleCatalogue(
     // sale says walkIn.
     prisma.customer.findMany({
       where: { isWalkIn: false },
-      select: { id: true, displayName: true, type: true },
+      select: {
+        id: true,
+        displayName: true,
+        type: true,
+        branches: {
+          where: { archivedAt: null },
+          select: { id: true, name: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
       orderBy: { displayName: 'asc' },
     }),
   ]);
@@ -399,6 +456,7 @@ export async function loadSaleCatalogue(
       id: c.id,
       name: c.displayName,
       type: c.type,
+      branches: c.branches,
     })),
   };
 }
@@ -409,6 +467,8 @@ interface SeenOrder {
   status: string;
   total: string;
   outstanding: string;
+  /** The branch the service put it on — named, or the default (§7). */
+  branch: string | null;
   items: { productId: string; lineTotal: string }[];
 }
 
@@ -437,6 +497,7 @@ export function registerSalesTools(
           status: true,
           total: true,
           outstanding: true,
+          branch: { select: { name: true } },
           items: { select: { productId: true, lineTotal: true } },
         },
       });
@@ -445,6 +506,7 @@ export function registerSalesTools(
         status: order.status,
         total: money2(order.total),
         outstanding: money2(order.outstanding),
+        branch: order.branch?.name ?? null,
         items: order.items.map((it) => ({
           productId: it.productId,
           lineTotal: money2(it.lineTotal),
@@ -520,7 +582,8 @@ export function registerSalesTools(
     }));
     const who = plan.walkIn
       ? 'a walk-in buyer (B2C)'
-      : `${plan.customer!.name} (${plan.channel})`;
+      : `${plan.customer!.name} (${plan.channel})` +
+        (seen.branch ? `, branch ${seen.branch}` : '');
 
     return {
       summary: [
@@ -549,6 +612,7 @@ export function registerSalesTools(
       data: {
         walkIn: plan.walkIn,
         customer: plan.customer,
+        branch: seen.branch,
         orderedOn,
         channel: plan.channel,
         currency: CURRENCY,
@@ -586,6 +650,7 @@ export function registerSalesTools(
         if (shown.needsAnswers) return { needsAnswers: shown.data };
         const d = shown.data as {
           customer: { id: string } | null;
+          branch: string | null;
           walkIn: boolean;
           orderedOn: string;
           lines: {
@@ -601,6 +666,8 @@ export function registerSalesTools(
         return {
           walkIn: d.walkIn,
           customer: d.customer?.id ?? null,
+          // The branch shown, so a default changed in between is refused.
+          branch: d.branch,
           orderedOn: d.orderedOn,
           lines: d.lines.map((l) => [
             l.productId,

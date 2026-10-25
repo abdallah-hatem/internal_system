@@ -39,6 +39,7 @@ import {
   type LowStockNotifier,
 } from '../notifications/notifications.service';
 import { crossedIntoLowStock, findLowStock } from '../../common/low-stock';
+import { resolveSaleBranch } from '../../common/customer-branches';
 import {
   centsToDecimalString,
   saleOrderTotals,
@@ -102,6 +103,12 @@ export interface CreateSaleOrderInput {
    * given is only noted, for the decision to start from.
    */
   samples?: boolean;
+  /**
+   * The customer's branch it is sold to (BUSINESS_LOGIC §7, owner 2026-10-25).
+   * Left out, the customer's default branch; with no default, the owner.
+   * Must be this customer's own, open branch.
+   */
+  branchId?: string | null;
 }
 
 /**
@@ -378,6 +385,8 @@ export class SalesService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         customer: true,
+        // The branch it was sold to (§7, 2026-10-25), named on each row.
+        branch: { select: { id: true, name: true } },
         // What each order is worth now (§4, 2026-10-22) comes with the page:
         // Prisma loads the returns and the cuts once for every row on it.
         items: { include: { product: true, ...VALUE_NOW_ITEM_INCLUDE } },
@@ -404,6 +413,7 @@ export class SalesService {
       where: { id },
       include: {
         customer: true,
+        branch: { select: { id: true, name: true, archivedAt: true } },
         items: {
           include: {
             product: true,
@@ -449,6 +459,8 @@ export class SalesService {
         customer: {
           select: { id: true, displayName: true, phone: true, isWalkIn: true },
         },
+        // The delivery line under the owner's header (§7, 2026-10-25).
+        branch: { select: { name: true, address: true, phone: true } },
         items: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -551,6 +563,8 @@ export class SalesService {
           phone: order.customer.phone,
           isWalkIn: order.customer.isWalkIn,
         },
+        // Billed to the owner, delivered to the branch (owner, 2026-10-25).
+        branch: order.branch,
         lines: order.items.map((it) => ({
           id: it.id,
           productId: it.productId,
@@ -951,6 +965,10 @@ export class SalesService {
       throw notFound('customer');
     }
     assertVerified(customer);
+    // Which branch (§7, 2026-10-25): the one named, or the default. One rule
+    // for every way an order is made — draft, sale, samples, walk-in, the
+    // assistant — because they all come through here.
+    const branchId = await resolveSaleBranch(db, customer.id, data.branchId);
     if (samples && customer.isWalkIn) {
       throw badRequest(
         'SAMPLES_NEED_SHOP',
@@ -1042,6 +1060,7 @@ export class SalesService {
     return {
       orderNo,
       customerId: customer.id,
+      branchId,
       channel: data.channel,
       currency: data.currency,
       status: 'DRAFT' as const,

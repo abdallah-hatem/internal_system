@@ -35,6 +35,14 @@ export interface PaymentCustomer {
   currency?: string | null;
 }
 
+/** A branch the owner's payment can go to (§7, 2026-10-25). */
+export interface PaymentBranch {
+  id: string;
+  name: string;
+  /** What it owes, from the server. */
+  owed: string;
+}
+
 interface OrderRow {
   id: string;
   status: string;
@@ -101,16 +109,21 @@ export function RecordPaymentDialog({
   customer,
   order,
   onRecorded,
+  branches,
 }: {
   open: boolean;
   onClose: () => void;
   customer?: PaymentCustomer | null;
   order?: PaymentOrder | null;
   onRecorded?: () => void;
+  /** The customer's branches: offers paying one of them (§7, 2026-10-25). */
+  branches?: PaymentBranch[];
 }) {
   if (!open) return null;
   // Mounted fresh on every open, so nothing typed last time survives a close.
-  return <RecordPaymentForm customer={customer} order={order} onClose={onClose} onRecorded={onRecorded} />;
+  return (
+    <RecordPaymentForm customer={customer} order={order} onClose={onClose} onRecorded={onRecorded} branches={branches} />
+  );
 }
 
 function RecordPaymentForm({
@@ -118,13 +131,16 @@ function RecordPaymentForm({
   order,
   onClose,
   onRecorded,
+  branches,
 }: {
   customer?: PaymentCustomer | null;
   order?: PaymentOrder | null;
   onClose: () => void;
   onRecorded?: () => void;
+  branches?: PaymentBranch[];
 }) {
   const t = useTranslations('payments');
+  const tb = useTranslations('branches');
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const te = useTranslations('errors');
@@ -143,6 +159,9 @@ function RecordPaymentForm({
   const [reference, setReference] = useState('');
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  /** All branches (''), or the one branch the money is for. */
+  const [branchId, setBranchId] = useState('');
+  const payingBranch = !order ? branches?.find((b) => b.id === branchId) : undefined;
 
   // Set synchronously on submit: `pending` only disables the button after a
   // re-render, and two clicks inside one frame both get through that.
@@ -167,7 +186,11 @@ function RecordPaymentForm({
   );
 
   const openOrders = useMemo(() => oldestFirst(Array.isArray(orders) ? orders : []), [orders]);
-  const owed = order ? num(order.outstanding) : openOrders.reduce((s, o) => s + num(o.outstanding), 0);
+  const owed = order
+    ? num(order.outstanding)
+    : payingBranch
+      ? num(payingBranch.owed)
+      : openOrders.reduce((s, o) => s + num(o.outstanding), 0);
   const currency = order?.currency ?? customer?.currency ?? 'EGP';
   const customerName =
     order?.customer?.displayName ??
@@ -186,11 +209,18 @@ function RecordPaymentForm({
         asked: value.toFixed(2),
       });
     }
+    if (payingBranch && value > owed) {
+      return te('PAYMENT_EXCEEDS_BRANCH_OWED', {
+        branch: payingBranch.name,
+        owed: owed.toFixed(2),
+        amount: value.toFixed(2),
+      });
+    }
     return null;
   };
 
   const finish = async (message: string, tone: 'success') => {
-    for (const key of ['payments', 'payment', 'sales', 'sale', 'customer', 'customers', 'paymentPlans', 'analytics']) {
+    for (const key of ['payments', 'payment', 'sales', 'sale', 'customer', 'customers', 'customerBranches', 'paymentPlans', 'analytics']) {
       void queryClient.invalidateQueries({ queryKey: [key] });
     }
     toast[tone](message);
@@ -226,6 +256,8 @@ function RecordPaymentForm({
         receivedOn,
         reference: reference.trim() || undefined,
         ...(order ? { orderId: order.id } : { applyOldestFirst: true }),
+        // One branch's orders only, oldest first (§7, 2026-10-25).
+        ...(payingBranch ? { branchId: payingBranch.id } : {}),
       });
     } catch (err) {
       setRefusal(apiError(err, t('recordFailed')));
@@ -299,6 +331,25 @@ function RecordPaymentForm({
         </div>
       )}
 
+      {!order && branches && branches.length > 0 && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-foreground">{tb('payTo')}</label>
+          <Select
+            name="branchId"
+            value={branchId}
+            placeholder={tph('chooseBranch')}
+            onChange={(v) => {
+              setBranchId(v);
+              setRefusal(null);
+            }}
+            options={[
+              { value: '', label: tb('payAll') },
+              ...branches.map((b) => ({ value: b.id, label: b.name, hint: tb('owesAmount', { amount: formatAmount(num(b.owed)) }) })),
+            ]}
+          />
+        </div>
+      )}
+
       {customerId && (
         <div
           data-testid="payment-owed"
@@ -311,7 +362,9 @@ function RecordPaymentForm({
           ) : (
             <Money value={owed} currency={currency} className="font-semibold text-foreground" />
           )}
-          <p className="mt-0.5 text-xs">{order ? t('appliedToOrder') : t('appliedOldestFirst')}</p>
+          <p className="mt-0.5 text-xs">
+            {order ? t('appliedToOrder') : payingBranch ? tb('payBranchHint') : t('appliedOldestFirst')}
+          </p>
         </div>
       )}
 
