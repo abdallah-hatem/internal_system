@@ -62,6 +62,8 @@ import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 import { SalesSummary } from '@/components/summary/tab-summaries';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
+  /** The branch it was sold to (§7, 2026-10-25); null on the owner. */
+  branch?: { id: string; name: string } | null;
   id: string;
   orderNo: string;
   customerId: string;
@@ -187,6 +189,7 @@ function SalesPageContent() {
   const tp = useTranslations('payments');
   const tph = useTranslations('placeholders');
   const th = useTranslations('sales.history');
+  const tb = useTranslations('branches');
   const { formatAmount } = useNumberFormat();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -542,7 +545,15 @@ function SalesPageContent() {
     order.customer?.isWalkIn ? (
       <span data-testid="walk-in-customer">{t('walkInCustomer')}</span>
     ) : (
-      <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+      <span className="min-w-0">
+        <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+        {/* The branch under the owner's name (§7, 2026-10-25). */}
+        {order.branch && (
+          <span data-testid="sale-branch-cell" className="block truncate text-xs text-muted-foreground">
+            <LatinText>{order.branch.name}</LatinText>
+          </span>
+        )}
+      </span>
     );
 
 
@@ -1044,6 +1055,7 @@ function SalesPageContent() {
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={detail.customer?.isWalkIn ? t('walkInCustomer') : <LatinText>{detail.customer?.displayName ?? '—'}</LatinText>} />
+              {detail.branch && <Detail label={tb('column')} value={<LatinText>{detail.branch.name}</LatinText>} />}
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
               <Detail label={t('total')} value={totalCell(detail)} />
               <Detail label={t('outstanding')} value={outstandingCell(detail)} />

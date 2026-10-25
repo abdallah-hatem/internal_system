@@ -51,6 +51,15 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsBoolean()
   applyOldestFirst?: boolean;
+
+  /**
+   * Pay one branch (BUSINESS_LOGIC §7, 2026-10-25): oldest first across that
+   * branch's orders only, never more than the branch owes. Without it the
+   * money goes across all the customer's orders, whatever their branch.
+   */
+  @IsOptional()
+  @IsUUID('all')
+  branchId?: string;
 }
 
 export class AllocatePaymentDto {

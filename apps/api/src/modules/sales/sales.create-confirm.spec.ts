@@ -132,6 +132,11 @@ function fakePrisma(initial: Store) {
       findUnique: async ({ where }: any) =>
         db.store.customers.find((c) => c.id === where.id) ?? null,
     },
+    // No customer here has branches (§7, 2026-10-25): no default to fall back to.
+    customerBranch: {
+      findFirst: async () => null,
+      findUnique: async () => null,
+    },
     product: {
       findUnique: async ({ where }: any) =>
         db.store.products.find((p) => p.id === where.id) ?? null,

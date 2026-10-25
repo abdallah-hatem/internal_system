@@ -524,6 +524,17 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
          count(*) FROM sale_orders
    WHERE status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF')
      AND samples_left_at IS NULL
+  -- A branch is its owner's (§7, 2026-10-25): an order on another customer's
+  -- branch would put one shop's sale on another's books.
+  UNION ALL SELECT 27.1, 'sale order on another customer''s branch',
+         count(*) FROM sale_orders o
+         JOIN customer_branches b ON b.id = o.branch_id
+   WHERE b.customer_id <> o.customer_id
+  UNION ALL SELECT 27.2, 'customer with more than one default branch',
+         count(*) FROM (SELECT customer_id FROM customer_branches
+                         WHERE is_default GROUP BY customer_id HAVING count(*) > 1) d
+  UNION ALL SELECT 27.3, 'archived branch that is the default',
+         count(*) FROM customer_branches WHERE archived_at IS NOT NULL AND is_default
 SQL
 )
 

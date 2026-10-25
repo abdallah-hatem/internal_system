@@ -1623,12 +1623,52 @@ allocated to a sale made after it was received.
 ---
 
 
-### A customer with branches — DECIDED 2026-10-25 (owner), not built yet
+### A customer with branches — DECIDED 2026-10-25 (owner), built 2026-10-25, details GUESSED
 Some shops now have several branches, each buying separately, with **one owner who pays for all**. Decided: one
 customer with branches under it (option 2 of two offered; separate customers per branch was the other). Each branch
 keeps its own orders, balance and statement; the customer shows the combined total; an owner's payment can go to one
 branch or across several. Also decided (owner, 2026-10-25): credit and contract limits, the storefront login and the
-invoice header are all the **owner's**, not each branch's. Details in BUILD_LOG Next up.
+invoice header are all the **owner's**, not each branch's. The owner picked the design from a rendered sample
+(`docs/samples/branches/`), then (2026-10-25) "the branch shouldnt be required, in a sale order, it should auto
+select the default branch" and "not required because default to the default".
+
+- **A branch is not a customer.** It is a row under the customer (`customer_branches`): a name, an address, a phone,
+  whether it is the default, whether it is archived. An order names its branch (`sale_orders.branch_id`); an order
+  with none is on the owner. Payments, contracts, the storefront login and the invoice header stay on the customer.
+- **Names**: once per customer, ignoring case and extra spaces ("LS2" and "ls2" are one branch;
+  `BRANCH_NAME_TAKEN`). Required, at most 80 characters. Another customer may use the same name.
+- **The default branch**: at most one per customer, held by the server and a unique index. Making one the default
+  takes it off the other. An archived branch cannot be the default; archiving the default leaves none.
+- **A sale order's branch** (one rule, `resolveSaleBranch`, for the office form, drafts, samples, walk-in, the
+  assistant's `record_sale` and the office chat): a branch named must be this customer's (`BRANCH_NOT_THIS_CUSTOMER`)
+  and not archived (`BRANCH_ARCHIVED`); none named means the customer's default branch.
+  - GUESS (open): a customer with branches but **no default** — the order stays on the owner, with no branch. Ahmad
+    Zogmar gets his branches with no default until the owner picks one.
+  - GUESS: New Order offers a picker only when the customer has **two or more** open branches ("a customer with one
+    branch picks none"); with one, the default rule decides.
+  - GUESS: a sale completed from samples keeps the branch the samples were left at.
+- **Balances**: a branch owes what its confirmed orders still owe (the `owedBy` rule, narrowed). The owner owes all of
+  it — every branch plus the orders on no branch; the branch figures always add up to it (they are the same orders
+  split one way). Nothing is stored twice.
+- **Payments** (recorded once, for the owner): to **all branches**, oldest first across every order, never more than
+  the combined owed (`PAYMENT_EXCEEDS_OWED`, as before); to **one branch**, oldest first on that branch's orders only,
+  never more than it owes (`PAYMENT_EXCEEDS_BRANCH_OWED`, `BRANCH_OWES_NOTHING`); on a chosen order, as before. A
+  branch and an order together are refused (the order already says its branch).
+  - GUESS: an **archived** branch can still be paid — it keeps its balance until settled.
+- **Statements**: the owner's is every row with its branch named (a payment spread over two branches names both). One
+  branch's statement is the same history narrowed to its orders, with each payment shown as the part that went there;
+  it closes at that branch's balance, and the branches' closing balances (plus the orders on no branch) add up to the
+  owner's. The Profit column works the same way.
+- **Contracts, samples, returns and price cuts** stay on their order, so on its branch.
+- **The invoice**: billed to the owner; "Deliver to" the branch, with its address and phone. GUESS: the invoice's
+  Account box (balance before and after) is the **owner's** combined balance, not the branch's.
+- **Who**: core partners add, edit, make default, archive and restore branches (as they edit customers); the office
+  roles read them.
+- **Not built**: credit and contract **limits** — the app has none today (overdue does not block a sale, above), so
+  there is nothing per branch to move. The storefront shows nothing new (the owner's login sees his orders as before).
+- Open, for the owner: which of Mokattam, Master and LS2 is Ahmad Zogmar's default, and the names' spelling; an
+  owner with no default (above). A return's credit note lowers what its own order owes (§5), so it stays on that
+  order's branch.
 
 ## 8. Cycle profit and settlement
 

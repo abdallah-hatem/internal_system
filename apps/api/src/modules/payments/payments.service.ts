@@ -20,6 +20,8 @@ import { AuditService } from '../audit/audit.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { assertVerified } from '../../common/verified-customer';
 import { OWED_STATUSES, owedBy } from '../../common/customer-balance';
+import { owedByOneBranch } from '../../common/customer-branches';
+import { isUuid } from '../../common/uuid';
 import { isSamplesStatus } from '../../common/samples';
 import type { Prisma } from '@prisma/client';
 
@@ -129,6 +131,8 @@ export class PaymentsService {
        * first" — the Record payment dialog and the assistant both ask for it.
        */
       applyOldestFirst?: boolean;
+      /** One branch's orders only (§7, 2026-10-25), oldest first. */
+      branchId?: string;
     },
     actorId: string,
     idempotencyKey?: string,
@@ -172,6 +176,34 @@ export class PaymentsService {
     //
     // On a chosen order the order's own cap is the tighter one, checked in
     // `allocateWithin`, so its refusal names the order rather than the shop.
+    // To one branch (§7, 2026-10-25): capped by what that branch owes, and
+    // put on its own orders oldest first. Checked before the shop's cap,
+    // which it can only be tighter than.
+    const branch = data.branchId
+      ? await this.payingBranch(data.customerId, data.branchId, data.orderId)
+      : null;
+    if (branch) {
+      const owed = Number(
+        await owedByOneBranch(this.prisma, data.customerId, branch.id),
+      );
+      if (data.amount > owed) {
+        throw owed <= 0
+          ? badRequest(
+              'BRANCH_OWES_NOTHING',
+              `The branch ${branch.name} does not owe anything, so there is nothing to pay.`,
+              { branch: branch.name },
+            )
+          : badRequest(
+              'PAYMENT_EXCEEDS_BRANCH_OWED',
+              `The branch ${branch.name} owes ${owed.toFixed(2)}, so ${Number(data.amount).toFixed(2)} cannot be received against it.`,
+              {
+                branch: branch.name,
+                owed: owed.toFixed(2),
+                amount: Number(data.amount).toFixed(2),
+              },
+            );
+      }
+    }
     if (!data.orderId) {
       const owed = Number(await owedBy(this.prisma, data.customerId));
       if (data.amount > owed) {
@@ -212,7 +244,11 @@ export class PaymentsService {
           method: data.method,
           reference: data.reference || idempotencyKey,
           orderId: data.orderId,
-          applyOldestFirst: !data.orderId && data.applyOldestFirst === true,
+          // Paying one branch is always oldest first on its orders: money
+          // said to be for a branch and left on no order would be for nobody.
+          applyOldestFirst:
+            !data.orderId && (!!branch || data.applyOldestFirst === true),
+          branchId: branch?.id,
         },
         actorId,
       ),
@@ -280,6 +316,7 @@ export class PaymentsService {
       reference?: string;
       orderId?: string;
       applyOldestFirst?: boolean;
+      branchId?: string;
     },
     actorId: string,
   ) {
@@ -324,7 +361,12 @@ export class PaymentsService {
       );
     } else if (data.applyOldestFirst) {
       allocated.push(
-        ...(await this.allocateOldestFirst(tx, payment, Number(data.amount))),
+        ...(await this.allocateOldestFirst(
+          tx,
+          payment,
+          Number(data.amount),
+          data.branchId,
+        )),
       );
     }
 
@@ -351,12 +393,15 @@ export class PaymentsService {
       receivedOn: Date;
     },
     amount: number,
+    /** Only this branch's orders (§7, 2026-10-25). */
+    branchId?: string,
   ) {
     // Oldest means sold first — the sale's own day, which can be earlier than
     // the day it was typed in (§4, 2026-10-16) — then created first.
     const open = await tx.saleOrder.findMany({
       where: {
         customerId: payment.customerId,
+        ...(branchId ? { branchId } : {}),
         status: { in: [...OWED_STATUSES] },
         outstanding: { gt: 0 },
       },
@@ -384,6 +429,40 @@ export class PaymentsService {
       left -= take;
     }
     return done;
+  }
+
+  /**
+   * The branch a payment is for: this customer's own. An archived branch can
+   * still be paid — it keeps its balance until it is settled (§7). Paying one
+   * branch and one order at once is two answers to where the money goes.
+   */
+  private async payingBranch(
+    customerId: string,
+    branchId: string,
+    orderId?: string,
+  ) {
+    if (orderId) {
+      throw badRequest(
+        'VALIDATION_FAILED',
+        'Send branchId or orderId, not both: the order already says its branch.',
+        { fields: 'branchId' },
+      );
+    }
+    const branch = isUuid(branchId)
+      ? await this.prisma.customerBranch.findUnique({
+          where: { id: branchId },
+          select: { id: true, name: true, customerId: true },
+        })
+      : null;
+    if (!branch) throw notFound('customerBranch');
+    if (branch.customerId !== customerId) {
+      throw badRequest(
+        'BRANCH_NOT_THIS_CUSTOMER',
+        `The branch ${branch.name} belongs to another customer.`,
+        { branch: branch.name },
+      );
+    }
+    return branch;
   }
 
   /** The audit rows for what `recordWithin` wrote, once it has committed. */
