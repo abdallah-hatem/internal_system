@@ -248,9 +248,11 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   one branch, pick the branch (a picker, never free text; a customer with one branch picks none). A payment from the
   owner: to one branch, or spread across branches' orders (oldest first unless chosen), never more than the combined
   owed. Contracts, samples, returns and price adjustments stay per order, so per branch. Existing customers become a
-  customer with no branches (no data change for them); a branch is never a separate customer record. Open for the
-  owner before building: credit/contract limits per branch or per owner; whether the storefront login is per branch
-  or per owner; invoice header name (branch, owner, or both). Render a sample of the customer page and New Order
+  customer with no branches (no data change for them); a branch is never a separate customer record. Decided (owner,
+  2026-10-25: "owner, owner, owner"): credit and contract limits are the **owner's**, across all branches; the
+  storefront login is the **owner's** (one login for all branches; he picks the branch when ordering); the invoice
+  header names the **owner** (the branch can appear as the delivery line — Claude's suggestion, confirm when the
+  sample is shown). Render a sample of the customer page and New Order
   before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale, a payment, a return, a payment
   reversed and an order cancelled notify the other partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a

@@ -1603,7 +1603,8 @@ allocated to a sale made after it was received.
 Some shops now have several branches, each buying separately, with **one owner who pays for all**. Decided: one
 customer with branches under it (option 2 of two offered; separate customers per branch was the other). Each branch
 keeps its own orders, balance and statement; the customer shows the combined total; an owner's payment can go to one
-branch or across several. Details and the questions still open are in BUILD_LOG Next up.
+branch or across several. Also decided (owner, 2026-10-25): credit and contract limits, the storefront login and the
+invoice header are all the **owner's**, not each branch's. Details in BUILD_LOG Next up.
 
 ## 8. Cycle profit and settlement
 
