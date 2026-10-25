@@ -1,4 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  returnNews,
+  tellOtherPartners,
+  type PartnerNotifier,
+} from '../../common/partner-news';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
@@ -35,6 +41,10 @@ export class ReturnsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    /** A return is told to the other partners (owner 2026-10-25). */
+    @Optional()
+    @Inject(NotificationsService)
+    private notifications?: PartnerNotifier,
   ) {}
 
   async findAll(pagination: PaginationDto & { saleOrderId?: string }) {
@@ -354,6 +364,25 @@ export class ReturnsService {
         reason: dto.reason,
       },
     });
+    await tellOtherPartners(
+      this.prisma,
+      this.notifications,
+      actorId,
+      returnNews({
+        id: created!.id,
+        reference: created!.reference,
+        refundEgp,
+        refundMethod,
+        reason: dto.reason,
+        orderId: order.id,
+        orderNo: order.orderNo,
+        shop: created!.saleOrder.customer.displayName,
+        items: created!.items.map((i) => ({
+          product: i.saleItem.product.name,
+          qty: i.qty,
+        })),
+      }),
+    );
 
     return { data: created };
   }

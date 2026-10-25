@@ -1,5 +1,12 @@
 import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
-import { Injectable } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  paymentNews,
+  reversalNews,
+  tellOtherPartners,
+  type PartnerNotifier,
+} from '../../common/partner-news';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   assertNotFuture,
@@ -42,6 +49,13 @@ export class PaymentsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    /**
+     * A payment recorded or reversed is told to the other partners (owner
+     * 2026-10-25). Optional: a preview's own service tells nobody.
+     */
+    @Optional()
+    @Inject(NotificationsService)
+    private notifications?: PartnerNotifier,
   ) {}
 
   async findAll(pagination: {
@@ -206,8 +220,44 @@ export class PaymentsService {
 
     // Audit rows after the commit — see `allocateToOrder` for why.
     await this.logRecorded(outcome, actorId);
+    await this.announcePayment(outcome.payment.id, actorId);
 
     return { data: outcome.payment };
+  }
+
+  /** A payment recorded, told to the other partners, read back after the commit. */
+  private async announcePayment(paymentId: string, actorId: string) {
+    await tellOtherPartners(
+      this.prisma,
+      this.notifications,
+      actorId,
+      async () => {
+        const payment = await this.prisma.payment.findUnique({
+          where: { id: paymentId },
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            customerId: true,
+            customer: { select: { displayName: true } },
+            allocations: {
+              select: { saleOrder: { select: { orderNo: true } } },
+            },
+          },
+        });
+        return (
+          payment &&
+          paymentNews({
+            id: payment.id,
+            amount: payment.amount,
+            method: payment.method,
+            customerId: payment.customerId,
+            shop: payment.customer.displayName,
+            orders: payment.allocations.map((a) => a.saleOrder.orderNo),
+          })
+        );
+      },
+    );
   }
 
   /**
@@ -587,6 +637,24 @@ export class PaymentsService {
       entityId: id,
       afterJson: { reason },
     });
+    await tellOtherPartners(
+      this.prisma,
+      this.notifications,
+      actorId,
+      async () => {
+        const shop = await this.prisma.customer.findUnique({
+          where: { id: payment.customerId },
+          select: { displayName: true },
+        });
+        return reversalNews({
+          id,
+          amount: payment.amount,
+          customerId: payment.customerId,
+          shop: shop?.displayName ?? '—',
+          reason,
+        });
+      },
+    );
 
     return { data: { success: true } };
   }

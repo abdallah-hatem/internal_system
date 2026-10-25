@@ -1065,7 +1065,13 @@
     "IMPORT_REQUEST_ANSWERED": "بخصوص {productName}",
     "IMPORT_REQUEST_DECLINED": "بخصوص {productName}",
     "LENDER_INSTALMENT_OVERDUE": "تأخر سداد {lender} المستحق {dueOn} على {reference} — المتبقي {amount} {currency}",
-    "SAMPLES_AT_SHOP_REMINDER": "عينات عند {shop} منذ {days} يوماً"
+    "SAMPLES_AT_SHOP_REMINDER": "عينات عند {shop} منذ {days} يوماً",
+    "SALE_RECORDED": "{by} باع لـ {shop} — {orderNo}، {total} جنيه",
+    "PAYMENT_RECORDED": "{by} سجّل {amount} جنيه من {shop} ({method})",
+    "SALE_RETURNED_CREDIT": "{by} سجّل مرتجعًا من {shop} على {orderNo} — خُصم {refund} جنيه من المستحق",
+    "SALE_RETURNED_CASH": "{by} سجّل مرتجعًا من {shop} على {orderNo} — رُدّ {refund} جنيه نقدًا",
+    "PAYMENT_REVERSED": "{by} عكس دفعة {amount} جنيه من {shop}: {reason}",
+    "ORDER_CANCELLED": "{by} ألغى {orderNo} لـ {shop} ({total} جنيه)"
   },
   "auditLogs": {
     "title": "سجلات التدقيق",

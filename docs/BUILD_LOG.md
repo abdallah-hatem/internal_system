@@ -33,6 +33,13 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   each break-checked.
 
 ## On `dev`, not on master yet (the owner: "lets do this", then "push dev", 2026-10-25)
+- 2026-10-25 (owner: "pull dev, start working on the todos"): **a sale, a payment, a return, a payment reversed and a
+  confirmed order cancelled notify the other partners** (§10), in the bell and pushed. `common/partner-news.ts`
+  (who hears it, who did it, the words), raised after the commit from the sales, payments and returns services; six
+  codes in `notification-messages.ts` and the office's en/ar; the bell links to the order or Payments. Tests:
+  `partner-news.db.spec.ts` (7, real services on Postgres — each event reaches the other partner and not the actor,
+  an inactive partner or an investor; a draft and a draft's cancel are silent; a failed notification leaves the sale
+  confirmed), break-verified against 7 breaks.
 - 2026-10-25: **the office chat** (§16 "The office chat") — the assistant's tools from a button on every page, the model
   from the API's environment (Gemini by default, any OpenAI-compatible provider), previews confirmed by a button only,
   100 questions a day shared, nothing of the conversation stored. Tests: `chat.service.spec.ts` (13: the model can
@@ -325,17 +332,6 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   them; spelling to confirm when entering). His existing record becomes the owner; any orders he already has stay on
   him until a branch is picked for them (ask the owner which branch each belongs to). Render a sample of the customer page and New Order
   before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale, a payment, a return, a payment
-  reversed and an order cancelled notify the other partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a
-  sale and the owner was not told: a sale only notified through low stock. A sale confirmed (incl. walk-in and one-step
-  confirm): shop, order number, total, who recorded it. A payment recorded: shop, amount, method, the orders it went on,
-  who recorded it. Every active core partner except the one who did it; Arabic push as §10; raised after the commit
-  (LEARNINGS: never inside `$transaction`), through the same `NotificationsService` so the push follows. Also from the
-  assistant's `record_sale` / `record_payment` and the office chat (same services). Also (owner, 2026-10-25: "yes i want
-  them add"): a **return** (reference, order, products and units, refund and its method, reason), a **payment
-  reversed** (shop, amount, the reason), and an **order cancelled** (order number, shop, what it was worth) — same
-  readers, same rules. A test that a real sale / payment reaches the other partners' notifications from
-  the service that raises it (LEARNINGS "a test button proves the pipe, not that anything uses it").
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters, sorting and pagination on the
   server, everywhere** (sorting and filters made explicit by the owner 2026-10-25) — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
   load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,

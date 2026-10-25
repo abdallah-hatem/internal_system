@@ -1,4 +1,9 @@
 import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
+import {
+  cancelNews,
+  saleNews,
+  tellOtherPartners,
+} from '../../common/partner-news';
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
@@ -743,6 +748,7 @@ export class SalesService {
       this.notifications,
       outcome.confirmed.lowStock,
     );
+    await this.announceSale(outcome.order.id, actorId);
 
     return {
       data: { ...outcome.confirmed.data, customer: outcome.order.customer },
@@ -890,6 +896,8 @@ export class SalesService {
       this.notifications,
       outcome.confirmed.lowStock,
     );
+    // The sale is the news; its payment is part of it, not a second one.
+    await this.announceSale(outcome.order.id, actorId);
 
     return {
       data: {
@@ -1236,7 +1244,33 @@ export class SalesService {
     // Likewise after the commit: an alert for stock that never left would
     // send somebody to reorder what is still on the shelf.
     await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
+    await this.announceSale(id, actorId);
     return { data: outcome.data };
+  }
+
+  /**
+   * A confirmed sale, told to the other partners (owner 2026-10-25), after
+   * the commit. Read back so every path says the same thing.
+   */
+  private async announceSale(orderId: string, actorId: string) {
+    await tellOtherPartners(
+      this.prisma,
+      this.notifications,
+      actorId,
+      async () => {
+        const order = await this.prisma.saleOrder.findUnique({
+          where: { id: orderId },
+          select: {
+            id: true,
+            orderNo: true,
+            total: true,
+            customerId: true,
+            customer: { select: { displayName: true } },
+          },
+        });
+        return order && saleNews(order);
+      },
+    );
   }
 
   /**
@@ -1823,6 +1857,8 @@ export class SalesService {
 
     await this.audit.log(outcome.audit);
     await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
+    // Samples bought are a sale from now on (§4).
+    await this.announceSale(outcome.data.id, actorId);
     return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
   }
 
@@ -2105,6 +2141,7 @@ export class SalesService {
           afterJson: { status: 'CANCELLED' },
         },
         data: updated,
+        wasConfirmed: order.status === 'CONFIRMED',
       };
     });
 
@@ -2114,6 +2151,28 @@ export class SalesService {
     // cannot arrive until the transaction ends, and the transaction cannot
     // end until it returns. P2028 at exactly the ceiling, every time.
     await this.audit.log(outcome.audit);
+    // A draft never was a sale; samples "Returned" have their own story (§4).
+    if (outcome.wasConfirmed) {
+      const order = outcome.data;
+      await tellOtherPartners(
+        this.prisma,
+        this.notifications,
+        actorId,
+        async () => {
+          const shop = await this.prisma.customer.findUnique({
+            where: { id: order.customerId },
+            select: { displayName: true },
+          });
+          return cancelNews({
+            id: order.id,
+            orderNo: order.orderNo,
+            total: order.total,
+            customerId: order.customerId,
+            shop: shop?.displayName ?? '—',
+          });
+        },
+      );
+    }
     return { data: outcome.data };
   }
 }
