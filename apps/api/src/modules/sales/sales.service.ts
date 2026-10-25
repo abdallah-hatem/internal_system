@@ -58,6 +58,7 @@ import {
   SAMPLES_OPEN_STATUS,
   SAMPLES_REMINDER_DAYS,
 } from '../../common/samples';
+import { samplesAtShop } from '../../common/samples-out';
 
 /** The client or a transaction — whichever the caller holds. */
 type Db = Prisma.TransactionClient;
@@ -428,6 +429,31 @@ export class SalesService {
         contractPlan,
         samples: samplesSummary(order),
       },
+    };
+  }
+
+  /**
+   * What a shop holds as samples (§4, owner 2026-10-25): New Order's hint
+   * when the shop is picked, and the assistant's record_sale preview. Its
+   * open samples orders, oldest first, each product with its units. A hint
+   * only — nothing here refuses a sale.
+   */
+  async samplesAtShop(customerId: string | undefined) {
+    if (!customerId) {
+      throw badRequest('CUSTOMER_REQUIRED', 'customerId is required');
+    }
+    if (!isUuid(customerId)) throw notFound('customer');
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    });
+    if (!customer) throw notFound('customer');
+    const orders = await samplesAtShop(this.prisma, customerId);
+    return {
+      data: orders.map(({ leftAt, ...o }) => ({
+        ...o,
+        leftOn: leftAt ? businessDay(leftAt) : null,
+      })),
     };
   }
 

@@ -419,6 +419,44 @@ function SalesPageContent() {
     router.replace(`/${locale}/sales`, { scroll: false });
   }, [searchParams, customerList, locale, router]);
 
+  /**
+   * The samples hint's link (§4, owner 2026-10-25): New Order closes and that
+   * samples order's "They're buying" opens, with every line it carries — read
+   * fresh, so it is the order as it stands, not as a list row last saw it.
+   */
+  const openBuying = async (id: string) => {
+    try {
+      const order = await queryClient.fetchQuery({
+        queryKey: ['sale', id],
+        queryFn: () => api.get(`/sales/orders/${id}`).then((r) => r.data.data ?? r.data),
+        staleTime: 0,
+      });
+      setCreateFor(null);
+      setCompletingSamples(order as SaleOrder);
+    } catch (error) {
+      addToast(apiError(error, tc('error')), 'error');
+    }
+  };
+
+  // `?buying=<id>` — the samples hint under a sale preview in the office chat
+  // — opens the same "They're buying", once the shops and products it shows
+  // have loaded; dropped once used, like `?customer=`.
+  // The chat floats over every page, so a second link can arrive while this
+  // page stays mounted: what was opened is forgotten once the URL drops it.
+  const openedBuying = useRef<string | null>(null);
+  useEffect(() => {
+    const wanted = searchParams.get('buying');
+    if (!wanted) {
+      openedBuying.current = null;
+      return;
+    }
+    if (openedBuying.current === wanted || customerList.length === 0 || productList.length === 0) return;
+    openedBuying.current = wanted;
+    router.replace(`/${locale}/sales`, { scroll: false });
+    void openBuying(wanted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the lists arrive
+  }, [searchParams, customerList, productList.length, locale, router]);
+
 
   const STATUS_FILTER: Record<string, string> = {
     draft: 'DRAFT',
@@ -855,6 +893,7 @@ function SalesPageContent() {
           initialCustomerId={createFor.customerId}
           onCancel={closeCreate}
           onSaved={onOrderSaved}
+          onOpenSamples={(order) => void openBuying(order.id)}
         />
       )}
 

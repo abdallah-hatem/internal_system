@@ -332,6 +332,37 @@ export function resolveSale(
   };
 }
 
+/** A shop's open samples orders, as `SalesService.samplesAtShop` reads them. */
+export type ShopSamples = Awaited<
+  ReturnType<SalesService['samplesAtShop']>
+>['data'];
+
+/**
+ * How the samples note starts. The office chat shows the note as its own
+ * translated hint with a link, so it cuts the summary here (chat.service.ts).
+ */
+export const SAMPLES_AT_SHOP_NOTE = 'Samples at this shop:';
+
+/**
+ * The record_sale preview's samples note (§4, owner 2026-10-25): what the
+ * shop holds, per samples order, and what to do if those are what it is
+ * buying. Never a refusal — a separate purchase is valid.
+ */
+export function samplesAtShopNote(shop: string, orders: ShopSamples): string {
+  return [
+    `${SAMPLES_AT_SHOP_NOTE} ${shop} already holds samples —`,
+    ...orders.map(
+      (o) =>
+        `- ${o.orderNo}${o.leftOn ? ` (left ${o.leftOn})` : ''}: ` +
+        o.lines
+          .map((l) => `${formatQty(l.units)} × ${l.name} (${l.sku})`)
+          .join(', '),
+    ),
+    'If the shop is buying those samples, complete that samples order instead (complete_samples_sale): this sale draws its units from the shelf while the samples still count as out. ' +
+      'Tell the partner before they confirm; a separate purchase is fine and this does not stop the sale.',
+  ].join('\n');
+}
+
 /** A NUMERIC(18,2) as two decimals — a Decimal prints "300", not "300.00". */
 export function money2(value: unknown): string {
   return Number(value).toFixed(2);
@@ -521,6 +552,11 @@ export function registerSalesTools(
     const who = plan.walkIn
       ? 'a walk-in buyer (B2C)'
       : `${plan.customer!.name} (${plan.channel})`;
+    // What the shop already holds as samples (§4, owner 2026-10-25): the
+    // office form's hint, said here too. A hint only — the sale goes ahead.
+    const samplesHeld: ShopSamples = plan.customer
+      ? (await ctx.resolve(SalesService).samplesAtShop(plan.customer.id)).data
+      : [];
 
     return {
       summary: [
@@ -545,6 +581,9 @@ export function registerSalesTools(
         plan.walkIn
           ? `Paid on the spot by ${method}; nothing is owed.`
           : `${plan.customer!.name} will owe ${formatMoney(seen.outstanding)} ${CURRENCY}; no payment is recorded.`,
+        ...(samplesHeld.length
+          ? ['', samplesAtShopNote(plan.customer!.name, samplesHeld)]
+          : []),
       ].join('\n'),
       data: {
         walkIn: plan.walkIn,
@@ -559,6 +598,8 @@ export function registerSalesTools(
         statusAfter: seen.status,
         outstandingAfter: seen.outstanding,
         payment: plan.walkIn ? { method, amount: seen.total } : null,
+        /** The shop's open samples orders; empty when it holds none. */
+        samplesAtShop: samplesHeld,
       },
     };
   }

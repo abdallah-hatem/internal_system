@@ -33,6 +33,18 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   each break-checked.
 
 ## On `dev`, not on master yet (the owner: "lets do this", then "push dev", 2026-10-25)
+- 2026-10-25 (owner, queued the same day; built on branch `agent-samples-hint`): **New Order warns when the shop
+  holds samples** (§4) — picking a shop with samples out shows, above the lines, each open samples order with every
+  product and its units ("This shop holds 1 Helmet as a sample (ORD-…, left …)") and a "They're buying — open ORD-…"
+  link that closes New Order and opens that order's "They're buying". A hint only: it never blocks the order. Read by
+  `GET /sales/orders/samples-at-shop` from `samplesAtShop` in `common/samples-out.ts`, the same draws as Inventory's
+  "At shops" and the settlement gate. The assistant's `record_sale` preview ends with the same note (data
+  `samplesAtShop`); the office chat shows the translated hint under the card, linking `/sales?buying=<id>`. Tests:
+  `sales/samples.db.spec.ts` (6: none, several products, returned/cancelled/written off/bought leave it, another
+  shop's never shows, never blocks, refusals), `assistant/tools/samples.db.spec.ts` (2), `chat.service.spec.ts` (1),
+  `samples-at-shop-hint.test.tsx` (9: switching shop leaves no stale hint, walk-in, never blocks submit, Arabic),
+  `assistant-chat.test.tsx` (1), e2e spec 104 (3, through the navigation and the pickers), each break-checked.
+  GUESS: units are summed per product on each order, oldest order first, no price shown.
 - 2026-10-25: **the office chat** (§16 "The office chat") — the assistant's tools from a button on every page, the model
   from the API's environment (Gemini by default, any OpenAI-compatible provider), previews confirmed by a button only,
   100 questions a day shared, nothing of the conversation stored. Tests: `chat.service.spec.ts` (13: the model can
@@ -240,13 +252,6 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **New Order warns when the shop holds
-  samples** — picking a customer with samples out shows a hint above the lines: "This shop holds 1 helmet as a sample"
-  (each product and units, from the open samples orders), with a link that opens that samples order's "They're buying"
-  instead. Reason: a new order for 5 helmets when 1 is the sample the shop already has draws 5 more from the shelf while
-  the sample still counts as out — stock reads one low and the cycle cannot settle until the samples order is closed.
-  The hint never blocks the new order (a separate purchase is valid while a sample is still on trial). Same hint in the
-  assistant's `record_sale` preview and the office chat.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
   searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
   toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts

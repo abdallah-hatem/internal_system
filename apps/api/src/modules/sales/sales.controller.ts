@@ -60,6 +60,16 @@ export class SalesController {
     return this.salesService.findAll(query);
   }
 
+  // Before `:id`, which would otherwise take "samples-at-shop" for an order id.
+  @Get('samples-at-shop')
+  @ApiOperation({
+    summary:
+      'What a shop holds as samples: its open samples orders, each product and its units (§4, owner 2026-10-25). A hint for New Order; never refuses a sale.',
+  })
+  samplesAtShop(@Query('customerId') customerId?: string) {
+    return this.salesService.samplesAtShop(customerId);
+  }
+
   @Get(':id/invoice')
   @ApiOperation({
     summary:

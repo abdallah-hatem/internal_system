@@ -1032,6 +1032,30 @@ orders in all, and per order the shop, the units, how long ago they were left, l
 Samples total — the prices card below it still shows and sets both B2B and B2C prices (only the card was removed;
 B2C pricing is unchanged everywhere else).
 
+**New Order warns when the shop holds samples** (owner 2026-10-25; built 2026-10-25). Why: a new order for 5 helmets
+when 1 is the sample the shop already has draws 5 more from the shelf while the sample still counts as out — stock
+reads one low and the cycle cannot settle until the samples order is closed.
+- Picking a shop in New Order shows, **above the lines**, an amber hint per open samples order: "This shop holds 1
+  Helmet as a sample (ORD-…, left …)" — each product and its units (Arabic: "هذا المحل لديه … كعينة"), and under it
+  "If those are what they're buying, complete that samples order instead…". Each order has a link, **"They're buying
+  — open ORD-…"**, which closes New Order and opens that samples order's "They're buying" popup (above), read fresh.
+- **A hint only — DECIDED (owner): it never blocks the new order**; a separate purchase while a sample is on trial is
+  valid. Neither button looks at it, and the API refuses nothing because of it.
+- **One definition of "samples out at a shop"** (CLAUDE.md §11): `samplesAtShop` in `common/samples-out.ts` reads the
+  same open-samples allocations as Inventory's Samples column, the cycle's unsold stock and the settlement gate, filtered
+  to the shop — so returned, written-off and bought samples are not in it (they are no longer `SAMPLES`), nor another
+  shop's. `GET /sales/orders/samples-at-shop?customerId=` (sales roles): no shop `CUSTOMER_REQUIRED`, an id that is not
+  a customer 404. A samples order is never a draft, so there is no draft state to show.
+- Not shown for a walk-in (no shop) nor in "They're buying" itself (it is that order). Switching shop never leaves the
+  last shop's hint: it is read per shop and not kept once nothing shows it, so it never shows samples since decided.
+- **The assistant:** `record_sale`'s preview to a shop holding samples ends with "Samples at this shop: …", each order
+  with its products and units, pointing at `complete_samples_sale`; its data carries `samplesAtShop`. It binds nothing
+  — the sale still goes through. **The office chat** shows the same hint, translated, under the preview card, its link
+  opening "They're buying" (`/sales?buying=<id>`); the English note is cut from the card so it is not said twice (the
+  model still reads it).
+- GUESS: the hint lists units out per product on each order (all units of a product summed across the batches they
+  left), oldest order first; no price is shown (a noted price is not a decision).
+
 **The assistant** (§16; tools built 2026-10-20, owner's queue of 2026-10-18): `list_sales` labels each order `kind:
 "SALE"` or `"SAMPLES"` as before. Five tools carry the flow, each the office endpoint's own `SalesService` call,
 previewed by that call rolled back and committed with the confirmation token (`tools/samples.ts`):

@@ -115,6 +115,40 @@ describe('the chat panel', () => {
     expect(screen.queryByTestId('assistant-chat-confirm')).toBeNull();
   });
 
+  it('a sale to a shop holding samples: the card says what it holds, links to that order\'s "They\'re buying", and Confirm still saves', async () => {
+    const sale = {
+      tool: 'record_sale',
+      args: { customer: 'Koshary', lines: [{ product: 'Helmet', qty: 5 }] },
+      token: 'tok-2',
+      expiresAt: null,
+      summary: 'Sale to Koshary (B2B): 5 × Helmet.',
+      samplesAtShop: [
+        {
+          id: 'o-12',
+          orderNo: 'ORD-0012',
+          leftOn: '2026-10-20',
+          lines: [{ productId: 'p-helmet', name: 'Helmet', nameAr: 'خوذة', sku: 'HLM-1', units: '1' }],
+        },
+      ],
+    };
+    state.answer = { reply: 'Press Confirm.', pending: [sale, PREVIEW] };
+    show();
+    await openAndAsk('Sold 5 helmets to Koshary');
+    const [saleCard, paymentCard] = await screen.findAllByTestId('assistant-chat-preview');
+    const hint = saleCard.querySelector('[data-testid="samples-at-shop-hint"]')!;
+    expect(hint.textContent).toContain('This shop holds 1 Helmet as a sample (ORD-0012');
+    expect(hint.querySelector('a')!.getAttribute('href')).toBe('/en/sales?buying=o-12');
+    // Another preview in the same answer carries no hint of its own.
+    expect(paymentCard.querySelector('[data-testid="samples-at-shop-hint"]')).toBeNull();
+    // A hint, never a block.
+    await act(async () => {
+      fireEvent.click(saleCard.querySelector<HTMLButtonElement>('[data-testid="assistant-chat-confirm"]')!);
+    });
+    expect(state.posts.filter((p) => p.url === '/assistant/chat/confirm')).toEqual([
+      { url: '/assistant/chat/confirm', body: { tool: 'record_sale', args: sale.args, token: 'tok-2' } },
+    ]);
+  });
+
   it('Cancel saves nothing and says so', async () => {
     state.answer = { reply: 'Press Confirm.', pending: [PREVIEW] };
     show();
