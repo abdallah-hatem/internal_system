@@ -307,7 +307,8 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   run). Tests: `customer-branches.db.spec.ts` (20, real Postgres: names, defaults, the default fallback on every
   path incl. `record_sale`, another customer's and archived branches, per-branch caps, balances and statements that
   add up), `SaleOrderForm.branches.test.tsx` (8: the default, a picked branch, a switched customer — also while its
-  branches load), e2e `104-customer-branches`, `src/one-off/ahmad-zogmar-branches.spec.ts`; each guard was undone
+  branches load), `src/one-off/ahmad-zogmar-branches.spec.ts`; e2e `104-customer-branches` written, not run — owner
+  said not for now (2026-10-25). Each guard was undone
   once and its test seen to fail. `check-data` 27.1–27.3: an order on another customer's branch, two defaults, an
   archived default.
   **Ahmad Zogmar** (production `ceadced7-457a-4803-9241-3520b6bda1ac`): `prisma/one-off/2026-10-25-ahmad-zogmar-branches.ts`

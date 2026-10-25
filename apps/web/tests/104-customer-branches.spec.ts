@@ -11,6 +11,8 @@
  *  Postgres in apps/api customer-branches.db.spec.ts; this is the screen.
  *
  *  Reached by clicking (CLAUDE.md §2). Stock comes through a cycle (§4).
+ *
+ *  Written 2026-10-25 and NOT run yet: the owner said no e2e runs for now.
  */
 import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { API, apiCtx, stockedProduct } from './support/fixtures';
