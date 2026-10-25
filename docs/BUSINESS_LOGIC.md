@@ -2012,8 +2012,9 @@ instalment falling behind (checked daily since 2026-10-11 — §7), and samples
 still at a shop 14 days after they were left (daily, once per order, since
 2026-10-18 — §4 "Samples at shops").
 
-**DECIDED 2026-10-25 (owner), not built yet: a sale confirmed and a payment recorded notify the other partners** —
-"a sale and payment should trigger notifications as well". Details in BUILD_LOG Next up; until built, a sale notifies
+**DECIDED 2026-10-25 (owner), not built yet: a sale confirmed, a payment recorded, a return, a payment reversed and an
+order cancelled each notify the other partners** — "a sale and payment should trigger notifications as well", then
+"yes i want them add" for returns, reversals and cancellations. Details in BUILD_LOG Next up; until built, a sale notifies
 only through low stock.
 
 **Every office notification is also pushed to the reader's phone** — built
