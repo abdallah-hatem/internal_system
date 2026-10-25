@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import type { CustomerType, Prisma } from '@prisma/client';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  filterOf,
+  listRows,
+  type ListQuery,
+  pageOfIds,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { isUuid } from '../../common/uuid';
@@ -29,6 +34,18 @@ import {
 } from '../../common/receivables';
 import { PaymentPlansService } from '../payment-plans/payment-plans.service';
 import { assertNotWalkIn } from '../../common/walk-in';
+const CUSTOMER_TYPES = [
+  'B2B',
+  'B2C',
+] as const satisfies readonly CustomerType[];
+
+/** The Customers list's orders; the first is the default. Each ends on `id`. */
+const CUSTOMER_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+  // Whoever owes the most first; this order breaks ties before the name does.
+  balance: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, Prisma.CustomerOrderByWithRelationInput[]>;
+
 @Injectable()
 export class CustomersService {
   constructor(
@@ -37,27 +54,31 @@ export class CustomersService {
     private paymentPlans: PaymentPlansService,
   ) {}
 
+  /**
+   * The Customers list (server-side lists, owner 2026-10-25): searched,
+   * filtered, sorted, counted and paged here (`common/list-query.ts`).
+   *
+   *   search        name, phone or email, Arabic-forgiving
+   *   verification  VERIFIED | UNVERIFIED | ALL (omitted hides unverified)
+   *   type          B2B | B2C
+   *   sort          newest (default) | balance — whoever owes the most first
+   */
   async findAll(
-    pagination: PaginationDto & {
+    query: ListQuery & {
       type?: string;
-      search?: string;
       verification?: string;
     },
   ) {
-    const {
-      cursor,
-      limit: rawLimit = 20,
-      type,
-      search,
-      verification,
-    } = pagination;
-    const limit = pageSize(rawLimit);
+    const { verification } = query;
+    const type = filterOf(query.type, 'type', CUSTOMER_TYPES);
+    const search = searchOf(query);
+    const { key: sort, orderBy } = sortOf(query, CUSTOMER_SORTS);
     // The walk-in record is not a customer anyone chose (BUSINESS_LOGIC §4,
     // 2026-10-11): it is behind every walk-in sale and is reached with the
     // sale form's Walk-in switch, never picked. Every picker reads this list,
     // so leaving it out here leaves it out of all of them. Its sales still
     // count in revenue and the dashboard, which read orders, not this list.
-    const where: any = { isWalkIn: false };
+    const where: Prisma.CustomerWhereInput = { isWalkIn: false };
     if (type) where.type = type;
 
     // Unverified shops are hidden unless asked for.
@@ -78,43 +99,70 @@ export class CustomersService {
       where.verificationStatus = { not: 'UNVERIFIED' };
     }
     if (search) {
-      where.OR = [
-        { displayName: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ];
+      where.id = {
+        in: await searchIds(
+          this.prisma,
+          `customers t`,
+          [`t.display_name`, `t.phone`, `t.email`],
+          search,
+        ),
+      };
+    }
+    const include = {
+      _count: { select: { saleOrders: true, payments: true } },
+    } as const;
+
+    // What a customer owes is a sum over their orders, which no ORDER BY on
+    // this table can say: every match's balance is worked out (one grouped
+    // query), the matches ordered by it, and only the page's rows loaded.
+    if (sort === 'balance') {
+      const matches = await this.prisma.customer.findMany({
+        where,
+        orderBy,
+        select: { id: true, displayName: true },
+      });
+      const owedAll = await owedByEach(
+        this.prisma,
+        matches.map((c) => c.id),
+      );
+      const ordered = matches
+        .map((c) => ({ ...c, owed: Number(owedAll.get(c.id) ?? 0) }))
+        .sort(
+          (a, b) =>
+            b.owed - a.owed || a.displayName.localeCompare(b.displayName),
+        )
+        .map((c) => c.id);
+      const { pageIds, meta } = pageOfIds(ordered, query);
+      const rows = await this.prisma.customer.findMany({
+        where: { id: { in: pageIds } },
+        include,
+      });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const data = pageIds
+        .map((id) => byId.get(id)!)
+        .map((c) => ({
+          ...c,
+          outstandingBalance: owedAll.get(c.id) ?? '0.00',
+        }));
+      return { data, meta };
     }
 
-    const items = await this.prisma.customer.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: {
-        _count: {
-          select: { saleOrders: true, payments: true },
-        },
-      },
+    const { rows, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.customer.findMany({ where, orderBy, include, ...window }),
+      count: () => this.prisma.customer.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const page = hasMore ? items.slice(0, limit) : items;
     // The balance column, by the same rule as the customer's own page — one
     // grouped query for the page rather than one per row.
     const owed = await owedByEach(
       this.prisma,
-      page.map((c) => c.id),
+      rows.map((c) => c.id),
     );
-    const data = page.map((c) => ({
+    const data = rows.map((c) => ({
       ...c,
       outstandingBalance: owed.get(c.id) ?? '0.00',
     }));
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data, meta };
   }
 
   /**

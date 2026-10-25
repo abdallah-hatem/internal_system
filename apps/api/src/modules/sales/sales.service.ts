@@ -1,9 +1,16 @@
-import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
+import {
+  filterOf,
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { isUniqueViolation } from '../../prisma/unique-violation';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
@@ -17,7 +24,7 @@ import {
   instantOfDay,
   instantRange,
 } from '../../common/dates';
-import { isUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
 import {
   VALUE_NOW_ITEM_INCLUDE,
   withValueNow,
@@ -30,6 +37,7 @@ import {
 import {
   PAYMENT_METHODS,
   type PaymentMethod,
+  WALK_IN_FILTER,
   walkInCustomer,
 } from '../../common/walk-in';
 import { PaymentsService } from '../payments/payments.service';
@@ -309,6 +317,14 @@ export function samplesSummary(
   };
 }
 
+/** The statuses the Sales list can be narrowed to — every one an order has. */
+const ORDER_STATUSES = Object.values(OrderStatus);
+
+/** The Sales list's orders; the first is the default. Each ends on `id`. */
+const SALE_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, Prisma.SaleOrderOrderByWithRelationInput[]>;
+
 /** The order is not samples at a shop, or no longer is. */
 function notOpenSamples(order: {
   orderNo: string;
@@ -344,59 +360,97 @@ export class SalesService {
     @Inject(NotificationsService) private notifications: LowStockNotifier,
   ) {}
 
-  async findAll(pagination: {
-    cursor?: string;
-    limit?: number;
-    customerId?: string;
-    status?: string;
-    channel?: string;
-    /** Calendar days, YYYY-MM-DD, both included, on the day it was ordered. */
-    from?: string;
-    to?: string;
-  }) {
-    const {
-      cursor,
-      limit: rawLimit = 20,
-      customerId,
-      status,
-      channel,
-      from,
-      to,
-    } = pagination;
-    const limit = pageSize(rawLimit);
+  /**
+   * The Sales list (server-side lists, owner 2026-10-25): filtered, searched,
+   * counted and paged here, never in the browser (`common/list-query.ts`).
+   *
+   *   customerId  one shop's orders; `walk-in` for the walk-in buyer's
+   *   status      one of the order statuses
+   *   from / to   calendar days, YYYY-MM-DD, both included, on the day ordered
+   *   search      the order number or the buyer's name, Arabic-forgiving
+   */
+  async findAll(
+    query: ListQuery & {
+      customerId?: string;
+      status?: string;
+      channel?: string;
+      from?: string;
+      to?: string;
+    },
+  ) {
+    const { customerId, channel, from, to } = query;
+    const status = filterOf(query.status, 'status', ORDER_STATUSES);
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, SALE_SORTS);
     const ordered = instantRange(from, to);
-    const where: any = {
-      ...(customerId ? { customerId } : {}),
+    const where: Prisma.SaleOrderWhereInput = {
+      ...(customerId !== undefined && customerId !== ''
+        ? { customerId: await this.buyerFilter(customerId) }
+        : {}),
       ...(status ? { status } : {}),
       ...(channel ? { channel } : {}),
       ...(ordered ? { orderedAt: ordered } : {}),
+      ...(search
+        ? {
+            id: {
+              in: await searchIds(
+                this.prisma,
+                `sale_orders t JOIN customers c ON c.id = t.customer_id`,
+                // orderNo has no @map: its column is "orderNo".
+                [`t."orderNo"`, `c.display_name`],
+                search,
+              ),
+            },
+          }
+        : {}),
     };
 
-    const items = await this.prisma.saleOrder.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: {
-        customer: true,
-        // What each order is worth now (§4, 2026-10-22) comes with the page:
-        // Prisma loads the returns and the cuts once for every row on it.
-        items: { include: { product: true, ...VALUE_NOW_ITEM_INCLUDE } },
-      },
+    const { rows, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.saleOrder.findMany({
+          where,
+          orderBy,
+          include: {
+            customer: true,
+            // What each order is worth now (§4, 2026-10-22) comes with the page:
+            // Prisma loads the returns and the cuts once for every row on it.
+            items: { include: { product: true, ...VALUE_NOW_ITEM_INCLUDE } },
+          },
+          ...window,
+        }),
+      count: () => this.prisma.saleOrder.count({ where }),
     });
 
-    const hasMore = items.length > limit;
     const now = new Date();
-    const data = (hasMore ? items.slice(0, limit) : items).map((o) => ({
+    const data = rows.map((o) => ({
       ...withValueNow(o),
       samples: samplesSummary(o, now),
     }));
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data, meta };
+  }
+
+  /**
+   * The customer a Sales list is narrowed to: a customer's id, or `walk-in`
+   * for the one walk-in record (§4). An id that cannot be one, or a customer
+   * that does not exist, is refused rather than answered with an empty list
+   * that looks like "no orders".
+   */
+  private async buyerFilter(customerId: string): Promise<string> {
+    if (customerId === WALK_IN_FILTER) {
+      const walkIn = await this.prisma.customer.findFirst({
+        where: { isWalkIn: true },
+        select: { id: true },
+      });
+      // No walk-in sale has been made yet: a filter that matches nothing.
+      return walkIn?.id ?? '00000000-0000-0000-0000-000000000000';
+    }
+    assertUuid(customerId, 'customerId');
+    const found = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    });
+    if (!found) throw notFound('customer');
+    return customerId;
   }
 
   async findById(id: string) {

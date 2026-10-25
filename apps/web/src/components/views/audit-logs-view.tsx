@@ -1,14 +1,14 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { useServerList } from '@/lib/server-list';
+import { searchFinds } from '@/lib/localized-name';
 
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useDateFormat } from '@/lib/dates';
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { useState, type ReactNode } from 'react';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
 import { Select } from '@/components/ui/select';
 import { ListToolbar } from '@/components/ui/list-toolbar';
 import { Eye } from '@/components/ui/icons';
@@ -73,8 +73,6 @@ export default function AuditLogsPage() {
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
 
-  const [search, setSearch] = useState('');
-  const [entityFilter, setEntityFilter] = useState('');
   // Who did it: kept in the address beside the view (`?view=audit-logs&actor=<id>`),
   // so a refresh or a shared link keeps the person chosen.
   const router = useRouter();
@@ -87,29 +85,36 @@ export default function AuditLogsPage() {
     const q = new URLSearchParams(searchParams.toString());
     if (next && next !== EVERYONE) q.set('actor', next);
     else q.delete('actor');
+    q.delete('page');
     const query = q.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
   const [viewingLog, setViewingLog] = useState<AuditLog | null>(null);
-  const [page, setPage] = useState(1);
-
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, entityFilter, actor]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: logs, capped, isLoading, reloading } = useAllRecords(
-    ['audit-logs', entityFilter, actor],
-    '/audit-logs',
-    {
-      ...(entityFilter ? { entityType: entityFilter } : {}),
+  // One page, searched, filtered and paged by the API (owner 2026-10-25).
+  // The search is sent with the action and record-type codes whose names in
+  // the reader's language contain it — the API knows the codes, not the
+  // words. A person named in the address waits for the list of people, so a
+  // stale link asks for everyone instead of failing.
+  const typed = (searchParams.get('q') ?? '').trim();
+  const labels = typed
+    ? [
+        ...Object.keys(ACTION_COLORS).filter((a) => searchFinds(codeLabel('auditAction', a), typed)),
+        ...AUDIT_ENTITY_TYPES.filter((e) => searchFinds(codeLabel('entityType', e), typed)),
+      ].join(',')
+    : '';
+  const list = useServerList<AuditLog>({
+    queryKey: 'audit-logs',
+    path: '/audit-logs',
+    filters: { entity: 'entityType' },
+    fixed: {
       ...(actor ? { actorUserId: actor } : {}),
+      ...(labels ? { labels } : {}),
     },
-    // The record type and the person are filtered by the API, so a new one is a
-    // new query: keep the rows on screen, dimmed, until it arrives, rather than
-    // back to skeletons. A person named in the address waits for the list of
-    // people, so a stale link asks for everyone instead of failing.
-    { keepPrevious: true, enabled: !actor || !actorsLoading },
-  );
+    enabled: !actor || !actorsLoading,
+  });
+  const { rows: logs, isLoading, reloading } = list;
+  const entityFilter = list.get('entity');
 
   const { data: logDetail } = useQuery({
     queryKey: ['audit-log', viewingLog?.id],
@@ -119,33 +124,11 @@ export default function AuditLogsPage() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const logList: AuditLog[] = Array.isArray(logs) ? logs : [];
-
-  const filtered = logList.filter((log) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    // What the reader sees: the record's name in either language, its type
-    // and action in words — not the database id, which is never shown.
-    return [
-      log.action,
-      codeLabel('auditAction', log.action),
-      log.entityType,
-      codeLabel('entityType', log.entityType),
-      log.entityLabel,
-      log.entityLabelAr,
-      recordName(log),
-      nameOf(log),
-      log.actor?.email,
-    ].some((text) => text?.toLowerCase().includes(q));
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    logList.length === 0 ? (
+    list.total === 0 && !list.filtered && !actor ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
@@ -153,7 +136,10 @@ export default function AuditLogsPage() {
     ) : (
       <NoMatch
         filtered={!!entityFilter || !!actor}
-        onClear={() => { setSearch(''); setEntityFilter(''); setActor(''); }}
+        onClear={() => {
+          list.clear();
+          setActor('');
+        }}
       />
     );
 
@@ -215,11 +201,11 @@ export default function AuditLogsPage() {
       </div>
 
       {/* Search + Filters */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
         <Select
           className="w-full sm:w-52"
           value={entityFilter}
-          onChange={setEntityFilter}
+          onChange={(v) => list.set('entity', v || null)}
           clearable
           placeholder={tph('allRecordTypes')}
           searchPlaceholder={tph('searchTypes')}
@@ -236,7 +222,6 @@ export default function AuditLogsPage() {
         </div>
       </ListToolbar>
 
-      <ListCapNotice capped={capped} count={logs.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -245,7 +230,7 @@ export default function AuditLogsPage() {
       <DataTable
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={logs}
         rowKey={(log) => log.id}
         isLoading={isLoading}
         stale={reloading}
@@ -260,10 +245,10 @@ export default function AuditLogsPage() {
       )}
       {!isLoading && (
         <div aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          {filtered.length === 0 ? (
+          {logs.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((log) => (
+            logs.map((log) => (
               <div
                 key={log.id}
                 onClick={() => setViewingLog(log)}
@@ -287,8 +272,14 @@ export default function AuditLogsPage() {
       )}
 
       {/* Pagination */}
-      {filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── View Log Detail ─────────────────────────────────────── */}

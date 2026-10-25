@@ -14,6 +14,13 @@ import { badRequest } from './api-error';
 export const WALK_IN_NAME = 'Walk-in';
 
 /**
+ * What a list's `customerId` filter says for the walk-in buyer (Sales list,
+ * owner 2026-10-25). The record's id differs from one database to the next,
+ * and the customers list leaves it out, so a picker names it by this instead.
+ */
+export const WALK_IN_FILTER = 'walk-in';
+
+/**
  * How money can arrive. The same four the Record payment dialog offers
  * (`RecordPaymentDialog.PAYMENT_METHODS` in the web app); cash when unsaid.
  */

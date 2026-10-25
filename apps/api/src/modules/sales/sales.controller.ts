@@ -17,7 +17,7 @@ import {
   type PriceCheckInput,
   type SamplesConversionInput,
 } from './sales.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { badRequest } from '../../common/api-error';
@@ -46,10 +46,13 @@ export class SalesController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List sale orders with filtering and pagination' })
+  @ApiOperation({
+    summary:
+      'List sale orders: page/pageSize/search/sort, customerId (or walk-in), status, from/to',
+  })
   findAll(
     @Query()
-    query: PaginationDto & {
+    query: ListQuery & {
       customerId?: string;
       status?: string;
       channel?: string;

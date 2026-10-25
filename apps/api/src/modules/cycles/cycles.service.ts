@@ -4,11 +4,14 @@ import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
-import { Prisma, ParticipantType } from '@prisma/client';
+  filterOf,
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
+import { CycleStatus, Prisma, ParticipantType } from '@prisma/client';
 
 import { badRequest, notFound } from '../../common/api-error';
 import { isUUID } from 'class-validator';
@@ -50,6 +53,11 @@ import {
   stepsToward,
 } from '../../common/status-follows-shipping';
 
+/** The Cycles list's orders; the first is the default. Each ends on `id`. */
+const CYCLE_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, Prisma.ImportCycleOrderByWithRelationInput[]>;
+
 /** Accept only the two participant kinds the business recognises. */
 function assertParticipantType(value: string): ParticipantType {
   if (value === 'CORE_PARTNER' || value === 'TEMP_INVESTOR') return value;
@@ -74,38 +82,67 @@ export class CyclesService {
   ) {}
 
   async findAll(
-    pagination: PaginationDto & { status?: string },
+    query: ListQuery & { status?: string },
     viewer: ScopeViewer = 'internal',
   ) {
-    const { cursor, limit: rawLimit = 20, status } = pagination;
-    const limit = pageSize(rawLimit);
+    const status = filterOf(query.status, 'status', Object.values(CycleStatus));
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, CYCLE_SORTS);
     const scope = await cyclesVisibleTo(viewer, this.prisma);
-    const where: Prisma.ImportCycleWhereInput = {};
-    if (status) where.status = status as Prisma.ImportCycleWhereInput['status'];
     // An investor: only the cycles they put money into (R1).
-    if (scope !== null) where.id = { in: [...scope] };
+    const visible: Prisma.ImportCycleWhereInput =
+      scope !== null ? { id: { in: [...scope] } } : {};
+    const where: Prisma.ImportCycleWhereInput = { AND: [visible] };
+    if (status) where.status = status;
+    // The cycle's code, as the list's search box always searched it.
+    if (search) {
+      where.AND = [
+        visible,
+        {
+          id: {
+            in: await searchIds(
+              this.prisma,
+              `import_cycles t`,
+              [`t.code`],
+              search,
+            ),
+          },
+        },
+      ];
+    }
     const ownRows = participantFilter(viewer);
 
-    const items = await this.prisma.importCycle.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: {
-        // An investor sees their own participation, never another
-        // participant's contribution (BUSINESS_LOGIC roles, 2026-10-10).
-        participants: ownRows ? { where: ownRows } : true,
-        purchaseOrders: true,
-        shippingLegs: true,
-      },
+    const { rows: data, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.importCycle.findMany({
+          where,
+          orderBy,
+          include: {
+            // An investor sees their own participation, never another
+            // participant's contribution (BUSINESS_LOGIC roles, 2026-10-10).
+            participants: ownRows ? { where: ownRows } : true,
+            purchaseOrders: true,
+            shippingLegs: true,
+          },
+          ...window,
+        }),
+      count: () => this.prisma.importCycle.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
+    if (meta.page === undefined) return { data, meta };
+    // The status pills' counts: every cycle the reader may see, by status —
+    // not only the page's, which is all the browser has now.
+    const byStatus = await this.prisma.importCycle.groupBy({
+      by: ['status'],
+      where: visible,
+      _count: { _all: true },
+    });
     return {
       data,
       meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
+        ...meta,
+        statusCounts: Object.fromEntries(
+          byStatus.map((g) => [g.status, g._count._all]),
+        ),
       },
     };
   }

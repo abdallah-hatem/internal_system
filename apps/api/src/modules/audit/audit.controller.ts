@@ -3,12 +3,15 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  listRows,
+  type ListQuery,
+  shown,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 
-import { notFound } from '../../common/api-error';
+import { badRequest, notFound } from '../../common/api-error';
 import { assertUuid, isUuid } from '../../common/uuid';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { withEntityLabels } from './audit-labels';
@@ -42,6 +45,43 @@ type WithActor = {
   } | null;
 };
 
+/** A filter and an order of audit rows, in the shapes the client takes (a controller names no Prisma types). */
+type AuditFind = NonNullable<
+  Parameters<PrismaService['auditLog']['findMany']>[0]
+>;
+type AuditWhere = NonNullable<AuditFind['where']>;
+type AuditOrder = Extract<AuditFind['orderBy'], unknown[]>;
+
+/** The Audit log's orders; the first is the default. Each ends on `id`. */
+const AUDIT_SORTS = {
+  newest: [{ occurredAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, AuditOrder>;
+
+/** An action or record type is a code: capitals, digits and underscores. */
+const CODE = /^[A-Za-z0-9_]{1,60}$/;
+
+/**
+ * `labels`: the action and record-type codes whose names, in the reader's
+ * language, contain the search — the office knows the words, the API the
+ * codes, so "إنشاء" still finds every CREATE. Comma-separated codes only.
+ */
+function labelCodes(value: unknown): string[] {
+  if (value === undefined || value === null || value === '') return [];
+  const codes = typeof value === 'string' ? value.split(',') : [];
+  if (
+    codes.length === 0 ||
+    codes.length > 200 ||
+    !codes.every((c) => CODE.test(c))
+  ) {
+    throw badRequest(
+      'LIST_FILTER_INVALID',
+      `labels cannot be "${shown(value)}" (it is codes, comma-separated).`,
+      { field: 'labels', value: shown(value) },
+    );
+  }
+  return codes;
+}
+
 function flattenActor<T extends WithActor>(log: T) {
   const { actor, ...rest } = log;
   return {
@@ -68,28 +108,22 @@ export class AuditController {
   @ApiOperation({ summary: 'List audit logs with filtering and pagination' })
   async findAll(
     @Query()
-    query: PaginationDto & {
+    query: ListQuery & {
       entityType?: string;
       entityId?: string;
       actorUserId?: string;
       action?: string;
       from?: string;
       to?: string;
+      labels?: string;
     },
   ) {
-    const {
-      cursor,
-      limit: rawLimit = 20,
-      entityType,
-      entityId,
-      actorUserId,
-      action,
-      from,
-      to,
-    } = query;
-    const limit = pageSize(rawLimit);
+    const { entityType, entityId, actorUserId, action, from, to } = query;
+    const search = searchOf(query);
+    const labels = labelCodes(query.labels);
+    const { orderBy } = sortOf(query, AUDIT_SORTS);
 
-    const where: any = {};
+    const where: AuditWhere = {};
     // The "Who" filter. Not an id → 400; an id that is nobody → 404. Either
     // reaching Postgres would fail the uuid cast and come back as a 500.
     if (actorUserId) {
@@ -100,34 +134,61 @@ export class AuditController {
       });
       if (!user) throw notFound('user');
     }
-    if (entityType) where.entityType = entityType;
-    if (entityId) where.entityId = entityId;
+    if (typeof entityType === 'string' && entityType)
+      where.entityType = entityType;
+    if (entityId) {
+      assertUuid(entityId, 'entityId');
+      where.entityId = entityId;
+    }
     if (actorUserId) where.actorUserId = actorUserId;
-    if (action) where.action = action;
+    if (typeof action === 'string' && action) where.action = action;
     if (from || to) {
-      where.occurredAt = {};
-      if (from) where.occurredAt.gte = new Date(from);
-      if (to) where.occurredAt.lte = new Date(to);
+      where.occurredAt = {
+        ...(from ? { gte: new Date(from) } : {}),
+        ...(to ? { lte: new Date(to) } : {}),
+      };
+    }
+    // The search (server-side lists, owner 2026-10-25): who did it, by name
+    // or email; the record as it was written, before and after — its name,
+    // number, amount; the codes; and the codes whose names in the reader's
+    // language matched (`labels`).
+    if (search) {
+      const ids = await searchIds(
+        this.prisma,
+        `audit_logs t
+          LEFT JOIN users u ON u.id = t.actor_user_id
+          LEFT JOIN partners p ON p.user_id = u.id`,
+        [
+          `t.action`,
+          `t.entity_type`,
+          `t.before_json::text`,
+          `t.after_json::text`,
+          `u.email`,
+          `p.display_name`,
+        ],
+        search,
+      );
+      where.OR = [
+        { id: { in: ids } },
+        ...(labels.length
+          ? [{ action: { in: labels } }, { entityType: { in: labels } }]
+          : []),
+      ];
     }
 
-    const items = await this.prisma.auditLog.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-      include: { actor: ACTOR },
+    const { rows, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.auditLog.findMany({
+          where,
+          orderBy,
+          include: { actor: ACTOR },
+          ...window,
+        }),
+      count: () => this.prisma.auditLog.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const page = hasMore ? items.slice(0, limit) : items;
     // The record's name or number, not its UUID (owner 2026-10-18).
-    const data = await withEntityLabels(this.prisma, page.map(flattenActor));
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    const data = await withEntityLabels(this.prisma, rows.map(flattenActor));
+    return { data, meta };
   }
 
   @Get(':id')

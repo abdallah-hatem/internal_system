@@ -1782,7 +1782,12 @@
     "AI_PROVIDER_FAILED": "The AI service did not answer. Try again in a moment.",
     "AI_PROVIDER_BUSY": "The AI service is busy or its free allowance is used up for now. Try again later.",
     "AI_CONFIRM_INVALID": "Nothing to confirm.",
-    "AI_PROVIDER_TOO_SMALL": "This AI provider's allowance is too small for one question with the assistant's tools. Switch to one with a larger allowance (Gemini's free tier fits)."
+    "AI_PROVIDER_TOO_SMALL": "This AI provider's allowance is too small for one question with the assistant's tools. Switch to one with a larger allowance (Gemini's free tier fits).",
+    "LIST_PAGE_INVALID": "That page number is not valid: {value}. Pages are whole numbers from 1.",
+    "LIST_PAGE_SIZE_INVALID": "A page can show from 1 to {max} rows (asked for {value}).",
+    "LIST_SORT_UNKNOWN": "This list cannot be sorted by \"{sort}\".",
+    "LIST_FILTER_INVALID": "The filter {field} cannot be \"{value}\".",
+    "LIST_SEARCH_TOO_LONG": "A search can be at most {max} characters (this one has {length})."
   },
   "requests": {
     "tabs": {
@@ -2582,7 +2587,8 @@
     "searchLenders": "Search by lender name",
     "searchTypes": "Search by type",
     "currencyCode": "GBP",
-    "instalmentCount": "3"
+    "instalmentCount": "3",
+    "allCustomers": "All customers"
   },
   "fxRates": {
     "title": "Exchange rates",

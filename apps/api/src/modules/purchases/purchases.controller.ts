@@ -16,7 +16,7 @@ import {
   ReverseSupplierRefundDto,
 } from './dto/refund.dto';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
@@ -34,7 +34,7 @@ export class PurchasesController {
     summary: 'List purchase orders (an investor: their cycles only)',
   })
   findAll(
-    @Query() query: PaginationDto & { cycleId?: string },
+    @Query() query: ListQuery & { cycleId?: string },
     @CurrentUser() user: Viewer,
   ) {
     return this.purchasesService.findAll(query, user);

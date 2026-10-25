@@ -16,13 +16,15 @@ import { COUNTING_REFUND, refundEgp } from '../../common/loss-refunds';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 import { Prisma } from '@prisma/client';
 import { formatMoney } from '../../common/money';
-import { isUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
 import { assertOffered } from '../../common/product-status';
 import {
   assertInScope,
@@ -125,6 +127,11 @@ function duplicateInvoice(
   );
 }
 
+/** The Purchases list's orders; the first is the default. Each ends on `id`. */
+const PURCHASE_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, Prisma.PurchaseOrderOrderByWithRelationInput[]>;
+
 @Injectable()
 export class PurchasesService {
   constructor(
@@ -134,36 +141,43 @@ export class PurchasesService {
   ) {}
 
   async findAll(
-    pagination: PaginationDto & { cycleId?: string },
+    query: ListQuery & { cycleId?: string },
     viewer: ScopeViewer = 'internal',
   ) {
-    const { cursor, limit: rawLimit = 20, cycleId } = pagination;
-    const limit = pageSize(rawLimit);
+    const { cycleId } = query;
+    if (cycleId) assertUuid(cycleId, 'cycleId');
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, PURCHASE_SORTS);
     const where: Prisma.PurchaseOrderWhereInput = {};
     const scope = await cyclesVisibleTo(viewer, this.prisma);
     const cycleFilter = cycleIdWhere(scope, cycleId);
     if (cycleFilter) where.cycleId = cycleFilter;
+    // The reference, the supplier or the cycle's code (server-side lists,
+    // owner 2026-10-25).
+    if (search) {
+      where.id = {
+        in: await searchIds(
+          this.prisma,
+          `purchase_orders t
+            JOIN suppliers s ON s.id = t.supplier_id
+            JOIN import_cycles c ON c.id = t.cycle_id`,
+          [`t.reference`, `s.name`, `c.code`],
+          search,
+        ),
+      };
+    }
 
-    const items = await this.prisma.purchaseOrder.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: {
-        supplier: true,
-        cycle: true,
-        items: true,
-      },
+    const { rows: data, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.purchaseOrder.findMany({
+          where,
+          orderBy,
+          include: { supplier: true, cycle: true, items: true },
+          ...window,
+        }),
+      count: () => this.prisma.purchaseOrder.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data, meta };
   }
 
   async findById(id: string, viewer: ScopeViewer = 'internal') {

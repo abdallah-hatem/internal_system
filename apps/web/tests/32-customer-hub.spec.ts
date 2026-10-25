@@ -187,8 +187,10 @@ test.describe('Customer page', () => {
     // The channel follows the shop's type rather than the B2B default by luck.
     await expect(page.locator('input[type="hidden"][name="channel"]')).toHaveValue('B2B');
 
-    // The parameter is consumed, so a reload does not reopen the form.
-    await expect(page).toHaveURL(/\/sales$/);
+    // `new` is consumed, so a reload does not reopen the form; the shop stays
+    // as the Sales list's customer filter (owner 2026-10-25), so the list
+    // underneath is that shop's orders.
+    await expect(page).toHaveURL(new RegExp(`/sales\\?customer=${customer.id}$`));
   });
 });
 

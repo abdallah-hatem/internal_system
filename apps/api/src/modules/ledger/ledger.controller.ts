@@ -10,7 +10,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LedgerService } from './ledger.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateLedgerEntryDto, ReverseTransactionDto } from './dto/ledger.dto';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
@@ -35,7 +35,7 @@ export class LedgerController {
   })
   findAll(
     @Query()
-    query: PaginationDto & {
+    query: ListQuery & {
       cycleId?: string;
       type?: string;
       category?: string;
@@ -45,6 +45,13 @@ export class LedgerController {
     },
   ) {
     return this.ledgerService.findAll(query);
+  }
+
+  /** Every category the ledger holds, for the list's filter. */
+  @Get('categories')
+  @ApiOperation({ summary: 'Every ledger category in use' })
+  categories() {
+    return this.ledgerService.categories();
   }
 
   @Get(':id')

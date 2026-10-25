@@ -247,11 +247,12 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   the sample still counts as out — stock reads one low and the cycle cannot settle until the samples order is closed.
   The hint never blocks the new order (a separate purchase is valid while a sample is still on trial). Same hint in the
   assistant's `record_sale` preview and the office chat.
-- Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
+- Done 2026-10-25 (branch `agent-lists`; BUSINESS_LOGIC §3 "Every office list searches…"): the Sales list filters **by customer** — a
   searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
   toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
   `customerId` on `GET /sales/orders`; clearable with the other filters. Build with the server-side lists item (search,
-  filters, sorting, pagination on the server) so the filter is not applied in the browser.
+  filters, sorting, pagination on the server) so the filter is not applied in the browser. Built: Walk-in is
+  `?customer=walk-in`; a shop's New Order now opens `/sales?new=1&customer=<id>` (GUESS). Tests: 104-server-lists.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their
@@ -315,7 +316,7 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   reversed** (shop, amount, the reason), and an **order cancelled** (order number, shop, what it was worth) — same
   readers, same rules. A test that a real sale / payment reaches the other partners' notifications from
   the service that raises it (LEARNINGS "a test button proves the pipe, not that anything uses it").
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters, sorting and pagination on the
+- Done 2026-10-25 (branch `agent-lists`; BUSINESS_LOGIC §3 "Every office list searches…"): **search, filters, sorting and pagination on the
   server, everywhere** (sorting and filters made explicit by the owner 2026-10-25) — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
   load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,
   payments, ledger, sales, inventory, notifications, suppliers, cycles, categories, shipments, providers, audit log,
@@ -324,7 +325,10 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   query (the Arabic-forgiving search moves into the API — one definition); totals from the server; the cache keyed by
   endpoint + params (LEARNINGS). Tests per endpoint: params sent, mapping, empty / 422 / 502, and a fixture with more
   rows than a page so a client-side shortcut would give a different answer. Remove `paginate()` and `useAllRecords` (keep it only for a real export-everything need, e.g. CSV) when the last
-  caller is gone.
+  caller is gone. Built: all 14 lists through `common/list-query.ts` (API) and `lib/server-list.ts` (office);
+  `paginate()`, `matchesName`, `countryMatches` and `sortByBalance` removed. `useAllRecords` stays for pickers and
+  for screens that sum what they show (a shop's orders/payments, Contracts, Settlements) — not lists; the CSV exports
+  walk `fetchAll` with the list's filters. Tests: list-query.spec, server-list.test, 104-server-lists.
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last

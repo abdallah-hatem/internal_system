@@ -1782,7 +1782,12 @@
     "AI_PROVIDER_FAILED": "لم تستجب خدمة الذكاء الاصطناعي. حاول بعد قليل.",
     "AI_PROVIDER_BUSY": "خدمة الذكاء الاصطناعي مشغولة أو انتهت حصتها المجانية حاليًا. حاول لاحقًا.",
     "AI_CONFIRM_INVALID": "لا يوجد ما يُؤكَّد.",
-    "AI_PROVIDER_TOO_SMALL": "حصة مزوّد الذكاء الاصطناعي هذا أصغر من سؤال واحد مع أدوات المساعد. استخدم مزوّدًا بحصة أكبر (حصة Gemini المجانية تكفي)."
+    "AI_PROVIDER_TOO_SMALL": "حصة مزوّد الذكاء الاصطناعي هذا أصغر من سؤال واحد مع أدوات المساعد. استخدم مزوّدًا بحصة أكبر (حصة Gemini المجانية تكفي).",
+    "LIST_PAGE_INVALID": "رقم الصفحة غير صالح: {value}. أرقام الصفحات أعداد صحيحة تبدأ من 1.",
+    "LIST_PAGE_SIZE_INVALID": "يمكن أن تعرض الصفحة من 1 إلى {max} صفًا (المطلوب {value}).",
+    "LIST_SORT_UNKNOWN": "لا يمكن ترتيب هذه القائمة حسب \"{sort}\".",
+    "LIST_FILTER_INVALID": "لا يمكن أن يكون عامل التصفية {field} \"{value}\".",
+    "LIST_SEARCH_TOO_LONG": "يمكن أن يكون البحث {max} حرفًا على الأكثر (هذا البحث {length} حرفًا)."
   },
   "requests": {
     "tabs": {
@@ -2582,7 +2587,8 @@
     "searchLenders": "ابحث باسم المُقرض",
     "searchTypes": "ابحث بالنوع",
     "currencyCode": "GBP",
-    "instalmentCount": "3"
+    "instalmentCount": "3",
+    "allCustomers": "كل العملاء"
   },
   "fxRates": {
     "title": "أسعار الصرف",
