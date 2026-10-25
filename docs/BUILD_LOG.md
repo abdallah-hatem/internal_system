@@ -252,7 +252,11 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   2026-10-25: "owner, owner, owner"): credit and contract limits are the **owner's**, across all branches; the
   storefront login is the **owner's** (one login for all branches; he picks the branch when ordering); the invoice
   header names the **owner** (the branch can appear as the delivery line — Claude's suggestion, confirm when the
-  sample is shown). Render a sample of the customer page and New Order
+  sample is shown).
+  First use once built (owner, 2026-10-25): **Ahmad Zogmar** (production customer `ceadced7-457a-4803-9241-3520b6bda1ac`,
+  B2B, owes 0 today, no open orders) gets three branches — **Mokattam**, **Master** and **LS2** (names as the owner gave
+  them; spelling to confirm when entering). His existing record becomes the owner; any orders he already has stay on
+  him until a branch is picked for them (ask the owner which branch each belongs to). Render a sample of the customer page and New Order
   before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale, a payment, a return, a payment
   reversed and an order cancelled notify the other partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a
