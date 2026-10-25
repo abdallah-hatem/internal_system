@@ -2012,6 +2012,10 @@ instalment falling behind (checked daily since 2026-10-11 — §7), and samples
 still at a shop 14 days after they were left (daily, once per order, since
 2026-10-18 — §4 "Samples at shops").
 
+**DECIDED 2026-10-25 (owner), not built yet: a sale confirmed and a payment recorded notify the other partners** —
+"a sale and payment should trigger notifications as well". Details in BUILD_LOG Next up; until built, a sale notifies
+only through low stock.
+
 **Every office notification is also pushed to the reader's phone** — built
 2026-10-18, after the owner's test sale took a product below its minimum, the
 bell rang on the desktop and his phone (alerts on, test alert arriving) stayed

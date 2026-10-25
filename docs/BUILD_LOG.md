@@ -240,6 +240,15 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale and a payment notify the other
+  partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a
+  sale and the owner was not told: a sale only notified through low stock. A sale confirmed (incl. walk-in and one-step
+  confirm): shop, order number, total, who recorded it. A payment recorded: shop, amount, method, the orders it went on,
+  who recorded it. Every active core partner except the one who did it; Arabic push as §10; raised after the commit
+  (LEARNINGS: never inside `$transaction`), through the same `NotificationsService` so the push follows. Also from the
+  assistant's `record_sale` / `record_payment` and the office chat (same services). Returns, reversals and cancellations
+  not asked — ask before adding them. A test that a real sale / payment reaches the other partners' notifications from
+  the service that raises it (LEARNINGS "a test button proves the pipe, not that anything uses it").
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters and pagination on the server,
   everywhere** — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
   load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,
