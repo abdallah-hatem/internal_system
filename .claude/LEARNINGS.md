@@ -4,6 +4,11 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
 
 ## Interface
 
+- Search, filters and pagination are server-side, always. On 2026-10-25 the owner found the products table searching and
+  paging in the browser and asked "how can you do it client from the first place"; 14 lists did it through
+  `paginate()`. A new list sends page/pageSize/search/filters to the API from the URL; never `paginate()` or
+  `matchesName` over a loaded list. — 2026-10-25
+
 - Never a native `<select>`, `<option>` or browser date picker. Use the shared
   `components/ui/select.tsx` (Radix Popover + cmdk) and `date-picker.tsx`. The owner
   rejected the native controls once for the admin panel and again when an agent used a
