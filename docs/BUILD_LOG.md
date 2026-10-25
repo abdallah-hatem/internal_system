@@ -15,6 +15,7 @@ The 9 new products stay on their default prices; the price is set on each sale a
 (`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
 test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
 State of the product and of production's data: `docs/where-things-stand.md`.
+Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **server-side lists + the Sales customer filter** (`agent-lists`, `5c75bcb`) and **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
