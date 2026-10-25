@@ -252,10 +252,13 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   payout, the rest staying owed. Answers "who owes whom between us" too. Supersedes the separate "funding target",
   "contributions in USD" and "contribute from unpaid earnings" ideas of 2026-10-24.
   Build in phases: (1) accounts, "paid so far" on the cycle, the target, contributing from an account; (2) leaving a
-  payout in (needs the first settlement); (3) contributing from future profit (after the owner answers 2 below).
-  **Open for the owner before building:** 1. contributions default to equal thirds, advances only tracking who paid?
-  2. may an account go negative (future profit), and up to what limit? 3. is an advance cash in the business, or paid
-  straight to a supplier (cash on hand, as a friend's payment)? Rules into BUSINESS_LOGIC §8 when decided; sample the
+  payout in (needs the first settlement); (3) dropped — no negative balance (owner, 2026-10-25).
+  **Decided (owner, 2026-10-25: "equal thirds, no negative, paid straight to supplier"):** 1. a cycle's contributions
+  default to **equal thirds**; advances only track who paid. 2. an account **never goes negative** — so phase 3
+  (contributing from profit yet to come) is dropped; a contribution larger than the account's balance is refused (or
+  the partner pays the rest in as an advance first). 3. an advance is **paid straight to a supplier**, never cash in the
+  business: it records the partner paying part of the cycle's cost, so cash on hand does not move (like a friend's
+  payment, whose inflow is matched by the purchase it paid). Rules into BUSINESS_LOGIC §8 when decided; sample the
   cycle's funding panel and the Partners page before building (he judges by looking). Settlement changes (capital back
   from the account, payouts into it) need the full set of break-it tests (CLAUDE.md §0, §1, §10).
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **New Order warns when the shop holds

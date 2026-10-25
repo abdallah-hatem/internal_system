@@ -1842,8 +1842,9 @@ after the other: an Approve that waited finds its draft gone (`notFound('settlem
 Funding a cycle starts before anyone has contributed: partners pay suppliers from their own pockets, in different
 amounts, and sometimes want to fund from profit instead of cash. Decided: each partner has a running account — his
 advances ("paid so far") and payouts left in add to it, contributions and withdrawals take from it — and cycle
-contributions are drawn from those accounts. Open questions (equal thirds by default? a negative balance and its limit?
-an advance as cash in the business?) and the phases are in BUILD_LOG Next up.
+contributions are drawn from those accounts. Also decided (owner, 2026-10-25): contributions default to **equal
+thirds**; an account **never goes negative** (no contributing from profit yet to come); an advance is **paid straight to
+a supplier**, not cash in the business, so cash on hand does not move. Phases in BUILD_LOG Next up.
 
 ## 9. The ledger
 
