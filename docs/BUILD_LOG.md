@@ -240,6 +240,18 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-25; queued only, not to be built until he says): **a customer with branches** — "now a customer
+  can have multiple branches, and a different sale per branch … one owner pays for all". One customer (the owner, e.g.
+  Koshary) with branches under it (e.g. Dokki, Nasr City). Each branch: its own orders, balance, statement (with the
+  Profit column) and address/phone. The customer's page: every branch's balance and the combined total owed, all
+  branches' orders, and one statement across them (branch named on each row). New Order: when a customer has more than
+  one branch, pick the branch (a picker, never free text; a customer with one branch picks none). A payment from the
+  owner: to one branch, or spread across branches' orders (oldest first unless chosen), never more than the combined
+  owed. Contracts, samples, returns and price adjustments stay per order, so per branch. Existing customers become a
+  customer with no branches (no data change for them); a branch is never a separate customer record. Open for the
+  owner before building: credit/contract limits per branch or per owner; whether the storefront login is per branch
+  or per owner; invoice header name (branch, owner, or both). Render a sample of the customer page and New Order
+  before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale, a payment, a return, a payment
   reversed and an order cancelled notify the other partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a
   sale and the owner was not told: a sale only notified through low stock. A sale confirmed (incl. walk-in and one-step

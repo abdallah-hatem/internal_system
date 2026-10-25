@@ -1598,6 +1598,13 @@ allocated to a sale made after it was received.
 
 ---
 
+
+### A customer with branches — DECIDED 2026-10-25 (owner), not built yet
+Some shops now have several branches, each buying separately, with **one owner who pays for all**. Decided: one
+customer with branches under it (option 2 of two offered; separate customers per branch was the other). Each branch
+keeps its own orders, balance and statement; the customer shows the combined total; an owner's payment can go to one
+branch or across several. Details and the questions still open are in BUILD_LOG Next up.
+
 ## 8. Cycle profit and settlement
 
 **Profit is revenue less the cost of what actually sold**, less goods lost on
