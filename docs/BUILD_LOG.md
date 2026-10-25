@@ -240,6 +240,13 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-25; queued only, not to be built until he says): **New Order warns when the shop holds
+  samples** — picking a customer with samples out shows a hint above the lines: "This shop holds 1 helmet as a sample"
+  (each product and units, from the open samples orders), with a link that opens that samples order's "They're buying"
+  instead. Reason: a new order for 5 helmets when 1 is the sample the shop already has draws 5 more from the shelf while
+  the sample still counts as out — stock reads one low and the cycle cannot settle until the samples order is closed.
+  The hint never blocks the new order (a separate purchase is valid while a sample is still on trial). Same hint in the
+  assistant's `record_sale` preview and the office chat.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
   searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
   toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
