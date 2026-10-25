@@ -240,6 +240,40 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-25; queued only, not to be built until he says): **Edit order** on a confirmed order — add a
+  product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
+  recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their
+  own batches (as a return does), a price change up or down (supersedes the "lower only" GUESS of the price
+  adjustment). What the shop owes, revenue (on the change's day, as price adjustments do), COGS, stock and the cycle's
+  profit follow; History and the statement (with its Profit column) show each change; the invoice re-prints with the
+  current lines. Refused (coded, server-side): draft, cancelled or fully returned order; an order whose cycle's
+  settlement is approved or paid; an order under an active instalment contract (cancel the contract first, as for
+  price cuts); a samples order (its own flow). Core partners only. One preview of the whole edit before saving
+  (what the shop will owe, stock taken / given back, profit change).
+  **Testing — the owner's word: "these need a lot of testing scenarios and edge cases".** Not done until every case
+  below has a test that fails without the feature and passes with it (CLAUDE.md §0–§2), plus invariants in
+  34-business-invariants:
+  - Limits: quantity to 0 (= the line fully given back), negative, fractional where the product is whole units, more
+    than is on the shelf (NOT_ENOUGH_STOCK), more than was sold when lowering; a price of 0, negative, a huge price;
+    a new line for an inactive product; the same product added twice (one line or two — decide, then pin it).
+  - Money: an order already part-paid — lowering below what was paid (refund or credit? decide, never a negative
+    owed); raising after it was paid in full (it owes again, status back to partly paid); a payment spread over
+    several orders keeps its allocations true; statement closing balance = balance after every edit.
+  - Stock and cost: units taken come from the oldest batches at their cost; units given back return to the batch they
+    came from at that cost; a batch emptied by another sale between preview and save (the edit must re-check, not use
+    the preview's stock); a batch from a cycle re-costed later; samples at shops never counted as available.
+  - Order history: an edit after a return of the same line; a return after an edit (refund at the price then in
+    force, as held-price does); an edit after a price adjustment and vice versa; two edits in a row; editing back to
+    the original; History's replay ends on the order's outstanding every time.
+  - Dates: an edit dated before the sale or in the future (refused); revenue lands on the edit's day in P&L and the
+    dashboard's This month; a back-dated sale edited today.
+  - Wrong context: another customer's order id; an order on a cycle in settlement; two partners editing the same
+    order at once (row lock: one wins, the other gets a clear refusal, nothing applied twice); the API called
+    directly without the office (every rule server-side).
+  - Readers that must agree after every case: the order popup, Sales list's value-now Total, the customer's balance
+    and statement, the cycle's profit, the dashboard, Analytics, inventory and the product page's stock value,
+    check-data (all zero).
+  - Through the assistant/office chat too, if exposed there (same service, preview/confirm).
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **a customer with branches** — "now a customer
   can have multiple branches, and a different sale per branch … one owner pays for all". One customer (the owner, e.g.
   Koshary) with branches under it (e.g. Dokki, Nasr City). Each branch: its own orders, balance, statement (with the
