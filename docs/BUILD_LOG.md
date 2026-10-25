@@ -240,6 +240,11 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
+  searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
+  toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
+  `customerId` on `GET /sales/orders`; clearable with the other filters. Build with the server-side lists item (search,
+  filters, sorting, pagination on the server) so the filter is not applied in the browser.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their
