@@ -240,6 +240,24 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-25, "a great idea an account"; queued only, not to be built until he says): **a running
+  account per partner**, and funding a cycle through it. Each partner's balance = what the business holds of his.
+  + a payment he made from his own pocket for a cycle (**"paid so far"** — an advance, dated, amount and currency at
+  that day's rate, a note; not yet a contribution); + a settlement payout he leaves in; − a contribution to a cycle
+  (taken from his account, not his pocket); − money he takes out. On the cycle: an optional **funding target** (e.g.
+  2,000 USD) with "1,600 of 2,000 funded so far, by whom". Later the partners **contribute**: the cycle's contributions
+  are drawn from the accounts (e.g. equal thirds while Shady advanced 1,000, Fares 400, the owner 600 — Shady's account
+  ends +333.33, Fares −266.67); no cash passes between partners. **Contributing from profit**: earned and not paid out
+  — it is in his account already; yet to come — his account may go negative, recovered automatically from his next
+  payout, the rest staying owed. Answers "who owes whom between us" too. Supersedes the separate "funding target",
+  "contributions in USD" and "contribute from unpaid earnings" ideas of 2026-10-24.
+  Build in phases: (1) accounts, "paid so far" on the cycle, the target, contributing from an account; (2) leaving a
+  payout in (needs the first settlement); (3) contributing from future profit (after the owner answers 2 below).
+  **Open for the owner before building:** 1. contributions default to equal thirds, advances only tracking who paid?
+  2. may an account go negative (future profit), and up to what limit? 3. is an advance cash in the business, or paid
+  straight to a supplier (cash on hand, as a friend's payment)? Rules into BUSINESS_LOGIC §8 when decided; sample the
+  cycle's funding panel and the Partners page before building (he judges by looking). Settlement changes (capital back
+  from the account, payouts into it) need the full set of break-it tests (CLAUDE.md §0, §1, §10).
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **New Order warns when the shop holds
   samples** — picking a customer with samples out shows a hint above the lines: "This shop holds 1 helmet as a sample"
   (each product and units, from the open samples orders), with a link that opens that samples order's "They're buying"

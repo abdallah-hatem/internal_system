@@ -1837,6 +1837,14 @@ recalculation replaced it answered 500 (Prisma P2025). Both now take the cycle's
 after the other: an Approve that waited finds its draft gone (`notFound('settlement')`) or already approved
 (`ONLY_DRAFT_APPROVABLE`); a Calculate that waited for an Approve is refused `SETTLEMENT_LOCKED`. TC-SET-17.
 
+
+### A running account per partner — DECIDED 2026-10-25 (owner: "a great idea an account"), details OPEN, not built
+Funding a cycle starts before anyone has contributed: partners pay suppliers from their own pockets, in different
+amounts, and sometimes want to fund from profit instead of cash. Decided: each partner has a running account — his
+advances ("paid so far") and payouts left in add to it, contributions and withdrawals take from it — and cycle
+contributions are drawn from those accounts. Open questions (equal thirds by default? a negative balance and its limit?
+an advance as cash in the business?) and the phases are in BUILD_LOG Next up.
+
 ## 9. The ledger
 
 **Financial history is never rewritten** (BRD §10). A correction is a balancing
