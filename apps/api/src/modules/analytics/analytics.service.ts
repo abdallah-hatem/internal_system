@@ -284,7 +284,7 @@ export class AnalyticsService {
    * the same filters, the same per-row rules (`operatingExpenseEgp` and its
    * siblings) — one part per row with its day, so Analytics can cut a period
    * into days, weeks or months in memory and the buckets add up to the totals
-   * by construction (owner 2026-10-18, "Option A"). Either way it is thirteen
+   * by construction (owner 2026-10-18, "Option A"). Either way it is fifteen
    * queries, however many buckets: asking `profitFigures` once per bucket
    * cost twelve per bucket, 372 for a month drawn by day.
    */
@@ -323,6 +323,28 @@ export class AnalyticsService {
         _sum: { total: true },
       });
       add('revenue', null, _sum.total);
+    }
+
+    // Lines an order edit added (§4, 2026-10-25), on the edit's day — the
+    // order's own total stays what was sold on its day.
+    const addedWhere = {
+      editId: { not: null },
+      saleOrder: { status: { in: [...REALISED] } },
+      ...(days ? { edit: { editedOn: days } } : {}),
+    } satisfies Prisma.SaleItemWhereInput;
+    if (itemised) {
+      for (const i of await this.prisma.saleItem.findMany({
+        where: addedWhere,
+        select: { lineTotal: true, edit: { select: { editedOn: true } } },
+      })) {
+        add('revenue', dateColumnDay(i.edit!.editedOn), i.lineTotal);
+      }
+    } else {
+      const { _sum } = await this.prisma.saleItem.aggregate({
+        where: addedWhere,
+        _sum: { lineTotal: true },
+      });
+      add('revenue', null, _sum.lineTotal);
     }
 
     // Less what came back. Netting returns off cycle profitability but not
@@ -375,7 +397,7 @@ export class AnalyticsService {
     // Cost of the units actually sold, taken from the batch allocation made at
     // the time of sale, so historical costs are never re-priced.
     const cogsWhere = {
-      saleItem: { saleOrder: saleWhere },
+      saleItem: { editId: null, saleOrder: saleWhere },
     } satisfies Prisma.SaleItemAllocationWhereInput;
     if (itemised) {
       for (const a of await this.prisma.saleItemAllocation.findMany({
@@ -390,6 +412,27 @@ export class AnalyticsService {
     } else {
       const { _sum } = await this.prisma.saleItemAllocation.aggregate({
         where: cogsWhere,
+        _sum: { cogsEgp: true },
+      });
+      add('cogs', null, _sum.cogsEgp);
+    }
+    // Units an order edit added cost on the edit's day, as their revenue.
+    const addedCogsWhere = {
+      saleItem: addedWhere,
+    } satisfies Prisma.SaleItemAllocationWhereInput;
+    if (itemised) {
+      for (const a of await this.prisma.saleItemAllocation.findMany({
+        where: addedCogsWhere,
+        select: {
+          cogsEgp: true,
+          saleItem: { select: { edit: { select: { editedOn: true } } } },
+        },
+      })) {
+        add('cogs', dateColumnDay(a.saleItem.edit!.editedOn), a.cogsEgp);
+      }
+    } else {
+      const { _sum } = await this.prisma.saleItemAllocation.aggregate({
+        where: addedCogsWhere,
         _sum: { cogsEgp: true },
       });
       add('cogs', null, _sum.cogsEgp);
@@ -894,6 +937,21 @@ export class AnalyticsService {
         (revenueByMonth[monthKey] || 0) - Number(a.amountEgp);
     }
 
+    // Lines an order edit added count in the month of the edit (§4, 2026-10-25).
+    const addedLines = await this.prisma.saleItem.findMany({
+      where: {
+        editId: { not: null },
+        edit: { editedOn: { gte: since } },
+        saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } },
+      },
+      select: { lineTotal: true, edit: { select: { editedOn: true } } },
+    });
+    for (const i of addedLines) {
+      const monthKey = i.edit!.editedOn.toISOString().slice(0, 7);
+      revenueByMonth[monthKey] =
+        (revenueByMonth[monthKey] || 0) + Number(i.lineTotal);
+    }
+
     // Every bucket, including the current month, and zero for the quiet ones.
     const result = keys.map((key) => ({
       month: key,
@@ -1144,6 +1202,8 @@ export class AnalyticsService {
           select: {
             productId: true,
             quantity: true,
+            lineTotal: true,
+            editId: true,
             returnItems: { select: { qty: true } },
           },
         },
@@ -1155,7 +1215,14 @@ export class AnalyticsService {
         // Less refunds and prices lowered after the sale (§4, 2026-10-22).
         const revenue = o.priceAdjustments.reduce(
           (sum, a) => sum.sub(D(a.amountEgp)),
-          o.returns.reduce((sum, r) => sum.sub(D(r.refundEgp)), D(o.total)),
+          o.returns.reduce(
+            (sum, r) => sum.sub(D(r.refundEgp)),
+            // Plus lines an order edit added (§4, 2026-10-25).
+            o.items.reduce(
+              (sum, i) => (i.editId ? sum.add(D(i.lineTotal)) : sum),
+              D(o.total),
+            ),
+          ),
         );
         const units = o.items.reduce(
           (sum, i) =>

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import {
   PaginationDto,
@@ -10,6 +9,12 @@ import {
 import { Prisma, RefundMethod } from '@prisma/client';
 import { CreateReturnDto } from './dto/return.dto';
 import { heldUnitPrice } from '../../common/held-price';
+import {
+  returnFigures,
+  traceBack,
+  writeReturnWithin,
+  type ReturnLine,
+} from '../../common/sale-return-writer';
 
 import { badRequest, notFound } from '../../common/api-error';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
@@ -108,18 +113,9 @@ export class ReturnsService {
 
     // Work out, per line, which batches the returned units come out of. Units
     // are taken back from the most recently allocated batch first: the last
-    // units to leave are the ones the customer is handing back.
-    type Restock = {
-      saleItemId: string;
-      batchId: string;
-      qty: Prisma.Decimal;
-      unitPrice: Prisma.Decimal;
-      unitCost: Prisma.Decimal;
-      restock: boolean;
-    };
-    const restocks: Restock[] = [];
-    let refundTotal = D(0);
-    let cogsTotal = D(0);
+    // units to leave are the ones the customer is handing back
+    // (common/sale-return-writer.ts, which an order edit shares).
+    const restocks: ReturnLine[] = [];
 
     for (const line of dto.items) {
       const saleItem = order.items.find((i) => i.id === line.saleItemId);
@@ -157,40 +153,15 @@ export class ReturnsService {
       // was lowered, the lower price (§4, 2026-10-22; common/held-price.ts).
       const unitPrice = heldUnitPrice(saleItem);
 
-      let outstanding = wanted;
-      const allocations = [...saleItem.allocations].sort(
-        (a, b) => (a.createdAt < b.createdAt ? 1 : -1),
+      // Damaged goods are refunded but not restocked, so their cost stays
+      // spent — it becomes a write-off rather than returning to inventory.
+      const { lines: traced, untraced: outstanding } = traceBack(
+        saleItem,
+        wanted,
+        unitPrice,
+        line.restock ?? true,
       );
-
-      for (const alloc of allocations) {
-        if (outstanding.lte(0)) break;
-
-        const takenBack = saleItem.returnItems
-          .filter((r) => r.inventoryBatchId === alloc.inventoryBatchId)
-          .reduce((s, r) => s.add(D(r.qty)), D(0));
-        const availableFromBatch = D(alloc.qty).sub(takenBack);
-        if (availableFromBatch.lte(0)) continue;
-
-        const qty = Prisma.Decimal.min(outstanding, availableFromBatch);
-        const unitCost = D(alloc.unitCostEgp);
-        const restock = line.restock ?? true;
-
-        restocks.push({
-          saleItemId: saleItem.id,
-          batchId: alloc.inventoryBatchId,
-          qty,
-          unitPrice,
-          unitCost,
-          restock,
-        });
-
-        refundTotal = refundTotal.add(unitPrice.mul(qty));
-        // Damaged goods are refunded but not restocked, so their cost stays
-        // spent — it becomes a write-off rather than returning to inventory.
-        if (restock) cogsTotal = cogsTotal.add(unitCost.mul(qty));
-
-        outstanding = outstanding.sub(qty);
-      }
+      restocks.push(...traced);
 
       if (outstanding.gt(0)) {
         throw badRequest(
@@ -202,8 +173,7 @@ export class ReturnsService {
       }
     }
 
-    const refundEgp = money(refundTotal);
-    const cogsReversedEgp = money(cogsTotal);
+    const { refundEgp, cogsReversedEgp } = returnFigures(restocks);
     // A walk-in buyer is refunded in money (BUSINESS_LOGIC §4, 2026-10-11).
     // There is no account to hold a credit note: the walk-in record is shared
     // by every walk-in sale and owes nothing, so a credit on it would be money
@@ -223,63 +193,12 @@ export class ReturnsService {
       (order.customer.isWalkIn ? RefundMethod.CASH : RefundMethod.CREDIT_NOTE);
 
     const created = await this.prisma.$transaction(async (tx) => {
-      const year = new Date().getFullYear();
-      const last = await tx.saleReturn.findFirst({
-        where: { reference: { startsWith: `RET-${year}` } },
-        orderBy: { reference: 'desc' },
-        select: { reference: true },
+      const { saleReturn } = await writeReturnWithin(tx, order, restocks, {
+        returnedOn: dto.returnedOn ? new Date(dto.returnedOn) : new Date(),
+        reason: dto.reason,
+        refundMethod,
+        actorId,
       });
-      const saleReturn = await tx.saleReturn.create({
-        data: {
-          saleOrderId: order.id,
-          reference: `RET-${year}-${pad(nextReferenceNumber(last?.reference, 5), 5)}`,
-          returnedOn: dto.returnedOn ? new Date(dto.returnedOn) : new Date(),
-          reason: dto.reason,
-          refundMethod,
-          refundEgp,
-          cogsReversedEgp,
-          createdBy: actorId,
-        },
-      });
-
-      for (const r of restocks) {
-        await tx.saleReturnItem.create({
-          data: {
-            saleReturnId: saleReturn.id,
-            saleItemId: r.saleItemId,
-            inventoryBatchId: r.batchId,
-            qty: r.qty,
-            unitPrice: money(r.unitPrice),
-            refundEgp: money(r.unitPrice.mul(r.qty)),
-            unitCostEgp: r.unitCost,
-            cogsReversedEgp: r.restock ? money(r.unitCost.mul(r.qty)) : D(0),
-            restocked: r.restock,
-          },
-        });
-
-        if (r.restock) {
-          await tx.inventoryBatch.update({
-            where: { id: r.batchId },
-            data: {
-              remainingQty: { increment: r.qty },
-              saleableQty: { increment: r.qty },
-            },
-          });
-        }
-
-        await tx.inventoryMovement.create({
-          data: {
-            batchId: r.batchId,
-            movementType: r.restock ? 'RETURN' : 'WRITE_OFF',
-            qtyDelta: r.restock ? r.qty : D(0),
-            // The movement carries no free-text reason column; the link to
-            // the return, and the reason on it, is the reference pair.
-            referenceType: 'SALE_RETURN',
-            referenceId: saleReturn.id,
-            createdBy: actorId,
-          },
-        });
-      }
 
       // The customer owes less. A credit note reduces the outstanding balance;
       // cash actually leaves and is recorded as an outflow instead.
@@ -302,37 +221,6 @@ export class ReturnsService {
               : order.status,
         },
       });
-
-      // Revenue that is no longer earned, and the cost that comes back with it.
-      await tx.financialTransaction.create({
-        data: {
-          type: 'SALE_RETURN',
-          category: 'revenue',
-          direction: 'OUTFLOW',
-          amount: refundEgp,
-          currency: order.currency,
-          relatedType: 'SALE_RETURN',
-          relatedId: saleReturn.id,
-          reason: `Return ${saleReturn.reference} against ${order.orderNo}: ${dto.reason}`,
-          createdBy: actorId,
-        },
-      });
-
-      if (refundMethod === RefundMethod.CASH) {
-        await tx.financialTransaction.create({
-          data: {
-            type: 'REFUND_PAID',
-            category: 'refund',
-            direction: 'OUTFLOW',
-            amount: refundEgp,
-            currency: order.currency,
-            relatedType: 'SALE_RETURN',
-            relatedId: saleReturn.id,
-            reason: `Cash refunded for ${saleReturn.reference}`,
-            createdBy: actorId,
-          },
-        });
-      }
 
       return tx.saleReturn.findUnique({
         where: { id: saleReturn.id },

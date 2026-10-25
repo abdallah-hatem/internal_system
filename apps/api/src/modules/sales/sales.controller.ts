@@ -27,6 +27,7 @@ import {
   PriceAdjustmentsService,
   type PriceAdjustmentInput,
 } from './price-adjustments.service';
+import { OrderEditsService, type OrderEditInput } from './order-edits.service';
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -43,6 +44,7 @@ export class SalesController {
     private salesService: SalesService,
     private priceAdjustments: PriceAdjustmentsService,
     private orderHistory: OrderHistoryService,
+    private orderEdits: OrderEditsService,
   ) {}
 
   @Get()
@@ -144,6 +146,31 @@ export class SalesController {
     @CurrentUser() user: { id: string },
   ) {
     return this.priceAdjustments.create(id, body, user.id);
+  }
+
+  @Post(':id/edits/preview')
+  @Roles(...SALES_PARTNER_ROLES)
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'What editing a confirmed order would do — units added and given back, prices changed, what the shop will owe, stock and profit — nothing written (§4, 2026-10-25).',
+  })
+  previewEdit(@Param('id') id: string, @Body() body: OrderEditInput) {
+    return this.orderEdits.preview(id, body);
+  }
+
+  @Post(':id/edits')
+  @Roles(...SALES_PARTNER_ROLES)
+  @ApiOperation({
+    summary:
+      'Edit a confirmed order: add a product, change a quantity or a price, as one dated event counted on its day (§4, 2026-10-25). Needs the version the order was read at.',
+  })
+  editOrder(
+    @Param('id') id: string,
+    @Body() body: OrderEditInput,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.orderEdits.create(id, body, user.id);
   }
 
   @Post(':id/cancel')

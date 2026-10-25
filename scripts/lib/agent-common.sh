@@ -19,7 +19,7 @@ MAX_SLOT=89
 # The registry has to be seen by every worktree of this repo, so it lives in
 # the git directory they share rather than in any one checkout.
 _common="$(git -C "$ROOT" rev-parse --git-common-dir)"
-case "$_common" in /*) ;; *) _common="$ROOT/$_common" ;; esac
+case "$_common" in /*|[A-Za-z]:/*) ;; *) _common="$ROOT/$_common" ;; esac
 REGISTRY="$(cd "$_common" && pwd)/agent-env"
 mkdir -p "$REGISTRY"
 

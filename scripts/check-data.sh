@@ -53,9 +53,16 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   UNION ALL SELECT 11, 'payment allocated beyond its own amount',
          count(*) FROM payments p
    WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.payment_id=p.id) > p.amount
+  -- An order edit (4, 2026-10-25) can raise what it is worth: lines it added
+  -- and prices it raised (a negative adjustment) count toward the ceiling.
   UNION ALL SELECT 12, 'order allocated beyond its own total',
          count(*) FROM sale_orders o
-   WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.sale_order_id=o.id) > o.total
+   WHERE (SELECT coalesce(sum(a.amount),0) FROM payment_allocations a WHERE a.sale_order_id=o.id)
+       > o.total
+       + (SELECT coalesce(sum(i.line_total), 0) FROM sale_items i
+           WHERE i.sale_order_id = o.id AND i.edit_id IS NOT NULL)
+       - (SELECT coalesce(sum(pa.amount_egp), 0) FROM sale_price_adjustments pa
+           WHERE pa.sale_order_id = o.id AND pa.amount_egp < 0)
   UNION ALL SELECT 12.1, 'money allocated to a cancelled or returned order',
          count(*) FROM payment_allocations a
     JOIN sale_orders o ON o.id = a.sale_order_id
@@ -230,16 +237,23 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
   -- allocation, clamped at zero, so its paid figure cannot be rebuilt here.
   -- A price lowered after the sale (§4, 2026-10-22) lowers outstanding with no
   -- allocation too, never below zero, so it is added back exactly.
+  -- An order edit (4, 2026-10-25) moves outstanding exactly by its own
+  -- amount, never below zero, so it is added back exactly too; the credit
+  -- note an edit writes for units given back is inside that amount.
   UNION ALL SELECT 13.1, 'order shows money paid that no payment allocated to it',
          count(*) FROM sale_orders o
    WHERE o.status NOT IN ('DRAFT', 'CANCELLED')
      AND NOT EXISTS (
        SELECT 1 FROM sale_returns r
         WHERE r.sale_order_id = o.id AND r.refund_method = 'CREDIT_NOTE'
+          AND r.edit_id IS NULL
      )
      AND o.total - o.outstanding - (
        SELECT coalesce(sum(pa.amount_egp), 0) FROM sale_price_adjustments pa
-        WHERE pa.sale_order_id = o.id
+        WHERE pa.sale_order_id = o.id AND pa.edit_id IS NULL
+     ) + (
+       SELECT coalesce(sum(e.amount_egp), 0) FROM sale_order_edits e
+        WHERE e.sale_order_id = o.id
      ) <> (
        SELECT coalesce(sum(a.amount), 0) FROM payment_allocations a
          JOIN payments p ON p.id = a.payment_id
@@ -256,7 +270,20 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
       OR pa.qty <> (
            SELECT coalesce(sum(i.qty), 0) FROM sale_price_adjustment_items i
             WHERE i.adjustment_id = pa.id)
-      OR pa.new_unit_price < 0 OR pa.new_unit_price >= pa.previous_unit_price
+      OR pa.new_unit_price < 0
+      -- Lower only, except through an order edit, which may raise it (4, 2026-10-25).
+      OR (pa.edit_id IS NULL AND pa.new_unit_price >= pa.previous_unit_price)
+      OR (pa.edit_id IS NOT NULL AND pa.new_unit_price = pa.previous_unit_price)
+  -- An order edit is the sum of its parts: what it added, less the credit for
+  -- what it gave back, less its price changes (4, 2026-10-25).
+  UNION ALL SELECT 13.3, 'order edit whose amount is not the sum of its parts',
+         count(*) FROM sale_order_edits e
+   WHERE e.amount_egp <> (
+           SELECT coalesce(sum(i.line_total), 0) FROM sale_items i WHERE i.edit_id = e.id)
+         - (SELECT coalesce(sum(r.refund_egp), 0) FROM sale_returns r WHERE r.edit_id = e.id)
+         - (SELECT coalesce(sum(pa.amount_egp), 0) FROM sale_price_adjustments pa WHERE pa.edit_id = e.id)
+      OR e.owed_after <> e.owed_before + e.amount_egp
+      OR e.owed_after < 0
   UNION ALL SELECT 14, 'partner capital declared but never recorded as arriving',
          count(*) FROM cycle_participants cp
    WHERE cp.contribution_amount > 0

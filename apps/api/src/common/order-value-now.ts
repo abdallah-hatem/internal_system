@@ -8,7 +8,7 @@ import { heldUnitPrice, heldUnits, type HeldLine } from './held-price';
  * refunded at, less every price cut.
  *
  *     line now  = line total − Σ refunds on the line − Σ cuts on the line
- *     order now = order total − Σ refunds − Σ cuts
+ *     order now = order total + Σ lines an edit added − Σ refunds − Σ cuts
  *
  * Read from the stored figures the order's outstanding was moved by — each
  * return line's `refundEgp`, each adjustment's `amountEgp` — never re-priced,
@@ -40,6 +40,8 @@ export const VALUE_NOW_ITEM_INCLUDE = {
   priceAdjustments: {
     select: { newUnitPrice: true, createdAt: true, amountEgp: true },
   },
+  // A line an order edit added (§4, 2026-10-25), and the day it counts on.
+  edit: { select: { editedOn: true } },
 } as const;
 
 export interface ValueNowLine extends HeldLine {
@@ -55,6 +57,8 @@ export interface ValueNowLine extends HeldLine {
     createdAt: Date;
     amountEgp: Prisma.Decimal.Value;
   }[];
+  /** Set on a line an order edit added: it is not in the order's sold total. */
+  editId?: string | null;
 }
 
 export interface LineValueNow {
@@ -96,13 +100,19 @@ export function lineValueNow(line: ValueNowLine): LineValueNow {
   };
 }
 
-/** The order's value now, to the cent, as a decimal string. */
+/**
+ * The order's value now, to the cent, as a decimal string: the sold total,
+ * plus lines an edit added (§4, 2026-10-25), less what came off every line.
+ */
 export function orderValueNow(order: {
   total: Prisma.Decimal.Value;
   items: ValueNowLine[];
 }): string {
   return order.items
-    .reduce((s, i) => s.sub(lineTakenOff(i)), D(order.total))
+    .reduce(
+      (s, i) => (i.editId ? s.add(D(i.lineTotal)) : s).sub(lineTakenOff(i)),
+      D(order.total),
+    )
     .toFixed(2);
 }
 

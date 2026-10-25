@@ -252,7 +252,12 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
   `customerId` on `GET /sales/orders`; clearable with the other filters. Build with the server-side lists item (search,
   filters, sorting, pagination on the server) so the filter is not applied in the browser.
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **Edit order** on a confirmed order — add a
+- **BUILT 2026-10-25 on branch `agent-edit-order`, not merged** (BUSINESS_LOGIC §4 "Editing a confirmed order"; two
+  GUESSes there for the owner: the same product is one line; lowering below what was paid is refused). API
+  `POST /sales/orders/:id/edits` (+ `/preview`), office "Edit order" in the order popup; not offered by the assistant
+  (GUESS — it offers no price cut or return either). Tests: `order-edit.db.spec.ts` (every case below, each
+  break-checked), `order-edit.roles.spec.ts`, `edit-order.test.tsx`, 34 TC-INV-EDIT. Was: Later (owner, 2026-10-25;
+  queued only, not to be built until he says): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their
   own batches (as a return does), a price change up or down (supersedes the "lower only" GUESS of the price

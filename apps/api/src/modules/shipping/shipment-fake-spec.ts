@@ -312,6 +312,8 @@ export function fakePrisma(db: Store) {
                 ),
               }
             : {}),
+          // What came back on the line: nothing is returned in these worlds.
+          ...(include.items?.include?.returnItems ? { returnItems: [] } : {}),
         }));
     }
     if (include?.customer) {
@@ -776,7 +778,7 @@ export function fakePrisma(db: Store) {
     },
     saleItemAllocation: {
       create: ({ data }: Row) => {
-        const row = { id: randomUUID(), ...data };
+        const row = { id: randomUUID(), createdAt: new Date(), ...data };
         db.allocations.push(row);
         return after(row);
       },

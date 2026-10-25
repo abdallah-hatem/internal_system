@@ -6,7 +6,12 @@ import { AuditService } from '../audit/audit.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { businessDay, chosenDay } from '../../common/dates';
 import { fundingLockOf } from '../../common/funding-lock';
-import { heldByBatch, heldUnitPrice, heldUnits } from '../../common/held-price';
+import {
+  heldByBatch,
+  heldUnitPrice,
+  heldUnits,
+  type HeldLine,
+} from '../../common/held-price';
 import { isUuid } from '../../common/uuid';
 
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
@@ -237,18 +242,13 @@ export class PriceAdjustmentsService {
       );
     }
 
-    for (const a of line.allocations) {
-      const cycle = a.inventoryBatch.cycle;
-      if (
-        SETTLED_CYCLE_STATUSES.includes(cycle.status) ||
-        fundingLockOf(cycle.status, cycle.settlements)
-      ) {
-        throw badRequest(
-          'PRICE_ADJUSTMENT_CYCLE_SETTLED',
-          `These units came from cycle ${cycle.code}, which is being settled or is settled; its sales can no longer change.`,
-          { cycle: cycle.code },
-        );
-      }
+    const settled = settledCycleOf(line.allocations);
+    if (settled) {
+      throw badRequest(
+        'PRICE_ADJUSTMENT_CYCLE_SETTLED',
+        `These units came from cycle ${settled}, which is being settled or is settled; its sales can no longer change.`,
+        { cycle: settled },
+      );
     }
 
     const step = previousUnitPrice.sub(newUnitPrice);
@@ -266,19 +266,7 @@ export class PriceAdjustmentsService {
       );
     }
 
-    // Per batch, so each cycle loses its own units' revenue; the last batch
-    // takes the rounding residual and the parts add up to the whole.
-    const parts = heldByBatch(line);
-    let left = amount;
-    const batches = parts.map((b, i) => {
-      const share = i === parts.length - 1 ? left : money(step.mul(b.qty));
-      left = left.sub(share);
-      return {
-        inventoryBatchId: b.inventoryBatchId,
-        qty: b.qty,
-        amount: share,
-      };
-    });
+    const batches = batchShares(line, step, amount);
 
     return {
       order,
@@ -292,6 +280,72 @@ export class PriceAdjustmentsService {
       reason: input.reason?.trim() || null,
     };
   }
+}
+
+/**
+ * A cycle these units came from whose figures are agreed — being settled,
+ * closed, or with its settlement approved or paid — or null. One reading for
+ * a price adjustment and an order edit (§4).
+ */
+export function settledCycleOf(
+  allocations: {
+    inventoryBatch: {
+      cycle: {
+        code: string;
+        status: string;
+        settlements: { status: string }[];
+      };
+    };
+  }[],
+): string | null {
+  for (const a of allocations) {
+    const cycle = a.inventoryBatch.cycle;
+    if (
+      SETTLED_CYCLE_STATUSES.includes(cycle.status) ||
+      fundingLockOf(cycle.status, cycle.settlements)
+    ) {
+      return cycle.code;
+    }
+  }
+  return null;
+}
+
+/** What `include` an allocation needs for `settledCycleOf`. */
+export const ALLOCATION_CYCLE_SELECT = {
+  cycle: {
+    select: {
+      code: true,
+      status: true,
+      settlements: {
+        where: { status: { in: ['APPROVED', 'PAID'] } },
+        select: { status: true },
+      },
+    },
+  },
+} satisfies Prisma.InventoryBatchSelect;
+
+/**
+ * A price change on a line's held units, per batch they came from, so each
+ * cycle gains or loses only its own units' revenue (§8); the last batch takes
+ * the rounding residual and the parts add up to the whole. `step` is the old
+ * price less the new one: negative for a raise (§4, 2026-10-25).
+ */
+export function batchShares(
+  line: HeldLine,
+  step: Prisma.Decimal,
+  amount: Prisma.Decimal,
+) {
+  const parts = heldByBatch(line);
+  let left = amount;
+  return parts.map((b, i) => {
+    const share = i === parts.length - 1 ? left : money(step.mul(b.qty));
+    left = left.sub(share);
+    return {
+      inventoryBatchId: b.inventoryBatchId,
+      qty: b.qty,
+      amount: share,
+    };
+  });
 }
 
 function summary(plan: Awaited<ReturnType<PriceAdjustmentsService['plan']>>) {

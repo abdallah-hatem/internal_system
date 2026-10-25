@@ -37,6 +37,7 @@ export type HistoryKind =
   | 'REVERSAL'
   | 'RETURN'
   | 'PRICE_ADJUSTED'
+  | 'EDITED'
   | 'CANCELLED';
 
 export interface HistoryLine {
@@ -46,6 +47,8 @@ export interface HistoryLine {
   unitPrice?: string;
   previousUnitPrice?: string;
   lineTotal?: string;
+  /** On an order edit's lines (§4, 2026-10-25): what it did to the product. */
+  change?: 'ADDED' | 'GIVEN_BACK' | 'PRICE';
 }
 
 export interface HistoryEvent {
@@ -64,6 +67,7 @@ export interface HistoryEvent {
 
 export interface HistoryProduct {
   saleItemId: string;
+  productId?: string;
   product: string;
   productAr?: string | null;
   startedWith: string;
@@ -71,6 +75,8 @@ export interface HistoryProduct {
   holds: string;
   soldAt: string;
   priceNow: string;
+  /** The day an order edit added this line; null for a line it was confirmed with. */
+  addedOn?: string | null;
 }
 
 export interface OrderHistoryData {
@@ -118,6 +124,7 @@ const DOT: Record<HistoryKind, string> = {
   REVERSAL: 'bg-destructive',
   RETURN: 'bg-accent-500',
   PRICE_ADJUSTED: 'bg-accent-500',
+  EDITED: 'bg-primary',
   SAMPLES_RETURNED: 'bg-muted-foreground',
   SAMPLES_WRITTEN_OFF: 'bg-destructive',
   CANCELLED: 'bg-destructive',
@@ -151,7 +158,12 @@ export function OrderHistory({ orderId, currency = 'EGP' }: { orderId: string; c
       width: 'auto',
       kind: 'name',
       title: (p) => localName({ name: p.product, nameAr: p.productAr }, locale),
-      cell: (p) => <LatinText>{localName({ name: p.product, nameAr: p.productAr }, locale)}</LatinText>,
+      cell: (p) => (
+        <>
+          <LatinText>{localName({ name: p.product, nameAr: p.productAr }, locale)}</LatinText>
+          {p.addedOn && <AddedOn day={p.addedOn} />}
+        </>
+      ),
       skeleton: { kind: 'text', share: '70%' },
     },
     ...(
@@ -220,6 +232,7 @@ export function OrderHistory({ orderId, currency = 'EGP' }: { orderId: string; c
             <li key={p.saleItemId} className="rounded-lg border border-border px-3 py-2">
               <p className="truncate text-sm font-medium text-foreground">
                 <LatinText>{localName({ name: p.product, nameAr: p.productAr }, locale)}</LatinText>
+                {p.addedOn && <AddedOn day={p.addedOn} />}
               </p>
               <dl className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1.5 text-xs">
                 {(
@@ -371,6 +384,11 @@ function TimelineEvent({
             {event.lines!.map((line, i) => (
               <li key={`${line.product}-${i}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="min-w-0 truncate">
+                  {line.change && (
+                    <span className="me-1.5 font-medium text-foreground" data-testid="history-line-change">
+                      {t(`change.${line.change}`)}
+                    </span>
+                  )}
                   <LatinText>{localName({ name: line.product, nameAr: line.productAr }, locale)}</LatinText>
                 </span>
                 <span className="shrink-0 tabular-nums" data-testid="history-line">
@@ -429,6 +447,17 @@ function TimelineEvent({
         </div>
       </div>
     </li>
+  );
+}
+
+/** "added 25 Oct" under a line an order edit added (§4, 2026-10-25). */
+function AddedOn({ day }: { day: string }) {
+  const t = useTranslations('sales.history');
+  const { formatDate } = useDateFormat();
+  return (
+    <span className="ms-2 text-xs font-normal text-muted-foreground" data-testid="history-added-on">
+      {t('addedOn', { date: formatDate(day) })}
+    </span>
   );
 }
 

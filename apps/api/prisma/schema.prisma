@@ -52,6 +52,7 @@ model User {
 
   createdSaleReturns          SaleReturn[]          @relation("CreatedSaleReturnUser")
   createdSalePriceAdjustments SalePriceAdjustment[] @relation("CreatedSalePriceAdjustmentUser")
+  createdSaleOrderEdits       SaleOrderEdit[]       @relation("CreatedSaleOrderEditUser")
 
   createdPaymentPlans PaymentPlan[] @relation("CreatedPaymentPlanUser")
 
@@ -474,9 +475,13 @@ model SaleReturn {
   cogsReversedEgp Decimal      @map("cogs_reversed_egp") @db.Decimal(18, 2)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz()
   createdBy       String?      @map("created_by") @db.Uuid
+  /// Units given back by an order edit (§4, 2026-10-25), not a return the shop
+  /// made: shown as part of the edit, on its day.
+  editId          String?      @map("edit_id") @db.Uuid
 
   saleOrder SaleOrder        @relation(fields: [saleOrderId], references: [id])
   creator   User?            @relation("CreatedSaleReturnUser", fields: [createdBy], references: [id])
+  edit      SaleOrderEdit?   @relation(fields: [editId], references: [id])
   items     SaleReturnItem[]
 
   @@map("sale_returns")
@@ -1000,6 +1005,7 @@ model SaleOrder {
 
   returns          SaleReturn[]
   priceAdjustments SalePriceAdjustment[]
+  edits            SaleOrderEdit[]
 
   orderRequest OrderRequest?
   /// The instalment plan agreed from this sale's Contract button (§7, 2026-10-16).
@@ -1018,9 +1024,14 @@ model SaleItem {
   discount    Decimal  @default(0) @db.Decimal(18, 2)
   lineTotal   Decimal  @map("line_total") @db.Decimal(18, 2)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  /// Units added to a confirmed order by an edit (§4 "Editing a confirmed
+  /// order", owner 2026-10-25): their own dated line, counted on the edit's
+  /// day. Null for a line the order was confirmed with.
+  editId      String?  @map("edit_id") @db.Uuid
 
   saleOrder        SaleOrder             @relation(fields: [saleOrderId], references: [id])
   product          Product               @relation(fields: [productId], references: [id])
+  edit             SaleOrderEdit?        @relation(fields: [editId], references: [id])
   allocations      SaleItemAllocation[]
   returnItems      SaleReturnItem[]
   priceAdjustments SalePriceAdjustment[]
@@ -1048,15 +1059,51 @@ model SalePriceAdjustment {
   reason            String?
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
   createdBy         String?  @map("created_by") @db.Uuid
+  /// A price changed by an order edit (§4, 2026-10-25), which may raise it:
+  /// then `amountEgp` is negative (owed more, revenue up).
+  editId            String?  @map("edit_id") @db.Uuid
 
   saleOrder SaleOrder                 @relation(fields: [saleOrderId], references: [id])
   saleItem  SaleItem                  @relation(fields: [saleItemId], references: [id])
   creator   User?                     @relation("CreatedSalePriceAdjustmentUser", fields: [createdBy], references: [id])
+  edit      SaleOrderEdit?            @relation(fields: [editId], references: [id])
   items     SalePriceAdjustmentItem[]
 
   @@index([saleOrderId])
   @@index([adjustedOn])
   @@map("sale_price_adjustments")
+}
+
+/// An edit of a confirmed order (BUSINESS_LOGIC §4 "Editing a confirmed
+/// order", owner 2026-10-25): one dated event, never an overwrite. Its parts
+/// are the records that already mean each thing — units added are new sale
+/// lines (`SaleItem.editId`) drawn FIFO that day, units given back are a
+/// return (`SaleReturn.editId`), a price changed up or down is a price
+/// adjustment (`SalePriceAdjustment.editId`) — so every reader that knows
+/// those knows the edit.
+model SaleOrderEdit {
+  id          String   @id @default(uuid()) @db.Uuid
+  saleOrderId String   @map("sale_order_id") @db.Uuid
+  /// The Cairo day of the change: its revenue and cost count on it.
+  editedOn    DateTime @map("edited_on") @db.Date
+  reason      String?
+  owedBefore  Decimal  @map("owed_before") @db.Decimal(18, 2)
+  owedAfter   Decimal  @map("owed_after") @db.Decimal(18, 2)
+  /// owedAfter - owedBefore: positive owes more. Equal to what was added,
+  /// less what was given back, less the price changes (signed).
+  amountEgp   Decimal  @map("amount_egp") @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdBy   String?  @map("created_by") @db.Uuid
+
+  saleOrder        SaleOrder             @relation(fields: [saleOrderId], references: [id])
+  creator          User?                 @relation("CreatedSaleOrderEditUser", fields: [createdBy], references: [id])
+  addedItems       SaleItem[]
+  returns          SaleReturn[]
+  priceAdjustments SalePriceAdjustment[]
+
+  @@index([saleOrderId])
+  @@index([editedOn])
+  @@map("sale_order_edits")
 }
 
 /// The adjustment's share per batch the held units came from, so each cycle

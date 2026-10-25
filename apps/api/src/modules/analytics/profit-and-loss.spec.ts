@@ -146,6 +146,10 @@ function fakeDb(world: World) {
     count: () => Promise.resolve(0),
     groupBy: () => Promise.resolve([]),
   };
+  /** A query for the lines an order edit added (`editId: { not: null }`). */
+  const addedByEdit = (where: W) =>
+    (where.saleItem as { editId?: { not?: unknown } } | undefined)?.editId
+      ?.not === null;
   const models: Record<string, unknown> = {
     salePriceAdjustment: empty,
     payment: {
@@ -193,22 +197,31 @@ function fakeDb(world: World) {
     },
     saleItemAllocation: {
       ...empty,
-      // One allocation per order, carrying the order it sold under.
+      // One allocation per order, carrying the order it sold under. These
+      // worlds hold no order edits (§4, 2026-10-25): lines an edit added are
+      // asked for separately, and there are none.
       findMany: ({ where }: { where: W }) =>
         Promise.resolve(
-          world.orders
-            .filter((o) => matchOrder(o, where.saleItem?.saleOrder))
-            .map((o) => ({ cogsEgp: D(o.cogs), saleItem: { saleOrder: o } })),
+          addedByEdit(where)
+            ? []
+            : world.orders
+                .filter((o) => matchOrder(o, where.saleItem?.saleOrder))
+                .map((o) => ({
+                  cogsEgp: D(o.cogs),
+                  saleItem: { saleOrder: o },
+                })),
         ),
       aggregate: ({ where }: { where: W }) =>
         Promise.resolve({
           _sum: {
-            cogsEgp: sum(
-              world.orders.filter((o) =>
-                matchOrder(o, where.saleItem?.saleOrder),
-              ),
-              (o) => o.cogs,
-            ),
+            cogsEgp: addedByEdit(where)
+              ? null
+              : sum(
+                  world.orders.filter((o) =>
+                    matchOrder(o, where.saleItem?.saleOrder),
+                  ),
+                  (o) => o.cogs,
+                ),
           },
         }),
     },
@@ -945,7 +958,7 @@ describe('profit and loss — the chart’s buckets', () => {
     expect(p.to).toBe('2026-10-18');
   });
 
-  it('the query count does not grow with the buckets: fifteen for a 31-day month, a week view or all time (thirteen sums and cash paid out’s two, 2026-10-23)', async () => {
+  it('the query count does not grow with the buckets: seventeen for a 31-day month, a week view or all time (fifteen sums — lines an order edit added, and their cost, 2026-10-25 — and cash paid out’s two, 2026-10-23)', async () => {
     const w = spread();
     const now = cairo('2026-10-18', 15);
     const count = async (from?: string, to?: string) => {
@@ -953,13 +966,13 @@ describe('profit and loss — the chart’s buckets', () => {
       await service(w).getProfitAndLoss(from, to, now);
       return calls.n;
     };
-    expect(await count('2026-08-01', '2026-08-31')).toBe(15);
-    expect(await count('2026-07-04', '2026-09-20')).toBe(15);
-    expect(await count(undefined, undefined)).toBe(15);
-    // And the dashboard's reading is unchanged: thirteen sums.
+    expect(await count('2026-08-01', '2026-08-31')).toBe(17);
+    expect(await count('2026-07-04', '2026-09-20')).toBe(17);
+    expect(await count(undefined, undefined)).toBe(17);
+    // And the dashboard's reading: fifteen sums.
     calls.n = 0;
     await service(w).profitFigures();
-    expect(calls.n).toBe(13);
+    expect(calls.n).toBe(15);
   });
 });
 

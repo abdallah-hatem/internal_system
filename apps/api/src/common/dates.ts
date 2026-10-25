@@ -71,6 +71,7 @@ export const DATE_FIELDS = {
   SALE_MADE: 'The date a sale was made',
   STOCK_RECEIVED: 'The date stock was received',
   PRICE_ADJUSTED: 'The date a price was lowered',
+  ORDER_EDITED: 'The date an order was edited',
 } as const;
 export type DateField = keyof typeof DATE_FIELDS;
 

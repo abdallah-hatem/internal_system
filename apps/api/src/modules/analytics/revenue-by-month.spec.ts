@@ -28,6 +28,8 @@ function service(sales: Sale[]) {
     },
     saleReturn: { findMany: () => Promise.resolve([]) },
     salePriceAdjustment: { findMany: () => Promise.resolve([]) },
+    // Lines an order edit added (§4, 2026-10-25): none here.
+    saleItem: { findMany: () => Promise.resolve([]) },
   };
   return new AnalyticsService(prisma as never);
 }

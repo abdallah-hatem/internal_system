@@ -130,6 +130,7 @@ const ENDPOINTS = {
   'sale.contractPlan': ['payment-plans/sale-contract.controller.ts', 'SaleContractController', 'Post', ':id/contract-plan'],
   'sale.samplesWriteOff': ['sales/sales.controller.ts', 'SalesController', 'Post', ':id/samples/write-off'],
   'sale.adjustPrice': ['sales/sales.controller.ts', 'SalesController', 'Post', ':id/price-adjustments'],
+  'sale.editOrder': ['sales/sales.controller.ts', 'SalesController', 'Post', ':id/edits'],
   'stockTransfer.create': ['stock-transfers/stock-transfers.controller.ts', 'CycleTransfersController', 'Post', ':id/transfers'],
   'stockTransfer.undo': ['stock-transfers/stock-transfers.controller.ts', 'StockTransfersController', 'Post', ':id/undo'],
 };
