@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/icons';
 
 import { PhoneBar } from './phone-bar';
+import { AssistantChat } from '@/components/assistant/assistant-chat';
 import { ENABLED_FEATURES } from '../../lib/features';
 import {
   NAV_GROUPS,
@@ -341,6 +342,9 @@ export function AppShell({
           {children}
         </main>
       </div>
+
+      {/* The office chat, on every page (owner 2026-10-25). */}
+      <AssistantChat />
 
       <PhoneBar
         items={barItems}

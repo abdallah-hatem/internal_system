@@ -1774,7 +1774,15 @@
     "PRICE_ADJUSTMENT_NOTHING_HELD": "كل وحدات {product} في {order} تم إرجاعها؛ لا يوجد ما يُخفَّض سعره.",
     "PRICE_ADJUSTMENT_BEFORE_SALE": "تم بيع {order} يوم {sold}؛ لا يمكن تخفيض سعره بتاريخ {day}.",
     "PRICE_ADJUSTMENT_CYCLE_SETTLED": "هذه الوحدات من الدورة {cycle}، وهي قيد التسوية أو تمت تسويتها؛ لم يعد ممكنًا تغيير مبيعاتها.",
-    "PRICE_ADJUSTMENT_EXCEEDS_OWED": "تخفيض سعر {product} يخصم {amount}، لكن المستحق على {order} هو {owed} فقط. ما يزيد عن المستحق يكون استردادًا."
+    "PRICE_ADJUSTMENT_EXCEEDS_OWED": "تخفيض سعر {product} يخصم {amount}، لكن المستحق على {order} هو {owed} فقط. ما يزيد عن المستحق يكون استردادًا.",
+    "AI_NOT_CONFIGURED": "المحادثة غير مفعّلة بعد: يحتاج الخادم مفتاح ذكاء اصطناعي.",
+    "AI_EMPTY_QUESTION": "اكتب سؤالًا أولًا.",
+    "AI_QUESTION_TOO_LONG": "الحد الأقصى للسؤال {max} حرفًا.",
+    "AI_DAILY_LIMIT": "انتهت رسائل المحادثة اليوم ({limit}). تفتح المحادثة غدًا من جديد.",
+    "AI_PROVIDER_FAILED": "لم تستجب خدمة الذكاء الاصطناعي. حاول بعد قليل.",
+    "AI_PROVIDER_BUSY": "خدمة الذكاء الاصطناعي مشغولة أو انتهت حصتها المجانية حاليًا. حاول لاحقًا.",
+    "AI_CONFIRM_INVALID": "لا يوجد ما يُؤكَّد.",
+    "AI_PROVIDER_TOO_SMALL": "حصة مزوّد الذكاء الاصطناعي هذا أصغر من سؤال واحد مع أدوات المساعد. استخدم مزوّدًا بحصة أكبر (حصة Gemini المجانية تكفي)."
   },
   "requests": {
     "tabs": {
@@ -2024,7 +2032,8 @@
       "SAMPLES_BOUGHT": "تم شراء العينات",
       "SAMPLES_RETURNED": "رجعت العينات",
       "SAMPLES_WRITTEN_OFF": "شُطبت العينات",
-      "PRICE_ADJUSTED": "تخفيض السعر"
+      "PRICE_ADJUSTED": "تخفيض السعر",
+      "ASSISTANT_CHAT": "سؤال للمساعد"
     },
     "entityType": {
       "Product": "منتج",
@@ -2057,7 +2066,8 @@
       "Lender": "مُقرض",
       "LenderFinancing": "ما دفعه صديق",
       "LenderRepayment": "سداد لصديق",
-      "LenderPlan": "خطة سداد"
+      "LenderPlan": "خطة سداد",
+      "AssistantChat": "محادثة المساعد"
     },
     "dateField": {
       "CYCLE_START": "تاريخ بدء الدورة",
@@ -2624,5 +2634,25 @@
     "sharePdf": "مشاركة PDF",
     "pdfFailed": "تعذر إنشاء ملف PDF. حاول مرة أخرى.",
     "language": "لغة العقد"
+  },
+  "assistantChat": {
+    "open": "اسأل المساعد",
+    "title": "المساعد",
+    "usage": "{used} من {limit} رسالة اليوم",
+    "newChat": "محادثة جديدة",
+    "close": "إغلاق",
+    "notSetUp": "المحادثة غير مفعّلة بعد: يحتاج الخادم مفتاح ذكاء اصطناعي (AI_API_KEY في إعداداته).",
+    "intro": "اسأل عن المخزون أو المبيعات أو العملاء أو المستحقات — أو أخبره بما حدث (\"بعت 5 تيل فرامل لكشري بسعر 1,150\"). أي تعديل ينتظر تأكيدك.",
+    "previewTitle": "للتأكيد",
+    "confirm": "تأكيد",
+    "cancel": "إلغاء",
+    "saved": "تم الحفظ",
+    "notSaved": "لم يُحفظ: {reason}",
+    "cancelled": "أُلغي — لم يُحفظ شيء.",
+    "thinking": "يفكّر",
+    "placeholder": "اسأل المساعد أو أخبره…",
+    "usedUp": "انتهت رسائل اليوم",
+    "send": "إرسال",
+    "failed": "لم يتمكن المساعد من الرد."
   }
 }

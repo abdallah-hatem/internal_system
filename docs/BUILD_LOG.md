@@ -32,6 +32,17 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   `price-adjustment.db.spec.ts` (statement = the cycles' profit), `customer-statement.test.tsx` (7), spec 98 TC-ST-08,
   each break-checked.
 
+## On `dev`, not on master yet (the owner: "lets do this", then "push dev", 2026-10-25)
+- 2026-10-25: **the office chat** (§16 "The office chat") — the assistant's tools from a button on every page, the model
+  from the API's environment (Gemini by default, any OpenAI-compatible provider), previews confirmed by a button only,
+  100 questions a day shared, nothing of the conversation stored. Tests: `chat.service.spec.ts` (13: the model can
+  never confirm, a token is spent once, another partner's or changed arguments save nothing, the day's limit, the
+  budget), `assistant-chat.test.tsx` (9), e2e spec 103 (4, against a stand-in model: preview → Confirm saves once,
+  Cancel saves nothing). Tried against Groq with the owner's key: works, but its free tier refuses the size
+  (`AI_PROVIDER_TOO_SMALL`). To go live: `AI_PROVIDER=gemini` and a Gemini key on the API's Vercel project.
+  Known: `unit/placeholders.test.mjs` fails on `products/[id]/page.tsx:700` (`placeholder={fallback ? '' : …}`),
+  from before this work.
+
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
 - 2026-10-23 — shipped, no migration: the dashboard in two groups (`2248549`; BUSINESS_LOGIC "The dashboard in two
@@ -229,14 +240,6 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Future (owner, 2026-10-20): a small AI chat inside the office app on the assistant's own tools
-  (`apps/api/src/modules/assistant/tools`) — same services, same roles, the same preview/confirm before every write
-  (the confirm is a button in the chat), signed in as the partner chatting. Model and key from the API project's
-  Vercel environment, so the owner swaps them with no code change: `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
-  (provider-agnostic adapter; Claude API recommended for tool use — free tiers are too small for the tool list,
-  Gemini Flash ~20 requests/day, Groq ~8k tokens/min). No key set: the chat says it is not set up, never errors.
-  Needs a monthly spending cap or a per-day request limit, an input-token budget per call with one realistic-size
-  test (LEARNINGS), and no conversation kept beyond what the audit log already records.
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last

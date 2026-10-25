@@ -126,6 +126,7 @@ const ENDPOINTS = {
   'fxRate.edit': ['currency-rates/currency-rates.controller.ts', 'CurrencyRatesController', 'Put', ':code'],
   'fxRate.add': ['currency-rates/currency-rates.controller.ts', 'CurrencyRatesController', 'Post', ''],
   'users.list': ['users/users.controller.ts', 'UsersController', 'Get', ''],
+  'assistant.chat': ['assistant/chat/chat.controller.ts', 'AssistantChatController', 'Post', ''],
   'sale.contractPlan': ['payment-plans/sale-contract.controller.ts', 'SaleContractController', 'Post', ':id/contract-plan'],
   'sale.samplesWriteOff': ['sales/sales.controller.ts', 'SalesController', 'Post', ':id/samples/write-off'],
   'sale.adjustPrice': ['sales/sales.controller.ts', 'SalesController', 'Post', ':id/price-adjustments'],

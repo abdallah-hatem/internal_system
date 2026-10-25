@@ -14,6 +14,9 @@ import { CostingModule } from '../costing/costing.module';
 import { AssistantServer } from './assistant-server';
 import { ConfirmationService } from './confirmation.service';
 import { McpController } from './mcp.controller';
+import { AiProvider } from './chat/ai-provider';
+import { AssistantChatController } from './chat/chat.controller';
+import { AssistantChatService } from './chat/chat.service';
 
 /**
  * The assistant: partners working through Claude (BUSINESS_LOGIC §16).
@@ -35,7 +38,12 @@ import { McpController } from './mcp.controller';
     LendersModule,
     CostingModule,
   ],
-  controllers: [McpController],
-  providers: [AssistantServer, ConfirmationService],
+  controllers: [McpController, AssistantChatController],
+  providers: [
+    AssistantServer,
+    ConfirmationService,
+    AiProvider,
+    AssistantChatService,
+  ],
 })
 export class AssistantModule {}

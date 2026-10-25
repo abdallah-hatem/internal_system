@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -2903,6 +2903,33 @@ service asks first.
 
 
 ---
+
+### The office chat — DECIDED 2026-10-20 / 2026-10-25 (owner), built 2026-10-25, details GUESSED
+
+A chat inside the office app, on every page (a round button at the bottom corner), on **the assistant's own tools**:
+the same services, the same roles, the same preview before every change. `apps/api/src/modules/assistant/chat/`
+runs the tool server in process (the MCP client over an in-memory transport), so no tool is copied;
+`components/assistant/assistant-chat.tsx` is the panel.
+
+- **The model is the owner's choice, from the API's environment, no code change** (owner: Gemini to start, "maybe
+  later Groq or any free one"): `AI_PROVIDER` (gemini, groq, openai, openrouter — any OpenAI-compatible one with
+  `AI_BASE_URL`), `AI_API_KEY`, `AI_MODEL`. No key: the chat says it is not set up.
+- **The model can only preview.** A change comes back as a card with **Confirm** and **Cancel**; only Confirm saves it,
+  with the token that preview issued to that partner for those exact arguments (§16's rules: once, 15 minutes). A
+  token the model sends is dropped, and it is never shown one. A refusal on Confirm (expired, already used, the
+  facts changed) is said on the card, nothing saved.
+- **100 questions a day, shared by the three partners** (owner 2026-10-25; `AI_DAILY_LIMIT`), counted in Cairo days
+  from the audit log; then the chat says so until tomorrow. Confirm does not count (no model is called).
+- **Only core partners** (owner 2026-10-21: nobody else signs in).
+- **Nothing of the conversation is stored**: the browser holds it while the app is open; each question sends its
+  newest part (12 turns, 16,000 characters). The audit log records each question's provider, model and tools
+  (`ASSISTANT_CHAT`), and every change is audited by the service that made it, as always.
+- **Budget per question** (GUESS): a question of at most 2,000 characters, at most six model turns, each tool's answer
+  cut to 6,000 characters, tool descriptions to their first sentences — every question carries every tool.
+- **Found 2026-10-25: Groq's free tier is too small** — 8,000 tokens a minute, and one question with the tools is
+  ~8,300 before its second turn; the chat then says so (`AI_PROVIDER_TOO_SMALL`). Gemini's free tier fits.
+- GUESS: the previews are the tools' own English summaries (as for Claude); the chat's answers follow the partner's
+  language. Previews read left to right on an Arabic screen.
 
 ## 17. Selling on Amazon  — PLANNED, raised 2026-10-08
 

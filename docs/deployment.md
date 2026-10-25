@@ -89,6 +89,7 @@ Set on the **API** project:
 | `BLOB_READ_WRITE_TOKEN` | the Blob store sets this | uploads go to a disk that is wiped |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generate a pair (`npx web-push generate-vapid-keys`); set in production 2026-10-16 | no phone alerts at all — push is off with a warning in the log; the bell still works |
 | `VAPID_SUBJECT` | a `mailto:` for the push services | a placeholder mailto is used |
+| `AI_API_KEY` (+ `AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `AI_DAILY_LIMIT`) | the office chat's model — a key from the provider (Gemini by default; any OpenAI-compatible one; `apps/api/.env.example`) | the chat says it is not set up; nothing else changes |
 | `PUBLIC_BASE_URL` | the API's public address; `scripts/ship-prod.sh env` sets it if absent | the assistant's OAuth and MCP addresses are read from forwarded headers, which a caller can choose |
 
 Set on **both frontends**:

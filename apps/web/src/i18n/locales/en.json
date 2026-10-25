@@ -1774,7 +1774,15 @@
     "PRICE_ADJUSTMENT_NOTHING_HELD": "Every unit of {product} on {order} has been returned; there is nothing to lower the price of.",
     "PRICE_ADJUSTMENT_BEFORE_SALE": "{order} was sold on {sold}; its price cannot be lowered on {day}.",
     "PRICE_ADJUSTMENT_CYCLE_SETTLED": "These units came from cycle {cycle}, which is being settled or is settled; its sales can no longer change.",
-    "PRICE_ADJUSTMENT_EXCEEDS_OWED": "Lowering {product} takes {amount} off, but {order} owes only {owed}. Anything beyond what is owed is a refund."
+    "PRICE_ADJUSTMENT_EXCEEDS_OWED": "Lowering {product} takes {amount} off, but {order} owes only {owed}. Anything beyond what is owed is a refund.",
+    "AI_NOT_CONFIGURED": "The chat isn't set up yet: the API needs an AI key.",
+    "AI_EMPTY_QUESTION": "Ask something first.",
+    "AI_QUESTION_TOO_LONG": "A question can be at most {max} characters.",
+    "AI_DAILY_LIMIT": "Today's {limit} chat messages are used up. The chat opens again tomorrow.",
+    "AI_PROVIDER_FAILED": "The AI service did not answer. Try again in a moment.",
+    "AI_PROVIDER_BUSY": "The AI service is busy or its free allowance is used up for now. Try again later.",
+    "AI_CONFIRM_INVALID": "Nothing to confirm.",
+    "AI_PROVIDER_TOO_SMALL": "This AI provider's allowance is too small for one question with the assistant's tools. Switch to one with a larger allowance (Gemini's free tier fits)."
   },
   "requests": {
     "tabs": {
@@ -2024,7 +2032,8 @@
       "SAMPLES_BOUGHT": "Samples bought",
       "SAMPLES_RETURNED": "Samples returned",
       "SAMPLES_WRITTEN_OFF": "Samples written off",
-      "PRICE_ADJUSTED": "Price lowered"
+      "PRICE_ADJUSTED": "Price lowered",
+      "ASSISTANT_CHAT": "Asked the assistant"
     },
     "entityType": {
       "Product": "Product",
@@ -2057,7 +2066,8 @@
       "Lender": "Lender",
       "LenderFinancing": "Friend's payment",
       "LenderRepayment": "Repayment to a friend",
-      "LenderPlan": "Repayment plan"
+      "LenderPlan": "Repayment plan",
+      "AssistantChat": "Assistant chat"
     },
     "dateField": {
       "CYCLE_START": "A cycle start date",
@@ -2624,5 +2634,25 @@
     "sharePdf": "Share PDF",
     "pdfFailed": "Could not make the PDF. Try again.",
     "language": "Contract language"
+  },
+  "assistantChat": {
+    "open": "Ask the assistant",
+    "title": "Assistant",
+    "usage": "{used} of {limit} messages today",
+    "newChat": "New chat",
+    "close": "Close",
+    "notSetUp": "The chat isn't set up yet: the API needs an AI key (AI_API_KEY in its settings).",
+    "intro": "Ask about stock, sales, customers or what is owed — or tell it what happened (\"sold 5 brake pads to Koshary at 1,150\"). Every change waits for your Confirm.",
+    "previewTitle": "To confirm",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "saved": "Saved",
+    "notSaved": "Not saved: {reason}",
+    "cancelled": "Cancelled — nothing saved.",
+    "thinking": "Thinking",
+    "placeholder": "Ask or tell the assistant…",
+    "usedUp": "Today's messages are used up",
+    "send": "Send",
+    "failed": "The assistant could not answer."
   }
 }
