@@ -535,6 +535,23 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
                          WHERE is_default GROUP BY customer_id HAVING count(*) > 1) d
   UNION ALL SELECT 27.3, 'archived branch that is the default',
          count(*) FROM customer_branches WHERE archived_at IS NOT NULL AND is_default
+  -- A partner's running account never goes below zero (section 8, owner
+  -- 2026-10-25); the balance is common/partner-account.ts's, in SQL.
+  UNION ALL SELECT 28, 'partner account below zero',
+         count(*) FROM (
+           SELECT partner_user_id FROM partner_account_movements
+            WHERE reversed_at IS NULL
+            GROUP BY partner_user_id
+           HAVING sum(CASE WHEN kind IN ('ADVANCE', 'PAYOUT_LEFT_IN') THEN amount_egp ELSE -amount_egp END) < 0
+         ) below
+  UNION ALL SELECT 28.1, 'partner account movement dated on a day that has not arrived',
+         count(*) FROM partner_account_movements
+   WHERE occurred_on > (now() AT TIME ZONE 'Africa/Cairo')::date
+  UNION ALL SELECT 28.2, 'contribution below what was drawn into it from accounts',
+         count(*) FROM cycle_participants p
+   WHERE p.contribution_amount < coalesce((SELECT sum(m.amount_egp) FROM partner_account_movements m
+                                           WHERE m.participant_id = p.id AND m.kind = 'CONTRIBUTION'
+                                             AND m.reversed_at IS NULL), 0)
 SQL
 )
 

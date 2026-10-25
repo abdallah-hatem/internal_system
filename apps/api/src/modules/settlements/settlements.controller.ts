@@ -113,6 +113,7 @@ export class SettlementsController {
   ) {
     return this.settlementsService.markPaid(id, user?.id, {
       acceptRemainingStock: body?.acceptRemainingStock,
+      leaveInPartnerUserIds: body?.leaveInPartnerUserIds,
     });
   }
 

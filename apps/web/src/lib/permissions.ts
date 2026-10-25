@@ -68,6 +68,13 @@ export const ACTION_ROLES = {
   'lender.plan': PARTNERS, //             POST /lender-financings/:id/plan
   'lender.reverseRepayment': PARTNERS, // POST /lender-repayments/:id/reverse
   'lender.cancelPlan': PARTNERS, //       POST /lender-plans/:id/cancel
+  // Partners' running accounts (§8, 2026-10-25) — PartnerAccountsController, CycleAccountFundingController
+  'partnerAccount.read': PARTNERS, //     GET  /partner-accounts, /cycles/:id/account-funding
+  'partnerAccount.advance': PARTNERS, //  POST /partner-accounts/:id/advances
+  'partnerAccount.withdraw': PARTNERS, // POST /partner-accounts/:id/withdrawals
+  'partnerAccount.reverse': PARTNERS, //  POST /partner-accounts/:id/movements/:id/reverse
+  'partnerAccount.contribute': PARTNERS, // POST /cycles/:id/account-contributions
+  'partnerAccount.target': PARTNERS, //   PUT  /cycles/:id/funding-target
   // Leftovers moved to another cycle at cost (§8, L5) — CycleTransfersController, StockTransfersController
   'stockTransfer.create': PARTNERS, //    POST /cycles/:id/transfers
   'stockTransfer.undo': PARTNERS, //      POST /stock-transfers/:id/undo

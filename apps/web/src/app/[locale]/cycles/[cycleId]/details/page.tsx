@@ -50,6 +50,7 @@ import { splitAcrossPartners } from '@/lib/funding-split';
 import { viewPath } from '@/lib/page-views';
 import { FundingNote, lenderList } from '@/components/cycles/funding-note';
 import { AmountsForm } from '@/components/cycles/amounts-form';
+import { AccountFundingPanel } from '@/components/cycles/account-funding-panel';
 import type { FinancingView } from '@/components/lenders/lender-dialogs';
 
 /**
@@ -249,6 +250,7 @@ export default function CycleDetailsPage() {
     void queryClient.invalidateQueries({ queryKey: ['cycle', id] });
     void queryClient.invalidateQueries({ queryKey: ['cycles'] });
     void queryClient.invalidateQueries({ queryKey: ['landedCost', id] });
+    void queryClient.invalidateQueries({ queryKey: ['account-funding', id] });
   }
 
   if (isLoading) {
@@ -355,6 +357,10 @@ export default function CycleDetailsPage() {
           scrollTo(financingRef.current);
         }}
       />
+
+      {/* Funding from the partners' running accounts (§8, owner 2026-10-25):
+          the target, who has paid the supplier so far, and contributing. */}
+      <AccountFundingPanel cycleId={cycle.id} />
 
       {/* Where the goods are — layout A, chosen by the owner (I3). */}
       <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} transfers={transfers} />

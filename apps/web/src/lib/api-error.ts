@@ -59,6 +59,7 @@ export const PARAM_KINDS: Record<string, Record<string, CodeKind>> = {
   SAMPLES_ALREADY_DECIDED: { status: 'orderStatus' },
   PRICE_ADJUSTMENT_ORDER_NOT_OPEN: { status: 'orderStatus' },
   CYCLE_CLOSED_FOR_FINANCING: { status: 'cycleStatus' },
+  CYCLE_CLOSED_FOR_ACCOUNTS: { status: 'cycleStatus' },
   FUNDING_LOCKED_AFTER_SETTLEMENT: { reason: 'fundingLock' },
   LEDGER_CATEGORY_WRONG_KIND: { category: 'ledgerCategory', kind: 'ledgerKind' },
   LEDGER_DIRECTION_MISMATCH: { kind: 'ledgerKind', direction: 'ledgerDirection' },

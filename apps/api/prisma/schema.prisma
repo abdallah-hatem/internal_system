@@ -42,6 +42,8 @@ model User {
   runningCostCharges    RunningCostCharge[]
   /// His fixed share of each running cost of his time (§8, L7).
   runningCostShares     RunningCostShare[]
+  /// His running account (§8, 2026-10-25).
+  accountMovements      PartnerAccountMovement[] @relation("PartnerAccountMovements")
   saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
   payments              Payment[]              @relation("CreatedPaymentUser")
   productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
@@ -324,8 +326,70 @@ model ImportCycle {
   /// Leftover stock moved out of this cycle, and into it (§8, L5).
   transfersOut          StockTransfer[]        @relation("TransferFromCycle")
   transfersIn           StockTransfer[]        @relation("TransferToCycle")
+  /// Partners' advances and contributions from their accounts on this cycle (§8, 2026-10-25).
+  accountMovements      PartnerAccountMovement[]
+
+  /// An optional funding target ("1,600 of 2,000 funded so far"), in its own
+  /// currency at the rate typed (§8, 2026-10-25). All three set, or none.
+  fundingTargetAmount   Decimal? @map("funding_target_amount") @db.Decimal(18, 2)
+  fundingTargetCurrency String?  @map("funding_target_currency")
+  fundingTargetRate     Decimal? @map("funding_target_rate") @db.Decimal(18, 4)
 
   @@map("import_cycles")
+}
+
+/// What a running account movement is (§8, owner 2026-10-25).
+enum PartnerAccountMovementKind {
+  /// He paid a supplier for a cycle from his own pocket: + his account. Not cash.
+  ADVANCE
+  /// A settlement payout he left in: + his account (phase 2).
+  PAYOUT_LEFT_IN
+  /// Drawn from his account into a cycle's contribution: − his account.
+  CONTRIBUTION
+  /// Money he took out: − his account.
+  WITHDRAWAL
+}
+
+/// One movement on a core partner's running account (§8, owner 2026-10-25).
+/// The balance is the sum of the standing ones (`common/partner-account.ts`,
+/// the one definition) and never goes below zero. Reversed, never edited or
+/// deleted (§9); a standing one has no `reversedAt`. None of it is a ledger
+/// row: the account is the partner's money, not the business's cash.
+model PartnerAccountMovement {
+  id             String                     @id @default(uuid()) @db.Uuid
+  partnerUserId  String                     @map("partner_user_id") @db.Uuid
+  kind           PartnerAccountMovementKind
+  /// Always above zero; the kind gives the sign.
+  amountEgp      Decimal                    @map("amount_egp") @db.Decimal(18, 2)
+  /// What was paid, in the currency paid (an advance); EGP otherwise.
+  amount         Decimal                    @db.Decimal(18, 2)
+  currency       String                     @default("EGP")
+  /// That day's rate to EGP, as typed; 1 for EGP.
+  fxRateToEgp    Decimal                    @default(1) @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  /// The Cairo day it happened.
+  occurredOn     DateTime                   @map("occurred_on") @db.Date
+  /// The cycle an advance paid towards, or a contribution went into.
+  cycleId        String?                    @map("cycle_id") @db.Uuid
+  /// The cycle line a contribution raised.
+  participantId  String?                    @map("participant_id") @db.Uuid
+  /// The settlement whose payout was left in.
+  settlementId   String?                    @map("settlement_id") @db.Uuid
+  note           String?
+  createdBy      String?                    @map("created_by") @db.Uuid
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz()
+  reversedAt     DateTime?                  @map("reversed_at") @db.Timestamptz()
+  reversedBy     String?                    @map("reversed_by") @db.Uuid
+  reversalReason String?                    @map("reversal_reason")
+
+  partner     User              @relation("PartnerAccountMovements", fields: [partnerUserId], references: [id])
+  cycle       ImportCycle?      @relation(fields: [cycleId], references: [id])
+  participant CycleParticipant? @relation(fields: [participantId], references: [id])
+  settlement  Settlement?       @relation(fields: [settlementId], references: [id])
+
+  @@index([partnerUserId])
+  @@index([cycleId])
+  @@index([settlementId])
+  @@map("partner_account_movements")
 }
 
 model CycleParticipant {
@@ -346,6 +410,7 @@ model CycleParticipant {
   investor           User?               @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
   settlementLines    SettlementLine[]
   runningCostCharges RunningCostCharge[]
+  accountMovements   PartnerAccountMovement[]
 
   // A person joins a cycle once. Without this a double-add silently dilutes
   // every other participant's profit share.
@@ -1365,6 +1430,8 @@ model Settlement {
   lines              SettlementLine[]
   /// Running costs this settlement's payouts took (§8, L7).
   runningCostCharges RunningCostCharge[]
+  /// Payouts left in partners' accounts (§8, 2026-10-25).
+  accountMovements   PartnerAccountMovement[]
 
   @@map("settlements")
 }
