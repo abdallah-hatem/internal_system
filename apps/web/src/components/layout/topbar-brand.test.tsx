@@ -31,6 +31,7 @@ vi.mock('@/lib/auth-context', () => ({
 }));
 vi.mock('@/components/layout/notification-bell', () => ({ NotificationBell: () => null }));
 vi.mock('@/components/layout/account-menu', () => ({ AccountMenu: () => null }));
+vi.mock('@/components/assistant/assistant-chat', () => ({ AssistantChat: () => null }));
 
 import { AppShell } from './app-shell';
 

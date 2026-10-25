@@ -67,6 +67,7 @@ vi.mock('./import-requests-list', () => ({
 // The shell's header widgets fetch on their own; the menu is what is tested.
 vi.mock('@/components/layout/notification-bell', () => ({ NotificationBell: () => null }));
 vi.mock('@/components/layout/account-menu', () => ({ AccountMenu: () => null }));
+vi.mock('@/components/assistant/assistant-chat', () => ({ AssistantChat: () => null }));
 
 import RequestsPage from '@/app/[locale]/requests/page';
 import OrderRequestsRedirect from '@/app/[locale]/order-requests/page';

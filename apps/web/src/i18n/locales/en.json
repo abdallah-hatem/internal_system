@@ -2100,7 +2100,9 @@
       "LenderFinancing": "Friend's payment",
       "LenderRepayment": "Repayment to a friend",
       "LenderPlan": "Repayment plan",
-      "AssistantChat": "Assistant chat"
+      "AssistantChat": "Assistant chat",
+      "CustomerBranch": "Customer branch",
+      "PartnerAccountMovement": "Partner account entry"
     },
     "dateField": {
       "CYCLE_START": "A cycle start date",
