@@ -303,16 +303,16 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   reversed** (shop, amount, the reason), and an **order cancelled** (order number, shop, what it was worth) — same
   readers, same rules. A test that a real sale / payment reaches the other partners' notifications from
   the service that raises it (LEARNINGS "a test button proves the pipe, not that anything uses it").
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters and pagination on the server,
-  everywhere** — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
+- Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters, sorting and pagination on the
+  server, everywhere** (sorting and filters made explicit by the owner 2026-10-25) — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
   load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,
   payments, ledger, sales, inventory, notifications, suppliers, cycles, categories, shipments, providers, audit log,
-  products, purchases; and products, categories, inventory and lenders search in the browser (`matchesName`). Each
-  list: `page`, `pageSize`, search and filters in the URL, sent to the API, which filters, counts and pages in the
+  products, purchases; and products, categories, inventory and lenders search in the browser (`matchesName`). About 20 screens load lists through `useAllRecords` (`lib/list-all.ts`: every page, 200 at a time, up to `LIST_CAP` 2,000, then a cap notice) and filter (status, customer…), search and sort what they loaded — e.g. Sales sends only the date range; its status filter, search and pages run in the browser; the one column sort (Customers by balance) too. Each
+  list: `page`, `pageSize`, search, filters and `sort` in the URL, sent to the API, which filters, counts and pages in the
   query (the Arabic-forgiving search moves into the API — one definition); totals from the server; the cache keyed by
   endpoint + params (LEARNINGS). Tests per endpoint: params sent, mapping, empty / 422 / 502, and a fixture with more
-  rows than a page so a client-side shortcut would give a different answer. Remove `paginate()` when the last caller
-  is gone.
+  rows than a page so a client-side shortcut would give a different answer. Remove `paginate()` and `useAllRecords` (keep it only for a real export-everything need, e.g. CSV) when the last
+  caller is gone.
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last
