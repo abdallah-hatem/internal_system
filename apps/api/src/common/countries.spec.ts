@@ -6,6 +6,7 @@ import {
   COUNTRY_CODES,
   PREFERRED_COUNTRIES,
   assertCountryCode,
+  countriesContaining,
   countryKey,
   countryMigrationMap,
   countryName,
@@ -214,5 +215,28 @@ describe('resolveCountry — a country as a partner tells the assistant', () => 
     expect(findCountry('china')).toBe('CN');
     expect(findCountry('Narnia')).toBeNull();
     expect(findCountry('')).toBeNull();
+  });
+});
+
+/**
+ * The Suppliers list searches a country on the server now (server-side lists,
+ * owner 2026-10-25), by part of its name in either language or its code — as
+ * the office did in the browser over the names it knew.
+ */
+describe('countriesContaining (the search box of a list)', () => {
+  it('part of the English name, any case: "chin" finds China', () => {
+    expect(countriesContaining('chin')).toContain('CN');
+  });
+
+  it('part of the Arabic name, spelling forgiven: "صين" and "الإمارات" / "الامارات"', () => {
+    expect(countriesContaining('صين')).toContain('CN');
+    expect(countriesContaining('الامارات')).toContain('AE');
+    expect(countriesContaining('الإمارات')).toContain('AE');
+  });
+
+  it('the code finds its country; nothing typed finds nothing; nonsense finds nothing', () => {
+    expect(countriesContaining('EG')).toContain('EG');
+    expect(countriesContaining('  ')).toEqual([]);
+    expect(countriesContaining('zzqq')).toEqual([]);
   });
 });

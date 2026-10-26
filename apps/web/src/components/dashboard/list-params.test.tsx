@@ -1,47 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook } from '@testing-library/react';
-import { isBelowMinStock, sortByBalance } from './list-params';
-
-describe('sortByBalance (customers ?sort=balance)', () => {
-  it('puts whoever owes the most first, and zero balances last', () => {
-    const out = sortByBalance([
-      { displayName: 'A', outstandingBalance: 0 },
-      { displayName: 'B', outstandingBalance: 300 },
-      { displayName: 'C', outstandingBalance: 1200 },
-    ]);
-    expect(out.map((c) => c.displayName)).toEqual(['C', 'B', 'A']);
-  });
-
-  it('compares decimals sent as strings as numbers, not text ("900" < "1200")', () => {
-    const out = sortByBalance([
-      { displayName: 'A', outstandingBalance: '900.00' as unknown as number },
-      { displayName: 'B', outstandingBalance: '1200.50' as unknown as number },
-    ]);
-    expect(out[0].displayName).toBe('B');
-  });
-
-  it('a missing balance counts as nothing owed, and equal balances fall back to the name', () => {
-    const out = sortByBalance([
-      { displayName: 'Zed', outstandingBalance: 50 },
-      { displayName: 'Nobody' },
-      { displayName: 'Abe', outstandingBalance: 50 },
-    ]);
-    expect(out.map((c) => c.displayName)).toEqual(['Abe', 'Zed', 'Nobody']);
-  });
-
-  it('does not reorder the list it was given (React Query owns that array)', () => {
-    const given = [
-      { displayName: 'A', outstandingBalance: 1 },
-      { displayName: 'B', outstandingBalance: 2 },
-    ];
-    sortByBalance(given);
-    expect(given[0].displayName).toBe('A');
-  });
-
-  it('an empty list stays empty', () => {
-    expect(sortByBalance([])).toEqual([]);
-  });
-});
+import { isBelowMinStock } from './list-params';
 
 describe('isBelowMinStock (inventory ?stock=low) — the dashboard count\'s rule', () => {
   const row = (totalStock: number | string, product: object | null) => ({

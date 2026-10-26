@@ -1,14 +1,13 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { useServerList } from '@/lib/server-list';
 
 import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { useState } from 'react';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
 import { FormActions } from '@/components/ui/fields';
 import { ENTITY_FORMS } from '@/components/entities/entity-forms';
 import {
@@ -19,7 +18,7 @@ import { useApiError } from '@/lib/api-error';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
-import { countryMatches, useCountryLabel } from '@/lib/countries';
+import { useCountryLabel } from '@/lib/countries';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { LatinText } from '@/components/ui/latin-text';
@@ -92,18 +91,15 @@ export default function SuppliersPage() {
   /** The icon buttons a row carries, for its skeleton. */
   const actionCount = (may.edit ? 1 : 0) + (may.delete ? 1 : 0);
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
 
-  useEffect(() => { setPage(1); }, [search]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  // The list endpoint pages at 20 by default, and asking for 200 only moved
-  // the wall; walk every page and page locally (L1).
-  const { items: suppliers, capped, isLoading } = useAllRecords(['suppliers'], '/suppliers');
+  // One page, searched (name, country in either language, phone, email) and
+  // paged by the API (owner 2026-10-25).
+  const list = useServerList<Supplier>({ queryKey: 'suppliers', path: '/suppliers' });
+  const { rows: suppliers, isLoading, reloading } = list;
 
   const onError = (error: any, fallback: string) =>
     addToast(
@@ -145,34 +141,18 @@ export default function SuppliersPage() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const supplierList: Supplier[] = Array.isArray(suppliers) ? suppliers : [];
-
-  const filtered = supplierList.filter((s) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const c = contactOf(s);
-    return (
-      s.name?.toLowerCase().includes(q) ||
-      countryMatches(s.country, search) ||
-      c.phone?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q)
-    );
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    supplierList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <NoMatch onClear={() => setSearch('')} />
+      <NoMatch onClear={list.clear} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -271,9 +251,8 @@ export default function SuppliersPage() {
       </div>
 
       {/* Search */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }} />
 
-      <ListCapNotice capped={capped} count={suppliers.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -282,9 +261,10 @@ export default function SuppliersPage() {
       <DataTable
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={suppliers}
         rowKey={(s) => s.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
       />
 
@@ -296,10 +276,10 @@ export default function SuppliersPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {suppliers.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((supplier) => (
+            suppliers.map((supplier) => (
               <div key={supplier.id} className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -342,8 +322,14 @@ export default function SuppliersPage() {
         </div>
       )}
 
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create ────────────────────────────────────────────────── */}

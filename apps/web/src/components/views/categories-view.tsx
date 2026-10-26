@@ -3,11 +3,12 @@ import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
 
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { useState } from 'react';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import {
   Tag, Plus, Edit, Loader2, Trash2, ChevronRight, ChevronDown,
 } from '@/components/ui/icons';
@@ -18,7 +19,7 @@ import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
 import { categoryIndent } from './indent';
-import { localName, matchesName, otherName } from '@/lib/localized-name';
+import { localName, otherName } from '@/lib/localized-name';
 import { useLocale } from 'next-intl';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { Dialog } from '@/components/ui/dialog';
@@ -34,37 +35,10 @@ interface Category {
   _count?: { products: number; children: number };
 }
 
+/** A row of the list: where the category sits in the tree (the API's `categoryPage`). */
+type CategoryRow = Category & { depth: number };
+
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-/** Build a tree from a flat list of categories */
-function buildTree(categories: Category[]): Category[] {
-  const map = new Map<string, Category>();
-  const roots: Category[] = [];
-  for (const cat of categories) {
-    map.set(cat.id, { ...cat, children: [] });
-  }
-  for (const cat of categories) {
-    const node = map.get(cat.id)!;
-    if (cat.parentId && map.has(cat.parentId)) {
-      map.get(cat.parentId)!.children!.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-  return roots;
-}
-
-/** Flatten tree for search filtering, preserving hierarchy info */
-function flattenTree(nodes: Category[], depth = 0): (Category & { depth: number; path: string })[] {
-  const result: (Category & { depth: number; path: string })[] = [];
-  for (const node of nodes) {
-    result.push({ ...node, depth, path: node.name });
-    if (node.children && node.children.length > 0) {
-      result.push(...flattenTree(node.children, depth + 1));
-    }
-  }
-  return result;
-}
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // The category row below, traced: the same indent for its depth, the 20px
@@ -109,8 +83,6 @@ export default function CategoriesPage() {
   };
   const mayRow = may.edit || may.delete;
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
@@ -119,13 +91,18 @@ export default function CategoriesPage() {
   // stayed on screen (owner, 2026-10-15).
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => { setPage(1); }, [search]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: categories = [], isLoading } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => api.get('/categories').then((r) => r.data.data ?? r.data),
+  // The tree a page at a time, flattened, searched (either language, §3) and
+  // folded by the API (owner 2026-10-25): it is sent which parents are
+  // collapsed, and answers each row's depth and the parents showing.
+  const collapsed = [...collapsedIds].sort().join(',');
+  const list = useServerList<CategoryRow>({
+    queryKey: 'categories',
+    path: '/categories',
+    fixed: collapsed ? { collapsed } : undefined,
   });
+  const { rows, isLoading, reloading } = list;
+  const search = list.search.trim();
 
   // ── Mutations ─────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -165,67 +142,23 @@ export default function CategoriesPage() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const categoryList: Category[] = Array.isArray(categories) ? categories : [];
-  const tree = useMemo(() => buildTree(categoryList), [categoryList]);
-
-  // For search: filter flat list, then rebuild tree from matching IDs
-  const filteredTree = useMemo(() => {
-    if (!search) return tree;
-    const q = search.toLowerCase();
-    const flat = flattenTree(tree);
-    const matchingIds = new Set(
-      // Either language (§3, 2026-10-14).
-      flat.filter((c) => matchesName(c, q)).map((c) => c.id),
-    );
-    // Also include parent IDs of matching categories
-    const allIds = new Set<string>();
-    for (const cat of categoryList) {
-      if (matchingIds.has(cat.id)) {
-        let current: Category | undefined = cat;
-        while (current) {
-          allIds.add(current.id);
-          current = categoryList.find((c) => c.id === current!.parentId);
-        }
-      }
-    }
-    return buildTree(categoryList.filter((c) => allIds.has(c.id)));
-  }, [tree, search, categoryList]);
-
-  const flatFiltered = useMemo(() => flattenTree(filteredTree), [filteredTree]);
-  const parentIds = useMemo(
-    () => flatFiltered.filter((c) => (c.children?.length ?? 0) > 0).map((c) => c.id),
-    [flatFiltered],
-  );
-  // A row shows when no ancestor is collapsed. A search shows every match and
-  // the path to it, whatever was collapsed before.
-  const visible = useMemo(() => {
-    if (search || collapsedIds.size === 0) return flatFiltered;
-    const parentOf = new Map(flatFiltered.map((c) => [c.id, c.parentId]));
-    return flatFiltered.filter((c) => {
-      for (let up = c.parentId; up; up = parentOf.get(up) ?? null) {
-        if (collapsedIds.has(up)) return false;
-      }
-      return true;
-    });
-  }, [flatFiltered, collapsedIds, search]);
-  const totalPages = Math.ceil(visible.length / PAGE_SIZE);
-  // Collapsing can leave the page past the end of a shorter list.
-  const shownPage = Math.min(page, Math.max(1, totalPages));
-  const paginated = useMemo(() => paginate(visible, shownPage), [visible, shownPage]);
+  // A row shows when no ancestor is collapsed; a search shows every match and
+  // the path to it, whatever was collapsed before (the API decides both).
+  const parentIds = (list.meta?.parentIds ?? []) as string[];
   const isOpen = (id: string) => !!search || !collapsedIds.has(id);
   const allOpen = !!search || parentIds.every((id) => !collapsedIds.has(id));
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    categoryList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <NoMatch onClear={() => setSearch('')} />
+      <NoMatch onClear={list.clear} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -280,7 +213,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* Search + Expand All */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
         {parentIds.length > 0 && !search && (
           <button
             type="button"
@@ -310,11 +243,11 @@ export default function CategoriesPage() {
       {/* Category Tree */}
       {!isLoading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {flatFiltered.length === 0 ? (
+          {rows.length === 0 ? (
             emptyList
           ) : (
-            <div className="divide-y divide-gray-100">
-              {paginated.map((cat) => (
+            <div className={`divide-y divide-gray-100 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
+              {rows.map((cat) => (
                 <div
                   key={cat.id}
                   data-testid="category-row"
@@ -401,8 +334,14 @@ export default function CategoriesPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && flatFiltered.length > 0 && (
-        <Pagination page={shownPage} totalPages={totalPages} onPageChange={setPage} totalItems={visible.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}

@@ -487,6 +487,24 @@ function spellings() {
 const label = (code: CountryCode) => `${countryName(code)} (${code})`;
 
 /**
+ * Every country a search finds by part of a name, in English or Arabic, or by
+ * its code — for a list's search box (server-side lists, owner 2026-10-25):
+ * "صين" finds CN, as the office's own copy of this search did in the browser.
+ */
+export function countriesContaining(
+  typed: string | null | undefined,
+): CountryCode[] {
+  const term = countryKey(typed);
+  if (!term) return [];
+  const found = new Set<CountryCode>();
+  const { exact, ambiguous } = spellings();
+  for (const [key, code] of exact) if (key.includes(term)) found.add(code);
+  for (const [key, codes] of ambiguous)
+    if (key.includes(term)) codes.forEach((c) => found.add(c));
+  return [...found];
+}
+
+/**
  * The code a typed country spells, or null — `resolveCountry` without the
  * refusal, for a search box: "China" also finds the suppliers saved as CN.
  */

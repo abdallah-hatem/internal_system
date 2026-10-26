@@ -11,11 +11,11 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
+import type { ListQuery } from '../../common/list-query';
 import {
   CustomerBranchesService,
   type BranchInput,
 } from './customer-branches.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 
@@ -38,7 +38,7 @@ export class CustomersController {
   @ApiOperation({ summary: 'List customers with filtering and pagination' })
   findAll(
     @Query()
-    query: PaginationDto & {
+    query: ListQuery & {
       type?: string;
       search?: string;
       /** VERIFIED | UNVERIFIED | ALL. Omitted hides unverified signups. */

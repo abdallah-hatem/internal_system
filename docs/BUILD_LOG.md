@@ -11,12 +11,12 @@ history as their API only. The goal before it — the 2026-10-19 batch — is li
 notifications, the New Order samples hint and the partner running account (migration
 `20261025100000_partner_running_accounts` applied first), shipped at the owner's word ("push notifications, sample hint,
 and partner account now, leave the branches"). **Customers with branches stay on `dev` only** (migration
-`20261025120000_customer_branches` not applied to production). Held on the other machine, not pushed: server-side
-lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
+`20261025120000_customer_branches` not applied to production). Held on the other machine, not pushed: Edit order.
+Server-side lists + the Sales customer and branch filters: finished 2026-10-26, on dev. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 **Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
-Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **server-side lists + the Sales customer filter** (`agent-lists`, `5c75bcb`) and **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
+Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
@@ -35,6 +35,34 @@ Held (owner, 2026-10-25: "hold all for now, i want only the partner running acco
   each break-checked.
 
 ## On `dev`, not on master yet (the owner: "lets do this", then "push dev", 2026-10-25)
+- 2026-10-26 (owner's queue of 2026-10-25, resumed from the held `agent-lists` WIP `5c75bcb`; merged into dev): **search, filters, sorting and pagination on the
+  server, everywhere** and **the Sales list filters by customer — and by branch**. Rules in BUSINESS_LOGIC §3 "Every
+  office list searches, filters, sorts and pages on the server". The 14 lists that paged in the browser through
+  `paginate()` (customers, payments, ledger, sales, inventory, notifications, suppliers, cycles, categories,
+  shipments, providers, audit log, products, purchases) send `page`, `pageSize`, `q`→`search`, `sort` and their
+  filters from the URL to the API, which filters, counts and pages in the query (`common/list-query.ts`; office
+  `lib/server-list.ts`, the cache keyed by entity + endpoint + params, read again on every visit). The
+  Arabic-forgiving search is in SQL (`arabic_search_key()`, `common/repositories/list-search.ts`), so it now reaches
+  customer, supplier and buyer names too. `paginate()`, `matchesName`, `countryMatches` and `sortByBalance` are gone;
+  `useAllRecords` stays only for pickers and for screens that sum what they show (a shop's own orders/payments,
+  Contracts, Settlements); CSV exports walk `fetchAll` with the list's filters. Sales: a searchable customer picker
+  (Walk-in its own choice, `?customer=<id>|walk-in` → `customerId`) and, for a customer with branches, a branch
+  picker with "On the owner" (`?branch=<id>|none` → `branchId`, refused alone, with Walk-in, or for another
+  customer's branch); a new customer drops the branch. A shop's New Order opens `/sales?new=1&customer=<id>` (GUESS).
+  Found and fixed while testing: a page of 10^20 was a 500 (Prisma cannot skip that far) — pages are 1 to 1,000,000
+  now; a page size over 200 was not refused; Clear left the filters on; the audit log's Clear put the search back
+  (two address writes racing); the second visit within a minute showed the cached page. Page tests that still fed
+  the lists unpaged answers were brought up to date (samples-pages, order-value-now, order-popup-history,
+  ledger-quick-actions, inventory-receive, audit-logs-view, list-toolbar and no-match sweeps). Known, not edited here
+  (being fixed on dev with the branches tests): `sales/walk-in.spec.ts` "The customers list … real customers only"
+  fails because its fake Prisma has no `$queryRaw`, which the customers search now uses — the rule itself is pinned
+  against Postgres in `sales-list.db.spec.ts`. Tests: `sales/sales-list.db.spec.ts` (52, real Postgres, 23 orders at 10 a page: past the end, page
+  0/negative/huge, page sizes 0–10^20, unknown sorts, SQL-ish and LIKE-wildcard searches, six Arabic spellings,
+  filter + search + sort with counts that match the rows walked, branches, cursors, the walk-in never listed), `list-query.spec`,
+  `list-search.spec`, `server-list.test.tsx` (21: the second visit with a minute-fresh cache, page 0/negative in a
+  link, Clear), `sales-buyer-filter.test.tsx` (6: walk-in, a switched customer never keeps or shows the last
+  one's branches, also while loading); each break-verified. e2e `104-server-lists` (TC-SL-01..08) written, not run —
+  owner said not for now.
 - 2026-10-25 (owner: "make full branches again",
   then "not required because default to the default"): **a customer with branches** — one owner pays for all. Rules
   in BUSINESS_LOGIC §7 "A customer with branches". A `customer_branches` table (name, address, phone, default,
@@ -52,8 +80,8 @@ Held (owner, 2026-10-25: "hold all for now, i want only the partner running acco
   drops the old branch at once. The invoice: billed to the owner, "Deliver to" the branch with its address and phone.
   The Sales list and the order popup name the branch. Not changed: credit and contract limits (there are none in
   the app today), contracts, samples, returns and price cuts stay per order; the storefront login is the owner's and
-  shows nothing new yet. Not done: a branch filter on the Sales list (the list's toolbar is being reworked by another
-  run). Tests: `customer-branches.db.spec.ts` (20, real Postgres: names, defaults, the default fallback on every
+  shows nothing new yet. The Sales list's branch filter came with the server-side lists (2026-10-26, above).
+  Tests: `customer-branches.db.spec.ts` (20, real Postgres: names, defaults, the default fallback on every
   path incl. `record_sale`, another customer's and archived branches, per-branch caps, balances and statements that
   add up), `SaleOrderForm.branches.test.tsx` (8: the default, a picked branch, a switched customer — also while its
   branches load), `src/one-off/ahmad-zogmar-branches.spec.ts`; e2e `104-customer-branches` written, not run — owner
@@ -325,11 +353,6 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   payment, whose inflow is matched by the purchase it paid). Rules into BUSINESS_LOGIC §8 when decided; sample the
   cycle's funding panel and the Partners page before building (he judges by looking). Settlement changes (capital back
   from the account, payouts into it) need the full set of break-it tests (CLAUDE.md §0, §1, §10).
-- Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
-  searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
-  toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
-  `customerId` on `GET /sales/orders`; clearable with the other filters. Build with the server-side lists item (search,
-  filters, sorting, pagination on the server) so the filter is not applied in the browser.
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their
@@ -364,16 +387,6 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
     and statement, the cycle's profit, the dashboard, Analytics, inventory and the product page's stock value,
     check-data (all zero).
   - Through the assistant/office chat too, if exposed there (same service, preview/confirm).
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters, sorting and pagination on the
-  server, everywhere** (sorting and filters made explicit by the owner 2026-10-25) — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
-  load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,
-  payments, ledger, sales, inventory, notifications, suppliers, cycles, categories, shipments, providers, audit log,
-  products, purchases; and products, categories, inventory and lenders search in the browser (`matchesName`). About 20 screens load lists through `useAllRecords` (`lib/list-all.ts`: every page, 200 at a time, up to `LIST_CAP` 2,000, then a cap notice) and filter (status, customer…), search and sort what they loaded — e.g. Sales sends only the date range; its status filter, search and pages run in the browser; the one column sort (Customers by balance) too. Each
-  list: `page`, `pageSize`, search, filters and `sort` in the URL, sent to the API, which filters, counts and pages in the
-  query (the Arabic-forgiving search moves into the API — one definition); totals from the server; the cache keyed by
-  endpoint + params (LEARNINGS). Tests per endpoint: params sent, mapping, empty / 422 / 502, and a fixture with more
-  rows than a page so a client-side shortcut would give a different answer. Remove `paginate()` and `useAllRecords` (keep it only for a real export-everything need, e.g. CSV) when the last
-  caller is gone.
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last

@@ -14,6 +14,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { VerifyStockDto } from './dto/verify-stock.dto';
 import type { Viewer } from '../../common/investor-scope';
+import type { ListQuery } from '../../common/list-query';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
@@ -38,7 +39,8 @@ export class InventoryController {
       'List stock levels (filter by product/cycle; an investor: their cycles only)',
   })
   getStock(
-    @Query() query: { productId?: string; cycleId?: string },
+    @Query()
+    query: ListQuery & { productId?: string; cycleId?: string; stock?: string },
     @CurrentUser() user: Viewer,
   ) {
     return this.inventoryService.getStock(query, user);

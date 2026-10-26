@@ -86,24 +86,6 @@ export function searchFinds(text: string | null | undefined, search: string): bo
   return arabicSearchKey(text).includes(arabicSearchKey(search));
 }
 
-/**
- * Does a search typed in either language find this record? The English name,
- * the Arabic name and the SKU, ignoring case and Arabic spelling differences
- * (2026-10-15) — the same three the API's search reads
- * (`bilingualProductSearch`), so a list filtered here and one filtered by the
- * server never disagree.
- */
-export function matchesName(
-  record: Named & { sku?: string | null },
-  search: string,
-): boolean {
-  const term = arabicSearchKey(search);
-  if (!term) return true;
-  return [record.name, record.nameAr, record.sku].some(
-    (v) => typeof v === 'string' && arabicSearchKey(v).includes(term),
-  );
-}
-
 /** `localName` bound to the page's locale. */
 export function useLocalName() {
   const locale = useLocale();

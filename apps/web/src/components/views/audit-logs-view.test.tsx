@@ -98,13 +98,19 @@ vi.mock('@/lib/api', () => ({
       gets.push({ url, params });
       if (url === '/users') return Promise.resolve({ data: { data: USERS, meta: { nextCursor: null } } });
       if (url === '/audit-logs') {
-        // The server's own filtering (audit.controller findAll).
+        // The server's own filtering and search (audit.controller findAll):
+        // who, by name or email, and the record.
+        const term = String(params.search ?? '').toLowerCase();
         const data = ROWS.filter(
           (r) =>
             (!params.entityType || r.entityType === params.entityType) &&
-            (!params.actorUserId || r.actorUserId === params.actorUserId),
+            (!params.actorUserId || r.actorUserId === params.actorUserId) &&
+            (!term ||
+              [r.actor?.email, r.actor?.displayName, r.entityLabel].some((v) => v?.toLowerCase().includes(term))),
         );
-        return Promise.resolve({ data: { data, meta: { nextCursor: null } } });
+        return Promise.resolve({
+          data: { data, meta: { nextCursor: null, total: data.length, totalPages: Math.ceil(data.length / 10) } },
+        });
       }
       if (url.startsWith('/audit-logs/')) {
         return Promise.resolve({ data: { data: ROWS.find((r) => url.endsWith(r.id)) } });
@@ -216,17 +222,19 @@ describe('the audit log’s Who filter', () => {
     await pickWho('Fares');
     await waitFor(() => expect(records()).toHaveLength(2));
     const search = screen.getByPlaceholderText(en.auditLogs.search);
+    // The search is sent to the server once typing rests (2026-10-25).
     fireEvent.change(search, { target: { value: '00004' } });
-    expect(records()).toEqual(['ORD-2026-00004']);
+    await waitFor(() => expect(records()).toEqual(['ORD-2026-00004']));
+    expect(gets.at(-1)?.params).toMatchObject({ search: '00004', actorUserId: FARES });
     fireEvent.change(search, { target: { value: 'Shady' } });
-    expect(records()).toEqual([]);
+    await waitFor(() => expect(records()).toEqual([]));
   });
 
   it('the search finds a person by name, not only by email', async () => {
     renderIn();
     await allLoaded();
     fireEvent.change(screen.getByPlaceholderText(en.auditLogs.search), { target: { value: 'shady' } });
-    expect(records()).toEqual(['ORD-2026-00003']);
+    await waitFor(() => expect(records()).toEqual(['ORD-2026-00003']));
   });
 
   it('Everyone restores every row and takes the person out of the address, the view kept', async () => {
@@ -271,7 +279,7 @@ describe('the audit log’s Who filter', () => {
     await pickWho('Shady');
     await waitFor(() => expect(records()).toHaveLength(1));
     fireEvent.change(screen.getByPlaceholderText(en.auditLogs.search), { target: { value: 'nothing-like-this' } });
-    const clear = screen.getAllByRole('button', { name: en.common.clearSearchAndFilters })[0];
+    const clear = (await screen.findAllByRole('button', { name: en.common.clearSearchAndFilters }))[0];
     fireEvent.click(clear);
     await allLoaded();
     expect(nav.replace).toHaveBeenLastCalledWith('/en/settings?view=audit-logs');

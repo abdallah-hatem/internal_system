@@ -11,14 +11,13 @@ import { useCodeLabel } from '@/lib/labels';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ContinueSetupLink } from '@/components/cycles/continue-setup';
 import { useRouter } from 'next/navigation';
-import { useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { useMemo } from 'react';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import Link from 'next/link';
 import { Route, Plus } from '@/components/ui/icons';
 
 import { useCan } from '@/lib/can';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { ListToolbar } from '@/components/ui/list-toolbar';
@@ -104,19 +103,24 @@ export default function CyclesPage() {
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
 
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [page, setPage] = useState(1);
   // The wizard writes the cycle (POST /cycles and the steps after it) — a
   // partner's. An investor is not offered a new cycle (R1b). Changing a
   // cycle's status is on its details page (CycleStatusButton), not here.
   const canCreate = useCan('cycle.create');
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, statusFilter]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: cycles, capped, isLoading } = useAllRecords(['cycles'], '/cycles');
+  // One page, searched by code, filtered by status and paged by the API
+  // (owner 2026-10-25); the pills' counts come with it.
+  const list = useServerList<Cycle>({
+    queryKey: 'cycles',
+    path: '/cycles',
+    filters: { status: 'status' },
+  });
+  const { rows: cycles, isLoading, reloading } = list;
+  const statusFilter = list.get('status');
+  const setStatusFilter = (s: string) => list.set('status', s || null);
+  const statusCounts = (list.meta?.statusCounts ?? {}) as Record<string, number>;
+  const allCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
 
   const { data: profitability = [] } = useQuery({
     queryKey: ['analytics', 'cycle-profitability'],
@@ -134,19 +138,11 @@ export default function CyclesPage() {
   );
 
   // ── Derived ───────────────────────────────────────────────────────
-  const cycleList: Cycle[] = Array.isArray(cycles) ? cycles : [];
-  const filtered = cycleList.filter((c) => {
-    const matchSearch = !search || c.code?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = !statusFilter || c.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
 
   // Nothing at all says what a cycle is and offers the first one; nothing for
   // this filter or search says only that.
   const emptyList =
-    cycleList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         icon={Route}
         title={t('emptyTitle')}
@@ -154,9 +150,8 @@ export default function CyclesPage() {
         action={canCreate ? { label: t('create'), href: '/cycles/new' } : undefined}
       />
     ) : (
-      <NoMatch filtered={!!statusFilter} onClear={() => { setSearch(''); setStatusFilter(''); }} />
+      <NoMatch filtered={!!statusFilter} onClear={list.clear} />
     );
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // ── Columns ───────────────────────────────────────────────────────
   // Code (with its origin under it), status, participants, purchases, profit,
@@ -276,10 +271,10 @@ export default function CyclesPage() {
             statusFilter === '' ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
           }`}
         >
-          {t('all')} ({cycleList.length})
+          {t('all')} ({allCount})
         </button>
         {STATUS_ORDER.map((s) => {
-          const count = cycleList.filter((c) => c.status === s).length;
+          const count = statusCounts[s] ?? 0;
           if (count === 0) return null;
           return (
             <button
@@ -296,9 +291,8 @@ export default function CyclesPage() {
       </div>
 
       {/* Search */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }} />
 
-      <ListCapNotice capped={capped} count={cycles.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -312,9 +306,10 @@ export default function CyclesPage() {
         density="tight"
         autoMin="8rem"
         columns={columns}
-        rows={paginated}
+        rows={cycles}
         rowKey={(c) => c.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
         onRowClick={(cycle) => router.push(`/${locale}/cycles/${cycle.id}/details`)}
         rowClassName={() => 'hover:bg-primary-50'}
@@ -329,10 +324,10 @@ export default function CyclesPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {cycles.length === 0 ? (
             <div className="rounded-xl border border-border bg-card">{emptyList}</div>
           ) : (
-            paginated.map((cycle) => {
+            cycles.map((cycle) => {
                 const figure = profitByCode.get(cycle.code);
                 return (
               <div
@@ -373,8 +368,14 @@ export default function CyclesPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
     </div>
   );

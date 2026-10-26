@@ -66,14 +66,3 @@ describe('countryOptions — what the picker offers', () => {
     expect(china.keywords).toContain('China');
   });
 });
-
-describe('countryMatches — the Suppliers list search', () => {
-  it('finds a stored code by either name or the code, Arabic spelling forgiven', () => {
-    expect(web.countryMatches('CN', 'china')).toBe(true);
-    expect(web.countryMatches('CN', 'الصين')).toBe(true);
-    expect(web.countryMatches('AE', 'الامارات')).toBe(true);
-    expect(web.countryMatches('EG', 'eg')).toBe(true);
-    expect(web.countryMatches('EG', 'china')).toBe(false);
-    expect(web.countryMatches('Narnia', 'narn')).toBe(true);
-  });
-});

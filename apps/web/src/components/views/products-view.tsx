@@ -9,9 +9,10 @@ import { StockSummary } from '@/components/summary/tab-summaries';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import {
   Plus, Edit, Eye, Tag,
 } from '@/components/ui/icons';
@@ -23,10 +24,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { FormActions } from '@/components/ui/fields';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCan } from '@/lib/can';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { ProductStatusAction } from '@/components/products/product-status-action';
-import { localName, matchesName } from '@/lib/localized-name';
+import { localName } from '@/lib/localized-name';
 import { namedOption } from '@/components/entities/entity-forms';
 import { LoadingStatus, Skeleton, SkeletonGroup, SkeletonText, repeat } from '@/components/ui/skeleton';
 import { DataTable, type Column } from '@/components/ui/data-table';
@@ -159,10 +158,6 @@ export default function ProductsPage() {
   const router = useRouter();
   const { locale } = useParams();
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ACTIVE');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -175,11 +170,22 @@ export default function ProductsPage() {
   const openEditProduct = (product: Product) => setEditingProduct(product);
   const closeEditProduct = () => setEditingProduct(null);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, categoryFilter, statusFilter]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: products, capped, isLoading } = useAllRecords(['products'], '/products');
+  // One page, searched (either language and the SKU, §3), filtered by
+  // category and status and paged by the API (owner 2026-10-25). The list
+  // opens on the active products; `?status=ALL` sends no status at all.
+  const list = useServerList<ProductRaw>({
+    queryKey: 'products',
+    path: '/products',
+    filters: {
+      category: 'categoryId',
+      status: { param: 'status', toApi: (v) => (v === 'ALL' ? '' : v) },
+    },
+    defaults: { status: 'ACTIVE' },
+  });
+  const { rows: products, isLoading, reloading } = list;
+  const categoryFilter = list.get('category');
+  const statusFilter = list.get('status') as StatusFilter;
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -235,28 +241,16 @@ export default function ProductsPage() {
   });
 
   // ── Derived data ──────────────────────────────────────────────────
-  const productList: Product[] = Array.isArray(products) ? products.map(mapProduct) : [];
+  const productList: Product[] = products.map(mapProduct);
   const categoryList: { id: string; name: string; nameAr?: string | null }[] = Array.isArray(categories)
     ? categories.map((c: any) => ({ id: c.id, name: c.name ?? c.label ?? '', nameAr: c.nameAr ?? null }))
     : [];
 
-  const filtered = productList.filter((p) => {
-    // Either language, and the SKU (§3, 2026-10-14).
-    const matchSearch = matchesName(p, search);
-    const matchCat = !categoryFilter || p.categoryName === categoryFilter;
-    // Anything not ACTIVE counts as inactive, as on the server.
-    const matchStatus =
-      statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? p.isActive : !p.isActive);
-    return matchSearch && matchCat && matchStatus;
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    productList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
@@ -265,7 +259,7 @@ export default function ProductsPage() {
     ) : (
       <NoMatch
         filtered={!!categoryFilter || statusFilter !== 'ACTIVE'}
-        onClear={() => { setSearch(''); setCategoryFilter(''); setStatusFilter('ACTIVE'); }}
+        onClear={list.clear}
       />
     );
 
@@ -403,23 +397,23 @@ export default function ProductsPage() {
       <StockSummary testId="products-summary" />
 
       {/* Search + Filters — the shared toolbar every list uses. */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
         <Select
           id="category-filter"
           className="w-full sm:w-56"
           value={categoryFilter}
-          onChange={setCategoryFilter}
+          onChange={(id) => list.set('category', id || null)}
           clearable
           placeholder={tph('allCategories')}
           searchPlaceholder={tph('searchCategories')}
-          // Filtered by the English name, which is unique; shown in the reader's.
-          options={categoryList.map((cat) => ({ ...namedOption(cat, String(locale)), value: cat.name }))}
+          // Filtered by the category's id on the server; shown in the reader's language.
+          options={categoryList.map((cat) => namedOption(cat, String(locale)))}
         />
         <FilterPills
           label={t('statusFilter')}
           testId="status-filter"
           value={statusFilter}
-          onChange={setStatusFilter}
+          onChange={(v) => list.set('status', v)}
           options={STATUS_FILTERS.map((key) => ({
             value: key,
             label: key === 'ACTIVE' ? t('active') : key === 'INACTIVE' ? t('inactive') : t('filterAll'),
@@ -427,7 +421,6 @@ export default function ProductsPage() {
         />
       </ListToolbar>
 
-      <ListCapNotice capped={capped} count={products.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -439,9 +432,10 @@ export default function ProductsPage() {
         // beside the wider price columns that hold a price and its Default tag.
         autoMin="13rem"
         columns={columns}
-        rows={paginated}
+        rows={productList}
         rowKey={(p) => p.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
       />
 
@@ -453,10 +447,10 @@ export default function ProductsPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {productList.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((product) => (
+            productList.map((product) => (
               <div
                 key={product.id}
                 className="bg-white rounded-xl border border-gray-200 p-4 space-y-3"
@@ -513,8 +507,14 @@ export default function ProductsPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}

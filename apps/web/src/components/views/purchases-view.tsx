@@ -9,10 +9,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import { localName, otherName } from '@/lib/localized-name';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { useState, useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { viewPath } from '@/lib/page-views';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   ShoppingCart, Plus, Eye, MinusCircle, ChevronRight,
   Package, DollarSign,
@@ -35,7 +35,7 @@ import { DataTable, CellBadge, type Column } from '@/components/ui/data-table';
 import { useCan } from '@/lib/can';
 import { useAllRecords } from '@/lib/list-all';
 import { offeredOnly } from '@/lib/product-status';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { useServerList } from '@/lib/server-list';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
 import { Dialog } from '@/components/ui/dialog';
 import { ListToolbar } from '@/components/ui/list-toolbar';
@@ -110,28 +110,32 @@ export default function PurchasesPage() {
   // supplier refund are a partner's (R1c).
   const may = { create: useCan('purchase.create'), recordRefund: useCan('purchase.recordRefund') };
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSupplierId, setNewSupplierId] = useState('');
   const [openedPO, setOpenedPO] = useState<PurchaseOrder | null>(null);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [lineItems, setLineItems] = useState<Array<{ productId: string; orderedQty: number; unitPrice: number; discount: number }>>([]);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: purchases, capped, isLoading } = useAllRecords(['purchases'], '/purchases');
+  // One page, searched (reference, supplier, cycle code) and paged by the
+  // API (owner 2026-10-25).
+  const list = useServerList<PurchaseOrder>({ queryKey: 'purchases', path: '/purchases' });
+  const { rows: purchases, isLoading, reloading } = list;
 
   // `?open=<id>` — a link from elsewhere (a product's stock movement names the
   // order it was received on, 2026-10-22) — opens that order once its row is on
   // the list, then leaves the address so a refresh does not open it again.
+  // An order not on the page showing is fetched on its own.
   const searchParams = useSearchParams();
   const router = useRouter();
   const [linkedPoId, setLinkedPoId] = useState(() => searchParams.get('open'));
+  const { data: linkedFetched } = useQuery({
+    queryKey: ['purchase', linkedPoId],
+    queryFn: () => api.get(`/purchases/${linkedPoId}`).then((r) => r.data.data ?? r.data),
+    enabled: !!linkedPoId && !purchases.some((p) => p.id === linkedPoId),
+  });
   const linkedPO = linkedPoId
-    ? ((purchases as PurchaseOrder[]).find((p) => p.id === linkedPoId) ?? null)
+    ? (purchases.find((p) => p.id === linkedPoId) ?? (linkedFetched as PurchaseOrder | undefined) ?? null)
     : null;
   const viewingPO = openedPO ?? linkedPO;
   const setViewingPO = (po: PurchaseOrder | null) => {
@@ -182,7 +186,6 @@ export default function PurchasesPage() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const purchaseList: PurchaseOrder[] = Array.isArray(purchases) ? purchases : [];
   const cycleList: any[] = Array.isArray(cycles)
     ? cycles.filter((c: any) => ['PLANNING', 'FUNDING', 'PURCHASING'].includes(c.status))
     : [];
@@ -190,30 +193,18 @@ export default function PurchasesPage() {
   // A switched-off product takes no new purchase-order line (§3, 2026-10-14).
   const productList: any[] = Array.isArray(products) ? offeredOnly(products) : [];
 
-  const filtered = purchaseList.filter((p) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      p.reference?.toLowerCase().includes(q) ||
-      p.supplier?.name?.toLowerCase().includes(q) ||
-      p.cycle?.code?.toLowerCase().includes(q)
-    );
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    purchaseList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <NoMatch onClear={() => setSearch('')} />
+      <NoMatch onClear={list.clear} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -345,9 +336,8 @@ export default function PurchasesPage() {
       </div>
 
       {/* Search */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }} />
 
-      <ListCapNotice capped={capped} count={purchases.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -356,9 +346,10 @@ export default function PurchasesPage() {
       <DataTable
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={purchases}
         rowKey={(po) => po.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
       />
 
@@ -370,10 +361,10 @@ export default function PurchasesPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {purchases.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((po) => (
+            purchases.map((po) => (
               <div
                 key={po.id}
                 onClick={() => setViewingPO(po)}
@@ -398,8 +389,14 @@ export default function PurchasesPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}

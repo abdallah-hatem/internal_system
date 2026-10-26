@@ -1,8 +1,9 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { fetchAll, useAllRecords } from '@/lib/list-all';
+import { useServerList } from '@/lib/server-list';
+import { SalesBuyerFilter } from '@/components/sales/sales-buyer-filter';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink, ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
@@ -16,7 +17,7 @@ import { api } from '../../../lib/api';
 import { useDateFormat } from '../../../lib/dates';
 import { Suspense, useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useToast } from '../../../components/ui/toast';
 import { TextareaField } from '../../../components/ui/textarea-field';
 import { EmptyState } from '../../../components/ui/empty-state';
@@ -181,6 +182,16 @@ function SaleCardSkeleton() {
   );
 }
 
+/** A status pill and the order status it narrows the list to (sent to the API). */
+const STATUS_FILTER: Record<string, string> = {
+  draft: 'DRAFT',
+  confirmed: 'CONFIRMED',
+  partiallyPaid: 'PARTIALLY_PAID',
+  paid: 'PAID',
+  cancelled: 'CANCELLED',
+  samplesFilter: 'SAMPLES',
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────
 function SalesPageContent() {
   const apiError = useApiError();
@@ -194,16 +205,9 @@ function SalesPageContent() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  // Days the order was placed, both included, filtered by the API (I1).
-  const [dates, setDates] = useState<DayRange>({ from: '', to: '' });
   // The new-order form, open or not, and the customer it opened on. The form
   // owns its own lines; unmounting it on close is what resets them.
   const [createFor, setCreateFor] = useState<{ customerId?: string } | null>(null);
-  // `?new=1` — the dashboard's "New sale" — opens the same form the button does.
-  useOpenFromQuery(() => setCreateFor({}));
   const [openedOrder, setOpenedOrder] = useState<SaleOrder | null>(null);
   const codeLabel = useCodeLabel();
   // Dates in the reader's language (UX #10).
@@ -228,46 +232,55 @@ function SalesPageContent() {
   const canWriteOff = useCan('sale.samplesWriteOff');
   const tsm = useTranslations('sales.samples');
 
-  // Arriving from a shop's page with ?customer=<id> opens the order form on
-  // that shop, so "New Order" there means what it says instead of dropping you
-  // on a list to find them again.
   const searchParams = useSearchParams();
   const router = useRouter();
   const locale = useLocale();
-  const openedFromCustomer = useRef(false);
-
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, dates]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  // Every page of the range, not one: the CSV exports what the filter shows.
-  const {
-    items: orders,
-    capped,
-    isLoading,
-    error: listError,
-    reloading,
-  } = useAllRecords(
-    ['sales', dates],
-    '/sales/orders',
-    { from: dates.from || undefined, to: dates.to || undefined },
-    // A new range keeps the rows on screen, dimmed, until it arrives (I2).
-    { keepPrevious: true },
-  );
+  // One page of orders, searched, filtered, counted and paged by the API
+  // (owner 2026-10-25). The URL holds the page, the search and the filters —
+  // `?customer=<id>` (or `walk-in`), `?branch=<id>` (or `none`), `?status=`,
+  // `?from=`/`?to=` — and a new one keeps the rows on screen, dimmed, until it
+  // arrives (I2).
+  const list = useServerList<SaleOrder>({
+    queryKey: 'sales',
+    path: '/sales/orders',
+    filters: { status: 'status', customer: 'customerId', branch: 'branchId', from: 'from', to: 'to' },
+  });
+  const { rows: orders, isLoading, error: listError, reloading } = list;
+  // Days the order was placed, both included, filtered by the API (I1).
+  const dates: DayRange = { from: list.get('from'), to: list.get('to') };
+  const setDates = (range: DayRange) => list.setMany({ from: range.from || null, to: range.to || null });
   const dated = Boolean(dates.from || dates.to);
+  const statusFilter =
+    Object.keys(STATUS_FILTER).find((k) => STATUS_FILTER[k] === list.get('status')) ?? 'all';
+  const setStatusFilter = (key: string) => list.set('status', key === 'all' ? null : STATUS_FILTER[key]);
+  const customerFilter = list.get('customer');
+  /** Any filter beyond the search: the empty state offers to clear them too. */
+  const narrowed = statusFilter !== 'all' || dated || Boolean(customerFilter) || Boolean(list.get('branch'));
 
   // `?order=<id>` — a notification's link (the samples reminder, §4) — opens
   // that order as soon as its row is on the list. Read once, and forgotten the
   // moment any order is opened or closed, so it never reopens behind the user.
   const [linkedOrderId, setLinkedOrderId] = useState(() => searchParams.get('order'));
+  // The linked order need not be on the page showing: fetched on its own.
+  const { data: linkedFetched } = useQuery({
+    queryKey: ['sale', linkedOrderId],
+    queryFn: () => api.get(`/sales/orders/${linkedOrderId}`).then((r) => r.data.data ?? r.data),
+    enabled: !!linkedOrderId && !orders.some((o) => o.id === linkedOrderId),
+  });
   const linkedOrder = linkedOrderId
-    ? ((orders as SaleOrder[]).find((o) => o.id === linkedOrderId) ?? null)
+    ? (orders.find((o) => o.id === linkedOrderId) ?? (linkedFetched as SaleOrder | undefined) ?? null)
     : null;
   const viewingOrder = openedOrder ?? linkedOrder;
   const setViewingOrder = (order: SaleOrder | null) => {
     if (linkedOrderId) {
       setLinkedOrderId(null);
-      router.replace(`/${locale}/sales`, { scroll: false });
+      // Forget the link, keep the list's own page and filters.
+      const rest = new URLSearchParams(searchParams.toString());
+      rest.delete('order');
+      const qs = rest.toString();
+      router.replace(`/${locale}/sales${qs ? `?${qs}` : ''}`, { scroll: false });
     }
     setOrderView('orderDetails');
     setOpenedOrder(order);
@@ -284,7 +297,7 @@ function SalesPageContent() {
     });
     setViewingOrder(order as SaleOrder);
   };
-  const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDates({ from: '', to: '' }); };
+  const clearFilters = list.clear;
   const { items: customers } = useAllRecords(['customers'], '/customers');
   const { items: products } = useAllRecords(['products'], '/products');
 
@@ -398,7 +411,6 @@ function SalesPageContent() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
   const customerList: SaleFormCustomer[] = useMemo(
     () => (Array.isArray(customers) ? customers : []),
     [customers],
@@ -406,21 +418,19 @@ function SalesPageContent() {
   const productList: SaleFormProduct[] = Array.isArray(products) ? products : [];
   const stockList: SaleFormStockRow[] = Array.isArray(stockLevels) ? stockLevels : [];
 
+  // `?new=1` — the dashboard's "New sale" — opens the same form the button
+  // does. From a shop's page it comes as `?new=1&customer=<id>`: the form
+  // opens on that shop, and the list underneath shows that shop's orders.
   // Wait for the customers to load before opening: the channel is taken from
   // the customer's own type, and acting on an empty list would pick nothing
   // and leave the form on its B2B default regardless of who they are.
-  useEffect(() => {
-    const wanted = searchParams.get('customer');
-    if (!wanted || openedFromCustomer.current || customerList.length === 0) return;
-    if (!customerList.some((c) => c.id === wanted)) return;
-
-    openedFromCustomer.current = true;
-    setCreateFor({ customerId: wanted });
-
-    // Drop the parameter once it has been used, so a refresh does not reopen
-    // the form and a stale link cannot resurrect it later.
-    router.replace(`/${locale}/sales`, { scroll: false });
-  }, [searchParams, customerList, locale, router]);
+  useOpenFromQuery(
+    () => {
+      const wanted = searchParams.get('customer');
+      setCreateFor(wanted && customerList.some((c) => c.id === wanted) ? { customerId: wanted } : {});
+    },
+    { ready: !searchParams.get('customer') || customerList.length > 0 },
+  );
 
   /**
    * The samples hint's link (§4, owner 2026-10-25): New Order closes and that
@@ -443,7 +453,7 @@ function SalesPageContent() {
 
   // `?buying=<id>` — the samples hint under a sale preview in the office chat
   // — opens the same "They're buying", once the shops and products it shows
-  // have loaded; dropped once used, like `?customer=`.
+  // have loaded; dropped once used, like `?new=1`.
   // The chat floats over every page, so a second link can arrive while this
   // page stays mounted: what was opened is forgotten once the URL drops it.
   const openedBuying = useRef<string | null>(null);
@@ -455,33 +465,17 @@ function SalesPageContent() {
     }
     if (openedBuying.current === wanted || customerList.length === 0 || productList.length === 0) return;
     openedBuying.current = wanted;
-    router.replace(`/${locale}/sales`, { scroll: false });
+    // Forget the link, keep the list's own page and filters.
+    const rest = new URLSearchParams(searchParams.toString());
+    rest.delete('buying');
+    const qs = rest.toString();
+    router.replace(`/${locale}/sales${qs ? `?${qs}` : ''}`, { scroll: false });
     void openBuying(wanted);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the lists arrive
   }, [searchParams, customerList, productList.length, locale, router]);
 
-
-  const STATUS_FILTER: Record<string, string> = {
-    draft: 'DRAFT',
-    confirmed: 'CONFIRMED',
-    partiallyPaid: 'PARTIALLY_PAID',
-    paid: 'PAID',
-    cancelled: 'CANCELLED',
-    samplesFilter: 'SAMPLES',
-  };
   /** Who bought, as the reader sees it: a walk-in reads "Walk-in" in their language. */
   const buyerName = (o: SaleOrder) => (o.customer?.isWalkIn ? t('walkInCustomer') : o.customer?.displayName);
-  const filtered = orderList.filter((o) => {
-    const matchSearch =
-      !search ||
-      o.orderNo?.toLowerCase().includes(search.toLowerCase()) ||
-      buyerName(o)?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || o.status === STATUS_FILTER[statusFilter];
-    return matchSearch && matchStatus;
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   const openCreate = () => setCreateFor({});
   const closeCreate = () => setCreateFor(null);
@@ -735,15 +729,16 @@ function SalesPageContent() {
     </span>
   );
   // Nothing at all yet, as opposed to nothing matching the search or chip.
-  const noOrdersYet = !isLoading && orderList.length === 0 && !dated && !listError;
+  const noOrdersYet = !isLoading && list.total === 0 && !list.filtered && !listError;
 
   /**
    * The rows the filters show — every page of them, not the visible one —
    * as a spreadsheet. Money goes out as numbers so it can be summed; the day
    * is the day in Cairo the order was placed, the one the filter reads.
    */
-  const exportCsv = () =>
-    downloadCsv(datedFilename('sales'), filtered, [
+  const exportCsv = async () => {
+    const { items: matching } = await fetchAll<SaleOrder>('/sales/orders', list.exportParams, Infinity);
+    downloadCsv(datedFilename('sales'), matching, [
       { header: t('orderNo'), value: (o) => o.orderNo },
       { header: t('date'), value: (o) => businessToday(new Date(o.orderedAt ?? o.createdAt)) },
       { header: t('customer'), value: (o) => buyerName(o) ?? '' },
@@ -758,6 +753,7 @@ function SalesPageContent() {
           o.status === 'DRAFT' || o.customer?.isWalkIn || isSamplesStatus(o.status) ? 0 : Number(o.outstanding),
       },
     ]);
+  };
 
   return (
     <div className="space-y-6">
@@ -768,8 +764,8 @@ function SalesPageContent() {
         <button
           type="button"
           data-testid="sales-export"
-          onClick={exportCsv}
-          disabled={filtered.length === 0}
+          onClick={() => void exportCsv().catch((e) => addToast(apiError(e, tc('error')), 'error'))}
+          disabled={list.total === 0}
           className="bg-background inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
         >
           <Download className="h-4 w-4" />
@@ -791,7 +787,7 @@ function SalesPageContent() {
 
       {/* Search + Filter Tabs */}
       <ListToolbar
-        search={{ value: search, onChange: setSearch, placeholder: t('search') }}
+        search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}
         after={
           listError && (
             <p role="alert" data-testid="sales-range-error" className="text-sm text-destructive">
@@ -800,6 +796,13 @@ function SalesPageContent() {
           )
         }
       >
+        {/* One shop's orders, or the walk-in buyer's; a branch of a shop with branches (owner 2026-10-25). */}
+        <SalesBuyerFilter
+          customers={customerList}
+          customer={customerFilter}
+          branch={list.get('branch')}
+          onChange={list.setMany}
+        />
         <DateRangeFilter idPrefix="sales" value={dates} onChange={setDates} busy={reloading} />
         <FilterPills
           label={t('statusFilter')}
@@ -809,8 +812,6 @@ function SalesPageContent() {
           options={FILTER_TABS.map((tab) => ({ value: tab, label: t(tab) }))}
         />
       </ListToolbar>
-
-      <ListCapNotice capped={capped} count={orders.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -836,13 +837,13 @@ function SalesPageContent() {
           autoMin="11rem"
           className="hidden md:block"
           columns={columns}
-          rows={paginated}
+          rows={orders}
           rowKey={(o) => o.id}
           isLoading={isLoading}
           stale={reloading}
           onRowClick={(order) => setViewingOrder(order)}
           rowProps={() => ({ 'data-testid': 'sale-row' })}
-          empty={<NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} />}
+          empty={<NoMatch filtered={narrowed} onClear={clearFilters} />}
         />
       )}
 
@@ -854,10 +855,10 @@ function SalesPageContent() {
       )}
       {!isLoading && !noOrdersYet && (
         <div data-testid="sales-cards" aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          {filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200"><NoMatch filtered={statusFilter !== 'all' || dated} onClear={clearFilters} /></div>
+          {orders.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200"><NoMatch filtered={narrowed} onClear={clearFilters} /></div>
           ) : (
-            paginated.map((order) => (
+            orders.map((order) => (
               <div
                 key={order.id}
                 role="button"
@@ -890,8 +891,14 @@ function SalesPageContent() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
@@ -1564,7 +1571,7 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 /**
- * The page reads `?customer=<id>` to open the order form on a particular shop.
+ * The page reads its list's page, search and filters from the query string.
  * `useSearchParams` cannot be prerendered — the query string is only known in
  * the browser — so Next requires a Suspense boundary saying where the static
  * part stops. Without it `next build` fails on this page; `next dev` never

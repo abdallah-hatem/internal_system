@@ -255,7 +255,7 @@ export default function CustomerPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push(`/${locale}/sales?customer=${id}`)}
+            onClick={() => router.push(`/${locale}/sales?new=1&customer=${id}`)}
             className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:min-h-0"
           >
             <Plus className="h-4 w-4" /> {ts('create')}
@@ -312,7 +312,7 @@ export default function CustomerPage() {
           <EmptyState
             title={t('noOrders')}
             description={t('noOrdersHint')}
-            action={{ label: ts('create'), onClick: () => router.push(`/${locale}/sales?customer=${id}`) }}
+            action={{ label: ts('create'), onClick: () => router.push(`/${locale}/sales?new=1&customer=${id}`) }}
           />
         ) : (
           <>

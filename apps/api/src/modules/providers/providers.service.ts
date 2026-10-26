@@ -5,6 +5,21 @@ import { AuditService } from '../audit/audit.service';
 import { badRequest, notFound } from '../../common/api-error';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
+import type { Prisma } from '@prisma/client';
+import {
+  listRows,
+  type ListQuery,
+  pageOf,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
+
+/** The Providers list's orders; the first is the default. Each ends on `id`. */
+const PROVIDER_SORTS = {
+  name: [{ name: 'asc' }, { id: 'asc' }],
+} satisfies Record<string, Prisma.ProviderOrderByWithRelationInput[]>;
+
 @Injectable()
 export class ProvidersService {
   constructor(
@@ -21,16 +36,45 @@ export class ProvidersService {
     return scope === null ? undefined : { cycleId: { in: [...scope] } };
   }
 
-  async findAll(viewer: ScopeViewer = 'internal') {
+  /**
+   * Every provider for a picker; with `page`, the Providers list
+   * (server-side lists, owner 2026-10-25), searched by name, contact person,
+   * phone or email.
+   */
+  async findAll(query: ListQuery = {}, viewer: ScopeViewer = 'internal') {
     const ours = await this.legScope(viewer);
-    const items = await this.prisma.provider.findMany({
-      where: ours ? { shippingLegs: { some: ours } } : undefined,
-      orderBy: { name: 'asc' },
-      include: {
-        _count: { select: { shippingLegs: ours ? { where: ours } : true } },
-      },
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, PROVIDER_SORTS);
+    const where: Prisma.ProviderWhereInput = ours
+      ? { shippingLegs: { some: ours } }
+      : {};
+    if (search) {
+      where.id = {
+        in: await searchIds(
+          this.prisma,
+          `providers t`,
+          [`t.name`, `t.contact_person`, `t.phone`, `t.email`],
+          search,
+        ),
+      };
+    }
+    const include = {
+      _count: { select: { shippingLegs: ours ? { where: ours } : true } },
+    };
+    if (!pageOf(query)) {
+      const items = await this.prisma.provider.findMany({
+        where,
+        orderBy,
+        include,
+      });
+      return { data: items };
+    }
+    const { rows, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.provider.findMany({ where, orderBy, include, ...window }),
+      count: () => this.prisma.provider.count({ where }),
     });
-    return { data: items };
+    return { data: rows, meta };
   }
 
   async findById(id: string, viewer: ScopeViewer = 'internal') {

@@ -14,14 +14,16 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   /** Total items count (shown in summary) */
   totalItems: number;
+  /** Rows on a page (the list's own when it asked the server for another size). */
+  pageSize?: number;
 }
 
-export function Pagination({ page, totalPages, onPageChange, totalItems }: PaginationProps) {
+export function Pagination({ page, totalPages, onPageChange, totalItems, pageSize = PAGE_SIZE }: PaginationProps) {
   const t = useTranslations('pagination');
   if (totalPages <= 1) return null;
 
-  const start = (page - 1) * PAGE_SIZE + 1;
-  const end = Math.min(page * PAGE_SIZE, totalItems);
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, totalItems);
 
   // Build page numbers to display (always show first, last, and nearby pages)
   const pages: (number | '...')[] = [];
@@ -92,9 +94,4 @@ export function Pagination({ page, totalPages, onPageChange, totalItems }: Pagin
       </div>
     </div>
   );
-}
-
-/** Helper: slice an array for the current page */
-export function paginate<T>(items: T[], page: number): T[] {
-  return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 }
