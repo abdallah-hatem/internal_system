@@ -83,6 +83,10 @@ migration; `GET /cycles/:id/account-funding` gains shares, into capital, the par
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 (late) — shipped, no migration: the Funding card reads **"Put in so far"** (contribution + undrawn advances
+  on the cycle, a friend-paid contribution labelled as repaying him), **shares of what was repaid** to a friend once
+  repayments exist, and **the exchange difference** as its own line split like profit (`42d2272`). Cycle 1: 67,056.33
+  put in and shared each, exchange difference 7,788.12 (2,596.04 each).
 - 2026-10-26 — production data: Abdallah's 65,000 EGP advance on CYC-2026-0001 (dated 15 Aug) reversed at his word ("just
   remove the funding i added") — that repayment to Ahmad Eraiby is already inside his 67,056.33 contribution, so it
   counted twice. Through `PartnerAccountsService.reverse`, reason recorded
