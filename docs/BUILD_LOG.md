@@ -322,6 +322,10 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):
+  **Confirm and paid in one step** — on a draft sale order (the order popup and New Order), a "Confirm & paid" button that
+  confirms the order and records a payment for its full total (today, the order's customer) in one server call, all or
+  nothing; refused for a walk-in that is already paid, a cancelled or confirmed order, and anything Confirm alone refuses.
 - Next (2026-10-26, owner: "add the fix to next up"): **A new temporary investor from the Funding card** — "+ Add
   investor" picks only existing `TEMP_INVESTOR` accounts and no screen creates one (`POST /users` exists, nothing calls
   it), so the first investor meets an empty list. Put a `+` beside the person picker (`FieldWithQuickCreate`, CLAUDE.md
