@@ -2,11 +2,11 @@
 import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
 import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { useServerList } from '@/lib/server-list';
 
 import { useTranslations } from 'next-intl';
-import { useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { useState } from 'react';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
 import {
   Plus, Edit, MapPin,
 } from '@/components/ui/icons';
@@ -82,8 +82,6 @@ export default function ShipmentsPage() {
   // An investor reads their cycles' legs; adding and editing one are a partner's (R1c).
   const may = { create: useCan('shippingLeg.create'), edit: useCan('shippingLeg.edit') };
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
@@ -95,46 +93,28 @@ export default function ShipmentsPage() {
   const openCreate = () => setShowCreateModal(true);
   const closeCreate = () => setShowCreateModal(false);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  // The page searches and pages on the client, so it needs the whole list,
-  // not the API's default first 20: with more legs than that, a leg could be
-  // absent from the page and its own cycle code found nothing (L1).
-  const { items: shipments, capped, isLoading } = useAllRecords(['shipments'], '/shipping/legs');
+  // One page of legs, searched (cycle code, provider, tracking, places) and
+  // paged by the API (owner 2026-10-25).
+  const list = useServerList<Shipment>({ queryKey: 'shipments', path: '/shipping/legs' });
+  const { rows: shipments, isLoading, reloading } = list;
   const { items: cycles } = useAllRecords(['cycles'], '/cycles');
 
   // ── Derived ───────────────────────────────────────────────────────
-  const shipmentList: Shipment[] = Array.isArray(shipments) ? shipments : [];
   const cycleList: any[] = Array.isArray(cycles) ? cycles : [];
 
-  const filtered = shipmentList.filter((s) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      s.cycle?.code?.toLowerCase().includes(q) ||
-      s.provider?.toLowerCase().includes(q) ||
-      s.trackingRef?.toLowerCase().includes(q) ||
-      s.origin?.toLowerCase().includes(q) ||
-      s.destination?.toLowerCase().includes(q)
-    );
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    shipmentList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={may.create ? { label: t('create'), onClick: openCreate } : undefined}
       />
     ) : (
-      <NoMatch onClear={() => setSearch('')} />
+      <NoMatch onClear={list.clear} />
     );
 
   // ── Columns ───────────────────────────────────────────────────────
@@ -229,9 +209,8 @@ export default function ShipmentsPage() {
       </div>
 
       {/* Search */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }} />
 
-      <ListCapNotice capped={capped} count={shipments.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -242,9 +221,10 @@ export default function ShipmentsPage() {
         density="tight"
         autoMin="10rem"
         columns={columns}
-        rows={paginated}
+        rows={shipments}
         rowKey={(ship) => ship.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
       />
 
@@ -256,10 +236,10 @@ export default function ShipmentsPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {shipments.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
             ) : (
-            paginated.map((ship) => (
+            shipments.map((ship) => (
               <div
                 key={ship.id}
                 data-testid={may.edit ? 'edit-action' : undefined}
@@ -294,8 +274,14 @@ export default function ShipmentsPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}

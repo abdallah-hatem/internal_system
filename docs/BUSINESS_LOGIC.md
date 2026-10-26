@@ -647,7 +647,51 @@ and category names, in the office and the storefront, compares Arabic as people 
 |---|---|---|
 | أ / إ / آ as ا | **Folded.** The owner's list of 2026-10-15 named ة, ى and the marks; the alef line was very likely lost in copying — the assistant has folded the alef forms since 2026-10-14, and a search that found إطار in the assistant but not in the office would be the drift §11 warns about. | **GUESS** (kept; owner to confirm) |
 | ؤ and ئ | **Read as و and ي.** Unicode writes them as و and ي with a hamza *mark*, and the assistant's matcher has always folded them so (it decomposes text first); search follows it rather than the two disagreeing. So رييس finds رئيس. A standalone ء is a letter and is not folded. | **GUESS** (consistency with the assistant) |
-| Customer, supplier and other names | **Not folded in their own lists or the API** (`GET /customers?search=`, `GET /suppliers?search=`, the Customers, Suppliers, Payments and Sales list boxes): the brief is product and category names. A picker built on the shared select folds whatever it lists, customers included, because the select has one filter. | Recorded, not built |
+| Customer, supplier and other names | ~~Not folded in their own lists or the API.~~ **Folded since 2026-10-25**, when every list's search moved to the server (below). | Built 2026-10-25 |
+
+**Every office list searches, filters, sorts and pages on the server — 2026-10-25 (owner: "this is the purpose of
+pagination, how can you do it client from the first place"), details GUESSED.** The fourteen lists that loaded every
+row and worked in the browser — Sales, Payments, Customers, Ledger, Inventory, Notifications, Suppliers, Providers,
+Cycles, Purchases, Shipments, Categories, Products, Audit log — now send what their URL says (`page`, `pageSize`,
+`q` as `search`, `sort`, and their filters) to their endpoint, which filters, counts and pages in the query. One
+definition, `apps/api/src/common/list-query.ts`.
+
+- **The search is this section's, on every list.** Each list's search goes through `arabic_search_key()` in SQL
+  (the same rule as `arabicSearchKey`), so the folding above now reaches customer, supplier, provider and buyer
+  names, references and order numbers too. What each list searches: Sales — order number, buyer; Payments — shop,
+  reference, amount; Customers — name, phone, email; Suppliers — name, phone, email, and the country by part of its
+  name in either language or its code; Providers — name, contact, phone, email; Ledger — type, category, reason,
+  amount; Purchases — reference, supplier, cycle code; Shipments — cycle code, provider, tracking, either place;
+  Cycles — code; Products, Inventory, Categories — the product rule above; Notifications — the text; Audit log — who
+  (name or email), the record as written before and after, and the action and record-type codes, plus the codes
+  whose names in the reader's language contain the search (the office sends those, as only it knows the words).
+- **What a search no longer finds (GUESS):** words only the browser knew — the Ledger's category *in words* (its
+  category filter remains), the walk-in buyer by its Arabic name "زبون عابر" (English "Walk-in" still finds it; the
+  customer filter's Walk-in choice is the way), and an audit row by a record name its own before/after does not
+  carry.
+- **Refused, with a code (validate on the server):** a page that is not a whole number from 1 to 1,000,000
+  (`LIST_PAGE_INVALID`; the upper bound added 2026-10-26 — a page of 10^20 reached Postgres as an OFFSET it cannot
+  hold and answered a 500), a page size outside 1–200 (`LIST_PAGE_SIZE_INVALID`), an order the list does not offer
+  (`LIST_SORT_UNKNOWN`), a filter value the list does not offer — an order status, a ledger direction, a type that
+  is not a code (`LIST_FILTER_INVALID`), a search over 100 characters (`LIST_SEARCH_TOO_LONG`). A page past the
+  end is not refused: it is empty, with the total, and the office moves to the last page.
+- **Customers by what they owe** (`?sort=balance`, the dashboard tile): worked out over every match on the server,
+  then paged — the whole list in that order, not each page sorted on its own.
+- **Notifications:** the page lists every notification, a page at a time; it used to page the bell's 50 newest.
+- **The Sales list filters by customer** (owner 2026-10-25): a searchable picker beside status and dates, every shop
+  and **Walk-in** as its own choice; `?customer=<id>` (`walk-in` for the walk-in buyer) in the URL, sent as
+  `customerId`. A `customerId` that cannot be an id is a 400 and one that is nobody a 404 — never an empty list
+  that reads as "no orders". A shop's **New Order** button now opens `/sales?new=1&customer=<id>` (`?customer=`
+  alone used to mean "open the form"): the form opens on that shop, and the list underneath shows that shop's
+  orders (GUESS).
+- **No branch filter on master** (2026-10-26): the Sales list's branch filter belongs with customer branches, which
+  are on `dev` only and not yet in production; it ships with them.
+- **A list is read again on every visit** (2026-10-26): the page last seen shows at once and is replaced by the
+  server's answer, rather than trusted for the office's usual minute — a change made on another screen (a payment
+  reversed moves a sale's status) or by another partner shows on the second visit.
+- **Still loaded whole, on purpose:** pickers (they list every choice), the CSV exports (every match of the filters
+  showing, walked a page at a time), and screens that sum or rank everything they show (a shop's own orders and
+  payments, Contracts, Settlements) — not lists that search or page.
 
 ### A default price: landed cost + 20%  — DECIDED 2026-10-18 (owner), details GUESSED
 

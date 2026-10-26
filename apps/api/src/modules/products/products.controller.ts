@@ -13,7 +13,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
 import { CATEGORY_CREATE_ROLES } from './category-roles';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { type ListQuery, pageOf } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
@@ -29,10 +29,9 @@ export class ProductsController {
   @ApiOperation({ summary: 'List products with filtering and pagination' })
   findAll(
     @Query()
-    query: PaginationDto & {
+    query: ListQuery & {
       categoryId?: string;
       status?: string;
-      search?: string;
     },
     @CurrentUser() user: Viewer,
   ) {
@@ -104,9 +103,14 @@ export class CategoriesController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all categories' })
-  findCategories() {
-    return this.productsService.findCategories();
+  @ApiOperation({
+    summary:
+      'List all categories; with page/pageSize, the list as a tree a page at a time',
+  })
+  findCategories(@Query() query: ListQuery & { collapsed?: string }) {
+    return pageOf(query)
+      ? this.productsService.categoryPage(query)
+      : this.productsService.findCategories();
   }
 
   @Get(':id')
@@ -119,7 +123,10 @@ export class CategoriesController {
   @UseGuards(RolesGuard)
   @Roles(...CATEGORY_CREATE_ROLES)
   @ApiOperation({ summary: 'Create a category (CORE_PARTNER only)' })
-  createCategory(@Body() body: { name: string; nameAr?: string | null; parentId?: string }, @CurrentUser() user: any) {
+  createCategory(
+    @Body() body: { name: string; nameAr?: string | null; parentId?: string },
+    @CurrentUser() user: any,
+  ) {
     return this.productsService.createCategory(body, user.id);
   }
 
@@ -127,7 +134,12 @@ export class CategoriesController {
   @UseGuards(RolesGuard)
   @Roles('CORE_PARTNER')
   @ApiOperation({ summary: 'Update a category (CORE_PARTNER only)' })
-  updateCategory(@Param('id') id: string, @Body() body: { name?: string; nameAr?: string | null; parentId?: string | null }, @CurrentUser() user: any) {
+  updateCategory(
+    @Param('id') id: string,
+    @Body()
+    body: { name?: string; nameAr?: string | null; parentId?: string | null },
+    @CurrentUser() user: any,
+  ) {
     return this.productsService.updateCategory(id, body, user.id);
   }
 

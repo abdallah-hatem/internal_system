@@ -635,7 +635,7 @@ describe('Reference data an investor needs for their cycle pages — the least t
 
   it('GET /providers → only providers that carried their cycles', async () => {
     const { providers } = services();
-    expect(ids(await providers.findAll(investor))).toEqual([V1]);
+    expect(ids(await providers.findAll({}, investor))).toEqual([V1]);
     expect((await refusal(providers.findById(V2, investor))).status).toBe(404);
   });
 
@@ -697,7 +697,7 @@ describe('A core partner still sees everything (the other direction)', () => {
       ).toEqual([B1, B2]);
       expect(ids(await s.settlements.findAll({}, who))).toEqual([ST1, ST2]);
       expect(ids(await s.suppliers.findAll({}, who))).toEqual([S1, S2]);
-      expect(ids(await s.providers.findAll(who))).toEqual([V1, V2]);
+      expect(ids(await s.providers.findAll({}, who))).toEqual([V1, V2]);
     },
   );
 
@@ -723,7 +723,7 @@ describe('An investor with no cycles → empty lists, not errors', () => {
     expect((await s.inventory.getStock({}, emptyInvestor)).data).toEqual([]);
     expect((await s.settlements.findAll({}, emptyInvestor)).data).toEqual([]);
     expect((await s.suppliers.findAll({}, emptyInvestor)).data).toEqual([]);
-    expect((await s.providers.findAll(emptyInvestor)).data).toEqual([]);
+    expect((await s.providers.findAll({}, emptyInvestor)).data).toEqual([]);
     expect(
       (await s.analytics.getCycleProfitability(emptyInvestor)).data,
     ).toEqual([]);

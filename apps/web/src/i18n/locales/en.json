@@ -1806,7 +1806,12 @@
     "ACCOUNT_PAYOUT_REVERSE_SETTLEMENT": "A payout left in comes out by reversing the settlement of {cycle}.",
     "CONTRIBUTION_ALREADY_LOWERED": "The contribution to {cycle} is {contribution} EGP, less than the {amount} EGP this entry put in; it was lowered by hand.",
     "PAYOUT_LEFT_IN_TWICE": "Each partner can leave his payout in once.",
-    "PAYOUT_LEFT_IN_NOT_A_PARTNER": "Only a core partner on the settlement of {cycle} can leave his payout in."
+    "PAYOUT_LEFT_IN_NOT_A_PARTNER": "Only a core partner on the settlement of {cycle} can leave his payout in.",
+    "LIST_PAGE_INVALID": "That page number is not valid: {value}. Pages are whole numbers from 1 to {max}.",
+    "LIST_PAGE_SIZE_INVALID": "A page can show from 1 to {max} rows (asked for {value}).",
+    "LIST_SORT_UNKNOWN": "This list cannot be sorted by \"{sort}\".",
+    "LIST_FILTER_INVALID": "The filter {field} cannot be \"{value}\".",
+    "LIST_SEARCH_TOO_LONG": "A search can be at most {max} characters (this one has {length})."
   },
   "requests": {
     "tabs": {
@@ -2610,7 +2615,8 @@
     "searchLenders": "Search by lender name",
     "searchTypes": "Search by type",
     "currencyCode": "GBP",
-    "instalmentCount": "3"
+    "instalmentCount": "3",
+    "allCustomers": "All customers"
   },
   "fxRates": {
     "title": "Exchange rates",

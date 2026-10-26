@@ -1,7 +1,7 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
+import { fetchAll, useAllRecords } from '@/lib/list-all';
+import { useServerList } from '@/lib/server-list';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Money } from '../../../components/ui/money';
@@ -11,8 +11,8 @@ import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
-import { Suspense, useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Suspense, useState, useEffect } from 'react';
+import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
 import { useDateFormat } from '../../../lib/dates';
 import { useCodeLabel } from '../../../lib/labels';
 import { TextareaField } from '../../../components/ui/textarea-field';
@@ -194,36 +194,28 @@ function PaymentsPageContent() {
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [viewingPayment, setViewingPayment] = useState<Payment | null>(null);
-  // Days the money was received, both included, filtered by the API (I1).
-  const [dates, setDates] = useState<DayRange>({ from: '', to: '' });
-  const dated = Boolean(dates.from || dates.to);
-  const clearFilters = () => { setSearch(''); setDates({ from: '', to: '' }); };
-
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, dates]);
 
   // ── Queries ───────────────────────────────────────────────────────
-  // Every page of the range, not one: the CSV exports what the filter shows.
-  const {
-    items: payments,
-    capped,
-    isLoading,
-    error: listError,
-    reloading,
-  } = useAllRecords(
-    ['payments', dates],
-    '/payments',
-    { from: dates.from || undefined, to: dates.to || undefined },
-    // A new range keeps the rows on screen, dimmed, until it arrives (I2).
-    { keepPrevious: true },
-  );
+  // One page, searched, filtered and paged by the API (owner 2026-10-25):
+  // `?q=`, `?from=`/`?to=` and `?page=` in the URL. A new range keeps the
+  // rows on screen, dimmed, until it arrives (I2).
+  const list = useServerList<Payment>({
+    queryKey: 'payments',
+    path: '/payments',
+    filters: { from: 'from', to: 'to' },
+  });
+  const { rows: payments, isLoading, error: listError, reloading } = list;
+  const search = list.search;
+  // Days the money was received, both included, filtered by the API (I1).
+  const dates: DayRange = { from: list.get('from'), to: list.get('to') };
+  const setDates = (range: DayRange) => list.setMany({ from: range.from || null, to: range.to || null });
+  const dated = Boolean(dates.from || dates.to);
+  const clearFilters = list.clear;
   const { items: orders } = useAllRecords(['sales'], '/sales/orders');
 
   const { data: paymentDetail } = useQuery({
@@ -269,29 +261,17 @@ function PaymentsPageContent() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const paymentList: Payment[] = Array.isArray(payments) ? payments : [];
   const orderList: SaleOrder[] = Array.isArray(orders) ? orders : [];
 
-  const filtered = paymentList.filter((p) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      p.customer?.displayName?.toLowerCase().includes(q) ||
-      p.reference?.toLowerCase().includes(q) ||
-      p.amount?.toString().includes(q)
-    );
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   /**
    * The rows the search and dates show — every page of them — as a
    * spreadsheet. The amount goes out as a number so it can be summed; the
    * day is the day received, the one the filter reads.
    */
-  const exportCsv = () =>
-    downloadCsv(datedFilename('payments'), filtered, [
+  const exportCsv = async () => {
+    const { items: matching } = await fetchAll<Payment>('/payments', list.exportParams, Infinity);
+    downloadCsv(datedFilename('payments'), matching, [
       { header: t('receivedOn'), value: (p) => p.receivedOn?.slice(0, 10) ?? '' },
       { header: t('customer'), value: (p) => p.customer?.displayName ?? '' },
       { header: t('amount'), value: (p) => Number(p.amount) },
@@ -300,6 +280,7 @@ function PaymentsPageContent() {
       { header: t('reference'), value: (p) => p.reference ?? '' },
       { header: t('status'), value: (p) => codeLabel('paymentStatus', p.status) },
     ]);
+  };
 
   // ── Handlers ──────────────────────────────────────────────────────
   const handleAllocate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -409,8 +390,8 @@ function PaymentsPageContent() {
           <button
             type="button"
             data-testid="payments-export"
-            onClick={exportCsv}
-            disabled={filtered.length === 0}
+            onClick={() => void exportCsv().catch((e) => toast(apiError(e, tc('error')), 'error'))}
+            disabled={list.total === 0}
             className="bg-background inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
@@ -432,7 +413,7 @@ function PaymentsPageContent() {
 
       {/* Search + days received */}
       <ListToolbar
-        search={{ value: search, onChange: setSearch, placeholder: t('search') }}
+        search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}
         after={
           listError && (
             <p role="alert" data-testid="payments-range-error" className="text-sm text-destructive">
@@ -444,7 +425,6 @@ function PaymentsPageContent() {
         <DateRangeFilter idPrefix="payments" value={dates} onChange={setDates} busy={reloading} />
       </ListToolbar>
 
-      <ListCapNotice capped={capped} count={payments.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -454,7 +434,7 @@ function PaymentsPageContent() {
         testId="payments-table"
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={payments}
         rowKey={(p) => p.id}
         isLoading={isLoading}
         stale={reloading}
@@ -479,7 +459,7 @@ function PaymentsPageContent() {
       )}
       {!isLoading && (
         <div data-testid="payments-cards" aria-busy={reloading} className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          {filtered.length === 0 ? (
+          {payments.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">
               {search || dated ? (
                 <NoMatch filtered={dated} onClear={clearFilters} />
@@ -492,7 +472,7 @@ function PaymentsPageContent() {
               )}
             </div>
           ) : (
-            paginated.map((payment) => (
+            payments.map((payment) => (
               <div
                 key={payment.id}
                 className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
@@ -537,8 +517,14 @@ function PaymentsPageContent() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Record Payment — the one form, shared with the customer page ── */}

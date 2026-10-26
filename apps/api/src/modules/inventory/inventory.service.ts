@@ -9,7 +9,20 @@ import { Prisma } from '@prisma/client';
 import { CostingService, lineEventCost } from '../costing/costing.service';
 import { CyclesService } from '../cycles/cycles.service';
 import { formatMoney, formatQty } from '../../common/money';
-import { findLowStock } from '../../common/low-stock';
+import {
+  findLowStock,
+  isLowStock,
+  type LowStockProduct,
+} from '../../common/low-stock';
+import { bilingualProductSearch } from '../../common/arabic-names';
+import {
+  filterOf,
+  type ListQuery,
+  pageOf,
+  pageOfIds,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
 import { stockValueEgp } from '../../common/stock-value';
 import { unitsAtShopsByProduct } from '../../common/samples-out';
 
@@ -110,6 +123,13 @@ function assertReceivable(cycle: { code: string; status: string }) {
     { cycle: cycle.code, status: cycle.status },
   );
 }
+
+/** A product's stock as `getStock` builds it, the fields the list reads. */
+type StockRow = {
+  productId: string;
+  totalStock: number;
+  batches: { product?: LowStockProduct | null }[];
+};
 
 @Injectable()
 export class InventoryService {
@@ -543,12 +563,30 @@ export class InventoryService {
     };
   }
 
+  /**
+   * Stock by product. Every product at once for a form that needs the whole
+   * shelf; one page of them for the Inventory list (server-side lists, owner
+   * 2026-10-25), which also sends:
+   *
+   *   search  the product's name in either language or its SKU
+   *   stock   `low` — below its minimum, the dashboard tile's rule (§3)
+   *   page / pageSize
+   */
   async getStock(
-    params: { productId?: string; cycleId?: string },
+    params: ListQuery & {
+      productId?: string;
+      cycleId?: string;
+      stock?: string;
+    },
     viewer: ScopeViewer = 'internal',
   ) {
+    const search = searchOf(params);
+    const lowOnly = filterOf(params.stock, 'stock', ['low'] as const);
+    // One order: by product, in the order its stock first came in.
+    sortOf(params, { received: null });
     const where: Prisma.InventoryBatchWhereInput = {};
     if (params.productId) where.productId = params.productId;
+    if (search) where.product = { OR: bilingualProductSearch(search) };
     // An investor: only batches their cycles brought in (R1). Every batch has
     // a source cycle, so stock from anyone else's cycle simply is not listed.
     const cycleFilter = cycleIdWhere(
@@ -650,7 +688,23 @@ export class InventoryService {
       row.stockValueEgp = stockValueEgp(row.batches);
     }
 
-    return { data: Object.values(productTotals) };
+    // Below its minimum, by the dashboard tile's rule (§3).
+    const rows = Object.values(productTotals).filter((row) => {
+      const r = row as StockRow;
+      return !lowOnly || isLowStock(r.batches[0]?.product, r.totalStock);
+    });
+    if (!pageOf(params)) return { data: rows };
+    // Grouped by product here, so paged here: the page's products in the
+    // order they first came in, and the count of every product that matched.
+    const { pageIds, meta } = pageOfIds(
+      rows.map((row) => (row as StockRow).productId),
+      params,
+    );
+    const onPage = new Set(pageIds);
+    return {
+      data: rows.filter((row) => onPage.has((row as StockRow).productId)),
+      meta,
+    };
   }
 
   async getMovements(batchId: string, viewer: ScopeViewer = 'internal') {

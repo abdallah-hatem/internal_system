@@ -3,18 +3,25 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 import { supplierKey } from '../assistant/receipt/name-matching';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
 import { isUuid } from '../../common/uuid';
-import { assertCountryCode, findCountry } from '../../common/countries';
+import { assertCountryCode, countriesContaining } from '../../common/countries';
 
 type Db = Prisma.TransactionClient;
+
+/** The Suppliers list's orders; the first is the default. Each ends on `id`. */
+const SUPPLIER_SORTS = {
+  name: [{ name: 'asc' }, { id: 'asc' }],
+} satisfies Record<string, Prisma.SupplierOrderByWithRelationInput[]>;
 
 @Injectable()
 export class SuppliersService {
@@ -23,22 +30,33 @@ export class SuppliersService {
     private audit: AuditService,
   ) {}
 
-  async findAll(
-    pagination: PaginationDto & { search?: string },
-    viewer: ScopeViewer = 'internal',
-  ) {
-    const { cursor, limit: rawLimit = 20, search } = pagination;
-    const limit = pageSize(rawLimit);
+  async findAll(query: ListQuery, viewer: ScopeViewer = 'internal') {
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, SUPPLIER_SORTS);
     const where: Prisma.SupplierWhereInput = {};
     if (search) {
-      // A country is stored as its code, so "China" or "الصين" finds the
-      // suppliers saved as CN; `contains` still reads a value the migration
-      // could not convert (§21).
-      const code = findCountry(search);
+      // The name, phone or email, Arabic-forgiving (server-side lists, owner
+      // 2026-10-25). A country is stored as its code, so "China", "صين" or
+      // "CN" finds the suppliers saved as CN; the stored value is searched
+      // too, for one the migration could not convert (§21).
+      const codes = countriesContaining(search);
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { country: { contains: search, mode: 'insensitive' } },
-        ...(code ? [{ country: code }] : []),
+        {
+          id: {
+            in: await searchIds(
+              this.prisma,
+              `suppliers t`,
+              [
+                `t.name`,
+                `t.country`,
+                `t.contact_json->>'phone'`,
+                `t.contact_json->>'email'`,
+              ],
+              search,
+            ),
+          },
+        },
+        ...(codes.length ? [{ country: { in: codes } }] : []),
       ];
     }
     // An investor: only the suppliers their cycles bought from, and only
@@ -48,33 +66,28 @@ export class SuppliersService {
     const ours = scope === null ? undefined : { cycleId: { in: [...scope] } };
     if (ours) where.purchaseOrders = { some: ours };
 
-    const items = await this.prisma.supplier.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ name: 'asc' }, { id: 'asc' }],
-      // The list is what the suppliers page renders, and it needs to know what
-      // points at each row: how many orders were bought from it, and whether
-      // deleting it is even possible.
-      include: {
-        products: true,
-        _count: {
-          select: {
-            purchaseOrders: ours ? { where: ours } : true,
+    const { rows: data, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.supplier.findMany({
+          where,
+          orderBy,
+          // The list is what the suppliers page renders, and it needs to know what
+          // points at each row: how many orders were bought from it, and whether
+          // deleting it is even possible.
+          include: {
             products: true,
+            _count: {
+              select: {
+                purchaseOrders: ours ? { where: ours } : true,
+                products: true,
+              },
+            },
           },
-        },
-      },
+          ...window,
+        }),
+      count: () => this.prisma.supplier.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data, meta };
   }
 
   async findById(id: string, viewer: ScopeViewer = 'internal') {

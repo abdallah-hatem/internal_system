@@ -14,7 +14,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { PushService } from './push.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Notifications')
@@ -31,7 +31,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get current user notifications' })
   findAll(
     @CurrentUser() user: any,
-    @Query() query: PaginationDto & { unreadOnly?: boolean },
+    @Query() query: ListQuery & { unreadOnly?: boolean },
   ) {
     return this.notificationsService.findAll(user.id, query);
   }

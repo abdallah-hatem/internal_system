@@ -5,15 +5,19 @@ import { nextReferenceNumber, pad } from '../../common/references';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  filterOf,
+  listRows,
+  type ListQuery,
+  pageOfIds,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 
 import { badRequest, conflict, notFound } from '../../common/api-error';
 import { skuKey } from '../assistant/receipt/name-matching';
 import { seesEveryCycle, type ScopeViewer } from '../../common/investor-scope';
-import { isUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
 import { stockOnHand } from '../../common/low-stock';
 import { listPricesFor } from '../../common/default-price';
 import {
@@ -36,6 +40,20 @@ import {
 
 type Db = Prisma.TransactionClient;
 
+/** The Products list's orders; the first is the default. Each ends on `id`. */
+const PRODUCT_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, Prisma.ProductOrderByWithRelationInput[]>;
+
+/** A category as the Categories list shows it: where it sits in the tree. */
+type CategoryRow = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  depth: number;
+  children: { id: string }[];
+};
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -45,52 +63,54 @@ export class ProductsService {
   ) {}
 
   async findAll(
-    pagination: PaginationDto & {
+    query: ListQuery & {
       categoryId?: string;
       status?: string;
-      search?: string;
     },
     viewer: ScopeViewer = 'internal',
   ) {
-    const {
-      cursor,
-      limit: rawLimit = 20,
-      categoryId,
-      status,
-      search,
-    } = pagination;
-    const limit = pageSize(rawLimit);
-    const where: any = {};
+    const { categoryId } = query;
+    if (categoryId) assertUuid(categoryId, 'categoryId');
+    // INACTIVE is anything not on (§3): the list's "Inactive" filter.
+    const status = filterOf(query.status, 'status', [
+      'ACTIVE',
+      'INACTIVE',
+    ] as const);
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, PRODUCT_SORTS);
+    const where: Prisma.ProductWhereInput = {};
     if (categoryId) where.categoryId = categoryId;
-    if (status) where.status = status;
+    if (status === 'ACTIVE') where.status = 'ACTIVE';
+    if (status === 'INACTIVE') where.status = { not: 'ACTIVE' };
     // Either language, and the SKU (§3, owner 2026-10-14): "تيل" finds the
     // brake pads whose Arabic name says so, and "خوذه" the "خوذة" (2026-10-15).
     if (search) where.OR = bilingualProductSearch(search);
 
-    const items = await this.prisma.product.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: {
-        category: true,
-        // The catalogue is shared reference data an investor's cycle pages
-        // need; who else the business buys each part from is not (R1).
-        suppliers: seesEveryCycle(viewer)
-          ? { include: { supplier: true } }
-          : false,
-        prices: true,
-        // How many are in stock (owner, 2026-10-17: "in products table I need
-        // to see how many in stock"), by the one stock-on-hand rule the
-        // low-stock check uses (common/low-stock.ts). Office only: an
-        // investor's view of the catalogue is not a view of the stock.
-        ...(seesEveryCycle(viewer)
-          ? { inventoryBatches: { select: { remainingQty: true } } }
-          : {}),
-      },
+    const { rows: page, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.product.findMany({
+          where,
+          orderBy,
+          include: {
+            category: true,
+            // The catalogue is shared reference data an investor's cycle pages
+            // need; who else the business buys each part from is not (R1).
+            suppliers: seesEveryCycle(viewer)
+              ? { include: { supplier: true } }
+              : false,
+            prices: true,
+            // How many are in stock (owner, 2026-10-17: "in products table I need
+            // to see how many in stock"), by the one stock-on-hand rule the
+            // low-stock check uses (common/low-stock.ts). Office only: an
+            // investor's view of the catalogue is not a view of the stock.
+            ...(seesEveryCycle(viewer)
+              ? { inventoryBatches: { select: { remainingQty: true } } }
+              : {}),
+          },
+          ...window,
+        }),
+      count: () => this.prisma.product.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const page = hasMore ? items.slice(0, limit) : items;
     // Each channel's price, set or the default landed + markup (§3,
     // owner 2026-10-18) — the one definition, common/default-price.ts.
     const listPrices = await listPricesFor(this.prisma, page);
@@ -99,13 +119,7 @@ export class ProductsService {
       listPrices: listPrices.get(product.id)!,
       ...(inventoryBatches ? { onHand: stockOnHand(inventoryBatches) } : {}),
     }));
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? page[page.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data, meta };
   }
 
   async findById(id: string, viewer: ScopeViewer = 'internal') {
@@ -368,6 +382,7 @@ export class ProductsService {
 
   // ─── Category CRUD ────────────────────────────────────────────
 
+  /** Every category, for a picker and the assistant. */
   async findCategories() {
     const categories = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
@@ -379,6 +394,76 @@ export class ProductsService {
       },
     });
     return { data: categories };
+  }
+
+  /**
+   * The Categories list, a page at a time
+   * (server-side lists, owner 2026-10-25): the tree flattened parent before
+   * child, each row with its `depth`; a `search` (either language) keeps
+   * each match and the path down to it; `collapsed` — parents whose
+   * subcategories are hidden, comma-separated — leaves those out unless a
+   * search is on. `meta.parentIds` are the rows with subcategories showing.
+   */
+  async categoryPage(query: ListQuery & { collapsed?: string }) {
+    const { data: categories } = await this.findCategories();
+    const search = searchOf(query);
+    // One order: the tree's, parent before child, siblings by name.
+    sortOf(query, { tree: null });
+    const collapsed = new Set(
+      typeof query.collapsed === 'string' && query.collapsed
+        ? query.collapsed.split(',')
+        : [],
+    );
+    for (const id of collapsed) assertUuid(id, 'collapsed');
+
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    let kept = categories;
+    if (search) {
+      const matches = await searchIds(
+        this.prisma,
+        `categories t`,
+        [`t.name`, `t.name_ar`],
+        search,
+      );
+      const keep = new Set<string>();
+      for (const id of matches) {
+        for (
+          let c = byId.get(id);
+          c;
+          c = c.parentId ? byId.get(c.parentId) : undefined
+        ) {
+          keep.add(c.id);
+        }
+      }
+      kept = categories.filter((c) => keep.has(c.id));
+    }
+    // Parent before child, siblings by name, as the tree reads.
+    const childrenOf = new Map<string | null, typeof categories>();
+    const keptIds = new Set(kept.map((c) => c.id));
+    for (const c of kept) {
+      const parent = c.parentId && keptIds.has(c.parentId) ? c.parentId : null;
+      childrenOf.set(parent, [...(childrenOf.get(parent) ?? []), c]);
+    }
+    const flat: CategoryRow[] = [];
+    const parentIds: string[] = [];
+    const walk = (parent: string | null, depth: number, hidden: boolean) => {
+      for (const c of childrenOf.get(parent) ?? []) {
+        const children = childrenOf.get(c.id) ?? [];
+        if (children.length) parentIds.push(c.id);
+        if (!hidden) flat.push({ ...c, depth, children });
+        walk(c.id, depth + 1, hidden || (!search && collapsed.has(c.id)));
+      }
+    };
+    walk(null, 0, false);
+    const rows = new Map(flat.map((r) => [r.id, r]));
+    const { pageIds, meta } = pageOfIds(
+      flat.map((r) => r.id),
+      query,
+    );
+    return {
+      data: pageIds.map((id) => rows.get(id)!),
+      meta: { ...meta, parentIds },
+    };
   }
 
   /**

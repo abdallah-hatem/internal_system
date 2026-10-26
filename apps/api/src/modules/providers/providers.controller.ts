@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -14,6 +15,7 @@ import { ProvidersService } from './providers.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
+import type { ListQuery } from '../../common/list-query';
 
 @ApiTags('Providers')
 @ApiBearerAuth()
@@ -24,9 +26,11 @@ export class ProvidersController {
 
   // An investor reads only the providers that carried their cycles (R1).
   @Get()
-  @ApiOperation({ summary: 'List all providers' })
-  findAll(@CurrentUser() user: Viewer) {
-    return this.providersService.findAll(user);
+  @ApiOperation({
+    summary: 'List all providers; with page/pageSize/search, one page of them',
+  })
+  findAll(@CurrentUser() user: Viewer, @Query() query: ListQuery = {}) {
+    return this.providersService.findAll(query, user);
   }
 
   @Get(':id')
