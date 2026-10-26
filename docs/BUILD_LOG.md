@@ -7,14 +7,14 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-23 — production runs `origin/master`; CYC-2026-0001's data was corrected in production at the owner's word
-("re-cost sold, keep it and set prices, names ok, go"), after a rehearsal on a copy (`.backups/prod-20261023-050844.sql`,
-taken before any change, is the way back): the 18 forgotten pieces, leg 2 at 5,250 AED, Ahmad Eraiby's 13,905.69 AED
-and his three repayments, contributions 67,056.33 each. Nothing is merged locally and waiting.
-The 9 new products stay on their default prices; the price is set on each sale as needed (owner, 2026-10-23). Next: the Rules Review answers
-(`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
-test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
-State of the product and of production's data: `docs/where-things-stand.md`.
+2026-10-26 — production runs `origin/master` with the office chat, the sale/payment/return/reversal/cancel
+notifications, the New Order samples hint and the partner running account (migration
+`20261025100000_partner_running_accounts` applied first), shipped at the owner's word ("push notifications, sample hint,
+and partner account now, leave the branches"). **Customers with branches stay on `dev` only** (migration
+`20261025120000_customer_branches` not applied to production). Held on the other machine, not pushed: server-side
+lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
+in Vercel; without them it says it is not set up. State of the product and of production's data:
+`docs/where-things-stand.md`.
 Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **server-side lists + the Sales customer filter** (`agent-lists`, `5c75bcb`) and **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
@@ -95,6 +95,12 @@ Held (owner, 2026-10-25: "hold all for now, i want only the partner running acco
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 — shipped (migration `20261025100000_partner_running_accounts` first): the office chat (`e78e0ef`); a
+  sale, payment, return, payment reversed or order cancelled notifies the other partners (`a0130f7`); New Order warns
+  when the shop holds samples (`6228235`); a running account per partner — advances paid straight to suppliers,
+  contributions from accounts in equal thirds, never negative, withdrawals, payouts left in (`9e6a454`). Released from
+  `dev` without customers with branches (`2555c41`), which stays on `dev`. `record_sale`'s low-stock test now counts only
+  low-stock notices (a sale also notifies).
 - 2026-10-23 — shipped, no migration: the dashboard in two groups (`2248549`; BUSINESS_LOGIC "The dashboard in two
   groups"): Right now (cash on hand, to collect, owed to lenders, stock value, items in stock, low stock alerts, active
   cycles) and This month (revenue, collected, net profit, expenses — `profitFigures`, the same computation as P&L's This
