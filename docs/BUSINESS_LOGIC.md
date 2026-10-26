@@ -1209,7 +1209,7 @@ owed after it — and under it both "history ends at" and "the order owes now", 
 summed in the browser. GUESS: when the two differ the tab says so in red and points at the data check, rather than
 showing one of them. GUESS: on a phone the per-product table is one card per product (five columns do not fit).
 
-### Editing a confirmed order — DECIDED 2026-10-25 (owner), built 2026-10-25 (branch `agent-edit-order`), details GUESSED
+### Editing a confirmed order — DECIDED 2026-10-25 (owner), built 2026-10-25/26 (branch `agent-edit-order`, brought up to `dev` 2026-10-26), details GUESSED
 
 **What the owner asked (2026-10-25).** "Edit order" on a confirmed order: add a product, change a quantity, change a
 price up or down. It feels like editing; underneath, each change is a dated, recorded event — never an overwrite of
@@ -1244,8 +1244,11 @@ mean each thing, so no reader learns a second meaning of a sale:
   edit with owed before and after; status: paid up at zero after a payment, partly paid above it, a sale with no
   payment stays confirmed. The order's row is locked and the version checked: two partners editing at once — one
   wins, the other is told `ORDER_VERSION_CONFLICT`, nothing applied twice. The save re-plans under the lock and
-  re-reads the shelf; the preview's stock is never trusted (`NOT_ENOUGH_STOCK`). Audit `ORDER_EDITED` and the
-  low-stock alert go after the commit.
+  re-reads the shelf; the preview's stock is never trusted (`NOT_ENOUGH_STOCK`). Audit `ORDER_EDITED`, the
+  low-stock alert and the other partners' notification (below) go after the commit.
+- **Branches (§7, 2026-10-26).** An edit changes one order, so everything it adds or gives back is that order's
+  branch's: no branch is chosen for an added line. The branch's statement carries the edit's row, and the branches'
+  closing balances still add up to the owner's.
 - **Readers.** The order's value now (`order-value-now.ts`) = total + lines an edit added − refunds − cuts; the order
   popup, the Sales list, the customer page and the assistant's sales reads all read it. History shows one "Order
   edited" event per edit (lines added, given back, repriced; the units and returns inside it are not shown again),
@@ -1254,7 +1257,8 @@ mean each thing, so no reader learns a second meaning of a sale:
   edit's own return and price changes are not separate rows. The invoice of an edited order prints the current
   lines — what the shop holds of each product at its price now — with the value now as its total (never-edited
   orders print as before). `check-data` 12, 13.1 and 13.2 count an edit, and 13.3 checks an edit is the sum of its
-  parts and never leaves the order owing below zero.
+  parts and never leaves the order owing below zero; 25.1 judges a line an edit added by the edit's day and
+  when it was entered, not the sale's (2026-10-26).
 - **Refused, each with its code (server-side; the office says them):** a draft, cancelled or fully returned order
   (`EDIT_ORDER_NOT_EDITABLE`); a samples order (`EDIT_ORDER_SAMPLES`, its own flow); an order under an active
   instalment contract (`EDIT_ORDER_UNDER_CONTRACT`, as for price cuts); an order with units from a cycle being
@@ -1267,7 +1271,8 @@ mean each thing, so no reader learns a second meaning of a sale:
   the shelf holds (`NOT_ENOUGH_STOCK`, samples out at shops are not on the shelf); a missing or stale version
   (`VERSION_REQUIRED`, `ORDER_VERSION_CONFLICT`).
 
-**GUESS (2026-10-25) — the same product added twice is one line.** An edit names each product once; the same product
+**GUESS (2026-10-26) — the same product added twice is one line** (first written 2026-10-25, kept on resuming). An
+edit names each product once; the same product
 twice in one edit is refused (`EDIT_ORDER_DUPLICATE_PRODUCT`). "Adding" a product the order already has is raising
 that product's quantity: the extra units come at the price the product's units are at now unless a new price is
 typed, and are recorded as their own dated line beneath it (so their day and price stand on their own); the invoice
@@ -1275,7 +1280,8 @@ merges lines of the same product and price into one. Reason: two lines of one pr
 make "how many does the shop hold, at what price" two answers, and a later price change or return would have to pick
 one; one line per product keeps one answer. Owner to confirm.
 
-**GUESS (2026-10-25) — lowering below what was paid is refused.** An edit may lower what the order owes down to zero
+**GUESS (2026-10-26) — lowering below what was paid is refused** (first written 2026-10-25, kept on resuming). An
+edit may lower what the order owes down to zero
 (it is then paid up) but never below: `EDIT_ORDER_BELOW_PAID`, naming what it would take off and what is owed. Money
 going back to the shop is a return with a refund (§5), recorded as such. Reason: below zero is money the business
 holds for the shop — either a refund nobody recorded as cash leaving, or a credit balance, which the owner already
@@ -1288,8 +1294,22 @@ carry no "whole units" flag), to three decimals; a new line for a switched-off p
 shelf (§3 "what is on the shelf is still SOLD") and refused as `NOT_ENOUGH_STOCK` once it is not; added units at an
 unchanged price take the price per unit rounded to the piastre (a line discount of 100 on 3 units is 33.33 per added
 unit); the units given back go on a return dated the edit's day whose reason is the edit's note (or "Edit of ORD-…").
-The assistant and the office chat do not offer an edit (the BUILD_LOG asked for it only "if exposed there"; neither
-offers price cuts or returns today); their sales reads show the value now, edits included.
+Their sales reads (`list_sales`, the customer reads) show the value now, edits included.
+
+**GUESS (2026-10-26) — the other partners are told of an edit, as of a sale.** After an edit commits, every active
+core partner except the one who made it gets an `ORDER_EDITED` notification (in the app and pushed, through
+`tellOtherPartners` in `common/partner-news.ts`, the way a sale, a payment, a return, a reversal and a cancellation
+are, owner 2026-10-25): "{by} edited {orderNo} for {shop}: {change} EGP, now owes {owes} EGP", each product's
+quantity before → after (and its new price) on the second line; it opens the order on Sales. A preview or a refused
+edit tells nobody; the notification failing never fails the edit. Reason: an edit changes what the shop owes and what
+left the shelf exactly as a sale does, and the owner asked to hear of sales made by another partner. Owner to confirm.
+
+**GUESS (2026-10-26) — the assistant and the office chat can edit an order** (`edit_order`), since the BUILD_LOG asked
+for it "if exposed there" and the resumed brief asked for it to be built: the order by its ORD number, only the
+products that change with the quantity the shop should hold after, a price only if the partner said one; the preview
+is `OrderEditsService.preview`, the save `create` at the version previewed, core partners only (the office endpoint's
+roles). A close product name is a question, never the product; the order moving between preview and yes (a payment,
+another partner's edit) is `PREVIEW_CHANGED`, nothing saved. Price cuts and returns stay office-only, as before.
 
 **FIXED 2026-10-25 alongside — cancelling puts each unit back once.** Cancelling an unpaid confirmed order released
 every unit its lines ever drew, including units a credit-note return (or now an edit) had already put back on their

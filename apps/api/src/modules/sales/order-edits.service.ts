@@ -14,6 +14,7 @@ import {
   type ReturnLine,
 } from '../../common/sale-return-writer';
 import { isUuid } from '../../common/uuid';
+import { editNews, tellOtherPartners } from '../../common/partner-news';
 import {
   NotificationsService,
   notifyLowStock,
@@ -63,7 +64,7 @@ export interface OrderEditInput {
 type Db = Prisma.TransactionClient | PrismaService;
 
 const ORDER_INCLUDE = {
-  customer: { select: { isWalkIn: true } },
+  customer: { select: { isWalkIn: true, displayName: true } },
   paymentPlan: { select: { reference: true, status: true } },
   items: {
     orderBy: { createdAt: 'asc' },
@@ -308,6 +309,22 @@ export class OrderEditsService {
       },
     });
     await notifyLowStock(this.prisma, this.notifications, lowStock);
+    // The other partners hear of it as they hear of a sale (GUESS §4,
+    // 2026-10-26), after the commit and never failing the edit.
+    await tellOtherPartners(this.prisma, this.notifications, actorId, () =>
+      Promise.resolve(
+        editNews({
+          id: edit.id,
+          orderId: plan.order.id,
+          orderNo: plan.order.orderNo,
+          customerId: plan.order.customerId,
+          shop: plan.order.customer.displayName,
+          changeEgp: plan.change,
+          owedAfter: plan.owedAfter,
+          lines: plan.lines,
+        }),
+      ),
+    );
     return { data: { ...summary(plan), id: edit.id } };
   }
 

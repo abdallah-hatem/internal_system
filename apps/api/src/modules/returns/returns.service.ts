@@ -24,19 +24,29 @@ import {
 
 import { badRequest, notFound } from '../../common/api-error';
 const D = (v: unknown) => new Prisma.Decimal((v ?? 0) as Prisma.Decimal.Value);
-const money = (v: Prisma.Decimal) => v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+const money = (v: Prisma.Decimal) =>
+  v.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
 /** A sale must have happened before any of it can come back. */
 const RETURNABLE_ORDER_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'];
 
 const RETURN_INCLUDE = {
   saleOrder: {
-    select: { id: true, orderNo: true, currency: true, customer: { select: { displayName: true } } },
+    select: {
+      id: true,
+      orderNo: true,
+      currency: true,
+      customer: { select: { displayName: true } },
+    },
   },
   items: {
     include: {
-      saleItem: { select: { id: true, product: { select: { name: true, sku: true } } } },
-      inventoryBatch: { select: { id: true, cycleId: true, landedUnitCostEgp: true } },
+      saleItem: {
+        select: { id: true, product: { select: { name: true, sku: true } } },
+      },
+      inventoryBatch: {
+        select: { id: true, cycleId: true, landedUnitCostEgp: true },
+      },
     },
   },
 } satisfies Prisma.SaleReturnInclude;
@@ -67,7 +77,10 @@ export class ReturnsService {
     const data = hasMore ? items.slice(0, limit) : items;
     return {
       data,
-      meta: { nextCursor: hasMore ? data[data.length - 1]?.id ?? null : null, limit },
+      meta: {
+        nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null,
+        limit,
+      },
     };
   }
 
@@ -138,7 +151,10 @@ export class ReturnsService {
       }
 
       const sold = D(saleItem.quantity);
-      const alreadyReturned = saleItem.returnItems.reduce((s, r) => s.add(D(r.qty)), D(0));
+      const alreadyReturned = saleItem.returnItems.reduce(
+        (s, r) => s.add(D(r.qty)),
+        D(0),
+      );
       const wanted = D(line.qty);
       const returnable = sold.sub(alreadyReturned);
 
@@ -295,10 +311,7 @@ export class ReturnsService {
     });
 
     return items.every((item) => {
-      const returned = item.returnItems.reduce(
-        (s, r) => s.add(D(r.qty)),
-        D(0),
-      );
+      const returned = item.returnItems.reduce((s, r) => s.add(D(r.qty)), D(0));
       return returned.gte(D(item.quantity));
     });
   }

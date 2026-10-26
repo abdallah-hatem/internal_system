@@ -1110,7 +1110,8 @@
     "SALE_RETURNED_CREDIT": "{by} سجّل مرتجعًا من {shop} على {orderNo} — خُصم {refund} جنيه من المستحق",
     "SALE_RETURNED_CASH": "{by} سجّل مرتجعًا من {shop} على {orderNo} — رُدّ {refund} جنيه نقدًا",
     "PAYMENT_REVERSED": "{by} عكس دفعة {amount} جنيه من {shop}: {reason}",
-    "ORDER_CANCELLED": "{by} ألغى {orderNo} لـ {shop} ({total} جنيه)"
+    "ORDER_CANCELLED": "{by} ألغى {orderNo} لـ {shop} ({total} جنيه)",
+    "ORDER_EDITED": "{by} عدّل {orderNo} لـ {shop}: {change} جنيه، المستحق الآن {owes} جنيه"
   },
   "auditLogs": {
     "title": "سجلات التدقيق",

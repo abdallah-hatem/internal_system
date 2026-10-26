@@ -6,7 +6,11 @@ import { HttpException } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
+import type { NotificationEvent } from '../notifications/notifications.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { CostingService } from '../costing/costing.service';
+import type { InventoryService } from '../inventory/inventory.service';
+import type { ShippingService } from '../shipping/shipping.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ReturnsService } from '../returns/returns.service';
 import { SettlementsService } from '../settlements/settlements.service';
@@ -16,10 +20,12 @@ import { heldUnits } from '../../common/held-price';
 import {
   buildStatement,
   loadStatementSource,
+  narrowToBranch,
 } from '../../common/customer-statement';
 import { OrderEditsService, type OrderEditInput } from './order-edits.service';
 import { OrderHistoryService } from './order-history.service';
 import { PriceAdjustmentsService } from './price-adjustments.service';
+import { receivedStock } from './received-stock-fixture-spec';
 import { SalesService } from './sales.service';
 
 /**
@@ -30,8 +36,10 @@ import { SalesService } from './sales.service';
  * Sales list, the shop's balance and statement, the order's History, each
  * cycle's profit, the shelf, and the data check.
  *
- * Built as the business builds it: cycles with verified batches, a confirmed
- * sale drawn FIFO from them, a payment on it.
+ * Built as the business builds it (CLAUDE.md §4): each cycle's stock through
+ * a purchase order, a shipping leg that departed and delivered, and a verified
+ * receipt (the real delivery and receipt services); a confirmed sale drawn
+ * FIFO from those batches; a payment on it.
  *
  *   INTEGRATION_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/motorcycle_parts_<name> \
  *     npx jest order-edit.db
@@ -72,9 +80,9 @@ async function refusal(p: Promise<unknown>) {
 /**
  * The checks of scripts/check-data.sh that an edit can break: stock in a
  * batch, an order's worth, money allocated, price changes, edits, returned
- * orders, the walk-in. (The cycle-funding checks are left out: this suite's
- * cycles are funded by a participant row with no ledger arrival, as the
- * price-adjustment suite's are, and say nothing about an edit.)
+ * orders, the walk-in. (The others say nothing about an edit, and count
+ * the whole database, where other suites' fixtures live; the whole script
+ * runs on its own: scripts/check-data.sh.)
  */
 const EDIT_CHECKS = [
   '7',
@@ -89,6 +97,7 @@ const EDIT_CHECKS = [
   '13.3',
   '16',
   '18',
+  '25.1',
 ];
 
 /** The data check's own queries (scripts/check-data.sh), the one definition. */
@@ -112,7 +121,12 @@ suite('editing a confirmed order (Postgres)', () => {
   let history: OrderHistoryService;
   let analytics: AnalyticsService;
   let settlements: SettlementsService;
+  let stock: ReturnType<typeof receivedStock>;
+  let inventory: InventoryService;
+  let shipping: ShippingService;
   let partner: string;
+  /** What the other partners were told (§10), newest last. */
+  let sent: { userIds: string[]; event: NotificationEvent }[] = [];
   const checks = checkDataSql();
 
   beforeAll(async () => {
@@ -123,8 +137,13 @@ suite('editing a confirmed order (Postgres)', () => {
         prisma.auditLog.create({ data: row as never }),
     } as unknown as AuditService;
     const notifier = {
-      createForMultipleUsers: () => Promise.resolve({ count: 0 }),
+      createForMultipleUsers: (userIds: string[], event: NotificationEvent) => {
+        sent.push({ userIds, event });
+        return Promise.resolve({ count: userIds.length });
+      },
     };
+    stock = receivedStock(prisma, audit, notifier);
+    ({ shipping, inventory } = stock);
     payments = new PaymentsService(db, audit);
     sales = new SalesService(db, audit, payments, notifier);
     returns = new ReturnsService(db, audit);
@@ -132,7 +151,7 @@ suite('editing a confirmed order (Postgres)', () => {
     edits = new OrderEditsService(db, audit, sales, notifier);
     history = new OrderHistoryService(db);
     analytics = new AnalyticsService(db);
-    settlements = new SettlementsService(db, audit);
+    settlements = new SettlementsService(db, audit, new CostingService(db));
     const user = await prisma.user.create({
       data: {
         email: `edit-${randomUUID()}@example.com`,
@@ -143,44 +162,39 @@ suite('editing a confirmed order (Postgres)', () => {
     partner = user.id;
   });
   afterAll(() => prisma.$disconnect());
+  beforeEach(() => {
+    sent = [];
+  });
 
-  /** A selling cycle, funded by the partner, with one verified batch. */
+  /**
+   * A cycle of one product as the business runs one (CLAUDE.md §4): bought,
+   * shipped, delivered and verified into stock `ageDays` ago at `cost` each
+   * (received-stock-fixture-spec.ts), checked to have made what it should.
+   */
   async function cycleWith(
     productId: string,
     qty: number,
     cost: number,
     ageDays: number,
   ) {
-    const tag = randomUUID().slice(0, 8);
-    const cycle = await prisma.importCycle.create({
-      data: {
-        code: `EDT-${tag}`,
-        originType: 'UAE_DIRECT',
-        currency: 'EGP',
-        status: 'SELLING',
-      },
+    const made = await stock.cycleWith({
+      productId,
+      qty,
+      cost,
+      receivedOn: daysAgo(ageDays),
+      actor: partner,
     });
-    await prisma.cycleParticipant.create({
-      data: {
-        cycleId: cycle.id,
-        participantType: 'CORE_PARTNER',
-        partnerUserId: partner,
-        contributionAmount: 10_000,
-      },
-    });
-    const batch = await prisma.inventoryBatch.create({
-      data: {
-        cycleId: cycle.id,
-        productId,
-        receivedQty: qty,
-        remainingQty: qty,
-        saleableQty: qty,
-        landedUnitCostEgp: cost,
-        verificationStatus: 'VERIFIED',
-        createdAt: new Date(Date.now() - ageDays * 86_400_000),
-      },
-    });
-    return { cycle, batch };
+    expect(made.batch.verificationStatus).toBe('VERIFIED');
+    expect(made.batch.remainingQty.toString()).toBe(String(qty));
+    expect(made.batch.landedUnitCostEgp.toFixed(2)).toBe(cost.toFixed(2));
+    expect(
+      (
+        await prisma.importCycle.findUniqueOrThrow({
+          where: { id: made.cycle.id },
+        })
+      ).status,
+    ).toBe('SELLING');
+    return made;
   }
 
   async function product(name: string, status = 'ACTIVE') {
@@ -356,6 +370,20 @@ suite('editing a confirmed order (Postgres)', () => {
       const onShelf = batches.reduce((s, b) => s.add(b.remainingQty), D(0));
       const held = lines.reduce((s, l) => s.add(heldUnits(l)), D(0));
       expect(onShelf.add(held).toString()).toBe(String(received));
+      // The stock page and the product page's Stock value read the same shelf.
+      const stock = (await inventory.getStock({ productId })).data[0] as {
+        totalStock: number;
+        stockValueEgp: number;
+      };
+      expect(stock.totalStock).toBe(Number(onShelf));
+      expect(stock.stockValueEgp.toFixed(2)).toBe(
+        batches
+          .reduce(
+            (s, b) => s.add(b.remainingQty.mul(b.landedUnitCostEgp)),
+            D(0),
+          )
+          .toFixed(2),
+      );
     }
     // The data check: every count zero.
     // The script's own text, no value of ours inside it.
@@ -418,8 +446,39 @@ suite('editing a confirmed order (Postgres)', () => {
       await prisma.saleOrderEdit.count({ where: { saleOrderId: w.orderId } }),
     ).toBe(0);
 
+    // The preview tells nobody.
+    expect(sent.filter((x) => x.event.eventType === 'ORDER_EDITED')).toEqual(
+      [],
+    );
     const saved = await edit(w.orderId, body.lines, { editedOn: day });
     expect(saved.data.owedAfter).toBe('12000.00');
+    // The other partners are told, as of a sale (GUESS §4, 2026-10-26): every
+    // active core partner but the one who edited, once, after the commit.
+    const told = sent.filter((x) => x.event.eventType === 'ORDER_EDITED');
+    expect(told).toHaveLength(1);
+    expect(told[0].userIds).not.toContain(partner);
+    const others = await prisma.user.findMany({
+      where: { role: 'CORE_PARTNER', status: 'ACTIVE', id: { not: partner } },
+      select: { id: true },
+    });
+    expect(told[0].userIds.sort()).toEqual(others.map((u) => u.id).sort());
+    expect(told[0].event).toMatchObject({
+      code: 'ORDER_EDITED',
+      params: {
+        orderNo: (await order(w.orderId)).orderNo,
+        shop: w.shop.displayName,
+        change: '+4,500.00',
+        owes: '12,000.00',
+      },
+      payload: {
+        orderId: w.orderId,
+        customerId: w.shop.id,
+        editId: saved.data.id,
+      },
+    });
+    expect(String(told[0].event.params.lines)).toBe(
+      `${w.helmet.name} 10 → 12; ${w.gloves.name} 0 → 2 at 1,000.00`,
+    );
     const o = await order(w.orderId);
     expect(o.outstanding.toFixed(2)).toBe('12000.00');
     expect(o.status).toBe('PARTIALLY_PAID');
@@ -759,6 +818,10 @@ suite('editing a confirmed order (Postgres)', () => {
     expect(
       await prisma.saleOrderEdit.count({ where: { saleOrderId: w.orderId } }),
     ).toBe(0);
+    // A refused edit tells nobody anything.
+    expect(sent.filter((x) => x.event.eventType === 'ORDER_EDITED')).toEqual(
+      [],
+    );
     // 10 → 4 takes exactly 7,500: paid up.
     await edit(w.orderId, [{ productId: w.helmet.id, quantity: 4 }]);
     const o = await order(w.orderId);
@@ -919,33 +982,22 @@ suite('editing a confirmed order (Postgres)', () => {
     const w = await world();
     await edit(w.orderId, [{ productId: w.helmet.id, quantity: 12 }]);
     await edit(w.orderId, [{ productId: w.helmet.id, quantity: 11 }]);
-    // What `recost` (modules/costing/leg-recost.ts) does to a batch: the
-    // batch, every allocation drawn from it and every return to it.
-    const unit = D(1000);
-    await prisma.inventoryBatch.update({
-      where: { id: w.newer.batch.id },
-      data: { landedUnitCostEgp: unit },
-    });
-    for (const a of await prisma.saleItemAllocation.findMany({
-      where: { inventoryBatchId: w.newer.batch.id },
-    })) {
-      await prisma.saleItemAllocation.update({
-        where: { id: a.id },
-        data: { unitCostEgp: unit, cogsEgp: a.qty.mul(unit) },
-      });
-    }
-    for (const r of await prisma.saleReturnItem.findMany({
-      where: { inventoryBatchId: w.newer.batch.id },
-    })) {
-      await prisma.saleReturnItem.update({
-        where: { id: r.id },
-        data: { unitCostEgp: unit, cogsReversedEgp: r.qty.mul(unit) },
-      });
-      await prisma.saleReturn.update({
-        where: { id: r.saleReturnId },
-        data: { cogsReversedEgp: r.qty.mul(unit) },
-      });
-    }
+    // The newer cycle's leg is found to have cost 500 after all: the real
+    // correction re-costs its one batch — 10 helmets — at 950 + 50 = 1,000,
+    // and with it every unit drawn from it and every unit given back to it
+    // (§2, modules/costing/leg-recost.ts).
+    await shipping.updateLeg(
+      w.newer.leg.id,
+      { costBasis: 'FLAT', amount: 500 },
+      partner,
+    );
+    expect(
+      (
+        await prisma.inventoryBatch.findUniqueOrThrow({
+          where: { id: w.newer.batch.id },
+        })
+      ).landedUnitCostEgp.toFixed(2),
+    ).toBe('1000.00');
     // The edit stores no cost of its own: the statement's edit rows and the
     // cycle read the batch's, so they still agree.
     const { statement } = await agree(w);
@@ -1104,6 +1156,14 @@ suite('editing a confirmed order (Postgres)', () => {
       }),
     );
     expect(r.code).toBe('NOT_ENOUGH_STOCK_ON_DATE');
+    // The preview says so too, before anything is saved.
+    const shown = await refusal(
+      edits.preview(w.orderId, {
+        editedOn: daysAgo(2),
+        lines: [{ productId: late.id, quantity: 1, unitPrice: 700 }],
+      }),
+    );
+    expect(shown.code).toBe('NOT_ENOUGH_STOCK_ON_DATE');
   });
 
   it('a back-dated sale edited today: revenue and cost land today, in the dashboard’s This month as in P&L', async () => {
@@ -1113,7 +1173,8 @@ suite('editing a confirmed order (Postgres)', () => {
     const [todayBefore, saleDayBefore, saleDayCostBefore, monthBefore] = [
       await analytics.profitFigures({ from: today, to: today }),
       await revenueOn(daysAgo(3)),
-      (await analytics.profitFigures({ from: daysAgo(3), to: daysAgo(3) })).cogs,
+      (await analytics.profitFigures({ from: daysAgo(3), to: daysAgo(3) }))
+        .cogs,
       (await analytics.getDashboardKPIs()).data.month.revenue,
     ];
     await edit(w.orderId, [{ productId: w.helmet.id, quantity: 12 }]);
@@ -1132,6 +1193,18 @@ suite('editing a confirmed order (Postgres)', () => {
     expect((await revenueOn(today)).toFixed(2)).toBe(after.revenue.toFixed(2));
     const monthAfter = (await analytics.getDashboardKPIs()).data.month.revenue;
     expect((monthAfter - monthBefore).toFixed(2)).toBe('2500.00');
+    // Stock that arrived after the sale's day is on the shelf today: an edit
+    // made today draws it, as a sale made today would.
+    const visor = await product('Visor');
+    const arrived = await cycleWith(visor.id, 3, 300, 1);
+    w.cycles.push(arrived.cycle.id);
+    await edit(w.orderId, [
+      { productId: visor.id, quantity: 1, unitPrice: 450 },
+    ]);
+    expect(await remaining(arrived.batch.id)).toBe('2');
+    // The data check judges the added line by the edit's day, not the
+    // sale's: today's draw of yesterday's stock is no back-dated sale.
+    await agree(w);
   });
 
   // ── The wrong context ─────────────────────────────────────────────────
@@ -1339,6 +1412,67 @@ suite('editing a confirmed order (Postgres)', () => {
     expect(
       await prisma.saleOrderEdit.count({ where: { saleOrderId: w.orderId } }),
     ).toBe(0);
+  });
+
+  it('an order on one of the shop’s branches: the edit is that branch’s — on its statement, its balance, and the branches still add up to the owner', async () => {
+    const w = await world({ paid: 0 });
+    const [dokki, nasr] = await Promise.all(
+      ['Dokki', 'Nasr City'].map((name, i) =>
+        prisma.customerBranch.create({
+          data: { customerId: w.shop.id, name, isDefault: i === 0 },
+        }),
+      ),
+    );
+    const sell = async (branchId: string) =>
+      (
+        (await sales.create(
+          {
+            customerId: w.shop.id,
+            branchId,
+            channel: 'B2B',
+            currency: 'EGP',
+            items: [{ productId: w.gloves.id, quantity: 1, unitPrice: 1000 }],
+            confirm: true,
+          },
+          partner,
+        )) as { data: { id: string } }
+      ).data.id;
+    const onDokki = await sell(dokki.id);
+    const onNasr = await sell(nasr.id);
+    // An added line belongs to the order's branch: there is no other.
+    await edit(onDokki, [
+      { productId: w.gloves.id, quantity: 2, unitPrice: 1100 },
+    ]);
+    expect((await order(onDokki)).branchId).toBe(dokki.id);
+    expect(await outstanding(onDokki)).toBe('2200.00');
+    expect(await outstanding(onNasr)).toBe('1000.00');
+
+    const source = await loadStatementSource(prisma, w.shop.id);
+    const shopRow = {
+      id: w.shop.id,
+      displayName: w.shop.displayName,
+      phone: null,
+    };
+    const owner = buildStatement(shopRow, source);
+    const branch = (id: string | null) =>
+      buildStatement(shopRow, narrowToBranch(source, id));
+    const [d, n, none] = [branch(dokki.id), branch(nasr.id), branch(null)];
+    // Dokki's statement carries the edit, on its own branch; Nasr City's does not.
+    expect(d.rows.filter((r) => r.kind === 'EDIT')).toEqual([
+      expect.objectContaining({ amount: '1200.00', branches: ['Dokki'] }),
+    ]);
+    expect(n.rows.some((r) => r.kind === 'EDIT')).toBe(false);
+    expect(d.closingBalance).toBe('2200.00');
+    expect(n.closingBalance).toBe('1000.00');
+    // The branches (and the orders on no branch) add up to the owner.
+    expect(
+      D(d.closingBalance)
+        .add(n.closingBalance)
+        .add(none.closingBalance)
+        .toFixed(2),
+    ).toBe(owner.closingBalance);
+    expect(owner.closingBalance).toBe(await owedBy(prisma, w.shop.id));
+    await agree(w);
   });
 
   it('two partners editing at once: one wins, the others are told the order changed, nothing applied twice', async () => {

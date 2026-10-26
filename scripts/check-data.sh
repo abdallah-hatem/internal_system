@@ -508,13 +508,18 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE (ordered_at AT TIME ZONE 'Africa/Cairo')::date > (now() AT TIME ZONE 'Africa/Cairo')::date
   -- A sale dated before the day it was entered draws only stock received by
   -- the end of its own day. A row here sold goods that had not arrived yet.
+  -- A line an order edit added (4, 2026-10-26) is drawn on the edit's day,
+  -- entered when the edit was: judged by those, not the sale's.
   UNION ALL SELECT 25.1, 'back-dated sale drew stock received after its day',
          count(*) FROM sale_item_allocations a
          JOIN sale_items i ON i.id = a.sale_item_id
          JOIN sale_orders o ON o.id = i.sale_order_id
          JOIN inventory_batches b ON b.id = a.inventory_batch_id
-   WHERE (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date < (o.created_at AT TIME ZONE 'Africa/Cairo')::date
-     AND (b.created_at AT TIME ZONE 'Africa/Cairo')::date > (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date
+         LEFT JOIN sale_order_edits e ON e.id = i.edit_id
+   WHERE coalesce(e.edited_on, (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date)
+         < (coalesce(e.created_at, o.created_at) AT TIME ZONE 'Africa/Cairo')::date
+     AND (b.created_at AT TIME ZONE 'Africa/Cairo')::date
+         > coalesce(e.edited_on, (o.ordered_at AT TIME ZONE 'Africa/Cairo')::date)
   -- Money cannot pay for a sale that had not happened yet (section 7a,
   -- 2026-10-16).
   UNION ALL SELECT 25.2, 'payment allocated to a sale made after it was received',

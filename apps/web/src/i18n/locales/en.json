@@ -1110,7 +1110,8 @@
     "SALE_RETURNED_CREDIT": "{by} recorded a return from {shop} on {orderNo} — {refund} EGP off what they owe",
     "SALE_RETURNED_CASH": "{by} recorded a return from {shop} on {orderNo} — {refund} EGP refunded in cash",
     "PAYMENT_REVERSED": "{by} reversed {amount} EGP from {shop}: {reason}",
-    "ORDER_CANCELLED": "{by} cancelled {orderNo} for {shop} ({total} EGP)"
+    "ORDER_CANCELLED": "{by} cancelled {orderNo} for {shop} ({total} EGP)",
+    "ORDER_EDITED": "{by} edited {orderNo} for {shop}: {change} EGP, now owes {owes} EGP"
   },
   "auditLogs": {
     "title": "Audit Logs",

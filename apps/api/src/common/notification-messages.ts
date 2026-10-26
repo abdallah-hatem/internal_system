@@ -148,6 +148,20 @@ export const NOTIFICATION_MESSAGES = {
     en: { title: '{by} cancelled {orderNo} for {shop} ({total} EGP)' },
     ar: { title: '{by} ألغى {orderNo} لـ {shop} ({total} جنيه)' },
   },
+  // GUESS (2026-10-26): an edit of a confirmed order is told like a sale (§4
+  // "Editing a confirmed order").
+  ORDER_EDITED: {
+    en: {
+      title:
+        '{by} edited {orderNo} for {shop}: {change} EGP, now owes {owes} EGP',
+      body: '{lines}',
+    },
+    ar: {
+      title:
+        '{by} عدّل {orderNo} لـ {shop}: {change} جنيه، المستحق الآن {owes} جنيه',
+      body: '{lines}',
+    },
+  },
 
   // ── What the office hears from the storefront ─────────────────────────
   ORDER_REQUEST_SUBMITTED: {

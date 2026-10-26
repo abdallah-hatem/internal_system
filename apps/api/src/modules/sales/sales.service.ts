@@ -2211,7 +2211,9 @@ export class SalesService {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await tx.saleOrder.findUnique({
         where: { id },
-        include: { items: { include: { allocations: true, returnItems: true } } },
+        include: {
+          items: { include: { allocations: true, returnItems: true } },
+        },
       });
       if (!order) throw notFound('order');
       if (order.status === 'CANCELLED' || order.status === 'RETURNED') {

@@ -39,6 +39,7 @@ describe('a push opens the page the bell opens', () => {
     ['SALE_CONFIRMED', { orderId: 'o-1', customerId: 'cu' }],
     ['SALE_RETURNED', { orderId: 'o-1', returnId: 'r-1' }],
     ['ORDER_CANCELLED', { orderId: 'o-1', customerId: 'cu' }],
+    ['ORDER_EDITED', { orderId: 'o-1', customerId: 'cu', editId: 'e-1' }],
     ['PAYMENT_RECEIVED', { paymentId: 'pm-1', customerId: 'cu' }],
     ['PAYMENT_REVERSED', { paymentId: 'pm-1', customerId: 'cu' }],
   ])('%s', (eventType, payload) => {
@@ -51,6 +52,7 @@ describe('a push opens the page the bell opens', () => {
     expect(bell('SALE_CONFIRMED', { orderId: 'o-1' })).toBe('/sales?order=o-1');
     expect(bell('SALE_RETURNED', { orderId: 'o-1' })).toBe('/sales?order=o-1');
     expect(bell('ORDER_CANCELLED', { orderId: 'o-1' })).toBe('/sales?order=o-1');
+    expect(bell('ORDER_EDITED', { orderId: 'o-1' })).toBe('/sales?order=o-1');
     expect(bell('SALE_CONFIRMED', {})).toBe('/sales');
     expect(bell('PAYMENT_REVERSED', { paymentId: 'pm-1' })).toBe('/payments');
   });
