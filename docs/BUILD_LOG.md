@@ -67,6 +67,10 @@ is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not 
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 (afternoon) — shipped, no migration: a **Units sold** tile on the product page (`d63070d`; §3 — confirmed,
+  partly paid and paid orders less returns, `common/units-sold.ts`, shared with Analytics' top products); on a touch
+  screen a picker's search box is read-only until tapped, so scrolling the list cannot raise the keyboard (`87eef88`,
+  office and storefront).
 - 2026-10-26 — production data corrected (no deploy needed for it): CYC-2026-0001's Alibaba card fee (241.07 AED =
   3,338.82 EGP at 13.85) moved from a `bank_fees` expense into leg 1 (China → UAE), owner: "its a part of the shipping
   fee at this part". The expense reversed (reason recorded), leg 1 FLAT 1,551.74 → 1,792.81 AED (24,830.42 EGP), the
@@ -275,6 +279,17 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- **Found by the owner 2026-10-26, in production — fix next (awaiting his go):**
+  1. A cycle's funding panel shows each partner's whole account balance, so CYC-2026-0001's Contribute form offers the
+     50,775 Abdallah advanced for CYC-2026-0002. Owner: "each cycle has its own funding". Rule to apply: an advance
+     funds only the cycle it was paid for; only money tied to no cycle (a payout left in) funds any cycle; the balance a
+     cycle shows is what that cycle can draw.
+  2. The dashboard's This month Expenses reads −3,338.82: the bank fee was dated 15 Jul and reversed 26 Oct, so the
+     month holds only the reversal. An entry undone and its undo leave every period's expense figures (as
+     `cashPosition` already does) — dashboard, P&L, settlement readers.
+  3. The funding panel has no skeleton (`account-funding-panel.tsx` renders nothing while loading).
+  4. To discuss: merge the cycle page's Participants card into one Funding card (target, advances on this cycle,
+     contributions in equal thirds drawn from them, capital, the profit split, who is on the cycle) — sample first.
 - Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or
   one of the partners. E.g. fuel for a delivery paid from a partner's own pocket: still booked as the same expense
   (charged to a cycle, or a running cost shared from payouts, as today), but no business cash leaves (cash on hand does
