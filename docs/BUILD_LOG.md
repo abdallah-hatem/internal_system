@@ -83,6 +83,7 @@ Older history: "History" at the foot of this file, and `git log`.
   the funding skeleton; **one Funding card** replaces the Participants card and the funding panel — target and paid so
   far, contributions in equal thirds with covered/short, the profit split with a new Change split, Add investor
   (`105bd6b`). Picked from a rendered sample; looked at from the agents' screenshots.
+  Same evening: the Funding card moved below the Shipment card (owner: "funding should not be the first card").
 - 2026-10-26 (afternoon) — shipped, no migration: a **Units sold** tile on the product page (`d63070d`; §3 — confirmed,
   partly paid and paid orders less returns, `common/units-sold.ts`, shared with Analytics' top products); on a touch
   screen a picker's search box is read-only until tapped, so scrolling the list cannot raise the keyboard (`87eef88`,

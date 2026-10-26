@@ -177,20 +177,6 @@ export default function CycleDetailsPage() {
         </div>
       </div>
 
-      {/* The money in, in one card (owner 2026-10-26): the target and paid so
-          far, the contributions, the profit split and who is on the cycle. */}
-      <FundingCard
-        cycle={cycle}
-        totals={costing?.totals}
-        lenderNames={lenderNames}
-        canFinance={canFinance && orders.length > 0 && !financingClosed && !fullyPaidByFriends}
-        onPaidByLender={() => {
-          setFinancingPrefill(true);
-          setFinancingOpen(true);
-          scrollTo(financingRef.current);
-        }}
-      />
-
       {/* Where the goods are — layout A, chosen by the owner (I3). */}
       <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} transfers={transfers} />
 
@@ -218,6 +204,21 @@ export default function CycleDetailsPage() {
       <CycleTransfersSection cycleId={cycle.id} />
 
       <ShipmentPanel cycle={cycle} />
+
+      {/* The money in, in one card (owner 2026-10-26): the target and paid so
+          far, the contributions, the profit split and who is on the cycle.
+          After the shipment, not first on the page (owner 2026-10-26). */}
+      <FundingCard
+        cycle={cycle}
+        totals={costing?.totals}
+        lenderNames={lenderNames}
+        canFinance={canFinance && orders.length > 0 && !financingClosed && !fullyPaidByFriends}
+        onPaidByLender={() => {
+          setFinancingPrefill(true);
+          setFinancingOpen(true);
+          scrollTo(financingRef.current);
+        }}
+      />
 
       {/* A friend who paid a supplier for us (§18): who, how much, still owed. */}
       {orders.length > 0 && (
@@ -336,8 +337,6 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
         </div>
       </div>
 
-      <FundingCardSkeleton />
-
       <GoodsLocationSkeleton direct={direct} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -365,6 +364,8 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
       </div>
 
       <ShipmentPanelSkeleton inside />
+
+      <FundingCardSkeleton />
 
       <SectionSkeleton
         title={t('purchases')}
