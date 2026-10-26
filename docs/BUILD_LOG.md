@@ -17,6 +17,12 @@ and partner account now, leave the branches"). **Customers with branches stay on
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 
+2026-10-27 — Live-pending: **CYC-2026-0001's real funding** (owner's facts, BUSINESS_LOGIC §18 "Part of a friend's
+loan staying in the cycle as his investment"): one-off `apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts` —
+Eraiby's loan 13,905.69 → 9,878.84 AED, repayments re-recorded (last 9,064.86), contributions 55,000 / 33,084.50 /
+33,084.49, investors Ahmad Eraiby 60,000 and Mohammed Setta 20,000. Rehearsed on a fresh production copy (applied,
+second run "already applied", check-data all 0); not yet run on production. No code or migration.
+
 2026-10-26 — Live-pending: **server-side lists + Sales customer filter ported onto master without branches** (from
 dev `5c75bcb` + `e1d28f4`; the Sales branch filter stays on `dev` with customer branches). No migration. Verified by
 tsc, lint, API unit and web component tests and `next build`; no e2e (owner's rule).
