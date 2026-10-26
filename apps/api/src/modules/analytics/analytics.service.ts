@@ -51,15 +51,14 @@ import {
 } from '../../common/dates';
 import { badRequest } from '../../common/api-error';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
-
-/**
- * Sale states whose revenue is realised: the goods have left the business, so
- * the sale counts whether or not the customer has finished paying.
- *
- * Draft and cancelled orders must never be counted — a draft is a quote that
- * has reserved nothing, and including them inflates every figure on the page.
- */
-const REALISED_SALE_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
+// Realised sales and units sold are defined once, beside the product page's
+// Units sold card that reads them too (CLAUDE.md §11).
+import {
+  netUnitsSold,
+  REALISED_SALE_STATUSES,
+  SOLD_LINE_WHERE,
+  unitsFigure,
+} from '../../common/units-sold';
 
 /** A cycle still running: anything but closed or cancelled (CLOSED_CYCLE_STATUSES). */
 export const ACTIVE_CYCLE_WHERE = {
@@ -925,7 +924,7 @@ export class AnalyticsService {
         saleItems: {
           // Without this filter every draft counts, including abandoned ones,
           // which is how a product showed three million units sold.
-          where: { saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } } },
+          where: SOLD_LINE_WHERE,
           select: {
             quantity: true,
             lineTotal: true,
@@ -943,14 +942,7 @@ export class AnalyticsService {
       .map((p) => {
         // Sales less what came back: a product with heavy returns is not a
         // top seller, and counting the gross figure would say it was.
-        const units = p.saleItems.reduce(
-          (sum, i) =>
-            i.returnItems.reduce(
-              (s2, r) => s2.sub(D(r.qty)),
-              sum.add(D(i.quantity)),
-            ),
-          D(0),
-        );
+        const units = netUnitsSold(p.saleItems);
         // Less prices lowered after the sale (§4, 2026-10-22).
         const revenue = p.saleItems.reduce(
           (sum, i) =>
@@ -978,7 +970,7 @@ export class AnalyticsService {
           name: p.name,
           nameAr: p.nameAr,
           sku: p.sku,
-          totalQuantitySold: Number(units.toDecimalPlaces(3)),
+          totalQuantitySold: unitsFigure(units),
           revenueEgp: money(revenue),
           cogsEgp: money(cogs),
           profitEgp: money(profit),

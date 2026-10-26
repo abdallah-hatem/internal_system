@@ -191,6 +191,8 @@
     "search": "Search products by name or SKU",
     "totalStock": "Total Stock",
     "stockValue": "Stock value",
+    "unitsSold": "Units sold",
+    "unitsSoldOrders": "{count, plural, one {across {n} order} other {across {n} orders}}",
     "available": "Available",
     "createdAt": "Created",
     "inventoryBatches": "Inventory Batches",
