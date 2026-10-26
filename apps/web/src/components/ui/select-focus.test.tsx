@@ -75,11 +75,44 @@ describe('a picker opening', () => {
     screenIs(true);
     await open();
     const input = search()!;
+    fireEvent.pointerDown(input);
     act(() => input.focus());
     expect(document.activeElement).toBe(input);
+    expect(input.readOnly).toBe(false);
     fireEvent.change(input, { target: { value: 'Customer 12' } });
     await act(() => new Promise((r) => setTimeout(r, 30)));
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Customer 12']);
+  });
+
+  it('on a touch screen, focus reaching the search box without a tap (scrolling the list) cannot raise the keyboard (owner 2026-10-26)', async () => {
+    screenIs(true);
+    await open();
+    const input = search()!;
+    // Something other than a tap moves focus into the box — what scrolling did.
+    act(() => input.focus());
+    expect(input.readOnly).toBe(true);
+  });
+
+  it('on a touch screen the box is read-only again each time the picker opens', async () => {
+    screenIs(true);
+    await open();
+    fireEvent.pointerDown(search()!);
+    expect(search()!.readOnly).toBe(false);
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    });
+    await act(() => new Promise((r) => setTimeout(r, 30)));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('combobox'));
+    });
+    await act(() => new Promise((r) => setTimeout(r, 30)));
+    expect(search()!.readOnly).toBe(true);
+  });
+
+  it('on a computer the search box is never read-only', async () => {
+    screenIs(false);
+    await open();
+    expect(search()!.readOnly).toBe(false);
   });
 
   it('a short list with no search box: the list takes focus, on either screen', async () => {
