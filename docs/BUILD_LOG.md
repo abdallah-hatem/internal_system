@@ -18,6 +18,12 @@ in Vercel; without them it says it is not set up. State of the product and of pr
 `docs/where-things-stand.md`.
 **Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
 
+2026-10-27 — Live-pending: **CYC-2026-0001's real funding** (owner's facts, BUSINESS_LOGIC §18 "Part of a friend's
+loan staying in the cycle as his investment"): one-off `apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts` —
+Eraiby's loan 13,905.69 → 9,878.84 AED, repayments re-recorded (last 9,064.86), contributions 55,000 / 33,084.50 /
+33,084.49, investors Ahmad Eraiby 60,000 and Mohammed Setta 20,000. Rehearsed on a fresh production copy (applied,
+second run "already applied", check-data all 0); not yet run on production. No code or migration.
+
 2026-10-26 — Live-pending: **server-side lists + Sales customer filter ported onto master without branches** (from
 dev `5c75bcb` + `e1d28f4`; the Sales branch filter stays on `dev` with customer branches). No migration. Verified by
 tsc, lint, API unit and web component tests and `next build`; no e2e (owner's rule).
@@ -407,6 +413,10 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):
+  **Confirm and paid in one step** — on a draft sale order (the order popup and New Order), a "Confirm & paid" button that
+  confirms the order and records a payment for its full total (today, the order's customer) in one server call, all or
+  nothing; refused for a walk-in that is already paid, a cancelled or confirmed order, and anything Confirm alone refuses.
 - Next (2026-10-26, owner: "add the fix to next up"): **A new temporary investor from the Funding card** — "+ Add
   investor" picks only existing `TEMP_INVESTOR` accounts and no screen creates one (`POST /users` exists, nothing calls
   it), so the first investor meets an empty list. Put a `+` beside the person picker (`FieldWithQuickCreate`, CLAUDE.md
