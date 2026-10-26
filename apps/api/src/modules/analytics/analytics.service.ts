@@ -18,6 +18,10 @@ import {
   transferNetEgp,
 } from '../../common/ledger-categories';
 import { cashPosition } from '../../common/cash-position';
+import {
+  standingEntriesWhere,
+  undoneEntryIds,
+} from '../../common/undone-entries';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import {
   cycleWriteOffsEgp,
@@ -397,12 +401,21 @@ export class AnalyticsService {
     // The ledger, through the one signed reading per row that settlement
     // uses too (L6, rule 11). Summed, the database's total stands in for the
     // rows, carrying what the reading needs to know about them.
+    //
+    // An entry undone and its undo are left out of every line, whichever
+    // periods they fall in — the rule cash in and cash out already applied
+    // (`common/undone-entries.ts`, owner 2026-10-26). Netting them instead
+    // put a July fee undone in October at −3,338.82 in October's Expenses
+    // while July kept it. Over all time the pair nets to zero, so the
+    // dashboard's all-time figures read the same either way.
+    const standing = standingEntriesWhere(await undoneEntryIds(this.prisma));
     const ledger = async (
       line: ProfitLine,
-      where: Prisma.FinancialTransactionWhereInput,
+      within: Prisma.FinancialTransactionWhereInput,
       read: (t: LedgerRowLike) => Prisma.Decimal,
       summedAs: Omit<LedgerRowLike, 'amount'>,
     ) => {
+      const where = { ...within, ...standing };
       if (itemised) {
         for (const t of await this.prisma.financialTransaction.findMany({
           where,

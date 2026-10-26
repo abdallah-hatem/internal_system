@@ -2,6 +2,7 @@
 import { Prisma } from '@prisma/client';
 import { SettlementsService } from './settlements.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { cycleExpensesEgp } from '../../common/cycle-expenses';
 
 /**
  * L6 — a cycle-charged manual entry moves the cycle's profit by the same
@@ -192,6 +193,31 @@ describe('settlement and the cycle page agree on a cycle-charged entry', () => {
       row('INFLOW', 'marketing', 100, 'tx-marketing'),
     ]);
     expect(r).toMatchObject({ settlement: '1200.00', page: '1200.00' });
+  });
+
+  it('production’s July fee undone in October (2026-10-26): settlement, the cycle page and the cycle’s cost all count neither half', async () => {
+    const rows = [
+      row('OUTFLOW', 'bank_fees', 3_338.82),
+      row('INFLOW', 'bank_fees', 3_338.82, 'tx-fee'),
+    ];
+    const r = await bothProfits(rows);
+    expect(r).toMatchObject({ settlement: '1200.00', page: '1200.00' });
+    expect(r.analytics.expensesEgp).toBe(0);
+    const settled = await new SettlementsService(
+      fakeDb(rows) as never,
+      {} as never,
+      {} as never,
+    ).project(CYCLE);
+    expect(settled!.pnl.expenses.toFixed(2)).toBe('0.00');
+    expect(
+      (await cycleExpensesEgp(fakeDb(rows) as never, CYCLE)).toFixed(2),
+    ).toBe('0.00');
+    // Not undone, it counts once in each — never twice, never half.
+    const once = [row('OUTFLOW', 'bank_fees', 3_338.82)];
+    expect(
+      (await cycleExpensesEgp(fakeDb(once) as never, CYCLE)).toFixed(2),
+    ).toBe('3338.82');
+    expect((await bothProfits(once)).analytics.expensesEgp).toBe(3_338.82);
   });
 
   it('other income on the cycle raises both; undone, it raises neither', async () => {

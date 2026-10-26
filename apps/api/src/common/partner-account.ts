@@ -17,7 +17,9 @@ import { formatMoney } from './money';
  *
  * One definition (CLAUDE.md §11): the Partners page, the cycle's funding
  * panel, a contribution's check, a withdrawal's check, a reversal's check and
- * a settlement's reversal all read the balance here, never their own sum.
+ * a settlement's reversal all read the balance — and its pots, which cycle
+ * may draw which part of it (`potsOf`, owner 2026-10-26) — here, never their
+ * own sum.
  *
  * What it is NOT (CLAUDE.md §11): none of it is a ledger row. An advance went
  * straight to a supplier, so it is not cash in the business, not income, and
@@ -104,6 +106,219 @@ export async function accountBalance(
   return (
     (await accountBalances(db, [partnerUserId])).get(partnerUserId) ??
     new Prisma.Decimal(0)
+  );
+}
+
+/**
+ * Each cycle's funding is its own (owner 2026-10-26: "each cycle has its own
+ * funding"; BUSINESS_LOGIC §8). His account is split into pots:
+ *
+ * - **a cycle's pot** — his standing advances on that cycle, less what his
+ *   contributions to that cycle drew from them. Only that cycle can draw it:
+ *   an advance paid a supplier for that cycle's goods.
+ * - **untied money** — payouts he left in, less what he took out, less what
+ *   his contributions drew beyond their own cycle's advances. Any cycle can
+ *   draw it.
+ *
+ * A contribution to a cycle draws that cycle's advances first, untied money
+ * for the rest (GUESS 2026-10-26). Read from the standing movements as they
+ * are now, in any order, so no column records which pot paid: per cycle,
+ * min(advances, contributions) came from its pot and the excess from untied
+ * money. The pots add up to the balance (`balanceOf`) exactly.
+ *
+ * Never negative, per pot: a draw on a cycle is at most its pot plus untied
+ * money; a withdrawal, and a settlement's reversal taking a payout back, at
+ * most untied money; an advance can be reversed only while its cycle's pot
+ * still holds it (the contribution it funded comes out first).
+ */
+export interface Pots {
+  /** Money tied to no cycle. Below zero only if records from before 2026-10-26 drew across cycles. */
+  untied: Prisma.Decimal;
+  /** Each cycle's undrawn advances, by cycle id; only above zero. */
+  byCycle: Map<string, Prisma.Decimal>;
+}
+
+/** The pots over these movements: the standing ones. */
+export function potsOf(
+  movements: {
+    kind: string;
+    amountEgp: Prisma.Decimal.Value;
+    cycleId?: string | null;
+    reversedAt?: Date | null;
+  }[],
+): Pots {
+  const zero = new Prisma.Decimal(0);
+  let untied = zero;
+  const advanced = new Map<string, Prisma.Decimal>();
+  const drawn = new Map<string, Prisma.Decimal>();
+  const bump = (
+    to: Map<string, Prisma.Decimal>,
+    key: string,
+    v: Prisma.Decimal,
+  ) => to.set(key, (to.get(key) ?? zero).add(v));
+  for (const m of movements) {
+    if (m.reversedAt) continue;
+    const amount = new Prisma.Decimal(m.amountEgp);
+    // The API writes every advance and contribution with its cycle; a row
+    // without one (only ever written by hand) is tied to no cycle, and is
+    // read as untied money rather than breaking every page that reads pots.
+    switch (m.kind as MovementKind) {
+      case 'ADVANCE':
+        if (m.cycleId) bump(advanced, m.cycleId, amount);
+        else untied = untied.add(amount);
+        break;
+      case 'CONTRIBUTION':
+        if (m.cycleId) bump(drawn, m.cycleId, amount);
+        else untied = untied.sub(amount);
+        break;
+      case 'PAYOUT_LEFT_IN':
+        // Its cycleId names the settled cycle it came from; it is tied to none.
+        untied = untied.add(amount);
+        break;
+      case 'WITHDRAWAL':
+        untied = untied.sub(amount);
+        break;
+      default:
+        throw new Error(`Unknown account movement kind ${m.kind}`);
+    }
+  }
+  const byCycle = new Map<string, Prisma.Decimal>();
+  for (const id of new Set([...advanced.keys(), ...drawn.keys()])) {
+    const left = (advanced.get(id) ?? zero).sub(drawn.get(id) ?? zero);
+    if (left.gt(0)) byCycle.set(id, left);
+    // Drawn beyond this cycle's own advances: that came from untied money.
+    else untied = untied.add(left);
+  }
+  return { untied, byCycle };
+}
+
+/** His pots added up: his whole balance. */
+export function potsTotal(pots: Pots): Prisma.Decimal {
+  return [...pots.byCycle.values()].reduce((s, v) => s.add(v), pots.untied);
+}
+
+/** Untied money that can be drawn or taken: never below zero. */
+export function untiedAvailable(pots: Pots): Prisma.Decimal {
+  return Prisma.Decimal.max(pots.untied, 0);
+}
+
+/** What `cycleId` can draw from his account: its own pot, and untied money. */
+export function availableTo(pots: Pots, cycleId: string): Prisma.Decimal {
+  return (pots.byCycle.get(cycleId) ?? new Prisma.Decimal(0)).add(
+    untiedAvailable(pots),
+  );
+}
+
+/**
+ * Each partner's pots, from the database. Every partner asked for is in the
+ * map, with empty pots when he has no movement.
+ */
+export async function accountPots(
+  db: Db,
+  partnerUserIds: string[],
+): Promise<Map<string, Pots>> {
+  const rows = await db.partnerAccountMovement.groupBy({
+    by: ['partnerUserId', 'kind', 'cycleId'],
+    where: { ...STANDING_MOVEMENT, partnerUserId: { in: partnerUserIds } },
+    _sum: { amountEgp: true },
+  });
+  return new Map(
+    partnerUserIds.map((id) => [
+      id,
+      potsOf(
+        rows
+          .filter((r) => r.partnerUserId === id)
+          .map((r) => ({
+            kind: r.kind,
+            cycleId: r.cycleId,
+            amountEgp: r._sum.amountEgp ?? 0,
+          })),
+      ),
+    ]),
+  );
+}
+
+/** One partner's pots. */
+export async function accountPotsOf(
+  db: Db,
+  partnerUserId: string,
+): Promise<Pots> {
+  return (await accountPots(db, [partnerUserId])).get(partnerUserId)!;
+}
+
+/**
+ * Refuse drawing `amount` into a cycle beyond what that cycle can draw: its
+ * own advances and untied money (owner 2026-10-26). When money advanced for
+ * other cycles is what would have covered it, the refusal says so
+ * (`ACCOUNT_MONEY_FOR_OTHER_CYCLE`); with nothing elsewhere it is the plain
+ * `ACCOUNT_BALANCE_TOO_LOW`.
+ */
+export function assertCycleCovers(args: {
+  pots: Pots;
+  cycleId: string;
+  cycleCode: string;
+  amount: Prisma.Decimal;
+  partner: string;
+}) {
+  const available = availableTo(args.pots, args.cycleId);
+  if (args.amount.lte(available)) return;
+  const elsewhere = potsTotal(args.pots).sub(available);
+  if (elsewhere.lte(0)) {
+    assertCovers({
+      balance: available,
+      amount: args.amount,
+      partner: args.partner,
+    });
+  }
+  const short = args.amount.sub(available);
+  throw badRequest(
+    'ACCOUNT_MONEY_FOR_OTHER_CYCLE',
+    `${args.partner} has ${formatMoney(available)} EGP that ${args.cycleCode} can draw; ` +
+      `the other ${formatMoney(elsewhere)} EGP in his account was paid for other cycles and funds only those. ` +
+      `Record a payment of ${formatMoney(short)} EGP for ${args.cycleCode} first.`,
+    {
+      partner: args.partner,
+      cycle: args.cycleCode,
+      available: formatMoney(available),
+      elsewhere: formatMoney(elsewhere),
+      amount: formatMoney(args.amount),
+      short: formatMoney(short),
+    },
+  );
+}
+
+/**
+ * Refuse taking `amount` of untied money — a withdrawal, or a settlement's
+ * reversal taking a payout left in back out — beyond what is untied. An
+ * advance paid a supplier for a cycle; it is not money to take out
+ * (`ACCOUNT_MONEY_TIED_TO_CYCLES`, GUESS 2026-10-26).
+ */
+export function assertUntiedCovers(args: {
+  pots: Pots;
+  amount: Prisma.Decimal;
+  partner: string;
+}) {
+  const available = untiedAvailable(args.pots);
+  if (args.amount.lte(available)) return;
+  const tied = potsTotal(args.pots).sub(available);
+  if (tied.lte(0)) {
+    assertCovers({
+      balance: available,
+      amount: args.amount,
+      partner: args.partner,
+    });
+  }
+  throw badRequest(
+    'ACCOUNT_MONEY_TIED_TO_CYCLES',
+    `${args.partner}'s account holds ${formatMoney(available)} EGP tied to no cycle; ` +
+      `the other ${formatMoney(tied)} EGP was paid for cycles and funds only them. ` +
+      `${formatMoney(args.amount)} EGP cannot be taken from it.`,
+    {
+      partner: args.partner,
+      available: formatMoney(available),
+      tied: formatMoney(tied),
+      amount: formatMoney(args.amount),
+    },
   );
 }
 

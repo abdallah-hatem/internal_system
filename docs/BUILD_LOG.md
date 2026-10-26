@@ -19,6 +19,10 @@ in Vercel; without them it says it is not set up. State of the product and of pr
 2026-10-26 — a **Units sold** tile on the product page (owner: "a card to display how many units were sold"; BUSINESS_LOGIC §3)
 is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not merged.
 
+2026-10-26 — the three production findings (each cycle's funding is its own; an undone entry and its undo leave every
+period; the funding panel's skeleton) are on branch `worktree-agent-ac6239d7503848e74`, awaiting the owner's look; not
+merged. No migration.
+
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
   — two routes (China: China → UAE → Egypt; UAE direct: UAE → Egypt), three currencies with today's rate — one shared
@@ -280,14 +284,17 @@ _(none)_
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
 - **Found by the owner 2026-10-26, in production — fix next (awaiting his go):**
-  1. A cycle's funding panel shows each partner's whole account balance, so CYC-2026-0001's Contribute form offers the
+  1. **Built on branch `worktree-agent-ac6239d7503848e74`** (BUSINESS_LOGIC §8 "Each cycle's funding is its own").
+     A cycle's funding panel shows each partner's whole account balance, so CYC-2026-0001's Contribute form offers the
      50,775 Abdallah advanced for CYC-2026-0002. Owner: "each cycle has its own funding". Rule to apply: an advance
      funds only the cycle it was paid for; only money tied to no cycle (a payout left in) funds any cycle; the balance a
      cycle shows is what that cycle can draw.
-  2. The dashboard's This month Expenses reads −3,338.82: the bank fee was dated 15 Jul and reversed 26 Oct, so the
+  2. **Built on branch `worktree-agent-ac6239d7503848e74`** (BUSINESS_LOGIC §9, `common/undone-entries.ts`).
+     The dashboard's This month Expenses reads −3,338.82: the bank fee was dated 15 Jul and reversed 26 Oct, so the
      month holds only the reversal. An entry undone and its undo leave every period's expense figures (as
      `cashPosition` already does) — dashboard, P&L, settlement readers.
-  3. The funding panel has no skeleton (`account-funding-panel.tsx` renders nothing while loading).
+  3. **Built on branch `worktree-agent-ac6239d7503848e74`** (skeleton in the panel's shape; an error state with Try
+     again; still hidden without `partnerAccount.read`). The funding panel has no skeleton (`account-funding-panel.tsx` renders nothing while loading).
   4. To discuss: merge the cycle page's Participants card into one Funding card (target, advances on this cycle,
      contributions in equal thirds drawn from them, capital, the profit split, who is on the cycle) — sample first.
 - Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or

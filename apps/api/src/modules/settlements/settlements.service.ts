@@ -47,8 +47,8 @@ import { assertDayRange, businessDay, businessToday } from '../../common/dates';
 import { RUNNING_COST_SHARE_CATEGORY } from '../../common/ledger-categories';
 import {
   STANDING_MOVEMENT,
-  accountBalances,
-  assertCovers,
+  accountPots,
+  assertUntiedCovers,
   lockAccounts,
 } from '../../common/partner-account';
 import {
@@ -1258,13 +1258,15 @@ export class SettlementsService {
           tx,
           leftIn.map((m) => m.partnerUserId),
         );
-        const balances = await accountBalances(
+        // A payout left in is untied money; taking it back must not draw on
+        // advances paid for a cycle (owner 2026-10-26, per-cycle funding).
+        const pots = await accountPots(
           tx,
           leftIn.map((m) => m.partnerUserId),
         );
         for (const m of leftIn) {
-          assertCovers({
-            balance: balances.get(m.partnerUserId) ?? new Prisma.Decimal(0),
+          assertUntiedCovers({
+            pots: pots.get(m.partnerUserId)!,
             amount: m.amountEgp,
             partner: m.partner.partner?.displayName ?? m.partner.email,
           });
