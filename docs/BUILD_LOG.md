@@ -265,6 +265,13 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or
+  one of the partners. E.g. fuel for a delivery paid from a partner's own pocket: still booked as the same expense
+  (charged to a cycle, or a running cost shared from payouts, as today), but no business cash leaves (cash on hand does
+  not move) and the partner's running account is credited with it (the business owes it back; he withdraws it or
+  leaves it in for a contribution). The Ledger form and the Fuel quick action get the choice (a picker, default the
+  business); reversing the expense reverses the credit; the partner account may not go negative. Tests: cash on hand
+  unchanged, profit and running-cost shares as before, the account credited and reversed, the wrong partner refused.
 - **BUILT 2026-10-25 (phases 1 and 2), branch `agent-partner-accounts`, migration
   `20261025100000_partner_running_accounts`** — rules and guesses in BUSINESS_LOGIC §8 "A running account per
   partner". The owner waived the sample ("go ahead no need for mockups now"); static mockups made before that are in
