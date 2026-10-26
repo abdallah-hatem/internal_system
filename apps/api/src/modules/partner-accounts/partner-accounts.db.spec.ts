@@ -112,7 +112,10 @@ suite('partner running accounts (Postgres)', () => {
       },
     });
     const participants = [];
-    for (const p of people) {
+    // A second apart, so the order they joined in — which decides who takes
+    // the odd piastre — never ties on a fast run (it did, flakily).
+    const joined = Date.now() - 60_000; // in the past: a settlement reads anything newer as changed
+    for (const [i, p] of people.entries()) {
       participants.push(
         await prisma.cycleParticipant.create({
           data: {
@@ -120,6 +123,7 @@ suite('partner running accounts (Postgres)', () => {
             participantType: 'CORE_PARTNER',
             partnerUserId: p.id,
             contributionAmount: 0,
+            createdAt: new Date(joined + i * 1000),
           },
         }),
       );
@@ -236,6 +240,26 @@ suite('partner running accounts (Postgres)', () => {
     const { data } = await accounts.list();
     return data.find((a) => a.partnerUserId === userId)!.balanceEgp;
   };
+  const m2 = (v: { toFixed: (n: number) => string }) => v.toFixed(2);
+
+  /**
+   * Untied money in his account: a settlement's payout left in, which is how
+   * the business puts any there (§8 phase 2). Written as the row Mark paid
+   * writes, without settling a whole cycle for each withdrawal test — the
+   * real path is tested end to end under "a payout left in" below.
+   */
+  const leftIn = (userId: string, amountEgp: number) =>
+    prisma.partnerAccountMovement.create({
+      data: {
+        partnerUserId: userId,
+        kind: 'PAYOUT_LEFT_IN',
+        amount: amountEgp,
+        amountEgp,
+        occurredOn: new Date(`${businessToday()}T00:00:00Z`),
+        note: 'Payout left in (fixture)',
+      },
+    });
+
   const advance = (
     userId: string,
     cycleId: string,
@@ -506,6 +530,7 @@ suite('partner running accounts (Postgres)', () => {
             amount: 100,
             amountEgp: 100,
             occurredOn: new Date(),
+            cycleId: cycle.id,
           },
         });
       expect(
@@ -518,9 +543,9 @@ suite('partner running accounts (Postgres)', () => {
   // ─── Withdrawals ────────────────────────────────────────────────────
 
   it('refuses taking out more than the account holds, the second time too, and at the same moment', async () => {
-    const { cycle, people } = await cycleWithPartners();
+    const { people } = await cycleWithPartners();
     const who = people[0].id;
-    await advance(who, cycle.id, 1000);
+    await leftIn(who, 1000);
     expect(
       (await refusal(accounts.withdraw(who, { amountEgp: 1000.01 }, actor)))
         .code,
@@ -542,9 +567,9 @@ suite('partner running accounts (Postgres)', () => {
   });
 
   it('a withdrawal waits while another writer holds the account, so two cannot both read the same balance', async () => {
-    const { cycle, people } = await cycleWithPartners();
+    const { people } = await cycleWithPartners();
     const who = people[0].id;
-    await advance(who, cycle.id, 500);
+    await leftIn(who, 500);
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     let locked!: () => void;
@@ -573,8 +598,8 @@ suite('partner running accounts (Postgres)', () => {
   });
 
   it('a withdrawal moves no cash on hand and no profit either', async () => {
-    const { cycle, people } = await tradedCycle();
-    await advance(people[0].id, cycle.id, 1000);
+    const { people } = await tradedCycle();
+    await leftIn(people[0].id, 1000);
     const before = await moneyFigures();
     await accounts.withdraw(people[0].id, { amountEgp: 400 }, actor);
     expect(await moneyFigures()).toBe(before);
@@ -597,18 +622,16 @@ suite('partner running accounts (Postgres)', () => {
     expect(await balanceOf(people[0].id)).toBe('0.00');
   });
 
-  it('an advance already drawn into a cycle cannot be reversed: the account would go negative', async () => {
+  it('an advance already drawn into a cycle cannot be reversed: its cycle’s pot would go negative', async () => {
     const { cycle, people } = await cycleWithPartners();
     const adv = [];
     for (const p of people) adv.push((await advance(p.id, cycle.id, 300)).data);
     await accounts.contribute(cycle.id, { totalEgp: 600 }, actor);
-    expect(
-      (
-        await refusal(
-          accounts.reverse(people[0].id, adv[0].id, 'mistake', actor),
-        )
-      ).code,
-    ).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    const refused = await refusal(
+      accounts.reverse(people[0].id, adv[0].id, 'mistake', actor),
+    );
+    expect(refused.code).toBe('ADVANCE_ALREADY_DRAWN');
+    expect(refused.params).toMatchObject({ drawn: '200.00', amount: '300.00' });
   });
 
   it('reversing a contribution puts it back in his account and hands the capital back in the ledger', async () => {
@@ -708,15 +731,17 @@ suite('partner running accounts (Postgres)', () => {
       Number(before) + Number(left.amountEgp),
       2,
     );
-    // He takes it all out; reversing the settlement would leave him below zero.
-    await accounts.withdraw(
-      people[0].id,
-      { amountEgp: Number(await balanceOf(people[0].id)) },
-      actor,
-    );
+    // He takes all his untied money out; reversing the settlement would take
+    // the payout from the 33.34 left of his advance on this cycle — money
+    // only that cycle could draw (owner 2026-10-26) — so it is refused.
+    const untied = (await accounts.list()).data.find(
+      (a) => a.partnerUserId === people[0].id,
+    )!.untiedEgp;
+    expect(untied).toBe(m2(left.amountEgp));
+    await accounts.withdraw(people[0].id, { amountEgp: Number(untied) }, actor);
     expect(
       (await refusal(settlements.reverse(calc.id, 'recount', actor))).code,
-    ).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    ).toBe('ACCOUNT_MONEY_TIED_TO_CYCLES');
     expect(
       (await prisma.settlement.findUniqueOrThrow({ where: { id: calc.id } }))
         .status,
@@ -743,5 +768,256 @@ suite('partner running accounts (Postgres)', () => {
       Number(before) - Number(left.amountEgp),
       2,
     );
+  });
+
+  // ─── Each cycle's funding is its own (owner 2026-10-26) ─────────────
+
+  /**
+   * Production's case: the same three partners on two cycles; Abdallah
+   * advanced 50,775 and Shady 10,000 for cycle 2. Cycle 1's Contribute form
+   * offered Abdallah's 50,775 — money paid for cycle 2's goods.
+   */
+  async function twoCycles() {
+    const one = await cycleWithPartners();
+    const people = one.people;
+    const tag = randomUUID().slice(0, 8);
+    const two = await prisma.importCycle.create({
+      data: {
+        code: `ACCT2-${tag}`,
+        originType: 'UAE_DIRECT',
+        currency: 'EGP',
+        status: 'PURCHASING',
+      },
+    });
+    const joined = Date.now() - 60_000; // in the past: a settlement reads anything newer as changed
+    for (const [i, p] of people.entries()) {
+      await prisma.cycleParticipant.create({
+        data: {
+          cycleId: two.id,
+          participantType: 'CORE_PARTNER',
+          partnerUserId: p.id,
+          contributionAmount: 0,
+          createdAt: new Date(joined + i * 1000),
+        },
+      });
+    }
+    const [abdallah, shady, fares] = people.map((p) => p.id);
+    const advA = (await advance(abdallah, two.id, 50_775)).data;
+    const advS = (await advance(shady, two.id, 10_000)).data;
+    return { one: one.cycle, two, abdallah, shady, fares, advA, advS };
+  }
+  const fundingOf = async (cycleId: string) =>
+    (await accounts.cycleFunding(cycleId)).data.partners.map((p) => ({
+      available: p.availableEgp,
+      own: p.ownAdvancesEgp,
+      untied: p.untiedEgp,
+      elsewhere: p.elsewhereEgp,
+      balance: p.balanceEgp,
+    }));
+  const potsOfPartner = async (id: string) => {
+    const a = (await accounts.list()).data.find((x) => x.partnerUserId === id)!;
+    return {
+      untied: a.untiedEgp,
+      byCycle: a.byCycle.map((c) => [c.cycleCode, c.amountEgp]),
+    };
+  };
+
+  it('an advance on cycle 2 is not offered to cycle 1, and cycle 1 cannot draw it whatever is sent', async () => {
+    const { one, two, abdallah } = await twoCycles();
+    // Cycle 1 can draw nothing: the 50,775 is shown as cycle 2's, not offered.
+    expect(await fundingOf(one.id)).toEqual([
+      {
+        available: '0.00',
+        own: '0.00',
+        untied: '0.00',
+        elsewhere: '50775.00',
+        balance: '50775.00',
+      },
+      {
+        available: '0.00',
+        own: '0.00',
+        untied: '0.00',
+        elsewhere: '10000.00',
+        balance: '10000.00',
+      },
+      {
+        available: '0.00',
+        own: '0.00',
+        untied: '0.00',
+        elsewhere: '0.00',
+        balance: '0.00',
+      },
+    ]);
+    // Asked straight, one line for Abdallah alone: refused, naming why.
+    const r = await refusal(
+      accounts.contribute(
+        one.id,
+        { lines: [{ partnerUserId: abdallah, amountEgp: 100 }] },
+        actor,
+      ),
+    );
+    expect(r.code).toBe('ACCOUNT_MONEY_FOR_OTHER_CYCLE');
+    expect(r.params).toMatchObject({
+      available: '0.00',
+      elsewhere: '50,775.00',
+      amount: '100.00',
+      short: '100.00',
+      cycle: one.code,
+    });
+    // Nothing written.
+    expect(
+      await prisma.partnerAccountMovement.count({ where: { cycleId: one.id } }),
+    ).toBe(0);
+    expect(
+      (await accounts.cycleFunding(two.id)).data.partners[0].availableEgp,
+    ).toBe('50775.00');
+  });
+
+  it('on cycle 2 the advances are offered; equal thirds of 60,775 show and refuse the shortfalls', async () => {
+    const { two, abdallah, shady, fares } = await twoCycles();
+    expect((await fundingOf(two.id)).map((p) => [p.available, p.own])).toEqual([
+      ['50775.00', '50775.00'],
+      ['10000.00', '10000.00'],
+      ['0.00', '0.00'],
+    ]);
+    // Thirds of 60,775: 20,258.33 / 20,258.33 / 20,258.34 — Shady 10,258.33
+    // short, Fares all of his. All or nothing.
+    const r = await refusal(
+      accounts.contribute(two.id, { totalEgp: 60_775 }, actor),
+    );
+    expect(r.code).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    expect(r.params).toMatchObject({
+      balance: '10,000.00',
+      short: '10,258.33',
+    });
+    expect(
+      await prisma.partnerAccountMovement.count({
+        where: { cycleId: two.id, kind: 'CONTRIBUTION' },
+      }),
+    ).toBe(0);
+    // Thirds that fit everyone are drawn from cycle 2's own advances.
+    await advance(fares, two.id, 10_000);
+    await accounts.contribute(two.id, { totalEgp: 30_000 }, actor);
+    expect((await fundingOf(two.id)).map((p) => p.available)).toEqual([
+      '40775.00',
+      '0.00',
+      '0.00',
+    ]);
+    expect((await potsOfPartner(abdallah)).untied).toBe('0.00');
+    expect((await potsOfPartner(shady)).byCycle).toEqual([]);
+  });
+
+  it('a payout left in can fund either cycle; a draw takes the cycle’s own advance first', async () => {
+    const { one, two, fares } = await twoCycles();
+    await leftIn(fares, 500);
+    expect((await fundingOf(one.id))[2].available).toBe('500.00');
+    expect((await fundingOf(two.id))[2].available).toBe('500.00');
+    await accounts.contribute(
+      one.id,
+      { lines: [{ partnerUserId: fares, amountEgp: 300 }] },
+      actor,
+    );
+    expect((await fundingOf(two.id))[2]).toMatchObject({
+      available: '200.00',
+      untied: '200.00',
+    });
+    // On cycle 2 he advances 100 and contributes 250: his 100 first, then 150 untied.
+    await advance(fares, two.id, 100);
+    await accounts.contribute(
+      two.id,
+      { lines: [{ partnerUserId: fares, amountEgp: 250 }] },
+      actor,
+    );
+    expect(await potsOfPartner(fares)).toEqual({
+      untied: '50.00',
+      byCycle: [],
+    });
+    expect(await balanceOf(fares)).toBe('50.00');
+  });
+
+  it('never negative, per pot: a withdrawal or a draw never reaches another cycle’s advance', async () => {
+    const { one, abdallah, fares } = await twoCycles();
+    // Abdallah's whole 50,775 is cycle 2's: not one pound comes out.
+    const w = await refusal(
+      accounts.withdraw(abdallah, { amountEgp: 1 }, actor),
+    );
+    expect(w.code).toBe('ACCOUNT_MONEY_TIED_TO_CYCLES');
+    expect(w.params).toMatchObject({ available: '0.00', tied: '50,775.00' });
+    // With 200 untied, cycle 1 can draw 200 of him and not a piastre more.
+    await leftIn(abdallah, 200);
+    const more = await refusal(
+      accounts.contribute(
+        one.id,
+        { lines: [{ partnerUserId: abdallah, amountEgp: 200.01 }] },
+        actor,
+      ),
+    );
+    expect(more.code).toBe('ACCOUNT_MONEY_FOR_OTHER_CYCLE');
+    expect(more.params).toMatchObject({ available: '200.00', short: '0.01' });
+    await accounts.contribute(
+      one.id,
+      { lines: [{ partnerUserId: abdallah, amountEgp: 200 }] },
+      actor,
+    );
+    // Twice: the second sees what is left, which is cycle 2's alone.
+    expect(
+      (
+        await refusal(
+          accounts.contribute(
+            one.id,
+            { lines: [{ partnerUserId: abdallah, amountEgp: 0.01 }] },
+            actor,
+          ),
+        )
+      ).code,
+    ).toBe('ACCOUNT_MONEY_FOR_OTHER_CYCLE');
+    expect(
+      (await refusal(accounts.withdraw(abdallah, { amountEgp: 0.01 }, actor)))
+        .code,
+    ).toBe('ACCOUNT_MONEY_TIED_TO_CYCLES');
+    expect(await potsOfPartner(abdallah)).toMatchObject({ untied: '0.00' });
+    // Fares has nothing anywhere: the plain refusal.
+    expect(
+      (await refusal(accounts.withdraw(fares, { amountEgp: 1 }, actor))).code,
+    ).toBe('ACCOUNT_BALANCE_TOO_LOW');
+  });
+
+  it('reversing an advance on cycle 2 touches neither cycle 1 nor untied money; a drawn one is refused', async () => {
+    const { one, two, abdallah, shady, advA, advS } = await twoCycles();
+    // Shady funds cycle 1 from a payout left in.
+    await leftIn(shady, 1_000);
+    await accounts.contribute(
+      one.id,
+      { lines: [{ partnerUserId: shady, amountEgp: 1_000 }] },
+      actor,
+    );
+    const before1 = await fundingOf(one.id);
+    // His cycle 2 advance, undrawn, can be reversed — cycle 1 is untouched.
+    await accounts.reverse(shady, advS.id, 'entered twice', actor);
+    const after1 = await fundingOf(one.id);
+    expect(after1[1]).toEqual({
+      ...before1[1],
+      elsewhere: '0.00',
+      balance: '0.00',
+    });
+    expect(after1[1].available).toBe('0.00');
+    expect(
+      (await accounts.cycleFunding(one.id)).data.partners[1].contributionEgp,
+    ).toBe('1000.00');
+    // Abdallah's, once 10,000 of it is drawn into cycle 2, cannot be.
+    await accounts.contribute(
+      two.id,
+      { lines: [{ partnerUserId: abdallah, amountEgp: 45_000 }] },
+      actor,
+    );
+    const r = await refusal(
+      accounts.reverse(abdallah, advA.id, 'mistake', actor),
+    );
+    expect(r.code).toBe('ADVANCE_ALREADY_DRAWN');
+    expect(r.params).toMatchObject({ drawn: '45,000.00', cycle: two.code });
+    expect(await potsOfPartner(abdallah)).toEqual({
+      untied: '0.00',
+      byCycle: [[two.code, '5775.00']],
+    });
   });
 });

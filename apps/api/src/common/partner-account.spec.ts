@@ -6,9 +6,13 @@ import type { ExecutionContext } from '@nestjs/common';
 import { ROLES_KEY, RolesGuard } from './guards/roles.guard';
 import {
   assertCovers,
+  assertCycleCovers,
+  availableTo,
   balanceOf,
   equalShares,
   inTargetCurrency,
+  potsOf,
+  potsTotal,
 } from './partner-account';
 import {
   CycleAccountFundingController,
@@ -76,6 +80,99 @@ describe('the balance', () => {
     expect(() =>
       assertCovers({ balance: D(400), amount: D(400), partner: 'Fares' }),
     ).not.toThrow();
+  });
+});
+
+describe('each cycle’s funding is its own (owner 2026-10-26)', () => {
+  const m = (
+    kind: string,
+    amountEgp: number,
+    cycleId: string | null = null,
+    reversedAt: Date | null = null,
+  ) => ({ kind, amountEgp, cycleId, reversedAt });
+  const view = (movements: ReturnType<typeof m>[]) => {
+    const pots = potsOf(movements);
+    return {
+      untied: pots.untied.toFixed(2),
+      byCycle: Object.fromEntries(
+        [...pots.byCycle].map(([k, v]) => [k, v.toFixed(2)]),
+      ),
+    };
+  };
+
+  it('an advance sits in its own cycle’s pot; a payout left in is untied though it names the cycle it came from', () => {
+    expect(
+      view([
+        m('ADVANCE', 50_775, 'c2'),
+        m('PAYOUT_LEFT_IN', 300, 'c0'),
+        m('ADVANCE', 9_999, 'c2', new Date()),
+      ]),
+    ).toEqual({ untied: '300.00', byCycle: { c2: '50775.00' } });
+  });
+
+  it('a contribution draws its own cycle’s advance first, untied money for the rest; never another cycle’s', () => {
+    const movements = [
+      m('ADVANCE', 100, 'c2'),
+      m('ADVANCE', 1_000, 'c3'),
+      m('PAYOUT_LEFT_IN', 500),
+      m('CONTRIBUTION', 250, 'c2'),
+      m('WITHDRAWAL', 50),
+    ];
+    expect(view(movements)).toEqual({
+      untied: '300.00',
+      byCycle: { c3: '1000.00' },
+    });
+    const pots = potsOf(movements);
+    // The pots add up to the balance, exactly.
+    expect(potsTotal(pots).toFixed(2)).toBe(balanceOf(movements).toFixed(2));
+    expect(availableTo(pots, 'c1').toFixed(2)).toBe('300.00');
+    expect(availableTo(pots, 'c3').toFixed(2)).toBe('1300.00');
+  });
+
+  it('a draw beyond the cycle’s pot and untied money is refused, naming money held for other cycles', () => {
+    const pots = potsOf([m('ADVANCE', 50_775, 'c2')]);
+    let err: HttpException | undefined;
+    try {
+      assertCycleCovers({
+        pots,
+        cycleId: 'c1',
+        cycleCode: 'CYC-2026-0001',
+        amount: D(16_925),
+        partner: 'Abdallah',
+      });
+    } catch (e) {
+      err = e as HttpException;
+    }
+    expect(err?.getResponse()).toEqual(
+      expect.objectContaining({
+        code: 'ACCOUNT_MONEY_FOR_OTHER_CYCLE',
+        params: expect.objectContaining({
+          available: '0.00',
+          elsewhere: '50,775.00',
+          short: '16,925.00',
+        }) as unknown,
+      }),
+    );
+    expect(() =>
+      assertCycleCovers({
+        pots,
+        cycleId: 'c2',
+        cycleCode: 'CYC-2026-0002',
+        amount: D(50_775),
+        partner: 'Abdallah',
+      }),
+    ).not.toThrow();
+  });
+
+  it('untied money below zero (cross-cycle draws from before the rule) offers nothing, and hides no cycle’s pot', () => {
+    const pots = potsOf([
+      m('ADVANCE', 1_000, 'c2'),
+      m('ADVANCE', 400, 'c1'),
+      m('CONTRIBUTION', 900, 'c1'),
+    ]);
+    expect(pots.untied.toFixed(2)).toBe('-500.00');
+    expect(availableTo(pots, 'c1').toFixed(2)).toBe('0.00');
+    expect(availableTo(pots, 'c2').toFixed(2)).toBe('1000.00');
   });
 });
 

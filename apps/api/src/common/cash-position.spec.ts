@@ -36,7 +36,7 @@ function fakeDb(rows: Row[]) {
         Promise.resolve(
           rows
             .filter((r) => r.reversalOfId)
-            .map((r) => ({ reversalOfId: r.reversalOfId })),
+            .map((r) => ({ id: r.id, reversalOfId: r.reversalOfId })),
         ),
       groupBy: ({ where }: { where: Where }) => {
         const kept = rows.filter(

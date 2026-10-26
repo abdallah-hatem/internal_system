@@ -13,7 +13,9 @@ import { splitAcrossPartners } from '@/lib/funding-split';
 import { useToast } from '@/components/ui/toast';
 import { Money } from '@/components/ui/money';
 import { MoneyInput } from '@/components/ui/money-input';
-import { Loader2, PencilLine, Plus, Scale, Wallet } from '@/components/ui/icons';
+import { AlertTriangle, Loader2, PencilLine, Plus, Scale, Wallet } from '@/components/ui/icons';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonRegion, SkeletonText, repeat } from '@/components/ui/skeleton';
 import {
   FundingTargetDialog,
   RecordAdvanceDialog,
@@ -56,6 +58,13 @@ export interface AccountFunding {
     partnerUserId: string;
     participantId: string;
     name: string;
+    /** What THIS cycle can draw from his account (owner 2026-10-26): its own advances not yet drawn, and untied money. */
+    availableEgp: string;
+    ownAdvancesEgp: string;
+    untiedEgp: string;
+    /** Advanced for other cycles: in his account, never this cycle's to draw. */
+    elsewhereEgp: string;
+    /** His whole account. */
     balanceEgp: string;
     contributionEgp: string;
     fromAccountEgp: string;
@@ -67,6 +76,71 @@ export interface AccountFunding {
 }
 
 const num = (v: unknown) => Number(v ?? 0);
+
+/**
+ * The panel before its figures arrive, traced from it (LEARNINGS "Loading
+ * states"): the title and target line, the paid-so-far line and its bar, who
+ * paid (three rows, the partners a cycle has), and — for someone who may
+ * contribute — the Contribute box with its total and a row per partner.
+ */
+function AccountFundingSkeleton({ canContribute }: { canContribute: boolean }) {
+  const t = useTranslations('accounts');
+  return (
+    <section data-testid="account-funding-loading" className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {t('fundingTitle')}
+        </h2>
+        <SkeletonText size="sm" className="w-40" />
+      </div>
+      <SkeletonRegion testId="account-funding-skeleton">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <SkeletonText size="base" className="w-56" />
+            <SkeletonText size="xs" className="w-32" />
+          </div>
+          <Skeleton className="h-2 w-full rounded-full" />
+        </div>
+        <SkeletonText size="xs" className="mt-5 mb-1 w-28" />
+        <div className="divide-y divide-border">
+          {repeat(3, (i) => (
+            <div key={i} className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-4">
+              <SkeletonText size="base" className="w-20" />
+              <SkeletonText size="sm" className="w-24" />
+              <SkeletonText size="xs" className="w-28" />
+              <SkeletonText size="xs" className="w-16" />
+            </div>
+          ))}
+        </div>
+        {canContribute && (
+          <div className="mt-5 rounded-lg border border-border p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <SkeletonText size="sm" className="w-44" />
+              <SkeletonText size="xs" className="w-40" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <SkeletonText size="sm" className="mb-1 w-32" />
+                <Skeleton className="h-9 w-full rounded-lg" />
+              </div>
+            </div>
+            <div className="mt-3 divide-y divide-border">
+              {repeat(3, (i) => (
+                <div key={i} className="grid grid-cols-2 items-center gap-2 py-2 sm:grid-cols-4">
+                  <SkeletonText size="base" className="w-20" />
+                  <SkeletonText size="sm" className="w-24" />
+                  <SkeletonText size="sm" className="w-20" />
+                  <SkeletonText size="sm" className="w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </SkeletonRegion>
+    </section>
+  );
+}
 
 export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
   const t = useTranslations('accounts');
@@ -87,11 +161,12 @@ export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
   // and once typed a refetch never overwrites it (CLAUDE.md §0).
   const [typedTotal, setTypedTotal] = useState<string | null>(null);
 
-  const { data } = useQuery<AccountFunding>({
+  const funding = useQuery<AccountFunding>({
     queryKey: ['account-funding', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/account-funding`).then((r) => r.data.data ?? r.data),
     enabled: canRead,
   });
+  const data = funding.data;
 
   const contribute = useMutation({
     mutationFn: (totalEgp: number) =>
@@ -107,7 +182,27 @@ export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
     },
   });
 
-  if (!canRead || !data?.paidSoFar) return null;
+  // Hidden for good from someone who may not read the accounts; otherwise the
+  // card holds its place while it loads, and says so if it could not.
+  if (!canRead) return null;
+  if (funding.isLoading) return <AccountFundingSkeleton canContribute={canContribute} />;
+  if (funding.isError || !data?.paidSoFar) {
+    return (
+      <section data-testid="account-funding-error" className="rounded-xl border border-border bg-card p-5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {t('fundingTitle')}
+        </h2>
+        <EmptyState
+          size="compact"
+          icon={AlertTriangle}
+          title={t('fundingLoadFailed')}
+          action={{ label: t('retry'), onClick: () => void funding.refetch() }}
+          className="text-destructive"
+        />
+      </section>
+    );
+  }
 
   const target = data.target;
   const paidInTarget = num(data.paidSoFar.inTargetCurrency);
@@ -123,7 +218,9 @@ export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
   const { shares } = splitAcrossPartners(num(total), 0, data.partners.length);
   const rows = data.partners.map((p, i) => {
     const share = shares[i] ?? 0;
-    const after = Math.round((num(p.balanceEgp) - share) * 100) / 100;
+    // Against what this cycle can draw, never his whole account: an advance
+    // for another cycle is not this cycle's money (owner 2026-10-26).
+    const after = Math.round((num(p.availableEgp) - share) * 100) / 100;
     return { ...p, share, after };
   });
   const someoneShort = rows.some((r) => r.after < 0);
@@ -258,7 +355,7 @@ export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
               <div className="mt-3 divide-y divide-border">
                 <div className="hidden grid-cols-4 items-center gap-2 py-2 text-xs text-muted-foreground sm:grid">
                   <span>{t('colPartner')}</span>
-                  <span>{t('colBalance')}</span>
+                  <span>{t('colAvailable')}</span>
                   <span>{t('colShare')}</span>
                   <span>{t('colAfter')}</span>
                 </div>
@@ -272,7 +369,14 @@ export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
                         </span>
                       )}
                     </span>
-                    <span className="text-sm tabular-nums"><Money value={r.balanceEgp} /></span>
+                    <span data-testid="contribute-available" className="text-sm tabular-nums">
+                      <Money value={r.availableEgp} />
+                      {num(r.elsewhereEgp) > 0 && (
+                        <span data-testid="held-elsewhere" className="block text-[11px] font-normal text-muted-foreground">
+                          {t.rich('heldElsewhere', { amount: () => <Money value={r.elsewhereEgp} /> })}
+                        </span>
+                      )}
+                    </span>
                     <span data-testid="contribute-share" className="text-sm tabular-nums"><Money value={r.share} /></span>
                     {r.after < 0 ? (
                       <span data-testid="contribute-short" className="text-xs text-destructive">

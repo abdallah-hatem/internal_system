@@ -89,6 +89,8 @@ beforeEach(() => {
       leftInEgp: '0.00',
       contributedEgp: '20000.00',
       withdrawnEgp: '5000.00',
+      untiedEgp: '0.00',
+      byCycle: [{ cycleId: 'c-2', cycleCode: 'CYC-2026-0002', amountEgp: '25000.00' }],
       movements: [
         movement('m3', 'WITHDRAWAL', '-5000.00'),
         movement('m2', 'CONTRIBUTION', '-20000.00'),
@@ -122,6 +124,12 @@ describe('running accounts on the Partners page', () => {
     expect(entries.map((e) => e.getAttribute('data-kind'))).toEqual(['WITHDRAWAL', 'CONTRIBUTION', 'ADVANCE', 'ADVANCE']);
     expect(entries[1].textContent).toContain('Into cycle');
     expect(entries[1].textContent).toContain('-20,000.00 EGP');
+  });
+
+  it('splits the balance by pot: untied money, and what only one cycle can draw (owner 2026-10-26)', async () => {
+    wrap();
+    const pots = await screen.findByTestId('account-pots');
+    expect(pots.textContent).toBe('Tied to no cycle: 0.00 EGPFor CYC-2026-0002: 25,000.00 EGP');
   });
 
   it('a reversed entry is marked and offers no second reversal', async () => {

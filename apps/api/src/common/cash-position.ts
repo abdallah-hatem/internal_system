@@ -1,6 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Decimal is a value type, not data access; cash in EGP must not become a float
 import { Prisma } from '@prisma/client';
 import { NOT_CASH_CATEGORIES, NOT_CASH_TYPES } from './ledger-categories';
+import { standingEntriesWhere, undoneEntryIds } from './undone-entries';
 
 /**
  * Money actually in hand: everything in, less everything out — leaving out the
@@ -37,12 +38,9 @@ export async function cashPosition(
   // looked right. Every undo mirrors its entry's full amount (ledger,
   // purchases, lenders, transfers, running costs), so leaving both out
   // changes cash in and out and never cash on hand.
-  const undone = (
-    await db.financialTransaction.findMany({
-      where: { reversalOfId: { not: null } },
-      select: { reversalOfId: true },
-    })
-  ).map((r) => r.reversalOfId as string);
+  // The one rule for an undone pair, shared with every profit figure
+  // (`common/undone-entries.ts`, rule 11).
+  const undone = await undoneEntryIds(db);
 
   const flows = await db.financialTransaction.groupBy({
     by: ['direction'],
@@ -50,8 +48,7 @@ export async function cashPosition(
       ...within,
       category: { notIn: [...NOT_CASH_CATEGORIES] },
       type: { notIn: [...NOT_CASH_TYPES] },
-      reversalOfId: null,
-      ...(undone.length > 0 ? { id: { notIn: undone } } : {}),
+      ...standingEntriesWhere(undone),
     },
     _sum: { amount: true },
   });

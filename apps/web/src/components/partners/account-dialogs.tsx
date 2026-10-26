@@ -53,6 +53,10 @@ export interface PartnerAccount {
   leftInEgp: string;
   contributedEgp: string;
   withdrawnEgp: string;
+  /** His balance by pot (owner 2026-10-26): money tied to no cycle, which is all that can come out… */
+  untiedEgp: string;
+  /** …and each cycle's undrawn advances, which only that cycle can draw. */
+  byCycle: { cycleId: string; cycleCode: string; amountEgp: string }[];
   movements: AccountMovement[];
 }
 
@@ -210,7 +214,7 @@ export function WithdrawDialog({ account, onClose }: { account: PartnerAccount; 
   return (
     <Dialog
       title={t('withdrawTitle', { name: account.name })}
-      description={t.rich('withdrawHint', { amount: () => <Money value={account.balanceEgp} /> })}
+      description={t.rich('withdrawHint', { amount: () => <Money value={Math.max(Number(account.untiedEgp ?? account.balanceEgp), 0)} /> })}
       onClose={onClose}
       busy={save.isPending}
       cardProps={{ 'data-testid': 'withdraw-dialog' }}

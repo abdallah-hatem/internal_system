@@ -1798,6 +1798,9 @@
     "AI_PROVIDER_TOO_SMALL": "This AI provider's allowance is too small for one question with the assistant's tools. Switch to one with a larger allowance (Gemini's free tier fits).",
     "ACCOUNT_AMOUNT_NOT_POSITIVE": "The amount must be more than zero.",
     "ACCOUNT_BALANCE_TOO_LOW": "{partner}’s account holds {balance} EGP, so {amount} EGP cannot be taken from it. Record a payment of {short} EGP first.",
+    "ACCOUNT_MONEY_FOR_OTHER_CYCLE": "{partner} has {available} EGP that {cycle} can draw; the other {elsewhere} EGP in his account was paid for other cycles and funds only those. Record a payment of {short} EGP for {cycle} first.",
+    "ACCOUNT_MONEY_TIED_TO_CYCLES": "{partner}’s account holds {available} EGP tied to no cycle; the other {tied} EGP was paid for cycles and funds only them. {amount} EGP cannot be taken from it.",
+    "ADVANCE_ALREADY_DRAWN": "{drawn} EGP of this payment was already drawn into {cycle}. Reverse that contribution first.",
     "ACCOUNT_RATE_REQUIRED": "Say what {currency} was worth in pounds on that day.",
     "CYCLE_CLOSED_FOR_ACCOUNTS": "Cycle {cycle} is {status}; its funding from the partners’ accounts cannot change.",
     "CONTRIBUTION_TOTAL_OR_LINES": "Give either a total to split equally or an amount per partner.",
@@ -2708,7 +2711,7 @@
     "colShare": "His share",
     "colAfter": "Left after",
     "short": "Short <amount></amount> — record his payment first",
-    "noNegative": "An account never goes below zero. The last partner takes the odd piastre, so the shares add up to the total exactly.",
+    "noNegative": "Each cycle draws only what was paid for it and payouts left in — never a payment made for another cycle. An account never goes below zero. The last partner takes the odd piastre, so the shares add up to the total exactly.",
     "contribute": "Contribute",
     "contributed": "Contributed {total} EGP from the accounts",
     "contributeFailed": "Could not contribute from the accounts",
@@ -2729,7 +2732,7 @@
     "advanceFailed": "Could not record the payment",
     "takeOut": "Take money out",
     "withdrawTitle": "Take money out of {name}’s account",
-    "withdrawHint": "His account holds <amount></amount>. No more can be taken out.",
+    "withdrawHint": "His account holds <amount></amount> tied to no cycle. No more can be taken out; payments made for a cycle fund only that cycle.",
     "amountEgp": "Amount (EGP)",
     "date": "Date",
     "withdrawSaved": "Taken out of {name}’s account",
@@ -2767,6 +2770,12 @@
     "leaveInTitle": "Pay out {cycle}",
     "leaveInHint": "Tick a partner to leave his payout in his running account instead of taking it. Either way it is recorded as paid to him.",
     "leaveInLabel": "Leave {name}’s payout in his account",
-    "payNow": "Mark paid"
+    "payNow": "Mark paid",
+    "colAvailable": "For this cycle",
+    "heldElsewhere": "+ <amount></amount> paid for other cycles",
+    "fundingLoadFailed": "Could not load this cycle’s funding",
+    "retry": "Try again",
+    "untiedPot": "Tied to no cycle",
+    "cyclePot": "For {cycle}"
   }
 }
