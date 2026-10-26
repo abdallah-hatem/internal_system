@@ -15,6 +15,11 @@ and partner account now, leave the branches"). **Customers with branches stay on
 lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
+**Before branches can ship (found 2026-10-26):** on `dev`, 31 API tests fail with branches merged —
+`src/modules/sales/walk-in.spec.ts` and `src/modules/assistant/tools/sales.spec.ts`: a sale's default-branch lookup is
+missing from their fakes (or from the walk-in path), so a walk-in or assistant sale answers INTERNAL_SERVER_ERROR. The
+26 Oct release left branches out and passes (2,224 API, 1,467 web). Fix these with the branches work, and check the
+real walk-in sale against a branch-less customer, not only the fakes.
 Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **server-side lists + the Sales customer filter** (`agent-lists`, `5c75bcb`) and **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
