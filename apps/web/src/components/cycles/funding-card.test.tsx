@@ -90,6 +90,26 @@ const partnerRow = (id: string, name: string, share: string, available: string, 
   fromAccountEgp: '0.00',
 });
 
+const putInRow = (
+  id: string,
+  name: string,
+  v: { total?: string; entered?: string; fromAccount?: string; undrawn?: string; advances?: ReturnType<typeof advance>[] },
+) => {
+  const entered = v.entered ?? '0.00';
+  const fromAccount = v.fromAccount ?? '0.00';
+  return {
+    partnerUserId: `u-${id}`,
+    name,
+    totalEgp: v.total ?? '0.00',
+    inTargetCurrency: null,
+    contributionEgp: (Number(entered) + Number(fromAccount)).toFixed(2),
+    enteredEgp: entered,
+    fromAccountEgp: fromAccount,
+    undrawnAdvancesEgp: v.undrawn ?? '0.00',
+    advances: v.advances ?? [],
+  };
+};
+
 const person = (id: string, name: string, contribution = '0', type = 'CORE_PARTNER'): CardParticipant => ({
   id: `p-${id}`,
   participantType: type,
@@ -115,6 +135,20 @@ function cycleTwo(): AccountFunding {
     fundingLock: null,
     closed: false,
     target: { amount: '120000.00', currency: 'EGP', fxRateToEgp: '1', amountEgp: '120000.00' },
+    putIn: {
+      totalEgp: '60775.00',
+      inTargetCurrency: '60775.00',
+      byPartner: [
+        putInRow('a', 'Abdallah', { total: '50775.00', undrawn: '50775.00', advances: [advance('a1', '50775.00')] }),
+        putInRow('s', 'Shady', {
+          total: '10000.00',
+          undrawn: '10000.00',
+          advances: [advance('s1', '6000.00', '2026-10-18'), advance('s2', '4000.00', '2026-10-21')],
+        }),
+        putInRow('f', 'Fares', {}),
+      ],
+    },
+    friends: null,
     paidSoFar: {
       totalEgp: '60775.00',
       inTargetCurrency: '60775.00',
@@ -146,6 +180,63 @@ function cycleTwo(): AccountFunding {
       { participantId: 'p-f', participantType: 'CORE_PARTNER', name: 'Fares', contributionEgp: '0.00', customProfitPct: null, investorFeePct: null, profitPct: null },
     ],
     profitSplit: { basis: 'NONE', equal: false, problem: null },
+  };
+}
+
+/**
+ * Production on 2026-10-26: CYC-2026-0001, which Ahmad Eraiby paid in full
+ * (193,380.87 EGP at his rate; the cost to fund 193,382.28). The partners
+ * repaid him 201,168.99 in three dirham thirds at 14 / 14.50 / 14.90, and
+ * each entered 67,056.33 as his contribution — no advances on it.
+ */
+function cycleOne(exchange = '7788.12', split: string[] | null = ['2596.04', '2596.04', '2596.04']): AccountFunding {
+  const two = cycleTwo();
+  const names = ['Abdallah', 'Shady', 'Fares'];
+  return {
+    ...two,
+    cycleId: 'c-2',
+    code: 'CYC-2026-0001',
+    status: 'SELLING',
+    currency: 'AED',
+    target: null,
+    putIn: {
+      totalEgp: '201168.99',
+      inTargetCurrency: null,
+      byPartner: ['a', 's', 'f'].map((id, i) => putInRow(id, names[i], { total: '67056.33', entered: '67056.33' })),
+    },
+    friends: {
+      names: ['Ahmad Eraiby'],
+      financedEgp: '193380.87',
+      repaidEgp: '201168.99',
+      exchangeDifferenceEgp: exchange,
+      exchangeSplit: split
+        ? ['a', 's', 'f'].map((id, i) => ({ participantId: `p-${id}`, participantType: 'CORE_PARTNER', name: names[i], amountEgp: split[i] }))
+        : null,
+    },
+    paidSoFar: { totalEgp: '0.00', inTargetCurrency: null, byPartner: [] },
+    partners: ['a', 's', 'f'].map((id, i) => ({
+      ...partnerRow(id, names[i], '67056.33', '0.00', '0.00', '67056.33'),
+      stillToGiveEgp: '0.00',
+    })),
+    toFundEgp: '193382.28',
+    partnersContributedEgp: '201168.99',
+    stillToContributeEgp: '0.00',
+    shares: { basis: 'REPAID', ofEgp: '201168.99', partnersEgp: '201168.99', stillEgp: '0.00' },
+    participants: two.participants.map((p, i) => ({ ...p, contributionEgp: '67056.33', profitPct: i === 2 ? '33.34' : '33.33' })),
+    profitSplit: { basis: 'CONTRIBUTIONS', equal: true, problem: null },
+  };
+}
+
+function asCycleOne(exchange?: string, split?: string[] | null) {
+  state.funding = cycleOne(exchange, split);
+  cycleParticipants = [person('a', 'Abdallah', '67056.33'), person('s', 'Shady', '67056.33'), person('f', 'Fares', '67056.33')];
+  totals = {
+    profitBasis: 'CONTRIBUTIONS',
+    cycleCostEgp: '193382.28',
+    landedEgp: '193382.28',
+    transferredInEgp: '0.00',
+    toFundEgp: '193382.28',
+    lenderFinancedEgp: '193380.87',
   };
 }
 
@@ -211,18 +302,20 @@ describe('one Funding card, three sections in order', () => {
 });
 
 describe('production’s cycle 2 (2026-10-26)', () => {
-  it('reads 60,775 paid of a 120,000 target, with the bar, and each partner’s payments — Fares with a dash', async () => {
+  it('reads 60,775 put in of a 120,000 target, with the bar, and each partner’s payments — Fares with a dash', async () => {
     wrap();
-    expect(text(await screen.findByTestId('paid-of-target'))).toBe('60,775.00 EGP paid so far · 59,225.00 EGP to go');
+    expect(text(await screen.findByTestId('paid-of-target'))).toBe('60,775.00 EGP put in so far · 59,225.00 EGP to go');
     expect(screen.getByTestId('funding-progress').getAttribute('aria-valuenow')).toBe('50');
     expect(text(screen.getByTestId('funding-target'))).toContain('Target 120,000.00 EGP');
     const rows = rowsOf('paid-row');
     expect(rows).toHaveLength(3);
     expect(text(rows[0])).toContain('Abdallah');
     expect(text(within(rows[0]).getByTestId('paid-amount'))).toBe('50,775.00 EGP');
-    expect(text(rows[0])).toContain('Oct 20, 2026');
+    // An advance keeps its day, and says it is not yet drawn into capital.
+    expect(text(within(rows[0]).getByTestId('paid-how'))).toBe('paid Oct 20, 2026, not drawn yet');
+    expect(text(within(rows[0]).getByTestId('paid-into-capital'))).toContain('—');
     // Several payments: their count, not one day.
-    expect(text(rows[1])).toContain('2 payments');
+    expect(text(within(rows[1]).getByTestId('paid-how'))).toBe('2 payments, not drawn yet');
     expect(text(within(rows[2]).getByTestId('paid-amount'))).toBe('—');
     expect(text(within(rows[2]).getByTestId('paid-into-capital'))).toBe('');
     expect(screen.getByTestId('record-advance').textContent).toContain(en.fundingCard.recordWhatIPaid);
@@ -240,11 +333,20 @@ describe('production’s cycle 2 (2026-10-26)', () => {
     expect(pills.map((p) => p.getAttribute('data-short'))).toEqual(['false', 'true', 'true']);
   });
 
-  it('into capital: what his contributions drew from what he paid here', async () => {
-    state.funding.paidSoFar.byPartner[0].intoCapitalEgp = '40000.00';
+  it('into capital: his contribution; part drawn from his account and part still an advance reads as both, counted once', async () => {
+    state.funding.putIn.byPartner[0] = putInRow('a', 'Abdallah', {
+      total: '50775.00',
+      fromAccount: '10000.00',
+      undrawn: '40775.00',
+      advances: [advance('a1', '50775.00')],
+    });
     wrap();
     const rows = await screen.findAllByTestId('paid-row');
-    expect(text(within(rows[0]).getByTestId('paid-into-capital'))).toContain('40,000.00 EGP');
+    expect(text(within(rows[0]).getByTestId('paid-amount'))).toBe('50,775.00 EGP');
+    expect(text(within(rows[0]).getByTestId('paid-into-capital'))).toContain('10,000.00 EGP');
+    expect(text(within(rows[0]).getByTestId('paid-how'))).toBe(
+      'from his account 10,000.00 EGP · paid Oct 20, 2026, not drawn yet 40,775.00 EGP',
+    );
     // Paid, none of it drawn yet: a dash, not a zero that looks like a figure.
     expect(text(within(rows[1]).getByTestId('paid-into-capital'))).toContain('—');
   });
@@ -269,7 +371,7 @@ describe('no target, a friend paid, an investor', () => {
     state.funding.paidSoFar.inTargetCurrency = null;
     state.funding.shares = { basis: 'COST_TO_FUND', ofEgp: '95000.00', partnersEgp: '95000.00', stillEgp: '95000.00' };
     wrap();
-    expect(text(await screen.findByTestId('paid-so-far'))).toBe('60,775.00 EGP paid so far');
+    expect(text(await screen.findByTestId('paid-so-far'))).toBe('60,775.00 EGP put in so far');
     expect(screen.queryByTestId('funding-progress')).toBeNull();
     expect(screen.queryByTestId('paid-of-target')).toBeNull();
     expect(text(screen.getByTestId('funding-target'))).toContain(en.accounts.noTarget);
@@ -311,6 +413,107 @@ describe('no target, a friend paid, an investor', () => {
     expect(text(row)).toContain('20,000.00 EGP');
     expect(text(row)).toContain('fee 15%');
     expect(within(row).queryByTestId('share-status')).toBeNull();
+  });
+});
+
+describe('production’s cycle 1: a friend paid, the partners repaid him (owner 2026-10-26)', () => {
+  it('reads 201,168.99 put in, 67,056.33 by each, as repaying Ahmad Eraiby — not zero', async () => {
+    asCycleOne();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(text(await screen.findByTestId('paid-so-far'))).toBe('201,168.99 EGP put in so far');
+    const rows = rowsOf('paid-row');
+    expect(rows.map((r) => text(within(r).getByTestId('paid-amount')))).toEqual(['67,056.33 EGP', '67,056.33 EGP', '67,056.33 EGP']);
+    expect(rows.map((r) => text(within(r).getByTestId('paid-how')))).toEqual([
+      'repaid Ahmad Eraiby',
+      'repaid Ahmad Eraiby',
+      'repaid Ahmad Eraiby',
+    ]);
+    expect(text(within(rows[0]).getByTestId('paid-into-capital'))).toContain('67,056.33 EGP');
+  });
+
+  it('shares are thirds of what was repaid him — 67,056.33 each, every one covered with nothing left over', async () => {
+    asCycleOne();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const contributions = await screen.findByTestId('funding-contributions');
+    expect(text(contributions.querySelector('h3'))).toBe(
+      'Contributions — equal thirds of what was repaid to Ahmad Eraiby, 201,168.99 EGP',
+    );
+    const rows = within(contributions).getAllByTestId('share-row');
+    expect(rows.map((r) => text(within(r).getByTestId('share-amount')))).toEqual(['67,056.33 EGP', '67,056.33 EGP', '67,056.33 EGP']);
+    const pills = rows.map((r) => within(r).getByTestId('share-status'));
+    expect(pills.map(text)).toEqual(['covered', 'covered', 'covered']);
+    expect(pills.map((p) => p.getAttribute('data-short'))).toEqual(['false', 'false', 'false']);
+  });
+
+  it('states the exchange difference as a cost taken from the profit, each partner’s part, and that capital comes back whole', async () => {
+    asCycleOne();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const line = await screen.findByTestId('exchange-difference');
+    expect(text(line)).toBe(
+      'Exchange difference on repaying Ahmad Eraiby: 7,788.12 EGP (2,596.04 EGP each) — a cost to the cycle, taken from its profit; each partner still gets his full contribution back as capital.',
+    );
+    expect(line.getAttribute('data-gain')).toBe('false');
+    // Inside Contributions, after the shares.
+    expect(screen.getByTestId('funding-contributions').contains(line)).toBe(true);
+  });
+
+  it('the rate fell: a gain, said as one, its figure never shown with a minus', async () => {
+    asCycleOne('-1200.00', ['-400.00', '-400.00', '-400.00']);
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const line = await screen.findByTestId('exchange-difference');
+    expect(line.getAttribute('data-gain')).toBe('true');
+    expect(text(line)).toBe(
+      'Exchange gain on repaying Ahmad Eraiby: 1,200.00 EGP (400.00 EGP each) — the rate fell since he paid, so it adds to the cycle’s profit; each partner still gets his full contribution back as capital.',
+    );
+  });
+
+  it('unequal parts are named one by one; no split to show leaves the figure alone', async () => {
+    asCycleOne('1000.00', ['300.00', '300.00', '400.00']);
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const line = await screen.findByTestId('exchange-difference');
+    expect(text(line)).toContain('1,000.00 EGP (Abdallah 300.00 EGP · Shady 300.00 EGP · Fares 400.00 EGP) — a cost');
+    cleanup();
+    asCycleOne('1000.00', null);
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(text(await screen.findByTestId('exchange-difference'))).toContain('Ahmad Eraiby: 1,000.00 EGP — a cost');
+  });
+
+  it('no line before he is repaid, none at an unchanged rate, and none where no friend paid', async () => {
+    asCycleOne('0.00');
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-card');
+    expect(screen.queryByTestId('exchange-difference')).toBeNull();
+    cleanup();
+    asCycleOne();
+    state.funding.friends = { ...state.funding.friends!, repaidEgp: '0.00' };
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-card');
+    expect(screen.queryByTestId('exchange-difference')).toBeNull();
+    cleanup();
+    state.funding = cycleTwo();
+    wrap();
+    await screen.findByTestId('funding-card');
+    expect(screen.queryByTestId('exchange-difference')).toBeNull();
+  });
+
+  it('a contribution entered directly on a cycle no friend paid reads “contributed”', async () => {
+    state.funding.putIn.byPartner[2] = putInRow('f', 'Fares', { total: '5000.00', entered: '5000.00' });
+    wrap();
+    const rows = await screen.findAllByTestId('paid-row');
+    expect(text(within(rows[2]).getByTestId('paid-how'))).toBe('contributed');
+  });
+
+  it('reads in Arabic: repaying him, the exchange difference, the figures left-to-right', async () => {
+    asCycleOne();
+    wrap('ar', { lenders: ['Ahmad Eraiby'] });
+    const card = await screen.findByTestId('funding-card');
+    expect(card.textContent).not.toMatch(/(fundingCard|accounts|cycles)\.[a-zA-Z]/);
+    expect(text(screen.getAllByTestId('paid-how')[0])).toBe('سدّد لـ Ahmad Eraiby');
+    const line = screen.getByTestId('exchange-difference');
+    expect(text(line)).toContain('فرق العملة في السداد لـ Ahmad Eraiby');
+    expect(text(line)).toContain('لكل منهم');
+    for (const m of line.querySelectorAll('[data-slot="money"]')) expect(m.getAttribute('dir')).toBe('ltr');
+    expect(text(screen.getByTestId('paid-so-far'))).toContain('201,168.99');
   });
 });
 

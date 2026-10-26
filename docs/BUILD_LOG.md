@@ -23,6 +23,13 @@ is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not 
 period; the funding panel's skeleton) are on branch `worktree-agent-ac6239d7503848e74`, awaiting the owner's look; not
 merged. No migration.
 
+2026-10-26 — the Funding card reads what each partner **put in** (owner, on CYC-2026-0001: "a bit confusing, seeing funding
+zero, while each one of us clearly paid 67,056.33 to ahmad"; BUSINESS_LOGIC §8 "Put in so far, shares of what was repaid,
+the exchange difference"): section 1 "Put in so far" (contribution + undrawn advances, "repaid Ahmad Eraiby"), shares of
+what was repaid to a friend once repaid, and the exchange difference as its own line. On branch
+`worktree-agent-a7c78ce1e909cbbd7`, awaiting the owner's look; not merged. No migration; display and
+`GET /cycles/:id/account-funding` only — nothing counted or settled changes.
+
 2026-10-26 — **one Funding card** on the cycle page (owner, from the sample: "build it like this"; BUSINESS_LOGIC §8
 "The cycle page's money-in is one Funding card") replaces the Participants card and the funding panel. On branch
 `worktree-agent-a27e6df3502ff980b` (built on the three findings above), awaiting the owner's look; not merged. No

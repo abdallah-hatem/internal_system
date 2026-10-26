@@ -37,20 +37,28 @@ import { FundingNote, lenderList, type FundingTotals } from '@/components/cycles
  *
  * Top to bottom:
  *
- * 1. **The target and paid so far** — the target's progress, and per core
- *    partner what he paid on this cycle, the day, and how much of it his
- *    contributions drew ("into capital"); "Record what I paid".
- * 2. **Contributions** — each core partner's equal share (of the target, or of
- *    the cost to fund: the server's `shares.basis`), what this cycle can draw
- *    for him, and "covered · N left over" or "N short". "Contribute equal
- *    thirds" draws from the accounts; "Enter amounts" and "Split equally"
- *    write contributions by hand, as before. Investors keep their own row.
+ * 1. **The target and put in so far** (owner 2026-10-26) — the target's
+ *    progress, and per partner everything he has put into this cycle: his
+ *    contribution plus his advances on it not yet drawn (`putIn`), what of it
+ *    is capital, and how it came in — "repaid Ahmad Eraiby" for a contribution
+ *    entered directly on a cycle a friend paid, "contributed" otherwise, "from
+ *    his account", and an undrawn advance with its day; "Record what I paid".
+ * 2. **Contributions** — each core partner's equal share (of the target, the
+ *    cost to fund, or — on a cycle a friend paid, once he is repaid anything —
+ *    what the partners repaid him: the server's `shares.basis`), what this
+ *    cycle can draw for him, and "covered · N left over" or "N short".
+ *    "Contribute equal thirds" draws from the accounts; "Enter amounts" and
+ *    "Split equally" write contributions by hand, as before. Investors keep
+ *    their own row. On a cycle with repayments to a friend, the exchange
+ *    difference on them, as a cost (or a gain) taken from the profit, with
+ *    each one's part by the profit split (`friends`).
  * 3. **The profit split and who is on the cycle** — "Change split" (the
  *    agreed percentages), "+ Add investor".
  *
  * Every figure is the server's (`GET /cycles/:id/account-funding`), one
- * definition each: shares by `contributionShares`, into capital from
- * `potsOf`, the split line from `profitSplitView`.
+ * definition each: put in by `putInSoFar`, shares by `contributionShares`,
+ * the exchange difference by `exchangeDifferenceEgp` (the settlement's) and
+ * its parts by `profitShareOf`, the split line from `profitSplitView`.
  */
 
 export interface CardParticipant {
@@ -70,6 +78,31 @@ export interface AccountFunding {
   fundingLock: string | null;
   closed: boolean;
   target: { amount: string; currency: string; fxRateToEgp: string; amountEgp: string } | null;
+  /** Everything each partner has put into this cycle: contribution + undrawn advances (owner 2026-10-26). */
+  putIn: {
+    totalEgp: string;
+    inTargetCurrency: string | null;
+    byPartner: {
+      partnerUserId: string;
+      name: string;
+      totalEgp: string;
+      inTargetCurrency: string | null;
+      contributionEgp: string;
+      enteredEgp: string;
+      fromAccountEgp: string;
+      undrawnAdvancesEgp: string;
+      advances: AccountMovement[];
+    }[];
+  };
+  /** Friends who paid the supplier (§18); null when none did. */
+  friends: {
+    names: string[];
+    financedEgp: string;
+    repaidEgp: string;
+    /** + a cost (the rate rose since he paid), − a gain. */
+    exchangeDifferenceEgp: string;
+    exchangeSplit: { participantId: string; participantType: string; name: string; amountEgp: string }[] | null;
+  } | null;
   paidSoFar: {
     totalEgp: string;
     inTargetCurrency: string | null;
@@ -103,7 +136,7 @@ export interface AccountFunding {
   investorsEgp: string;
   partnersContributedEgp: string;
   stillToContributeEgp: string;
-  shares: { basis: 'TARGET' | 'COST_TO_FUND'; ofEgp: string; partnersEgp: string; stillEgp: string };
+  shares: { basis: 'TARGET' | 'COST_TO_FUND' | 'REPAID'; ofEgp: string; partnersEgp: string; stillEgp: string };
   participants: {
     participantId: string;
     participantType: string;
@@ -274,7 +307,7 @@ export function FundingCard({
   if (!canRead) return null;
   if (funding.isLoading) return <FundingCardSkeleton />;
   const data = funding.data;
-  if (funding.isError || !data?.paidSoFar || !data.shares) {
+  if (funding.isError || !data?.putIn || !data.shares) {
     return (
       <section data-testid="funding-card-error" className="rounded-xl border border-border bg-card p-5">
         <CardTitle />
@@ -299,18 +332,38 @@ export function FundingCard({
     : undefined;
   const accountsReason = lockReason ?? (data.closed ? ta('closed', { status: codeLabel('cycleStatus', data.status) }) : undefined);
 
-  // ── 1. Target and paid so far ─────────────────────────────────────────
+  // ── 1. Target and put in so far ───────────────────────────────────────
   const target = data.target;
-  const paidInTarget = num(data.paidSoFar.inTargetCurrency);
+  const paidInTarget = num(data.putIn.inTargetCurrency);
   const pct = target && num(target.amount) > 0 ? Math.floor((paidInTarget / num(target.amount)) * 100) : null;
-  const byPayer = new Map(data.paidSoFar.byPartner.map((p) => [p.partnerUserId, p]));
-  const paidRows = [
-    ...data.partners.map((p) => ({ id: p.partnerUserId, name: p.name, paid: byPayer.get(p.partnerUserId) })),
-    // Someone not on the cycle may have paid for it (advances only track who paid).
-    ...data.paidSoFar.byPartner
-      .filter((p) => !data.partners.some((q) => q.partnerUserId === p.partnerUserId))
-      .map((p) => ({ id: p.partnerUserId, name: p.name, paid: p })),
-  ];
+  // The server lists the cycle's partners first, then anyone else who paid for it.
+  const putInRows = data.putIn.byPartner;
+  const friends = data.friends;
+  const friendNames = friends ? lenderList(friends.names, locale) : '';
+
+  /** How what he put in came in, each part with its amount (shown when there is more than one). */
+  function howParts(r: AccountFunding['putIn']['byPartner'][number]) {
+    const parts: { key: string; label: ReactNode; amount: string }[] = [];
+    if (num(r.enteredEgp) > 0) {
+      parts.push({
+        key: 'entered',
+        label: friends ? t('howRepaid', { friends: friendNames }) : t('howContributed'),
+        amount: r.enteredEgp,
+      });
+    }
+    if (num(r.fromAccountEgp) > 0) parts.push({ key: 'account', label: t('howFromAccount'), amount: r.fromAccountEgp });
+    if (num(r.undrawnAdvancesEgp) > 0) {
+      parts.push({
+        key: 'advances',
+        label:
+          r.advances.length === 1
+            ? t('howPaidOn', { day: formatDate(r.advances[0].occurredOn) })
+            : t('howPayments', { count: r.advances.length }),
+        amount: r.undrawnAdvancesEgp,
+      });
+    }
+    return parts;
+  }
 
   // ── 2. Contributions ──────────────────────────────────────────────────
   const count = data.partners.length;
@@ -389,14 +442,14 @@ export function FundingCard({
         )}
       </div>
 
-      {/* ── 1. Target and paid so far ─────────────────────────────────── */}
+      {/* ── 1. Target and put in so far ───────────────────────────────── */}
       <div data-testid="funding-paid" className="mt-4">
         {target ? (
           <div className="space-y-1.5">
             <p data-testid="paid-of-target" className="text-base font-semibold text-foreground">
               {pct !== null && pct >= 100
-                ? t.rich('paidReached', { paid: () => <Money value={paidInTarget} currency={target.currency} /> })
-                : t.rich('paidToGo', {
+                ? t.rich('putInReached', { paid: () => <Money value={paidInTarget} currency={target.currency} /> })
+                : t.rich('putInToGo', {
                     paid: () => <Money value={paidInTarget} currency={target.currency} />,
                     left: () => <Money value={Math.max(num(target.amount) - paidInTarget, 0)} currency={target.currency} />,
                   })}
@@ -414,40 +467,43 @@ export function FundingCard({
           </div>
         ) : (
           <p data-testid="paid-so-far" className="text-base font-semibold text-foreground">
-            {ta.rich('paidSoFar', { paid: () => <Money value={data.paidSoFar.totalEgp} /> })}
+            {t.rich('putInSoFar', { paid: () => <Money value={data.putIn.totalEgp} /> })}
           </p>
         )}
 
-        <SectionHeading>{t('paidHeading')}</SectionHeading>
+        <SectionHeading>{t('putInHeading')}</SectionHeading>
         <div className="divide-y divide-border">
-          <ColumnHeads cols={[t('colPartner'), t('colPaid'), t('colDay'), t('colIntoCapital')]} />
-          {paidRows.length === 0 && <p className="py-2 text-sm text-muted-foreground">{ta('nothingPaid')}</p>}
-          {paidRows.map((r) => {
-            const advances = r.paid?.advances ?? [];
+          <ColumnHeads cols={[t('colPartner'), t('colPutIn'), t('colIntoCapital'), t('colHow')]} />
+          {putInRows.length === 0 && <p className="py-2 text-sm text-muted-foreground">{ta('nothingPaid')}</p>}
+          {putInRows.map((r) => {
+            const parts = howParts(r);
             return (
-              <div key={r.id} data-testid="paid-row" className={ROW}>
+              <div key={r.partnerUserId} data-testid="paid-row" className={ROW}>
                 <bdi className="truncate font-medium text-foreground">{r.name}</bdi>
                 <span data-testid="paid-amount" className="text-end text-sm tabular-nums md:text-start">
-                  {r.paid ? <Money value={r.paid.totalEgp} /> : '—'}
+                  {num(r.totalEgp) > 0 ? <Money value={r.totalEgp} /> : '—'}
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  {advances.length === 1
-                    ? formatDate(advances[0].occurredOn)
-                    : advances.length > 1
-                      ? t('payments', { count: advances.length })
-                      : ''}
-                </span>
-                <span data-testid="paid-into-capital" className="text-end text-xs text-muted-foreground md:text-start">
-                  {r.paid && (
+                <span data-testid="paid-into-capital" className="text-xs text-muted-foreground">
+                  {num(r.totalEgp) > 0 && (
                     <>
                       <span className="md:hidden">{t('colIntoCapital')} </span>
-                      {num(r.paid.intoCapitalEgp) > 0 ? (
-                        <Money value={r.paid.intoCapitalEgp} className="text-sm text-foreground" />
-                      ) : (
-                        '—'
-                      )}
+                      {num(r.contributionEgp) > 0 ? <Money value={r.contributionEgp} className="whitespace-nowrap text-sm text-foreground" /> : '—'}
                     </>
                   )}
+                </span>
+                <span data-testid="paid-how" className="text-end text-xs text-muted-foreground md:text-start">
+                  {parts.map((part, i) => (
+                    <span key={part.key} className="block md:inline">
+                      {i > 0 && <span className="hidden md:inline"> · </span>}
+                      {part.label}
+                      {parts.length > 1 && (
+                        <>
+                          {' '}
+                          <Money value={part.amount} className="text-foreground" />
+                        </>
+                      )}
+                    </span>
+                  ))}
                 </span>
               </div>
             );
@@ -474,10 +530,18 @@ export function FundingCard({
         <SectionHeading first>
           {nothingToShare
             ? t('contributionsNothing')
-            : t.rich(data.shares.basis === 'TARGET' ? 'contributionsTarget' : 'contributionsCost', {
-                count,
-                amount: () => <Money value={data.shares.ofEgp} />,
-              })}
+            : t.rich(
+                data.shares.basis === 'TARGET'
+                  ? 'contributionsTarget'
+                  : data.shares.basis === 'REPAID'
+                    ? 'contributionsRepaid'
+                    : 'contributionsCost',
+                {
+                  count,
+                  friends: friendNames || tcy('fundingNoteSomeLender'),
+                  amount: () => <Money value={data.shares.ofEgp} />,
+                },
+              )}
         </SectionHeading>
         <div className="divide-y divide-border">
           <ColumnHeads cols={[t('colPartner'), t('colShare'), t('colFromAdvances'), t('colStatus')]} />
@@ -557,6 +621,10 @@ export function FundingCard({
               ))}
             </ul>
           </div>
+        )}
+
+        {friends && num(friends.repaidEgp) > 0 && num(friends.exchangeDifferenceEgp) !== 0 && (
+          <ExchangeLine friends={friends} names={friendNames} />
         )}
 
         <p className="mt-2 text-xs text-muted-foreground">{t('sharesHint')}</p>
@@ -708,6 +776,49 @@ export function FundingCard({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * The exchange difference on repaying a friend (owner 2026-10-26: "it should
+ * state as well, the exchange difference"): the settlement's own figure, a
+ * cost when positive (the rate rose since he paid), a gain when negative —
+ * and each one's part of it by the profit split, "each" when the parts are
+ * equal. A contribution is still handed back whole as capital; this comes off
+ * the profit.
+ */
+function ExchangeLine({ friends, names }: { friends: NonNullable<AccountFunding['friends']>; names: string }) {
+  const t = useTranslations('fundingCard');
+  const diff = num(friends.exchangeDifferenceEgp);
+  const split = friends.exchangeSplit;
+  const equal = !!split && split.length > 0 && split.every((p) => p.amountEgp === split[0].amountEgp);
+  const parts = () =>
+    !split || split.length === 0 ? null : equal ? (
+      <> {t.rich('exchangeEach', { amount: () => <Money value={Math.abs(num(split[0].amountEgp))} /> })}</>
+    ) : (
+      <>
+        {' ('}
+        {split.map((p, i) => (
+          <span key={p.participantId} data-testid="exchange-part">
+            {i > 0 && ' · '}
+            <bdi>{p.name}</bdi> <Money value={Math.abs(num(p.amountEgp))} />
+          </span>
+        ))}
+        {')'}
+      </>
+    );
+  return (
+    <p
+      data-testid="exchange-difference"
+      data-gain={diff < 0 ? 'true' : 'false'}
+      className="mt-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground"
+    >
+      {t.rich(diff < 0 ? 'exchangeGain' : 'exchangeCost', {
+        friends: names,
+        amount: () => <Money value={Math.abs(diff)} className="font-medium text-foreground" />,
+        parts,
+      })}
+    </p>
   );
 }
 
@@ -964,7 +1075,7 @@ function SplitDialog({
 
 /**
  * The card before its figures arrive, traced from it (LEARNINGS "Loading
- * states"): the title and target, the paid-so-far line and its bar, three
+ * states"): the title and target, the put-in-so-far line and its bar, three
  * partner rows, the contributions heading with three rows and the buttons,
  * then the split's two lines.
  */

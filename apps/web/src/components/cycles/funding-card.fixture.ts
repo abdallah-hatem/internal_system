@@ -47,6 +47,22 @@ export function accountFundingFixture(args: {
     fundingLock: args.fundingLock ?? null,
     closed: ['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(args.status ?? ''),
     target: null,
+    putIn: {
+      totalEgp: money(core.reduce((s, p) => s + Number(p.contributionAmount ?? 0), 0)),
+      inTargetCurrency: null,
+      byPartner: core.map((p) => ({
+        partnerUserId: `u-${p.id}`,
+        name: nameOf(p),
+        totalEgp: money(Number(p.contributionAmount ?? 0)),
+        inTargetCurrency: null,
+        contributionEgp: money(Number(p.contributionAmount ?? 0)),
+        enteredEgp: money(Number(p.contributionAmount ?? 0)),
+        fromAccountEgp: '0.00',
+        undrawnAdvancesEgp: '0.00',
+        advances: [],
+      })),
+    },
+    friends: null,
     paidSoFar: { totalEgp: '0.00', inTargetCurrency: null, byPartner: [] },
     partners: core.map((p, i) => {
       const still = Math.max(share(i) - Number(p.contributionAmount ?? 0), 0);

@@ -14,7 +14,9 @@ import {
   inTargetCurrency,
   potsOf,
   potsTotal,
+  putInSoFar,
 } from './partner-account';
+import { profitShareOf } from '../modules/settlements/settlement-math';
 import {
   CycleAccountFundingController,
   PartnerAccountsController,
@@ -284,6 +286,144 @@ describe('the Funding card: into capital, equal shares, covered or short (owner 
       partners: [0, 0, 0].map(() => ({ availableEgp: 0, contributionEgp: 0 })),
     });
     expect(r.lines.every((l) => l.share.eq(0))).toBe(true);
+  });
+});
+
+describe('the Funding card on a cycle a friend paid (owner 2026-10-26)', () => {
+  const three = (contributionEgp: Prisma.Decimal.Value) =>
+    [0, 0, 0].map(() => ({ availableEgp: 0, contributionEgp }));
+
+  it('production’s cycle 1: thirds of what was repaid him (201,168.99), not of the cost to fund — 67,056.33 each, covered, nothing left over', () => {
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: '193382.28',
+      repaidEgp: '201168.99',
+      investorsEgp: 0,
+      partners: three('67056.33'),
+    });
+    expect(r.basis).toBe('REPAID');
+    expect(r.ofEgp.toFixed(2)).toBe('201168.99');
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '67056.33',
+      '67056.33',
+      '67056.33',
+    ]);
+    expect(r.lines.map((l) => l.cover.toFixed(2))).toEqual([
+      '0.00',
+      '0.00',
+      '0.00',
+    ]);
+  });
+
+  it('before any repayment: thirds of the cost to fund, as before', () => {
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: '193382.28',
+      repaidEgp: 0,
+      investorsEgp: 0,
+      partners: three(0),
+    });
+    expect(r.basis).toBe('COST_TO_FUND');
+    expect(r.lines.map((l) => l.share.toFixed(2))).toEqual([
+      '64460.76',
+      '64460.76',
+      '64460.76',
+    ]);
+  });
+
+  it('investors’ money still comes off first, and a target not below the repaid figure still wins', () => {
+    const r = contributionShares({
+      targetEgp: null,
+      toFundEgp: '900.00',
+      repaidEgp: '1200.00',
+      investorsEgp: '300.00',
+      partners: three(0),
+    });
+    expect(r.partnersEgp.toFixed(2)).toBe('900.00');
+    const t = contributionShares({
+      targetEgp: '1500.00',
+      toFundEgp: '900.00',
+      repaidEgp: '1200.00',
+      investorsEgp: 0,
+      partners: three(0),
+    });
+    expect(t.basis).toBe('TARGET');
+  });
+});
+
+describe('put in so far — contribution + undrawn advances, never counting a drawn advance twice', () => {
+  it('a contribution entered directly (repaying a friend) is all of it', () => {
+    const r = putInSoFar({
+      contributionEgp: '67056.33',
+      fromAccountEgp: 0,
+      undrawnAdvancesEgp: 0,
+    });
+    expect(
+      [r.totalEgp, r.enteredEgp, r.fromAccountEgp].map((v) => v.toFixed(2)),
+    ).toEqual(['67056.33', '67056.33', '0.00']);
+  });
+
+  it('50,775 advanced, 10,000 of it drawn into a contribution: 50,775 put in, not 60,775', () => {
+    // The pot after the draw: 40,775 undrawn; the contribution holds the 10,000.
+    const pots = potsOf([
+      { kind: 'ADVANCE', amountEgp: 50775, cycleId: 'c2' },
+      { kind: 'CONTRIBUTION', amountEgp: 10000, cycleId: 'c2' },
+    ]);
+    const r = putInSoFar({
+      contributionEgp: 10000,
+      fromAccountEgp: 10000,
+      undrawnAdvancesEgp: pots.byCycle.get('c2')!,
+    });
+    expect(r.totalEgp.toFixed(2)).toBe('50775.00');
+    expect(r.enteredEgp.toFixed(2)).toBe('0.00');
+    expect(r.undrawnAdvancesEgp.toFixed(2)).toBe('40775.00');
+  });
+
+  it('a contribution lowered by hand below what the account gave never makes a part negative', () => {
+    const r = putInSoFar({
+      contributionEgp: 500,
+      fromAccountEgp: 800,
+      undrawnAdvancesEgp: 0,
+    });
+    expect([r.enteredEgp, r.fromAccountEgp].map((v) => v.toFixed(2))).toEqual([
+      '0.00',
+      '500.00',
+    ]);
+    expect(r.totalEgp.toFixed(2)).toBe('500.00');
+  });
+});
+
+describe('each partner’s part of the exchange difference: the profit split’s', () => {
+  const core = (id: string, contribution: Prisma.Decimal.Value) => ({
+    id,
+    type: 'CORE_PARTNER' as const,
+    contribution: D(contribution),
+    customProfitPct: null,
+    investorFeePct: null,
+  });
+
+  it('equal contributions: thirds, re-summing to the whole', () => {
+    const parts = profitShareOf(
+      [core('a', '67056.33'), core('b', '67056.33'), core('c', '67056.33')],
+      D('7788.12'),
+    )!;
+    expect(parts.map((v) => v.toFixed(2))).toEqual([
+      '2596.04',
+      '2596.04',
+      '2596.04',
+    ]);
+  });
+
+  it('a gain splits as a gain (negative), by contribution when unequal', () => {
+    const parts = profitShareOf(
+      [core('a', 300), core('b', 700)],
+      D('-1000.00'),
+    )!;
+    expect(parts.map((v) => v.toFixed(2))).toEqual(['-300.00', '-700.00']);
+  });
+
+  it('nothing contributed: no basis, so no split (CLAUDE.md §10)', () => {
+    expect(profitShareOf([core('a', 0), core('b', 0)], D('900'))).toBeNull();
   });
 });
 

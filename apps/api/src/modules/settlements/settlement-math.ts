@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { badRequest } from '../../common/api-error';
@@ -144,6 +145,34 @@ export function distributeCycleProfit(
       payout: sum((l) => l.payout),
     },
   };
+}
+
+/**
+ * How `amount` of the cycle's profit lands on each participant: the same
+ * split `distributeCycleProfit` makes of the whole profit — by contribution,
+ * or the agreed percentages — each line's share before any investor's fee,
+ * to the piastre, re-summing to `amount`. The Funding card's exchange line
+ * reads each partner's part of the exchange difference here (owner
+ * 2026-10-26), because settlement takes it off the profit before splitting
+ * it, so this is what it costs each of them.
+ *
+ * Null when settling would refuse to split at all (`CYCLE_NOT_FUNDED`, a
+ * partial or off-100 custom split) — no basis, so no split is shown
+ * (CLAUDE.md §10).
+ */
+export function profitShareOf(
+  participants: ParticipantInput[],
+  amount: Prisma.Decimal,
+): Prisma.Decimal[] | null {
+  if (participants.length === 0) return null;
+  try {
+    return distributeCycleProfit(participants, amount).lines.map(
+      (l) => l.grossProfit,
+    );
+  } catch (e) {
+    if (e instanceof BadRequestException) return null;
+    throw e;
+  }
 }
 
 /**

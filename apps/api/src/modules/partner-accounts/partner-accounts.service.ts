@@ -17,7 +17,12 @@ import {
 } from '../../common/dates';
 import { parseCurrencyCode, parseRateToEgp } from '../../common/fx-rate';
 import { recordContributionChange } from '../../common/contribution-ledger';
-import { profitSplitView } from '../settlements/settlement-math';
+import { profitShareOf, profitSplitView } from '../settlements/settlement-math';
+import {
+  STANDING_FINANCING,
+  exchangeDifferenceEgp,
+  repaidOnCycleEgp,
+} from '../../common/lender-debt';
 import {
   STANDING_MOVEMENT,
   accountPots,
@@ -32,6 +37,7 @@ import {
   lockAccounts,
   potsOf,
   potsTotal,
+  putInSoFar,
   signedEgp,
   untiedAvailable,
   type MovementKind,
@@ -198,9 +204,11 @@ export class PartnerAccountsService {
   }
 
   /**
-   * A cycle's funding panel: its target, what each partner has paid so far
-   * (advances on this cycle), each core partner's account, and what is still
-   * to be contributed.
+   * A cycle's funding panel: its target, what each partner has put in so far
+   * (his contribution and his undrawn advances on this cycle, `putInSoFar`),
+   * what each paid as advances, each core partner's account, what is still to
+   * be contributed, and — on a cycle a friend paid — what the partners repaid
+   * him and the exchange difference on it (owner 2026-10-26).
    */
   async cycleFunding(cycleId: string) {
     if (!isUuid(cycleId)) throw notFound('cycle');
@@ -325,15 +333,35 @@ export class PartnerAccountsService {
       (s, p) => s.add(p.contributionAmount),
       D(0),
     );
-    const { toFund } = await this.costing.fundingFor(cycleId);
+    const { toFund, financed } = await this.costing.fundingFor(cycleId);
+    // A friend who paid the supplier (§18): who, what the partners have
+    // repaid him in pounds, and the exchange difference on it — the same
+    // readers settlement and profit use (`common/lender-debt.ts`, rule 11).
+    const financings = await this.prisma.lenderFinancing.findMany({
+      where: { cycleId, ...STANDING_FINANCING },
+      select: { lender: { select: { name: true } } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const friendNames = [...new Set(financings.map((f) => f.lender.name))];
+    const repaidEgp =
+      financings.length > 0
+        ? await repaidOnCycleEgp(this.prisma, cycleId)
+        : D(0);
+    const exchangeEgp =
+      financings.length > 0
+        ? await exchangeDifferenceEgp(this.prisma, cycleId)
+        : D(0);
     const still = D(toFund).sub(investorsEgp).sub(partnersEgp);
     const availableOf = (p: (typeof core)[number]) =>
       availableTo(pots.get(p.partnerUserId!)!, cycleId);
     // The Funding card's equal shares (owner 2026-10-26): of the target, or
     // of the cost to fund when there is none or it is lower.
+    // On a cycle a friend paid, of what the partners repaid him once they
+    // have repaid anything (owner 2026-10-26).
     const shares = contributionShares({
       targetEgp: target ? target.amountEgp : null,
       toFundEgp: toFund,
+      repaidEgp,
       investorsEgp,
       partners: core.map((p) => ({
         availableEgp: availableOf(p),
@@ -355,6 +383,97 @@ export class PartnerAccountsService {
       p.investor?.email ??
       '';
 
+    // ── Put in so far, per partner (owner 2026-10-26) ──────────────────
+    const fromAccountOf = (partnerUserId: string) =>
+      fromAccounts
+        .filter((m) => m.partnerUserId === partnerUserId)
+        .reduce((s, m) => s.add(m.amountEgp), D(0));
+    const toTargetEgp = (egp: Prisma.Decimal) =>
+      target
+        ? target.currency === 'EGP'
+          ? egp
+          : egp
+              .div(D(target.fxRateToEgp))
+              .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+        : D(0);
+    const putInRow = (
+      partnerUserId: string,
+      name: string,
+      contributionEgp: Prisma.Decimal.Value,
+    ) => {
+      const paid = payers.get(partnerUserId);
+      const undrawn = pots.get(partnerUserId)?.byCycle.get(cycleId) ?? D(0);
+      const parts = putInSoFar({
+        contributionEgp,
+        fromAccountEgp: fromAccountOf(partnerUserId),
+        undrawnAdvancesEgp: undrawn,
+      });
+      // In the target's currency (GUESS 2026-10-26): his contribution at the
+      // target's rate, and his undrawn advances as the share of his advances'
+      // face value still undrawn — all of it when nothing is drawn, so an
+      // advance paid in the target's currency still counts at face.
+      const undrawnInTarget =
+        paid && paid.totalEgp.gt(0)
+          ? paid.inTarget
+              .mul(parts.undrawnAdvancesEgp)
+              .div(paid.totalEgp)
+              .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+          : D(0);
+      const inTarget = toTargetEgp(
+        parts.enteredEgp.add(parts.fromAccountEgp),
+      ).add(undrawnInTarget);
+      return {
+        partnerUserId,
+        name,
+        /** Everything he has put into this cycle: his contribution + his undrawn advances on it. */
+        totalEgp: m2(parts.totalEgp),
+        inTargetCurrency: target ? m2(inTarget) : null,
+        /** His contribution on this cycle (his capital in it). */
+        contributionEgp: m2(parts.enteredEgp.add(parts.fromAccountEgp)),
+        /** Of it, entered directly — on a cycle a friend paid, his share of repaying him. */
+        enteredEgp: m2(parts.enteredEgp),
+        /** Of it, drawn from his account. */
+        fromAccountEgp: m2(parts.fromAccountEgp),
+        /** His advances on this cycle not yet drawn into a contribution. */
+        undrawnAdvancesEgp: m2(parts.undrawnAdvancesEgp),
+        /** Every standing advance he made on this cycle, with its day. */
+        advances: paid?.advances ?? [],
+        _inTarget: inTarget,
+        _total: parts.totalEgp,
+      };
+    };
+    const putInRows = [
+      ...core.map((p) =>
+        putInRow(
+          p.partnerUserId!,
+          p.partner?.partner?.displayName ?? p.partner?.email ?? '',
+          p.contributionAmount,
+        ),
+      ),
+      // Someone not on the cycle may have paid for it: his advances only.
+      ...[...payers.entries()]
+        .filter(([id]) => !core.some((p) => p.partnerUserId === id))
+        .map(([id, p]) => putInRow(id, p.name, 0)),
+    ];
+
+    // ── The exchange difference on repaying friends (owner 2026-10-26) ──
+    // Each one's part: the profit split's (`profitShareOf`), since
+    // settlement takes it off the profit before splitting what is left.
+    const exchangeSplit = profitShareOf(
+      cycle.participants.map((p) => ({
+        id: p.id,
+        type:
+          p.participantType === 'TEMP_INVESTOR'
+            ? ('TEMP_INVESTOR' as const)
+            : ('CORE_PARTNER' as const),
+        contribution: D(p.contributionAmount),
+        customProfitPct:
+          p.customProfitPct === null ? null : D(p.customProfitPct),
+        investorFeePct: null,
+      })),
+      exchangeEgp,
+    );
+
     return {
       data: {
         cycleId: cycle.id,
@@ -364,6 +483,35 @@ export class PartnerAccountsService {
         fundingLock: fundingLockOf(cycle.status, cycle.settlements),
         closed: CLOSED_FOR_ACCOUNTS.includes(cycle.status),
         target,
+        putIn: {
+          totalEgp: m2(putInRows.reduce((s, r) => s.add(r._total), D(0))),
+          inTargetCurrency: target
+            ? m2(putInRows.reduce((s, r) => s.add(r._inTarget), D(0)))
+            : null,
+          byPartner: putInRows.map(({ _inTarget, _total, ...r }) => r),
+        },
+        /** Friends who paid the supplier for this cycle (§18); null when none did. */
+        friends:
+          financings.length === 0
+            ? null
+            : {
+                names: friendNames,
+                /** What they paid, in pounds at their rates. */
+                financedEgp: m2(financed),
+                /** What the partners repaid them, in pounds actually paid. */
+                repaidEgp: m2(repaidEgp),
+                /** Pounds repaid − what that cleared at their rates (`exchangeDifferenceEgp`): + a cost, − a gain. */
+                exchangeDifferenceEgp: m2(exchangeEgp),
+                /** Each participant's part of it, by the profit split; null when settling could not split. */
+                exchangeSplit: exchangeSplit
+                  ? cycle.participants.map((p, i) => ({
+                      participantId: p.id,
+                      participantType: p.participantType,
+                      name: personName(p),
+                      amountEgp: m2(exchangeSplit[i]),
+                    }))
+                  : null,
+              },
         paidSoFar: {
           totalEgp: m2(paidEgp),
           inTargetCurrency: target ? m2(paidInTarget) : null,
@@ -421,7 +569,7 @@ export class PartnerAccountsService {
         partnersContributedEgp: m2(partnersEgp),
         /** What the partners have still to contribute: the cost to fund less investors' money and theirs, never below zero. */
         stillToContributeEgp: m2(Prisma.Decimal.max(still, 0)),
-        /** What the equal shares are of: the target, or the cost to fund. */
+        /** What the equal shares are of: the target, the cost to fund, or what was repaid to friends. */
         shares: {
           basis: shares.basis,
           ofEgp: m2(shares.ofEgp),
