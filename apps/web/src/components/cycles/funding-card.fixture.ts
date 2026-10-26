@@ -38,6 +38,9 @@ export function accountFundingFixture(args: {
   const each = core.length ? Math.floor(base / core.length) : 0;
   const share = (i: number) => (i === core.length - 1 ? base - each * (core.length - 1) : each) / 100;
   const total = args.participants.reduce((s, p) => s + Number(p.contributionAmount ?? 0), 0);
+  // As `contributionShares`: every partner entered, together the partners' part to the piastre.
+  const coreCents = core.reduce((s, p) => s + Math.round(Number(p.contributionAmount ?? 0) * 100), 0);
+  const agreed = base > 0 && core.length > 0 && core.every((p) => Number(p.contributionAmount ?? 0) > 0) && coreCents === base;
   const custom = args.participants.some((p) => p.customProfitPct != null);
   return {
     cycleId: args.cycleId ?? 'c-1',
@@ -47,12 +50,14 @@ export function accountFundingFixture(args: {
     fundingLock: args.fundingLock ?? null,
     closed: ['SETTLEMENT', 'CLOSED', 'CANCELLED'].includes(args.status ?? ''),
     target: null,
+    // Every participant's money, partners first, then investors (owner 2026-10-27).
     putIn: {
-      totalEgp: money(core.reduce((s, p) => s + Number(p.contributionAmount ?? 0), 0)),
+      totalEgp: money(total),
       inTargetCurrency: null,
-      byPartner: core.map((p) => ({
+      byPartner: [...core, ...args.participants.filter((p) => p.participantType !== 'CORE_PARTNER')].map((p) => ({
         partnerUserId: `u-${p.id}`,
         name: nameOf(p),
+        participantType: p.participantType === 'CORE_PARTNER' ? ('CORE_PARTNER' as const) : ('TEMP_INVESTOR' as const),
         totalEgp: money(Number(p.contributionAmount ?? 0)),
         inTargetCurrency: null,
         contributionEgp: money(Number(p.contributionAmount ?? 0)),
@@ -65,12 +70,13 @@ export function accountFundingFixture(args: {
     friends: null,
     paidSoFar: { totalEgp: '0.00', inTargetCurrency: null, byPartner: [] },
     partners: core.map((p, i) => {
-      const still = Math.max(share(i) - Number(p.contributionAmount ?? 0), 0);
+      const mine = agreed ? Number(p.contributionAmount ?? 0) : share(i);
+      const still = Math.max(mine - Number(p.contributionAmount ?? 0), 0);
       return {
         partnerUserId: `u-${p.id}`,
         participantId: p.id,
         name: nameOf(p),
-        shareEgp: money(share(i)),
+        shareEgp: money(mine),
         stillToGiveEgp: money(still),
         coverEgp: money(-still),
         availableEgp: '0.00',
@@ -86,7 +92,7 @@ export function accountFundingFixture(args: {
     investorsEgp: money(investors),
     partnersContributedEgp: money(total - investors),
     stillToContributeEgp: money(Math.max(toFund - total, 0)),
-    shares: { basis: 'COST_TO_FUND', ofEgp: money(toFund), partnersEgp: money(base / 100), stillEgp: money(Math.max(base / 100 - (total - investors), 0)) },
+    shares: { basis: 'COST_TO_FUND', ofEgp: money(toFund), partnersEgp: money(base / 100), stillEgp: money(Math.max(base / 100 - (total - investors), 0)), agreed },
     participants: args.participants.map((p) => ({
       participantId: p.id,
       participantType: p.participantType,

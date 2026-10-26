@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import {
   distributeCycleProfit,
+  percentagesOf,
   profitSplitView,
   summarizeCyclePnl,
   ParticipantInput,
@@ -452,14 +453,14 @@ describe('profitSplitView — the Funding card’s split line (owner 2026-10-26)
     });
   });
 
-  it('unequal contributions read as their shares, the last line absorbing so they read 100', () => {
+  it('unequal contributions read as their shares, each its true rounding — not 26.66 / 33.33 / 40.01 with the last absorbing', () => {
     const v = profitSplitView([
       partner('a', 80000),
       partner('b', 100000),
       partner('c', 120000),
     ]);
     expect(v.equal).toBe(false);
-    expect(v.pcts).toEqual(['26.66', '33.33', '40.01']);
+    expect(v.pcts).toEqual(['26.67', '33.33', '40.00']);
   });
 
   it('a custom split shows the agreed percentages, and names the refusal settling would give', () => {
@@ -498,5 +499,83 @@ describe('profitSplitView — the Funding card’s split line (owner 2026-10-26)
     ]);
     expect(v.basis).toBe('NONE');
     expect(v.pcts).toEqual([null, null, null]);
+  });
+});
+
+/**
+ * CYC-2026-0001 as corrected 2026-10-27: Abdallah 55,000, Shady 33,084.50,
+ * Fares 33,084.49, Ahmad Eraiby (investor) 60,000, Mohammed Setta (investor)
+ * 20,000 — 201,168.99 in all, in the order production lists them.
+ */
+const cycleOne = () => [
+  partner('abdallah', '55000.00'),
+  partner('shady', '33084.50'),
+  partner('fares', '33084.49'),
+  investor('eraiby', '60000.00', null),
+  investor('setta', '20000.00', null),
+];
+
+describe('the Funding card’s percentages, every participant, by largest remainder (owner 2026-10-27)', () => {
+  it('production’s cycle 1: everyone on it, investors included, each within a hundredth of the truth, summing to 100.00', () => {
+    const v = profitSplitView(cycleOne());
+    // True shares: 27.3402 / 16.4461 / 16.4461 / 29.8257 / 9.9419.
+    // Rounded each: 27.34 + 16.45 + 16.45 + 29.83 + 9.94 = 100.01, so one
+    // row must give a hundredth: Eraiby, who rounded up the least (.57
+    // against Shady’s and Fares’ .61). Setta reads 9.94, never 9.96.
+    expect(v.pcts).toEqual(['27.34', '16.45', '16.45', '29.82', '9.94']);
+    expect(v.pcts.reduce((s, p) => s.add(p!), D(0)).toFixed(2)).toBe('100.00');
+  });
+
+  it('the same split the settlement makes of the profit, to the hundredth (one definition, CLAUDE.md §11)', () => {
+    const v = profitSplitView(cycleOne());
+    const settled = distributeCycleProfit(cycleOne(), D('90000.00'));
+    settled.lines.forEach((l, i) => {
+      expect(l.sharePct.sub(v.pcts[i]!).abs().lte('0.01')).toBe(true);
+    });
+  });
+
+  it('thirds tie: the odd hundredth to the last, as the money lines do — 33.33 / 33.33 / 33.34', () => {
+    expect(percentagesOf([1, 1, 1]).map((p) => p.toFixed(2))).toEqual([
+      '33.33',
+      '33.33',
+      '33.34',
+    ]);
+    // Seven equal: four hundredths missing, to the last four.
+    expect(
+      percentagesOf([1, 1, 1, 1, 1, 1, 1]).map((p) => p.toFixed(2)),
+    ).toEqual(['14.28', '14.28', '14.28', '14.29', '14.29', '14.29', '14.29']);
+  });
+
+  it('one participant reads 100.00; one who put in nothing reads 0.00 and takes no rounding', () => {
+    expect(percentagesOf([5]).map((p) => p.toFixed(2))).toEqual(['100.00']);
+    expect(percentagesOf([0, 1, 2]).map((p) => p.toFixed(2))).toEqual([
+      '0.00',
+      '33.33',
+      '66.67',
+    ]);
+  });
+
+  it('nothing put in, or a negative part: no percentages at all (CLAUDE.md §10)', () => {
+    expect(() => percentagesOf([0, 0])).toThrow();
+    expect(() => percentagesOf([])).toThrow();
+    expect(() => percentagesOf([10, -5])).toThrow();
+  });
+
+  it('any contributions: always 100.00, every row within a hundredth of its true share', () => {
+    let seed = 7;
+    const rand = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+    for (let run = 0; run < 500; run++) {
+      const n = 1 + Math.floor(rand() * 8);
+      const values = Array.from({ length: n }, () =>
+        D(Math.floor(rand() * 10_000_000) / 100 + 0.01),
+      );
+      const total = values.reduce((s, v) => s.add(v), D(0));
+      const pcts = percentagesOf(values);
+      expect(pcts.reduce((s, p) => s.add(p), D(0)).toFixed(2)).toBe('100.00');
+      pcts.forEach((p, i) => {
+        const exact = values[i].div(total).mul(100);
+        expect(p.sub(exact).abs().lt('0.01')).toBe(true);
+      });
+    }
   });
 });

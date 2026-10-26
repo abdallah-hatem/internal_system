@@ -231,6 +231,7 @@ export class PartnerAccountsService {
             id: true,
             participantType: true,
             partnerUserId: true,
+            investorUserId: true,
             contributionAmount: true,
             customProfitPct: true,
             investorFeePct: true,
@@ -354,10 +355,10 @@ export class PartnerAccountsService {
     const still = D(toFund).sub(investorsEgp).sub(partnersEgp);
     const availableOf = (p: (typeof core)[number]) =>
       availableTo(pots.get(p.partnerUserId!)!, cycleId);
-    // The Funding card's equal shares (owner 2026-10-26): of the target, or
-    // of the cost to fund when there is none or it is lower.
-    // On a cycle a friend paid, of what the partners repaid him once they
-    // have repaid anything (owner 2026-10-26).
+    // The Funding card's shares (owner 2026-10-26/27): of the target, or of
+    // the cost to fund when there is none or it is lower; on a cycle a friend
+    // paid, of what was repaid him or everything put in, whichever is more;
+    // each partner's own contribution when they make up the partners' part.
     const shares = contributionShares({
       targetEgp: target ? target.amountEgp : null,
       toFundEgp: toFund,
@@ -400,6 +401,7 @@ export class PartnerAccountsService {
       partnerUserId: string,
       name: string,
       contributionEgp: Prisma.Decimal.Value,
+      participantType: 'CORE_PARTNER' | 'TEMP_INVESTOR' | null,
     ) => {
       const paid = payers.get(partnerUserId);
       const undrawn = pots.get(partnerUserId)?.byCycle.get(cycleId) ?? D(0);
@@ -425,6 +427,8 @@ export class PartnerAccountsService {
       return {
         partnerUserId,
         name,
+        /** On the cycle as a core partner or an investor; null for someone not on it who paid for it. */
+        participantType,
         /** Everything he has put into this cycle: his contribution + his undrawn advances on it. */
         totalEgp: m2(parts.totalEgp),
         inTargetCurrency: target ? m2(inTarget) : null,
@@ -442,18 +446,40 @@ export class PartnerAccountsService {
         _total: parts.totalEgp,
       };
     };
+    // Every participant's money, investors' too (owner 2026-10-27: "they
+    // should be added to funding as well right?"): the partners first, then
+    // the investors — what they put in is their contribution — then anyone
+    // not on the cycle who paid for it.
+    const investorRows = cycle.participants.filter(
+      (p) => p.participantType !== 'CORE_PARTNER',
+    );
+    const onCycle = new Set(
+      [
+        ...core.map((p) => p.partnerUserId),
+        ...investorRows.map((p) => p.investorUserId),
+      ].filter((id): id is string => !!id),
+    );
     const putInRows = [
       ...core.map((p) =>
         putInRow(
           p.partnerUserId!,
           p.partner?.partner?.displayName ?? p.partner?.email ?? '',
           p.contributionAmount,
+          'CORE_PARTNER',
+        ),
+      ),
+      ...investorRows.map((p) =>
+        putInRow(
+          p.investorUserId ?? p.id,
+          personName(p),
+          p.contributionAmount,
+          'TEMP_INVESTOR',
         ),
       ),
       // Someone not on the cycle may have paid for it: his advances only.
       ...[...payers.entries()]
-        .filter(([id]) => !core.some((p) => p.partnerUserId === id))
-        .map(([id, p]) => putInRow(id, p.name, 0)),
+        .filter(([id]) => !onCycle.has(id))
+        .map(([id, p]) => putInRow(id, p.name, 0, null)),
     ];
 
     // ── The exchange difference on repaying friends (owner 2026-10-26) ──
@@ -533,7 +559,7 @@ export class PartnerAccountsService {
           const available = availableOf(p);
           const line = shares.lines[i];
           return {
-            /** His equal share (`shares.basis` says of what). */
+            /** His share: his contribution when `shares.agreed`, else an equal share (`shares.basis` says of what). */
             shareEgp: m2(line.share),
             /** His share less what he has contributed, never below zero. */
             stillToGiveEgp: m2(line.stillToGive),
@@ -569,11 +595,13 @@ export class PartnerAccountsService {
         partnersContributedEgp: m2(partnersEgp),
         /** What the partners have still to contribute: the cost to fund less investors' money and theirs, never below zero. */
         stillToContributeEgp: m2(Prisma.Decimal.max(still, 0)),
-        /** What the equal shares are of: the target, the cost to fund, or what was repaid to friends. */
+        /** What the partners' part is of: the target, the cost to fund, what was repaid to friends, or everything put in. */
         shares: {
           basis: shares.basis,
           ofEgp: m2(shares.ofEgp),
           partnersEgp: m2(shares.partnersEgp),
+          /** Every partner's share is his own contribution: all entered, and together the partners' part. */
+          agreed: shares.agreed,
           /** What "Contribute equal thirds" draws by default: every partner's still to give. */
           stillEgp: m2(
             shares.lines.reduce((s, l) => s.add(l.stillToGive), D(0)),
