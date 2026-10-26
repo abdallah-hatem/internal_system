@@ -11,8 +11,9 @@ history as their API only. The goal before it — the 2026-10-19 batch — is li
 notifications, the New Order samples hint and the partner running account (migration
 `20261025100000_partner_running_accounts` applied first), shipped at the owner's word ("push notifications, sample hint,
 and partner account now, leave the branches"). **Customers with branches stay on `dev` only** (migration
-`20261025120000_customer_branches` not applied to production). Held on the other machine, not pushed: server-side
-lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
+`20261025120000_customer_branches` not applied to production). **Server-side lists + the Sales customer filter are live** (2026-10-26, `d3955e9`, ported from dev without branches; owner:
+"I need to ship the serverside lists now"). On `dev` only, for the owner to test locally first: customers with branches
+(and the Sales branch filter), Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 
