@@ -1862,13 +1862,64 @@ after the other: an Approve that waited finds its draft gone (`notFound('settlem
 (`ONLY_DRAFT_APPROVABLE`); a Calculate that waited for an Approve is refused `SETTLEMENT_LOCKED`. TC-SET-17.
 
 
-### A running account per partner — DECIDED 2026-10-25 (owner: "a great idea an account"), details OPEN, not built
+### A running account per partner — DECIDED 2026-10-25 (owner: "a great idea an account"), built 2026-10-25 (phases 1 and 2), details GUESSED
 Funding a cycle starts before anyone has contributed: partners pay suppliers from their own pockets, in different
 amounts, and sometimes want to fund from profit instead of cash. Decided: each partner has a running account — his
 advances ("paid so far") and payouts left in add to it, contributions and withdrawals take from it — and cycle
-contributions are drawn from those accounts. Also decided (owner, 2026-10-25): contributions default to **equal
-thirds**; an account **never goes negative** (no contributing from profit yet to come); an advance is **paid straight to
-a supplier**, not cash in the business, so cash on hand does not move. Phases in BUILD_LOG Next up.
+contributions are drawn from those accounts. Also decided (owner, 2026-10-25: "equal thirds, no negative, paid
+straight to supplier"): contributions default to **equal thirds**; an account **never goes negative** (no
+contributing from profit yet to come — phase 3 is dropped); an advance is **paid straight to a supplier**, not cash in
+the business, so cash on hand does not move.
+
+**The old example no longer holds.** The Next up item's example (Shady advanced 1,000, Fares 400, the owner 600; equal
+thirds of 2,000 leave Shady +333.33 and Fares **−266.67**) is now **refused**: Fares's third (666.67) is more than his
+400, so the contribution is refused `ACCOUNT_BALANCE_TOO_LOW` naming the 266.67 short — he records it as a payment
+first (in practice, what he settles with Shady), then the thirds go through.
+
+**Built 2026-10-25** (branch `agent-partner-accounts`; API, office screens, Postgres and unit tests; e2e written, not
+run — owner said not for now):
+
+- **The balance** — one definition, `apps/api/src/common/partner-account.ts` (`accountBalances`, `balanceOf`): the
+  standing movements of his account, + advances, + payouts left in, − contributions, − withdrawals. The Partners page,
+  the cycle's funding panel, every check below and a settlement's reversal read it there.
+- **An advance** (`POST /partner-accounts/:partnerUserId/advances`): a cycle, an amount above zero, the currency he
+  paid in and that day's rate (required for any currency but EGP; the page's rate only prefills), the day he paid (not
+  in the future), a note. Refused on a cycle in Settlement, Closed or Cancelled (`CYCLE_CLOSED_FOR_ACCOUNTS`) or once
+  its funding is locked (`FUNDING_LOCKED_AFTER_SETTLEMENT`, §8 2026-10-18).
+- **Paid so far, by whom** and **the funding target** (`GET /cycles/:id/account-funding`, `PUT
+  /cycles/:id/funding-target`): the cycle page's Funding panel says "1,600.00 USD of 2,000.00 USD paid so far" with a
+  bar, then each partner's payments. The target is optional, in a currency at a rate; cleared with `amount: null`.
+- **Contributing from the accounts** (`POST /cycles/:id/account-contributions`): a total, split equally among the
+  cycle's core partners (the default), or one amount per partner. All or nothing: one account short refuses the lot
+  (`ACCOUNT_BALANCE_TOO_LOW`, with `partner`, `balance`, `amount`, `short`). Each share raises that partner's
+  contribution and posts the same `contribution` ledger row an entered contribution always has.
+- **Money taken out** (`POST /partner-accounts/:partnerUserId/withdrawals`): never more than the account holds.
+- **A mistake** (`POST /partner-accounts/:partnerUserId/movements/:id/reverse`): once, with a reason; the row stays,
+  marked reversed. Never when it would leave the account below zero; a contribution reversed comes back to the account
+  and out of the cycle (a `contribution` OUTFLOW).
+- **Phase 2 — a payout left in**: Mark paid takes `leaveInPartnerUserIds`; each named core partner's net payout goes
+  into his account (`PAYOUT_LEFT_IN`). Reversing the settlement takes it back out — refused while that would leave
+  his account below zero.
+- **Who**: core partners only, every endpoint (`PARTNER_ACCOUNT_ROLES`).
+- **Who owes whom between us**: does not fall out of the balances. With no negative account, nobody owes another
+  partner through the accounts; a positive balance is the partners' money the business holds for him. Settling
+  between partners stays outside the system.
+
+| Question | Guess built | Why |
+|---|---|---|
+| What an account movement is in the ledger (CLAUDE.md §11) | **Nothing.** No movement is a ledger row: not cash, not income, not an expense. The cash event is the contribution — his money entering the cycle — which posts the `contribution` INFLOW it always has; the supplier's purchase OUTFLOW at receipt is matched by it, exactly as when partners paid suppliers and entered their contributions before accounts existed. Cash on hand, the P&L, the dashboard and each cycle's profitability are unchanged by an advance or a withdrawal (tested). | "Paid straight to supplier … cash on hand does not move." |
+| A payout left in, in cash | The settlement's payout row stands as written — the business paid him — and his account holds it. The account is his money, not the business's cash, so while it sits there cash on hand reads as if he took it; drawing it into a cycle posts the contribution inflow as any contribution. OPEN: if the owner wants cash on hand to keep payouts left in, the payout and the contribution both need a different row. | One reading of every account movement: none is cash. |
+| A withdrawal, in cash | No ledger row: the money is his, held outside the business's cash (above). | Same reading. |
+| Entering a contribution by hand | Still possible (Split equally, Enter amounts, Add participant): money he put in from his pocket for that cycle, which never touches his account. The panel's Contribute is the way through the accounts. OPEN: whether every contribution must come through an account. | Production's cycle already has contributions with no accounts; refusing them would strand it. |
+| Equal shares | Among the cycle's core partners on it, in the order they joined it, each rounded down to the piastre, the last taking the residual (333.33 / 333.33 / 333.34 of 1,000) — the same rule as Split equally. A share that rounds to zero is skipped. A total of zero or less is refused. | CLAUDE.md §10. |
+| Who an account is | A core partner with a partner record. An investor, or anyone else, has none (`NOT_FOUND`, `partner`). | "Per partner." |
+| Recording for another partner | Any core partner may record an advance, a withdrawal or a reversal on any partner's account, as the office enters every partner's records today. A movement is only reachable under its own partner's address (another partner's is `NOT_FOUND`). | One person keeps the books. |
+| An advance on someone not on the cycle | Allowed: advances only track who paid. Contributing needs him on the cycle (`PARTNER_NOT_ON_CYCLE`). | "Advances only track who paid." |
+| A target's progress in its currency | An advance paid in the target's currency counts at face value; any other counts its pounds at the target's rate. | "1,600 of 2,000" should read in dollars when they paid in dollars. |
+| When a cycle stops taking any of it | Settlement, Closed, Cancelled, or once the settlement is approved — as for a friend's payment (§18). | Its funding is agreed. |
+| Two writers at once | Each account is locked (its partner row) for the transaction, cycle first, then accounts in one order; two withdrawals of 600 against 700 cannot both pass. | Doubles are the second-time bug. |
+| A contribution lowered by hand, then its account entry reversed | Refused (`CONTRIBUTION_ALREADY_LOWERED`): the contribution would go below zero. | Never a negative contribution. |
+| Dates | Today in Cairo when left out; never later. | §7a. |
 
 ## 9. The ledger
 

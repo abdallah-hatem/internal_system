@@ -46,6 +46,12 @@ import { unsoldStock } from '../../common/unsold-stock';
 import { assertDayRange, businessDay, businessToday } from '../../common/dates';
 import { RUNNING_COST_SHARE_CATEGORY } from '../../common/ledger-categories';
 import {
+  STANDING_MOVEMENT,
+  accountBalances,
+  assertCovers,
+  lockAccounts,
+} from '../../common/partner-account';
+import {
   buildPayoutBreakdown,
   cycleCostLines,
   type PayoutBreakdown,
@@ -932,7 +938,11 @@ export class SettlementsService {
   async markPaid(
     id: string,
     actorId?: string,
-    opts: { acceptRemainingStock?: boolean } = {},
+    opts: {
+      acceptRemainingStock?: boolean;
+      /** Core partners whose payout goes into their running account (§8, 2026-10-25). */
+      leaveInPartnerUserIds?: string[];
+    } = {},
   ) {
     const settlement = await this.prisma.settlement.findUnique({
       where: { id },
@@ -979,6 +989,31 @@ export class SettlementsService {
         },
       );
     }
+
+    // A payout left in (§8, 2026-10-25, phase 2): only a core partner on this
+    // settlement can leave his in, and only once.
+    const leaveIn = new Set(opts.leaveInPartnerUserIds ?? []);
+    if (leaveIn.size !== (opts.leaveInPartnerUserIds ?? []).length) {
+      throw badRequest(
+        'PAYOUT_LEFT_IN_TWICE',
+        'Each partner can leave his payout in once.',
+      );
+    }
+    const partnersHere = new Set(
+      settlement.lines
+        .filter((l) => l.participant.participantType === 'CORE_PARTNER')
+        .map((l) => l.participant.partnerUserId),
+    );
+    for (const userId of leaveIn) {
+      if (!partnersHere.has(userId)) {
+        throw badRequest(
+          'PAYOUT_LEFT_IN_NOT_A_PARTNER',
+          `Only a core partner on ${settlement.cycle.code}'s settlement can leave his payout in.`,
+          { cycle: settlement.cycle.code },
+        );
+      }
+    }
+    const leftIn: { partnerUserId: string; amount: string }[] = [];
 
     const charged: PlannedCharge[] = [];
     const payouts = new Map<string, Prisma.Decimal>();
@@ -1100,6 +1135,33 @@ export class SettlementsService {
             createdBy: actorId,
           },
         });
+
+        // Left in his running account: the payout row above stands — the
+        // business paid him — and his account holds it until he draws it into
+        // a cycle or takes it out. The account is his money, not the
+        // business's cash (common/partner-account.ts).
+        const holder = participant?.partnerUserId;
+        if (
+          holder &&
+          participant?.participantType === 'CORE_PARTNER' &&
+          leaveIn.has(holder) &&
+          net.gt(0)
+        ) {
+          await tx.partnerAccountMovement.create({
+            data: {
+              partnerUserId: holder,
+              kind: 'PAYOUT_LEFT_IN',
+              amount: net.toDecimalPlaces(2),
+              amountEgp: net.toDecimalPlaces(2),
+              occurredOn: new Date(`${businessToday()}T00:00:00Z`),
+              cycleId: settlement.cycleId,
+              settlementId: settlement.id,
+              note: `Payout of ${settlement.cycle.code} left in`,
+              createdBy: actorId,
+            },
+          });
+          leftIn.push({ partnerUserId: holder, amount: net.toFixed(2) });
+        }
       }
 
       await tx.importCycle.update({
@@ -1128,6 +1190,7 @@ export class SettlementsService {
           amount: amount.toFixed(2),
         })),
         acceptedRemainingStock: opts.acceptRemainingStock ?? false,
+        payoutsLeftIn: leftIn,
         runningCostsCharged: charged.map((c) => ({
           costEntryId: c.costEntryId,
           partnerUserId: c.partnerUserId,
@@ -1175,6 +1238,47 @@ export class SettlementsService {
     });
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Payouts left in partners' accounts come back out with the settlement —
+      // never leaving an account below zero (owner 2026-10-25): once a partner
+      // has drawn it into another cycle or taken it out, that comes first.
+      const leftIn = await tx.partnerAccountMovement.findMany({
+        where: {
+          settlementId: settlement.id,
+          kind: 'PAYOUT_LEFT_IN',
+          ...STANDING_MOVEMENT,
+        },
+        include: {
+          partner: {
+            select: { email: true, partner: { select: { displayName: true } } },
+          },
+        },
+      });
+      if (leftIn.length > 0) {
+        await lockAccounts(
+          tx,
+          leftIn.map((m) => m.partnerUserId),
+        );
+        const balances = await accountBalances(
+          tx,
+          leftIn.map((m) => m.partnerUserId),
+        );
+        for (const m of leftIn) {
+          assertCovers({
+            balance: balances.get(m.partnerUserId) ?? new Prisma.Decimal(0),
+            amount: m.amountEgp,
+            partner: m.partner.partner?.displayName ?? m.partner.email,
+          });
+        }
+        await tx.partnerAccountMovement.updateMany({
+          where: { id: { in: leftIn.map((m) => m.id) } },
+          data: {
+            reversedAt: new Date(),
+            reversedBy: actorId,
+            reversalReason: `Settlement of ${settlement.cycle.code} reversed: ${reason}`,
+          },
+        });
+      }
+
       for (const original of paid) {
         await tx.financialTransaction.create({
           data: {
