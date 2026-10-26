@@ -723,6 +723,12 @@ export function fakePrisma(db: Store) {
       findUnique: ({ where }: Row) =>
         after(db.customers.find((c) => c.id === where.id) ?? null),
     },
+    // No shop here has branches (§7), so a sale's default branch is none.
+    customerBranch: {
+      findFirst: () => after(null),
+      findUnique: () => after(null),
+      findMany: () => after([]),
+    },
     saleOrder: {
       findFirst: ({ where }: Row) => {
         const prefix = where?.orderNo?.startsWith ?? '';

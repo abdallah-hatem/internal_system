@@ -2629,3 +2629,81 @@ test.describe('An edited order says one thing everywhere (§4, editing a confirm
     expect(await errCode(again)).toBe('EDIT_ORDER_NO_CHANGES');
   });
 });
+
+test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thirds, no negative, paid straight to supplier")', () => {
+  /** A fresh cycle on the shelf, with Shady and Fares added beside Abdallah, and each person's account. */
+  async function accountsWorld(request: APIRequestContext, label: string) {
+    const c = await shelfCycle(request, label);
+    const who = await usersByEmail(request, c.headers);
+    const [a, s, f] = ['abdallah@motoparts.com', 'shady@motoparts.com', 'fares@motoparts.com'].map((e) => who(e).id);
+    for (const id of [s, f]) {
+      await request.post(`${API}/cycles/${c.cycle.id}/participants`, {
+        headers: c.headers,
+        data: { participantType: 'CORE_PARTNER', partnerUserId: id, contributionAmount: 0 },
+      });
+    }
+    const advance = (id: string, data: any) =>
+      request.post(`${API}/partner-accounts/${id}/advances`, { headers: c.headers, data: { cycleId: c.cycle.id, ...data } });
+    const balance = async (id: string) => {
+      const body = await (await request.get(`${API}/partner-accounts`, { headers: c.headers })).json();
+      return Number((body.data as any[]).find((x) => x.partnerUserId === id).balanceEgp);
+    };
+    return { ...c, a, s, f, advance, balance };
+  }
+
+  test('TC-INV-84: an advance is paid straight to a supplier — cash on hand, profit and the P&L do not move', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Acct Cash');
+    const dash = await dashOf(request, w.headers);
+    const pnl = await pnlOf(request, w.headers);
+    const res = await w.advance(w.s, { amount: 1000 });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    expect(await dashOf(request, w.headers)).toEqual(dash);
+    expect(await pnlOf(request, w.headers)).toEqual(pnl);
+  });
+
+  test('TC-INV-85: an advance of zero, below zero, or dated tomorrow is refused', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Acct Limits');
+    expect(await errCode(await w.advance(w.s, { amount: 0 }))).toBe('ACCOUNT_AMOUNT_NOT_POSITIVE');
+    expect(await errCode(await w.advance(w.s, { amount: -10 }))).toBe('ACCOUNT_AMOUNT_NOT_POSITIVE');
+    expect(await errCode(await w.advance(w.s, { amount: 10, paidOn: dayFromNow(1) }))).toBe('DATE_IN_FUTURE');
+  });
+
+  test('TC-INV-86: a contribution larger than an account is refused, and nothing is drawn from anyone', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Acct Short');
+    const before = [await w.balance(w.a), await w.balance(w.s), await w.balance(w.f)];
+    await w.advance(w.s, { amount: 1_000_000 });
+    const res = await request.post(`${API}/cycles/${w.cycle.id}/account-contributions`, {
+      headers: w.headers,
+      // Fares's third is above what his account holds.
+      data: { totalEgp: Math.round((before[2] + 1000) * 3) },
+    });
+    expect(await errCode(res)).toBe('ACCOUNT_BALANCE_TOO_LOW');
+    expect([await w.balance(w.a), await w.balance(w.s) - 1_000_000, await w.balance(w.f)]).toEqual(before);
+  });
+
+  test('TC-INV-87: equal thirds of a non-zero total re-sum to it exactly; taking out more than is left is refused', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Acct Thirds');
+    for (const id of [w.a, w.s, w.f]) await w.advance(id, { amount: 400 });
+    const res = await request.post(`${API}/cycles/${w.cycle.id}/account-contributions`, { headers: w.headers, data: { totalEgp: 1000 } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    const lines = (await res.json()).data.lines as { amountEgp: string }[];
+    expect(lines.map((l) => l.amountEgp)).toEqual(['333.33', '333.33', '333.34']);
+    const left = await w.balance(w.f);
+    const out = await request.post(`${API}/partner-accounts/${w.f}/withdrawals`, { headers: w.headers, data: { amountEgp: left + 0.01 } });
+    expect(await errCode(out)).toBe('ACCOUNT_BALANCE_TOO_LOW');
+  });
+
+  test('TC-INV-88: partners only — an investor is refused every account endpoint, coded', async ({ request }) => {
+    const w = await accountsWorld(request, 'Inv Acct Roles');
+    const investor = await investorSession(request, 'InvAcct');
+    const calls = [
+      request.get(`${API}/partner-accounts`, { headers: investor.headers }),
+      request.post(`${API}/partner-accounts/${w.s}/advances`, { headers: investor.headers, data: { cycleId: w.cycle.id, amount: 10 } }),
+      request.post(`${API}/cycles/${w.cycle.id}/account-contributions`, { headers: investor.headers, data: { totalEgp: 10 } }),
+    ];
+    for (const res of await Promise.all(calls)) {
+      expect(res.status()).toBe(403);
+      expect(await errCode(res)).toBe('ROLE_NOT_ALLOWED');
+    }
+  });
+});

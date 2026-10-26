@@ -16,7 +16,9 @@ import {
 import {
   buildStatement,
   loadStatementSource,
+  narrowToBranch,
 } from '../../common/customer-statement';
+import { NO_BRANCH } from '../../common/customer-branches';
 import {
   OWED_STATUSES,
   owedBy,
@@ -188,7 +190,10 @@ export class CustomersService {
    * reversal in order with a running balance, and the balance it closed at —
    * which, for a range running to today, is the balance on the shop's page.
    */
-  async statement(id: string, range: { from?: string; to?: string }) {
+  async statement(
+    id: string,
+    range: { from?: string; to?: string; branch?: string },
+  ) {
     if (!isUuid(id)) throw notFound('customer');
     const customer = await this.prisma.customer.findUnique({
       where: { id },
@@ -203,17 +208,39 @@ export class CustomersService {
         'A walk-in buyer has no account, so there is no statement.',
       );
     }
-    const source = await loadStatementSource(this.prisma, id);
+    // One branch's statement, or the orders on no branch (§7, 2026-10-25):
+    // the owner's history split one way, so it closes at that branch's balance.
+    let branch: { id: string; name: string } | null | undefined;
+    if (range.branch === NO_BRANCH) {
+      branch = null;
+    } else if (range.branch) {
+      const found = isUuid(range.branch)
+        ? await this.prisma.customerBranch.findUnique({
+            where: { id: range.branch },
+            select: { id: true, name: true, customerId: true },
+          })
+        : null;
+      // Another customer's branch is not found here: its rows are not this
+      // customer's to show.
+      if (!found || found.customerId !== id) throw notFound('customerBranch');
+      branch = { id: found.id, name: found.name };
+    }
+    const all = await loadStatementSource(this.prisma, id);
+    const source =
+      branch === undefined ? all : narrowToBranch(all, branch?.id ?? null);
     return {
-      data: buildStatement(
-        {
-          id: customer.id,
-          displayName: customer.displayName,
-          phone: customer.phone,
-        },
-        source,
-        { from: range.from || undefined, to: range.to || undefined },
-      ),
+      data: {
+        ...buildStatement(
+          {
+            id: customer.id,
+            displayName: customer.displayName,
+            phone: customer.phone,
+          },
+          source,
+          { from: range.from || undefined, to: range.to || undefined },
+        ),
+        branch: branch === undefined ? undefined : (branch?.name ?? null),
+      },
     };
   }
 

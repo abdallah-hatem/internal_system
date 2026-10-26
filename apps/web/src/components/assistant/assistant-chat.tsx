@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { SamplesAtShopHint, type ShopSamplesOrder } from '@/components/sales/samples-at-shop-hint';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, CheckCircle, Loader2, Send, X } from '@/components/ui/icons';
 import { api } from '@/lib/api';
@@ -30,6 +31,8 @@ interface Pending {
   token: string;
   expiresAt: string | null;
   summary: string;
+  /** What the shop already holds as samples, under a sale's preview (§4, 2026-10-25). */
+  samplesAtShop?: ShopSamplesOrder[];
 }
 
 /** What the panel shows: a turn, or a preview waiting for the partner. */
@@ -47,6 +50,7 @@ const rows = <T,>(r: { data: { data?: unknown } }) => (r.data.data ?? r.data) as
 
 export function AssistantChat() {
   const t = useTranslations('assistantChat');
+  const locale = useLocale();
   const apiError = useApiError();
   const queryClient = useQueryClient();
   const allowed = useCan('assistant.chat');
@@ -217,6 +221,17 @@ export function AssistantChat() {
                       surface), so the lines and amounts read left to right
                       even on an Arabic screen. */}
                   <p dir="ltr" className="whitespace-pre-wrap break-words text-start text-foreground">{e.pending.summary}</p>
+                  {/* The shop holds samples (§4, 2026-10-25): New Order's own
+                      hint, in the reader's language, its link opening that
+                      samples order's "They're buying". Confirm stays as it is. */}
+                  {e.state === 'open' && e.pending.samplesAtShop?.length ? (
+                    <div className="mt-2">
+                      <SamplesAtShopHint
+                        orders={e.pending.samplesAtShop}
+                        href={(order) => `/${locale}/sales?buying=${order.id}`}
+                      />
+                    </div>
+                  ) : null}
                   {e.state === 'open' || e.state === 'saving' ? (
                     <div className="mt-3 flex gap-2">
                       <button

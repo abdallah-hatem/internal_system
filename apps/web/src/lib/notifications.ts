@@ -76,6 +76,7 @@ export function useNotifications(limit = 50) {
 const CODE_PARAMS: Record<string, CodeKind> = {
   toStatus: 'cycleStatus',
   fromStatus: 'cycleStatus',
+  method: 'paymentMethod',
 };
 
 /**

@@ -24,6 +24,8 @@ export interface StatementRow {
   date: string;
   reference: string | null;
   orders: string[];
+  /** The branches of the orders it touched (§7, 2026-10-25). Absent before then. */
+  branches?: string[];
   amount: string;
   effect: string;
   balance: string;
@@ -92,7 +94,26 @@ function StatementTotalSkeleton() {
  * The figures are the server's. Nothing here adds them up: a running balance
  * worked out twice is two answers to one question (CLAUDE.md §11).
  */
-export function CustomerStatement({ customerId, customerName }: { customerId: string; customerName: string }) {
+export function CustomerStatement({
+  customerId,
+  customerName,
+  branch = null,
+  branchName,
+  showBranches = false,
+}: {
+  customerId: string;
+  customerName: string;
+  /**
+   * One branch's statement (§7, 2026-10-25): a branch id, `none` for the
+   * orders on no branch, or null for the owner's — every branch together.
+   */
+  branch?: string | null;
+  /** What the narrowed statement is headed with on paper. */
+  branchName?: string;
+  /** A Branch column: the customer has branches. */
+  showBranches?: boolean;
+}) {
+  const tb = useTranslations('branches');
   const t = useTranslations('customers.statement');
   const tc = useTranslations('common');
   const apiError = useApiError();
@@ -102,11 +123,11 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
   const [range, setRange] = useState<DayRange>({ from: '', to: '' });
 
   const { data, isLoading, isFetching, isPlaceholderData, error } = useQuery<Statement>({
-    queryKey: ['customer', customerId, 'statement', range],
+    queryKey: ['customer', customerId, 'statement', range, branch],
     queryFn: () =>
       api
         .get(`/customers/${customerId}/statement`, {
-          params: { from: range.from || undefined, to: range.to || undefined },
+          params: { from: range.from || undefined, to: range.to || undefined, branch: branch || undefined },
         })
         .then((r) => r.data.data ?? r.data),
     // The rows already on screen stay, dimmed, while another range loads,
@@ -159,20 +180,22 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
 
   const exportCsv = () => {
     if (!data) return;
-    type Line = { date: string; description: string; debit: number | null; credit: number | null; balance: number };
+    type Line = { date: string; branch: string; description: string; debit: number | null; credit: number | null; balance: number };
     const lines: Line[] = [
-      { date: data.from ?? '', description: t('opening'), debit: null, credit: null, balance: Number(data.openingBalance) },
+      { date: data.from ?? '', branch: '', description: t('opening'), debit: null, credit: null, balance: Number(data.openingBalance) },
       ...data.rows.map((r) => ({
         date: r.date,
+        branch: (r.branches ?? []).join(', '),
         description: describe(r),
         debit: debit(r) === null ? null : Number(debit(r)),
         credit: credit(r) === null ? null : Number(credit(r)),
         balance: Number(r.balance),
       })),
-      { date: data.to ?? '', description: t('closing'), debit: Number(data.debits), credit: Number(data.credits), balance: Number(data.closingBalance) },
+      { date: data.to ?? '', branch: '', description: t('closing'), debit: Number(data.debits), credit: Number(data.credits), balance: Number(data.closingBalance) },
     ];
-    downloadCsv(datedFilename(`${t('csv')}-${customerName}`), lines, [
+    downloadCsv(datedFilename(`${t('csv')}-${customerName}${branchName ? `-${branchName}` : ''}`), lines, [
       { header: t('date'), value: (l) => l.date },
+      ...(showBranches ? [{ header: tb('column'), value: (l: Line) => l.branch }] : []),
       { header: t('description'), value: (l) => l.description },
       { header: t('debit'), value: (l) => l.debit },
       { header: t('credit'), value: (l) => l.credit },
@@ -205,6 +228,18 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
       key: 'date', header: t('date'), width: '7rem', kind: 'value', className: 'text-xs text-muted-foreground',
       skeleton: { kind: 'text', size: 'xs', share: 'w-3/4' }, cell: (row) => formatDate(noon(row.date)),
     },
+    // The branch on every row (§7, 2026-10-25): one for a sale, several for a
+    // payment spread across branches, a dash for an order on the owner.
+    ...(showBranches
+      ? [
+          {
+            key: 'branch', header: tb('column'), width: '7rem', kind: 'label',
+            className: 'text-xs text-foreground',
+            cellProps: () => ({ 'data-testid': 'statement-branch' }),
+            cell: (row: StatementRow) => (row.branches?.length ? <LatinText>{row.branches.join(', ')}</LatinText> : '—'),
+          } satisfies Column<StatementRow>,
+        ]
+      : []),
     {
       // A record code stays whole and moves to the next line, unless it is
       // longer than the column (a bank reference on A4): then it breaks inside
@@ -251,6 +286,12 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
         <h2 className="text-xl font-bold text-foreground">{t('heading')}</h2>
         <p className="mt-1 text-base font-semibold text-foreground">
           <LatinText>{customerName}</LatinText>
+          {branchName && (
+            <>
+              {' · '}
+              <LatinText>{branchName}</LatinText>
+            </>
+          )}
         </p>
         <p className="text-sm text-muted-foreground">{rangeLabel}</p>
         <p className="text-xs text-muted-foreground">{t('printedOn', { date: formatDate(new Date().toISOString()) })}</p>
@@ -341,6 +382,7 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
             beforeRows={
               <tr data-testid="statement-opening" className="bg-muted/60 font-medium">
                 <td className={`${pad} whitespace-nowrap text-xs text-muted-foreground`}>{data.from ? formatDate(noon(data.from)) : '—'}</td>
+                {showBranches && <td className={pad} />}
                 <td className={pad}>{t('opening')}</td>
                 <td className={pad} />
                 <td className={pad} />
@@ -351,6 +393,7 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
             afterRows={
               <tr data-testid="statement-closing" className="border-t-2 border-border font-semibold">
                 <td className={`${pad} whitespace-nowrap text-xs text-muted-foreground`}>{data.to ? formatDate(noon(data.to)) : '—'}</td>
+                {showBranches && <td className={pad} />}
                 <td className={pad}>{t('closing')}</td>
                 <td className={money}><Money value={data.debits} /></td>
                 <td className={`${money} text-foreground`}><Money value={data.credits} /></td>
@@ -382,7 +425,15 @@ export function CustomerStatement({ customerId, customerName }: { customerId: st
                   </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{formatDate(noon(row.date))}</span>
+                  <span>
+                    {formatDate(noon(row.date))}
+                    {showBranches && row.branches?.length ? (
+                      <>
+                        {' · '}
+                        <LatinText>{row.branches.join(', ')}</LatinText>
+                      </>
+                    ) : null}
+                  </span>
                   <span>
                     {t('balance')}: <Money value={row.balance} className="font-medium text-foreground" />
                   </span>

@@ -30,6 +30,7 @@ import { PortalModule } from './modules/portal/portal.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { OAuthModule } from './modules/oauth/oauth.module';
 import { LendersModule } from './modules/lenders/lenders.module';
+import { PartnerAccountsModule } from './modules/partner-accounts/partner-accounts.module';
 import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
 
 @Module({
@@ -65,6 +66,7 @@ import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.
     AssistantModule,
     OAuthModule,
     LendersModule,
+    PartnerAccountsModule,
     StockTransfersModule,
   ],
   providers: [

@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -1032,6 +1032,30 @@ orders in all, and per order the shop, the units, how long ago they were left, l
 Samples total — the prices card below it still shows and sets both B2B and B2C prices (only the card was removed;
 B2C pricing is unchanged everywhere else).
 
+**New Order warns when the shop holds samples** (owner 2026-10-25; built 2026-10-25). Why: a new order for 5 helmets
+when 1 is the sample the shop already has draws 5 more from the shelf while the sample still counts as out — stock
+reads one low and the cycle cannot settle until the samples order is closed.
+- Picking a shop in New Order shows, **above the lines**, an amber hint per open samples order: "This shop holds 1
+  Helmet as a sample (ORD-…, left …)" — each product and its units (Arabic: "هذا المحل لديه … كعينة"), and under it
+  "If those are what they're buying, complete that samples order instead…". Each order has a link, **"They're buying
+  — open ORD-…"**, which closes New Order and opens that samples order's "They're buying" popup (above), read fresh.
+- **A hint only — DECIDED (owner): it never blocks the new order**; a separate purchase while a sample is on trial is
+  valid. Neither button looks at it, and the API refuses nothing because of it.
+- **One definition of "samples out at a shop"** (CLAUDE.md §11): `samplesAtShop` in `common/samples-out.ts` reads the
+  same open-samples allocations as Inventory's Samples column, the cycle's unsold stock and the settlement gate, filtered
+  to the shop — so returned, written-off and bought samples are not in it (they are no longer `SAMPLES`), nor another
+  shop's. `GET /sales/orders/samples-at-shop?customerId=` (sales roles): no shop `CUSTOMER_REQUIRED`, an id that is not
+  a customer 404. A samples order is never a draft, so there is no draft state to show.
+- Not shown for a walk-in (no shop) nor in "They're buying" itself (it is that order). Switching shop never leaves the
+  last shop's hint: it is read per shop and not kept once nothing shows it, so it never shows samples since decided.
+- **The assistant:** `record_sale`'s preview to a shop holding samples ends with "Samples at this shop: …", each order
+  with its products and units, pointing at `complete_samples_sale`; its data carries `samplesAtShop`. It binds nothing
+  — the sale still goes through. **The office chat** shows the same hint, translated, under the preview card, its link
+  opening "They're buying" (`/sales?buying=<id>`); the English note is cut from the card so it is not said twice (the
+  model still reads it).
+- GUESS: the hint lists units out per product on each order (all units of a product summed across the batches they
+  left), oldest order first; no price is shown (a noted price is not a decision).
+
 **The assistant** (§16; tools built 2026-10-20, owner's queue of 2026-10-18): `list_sales` labels each order `kind:
 "SALE"` or `"SAMPLES"` as before. Five tools carry the flow, each the office endpoint's own `SalesService` call,
 previewed by that call rolled back and committed with the confirmation token (`tools/samples.ts`):
@@ -1196,7 +1220,7 @@ price adjustment above for edits: an edit may raise a price as well as lower it 
 was, lower only).
 
 **As built.** `POST /sales/orders/:id/edits` (and `…/edits/preview`, which writes nothing), core partners only;
-`modules/sales/order-edits.service.ts`; table `sale_order_edits` (migration `20261025100000_sale_order_edits`). The
+`modules/sales/order-edits.service.ts`; table `sale_order_edits` (migration `20261026100000_sale_order_edits`). The
 body names only the products that change — `{ productId, quantity, unitPrice? }`, the quantity being what the shop
 should hold after the edit — with `editedOn`, an optional note and, to save, the `version` the order was read at.
 An edit is one record (day, who, note, owed before and after, the change) whose parts are the records that already
@@ -1692,12 +1716,52 @@ allocated to a sale made after it was received.
 ---
 
 
-### A customer with branches — DECIDED 2026-10-25 (owner), not built yet
+### A customer with branches — DECIDED 2026-10-25 (owner), built 2026-10-25, details GUESSED
 Some shops now have several branches, each buying separately, with **one owner who pays for all**. Decided: one
 customer with branches under it (option 2 of two offered; separate customers per branch was the other). Each branch
 keeps its own orders, balance and statement; the customer shows the combined total; an owner's payment can go to one
 branch or across several. Also decided (owner, 2026-10-25): credit and contract limits, the storefront login and the
-invoice header are all the **owner's**, not each branch's. Details in BUILD_LOG Next up.
+invoice header are all the **owner's**, not each branch's. The owner picked the design from a rendered sample
+(`docs/samples/branches/`), then (2026-10-25) "the branch shouldnt be required, in a sale order, it should auto
+select the default branch" and "not required because default to the default".
+
+- **A branch is not a customer.** It is a row under the customer (`customer_branches`): a name, an address, a phone,
+  whether it is the default, whether it is archived. An order names its branch (`sale_orders.branch_id`); an order
+  with none is on the owner. Payments, contracts, the storefront login and the invoice header stay on the customer.
+- **Names**: once per customer, ignoring case and extra spaces ("LS2" and "ls2" are one branch;
+  `BRANCH_NAME_TAKEN`). Required, at most 80 characters. Another customer may use the same name.
+- **The default branch**: at most one per customer, held by the server and a unique index. Making one the default
+  takes it off the other. An archived branch cannot be the default; archiving the default leaves none.
+- **A sale order's branch** (one rule, `resolveSaleBranch`, for the office form, drafts, samples, walk-in, the
+  assistant's `record_sale` and the office chat): a branch named must be this customer's (`BRANCH_NOT_THIS_CUSTOMER`)
+  and not archived (`BRANCH_ARCHIVED`); none named means the customer's default branch.
+  - GUESS (open): a customer with branches but **no default** — the order stays on the owner, with no branch. Ahmad
+    Zogmar gets his branches with no default until the owner picks one.
+  - GUESS: New Order offers a picker only when the customer has **two or more** open branches ("a customer with one
+    branch picks none"); with one, the default rule decides.
+  - GUESS: a sale completed from samples keeps the branch the samples were left at.
+- **Balances**: a branch owes what its confirmed orders still owe (the `owedBy` rule, narrowed). The owner owes all of
+  it — every branch plus the orders on no branch; the branch figures always add up to it (they are the same orders
+  split one way). Nothing is stored twice.
+- **Payments** (recorded once, for the owner): to **all branches**, oldest first across every order, never more than
+  the combined owed (`PAYMENT_EXCEEDS_OWED`, as before); to **one branch**, oldest first on that branch's orders only,
+  never more than it owes (`PAYMENT_EXCEEDS_BRANCH_OWED`, `BRANCH_OWES_NOTHING`); on a chosen order, as before. A
+  branch and an order together are refused (the order already says its branch).
+  - GUESS: an **archived** branch can still be paid — it keeps its balance until settled.
+- **Statements**: the owner's is every row with its branch named (a payment spread over two branches names both). One
+  branch's statement is the same history narrowed to its orders, with each payment shown as the part that went there;
+  it closes at that branch's balance, and the branches' closing balances (plus the orders on no branch) add up to the
+  owner's. The Profit column works the same way.
+- **Contracts, samples, returns and price cuts** stay on their order, so on its branch.
+- **The invoice**: billed to the owner; "Deliver to" the branch, with its address and phone. GUESS: the invoice's
+  Account box (balance before and after) is the **owner's** combined balance, not the branch's.
+- **Who**: core partners add, edit, make default, archive and restore branches (as they edit customers); the office
+  roles read them.
+- **Not built**: credit and contract **limits** — the app has none today (overdue does not block a sale, above), so
+  there is nothing per branch to move. The storefront shows nothing new (the owner's login sees his orders as before).
+- Open, for the owner: which of Mokattam, Master and LS2 is Ahmad Zogmar's default, and the names' spelling; an
+  owner with no default (above). A return's credit note lowers what its own order owes (§5), so it stays on that
+  order's branch.
 
 ## 8. Cycle profit and settlement
 
@@ -1930,6 +1994,66 @@ recalculation replaced it answered 500 (Prisma P2025). Both now take the cycle's
 after the other: an Approve that waited finds its draft gone (`notFound('settlement')`) or already approved
 (`ONLY_DRAFT_APPROVABLE`); a Calculate that waited for an Approve is refused `SETTLEMENT_LOCKED`. TC-SET-17.
 
+
+### A running account per partner — DECIDED 2026-10-25 (owner: "a great idea an account"), built 2026-10-25 (phases 1 and 2), details GUESSED
+Funding a cycle starts before anyone has contributed: partners pay suppliers from their own pockets, in different
+amounts, and sometimes want to fund from profit instead of cash. Decided: each partner has a running account — his
+advances ("paid so far") and payouts left in add to it, contributions and withdrawals take from it — and cycle
+contributions are drawn from those accounts. Also decided (owner, 2026-10-25: "equal thirds, no negative, paid
+straight to supplier"): contributions default to **equal thirds**; an account **never goes negative** (no
+contributing from profit yet to come — phase 3 is dropped); an advance is **paid straight to a supplier**, not cash in
+the business, so cash on hand does not move.
+
+**The old example no longer holds.** The Next up item's example (Shady advanced 1,000, Fares 400, the owner 600; equal
+thirds of 2,000 leave Shady +333.33 and Fares **−266.67**) is now **refused**: Fares's third (666.67) is more than his
+400, so the contribution is refused `ACCOUNT_BALANCE_TOO_LOW` naming the 266.67 short — he records it as a payment
+first (in practice, what he settles with Shady), then the thirds go through.
+
+**Built 2026-10-25** (branch `agent-partner-accounts`; API, office screens, Postgres and unit tests; e2e written, not
+run — owner said not for now):
+
+- **The balance** — one definition, `apps/api/src/common/partner-account.ts` (`accountBalances`, `balanceOf`): the
+  standing movements of his account, + advances, + payouts left in, − contributions, − withdrawals. The Partners page,
+  the cycle's funding panel, every check below and a settlement's reversal read it there.
+- **An advance** (`POST /partner-accounts/:partnerUserId/advances`): a cycle, an amount above zero, the currency he
+  paid in and that day's rate (required for any currency but EGP; the page's rate only prefills), the day he paid (not
+  in the future), a note. Refused on a cycle in Settlement, Closed or Cancelled (`CYCLE_CLOSED_FOR_ACCOUNTS`) or once
+  its funding is locked (`FUNDING_LOCKED_AFTER_SETTLEMENT`, §8 2026-10-18).
+- **Paid so far, by whom** and **the funding target** (`GET /cycles/:id/account-funding`, `PUT
+  /cycles/:id/funding-target`): the cycle page's Funding panel says "1,600.00 USD of 2,000.00 USD paid so far" with a
+  bar, then each partner's payments. The target is optional, in a currency at a rate; cleared with `amount: null`.
+- **Contributing from the accounts** (`POST /cycles/:id/account-contributions`): a total, split equally among the
+  cycle's core partners (the default), or one amount per partner. All or nothing: one account short refuses the lot
+  (`ACCOUNT_BALANCE_TOO_LOW`, with `partner`, `balance`, `amount`, `short`). Each share raises that partner's
+  contribution and posts the same `contribution` ledger row an entered contribution always has.
+- **Money taken out** (`POST /partner-accounts/:partnerUserId/withdrawals`): never more than the account holds.
+- **A mistake** (`POST /partner-accounts/:partnerUserId/movements/:id/reverse`): once, with a reason; the row stays,
+  marked reversed. Never when it would leave the account below zero; a contribution reversed comes back to the account
+  and out of the cycle (a `contribution` OUTFLOW).
+- **Phase 2 — a payout left in**: Mark paid takes `leaveInPartnerUserIds`; each named core partner's net payout goes
+  into his account (`PAYOUT_LEFT_IN`). Reversing the settlement takes it back out — refused while that would leave
+  his account below zero.
+- **Who**: core partners only, every endpoint (`PARTNER_ACCOUNT_ROLES`).
+- **Who owes whom between us**: does not fall out of the balances. With no negative account, nobody owes another
+  partner through the accounts; a positive balance is the partners' money the business holds for him. Settling
+  between partners stays outside the system.
+
+| Question | Guess built | Why |
+|---|---|---|
+| What an account movement is in the ledger (CLAUDE.md §11) | **Nothing.** No movement is a ledger row: not cash, not income, not an expense. The cash event is the contribution — his money entering the cycle — which posts the `contribution` INFLOW it always has; the supplier's purchase OUTFLOW at receipt is matched by it, exactly as when partners paid suppliers and entered their contributions before accounts existed. Cash on hand, the P&L, the dashboard and each cycle's profitability are unchanged by an advance or a withdrawal (tested). | "Paid straight to supplier … cash on hand does not move." |
+| A payout left in, in cash | The settlement's payout row stands as written — the business paid him — and his account holds it. The account is his money, not the business's cash, so while it sits there cash on hand reads as if he took it; drawing it into a cycle posts the contribution inflow as any contribution. OPEN: if the owner wants cash on hand to keep payouts left in, the payout and the contribution both need a different row. | One reading of every account movement: none is cash. |
+| A withdrawal, in cash | No ledger row: the money is his, held outside the business's cash (above). | Same reading. |
+| Entering a contribution by hand | Still possible (Split equally, Enter amounts, Add participant): money he put in from his pocket for that cycle, which never touches his account. The panel's Contribute is the way through the accounts. OPEN: whether every contribution must come through an account. | Production's cycle already has contributions with no accounts; refusing them would strand it. |
+| Equal shares | Among the cycle's core partners on it, in the order they joined it, each rounded down to the piastre, the last taking the residual (333.33 / 333.33 / 333.34 of 1,000) — the same rule as Split equally. A share that rounds to zero is skipped. A total of zero or less is refused. | CLAUDE.md §10. |
+| Who an account is | A core partner with a partner record. An investor, or anyone else, has none (`NOT_FOUND`, `partner`). | "Per partner." |
+| Recording for another partner | Any core partner may record an advance, a withdrawal or a reversal on any partner's account, as the office enters every partner's records today. A movement is only reachable under its own partner's address (another partner's is `NOT_FOUND`). | One person keeps the books. |
+| An advance on someone not on the cycle | Allowed: advances only track who paid. Contributing needs him on the cycle (`PARTNER_NOT_ON_CYCLE`). | "Advances only track who paid." |
+| A target's progress in its currency | An advance paid in the target's currency counts at face value; any other counts its pounds at the target's rate. | "1,600 of 2,000" should read in dollars when they paid in dollars. |
+| When a cycle stops taking any of it | Settlement, Closed, Cancelled, or once the settlement is approved — as for a friend's payment (§18). | Its funding is agreed. |
+| Two writers at once | Each account is locked (its partner row) for the transaction, cycle first, then accounts in one order; two withdrawals of 600 against 700 cannot both pass. | Doubles are the second-time bug. |
+| A contribution lowered by hand, then its account entry reversed | Refused (`CONTRIBUTION_ALREADY_LOWERED`): the contribution would go below zero. | Never a negative contribution. |
+| Dates | Today in Cairo when left out; never later. | §7a. |
+
 ## 9. The ledger
 
 **Financial history is never rewritten** (BRD §10). A correction is a balancing
@@ -2113,10 +2237,23 @@ instalment falling behind (checked daily since 2026-10-11 — §7), and samples
 still at a shop 14 days after they were left (daily, once per order, since
 2026-10-18 — §4 "Samples at shops").
 
-**DECIDED 2026-10-25 (owner), not built yet: a sale confirmed, a payment recorded, a return, a payment reversed and an
-order cancelled each notify the other partners** — "a sale and payment should trigger notifications as well", then
-"yes i want them add" for returns, reversals and cancellations. Details in BUILD_LOG Next up; until built, a sale notifies
-only through low stock.
+**What one partner did reaches the others — DECIDED 2026-10-25 (owner), built 2026-10-25.** "a sale and payment
+should trigger notifications as well", then "yes i want them add" for returns, reversals and cancellations. Found when
+Fares recorded a sale and the owner was not told.
+
+- Raised on: a sale confirmed (one-step, walk-in, a draft confirmed, samples bought), a payment recorded, a return, a
+  payment reversed, and a **confirmed** order cancelled. A draft is not news, and neither is cancelling one.
+- Read by every active core partner except the one who did it — not an investor, not an inactive login. Each says who
+  did it (the partner's name, else the login's email).
+- What each says: the sale — shop, order number, total; the payment — amount, shop, method, the orders it went on; the
+  return — reference, shop, order, products and units, refund and whether it came off what they owe or was paid in
+  cash, the reason; the reversal — amount, shop, reason; the cancel — order number, shop, what it was worth.
+- The walk-in's payment is part of its sale, so a walk-in is one notification, not two.
+- Raised after the commit through `NotificationsService`, so the push follows (below). A failure is logged and never
+  fails the sale, payment or return. One place: `common/partner-news.ts`.
+- The assistant and the office chat record through the same services, so they notify the same way.
+- GUESS 2026-10-25, not asked: a tap opens the order on Sales for a sale, return or cancel, and Payments for a payment
+  or reversal. The payment method is said in the reader's language (bell and push).
 
 **Every office notification is also pushed to the reader's phone** — built
 2026-10-18, after the owner's test sale took a product below its minimum, the

@@ -63,6 +63,8 @@ import { FilterPills, ListToolbar } from '@/components/ui/list-toolbar';
 import { SalesSummary } from '@/components/summary/tab-summaries';
 // ─── Types ────────────────────────────────────────────────────────────
 interface SaleOrder {
+  /** The branch it was sold to (§7, 2026-10-25); null on the owner. */
+  branch?: { id: string; name: string } | null;
   id: string;
   orderNo: string;
   customerId: string;
@@ -188,6 +190,7 @@ function SalesPageContent() {
   const tp = useTranslations('payments');
   const tph = useTranslations('placeholders');
   const th = useTranslations('sales.history');
+  const tb = useTranslations('branches');
   const { formatAmount } = useNumberFormat();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -421,6 +424,44 @@ function SalesPageContent() {
     router.replace(`/${locale}/sales`, { scroll: false });
   }, [searchParams, customerList, locale, router]);
 
+  /**
+   * The samples hint's link (§4, owner 2026-10-25): New Order closes and that
+   * samples order's "They're buying" opens, with every line it carries — read
+   * fresh, so it is the order as it stands, not as a list row last saw it.
+   */
+  const openBuying = async (id: string) => {
+    try {
+      const order = await queryClient.fetchQuery({
+        queryKey: ['sale', id],
+        queryFn: () => api.get(`/sales/orders/${id}`).then((r) => r.data.data ?? r.data),
+        staleTime: 0,
+      });
+      setCreateFor(null);
+      setCompletingSamples(order as SaleOrder);
+    } catch (error) {
+      addToast(apiError(error, tc('error')), 'error');
+    }
+  };
+
+  // `?buying=<id>` — the samples hint under a sale preview in the office chat
+  // — opens the same "They're buying", once the shops and products it shows
+  // have loaded; dropped once used, like `?customer=`.
+  // The chat floats over every page, so a second link can arrive while this
+  // page stays mounted: what was opened is forgotten once the URL drops it.
+  const openedBuying = useRef<string | null>(null);
+  useEffect(() => {
+    const wanted = searchParams.get('buying');
+    if (!wanted) {
+      openedBuying.current = null;
+      return;
+    }
+    if (openedBuying.current === wanted || customerList.length === 0 || productList.length === 0) return;
+    openedBuying.current = wanted;
+    router.replace(`/${locale}/sales`, { scroll: false });
+    void openBuying(wanted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the lists arrive
+  }, [searchParams, customerList, productList.length, locale, router]);
+
 
   const STATUS_FILTER: Record<string, string> = {
     draft: 'DRAFT',
@@ -506,7 +547,15 @@ function SalesPageContent() {
     order.customer?.isWalkIn ? (
       <span data-testid="walk-in-customer">{t('walkInCustomer')}</span>
     ) : (
-      <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+      <span className="min-w-0">
+        <CustomerLink id={order.customerId} name={order.customer?.displayName} />
+        {/* The branch under the owner's name (§7, 2026-10-25). */}
+        {order.branch && (
+          <span data-testid="sale-branch-cell" className="block truncate text-xs text-muted-foreground">
+            <LatinText>{order.branch.name}</LatinText>
+          </span>
+        )}
+      </span>
     );
 
 
@@ -857,6 +906,7 @@ function SalesPageContent() {
           initialCustomerId={createFor.customerId}
           onCancel={closeCreate}
           onSaved={onOrderSaved}
+          onOpenSamples={(order) => void openBuying(order.id)}
         />
       )}
 
@@ -1010,6 +1060,7 @@ function SalesPageContent() {
             {/* Info */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <Detail label={t('customer')} value={detail.customer?.isWalkIn ? t('walkInCustomer') : <LatinText>{detail.customer?.displayName ?? '—'}</LatinText>} />
+              {detail.branch && <Detail label={tb('column')} value={<LatinText>{detail.branch.name}</LatinText>} />}
               <Detail label={t('channel')} value={detail.channel === 'B2B' ? t('b2b') : t('b2c')} />
               <Detail label={t('total')} value={totalCell(detail)} />
               <Detail label={t('outstanding')} value={outstandingCell(detail)} />

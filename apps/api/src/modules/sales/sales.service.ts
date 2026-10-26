@@ -1,4 +1,9 @@
 import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
+import {
+  cancelNews,
+  saleNews,
+  tellOtherPartners,
+} from '../../common/partner-news';
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
@@ -43,6 +48,7 @@ import {
   type LowStockNotifier,
 } from '../notifications/notifications.service';
 import { crossedIntoLowStock, findLowStock } from '../../common/low-stock';
+import { resolveSaleBranch } from '../../common/customer-branches';
 import {
   centsToDecimalString,
   saleOrderTotals,
@@ -62,6 +68,7 @@ import {
   SAMPLES_OPEN_STATUS,
   SAMPLES_REMINDER_DAYS,
 } from '../../common/samples';
+import { samplesAtShop } from '../../common/samples-out';
 
 /** The client or a transaction — whichever the caller holds. */
 type Db = Prisma.TransactionClient;
@@ -106,6 +113,12 @@ export interface CreateSaleOrderInput {
    * given is only noted, for the decision to start from.
    */
   samples?: boolean;
+  /**
+   * The customer's branch it is sold to (BUSINESS_LOGIC §7, owner 2026-10-25).
+   * Left out, the customer's default branch; with no default, the owner.
+   * Must be this customer's own, open branch.
+   */
+  branchId?: string | null;
 }
 
 /**
@@ -473,6 +486,8 @@ export class SalesService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         customer: true,
+        // The branch it was sold to (§7, 2026-10-25), named on each row.
+        branch: { select: { id: true, name: true } },
         // What each order is worth now (§4, 2026-10-22) comes with the page:
         // Prisma loads the returns and the cuts once for every row on it.
         items: { include: { product: true, ...VALUE_NOW_ITEM_INCLUDE } },
@@ -499,6 +514,7 @@ export class SalesService {
       where: { id },
       include: {
         customer: true,
+        branch: { select: { id: true, name: true, archivedAt: true } },
         items: {
           include: {
             product: true,
@@ -527,6 +543,31 @@ export class SalesService {
   }
 
   /**
+   * What a shop holds as samples (§4, owner 2026-10-25): New Order's hint
+   * when the shop is picked, and the assistant's record_sale preview. Its
+   * open samples orders, oldest first, each product with its units. A hint
+   * only — nothing here refuses a sale.
+   */
+  async samplesAtShop(customerId: string | undefined) {
+    if (!customerId) {
+      throw badRequest('CUSTOMER_REQUIRED', 'customerId is required');
+    }
+    if (!isUuid(customerId)) throw notFound('customer');
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    });
+    if (!customer) throw notFound('customer');
+    const orders = await samplesAtShop(this.prisma, customerId);
+    return {
+      data: orders.map(({ leftAt, ...o }) => ({
+        ...o,
+        leftOn: leftAt ? businessDay(leftAt) : null,
+      })),
+    };
+  }
+
+  /**
    * A confirmed sale as an invoice / delivery note (BUSINESS_LOGIC §4,
    * 2026-10-11): the shop, the order, its lines and totals, what has been
    * paid on it and what it still owes, and — for a shop with an account — the
@@ -544,6 +585,8 @@ export class SalesService {
         customer: {
           select: { id: true, displayName: true, phone: true, isWalkIn: true },
         },
+        // The delivery line under the owner's header (§7, 2026-10-25).
+        branch: { select: { name: true, address: true, phone: true } },
         items: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -660,6 +703,8 @@ export class SalesService {
           phone: order.customer.phone,
           isWalkIn: order.customer.isWalkIn,
         },
+        // Billed to the owner, delivered to the branch (owner, 2026-10-25).
+        branch: order.branch,
         lines: order.items.map((it) => ({
           id: it.id,
           productId: it.productId,
@@ -852,6 +897,7 @@ export class SalesService {
       this.notifications,
       outcome.confirmed.lowStock,
     );
+    await this.announceSale(outcome.order.id, actorId);
 
     return {
       data: { ...outcome.confirmed.data, customer: outcome.order.customer },
@@ -999,6 +1045,8 @@ export class SalesService {
       this.notifications,
       outcome.confirmed.lowStock,
     );
+    // The sale is the news; its payment is part of it, not a second one.
+    await this.announceSale(outcome.order.id, actorId);
 
     return {
       data: {
@@ -1060,6 +1108,10 @@ export class SalesService {
       throw notFound('customer');
     }
     assertVerified(customer);
+    // Which branch (§7, 2026-10-25): the one named, or the default. One rule
+    // for every way an order is made — draft, sale, samples, walk-in, the
+    // assistant — because they all come through here.
+    const branchId = await resolveSaleBranch(db, customer.id, data.branchId);
     if (samples && customer.isWalkIn) {
       throw badRequest(
         'SAMPLES_NEED_SHOP',
@@ -1151,6 +1203,7 @@ export class SalesService {
     return {
       orderNo,
       customerId: customer.id,
+      branchId,
       channel: data.channel,
       currency: data.currency,
       status: 'DRAFT' as const,
@@ -1345,7 +1398,33 @@ export class SalesService {
     // Likewise after the commit: an alert for stock that never left would
     // send somebody to reorder what is still on the shelf.
     await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
+    await this.announceSale(id, actorId);
     return { data: outcome.data };
+  }
+
+  /**
+   * A confirmed sale, told to the other partners (owner 2026-10-25), after
+   * the commit. Read back so every path says the same thing.
+   */
+  private async announceSale(orderId: string, actorId: string) {
+    await tellOtherPartners(
+      this.prisma,
+      this.notifications,
+      actorId,
+      async () => {
+        const order = await this.prisma.saleOrder.findUnique({
+          where: { id: orderId },
+          select: {
+            id: true,
+            orderNo: true,
+            total: true,
+            customerId: true,
+            customer: { select: { displayName: true } },
+          },
+        });
+        return order && saleNews(order);
+      },
+    );
   }
 
   /**
@@ -1932,6 +2011,8 @@ export class SalesService {
 
     await this.audit.log(outcome.audit);
     await notifyLowStock(this.prisma, this.notifications, outcome.lowStock);
+    // Samples bought are a sale from now on (§4).
+    await this.announceSale(outcome.data.id, actorId);
     return { data: { ...outcome.data, samples: samplesSummary(outcome.data) } };
   }
 
@@ -2216,6 +2297,7 @@ export class SalesService {
           afterJson: { status: 'CANCELLED' },
         },
         data: updated,
+        wasConfirmed: order.status === 'CONFIRMED',
       };
     });
 
@@ -2225,6 +2307,28 @@ export class SalesService {
     // cannot arrive until the transaction ends, and the transaction cannot
     // end until it returns. P2028 at exactly the ceiling, every time.
     await this.audit.log(outcome.audit);
+    // A draft never was a sale; samples "Returned" have their own story (§4).
+    if (outcome.wasConfirmed) {
+      const order = outcome.data;
+      await tellOtherPartners(
+        this.prisma,
+        this.notifications,
+        actorId,
+        async () => {
+          const shop = await this.prisma.customer.findUnique({
+            where: { id: order.customerId },
+            select: { displayName: true },
+          });
+          return cancelNews({
+            id: order.id,
+            orderNo: order.orderNo,
+            total: order.total,
+            customerId: order.customerId,
+            shop: shop?.displayName ?? '—',
+          });
+        },
+      );
+    }
     return { data: outcome.data };
   }
 }

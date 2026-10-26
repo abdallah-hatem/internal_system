@@ -68,6 +68,13 @@ export const ACTION_ROLES = {
   'lender.plan': PARTNERS, //             POST /lender-financings/:id/plan
   'lender.reverseRepayment': PARTNERS, // POST /lender-repayments/:id/reverse
   'lender.cancelPlan': PARTNERS, //       POST /lender-plans/:id/cancel
+  // Partners' running accounts (§8, 2026-10-25) — PartnerAccountsController, CycleAccountFundingController
+  'partnerAccount.read': PARTNERS, //     GET  /partner-accounts, /cycles/:id/account-funding
+  'partnerAccount.advance': PARTNERS, //  POST /partner-accounts/:id/advances
+  'partnerAccount.withdraw': PARTNERS, // POST /partner-accounts/:id/withdrawals
+  'partnerAccount.reverse': PARTNERS, //  POST /partner-accounts/:id/movements/:id/reverse
+  'partnerAccount.contribute': PARTNERS, // POST /cycles/:id/account-contributions
+  'partnerAccount.target': PARTNERS, //   PUT  /cycles/:id/funding-target
   // Leftovers moved to another cycle at cost (§8, L5) — CycleTransfersController, StockTransfersController
   'stockTransfer.create': PARTNERS, //    POST /cycles/:id/transfers
   'stockTransfer.undo': PARTNERS, //      POST /stock-transfers/:id/undo
@@ -82,6 +89,8 @@ export const ACTION_ROLES = {
   'sale.adjustPrice': PARTNERS, //       POST /sales/orders/:id/price-adjustments
   // Editing a confirmed order (§4, 2026-10-25) — SalesController
   'sale.editOrder': PARTNERS, //         POST /sales/orders/:id/edits
+  // A customer's branches (§7, owner 2026-10-25) — CustomersController
+  'customer.editBranches': PARTNERS, //  POST /customers/:id/branches (and PUT, archive, restore)
   // The office chat (owner 2026-10-25) — AssistantChatController
   'assistant.chat': PARTNERS, //         POST /assistant/chat
   // Reads a page makes on the side — UsersController

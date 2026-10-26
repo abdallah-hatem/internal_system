@@ -7,14 +7,20 @@ whats running then update docs, then push dont start anything else", 2026-10-22)
 history as their API only. The goal before it — the 2026-10-19 batch — is live.
 
 ## Current stage
-2026-10-23 — production runs `origin/master`; CYC-2026-0001's data was corrected in production at the owner's word
-("re-cost sold, keep it and set prices, names ok, go"), after a rehearsal on a copy (`.backups/prod-20261023-050844.sql`,
-taken before any change, is the way back): the 18 forgotten pieces, leg 2 at 5,250 AED, Ahmad Eraiby's 13,905.69 AED
-and his three repayments, contributions 67,056.33 each. Nothing is merged locally and waiting.
-The 9 new products stay on their default prices; the price is set on each sale as needed (owner, 2026-10-23). Next: the Rules Review answers
-(`https://claude.ai/artifact/Dcr2nHwoT8gygvVhu3bBrG`); the backup test (Queued); CI's e2e step fails on GitHub before any
-test runs (`motorcycle_parts_db` container name), unfixed; the sale order popup's Allocations still shows raw batch codes.
-State of the product and of production's data: `docs/where-things-stand.md`.
+2026-10-26 — production runs `origin/master` with the office chat, the sale/payment/return/reversal/cancel
+notifications, the New Order samples hint and the partner running account (migration
+`20261025100000_partner_running_accounts` applied first), shipped at the owner's word ("push notifications, sample hint,
+and partner account now, leave the branches"). **Customers with branches stay on `dev` only** (migration
+`20261025120000_customer_branches` not applied to production). Held on the other machine, not pushed: server-side
+lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
+in Vercel; without them it says it is not set up. State of the product and of production's data:
+`docs/where-things-stand.md`.
+**Before branches can ship (found 2026-10-26):** on `dev`, 31 API tests fail with branches merged —
+`src/modules/sales/walk-in.spec.ts` and `src/modules/assistant/tools/sales.spec.ts`: a sale's default-branch lookup is
+missing from their fakes (or from the walk-in path), so a walk-in or assistant sale answers INTERNAL_SERVER_ERROR. The
+26 Oct release left branches out and passes (2,224 API, 1,467 web). Fix these with the branches work, and check the
+real walk-in sale against a branch-less customer, not only the fakes.
+Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **server-side lists + the Sales customer filter** (`agent-lists`, `5c75bcb`) and **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
@@ -33,6 +39,55 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   each break-checked.
 
 ## On `dev`, not on master yet (the owner: "lets do this", then "push dev", 2026-10-25)
+- 2026-10-25 (owner: "make full branches again",
+  then "not required because default to the default"): **a customer with branches** — one owner pays for all. Rules
+  in BUSINESS_LOGIC §7 "A customer with branches". A `customer_branches` table (name, address, phone, default,
+  archived) under the customer and an optional `sale_orders.branch_id`; a branch is never a customer. Names once per
+  customer ignoring case, at most one default — both also unique indexes. A sale order with no branch goes on the
+  customer's default branch: one rule in `resolveSaleBranch`, for the office form, drafts, samples, walk-in, the
+  assistant's `record_sale` (which also takes a branch by name) and the office chat. Another customer's branch and an
+  archived branch are refused (`BRANCH_NOT_THIS_CUSTOMER`, `BRANCH_ARCHIVED`). The customer page: an "Owner · 3
+  branches" tag, the balance tile "across 3 branches", a Branches card (each branch's orders and what it owes, the
+  orders on the owner, the total = Owes us; add, edit, make default, archive, restore — core partners), a Branch
+  column and filter on the orders, and the statement with a Branch column, narrowed to one branch on a click (it
+  then closes at that branch's balance). Record payment: "Pay to" all branches (oldest first, as before) or one branch
+  (oldest first on its orders, never more than it owes — `PAYMENT_EXCEEDS_BRANCH_OWED`, `BRANCH_OWES_NOTHING`). New
+  Order: a Branch picker for a customer with two or more open branches, starting on the default; switching customer
+  drops the old branch at once. The invoice: billed to the owner, "Deliver to" the branch with its address and phone.
+  The Sales list and the order popup name the branch. Not changed: credit and contract limits (there are none in
+  the app today), contracts, samples, returns and price cuts stay per order; the storefront login is the owner's and
+  shows nothing new yet. Not done: a branch filter on the Sales list (the list's toolbar is being reworked by another
+  run). Tests: `customer-branches.db.spec.ts` (20, real Postgres: names, defaults, the default fallback on every
+  path incl. `record_sale`, another customer's and archived branches, per-branch caps, balances and statements that
+  add up), `SaleOrderForm.branches.test.tsx` (8: the default, a picked branch, a switched customer — also while its
+  branches load), `src/one-off/ahmad-zogmar-branches.spec.ts`; e2e `104-customer-branches` written, not run — owner
+  said not for now (2026-10-25). Each guard was undone
+  once and its test seen to fail. `check-data` 27.1–27.3: an order on another customer's branch, two defaults, an
+  archived default.
+  **Ahmad Zogmar** (production `ceadced7-457a-4803-9241-3520b6bda1ac`): `prisma/one-off/2026-10-25-ahmad-zogmar-branches.ts`
+  adds Mokattam, Master and LS2 with **no default**; it refuses any database not on this machine, and has not been
+  run against production. Waiting on the owner: which branch is his default; the names' spelling; whether an order
+  for a customer with branches and no default should stay on the owner (what it does now, GUESS). His existing
+  orders stay on him. The design sample is `docs/samples/branches/`.
+- 2026-10-25 (owner: "pull dev, start working on the todos"): **a sale, a payment, a return, a payment reversed and a
+  confirmed order cancelled notify the other partners** (§10), in the bell and pushed. `common/partner-news.ts`
+  (who hears it, who did it, the words), raised after the commit from the sales, payments and returns services; six
+  codes in `notification-messages.ts` and the office's en/ar; the bell links to the order or Payments. Tests:
+  `partner-news.db.spec.ts` (7, real services on Postgres — each event reaches the other partner and not the actor,
+  an inactive partner or an investor; a draft and a draft's cancel are silent; a failed notification leaves the sale
+  confirmed), break-verified against 7 breaks.
+- 2026-10-25 (owner, queued the same day; built on branch `agent-samples-hint`): **New Order warns when the shop
+  holds samples** (§4) — picking a shop with samples out shows, above the lines, each open samples order with every
+  product and its units ("This shop holds 1 Helmet as a sample (ORD-…, left …)") and a "They're buying — open ORD-…"
+  link that closes New Order and opens that order's "They're buying". A hint only: it never blocks the order. Read by
+  `GET /sales/orders/samples-at-shop` from `samplesAtShop` in `common/samples-out.ts`, the same draws as Inventory's
+  "At shops" and the settlement gate. The assistant's `record_sale` preview ends with the same note (data
+  `samplesAtShop`); the office chat shows the translated hint under the card, linking `/sales?buying=<id>`. Tests:
+  `sales/samples.db.spec.ts` (6: none, several products, returned/cancelled/written off/bought leave it, another
+  shop's never shows, never blocks, refusals), `assistant/tools/samples.db.spec.ts` (2), `chat.service.spec.ts` (1),
+  `samples-at-shop-hint.test.tsx` (9: switching shop leaves no stale hint, walk-in, never blocks submit, Arabic),
+  `assistant-chat.test.tsx` (1), e2e spec 104 (3, through the navigation and the pickers), each break-checked.
+  GUESS: units are summed per product on each order, oldest order first, no price shown.
 - 2026-10-25: **the office chat** (§16 "The office chat") — the assistant's tools from a button on every page, the model
   from the API's environment (Gemini by default, any OpenAI-compatible provider), previews confirmed by a button only,
   100 questions a day shared, nothing of the conversation stored. Tests: `chat.service.spec.ts` (13: the model can
@@ -45,6 +100,12 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 — shipped (migration `20261025100000_partner_running_accounts` first): the office chat (`e78e0ef`); a
+  sale, payment, return, payment reversed or order cancelled notifies the other partners (`a0130f7`); New Order warns
+  when the shop holds samples (`6228235`); a running account per partner — advances paid straight to suppliers,
+  contributions from accounts in equal thirds, never negative, withdrawals, payouts left in (`9e6a454`). Released from
+  `dev` without customers with branches (`2555c41`), which stays on `dev`. `record_sale`'s low-stock test now counts only
+  low-stock notices (a sale also notifies).
 - 2026-10-23 — shipped, no migration: the dashboard in two groups (`2248549`; BUSINESS_LOGIC "The dashboard in two
   groups"): Right now (cash on hand, to collect, owed to lenders, stock value, items in stock, low stock alerts, active
   cycles) and This month (revenue, collected, net profit, expenses — `profitFigures`, the same computation as P&L's This
@@ -240,13 +301,34 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **New Order warns when the shop holds
-  samples** — picking a customer with samples out shows a hint above the lines: "This shop holds 1 helmet as a sample"
-  (each product and units, from the open samples orders), with a link that opens that samples order's "They're buying"
-  instead. Reason: a new order for 5 helmets when 1 is the sample the shop already has draws 5 more from the shelf while
-  the sample still counts as out — stock reads one low and the cycle cannot settle until the samples order is closed.
-  The hint never blocks the new order (a separate purchase is valid while a sample is still on trial). Same hint in the
-  assistant's `record_sale` preview and the office chat.
+- **BUILT 2026-10-25 (phases 1 and 2), branch `agent-partner-accounts`, migration
+  `20261025100000_partner_running_accounts`** — rules and guesses in BUSINESS_LOGIC §8 "A running account per
+  partner". The owner waived the sample ("go ahead no need for mockups now"); static mockups made before that are in
+  `docs/samples/partner-accounts/`. Tests: `apps/api/src/modules/partner-accounts/partner-accounts.db.spec.ts`
+  (Postgres, opt-in `INTEGRATION_DATABASE_URL`), `apps/api/src/common/partner-account.spec.ts`, vitest
+  `account-funding-panel.test.tsx` and `partner-accounts-section.test.tsx`, all break-verified. e2e written, not run —
+  owner said not for now (`99-partner-accounts.spec.ts`, 34 TC-INV-84..88). The example below (Fares −266.67) is now
+  refused (no negative account). Was: Later (owner, 2026-10-25, "a great idea an account"; queued only, not to be
+  built until he says): **a running account per partner**, and funding a cycle through it. Each partner's balance = what the business holds of his.
+  + a payment he made from his own pocket for a cycle (**"paid so far"** — an advance, dated, amount and currency at
+  that day's rate, a note; not yet a contribution); + a settlement payout he leaves in; − a contribution to a cycle
+  (taken from his account, not his pocket); − money he takes out. On the cycle: an optional **funding target** (e.g.
+  2,000 USD) with "1,600 of 2,000 funded so far, by whom". Later the partners **contribute**: the cycle's contributions
+  are drawn from the accounts (e.g. equal thirds while Shady advanced 1,000, Fares 400, the owner 600 — Shady's account
+  ends +333.33, Fares −266.67); no cash passes between partners. **Contributing from profit**: earned and not paid out
+  — it is in his account already; yet to come — his account may go negative, recovered automatically from his next
+  payout, the rest staying owed. Answers "who owes whom between us" too. Supersedes the separate "funding target",
+  "contributions in USD" and "contribute from unpaid earnings" ideas of 2026-10-24.
+  Build in phases: (1) accounts, "paid so far" on the cycle, the target, contributing from an account; (2) leaving a
+  payout in (needs the first settlement); (3) dropped — no negative balance (owner, 2026-10-25).
+  **Decided (owner, 2026-10-25: "equal thirds, no negative, paid straight to supplier"):** 1. a cycle's contributions
+  default to **equal thirds**; advances only track who paid. 2. an account **never goes negative** — so phase 3
+  (contributing from profit yet to come) is dropped; a contribution larger than the account's balance is refused (or
+  the partner pays the rest in as an advance first). 3. an advance is **paid straight to a supplier**, never cash in the
+  business: it records the partner paying part of the cycle's cost, so cash on hand does not move (like a friend's
+  payment, whose inflow is matched by the purchase it paid). Rules into BUSINESS_LOGIC §8 when decided; sample the
+  cycle's funding panel and the Partners page before building (he judges by looking). Settlement changes (capital back
+  from the account, payouts into it) need the full set of break-it tests (CLAUDE.md §0, §1, §10).
 - Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
   searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
   toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
@@ -291,35 +373,6 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
     and statement, the cycle's profit, the dashboard, Analytics, inventory and the product page's stock value,
     check-data (all zero).
   - Through the assistant/office chat too, if exposed there (same service, preview/confirm).
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **a customer with branches** — "now a customer
-  can have multiple branches, and a different sale per branch … one owner pays for all". One customer (the owner, e.g.
-  Koshary) with branches under it (e.g. Dokki, Nasr City). Each branch: its own orders, balance, statement (with the
-  Profit column) and address/phone. The customer's page: every branch's balance and the combined total owed, all
-  branches' orders, and one statement across them (branch named on each row). New Order: when a customer has more than
-  one branch, pick the branch (a picker, never free text; a customer with one branch picks none). A payment from the
-  owner: to one branch, or spread across branches' orders (oldest first unless chosen), never more than the combined
-  owed. Contracts, samples, returns and price adjustments stay per order, so per branch. Existing customers become a
-  customer with no branches (no data change for them); a branch is never a separate customer record. Decided (owner,
-  2026-10-25: "owner, owner, owner"): credit and contract limits are the **owner's**, across all branches; the
-  storefront login is the **owner's** (one login for all branches; he picks the branch when ordering); the invoice
-  header names the **owner** (the branch can appear as the delivery line — Claude's suggestion, confirm when the
-  sample is shown).
-  First use once built (owner, 2026-10-25): **Ahmad Zogmar** (production customer `ceadced7-457a-4803-9241-3520b6bda1ac`,
-  B2B, owes 0 today, no open orders) gets three branches — **Mokattam**, **Master** and **LS2** (names as the owner gave
-  them; spelling to confirm when entering). His existing record becomes the owner; any orders he already has stay on
-  him until a branch is picked for them (ask the owner which branch each belongs to). Render a sample of the customer page and New Order
-  before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **a sale, a payment, a return, a payment
-  reversed and an order cancelled notify the other partners** — in the app and pushed to their phones (§10), like the events already raised. Found when Fares recorded a
-  sale and the owner was not told: a sale only notified through low stock. A sale confirmed (incl. walk-in and one-step
-  confirm): shop, order number, total, who recorded it. A payment recorded: shop, amount, method, the orders it went on,
-  who recorded it. Every active core partner except the one who did it; Arabic push as §10; raised after the commit
-  (LEARNINGS: never inside `$transaction`), through the same `NotificationsService` so the push follows. Also from the
-  assistant's `record_sale` / `record_payment` and the office chat (same services). Also (owner, 2026-10-25: "yes i want
-  them add"): a **return** (reference, order, products and units, refund and its method, reason), a **payment
-  reversed** (shop, amount, the reason), and an **order cancelled** (order number, shop, what it was worth) — same
-  readers, same rules. A test that a real sale / payment reaches the other partners' notifications from
-  the service that raises it (LEARNINGS "a test button proves the pipe, not that anything uses it").
 - Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters, sorting and pagination on the
   server, everywhere** (sorting and filters made explicit by the owner 2026-10-25) — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
   load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,

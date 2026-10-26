@@ -20,7 +20,7 @@ export interface SettlementLine {
   participant: {
     id: string;
     participantType: string;
-    partner?: { email?: string; partner?: { displayName?: string } } | null;
+    partner?: { id?: string; email?: string; partner?: { displayName?: string } } | null;
     investor?: { email?: string; partner?: { displayName?: string } } | null;
   };
 }
