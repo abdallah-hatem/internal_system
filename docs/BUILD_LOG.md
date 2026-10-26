@@ -76,6 +76,10 @@ migration; `GET /cycles/:id/account-funding` gains shares, into capital, the par
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 — production data: Abdallah's 65,000 EGP advance on CYC-2026-0001 (dated 15 Aug) reversed at his word ("just
+  remove the funding i added") — that repayment to Ahmad Eraiby is already inside his 67,056.33 contribution, so it
+  counted twice. Through `PartnerAccountsService.reverse`, reason recorded
+  (`apps/api/prisma/one-off/2026-10-26-reverse-cyc-0001-advance.ts`).
 - 2026-10-26 (evening) — shipped, no migration: **each cycle's funding is its own** — an advance funds only its own
   cycle, untied money (a payout left in) any cycle, refusals `ACCOUNT_MONEY_FOR_OTHER_CYCLE` /
   `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 27.3 (`b8ab447`); **an undone entry and its undo
