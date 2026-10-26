@@ -2091,7 +2091,8 @@
       "LenderFinancing": "ما دفعه صديق",
       "LenderRepayment": "سداد لصديق",
       "LenderPlan": "خطة سداد",
-      "AssistantChat": "محادثة المساعد"
+      "AssistantChat": "محادثة المساعد",
+      "PartnerAccountMovement": "حركة في حساب شريك"
     },
     "dateField": {
       "CYCLE_START": "تاريخ بدء الدورة",
