@@ -76,6 +76,13 @@ migration; `GET /cycles/:id/account-funding` gains shares, into capital, the par
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 (evening) — shipped, no migration: **each cycle's funding is its own** — an advance funds only its own
+  cycle, untied money (a payout left in) any cycle, refusals `ACCOUNT_MONEY_FOR_OTHER_CYCLE` /
+  `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 27.3 (`b8ab447`); **an undone entry and its undo
+  leave every period** (`common/undone-entries.ts`, shared with cash on hand) — This month's Expenses no longer −3,338.82;
+  the funding skeleton; **one Funding card** replaces the Participants card and the funding panel — target and paid so
+  far, contributions in equal thirds with covered/short, the profit split with a new Change split, Add investor
+  (`105bd6b`). Picked from a rendered sample; looked at from the agents' screenshots.
 - 2026-10-26 (afternoon) — shipped, no migration: a **Units sold** tile on the product page (`d63070d`; §3 — confirmed,
   partly paid and paid orders less returns, `common/units-sold.ts`, shared with Analytics' top products); on a touch
   screen a picker's search box is read-only until tapped, so scrolling the list cannot raise the keyboard (`87eef88`,
@@ -288,6 +295,10 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Next (2026-10-26): **Change split saved and checked on the server in one go** — the Funding card's Change split
+  writes each participant's % through separate participant PUTs and only the dialog checks they add to 100 (the server
+  checks at settlement). Add one endpoint that saves the whole split (all or none, adding to 100, coded refusals
+  `PARTIAL_CUSTOM_SPLIT` / `SPLIT_NOT_100` at save time) and have the dialog use it (CLAUDE.md §3).
 - **Found by the owner 2026-10-26, in production — fix next (awaiting his go):**
   1. **Built on branch `worktree-agent-ac6239d7503848e74`** (BUSINESS_LOGIC §8 "Each cycle's funding is its own").
      A cycle's funding panel shows each partner's whole account balance, so CYC-2026-0001's Contribute form offers the
