@@ -67,6 +67,13 @@ is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not 
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 — production data corrected (no deploy needed for it): CYC-2026-0001's Alibaba card fee (241.07 AED =
+  3,338.82 EGP at 13.85) moved from a `bank_fees` expense into leg 1 (China → UAE), owner: "its a part of the shipping
+  fee at this part". The expense reversed (reason recorded), leg 1 FLAT 1,551.74 → 1,792.81 AED (24,830.42 EGP), the
+  cycle re-costed: every unit +13.46 EGP, sales' COGS 105,841.90 → 107,699.77, the cycle's total cost unchanged at
+  193,382.28. Script `apps/api/prisma/one-off/2026-10-26-cyc-0001-fee-into-leg1.ts` (services only, refuses a rerun);
+  rehearsed on a fresh production copy first (`.backups/prod-20261026-104138.sql`, taken before the change), where
+  check-data's 69 checks were all 0.
 - 2026-10-26 — shipped (migration `20261025100000_partner_running_accounts` first): the office chat (`e78e0ef`); a
   sale, payment, return, payment reversed or order cancelled notifies the other partners (`a0130f7`); New Order warns
   when the shop holds samples (`6228235`); a running account per partner — advances paid straight to suppliers,
