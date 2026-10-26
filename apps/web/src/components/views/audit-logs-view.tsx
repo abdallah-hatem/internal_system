@@ -136,10 +136,8 @@ export default function AuditLogsPage() {
     ) : (
       <NoMatch
         filtered={!!entityFilter || !!actor}
-        onClear={() => {
-          list.clear();
-          setActor('');
-        }}
+        // The person too, in the same write as the search and the type.
+        onClear={() => list.clearWith(['actor'])}
       />
     );
 

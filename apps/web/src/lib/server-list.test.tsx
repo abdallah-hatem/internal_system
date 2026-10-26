@@ -290,6 +290,27 @@ describe('useServerList — the cache, the empty list and refusals', () => {
     await waitFor(() => expect(result.current.total).toBe(4));
   });
 
+  it('the second visit reads the list again: a change made elsewhere shows, though the cache is a minute fresh', async () => {
+    // The office's own QueryClient keeps answers fresh for a minute.
+    client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 60_000 } } });
+    const first = renderHook(useSales, { wrapper });
+    await waitFor(() => expect(first.result.current.total).toBe(25));
+    first.unmount();
+    // Another screen changed the orders without touching this list's cache
+    // (a payment reversed moves a sale back to partly paid).
+    server.rows[0] = { ...server.rows[0], status: 'DRAFT' };
+    const second = renderHook(useSales, { wrapper });
+    // The cached first page may show at once; the fresh one replaces it.
+    await waitFor(() => expect(second.result.current.rows[0]?.status).toBe('DRAFT'));
+  });
+
+  it.each(['0', '-2', 'abc'])('?page=%s in an old link asks for page 1, never page 0 or below', async (page) => {
+    nav.set(`page=${page}`);
+    renderHook(useSales, { wrapper });
+    await waitFor(() => expect(server.calls.length).toBeGreaterThan(0));
+    expect(lastCall().params.page).toBe(1);
+  });
+
   it('no rows for a search is "nothing matches", not "nothing yet"', async () => {
     nav.set('q=nothing-like-this');
     const { result } = renderHook(useSales, { wrapper });

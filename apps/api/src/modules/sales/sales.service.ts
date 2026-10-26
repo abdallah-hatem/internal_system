@@ -3,6 +3,7 @@ import {
   listRows,
   type ListQuery,
   searchOf,
+  shown,
   sortOf,
 } from '../../common/list-query';
 import { searchIds } from '../../common/repositories/list-search';
@@ -52,7 +53,7 @@ import {
   type LowStockNotifier,
 } from '../notifications/notifications.service';
 import { crossedIntoLowStock, findLowStock } from '../../common/low-stock';
-import { resolveSaleBranch } from '../../common/customer-branches';
+import { NO_BRANCH, resolveSaleBranch } from '../../common/customer-branches';
 import {
   centsToDecimalString,
   saleOrderTotals,
@@ -379,12 +380,15 @@ export class SalesService {
    *
    *   customerId  one shop's orders; `walk-in` for the walk-in buyer's
    *   status      one of the order statuses
+   *   branchId    with a customerId: one of its branches' orders, or `none`
+   *               for those on the owner (§7)
    *   from / to   calendar days, YYYY-MM-DD, both included, on the day ordered
    *   search      the order number or the buyer's name, Arabic-forgiving
    */
   async findAll(
     query: ListQuery & {
       customerId?: string;
+      branchId?: string;
       status?: string;
       channel?: string;
       from?: string;
@@ -396,10 +400,14 @@ export class SalesService {
     const search = searchOf(query);
     const { orderBy } = sortOf(query, SALE_SORTS);
     const ordered = instantRange(from, to);
+    const buyer =
+      customerId !== undefined && customerId !== ''
+        ? await this.buyerFilter(customerId)
+        : undefined;
+    const branch = await this.branchFilter(buyer, customerId, query.branchId);
     const where: Prisma.SaleOrderWhereInput = {
-      ...(customerId !== undefined && customerId !== ''
-        ? { customerId: await this.buyerFilter(customerId) }
-        : {}),
+      ...(buyer !== undefined ? { customerId: buyer } : {}),
+      ...(branch !== undefined ? { branchId: branch } : {}),
       ...(status ? { status } : {}),
       ...(channel ? { channel } : {}),
       ...(ordered ? { orderedAt: ordered } : {}),
@@ -466,6 +474,47 @@ export class SalesService {
     });
     if (!found) throw notFound('customer');
     return customerId;
+  }
+
+  /**
+   * The branch a Sales list is narrowed to (§7, owner 2026-10-25): one branch
+   * of the customer the list is already narrowed to, or `none` for that
+   * customer's orders on the owner. Only beside a shop's `customerId` — a
+   * branch alone, or with the walk-in buyer, is refused — and another
+   * customer's branch is refused as the sale itself refuses it, rather than
+   * answered with an empty list that reads as "no orders". An archived
+   * branch still lists: its orders are still its.
+   */
+  private async branchFilter(
+    buyer: string | undefined,
+    customerId: string | undefined,
+    branchId: unknown,
+  ): Promise<string | null | undefined> {
+    if (branchId === undefined || branchId === null || branchId === '') {
+      return undefined;
+    }
+    if (buyer === undefined || customerId === WALK_IN_FILTER) {
+      throw badRequest(
+        'LIST_FILTER_INVALID',
+        `branchId narrows one customer's orders; name the customer too (got "${shown(branchId)}").`,
+        { field: 'branchId', value: shown(branchId) },
+      );
+    }
+    if (branchId === NO_BRANCH) return null;
+    if (!isUuid(branchId)) throw notFound('customerBranch');
+    const found = await this.prisma.customerBranch.findUnique({
+      where: { id: branchId },
+      select: { customerId: true, name: true },
+    });
+    if (!found) throw notFound('customerBranch');
+    if (found.customerId !== buyer) {
+      throw badRequest(
+        'BRANCH_NOT_THIS_CUSTOMER',
+        `The branch ${found.name} belongs to another customer.`,
+        { branch: found.name },
+      );
+    }
+    return branchId;
   }
 
   async findById(id: string) {

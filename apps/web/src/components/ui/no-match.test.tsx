@@ -106,7 +106,10 @@ describe('NoMatch', () => {
     // Pages shown as tabs of another page live as views (lib/page-views.ts).
     const viewsDir = join(process.cwd(), 'src', 'components', 'views');
     for (const name of readdirSync(viewsDir)) if (name.endsWith('-view.tsx')) pages.push(join(viewsDir, name));
-    const searching = pages.filter((p) => /const \[search, setSearch\]/.test(readFileSync(p, 'utf8')));
+    // A search box in its own state, or one sent to the server (`list.setSearch`, 2026-10-25).
+    const searching = pages.filter((p) =>
+      /const \[search, setSearch\]|list\.setSearch\b/.test(readFileSync(p, 'utf8')),
+    );
     expect(searching.length).toBeGreaterThan(10);
     for (const p of searching) {
       const source = readFileSync(p, 'utf8');

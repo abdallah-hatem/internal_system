@@ -24,6 +24,12 @@ import { cursorPage, MAX_PAGE_SIZE, pageSize } from './dto/pagination.dto';
 
 /** The longest search a list accepts — a name or a reference, not an essay. */
 export const SEARCH_MAX = 100;
+/**
+ * The highest page a list asks for. Past the end a page is empty, but a page
+ * of 10^20 cannot even be skipped to: Postgres's OFFSET is a 64-bit integer,
+ * and Prisma refused it as a 500. A million pages of 200 is 200 million rows.
+ */
+export const MAX_PAGE = 1_000_000;
 /** Rows on a page when the list does not say. */
 export const LIST_PAGE_SIZE = 10;
 
@@ -65,7 +71,8 @@ function whole(value: unknown): number | null {
 /**
  * The page asked for, or null when the caller walks cursors instead.
  *
- * A page that is not a whole number from 1, or a page size outside 1–200, is
+ * A page that is not a whole number from 1 to `MAX_PAGE`, or a page size
+ * outside 1–200, is
  * refused: quietly reading `page=abc` as page 1 would show the first rows
  * under a URL that says something else.
  */
@@ -75,15 +82,15 @@ export function pageOf(
   const empty = (v: unknown) => v === undefined || v === null || v === '';
   if (empty(query.page) && empty(query.pageSize)) return null;
   const page = empty(query.page) ? 1 : whole(query.page);
-  if (page === null || page < 1) {
+  if (page === null || page < 1 || page > MAX_PAGE) {
     throw badRequest(
       'LIST_PAGE_INVALID',
-      `page must be a whole number from 1 (got "${shown(query.page)}").`,
-      { value: shown(query.page) },
+      `page must be a whole number from 1 to ${MAX_PAGE} (got "${shown(query.page)}").`,
+      { value: shown(query.page), max: MAX_PAGE },
     );
   }
   const size = empty(query.pageSize) ? LIST_PAGE_SIZE : whole(query.pageSize);
-  if (size === null || size < 1) {
+  if (size === null || size < 1 || size > MAX_PAGE_SIZE) {
     throw badRequest(
       'LIST_PAGE_SIZE_INVALID',
       `pageSize must be a whole number from 1 to ${MAX_PAGE_SIZE} (got "${shown(query.pageSize)}").`,

@@ -102,6 +102,11 @@ export function useServerList<T = any>( // eslint-disable-line @typescript-eslin
     queryKey: [queryKey, path, params],
     queryFn: () => api.get(path, { params }).then((r) => r.data as Answer<T>),
     placeholderData: keepPreviousData,
+    // A list is read again on every visit, the cached page showing meanwhile:
+    // the app's minute of freshness would otherwise show a page that another
+    // screen's change (a payment reversed moves a sale's status) or another
+    // partner has since made untrue, on the second visit (CLAUDE.md §0).
+    staleTime: 0,
     enabled,
   });
 
@@ -168,6 +173,12 @@ export function useServerList<T = any>( // eslint-disable-line @typescript-eslin
     if (page > 1 && totalPages > 0 && page > totalPages) write({ page: totalPages }, true);
   }, [page, totalPages, query.isPlaceholderData, query.data, write]);
 
+  const clearWith = (also: string[]) => {
+    typed.current = '';
+    setSearchText('');
+    write(Object.fromEntries(['q', ...filterNames, ...also].map((n) => [n, null])));
+  };
+
   const filtered =
     Boolean(q.trim()) || filterNames.some((n) => filterValues[n] && filterValues[n] !== defaults[n]);
 
@@ -196,11 +207,13 @@ export function useServerList<T = any>( // eslint-disable-line @typescript-eslin
     setMany: (changes: Record<string, string | null>) => write(changes),
     setPage: (n: number) => write({ page: n }, true),
     /** Clear the search and every filter (the sort stays: it is not a filter). */
-    clear: () => {
-      typed.current = '';
-      setSearchText('');
-      write({ q: null });
-    },
+    clear: () => clearWith([]),
+    /**
+     * The same, and parameters the page keeps beside them (the audit log's
+     * person), in one write: a second write of the page's own would start from
+     * the address before this one and put the search back.
+     */
+    clearWith,
     /** The API parameters without the page, for an export of every match. */
     exportParams: Object.fromEntries(
       Object.entries(params).filter(([name]) => name !== 'page' && name !== 'pageSize'),

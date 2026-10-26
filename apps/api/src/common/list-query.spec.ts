@@ -7,6 +7,7 @@ import {
   pageOfIds,
   type RowWindow,
   searchOf,
+  MAX_PAGE,
   SEARCH_MAX,
   sortOf,
 } from './list-query';
@@ -67,6 +68,17 @@ describe('pageOf — the page a list asked for', () => {
       );
     },
   );
+
+  it.each(['1000001', '2147483648', '99999999999999999999'])(
+    'page "%s" is past any list and too large to skip to: refused, never a 500',
+    (page) => {
+      expect(codeOf(() => pageOf({ page }))).toBe('LIST_PAGE_INVALID');
+    },
+  );
+
+  it(`the highest page, ${MAX_PAGE}, is allowed (an empty page past the end)`, () => {
+    expect(pageOf({ page: String(MAX_PAGE) })?.skip).toBe((MAX_PAGE - 1) * 10);
+  });
 
   it('the largest page, 200, is allowed', () => {
     expect(pageOf({ page: '1', pageSize: '200' })?.take).toBe(200);

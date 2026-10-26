@@ -669,8 +669,9 @@ definition, `apps/api/src/common/list-query.ts`.
   category filter remains), the walk-in buyer by its Arabic name "زبون عابر" (English "Walk-in" still finds it; the
   customer filter's Walk-in choice is the way), and an audit row by a record name its own before/after does not
   carry.
-- **Refused, with a code (validate on the server):** a page that is not a whole number from 1
-  (`LIST_PAGE_INVALID`), a page size outside 1–200 (`LIST_PAGE_SIZE_INVALID`), an order the list does not offer
+- **Refused, with a code (validate on the server):** a page that is not a whole number from 1 to 1,000,000
+  (`LIST_PAGE_INVALID`; the upper bound added 2026-10-26 — a page of 10^20 reached Postgres as an OFFSET it cannot
+  hold and answered a 500), a page size outside 1–200 (`LIST_PAGE_SIZE_INVALID`), an order the list does not offer
   (`LIST_SORT_UNKNOWN`), a filter value the list does not offer — an order status, a ledger direction, a type that
   is not a code (`LIST_FILTER_INVALID`), a search over 100 characters (`LIST_SEARCH_TOO_LONG`). A page past the
   end is not refused: it is empty, with the total, and the office moves to the last page.
@@ -683,6 +684,16 @@ definition, `apps/api/src/common/list-query.ts`.
   that reads as "no orders". A shop's **New Order** button now opens `/sales?new=1&customer=<id>` (`?customer=`
   alone used to mean "open the form"): the form opens on that shop, and the list underneath shows that shop's
   orders (GUESS).
+- **…and, for a customer with branches, by branch** (2026-10-26, §7): once such a customer is picked, a second
+  picker lists its branches (an archived one marked, its orders still its) and **On the owner** for its orders on no
+  branch; `?branch=<id>` (`none` for the owner) in the URL, sent as `branchId`. Picking another customer, or
+  clearing it, drops the branch in the same change. The API takes `branchId` only beside a shop's `customerId`
+  (`LIST_FILTER_INVALID` alone or with Walk-in), refuses another customer's branch (`BRANCH_NOT_THIS_CUSTOMER`, as
+  the sale does) and one that does not exist (404). GUESS: "On the owner" is always offered, even when the owner has
+  no such orders (it then lists none).
+- **A list is read again on every visit** (2026-10-26): the page last seen shows at once and is replaced by the
+  server's answer, rather than trusted for the office's usual minute — a change made on another screen (a payment
+  reversed moves a sale's status) or by another partner shows on the second visit.
 - **Still loaded whole, on purpose:** pickers (they list every choice), the CSV exports (every match of the filters
   showing, walked a page at a time), and screens that sum or rank everything they show (a shop's own orders and
   payments, Contracts, Settlements) — not lists that search or page.

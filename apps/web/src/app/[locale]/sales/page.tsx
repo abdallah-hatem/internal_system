@@ -3,6 +3,7 @@ import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
 import { fetchAll, useAllRecords } from '@/lib/list-all';
 import { useServerList } from '@/lib/server-list';
+import { SalesBuyerFilter } from '@/components/sales/sales-buyer-filter';
 import { Select } from '../../../components/ui/select';
 import { CustomerLink, ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
@@ -191,9 +192,6 @@ const STATUS_FILTER: Record<string, string> = {
   samplesFilter: 'SAMPLES',
 };
 
-/** The customer filter's choice for the walk-in buyer (the API's `WALK_IN_FILTER`). */
-const WALK_IN_FILTER = 'walk-in';
-
 // ─── Main Page ────────────────────────────────────────────────────────
 function SalesPageContent() {
   const apiError = useApiError();
@@ -241,12 +239,13 @@ function SalesPageContent() {
   // ── Queries ───────────────────────────────────────────────────────
   // One page of orders, searched, filtered, counted and paged by the API
   // (owner 2026-10-25). The URL holds the page, the search and the filters —
-  // `?customer=<id>` (or `walk-in`), `?status=`, `?from=`/`?to=` — and a
-  // new one keeps the rows on screen, dimmed, until it arrives (I2).
+  // `?customer=<id>` (or `walk-in`), `?branch=<id>` (or `none`), `?status=`,
+  // `?from=`/`?to=` — and a new one keeps the rows on screen, dimmed, until it
+  // arrives (I2).
   const list = useServerList<SaleOrder>({
     queryKey: 'sales',
     path: '/sales/orders',
-    filters: { status: 'status', customer: 'customerId', from: 'from', to: 'to' },
+    filters: { status: 'status', customer: 'customerId', branch: 'branchId', from: 'from', to: 'to' },
   });
   const { rows: orders, isLoading, error: listError, reloading } = list;
   // Days the order was placed, both included, filtered by the API (I1).
@@ -258,7 +257,7 @@ function SalesPageContent() {
   const setStatusFilter = (key: string) => list.set('status', key === 'all' ? null : STATUS_FILTER[key]);
   const customerFilter = list.get('customer');
   /** Any filter beyond the search: the empty state offers to clear them too. */
-  const narrowed = statusFilter !== 'all' || dated || Boolean(customerFilter);
+  const narrowed = statusFilter !== 'all' || dated || Boolean(customerFilter) || Boolean(list.get('branch'));
 
   // `?order=<id>` — a notification's link (the samples reminder, §4) — opens
   // that order as soon as its row is on the list. Read once, and forgotten the
@@ -431,15 +430,6 @@ function SalesPageContent() {
       setCreateFor(wanted && customerList.some((c) => c.id === wanted) ? { customerId: wanted } : {});
     },
     { ready: !searchParams.get('customer') || customerList.length > 0 },
-  );
-
-  /** The customer picker: every shop, and the walk-in buyer as its own choice. */
-  const customerOptions = useMemo(
-    () => [
-      { value: WALK_IN_FILTER, label: t('walkInCustomer') },
-      ...customerList.map((c) => ({ value: c.id, label: c.displayName })),
-    ],
-    [customerList, t],
   );
 
   /**
@@ -806,17 +796,13 @@ function SalesPageContent() {
           )
         }
       >
-        {/* One shop's orders, or the walk-in buyer's (owner 2026-10-25). */}
-        <div data-testid="sales-customer-filter" className="w-full sm:w-56">
-          <Select
-            value={customerFilter}
-            onChange={(id) => list.set('customer', id || null)}
-            clearable
-            placeholder={tph('allCustomers')}
-            searchPlaceholder={tph('searchCustomers')}
-            options={customerOptions}
-          />
-        </div>
+        {/* One shop's orders, or the walk-in buyer's; a branch of a shop with branches (owner 2026-10-25). */}
+        <SalesBuyerFilter
+          customers={customerList}
+          customer={customerFilter}
+          branch={list.get('branch')}
+          onChange={list.setMany}
+        />
         <DateRangeFilter idPrefix="sales" value={dates} onChange={setDates} busy={reloading} />
         <FilterPills
           label={t('statusFilter')}
