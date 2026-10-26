@@ -686,6 +686,22 @@ rule as the office.
 
 Open: whether the markup should differ by channel (retail above trade) — the owner said one figure for both.
 
+### Units sold on a product page  — DECIDED 2026-10-26 (owner), details GUESSED, built on branch `worktree-agent-a65382d705665b118` (awaiting the owner's look)
+
+The owner: "in product page we need a card to display how many units were sold".
+
+| Rule | What the code does | Status |
+|---|---|---|
+| The figure | **Units on realised sales — CONFIRMED, PARTIALLY_PAID, PAID — less units returned**, on a credit note or for cash. The same count as the Analytics top products' units: one definition, `netUnitsSold` / `SOLD_LINE_WHERE` / `REALISED_SALE_STATUSES` in `apps/api/src/common/units-sold.ts`, imported by both (CLAUDE.md §11). | **DECIDED** (owner, 2026-10-26) |
+| Not sold | Drafts, cancelled orders, and samples still at a shop (status SAMPLES). Samples count once "They're buying" turns the order into a sale, and only the units the shop kept. A fully returned order (RETURNED) nets to nothing. | **DECIDED** (follows "what counts as sold everywhere else") |
+| Price cuts | A price lowered after the sale changes what the units brought in, never how many there were. | **DECIDED** |
+| Second line | "across N orders" — the realised orders that still hold at least one unit of the product; an order handed back in full drops out. Hidden at zero. | **GUESS** |
+| Arabic label | "الوحدات المباعة", "في N طلب" with Arabic plural forms. | **GUESS** (wording) |
+| Who sees it | Sent on `GET /products/:id` as `unitsSold` / `unitsSoldOrders` to the office only, as the stock is; an investor's read of the catalogue does not carry it. | **GUESS** |
+
+The tile is the fifth beside Total Stock, Available, Stock value and Samples: two across on a phone with Units sold
+taking the whole row, three then two from 768px, one row of five from 1280px.
+
 ---
 
 ## 4. Sales

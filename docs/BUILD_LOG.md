@@ -16,6 +16,9 @@ lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 
+2026-10-26 — a **Units sold** tile on the product page (owner: "a card to display how many units were sold"; BUSINESS_LOGIC §3)
+is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not merged.
+
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
   — two routes (China: China → UAE → Egypt; UAE direct: UAE → Egypt), three currencies with today's rate — one shared

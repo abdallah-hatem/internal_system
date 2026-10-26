@@ -191,6 +191,8 @@
     "search": "ابحث عن منتج بالاسم أو SKU",
     "totalStock": "إجمالي المخزون",
     "stockValue": "قيمة المخزون",
+    "unitsSold": "الوحدات المباعة",
+    "unitsSoldOrders": "{count, plural, one {في طلب واحد} two {في طلبين} few {في {n} طلبات} many {في {n} طلبًا} other {في {n} طلب}}",
     "available": "متاح",
     "createdAt": "تاريخ الإنشاء",
     "inventoryBatches": "تشغيلات المخزون",
