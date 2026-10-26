@@ -85,7 +85,7 @@ The office, by menu entry (13 since 2026-10-18; related pages are tabs of one pa
 - **Cycles | Purchases | Shipments** — a three-step wizard (info, purchase order,
   shipping leg), then everything on the cycle page: departures and deliveries in
   parts, receiving with a date, losses and refunds, leg cost corrected after
-  arrival with re-costing, where-the-goods-are cards, funding note, participants,
+  arrival with re-costing, where-the-goods-are cards, one Funding card (target, paid so far, contributions, split — 2026-10-26),
   a friend's payment, leftovers moved to another cycle.
 - **Sales** — New Order popup (draft, confirm, walk-in paid on the spot, samples),
   back-dated sales, invoice and delivery note as PDF, instalment contract as PDF,
