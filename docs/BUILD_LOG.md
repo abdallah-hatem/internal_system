@@ -17,6 +17,13 @@ and partner account now, leave the branches"). **Customers with branches stay on
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 
+2026-10-27 — Live-pending: **the Funding card with investors** (owner: "they should be added to funding as well
+right? … something looks off", BUSINESS_LOGIC §8 "Investors in the funding"): put in so far counts investors
+("invested"; cycle 1 201,168.99); the partners' part on a repaid cycle is repaid or everything put in, whichever is more,
+less investors (no more double subtraction); shares as agreed when the partners' contributions make up their part; the
+share-of-the-cycle box lists everyone at the profit split's percentages, now by largest remainder. No migration.
+Verified by api unit + Postgres partner-accounts tests, web component tests, lint, tsc, `next build`; no e2e.
+
 2026-10-27 — Live-pending: **CYC-2026-0001's real funding** (owner's facts, BUSINESS_LOGIC §18 "Part of a friend's
 loan staying in the cycle as his investment"): one-off `apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts` —
 Eraiby's loan 13,905.69 → 9,878.84 AED, repayments re-recorded (last 9,064.86), contributions 55,000 / 33,084.50 /

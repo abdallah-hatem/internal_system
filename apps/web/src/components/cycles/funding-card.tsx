@@ -38,15 +38,19 @@ import { FundingNote, lenderList, type FundingTotals } from '@/components/cycles
  * Top to bottom:
  *
  * 1. **The target and put in so far** (owner 2026-10-26) — the target's
- *    progress, and per partner everything he has put into this cycle: his
- *    contribution plus his advances on it not yet drawn (`putIn`), what of it
- *    is capital, and how it came in — "repaid Ahmad Eraiby" for a contribution
- *    entered directly on a cycle a friend paid, "contributed" otherwise, "from
- *    his account", and an undrawn advance with its day; "Record what I paid".
- * 2. **Contributions** — each core partner's equal share (of the target, the
- *    cost to fund, or — on a cycle a friend paid, once he is repaid anything —
- *    what the partners repaid him: the server's `shares.basis`), what this
- *    cycle can draw for him, and "covered · N left over" or "N short".
+ *    progress, and per participant everything he has put into this cycle:
+ *    his contribution plus his advances on it not yet drawn (`putIn`), what
+ *    of it is capital, and how it came in — "repaid Ahmad Eraiby" for a
+ *    contribution entered directly on a cycle a friend paid, "contributed"
+ *    otherwise, "from his account", and an undrawn advance with its day;
+ *    investors after the partners, "invested" (owner 2026-10-27); "Record
+ *    what I paid".
+ * 2. **Contributions** — each core partner's share: what he contributed when
+ *    the partners' contributions make up their part ("as agreed", 2026-10-27),
+ *    else an equal share (of the target, the cost to fund, or — on a cycle a
+ *    friend paid, once he is repaid anything — what was repaid him or all
+ *    that was put in: the server's `shares.basis`), what this cycle can draw
+ *    for him, and "covered · N left over" or "N short".
  *    "Contribute equal thirds" draws from the accounts; "Enter amounts" and
  *    "Split equally" write contributions by hand, as before. Investors keep
  *    their own row. On a cycle with repayments to a friend, the exchange
@@ -82,9 +86,12 @@ export interface AccountFunding {
   putIn: {
     totalEgp: string;
     inTargetCurrency: string | null;
+    /** The partners, then the investors, then anyone not on the cycle who paid for it (owner 2026-10-27). */
     byPartner: {
       partnerUserId: string;
       name: string;
+      /** Null for someone not on the cycle who paid for it. */
+      participantType?: 'CORE_PARTNER' | 'TEMP_INVESTOR' | null;
       totalEgp: string;
       inTargetCurrency: string | null;
       contributionEgp: string;
@@ -136,7 +143,14 @@ export interface AccountFunding {
   investorsEgp: string;
   partnersContributedEgp: string;
   stillToContributeEgp: string;
-  shares: { basis: 'TARGET' | 'COST_TO_FUND' | 'REPAID'; ofEgp: string; partnersEgp: string; stillEgp: string };
+  shares: {
+    basis: 'TARGET' | 'COST_TO_FUND' | 'REPAID' | 'PUT_IN';
+    ofEgp: string;
+    partnersEgp: string;
+    stillEgp: string;
+    /** Every partner's share is his own contribution: all entered, and together the partners' part (owner 2026-10-27). */
+    agreed?: boolean;
+  };
   participants: {
     participantId: string;
     participantType: string;
@@ -336,7 +350,7 @@ export function FundingCard({
   const target = data.target;
   const paidInTarget = num(data.putIn.inTargetCurrency);
   const pct = target && num(target.amount) > 0 ? Math.floor((paidInTarget / num(target.amount)) * 100) : null;
-  // The server lists the cycle's partners first, then anyone else who paid for it.
+  // The server lists the cycle's partners first, then its investors, then anyone else who paid for it.
   const putInRows = data.putIn.byPartner;
   const friends = data.friends;
   const friendNames = friends ? lenderList(friends.names, locale) : '';
@@ -347,7 +361,12 @@ export function FundingCard({
     if (num(r.enteredEgp) > 0) {
       parts.push({
         key: 'entered',
-        label: friends ? t('howRepaid', { friends: friendNames }) : t('howContributed'),
+        label:
+          r.participantType === 'TEMP_INVESTOR'
+            ? t('howInvested')
+            : friends
+              ? t('howRepaid', { friends: friendNames })
+              : t('howContributed'),
         amount: r.enteredEgp,
       });
     }
@@ -375,7 +394,9 @@ export function FundingCard({
   // A friend paid towards it and the partners entered their shares: say that
   // those shares are what each repays him (owner 2026-10-19).
   const lenderPaid = num(totals?.lenderFinancedEgp);
-  const coreTotal = partners.reduce((s, p) => s + num(p.contributionAmount), 0);
+  const coreTotal = data.participants
+    .filter((p) => p.participantType === 'CORE_PARTNER')
+    .reduce((s, p) => s + num(p.contributionEgp), 0);
   const fullyLent =
     lenderPaid >= num(totals?.cycleCostEgp ?? totals?.landedEgp) + num(totals?.transferredInEgp);
 
@@ -530,18 +551,22 @@ export function FundingCard({
         <SectionHeading first>
           {nothingToShare
             ? t('contributionsNothing')
-            : t.rich(
-                data.shares.basis === 'TARGET'
-                  ? 'contributionsTarget'
-                  : data.shares.basis === 'REPAID'
-                    ? 'contributionsRepaid'
-                    : 'contributionsCost',
-                {
-                  count,
-                  friends: friendNames || tcy('fundingNoteSomeLender'),
-                  amount: () => <Money value={data.shares.ofEgp} />,
-                },
-              )}
+            : data.shares.agreed
+              ? t.rich('contributionsAgreed', { amount: () => <Money value={data.shares.partnersEgp} /> })
+              : t.rich(
+                  data.shares.basis === 'TARGET'
+                    ? 'contributionsTarget'
+                    : data.shares.basis === 'REPAID'
+                      ? 'contributionsRepaid'
+                      : data.shares.basis === 'PUT_IN'
+                        ? 'contributionsPutIn'
+                        : 'contributionsCost',
+                  {
+                    count,
+                    friends: friendNames || tcy('fundingNoteSomeLender'),
+                    amount: () => <Money value={data.shares.ofEgp} />,
+                  },
+                )}
         </SectionHeading>
         <div className="divide-y divide-border">
           <ColumnHeads cols={[t('colPartner'), t('colShare'), t('colFromAdvances'), t('colStatus')]} />
@@ -605,18 +630,27 @@ export function FundingCard({
           ))}
         </div>
 
+        {/* Each one's share of the cycle (owner 2026-10-27): everyone on it, investors too, at the
+            profit split's own percentages (`profitSplitView`) — never a second sum over the partners. */}
         {lenderPaid > 0 && coreTotal > 0 && (
           <div data-testid="repay-shares" className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             <p className="font-medium text-foreground">
-              {tcy(fullyLent ? 'repayShares' : 'repaySharesPartial', {
-                lenders: lenderList(lenderNames, locale) || tcy('fundingNoteSomeLender'),
-              })}
+              {investors.length > 0
+                ? t('sharesOfCycle', { lenders: lenderList(lenderNames, locale) || tcy('fundingNoteSomeLender') })
+                : tcy(fullyLent ? 'repayShares' : 'repaySharesPartial', {
+                    lenders: lenderList(lenderNames, locale) || tcy('fundingNoteSomeLender'),
+                  })}
             </p>
             <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
-              {partners.map((p) => (
-                <li key={p.id} data-testid={`repay-share-${p.id}`}>
-                  <bdi>{participantName(p)}</bdi> <Money value={num(p.contributionAmount)} />{' '}
-                  <span dir="ltr">({formatNumber((num(p.contributionAmount) / coreTotal) * 100, { maximumFractionDigits: 2 })}%)</span>
+              {data.participants.map((p) => (
+                <li key={p.participantId} data-testid={`repay-share-${p.participantId}`}>
+                  <bdi>{p.name}</bdi> <Money value={p.contributionEgp} />
+                  {p.profitPct !== null && (
+                    <>
+                      {' '}
+                      <span dir="ltr">({formatNumber(num(p.profitPct), { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%)</span>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

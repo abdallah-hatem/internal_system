@@ -213,9 +213,10 @@ export function profitBasisOf(
  * participants' order. A display of `resolveShares`' answer, not a second
  * rule: a custom split shows the agreed percentages as stored (with the
  * refusal settling would give, if any); a split by contribution shows each
- * one's share of the contributions to two places, the last line taking the
- * rounding so the line reads 100 (33.33 / 33.33 / 33.34) — as the money lines
- * do at settlement. `NONE` has no percentages: nothing says how it splits.
+ * one's share of the contributions to two places by largest remainder
+ * (`percentagesOf`), so the line reads 100 and every row is within a
+ * hundredth of its true share (33.33 / 33.33 / 33.34). `NONE` has no
+ * percentages: nothing says how it splits.
  */
 export function profitSplitView(
   participants: Pick<
@@ -255,17 +256,7 @@ export function profitSplitView(
       pcts: participants.map(() => null),
     };
   }
-  const total = participants.reduce((s, p) => s.add(p.contribution), ZERO);
-  const rounded = participants.map((p) =>
-    p.contribution
-      .div(total)
-      .mul(HUNDRED)
-      .toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN),
-  );
-  const last = rounded.length - 1;
-  rounded[last] = HUNDRED.sub(
-    rounded.slice(0, last).reduce((s, v) => s.add(v), ZERO),
-  );
+  const rounded = percentagesOf(participants.map((p) => p.contribution));
   return {
     basis,
     equal: participants.every((p) =>
@@ -274,6 +265,43 @@ export function profitSplitView(
     problem: null,
     pcts: rounded.map((v) => v.toFixed(2)),
   };
+}
+
+/**
+ * Each value's percentage of their total to two places, summing to exactly
+ * 100.00, by largest remainder (owner 2026-10-27: "Each partner's share of
+ * the cycle? something looks off"). Every row starts at its share rounded
+ * down; the hundredths still missing go one each to the rows that lost the
+ * most to rounding down, ties to the later row (as `equalShares` gives the
+ * last partner the odd piastre: thirds read 33.33 / 33.33 / 33.34). So a row is never more than
+ * a hundredth from its true share, and none absorbs everyone else's rounding:
+ * truncating and letting the last row take the rest read Mohammed Setta's
+ * 9.9419% on CYC-2026-0001 as 9.96. Display only — the money lines are
+ * `distributeCycleProfit`'s.
+ *
+ * Refuses a total of zero or less: no basis, no percentages (CLAUDE.md §10).
+ */
+export function percentagesOf(
+  values: Prisma.Decimal.Value[],
+): Prisma.Decimal[] {
+  const vs = values.map((v) => new Prisma.Decimal(v));
+  const total = vs.reduce((s, v) => s.add(v), ZERO);
+  if (total.lte(0) || vs.some((v) => v.lt(0))) {
+    throw new Error('Percentages need a positive total and no negative part');
+  }
+  // In hundredths of a percent: 10,000 make the whole.
+  const exact = vs.map((v) => v.div(total).mul(10_000));
+  const floors = exact.map((e) => e.floor());
+  let missing = 10_000 - floors.reduce((s, f) => s + f.toNumber(), 0);
+  const order = exact
+    .map((e, i) => ({ i, rest: e.sub(floors[i]) }))
+    .sort((a, b) => b.rest.comparedTo(a.rest) || b.i - a.i);
+  for (const { i } of order) {
+    if (missing <= 0) break;
+    floors[i] = floors[i].add(1);
+    missing -= 1;
+  }
+  return floors.map((f) => f.div(100));
 }
 
 /** Fractional share (0-1) per participant, from an agreed split or capital. */

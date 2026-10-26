@@ -782,7 +782,12 @@ suite('partner running accounts (Postgres)', () => {
    * the real repayment path (`lender-math`), the last one settling exactly.
    */
   async function friendPaidCycle(
-    opts: { rates?: [number, number, number]; repay?: boolean } = {},
+    opts: {
+      rates?: [number, number, number];
+      repay?: boolean;
+      /** His loan in dirhams; 9,878.84 once 60,000 of it stayed in as his investment (2026-10-27). */
+      loanAed?: number;
+    } = {},
   ) {
     const base = await cycleWithPartners('PURCHASING', 'AED');
     const tag = randomUUID().slice(0, 8);
@@ -830,7 +835,11 @@ suite('partner running accounts (Postgres)', () => {
     });
     const { data: financing } = await lenders.finance(
       po.id,
-      { lenderId: friend.id, amount: 13905.69, paidOn: daysAgo(35) },
+      {
+        lenderId: friend.id,
+        amount: opts.loanAed ?? 13905.69,
+        paidOn: daysAgo(35),
+      },
       actor,
     );
     const f = financing as unknown as { id: string };
@@ -950,6 +959,101 @@ suite('partner running accounts (Postgres)', () => {
       '2596.04',
       '2596.04',
     ]);
+  });
+
+  it('production’s cycle 1 as corrected (2026-10-27): investors in what was put in, the partners’ part what they put in, shares as agreed, every percentage over all five', async () => {
+    const { cycle, participants } = await friendPaidCycle({ loanAed: 9878.84 });
+    await enterContributions(participants, [55000, 33084.5, 33084.49]);
+    const joined = Date.now() - 30_000;
+    const investors = [];
+    for (const [i, [name, amount]] of (
+      [
+        ['Ahmad Eraiby', 60000],
+        ['Mohammed Setta', 20000],
+      ] as const
+    ).entries()) {
+      const user = await prisma.user.create({
+        data: {
+          email: `acct-inv-${randomUUID()}@example.test`,
+          passwordHash: 'x',
+          role: 'TEMP_INVESTOR',
+          partner: { create: { displayName: name } },
+        },
+      });
+      investors.push(user);
+      await prisma.cycleParticipant.create({
+        data: {
+          cycleId: cycle.id,
+          participantType: 'TEMP_INVESTOR',
+          investorUserId: user.id,
+          contributionAmount: amount,
+          createdAt: new Date(joined + i * 1000),
+        },
+      });
+    }
+
+    let { data } = await accounts.cycleFunding(cycle.id);
+    // Repaid 141,168.92: the 60,000 that stayed in was never part of it.
+    expect(data.friends!.repaidEgp).toBe('141168.92');
+
+    // 1. Put in so far: everyone's money — 201,168.99, not the partners' 121,168.99.
+    expect(data.putIn.totalEgp).toBe('201168.99');
+    expect(
+      data.putIn.byPartner.map((p) => [p.participantType, p.name, p.totalEgp]),
+    ).toEqual([
+      ['CORE_PARTNER', expect.stringContaining('Abdallah'), '55000.00'],
+      ['CORE_PARTNER', expect.stringContaining('Shady'), '33084.50'],
+      ['CORE_PARTNER', expect.stringContaining('Fares'), '33084.49'],
+      ['TEMP_INVESTOR', 'Ahmad Eraiby', '60000.00'],
+      ['TEMP_INVESTOR', 'Mohammed Setta', '20000.00'],
+    ]);
+    expect(data.putIn.byPartner[3].partnerUserId).toBe(investors[0].id);
+
+    // 2. The partners' part is what funds the cycle less investors — not
+    //    repaid − all investors (61,168.92 → 20,389.64 each); shares as agreed.
+    expect(data.shares).toEqual({
+      basis: 'PUT_IN',
+      ofEgp: '201168.99',
+      partnersEgp: '121168.99',
+      agreed: true,
+      stillEgp: '0.00',
+    });
+    expect(data.partners.map((p) => [p.shareEgp, p.coverEgp])).toEqual([
+      ['55000.00', '0.00'],
+      ['33084.50', '0.00'],
+      ['33084.49', '0.00'],
+    ]);
+
+    // 3. Each one's share of the cycle: all five, the settlement's split.
+    expect(data.participants.map((p) => p.profitPct)).toEqual([
+      '27.34',
+      '16.45',
+      '16.45',
+      '29.82',
+      '9.94',
+    ]);
+    const projected = (await settlements.project(cycle.id))!;
+    projected.distribution.lines.forEach((l, i) => {
+      expect(
+        l.sharePct.sub(data.participants[i].profitPct!).abs().lte('0.01'),
+      ).toBe(true);
+    });
+
+    // A target counts investors' money towards it, as its shares take it off.
+    await accounts.setTarget(
+      cycle.id,
+      { amount: 250000, currency: 'EGP' },
+      actor,
+    );
+    ({ data } = await accounts.cycleFunding(cycle.id));
+    expect(data.putIn.inTargetCurrency).toBe('201168.99');
+    expect(data.shares).toEqual(
+      expect.objectContaining({
+        basis: 'TARGET',
+        partnersEgp: '170000.00',
+        agreed: false,
+      }),
+    );
   });
 
   it('a friend-paid cycle before any repayment: shares of the cost to fund, nothing repaid, no exchange difference', async () => {
