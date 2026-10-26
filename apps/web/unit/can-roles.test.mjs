@@ -133,6 +133,12 @@ const ENDPOINTS = {
   'customer.editBranches': ['customers/customers.controller.ts', 'CustomersController', 'Post', ':id/branches'],
   'stockTransfer.create': ['stock-transfers/stock-transfers.controller.ts', 'CycleTransfersController', 'Post', ':id/transfers'],
   'stockTransfer.undo': ['stock-transfers/stock-transfers.controller.ts', 'StockTransfersController', 'Post', ':id/undo'],
+  'partnerAccount.read': ['partner-accounts/partner-accounts.controller.ts', 'PartnerAccountsController', 'Get', ''],
+  'partnerAccount.advance': ['partner-accounts/partner-accounts.controller.ts', 'PartnerAccountsController', 'Post', ':partnerUserId/advances'],
+  'partnerAccount.withdraw': ['partner-accounts/partner-accounts.controller.ts', 'PartnerAccountsController', 'Post', ':partnerUserId/withdrawals'],
+  'partnerAccount.reverse': ['partner-accounts/partner-accounts.controller.ts', 'PartnerAccountsController', 'Post', ':partnerUserId/movements/:movementId/reverse'],
+  'partnerAccount.contribute': ['partner-accounts/partner-accounts.controller.ts', 'CycleAccountFundingController', 'Post', ':id/account-contributions'],
+  'partnerAccount.target': ['partner-accounts/partner-accounts.controller.ts', 'CycleAccountFundingController', 'Put', ':id/funding-target'],
 };
 
 test('every action names the endpoint it calls', () => {

@@ -71,6 +71,7 @@ const num = (v: unknown) => Number(v ?? 0);
 export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
   const t = useTranslations('accounts');
   const tc = useTranslations('cycles');
+  const tph = useTranslations('placeholders');
   const codeLabel = useCodeLabel();
   const canRead = useCan('partnerAccount.read');
   const canAdvance = useCan('partnerAccount.advance');
@@ -248,6 +249,7 @@ export function AccountFundingPanel({ cycleId }: { cycleId: string }) {
                   <MoneyInput
                     id="contribute-total"
                     name="totalEgp"
+                    placeholder={tph('money')}
                     value={total}
                     onChange={setTypedTotal}
                     disabled={locked}

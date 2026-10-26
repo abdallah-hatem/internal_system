@@ -137,6 +137,8 @@ describe('the walk-in record is reserved', () => {
         findMany,
       },
       saleOrder: { groupBy: jest.fn(() => Promise.resolve([])) },
+      // The customers search runs on the server now (2026-10-26); nothing matches here.
+      $queryRaw: jest.fn(() => Promise.resolve([])),
     } as unknown as PrismaService;
     return {
       service: new CustomersService(prisma, audit, {

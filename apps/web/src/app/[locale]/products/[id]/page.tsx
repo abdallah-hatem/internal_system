@@ -703,7 +703,7 @@ function PriceRow({
           // Never the default figure: grey "1221" in the box read as a price
           // already typed (2026-10-22 audit). The default is the line under
           // the field, with its figure and what it is.
-          placeholder={fallback ? '' : tph('money')}
+          placeholder={fallback ? undefined : tph('money')}
           aria-describedby={fallback ? `default-price-${channel}` : undefined}
           className="h-11 w-full min-w-0 rounded-lg border border-gray-200 px-3 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 sm:h-[34px]"
         />

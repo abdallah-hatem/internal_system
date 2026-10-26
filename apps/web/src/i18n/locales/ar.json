@@ -2593,6 +2593,7 @@
     "origin": "قوانغتشو، الصين",
     "destination": "جبل علي، دبي",
     "reverseReason": "سُجّلت مرتين بالخطأ",
+    "accountNote": "دفع عربون المورد بتحويل بنكي",
     "purchaseRefundReason": "ردّ المورّد ثمن 3 كراتين تالفة",
     "undoTransferReason": "نُقلت إلى الدورة الخطأ بالخطأ",
     "chooseCustomer": "اختر عميلًا",

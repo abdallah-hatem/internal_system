@@ -2593,6 +2593,7 @@
     "origin": "Guangzhou, China",
     "destination": "Jebel Ali, Dubai",
     "reverseReason": "Entered twice by mistake",
+    "accountNote": "Paid the supplier's deposit by bank transfer",
     "purchaseRefundReason": "Supplier refunded 3 damaged cartons",
     "undoTransferReason": "Moved to the wrong cycle by mistake",
     "chooseCustomer": "Choose a customer",
