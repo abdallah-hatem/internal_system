@@ -986,6 +986,13 @@ describe('record_sale — what the assistant offers', () => {
 });
 
 describe('record_sale — low stock after the sale (§3, 2026-10-11)', () => {
+  // A confirmed sale also tells the other partners it happened (2026-10-25), so
+  // only the low-stock notices are counted here.
+  const lowStockCalls = () =>
+    lowStockAlerts.mock.calls.filter(
+      ([, d]) =>
+        (d as { code?: string } | undefined)?.code === 'LOW_STOCK_DETECTED',
+    );
   function minimum(productId: string, min: number) {
     const row = db.tables.product.find((p) => p.id === productId)!;
     row.minStock = D(min);
@@ -999,8 +1006,8 @@ describe('record_sale — low stock after the sale (§3, 2026-10-11)', () => {
 
     await confirm(walkInSale, preview.s.confirmationToken);
 
-    expect(lowStockAlerts).toHaveBeenCalledTimes(1);
-    const [userIds, data] = lowStockAlerts.mock.calls[0] as [
+    expect(lowStockCalls()).toHaveLength(1);
+    const [userIds, data] = lowStockCalls()[0] as [
       string[],
       { code: string; payload: { products: { productId: string }[] } },
     ];
@@ -1013,7 +1020,7 @@ describe('record_sale — low stock after the sale (§3, 2026-10-11)', () => {
     minimum(ids.pad, 10); // 40 → 15, still above 10
     const preview = await call(walkInSale);
     await confirm(walkInSale, preview.s.confirmationToken);
-    expect(lowStockAlerts).not.toHaveBeenCalled();
+    expect(lowStockCalls()).toHaveLength(0);
   });
 });
 
