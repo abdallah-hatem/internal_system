@@ -698,6 +698,73 @@ suite('partner running accounts (Postgres)', () => {
     expect((await accounts.cycleFunding(cycle.id)).data.target).toBeNull();
   });
 
+  it('the Funding card (owner 2026-10-26): production’s cycle 2 — thirds of 120,000, covered or short, and into capital once contributed', async () => {
+    const { cycle, people } = await cycleWithPartners();
+    await accounts.setTarget(
+      cycle.id,
+      { amount: 120000, currency: 'EGP' },
+      actor,
+    );
+    await advance(people[0].id, cycle.id, 50775);
+    await advance(people[1].id, cycle.id, 10000);
+    // Another cycle's advance is never this cycle's to draw (2026-10-26).
+    const other = await cycleWithPartners();
+    await advance(people[2].id, other.cycle.id, 99999);
+
+    let { data } = await accounts.cycleFunding(cycle.id);
+    expect(data.shares).toEqual(
+      expect.objectContaining({
+        basis: 'TARGET',
+        partnersEgp: '120000.00',
+        stillEgp: '120000.00',
+      }),
+    );
+    expect(data.partners.map((p) => [p.shareEgp, p.coverEgp])).toEqual([
+      ['40000.00', '10775.00'],
+      ['40000.00', '-30000.00'],
+      ['40000.00', '-40000.00'],
+    ]);
+    expect(data.paidSoFar.byPartner.map((p) => p.intoCapitalEgp)).toEqual([
+      '0.00',
+      '0.00',
+    ]);
+    expect(data.profitSplit.basis).toBe('NONE');
+    expect(data.participants.map((p) => p.profitPct)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+
+    // 10,000 each: Abdallah's and Shady's come from their advances here.
+    await advance(people[2].id, cycle.id, 10000);
+    await accounts.contribute(cycle.id, { totalEgp: 30000 }, actor);
+    ({ data } = await accounts.cycleFunding(cycle.id));
+    expect(
+      data.paidSoFar.byPartner.map((p) => [p.totalEgp, p.intoCapitalEgp]),
+    ).toEqual([
+      ['50775.00', '10000.00'],
+      ['10000.00', '10000.00'],
+      ['10000.00', '10000.00'],
+    ]);
+    // What each still owes of his third counts what he already put in.
+    expect(data.partners.map((p) => [p.stillToGiveEgp, p.coverEgp])).toEqual([
+      ['30000.00', '10775.00'],
+      ['30000.00', '-30000.00'],
+      ['30000.00', '-30000.00'],
+    ]);
+    expect(data.shares.stillEgp).toBe('90000.00');
+    expect(data.profitSplit).toEqual({
+      basis: 'CONTRIBUTIONS',
+      equal: true,
+      problem: null,
+    });
+    expect(data.participants.map((p) => p.profitPct)).toEqual([
+      '33.33',
+      '33.33',
+      '33.34',
+    ]);
+  });
+
   // ─── Phase 2: a payout left in ──────────────────────────────────────
 
   it('a payout left in goes into his account; the settlement cannot be reversed once he has spent it', async () => {

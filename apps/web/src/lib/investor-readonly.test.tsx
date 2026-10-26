@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import en from '@/i18n/locales/en.json';
@@ -9,6 +9,7 @@ import { ShipmentPanel, type PanelCycle } from '@/components/shipment/ShipmentPa
 import type { Shipment } from '@/components/shipment/shipment-model';
 import SettlementsPage from '@/components/views/settlements-view';
 import CycleDetailsPage from '@/app/[locale]/cycles/[cycleId]/details/page';
+import { accountFundingFixture } from '@/components/cycles/funding-card.fixture';
 
 /**
  * R1b — a temporary investor reads their cycle, its shipment and its
@@ -63,6 +64,11 @@ vi.mock('@/lib/api', () => ({
       state.gets.push(url);
       if (url.endsWith('/shipment')) return Promise.resolve({ data: { data: state.shipment } });
       if (url === '/cycles/c-1') return Promise.resolve({ data: { data: cycleRecord } });
+      if (url === '/cycles/c-1/account-funding') {
+        return Promise.resolve({
+          data: { data: accountFundingFixture({ participants: cycleRecord.participants, status: 'SELLING', toFund: 1000 }) },
+        });
+      }
       if (url.startsWith('/costing/')) return Promise.resolve({ data: { totals: { landedEgp: 1000 } } });
       if (url === '/settlements') return Promise.resolve({ data: { data: settlements } });
       if (url === '/users') return Promise.reject({ response: { status: 403 } });
@@ -216,16 +222,18 @@ describe('Cycle details page', () => {
     await screen.findByText('CYC-1');
     await screen.findAllByTestId('shipment-delivery');
     expect(state.gets).not.toContain('/users');
-    expect(screen.queryByRole('button', { name: en.cycles.addParticipant })).toBeNull();
+    expect(screen.queryByRole('button', { name: en.fundingCard.addInvestor })).toBeNull();
     expect(screen.queryByRole('button', { name: en.cycles.splitEqually })).toBeNull();
   });
 
-  it('a core partner loads the people list and is offered both', async () => {
+  it('a core partner is offered both, and the people list loads when Add investor opens', async () => {
     state.role = 'CORE_PARTNER';
     wrap(<CycleDetailsPage />);
     await screen.findByText('CYC-1');
-    await waitFor(() => expect(state.gets).toContain('/users'));
-    expect(screen.getByRole('button', { name: en.cycles.addParticipant })).toBeTruthy();
+    const add = await screen.findByRole('button', { name: en.fundingCard.addInvestor });
     expect(await screen.findByRole('button', { name: en.cycles.splitEqually })).toBeTruthy();
+    expect(state.gets).not.toContain('/users');
+    fireEvent.click(add);
+    await waitFor(() => expect(state.gets).toContain('/users'));
   });
 });

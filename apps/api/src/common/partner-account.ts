@@ -136,6 +136,13 @@ export interface Pots {
   untied: Prisma.Decimal;
   /** Each cycle's undrawn advances, by cycle id; only above zero. */
   byCycle: Map<string, Prisma.Decimal>;
+  /**
+   * What his contributions to each cycle drew from that cycle's own advances
+   * — the part of "paid so far" that went into capital (the Funding card,
+   * owner 2026-10-26): min(advances, contributions) per cycle, the same split
+   * the pots make. Only above zero.
+   */
+  intoCapital: Map<string, Prisma.Decimal>;
 }
 
 /** The pots over these movements: the standing ones. */
@@ -183,13 +190,18 @@ export function potsOf(
     }
   }
   const byCycle = new Map<string, Prisma.Decimal>();
+  const intoCapital = new Map<string, Prisma.Decimal>();
   for (const id of new Set([...advanced.keys(), ...drawn.keys()])) {
-    const left = (advanced.get(id) ?? zero).sub(drawn.get(id) ?? zero);
+    const own = advanced.get(id) ?? zero;
+    const took = drawn.get(id) ?? zero;
+    const left = own.sub(took);
     if (left.gt(0)) byCycle.set(id, left);
     // Drawn beyond this cycle's own advances: that came from untied money.
     else untied = untied.add(left);
+    const fromOwn = Prisma.Decimal.min(own, took);
+    if (fromOwn.gt(0)) intoCapital.set(id, fromOwn);
   }
-  return { untied, byCycle };
+  return { untied, byCycle, intoCapital };
 }
 
 /** His pots added up: his whole balance. */
@@ -381,6 +393,71 @@ export function equalShares(
   return Array.from({ length: count }, (_, i) =>
     (i === count - 1 ? cents.sub(each.mul(count - 1)) : each).div(100),
   );
+}
+
+/**
+ * The Funding card's contributions (owner 2026-10-26, from the sample): each
+ * core partner's equal share, what this cycle can draw for him, and whether
+ * that covers what he still has to put in.
+ *
+ * What the shares are of (GUESS 2026-10-26): the funding target in pounds
+ * when one is set and it is not below the cost to fund; otherwise the cost to
+ * fund (`CostingService.fundingFor`, the figure Split equally divides). Less
+ * investors' money either way — theirs is their own (§8). Split by
+ * `equalShares`, the last partner taking the odd piastre; nothing to split
+ * gives every share zero rather than letting rounding pick (CLAUDE.md §10).
+ *
+ * What a partner still has to give is his share less what he has already
+ * contributed, never below zero; `cover` is what the cycle can draw for him
+ * less that — covered, with that much left over, at zero or more; short by
+ * its size below zero.
+ */
+export function contributionShares(args: {
+  targetEgp: Prisma.Decimal.Value | null;
+  toFundEgp: Prisma.Decimal.Value;
+  investorsEgp: Prisma.Decimal.Value;
+  partners: {
+    availableEgp: Prisma.Decimal.Value;
+    contributionEgp: Prisma.Decimal.Value;
+  }[];
+}): {
+  basis: 'TARGET' | 'COST_TO_FUND';
+  ofEgp: Prisma.Decimal;
+  partnersEgp: Prisma.Decimal;
+  lines: {
+    share: Prisma.Decimal;
+    stillToGive: Prisma.Decimal;
+    cover: Prisma.Decimal;
+  }[];
+} {
+  const zero = new Prisma.Decimal(0);
+  const toFund = new Prisma.Decimal(args.toFundEgp);
+  const target =
+    args.targetEgp === null ? null : new Prisma.Decimal(args.targetEgp);
+  const byTarget = target !== null && target.gt(0) && target.gte(toFund);
+  const ofEgp = byTarget ? target : toFund;
+  const partnersEgp = Prisma.Decimal.max(
+    ofEgp.sub(args.investorsEgp).toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN),
+    0,
+  );
+  const shares =
+    partnersEgp.gt(0) && args.partners.length > 0
+      ? equalShares(partnersEgp, args.partners.length)
+      : args.partners.map(() => zero);
+  return {
+    basis: byTarget ? 'TARGET' : 'COST_TO_FUND',
+    ofEgp,
+    partnersEgp,
+    lines: args.partners.map((p, i) => {
+      const share = shares[i];
+      const stillToGive = Prisma.Decimal.max(share.sub(p.contributionEgp), 0);
+      return {
+        share,
+        stillToGive,
+        cover: new Prisma.Decimal(p.availableEgp).sub(stillToGive),
+      };
+    }),
+  };
 }
 
 /**

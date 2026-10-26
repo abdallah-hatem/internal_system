@@ -17,6 +17,7 @@ import {
 } from '../../common/dates';
 import { parseCurrencyCode, parseRateToEgp } from '../../common/fx-rate';
 import { recordContributionChange } from '../../common/contribution-ledger';
+import { profitSplitView } from '../settlements/settlement-math';
 import {
   STANDING_MOVEMENT,
   accountPots,
@@ -25,6 +26,7 @@ import {
   assertUntiedCovers,
   availableTo,
   balanceOf,
+  contributionShares,
   equalShares,
   inTargetCurrency,
   lockAccounts,
@@ -222,8 +224,16 @@ export class PartnerAccountsService {
             participantType: true,
             partnerUserId: true,
             contributionAmount: true,
+            customProfitPct: true,
+            investorFeePct: true,
             createdAt: true,
             partner: {
+              select: {
+                email: true,
+                partner: { select: { displayName: true } },
+              },
+            },
+            investor: {
               select: {
                 email: true,
                 partner: { select: { displayName: true } },
@@ -304,10 +314,10 @@ export class PartnerAccountsService {
     // What THIS cycle can draw from each account: its own advances not yet
     // drawn, and untied money — never another cycle's advance (owner
     // 2026-10-26, "each cycle has its own funding").
-    const pots = await accountPots(
-      this.prisma,
-      core.map((p) => p.partnerUserId!),
-    );
+    // Payers too: an advance may be recorded for someone not on the cycle.
+    const pots = await accountPots(this.prisma, [
+      ...new Set([...core.map((p) => p.partnerUserId!), ...payers.keys()]),
+    ]);
     const investorsEgp = cycle.participants
       .filter((p) => p.participantType !== 'CORE_PARTNER')
       .reduce((s, p) => s.add(p.contributionAmount), D(0));
@@ -317,6 +327,33 @@ export class PartnerAccountsService {
     );
     const { toFund } = await this.costing.fundingFor(cycleId);
     const still = D(toFund).sub(investorsEgp).sub(partnersEgp);
+    const availableOf = (p: (typeof core)[number]) =>
+      availableTo(pots.get(p.partnerUserId!)!, cycleId);
+    // The Funding card's equal shares (owner 2026-10-26): of the target, or
+    // of the cost to fund when there is none or it is lower.
+    const shares = contributionShares({
+      targetEgp: target ? target.amountEgp : null,
+      toFundEgp: toFund,
+      investorsEgp,
+      partners: core.map((p) => ({
+        availableEgp: availableOf(p),
+        contributionEgp: p.contributionAmount,
+      })),
+    });
+    const split = profitSplitView(
+      cycle.participants.map((p) => ({
+        type: p.participantType,
+        contribution: D(p.contributionAmount),
+        customProfitPct:
+          p.customProfitPct === null ? null : D(p.customProfitPct),
+      })),
+    );
+    const personName = (p: (typeof cycle.participants)[number]) =>
+      p.partner?.partner?.displayName ??
+      p.investor?.partner?.displayName ??
+      p.partner?.email ??
+      p.investor?.email ??
+      '';
 
     return {
       data: {
@@ -335,14 +372,25 @@ export class PartnerAccountsService {
             name: p.name,
             totalEgp: m2(p.totalEgp),
             inTargetCurrency: target ? m2(p.inTarget) : null,
+            /** Of what he paid on this cycle, how much his contributions to it drew: into capital. */
+            intoCapitalEgp: m2(
+              pots.get(partnerUserId)?.intoCapital.get(cycleId) ?? 0,
+            ),
             advances: p.advances,
           })),
         },
         /** The cycle's core partners, in the order an equal split takes them (its last absorbs the residual). */
-        partners: core.map((p) => {
+        partners: core.map((p, i) => {
           const his = pots.get(p.partnerUserId!)!;
-          const available = availableTo(his, cycleId);
+          const available = availableOf(p);
+          const line = shares.lines[i];
           return {
+            /** His equal share (`shares.basis` says of what). */
+            shareEgp: m2(line.share),
+            /** His share less what he has contributed, never below zero. */
+            stillToGiveEgp: m2(line.stillToGive),
+            /** What this cycle can draw for him less that: covered (≥ 0, left over) or short (< 0). */
+            coverEgp: m2(line.cover),
             partnerUserId: p.partnerUserId!,
             participantId: p.id,
             name: p.partner?.partner?.displayName ?? p.partner?.email ?? '',
@@ -373,6 +421,33 @@ export class PartnerAccountsService {
         partnersContributedEgp: m2(partnersEgp),
         /** What the partners have still to contribute: the cost to fund less investors' money and theirs, never below zero. */
         stillToContributeEgp: m2(Prisma.Decimal.max(still, 0)),
+        /** What the equal shares are of: the target, or the cost to fund. */
+        shares: {
+          basis: shares.basis,
+          ofEgp: m2(shares.ofEgp),
+          partnersEgp: m2(shares.partnersEgp),
+          /** What "Contribute equal thirds" draws by default: every partner's still to give. */
+          stillEgp: m2(
+            shares.lines.reduce((s, l) => s.add(l.stillToGive), D(0)),
+          ),
+        },
+        /** Everyone on the cycle, in order, with the profit split (`profitSplitView`). */
+        participants: cycle.participants.map((p, i) => ({
+          participantId: p.id,
+          participantType: p.participantType,
+          name: personName(p),
+          contributionEgp: m2(p.contributionAmount),
+          customProfitPct:
+            p.customProfitPct === null ? null : D(p.customProfitPct).toFixed(2),
+          investorFeePct:
+            p.investorFeePct === null ? null : D(p.investorFeePct).toFixed(2),
+          profitPct: split.pcts[i],
+        })),
+        profitSplit: {
+          basis: split.basis,
+          equal: split.equal,
+          problem: split.problem,
+        },
       },
     };
   }

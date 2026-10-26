@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { AlertTriangle, HandCoins, Loader2, PencilLine, Scale } from '@/components/ui/icons';
+import { AlertTriangle, HandCoins } from '@/components/ui/icons';
 import { Money } from '@/components/ui/money';
 
 /**
@@ -63,27 +63,15 @@ export function FundingNote({
   cycle,
   totals,
   lenders = [],
-  canSplit,
-  splitting,
-  canEdit,
   canFinance,
-  onSplit,
-  onEnterAmounts,
   onPaidByLender,
 }: {
   cycle: { status?: string; fundingLock?: string | null } | undefined;
   totals: FundingTotals | undefined;
   /** The friends who paid towards the cycle, by name — the note says who. */
   lenders?: string[];
-  /** Something to split: core partners on it and a cost to fund. */
-  canSplit: boolean;
-  splitting: boolean;
-  /** May edit contributions (Split equally, Enter amounts). */
-  canEdit: boolean;
   /** May record a friend's payment: the cycle has an order to pay. */
   canFinance: boolean;
-  onSplit: () => void;
-  onEnterAmounts: () => void;
   onPaidByLender: () => void;
 }) {
   const t = useTranslations('cycles');
@@ -99,71 +87,37 @@ export function FundingNote({
     count: Math.max(lenders.length, 1),
   };
 
+  // One line at the top of the Funding card (owner 2026-10-26): the message,
+  // and a friend's payment beside it. Split equally and Enter amounts sit in
+  // the card's Contributions, just below.
   return (
     <div
       role="status"
       data-testid="funding-note"
-      className="rounded-xl border border-accent-200 bg-accent-50 p-4"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2"
     >
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-accent-600" aria-hidden="true" />
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="space-y-1">
-            <p data-testid="funding-note-title" className="text-sm font-semibold text-accent-900">
-              {paid <= 0
-                ? t('fundingNoteTitle')
-                : paid >= cost
-                  ? t.rich('fundingNoteLender', { ...lenderArgs, paid: () => <Money value={paid} /> })
-                  : t.rich('fundingNotePartial', {
-                      ...lenderArgs,
-                      paid: () => <Money value={paid} />,
-                      cost: () => <Money value={cost} />,
-                    })}
-            </p>
-            <p className="text-xs text-accent-800">
-              {paid > 0 ? t('fundingNoteLenderHint') : t('fundingNoteHint')}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {canEdit && (
-              <button
-                type="button"
-                onClick={onSplit}
-                disabled={!canSplit || splitting}
-                data-testid="funding-note-split"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-accent-700 disabled:opacity-50 touch-manipulation"
-              >
-                {splitting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Scale className="h-3.5 w-3.5" />
-                )}
-                {t('splitEqually')}
-              </button>
-            )}
-            {canEdit && (
-              <button
-                type="button"
-                onClick={onEnterAmounts}
-                data-testid="funding-note-enter"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-accent-300 bg-card px-3 py-1.5 text-xs font-medium text-accent-900 hover:bg-accent-100 touch-manipulation"
-              >
-                <PencilLine className="h-3.5 w-3.5" /> {t('fundingEnterAmounts')}
-              </button>
-            )}
-            {canFinance && (
-              <button
-                type="button"
-                onClick={onPaidByLender}
-                data-testid="funding-note-lender"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-accent-300 bg-card px-3 py-1.5 text-xs font-medium text-accent-900 hover:bg-accent-100 touch-manipulation"
-              >
-                <HandCoins className="h-3.5 w-3.5" /> {t('fundingPaidByLender')}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <AlertTriangle className="h-4 w-4 shrink-0 text-accent-600" aria-hidden="true" />
+      <p data-testid="funding-note-title" className="min-w-[12rem] flex-1 text-sm font-medium text-accent-900">
+        {paid <= 0
+          ? t('fundingNoteTitle')
+          : paid >= cost
+            ? t.rich('fundingNoteLender', { ...lenderArgs, paid: () => <Money value={paid} /> })
+            : t.rich('fundingNotePartial', {
+                ...lenderArgs,
+                paid: () => <Money value={paid} />,
+                cost: () => <Money value={cost} />,
+              })}
+      </p>
+      {canFinance && (
+        <button
+          type="button"
+          onClick={onPaidByLender}
+          data-testid="funding-note-lender"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-accent-300 bg-card px-3 py-1.5 text-xs font-medium text-accent-900 hover:bg-accent-100 touch-manipulation"
+        >
+          <HandCoins className="h-3.5 w-3.5" /> {t('fundingPaidByLender')}
+        </button>
+      )}
     </div>
   );
 }

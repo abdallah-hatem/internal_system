@@ -14,6 +14,7 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { API, aCorePartnerUser, anInvestorUser, apiCtx, today } from './support/fixtures';
 import { WEB as BASE } from './support/env';
+import en from '../src/i18n/locales/en.json';
 
 const EMAIL = 'abdallah@motoparts.com';
 const PASSWORD = 'password123';
@@ -70,7 +71,7 @@ test.describe('Cycle details', () => {
 
     // Readable, not editable: a closed cycle is history. Since 2026-10-18 the
     // funding controls stay on screen, switched off, and say why (§8).
-    await expect(page.getByRole('button', { name: /add participant/i })).toBeDisabled();
+    await expect(page.getByTestId('funding-card').getByRole('button', { name: en.fundingCard.addInvestor })).toBeDisabled();
     await expect(page.getByTestId('funding-locked')).toBeVisible();
   });
 
@@ -88,7 +89,7 @@ test.describe('Cycle details', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
-    await page.getByRole('button', { name: /add participant/i }).click();
+    await page.getByTestId('funding-card').getByRole('button', { name: en.fundingCard.addInvestor }).click();
 
     const type = page
       .locator('input[type="hidden"][name="participantType"]')
@@ -104,7 +105,7 @@ test.describe('Cycle details', () => {
     await person.click();
     await page.getByRole('listbox').getByRole('option').first().click();
 
-    await page.locator('input[inputmode="decimal"]').first().fill('40000');
+    await page.getByTestId('add-participant-form').locator('input[inputmode="decimal"]').first().fill('40000');
     await page.getByRole('button', { name: /save/i }).click();
 
     await expect
@@ -227,8 +228,8 @@ test.describe('The three partners fund a cycle equally by default', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
-    // The participants card's own button; the funding note above it has one too (2026-10-18).
-    await page.getByTestId('participants-card').getByRole('button', { name: /split equally/i }).click();
+    // The Funding card's Contributions (owner 2026-10-26).
+    await page.getByTestId('funding-card').getByTestId('split-equally').click();
 
     await expect
       .poll(async () => {
@@ -278,8 +279,8 @@ test.describe('The three partners fund a cycle equally by default', () => {
 
     await login(page);
     await page.goto(`${BASE}/en/cycles/${cycle.id}/details`);
-    // The participants card's own button; the funding note above it has one too (2026-10-18).
-    await page.getByTestId('participants-card').getByRole('button', { name: /split equally/i }).click();
+    // The Funding card's Contributions (owner 2026-10-26).
+    await page.getByTestId('funding-card').getByTestId('split-equally').click();
 
     // 10,000 cost, 4,000 from the investor: the partners cover the other 6,000.
     await expect

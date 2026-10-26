@@ -147,7 +147,7 @@ test.describe('R1b — an investor reads and does not act', () => {
     await openCycle(page, moving.code);
     await expect(page.getByTestId('record-delivery')).toBeVisible();
     await expect(page.getByTestId('mark-lost')).toBeVisible();
-    await expect(page.getByRole('button', { name: en.cycles.addParticipant })).toBeVisible();
+    await expect(page.getByRole('button', { name: en.fundingCard.addInvestor })).toBeVisible();
     expect(refusals).toEqual([]);
   });
 

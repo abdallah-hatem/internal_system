@@ -127,7 +127,8 @@ test.describe('A purchase paid by a friend, repaid in pounds', () => {
     expect(costing.totals.toFundEgp).toBe('403000.00');
     // The funding note names him and asks who repays him (2026-10-19).
     await expect(page.getByTestId('funding-note-title')).toContainText(`${friend} paid`);
-    await page.getByTestId('funding-note').getByTestId('funding-note-split').click();
+    // Split equally sits in the Funding card's Contributions, under the note (owner 2026-10-26).
+    await page.getByTestId('funding-card').getByTestId('split-equally').click();
     await expect(page.getByText('Split equally — 403,000 EGP')).toBeVisible();
     await expect(page.getByTestId('funding-note')).toHaveCount(0);
     await expect(page.getByTestId('repay-shares')).toContainText(friend);

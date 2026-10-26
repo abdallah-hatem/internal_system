@@ -2,7 +2,6 @@
 import { GoodsLocationCards, GoodsLocationSkeleton } from '@/components/cycles/goods-location-cards';
 import { CycleTransfersSection, MoveLeftoversButton, useCycleTransfers } from '@/components/cycles/cycle-transfers';
 import { LatinText } from '@/components/ui/latin-text';
-import { useAllRecords } from '@/lib/list-all';
 
 /**
  * Everything a cycle contains, at any point in its life.
@@ -12,45 +11,31 @@ import { useAllRecords } from '@/lib/list-all';
  * 1" — with no way to see what those were. A closed cycle, the one you most
  * want to look back at, showed the least.
  *
- * This page is readable in every status, and is where participants are added,
- * which nothing could do before: the API and the settlement maths both expected
- * them, and no screen ever created one. Every cycle therefore had none, and
- * settling reported "No participants found for this cycle".
+ * This page is readable in every status. Its money in — the target, what
+ * each partner paid, the contributions, the profit split and who is on the
+ * cycle — is one Funding card (owner 2026-10-26, `funding-card.tsx`).
  */
 
 import { useTranslations } from 'next-intl';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { localName } from '@/lib/localized-name';
 import { useRef, useState } from 'react';
 import { api } from '../../../../../lib/api';
 import { Money } from '../../../../../components/ui/money';
-import { Select } from '../../../../../components/ui/select';
-import { useToast } from '../../../../../components/ui/toast';
-import { selectOnFocus } from '../../../../../lib/select-on-focus';
-import { MoneyInput } from '../../../../../components/ui/money-input';
-import {
-  Loader2, Users, ShoppingCart, Boxes, Plus, Scale, TrendingUp, PencilLine,
-} from '@/components/ui/icons';
-
-import { useApiError } from '../../../../../lib/api-error';
+import { ShoppingCart, Boxes, Scale, TrendingUp } from '@/components/ui/icons';
 import { BackLink } from '../../../../../components/ui/back-link';
 import { ContinueSetupLink } from '@/components/cycles/continue-setup';
 import { CycleStatusButton } from '@/components/cycles/cycle-status-button';
 import { useCodeLabel } from '../../../../../lib/labels';
 import { useDateFormat } from '../../../../../lib/dates';
 import { ShipmentPanel, ShipmentPanelSkeleton, useShipment } from '../../../../../components/shipment/ShipmentPanel';
-import { ValidatedForm } from '@/components/ui/validated-form';
 import { useCan } from '@/lib/can';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useNumberFormat } from '@/lib/numbers';
 import { PaidByFriend } from '@/components/lenders/paid-by-friend';
-import { Skeleton, SkeletonRegion, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
-import { splitAcrossPartners } from '@/lib/funding-split';
+import { SkeletonRegion, Skeleton, SkeletonText, repeat, type SkeletonTextSize } from '@/components/ui/skeleton';
 import { viewPath } from '@/lib/page-views';
-import { FundingNote, lenderList } from '@/components/cycles/funding-note';
-import { AmountsForm } from '@/components/cycles/amounts-form';
-import { AccountFundingPanel } from '@/components/cycles/account-funding-panel';
+import { FundingCard, FundingCardSkeleton } from '@/components/cycles/funding-card';
 import type { FinancingView } from '@/components/lenders/lender-dialogs';
 
 /**
@@ -73,59 +58,25 @@ interface CycleProfit {
 }
 const num = (v: unknown) => Number(v ?? 0);
 
-/** A participant as the cycle reads it: the person is a User, named by its partner record. */
-interface ParticipantRow {
-  id: string;
-  participantType: string;
-  contributionAmount: unknown;
-  partner?: { email?: string; partner?: { displayName?: string } | null } | null;
-  investor?: { email?: string; partner?: { displayName?: string } | null } | null;
-}
-
-/** `partner` here is the User; the display name hangs off their partner record. */
-const participantName = (p: ParticipantRow): string =>
-  p.partner?.partner?.displayName ??
-  p.investor?.partner?.displayName ??
-  p.partner?.email ??
-  p.investor?.email ??
-  '—';
-
 export default function CycleDetailsPage() {
-  const apiError = useApiError();
   const t = useTranslations('cycles');
-  const tc = useTranslations('common');
   const { cycleId: id, locale } = useParams<{ cycleId: string; locale: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { addToast } = useToast();
-  const [adding, setAdding] = useState(false);
-  // The funding note's two ways in (owner 2026-10-18): the contributions,
-  // edited in place on the Participants card, and a friend's payment.
-  const [editingAmounts, setEditingAmounts] = useState(false);
+  // The funding note's way to a friend's payment (owner 2026-10-18), now a
+  // line at the top of the Funding card.
   const [financingOpen, setFinancingOpen] = useState(false);
   const [financingPrefill, setFinancingPrefill] = useState(false);
-  const participantsRef = useRef<HTMLDivElement>(null);
   const financingRef = useRef<HTMLDivElement>(null);
   const scrollTo = (el: HTMLElement | null) =>
     // After the render that opens it, so it lands on the open form.
     window.setTimeout(() => el?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
-  // An investor reads their own cycle and acts on nothing (R1b). The people
-  // list only feeds the add-participant picker, and GET /users refuses an
-  // investor, so it is not asked for unless that picker can be offered.
-  const canAddParticipant = useCan('cycle.addParticipant');
-  const canEditParticipant = useCan('cycle.editParticipant');
-  const canListUsers = useCan('users.list');
   const canAddPurchase = useCan('purchase.create');
   const canFinance = useCan('lender.finance');
-  const { formatNumber } = useNumberFormat();
 
   const { data: cycle, isLoading } = useQuery<any>({
     queryKey: ['cycle', id],
     queryFn: () => api.get(`/cycles/${id}`).then((r) => r.data.data ?? r.data),
-  });
-
-  const { items: users } = useAllRecords(['users'], '/users', undefined, {
-    enabled: canListUsers && canAddParticipant,
   });
 
   const codeLabel = useCodeLabel();
@@ -152,106 +103,6 @@ export default function CycleDetailsPage() {
     queryFn: () => api.get(`/cycles/${id}/financing`).then((r) => r.data.data ?? r.data),
   });
   const lenderNames = (financing?.financings ?? []).map((f) => f.lender?.name).filter(Boolean) as string[];
-
-  const addParticipant = useMutation({
-    mutationFn: (body: any) => api.post(`/cycles/${id}/participants`, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cycle', id] });
-      queryClient.invalidateQueries({ queryKey: ['cycles'] });
-      setAdding(false);
-      addToast(t('participantAdded'), 'success');
-    },
-    onError: (e: any) =>
-      addToast(
-        apiError(e, tc('error')),
-        'error',
-      ),
-  });
-
-  /**
-   * Give each partner an equal share of what the cycle actually cost — on a
-   * cycle a friend paid for, an equal share of repaying him (§18, owner
-   * 2026-10-19): his payment is not taken off.
-   *
-   * The three of them fund a cycle equally by default, but the amount is not
-   * known until the goods and shipping are recorded — so this is the moment it
-   * can be filled in rather than guessed at creation.
-   *
-   * Split to the piastre: thirds of 75,645.50 do not divide evenly, so the
-   * last partner absorbs the residual and the parts re-sum to the total
-   * exactly. Left uneven, capital returned at settlement would not match
-   * capital put in.
-   *
-   * Temporary investors are untouched — they put in a specific amount that is
-   * theirs, not a share of the whole.
-   */
-  const splitEqually = useMutation({
-    mutationFn: async () => {
-      const partners = participants.filter((p) => p.participantType === 'CORE_PARTNER');
-      if (partners.length === 0) throw new Error('no partners on this cycle');
-
-      const investors = participants
-        .filter((p) => p.participantType !== 'CORE_PARTNER')
-        .reduce((sum, p) => sum + num(p.contributionAmount), 0);
-
-      // What the partners are funding: the cycle's cost — goods, shipping and
-      // the expenses charged to it, plus leftovers moved in (the server's
-      // `toFundEgp`) — less whatever an investor already put in. What a
-      // friend paid is not taken off: they repay him (§18, 2026-10-19).
-      const toFund = num(costing?.totals?.toFundEgp ?? costing?.totals?.landedEgp);
-      const { total, shares } = splitAcrossPartners(toFund, investors, partners.length);
-
-      for (let i = 0; i < partners.length; i++) {
-        await api.put(`/cycles/participants/${partners[i].id}`, {
-          contributionAmount: shares[i],
-        });
-      }
-      return total;
-    },
-    onSuccess: (total) => {
-      refreshFunding();
-      addToast(t('splitDone', { total: formatNumber(total, { maximumFractionDigits: 2 }) }), 'success');
-    },
-    // A coded refusal — funding locked after the settlement (2026-10-18) —
-    // said in the reader's language, never the raw English (rule 9).
-    onError: (e: unknown) => {
-      refreshFunding();
-      addToast(apiError(e, tc('error')), 'error');
-    },
-  });
-
-  /**
-   * Every contribution that differs from what is recorded, written one by one
-   * — the edit the wizard's Funding step made before it was removed
-   * (2026-10-18), now on the cycle's own page.
-   */
-  const saveAmounts = useMutation({
-    mutationFn: async (amounts: Record<string, string>) => {
-      for (const p of participants) {
-        if (!(p.id in amounts)) continue;
-        const next = num(amounts[p.id] || 0);
-        if (next === num(p.contributionAmount)) continue;
-        await api.put(`/cycles/participants/${p.id}`, { contributionAmount: next });
-      }
-    },
-    onSuccess: () => {
-      refreshFunding();
-      setEditingAmounts(false);
-      addToast(t('amountsSaved'), 'success');
-    },
-    onError: (e: unknown) => {
-      refreshFunding();
-      addToast(apiError(e, t('amountsFailed')), 'error');
-    },
-  });
-
-  /** The cycle and its costing, which says whether funding is still needed. */
-  function refreshFunding() {
-    void queryClient.invalidateQueries({ queryKey: ['cycle', id] });
-    void queryClient.invalidateQueries({ queryKey: ['cycles'] });
-    void queryClient.invalidateQueries({ queryKey: ['landedCost', id] });
-    void queryClient.invalidateQueries({ queryKey: ['account-funding', id] });
-  }
 
   if (isLoading) {
     return (
@@ -287,16 +138,7 @@ export default function CycleDetailsPage() {
   const lockReason = fundingLock
     ? t('fundingLocked', { reason: codeLabel('fundingLock', fundingLock) })
     : undefined;
-  const canSplit =
-    participants.some((p) => p.participantType === 'CORE_PARTNER') &&
-    num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) +
-      num(costing?.totals?.transferredInEgp) >
-      0;
-  // A friend paid towards it and the partners have entered their shares:
-  // say that those shares are what each repays him (owner 2026-10-19).
   const lenderPaid = num(costing?.totals?.lenderFinancedEgp);
-  const corePartners = participants.filter((p) => p.participantType === 'CORE_PARTNER');
-  const coreTotal = corePartners.reduce((s, p) => s + num(p.contributionAmount), 0);
   const fullyLent =
     lenderPaid >= num(costing?.totals?.cycleCostEgp ?? costing?.totals?.landedEgp) + num(costing?.totals?.transferredInEgp);
   // Friends already paid the whole cost: the server would refuse another
@@ -335,32 +177,19 @@ export default function CycleDetailsPage() {
         </div>
       </div>
 
-      {/* Funding not entered yet (owner 2026-10-18): shown while settling
-          would be refused for want of it, with the three ways to enter it. */}
-      <FundingNote
+      {/* The money in, in one card (owner 2026-10-26): the target and paid so
+          far, the contributions, the profit split and who is on the cycle. */}
+      <FundingCard
         cycle={cycle}
         totals={costing?.totals}
-        lenders={lenderNames}
-        canSplit={canSplit}
-        splitting={splitEqually.isPending}
-        canEdit={canEditParticipant && participants.length > 0}
+        lenderNames={lenderNames}
         canFinance={canFinance && orders.length > 0 && !financingClosed && !fullyPaidByFriends}
-        onSplit={() => splitEqually.mutate()}
-        onEnterAmounts={() => {
-          setAdding(false);
-          setEditingAmounts(true);
-          scrollTo(participantsRef.current);
-        }}
         onPaidByLender={() => {
           setFinancingPrefill(true);
           setFinancingOpen(true);
           scrollTo(financingRef.current);
         }}
       />
-
-      {/* Funding from the partners' running accounts (§8, owner 2026-10-25):
-          the target, who has paid the supplier so far, and contributing. */}
-      <AccountFundingPanel cycleId={cycle.id} />
 
       {/* Where the goods are — layout A, chosen by the owner (I3). */}
       <GoodsLocationCards originType={cycle.originType} shipment={shipment} batches={batches} transfers={transfers} />
@@ -389,126 +218,6 @@ export default function CycleDetailsPage() {
       <CycleTransfersSection cycleId={cycle.id} />
 
       <ShipmentPanel cycle={cycle} />
-
-      {/* ── Participants ─────────────────────────────────────────────── */}
-      <div ref={participantsRef} data-testid="participants-card" className="scroll-mt-4">
-      <Card title={t('participants')} icon={<Users className="h-4 w-4 text-gray-400" />}>
-        {participants.length === 0 && !adding && (
-          <p className="pb-3 text-sm text-amber-700">
-            {t('noParticipantsYet')}
-          </p>
-        )}
-
-        {participants.length > 0 && !(editingAmounts && !fundingLock) && (
-          <Rows>
-            {participants.map((p) => (
-              <Row key={p.id}>
-                <span className="font-medium text-gray-900">
-                  {participantName(p)}
-                </span>
-                <span className="text-xs text-gray-500">{codeLabel('role', p.participantType)}</span>
-                <span className="text-sm"><Money value={num(p.contributionAmount)} /></span>
-                <span className="text-xs text-gray-500">
-                  {p.customProfitPct != null ? `${p.customProfitPct}%` : t('byContribution')}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {p.investorFeePct ? `${t('fee')} ${p.investorFeePct}%` : ''}
-                </span>
-              </Row>
-            ))}
-          </Rows>
-        )}
-
-        {participants.length > 0 && !(editingAmounts && !fundingLock) && lenderPaid > 0 && coreTotal > 0 && (
-          <div data-testid="repay-shares" className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">
-              {t(fullyLent ? 'repayShares' : 'repaySharesPartial', {
-                lenders: lenderList(lenderNames, locale) || t('fundingNoteSomeLender'),
-              })}
-            </p>
-            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
-              {corePartners.map((p) => (
-                <li key={p.id} data-testid={`repay-share-${p.id}`}>
-                  <bdi>{participantName(p)}</bdi> <Money value={num(p.contributionAmount)} />{' '}
-                  <span dir="ltr">({formatNumber((num(p.contributionAmount) / coreTotal) * 100, { maximumFractionDigits: 2 })}%)</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {participants.length > 0 && editingAmounts && !fundingLock && (
-          <AmountsForm
-            participants={participants}
-            toFund={num(costing?.totals?.toFundEgp ?? costing?.totals?.landedEgp)}
-            nameOf={participantName}
-            roleOf={(p: ParticipantRow) => codeLabel('role', p.participantType)}
-            pending={saveAmounts.isPending}
-            onCancel={() => setEditingAmounts(false)}
-            onSubmit={(amounts) => saveAmounts.mutate(amounts)}
-          />
-        )}
-
-        {/* Locked once the settlement is approved (§8, 2026-10-18): the
-            controls stay, switched off, and say why. */}
-        {lockReason && canAddParticipant && (
-          <p data-testid="funding-locked" className="mt-3 text-xs text-muted-foreground">
-            {lockReason}
-          </p>
-        )}
-
-        {canAddParticipant && !(editingAmounts && !fundingLock) && (
-          adding && !fundingLock ? (
-            <AddParticipantForm
-              users={users}
-              pending={addParticipant.isPending}
-              onCancel={() => setAdding(false)}
-              onSubmit={(body) => addParticipant.mutate(body)}
-            />
-          ) : (
-            <div className="mt-3 flex flex-wrap items-center gap-4">
-              <button
-                type="button"
-                onClick={() => setAdding(true)}
-                disabled={!!fundingLock}
-                title={lockReason}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Plus className="h-4 w-4" /> {t('addParticipant')}
-              </button>
-              {canEditParticipant && participants.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setEditingAmounts(true)}
-                  disabled={!!fundingLock}
-                  title={lockReason}
-                  data-testid="edit-amounts"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <PencilLine className="h-4 w-4" /> {t('editAmounts')}
-                </button>
-              )}
-              {canEditParticipant && canSplit && (
-                <button
-                  type="button"
-                  onClick={() => splitEqually.mutate()}
-                  disabled={splitEqually.isPending || !!fundingLock}
-                  title={lockReason}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {splitEqually.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Scale className="h-4 w-4" />
-                  )}
-                  {t('splitEqually')}
-                </button>
-              )}
-            </div>
-          )
-        )}
-      </Card>
-      </div>
 
       {/* A friend who paid a supplier for us (§18): who, how much, still owed. */}
       {orders.length > 0 && (
@@ -627,6 +336,8 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
         </div>
       </div>
 
+      <FundingCardSkeleton />
+
       <GoodsLocationSkeleton direct={direct} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -656,11 +367,6 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
       <ShipmentPanelSkeleton inside />
 
       <SectionSkeleton
-        title={t('participants')}
-        icon={<Users className="h-4 w-4 text-muted-foreground" />}
-        sizes={['base', 'xs', 'sm', 'xs', 'xs']}
-      />
-      <SectionSkeleton
         title={t('purchases')}
         icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />}
         sizes={['xs', 'sm', 'xs', 'sm', 'xs']}
@@ -671,137 +377,6 @@ function CycleDetailSkeleton({ direct }: { direct: boolean }) {
         sizes={['sm', 'xs', 'xs', 'sm', 'xs']}
       />
     </SkeletonRegion>
-  );
-}
-
-function AddParticipantForm({
-  users,
-  pending,
-  onCancel,
-  onSubmit,
-}: {
-  users: any[];
-  pending: boolean;
-  onCancel: () => void;
-  onSubmit: (body: any) => void;
-}) {
-  const t = useTranslations('cycles');
-  const tph = useTranslations('placeholders');
-  const tc = useTranslations('common');
-  const [type, setType] = useState('CORE_PARTNER');
-
-  return (
-    <ValidatedForm
-      className="mt-4 space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const userId = String(fd.get('userId') || '');
-        const fee = String(fd.get('investorFeePct') || '');
-        const custom = String(fd.get('customProfitPct') || '');
-        onSubmit({
-          participantType: type,
-          // The field the server reads depends on the kind of participant.
-          ...(type === 'TEMP_INVESTOR' ? { investorUserId: userId } : { partnerUserId: userId }),
-          contributionAmount: Number(fd.get('contributionAmount') || 0),
-          ...(custom ? { customProfitPct: Number(custom) } : {}),
-          ...(type === 'TEMP_INVESTOR' && fee ? { investorFeePct: Number(fee) } : {}),
-        });
-      }}
-    >
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">{t('participantType')}</label>
-          <Select
-            name="participantType"
-            value={type}
-            placeholder={tph('chooseParticipantType')}
-            onChange={setType}
-            options={[
-              { value: 'CORE_PARTNER', label: t('corePartner') },
-              { value: 'TEMP_INVESTOR', label: t('tempInvestor') },
-            ]}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">{t('person')}</label>
-          <Select
-            name="userId"
-            required
-            placeholder={tph('choosePerson')}
-            searchPlaceholder={tph('searchPeople')}
-            /* Only people who can actually hold a share.
-             *
-             * This listed every user, including the storefront logins, and
-             * picking one put a shop owner on a cycle — a share of the
-             * partners' profit at settlement and every cycle notification
-             * with everyone's figures in it. The server refuses it now; the
-             * form should not have offered it in the first place.
-             *
-             * Same rule as `assertCanParticipate`, stated where the choice is
-             * made rather than only where it is rejected. */
-            options={users
-              .filter(
-                (u) =>
-                  u.status === 'ACTIVE' &&
-                  (u.role === 'CORE_PARTNER' || u.role === 'TEMP_INVESTOR'),
-              )
-              .map((u) => ({
-                value: u.id,
-                label: u.partner?.displayName ?? u.email,
-                hint: u.email,
-              }))}
-          />
-        </div>
-      </div>
-
-      <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">{t('contribution')}</label>
-          <MoneyInput
-            name="contributionAmount" required placeholder={tph('money')}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-start text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            {t('customProfitPct')} <span className="text-xs font-normal text-gray-400">({tc('optional')})</span>
-          </label>
-          <input
-            name="customProfitPct" type="number" step="0.01" min="0" max="100"
-            placeholder={tph('percent')} {...selectOnFocus}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-          <p className="mt-1 text-[10px] text-muted-foreground">{t('byContributionHint')}</p>
-        </div>
-        {type === 'TEMP_INVESTOR' && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              {t('investorFeePct')} <span className="text-xs font-normal text-gray-400">({tc('optional')})</span>
-            </label>
-            <input
-              name="investorFeePct" type="number" step="0.01" min="0" max="100"
-              placeholder={tph('percent')} {...selectOnFocus}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <p className="mt-1 text-[10px] text-gray-400">{t('feeFromProfit')}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex justify-end gap-3">
-        <button type="button" onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">
-          {tc('cancel')}
-        </button>
-        <button
-          type="submit" disabled={pending}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-        >
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {tc('save')}
-        </button>
-      </div>
-    </ValidatedForm>
   );
 }
 
