@@ -21,6 +21,12 @@ import { assertUuid, isUuid } from '../../common/uuid';
 import { stockOnHand } from '../../common/low-stock';
 import { listPricesFor } from '../../common/default-price';
 import {
+  lineUnitsSold,
+  netUnitsSold,
+  SOLD_LINE_WHERE,
+  unitsFigure,
+} from '../../common/units-sold';
+import {
   arabicText,
   bilingualProductSearch,
   DESCRIPTION_AR_MAX,
@@ -132,7 +138,44 @@ export class ProductsService {
     });
     if (!product) throw notFound('product');
     const listPrices = await listPricesFor(this.prisma, [product]);
-    return { data: { ...product, listPrices: listPrices.get(product.id)! } };
+    return {
+      data: {
+        ...product,
+        listPrices: listPrices.get(product.id)!,
+        // Office only, as the stock is: an investor's view of the catalogue
+        // is not a view of the business's sales.
+        ...(seesEveryCycle(viewer) ? await this.unitsSold(product.id) : {}),
+      },
+    };
+  }
+
+  /**
+   * The product page's Units sold card (owner 2026-10-26: "a card to display
+   * how many units were sold"): units on realised sales less units returned —
+   * the analytics top products' own count (common/units-sold.ts) — and the
+   * orders that still hold some of them. One query, whatever the history.
+   */
+  private async unitsSold(productId: string) {
+    const lines = await this.prisma.saleItem.findMany({
+      where: { productId, ...SOLD_LINE_WHERE },
+      select: {
+        saleOrderId: true,
+        quantity: true,
+        returnItems: { select: { qty: true } },
+      },
+    });
+    // An order counts while it still holds a unit: one handed back entirely
+    // sold nothing. GUESS (2026-10-26), the card's second line.
+    const perOrder = new Map<string, ReturnType<typeof lineUnitsSold>>();
+    for (const line of lines) {
+      const held = perOrder.get(line.saleOrderId);
+      const units = lineUnitsSold(line);
+      perOrder.set(line.saleOrderId, held ? held.add(units) : units);
+    }
+    return {
+      unitsSold: unitsFigure(netUnitsSold(lines)),
+      unitsSoldOrders: [...perOrder.values()].filter((u) => u.gt(0)).length,
+    };
   }
 
   /**

@@ -405,8 +405,9 @@ function busy(): World {
       tx('OUTFLOW', 'rent', 1_500, '2026-10-01'),
       tx('OUTFLOW', 'fuel', 250.5, '2026-10-03'),
       tx('OUTFLOW', 'fuel', 300.25, '2026-09-20'),
-      // A salary entered, then undone in October: September keeps the cost,
-      // October takes it back.
+      // A salary entered, then undone in October: the pair leaves every
+      // period — September keeps no cost, October takes none back (owner
+      // 2026-10-26).
       tx('OUTFLOW', 'salaries', 4_000, '2026-09-28', { id: 'sal' }),
       tx('INFLOW', 'salaries', 4_000, '2026-10-04', { reversalOfId: 'sal' }),
       tx('INFLOW', 'interest', 120, '2026-10-09'),
@@ -493,8 +494,9 @@ describe('profit and loss — which day each figure belongs to', () => {
     const p = await pnl(busy(), '2026-09-01', '2026-09-30');
     expect(p.salesEgp).toBe(10_000); // the return came back in October
     expect(p.cogsEgp).toBe(6_000);
-    // rent 1,500 + fuel 300.25 + salaries 4,000 + lost 700
-    expect(p.expensesEgp).toBe(6_500.25);
+    // rent 1,500 + fuel 300.25 + lost 700; the salary undone in October is
+    // left out of September too (owner 2026-10-26)
+    expect(p.expensesEgp).toBe(2_500.25);
     expect(p.recoveredEgp).toBe(400);
     expect(p.otherIncomeEgp).toBe(0);
     expect(p.exchangeDifferenceEgp).toBe(0);
@@ -619,7 +621,7 @@ describe('profit and loss — which day each figure belongs to', () => {
 });
 
 describe('profit and loss — the splits add up', () => {
-  it('expenses by category, largest first, add up to the Expenses line — the undone salary and the lost goods included', async () => {
+  it('expenses by category, largest first, add up to the Expenses line — the undone salary in no period, the lost goods included', async () => {
     for (const [from, to] of [
       ['2026-09-01', '2026-09-30'],
       ['2026-10-01', '2026-10-31'],
@@ -635,12 +637,12 @@ describe('profit and loss — the splits add up', () => {
       expect(amounts).toEqual([...amounts].sort((a, b) => b - a));
     }
     const oct = await pnl(busy(), '2026-10-01', '2026-10-31');
-    // October: rent 1,500, fuel 250.50, bank 35, salaries −4,000 (undone).
+    // October: rent 1,500, fuel 250.50, bank 35 — the salary undone this
+    // month is not a −4,000 line (owner 2026-10-26).
     expect(oct.expensesByCategory).toEqual([
       { category: 'rent', amountEgp: 1_500 },
       { category: 'fuel', amountEgp: 250.5 },
       { category: 'bank_fees', amountEgp: 35 },
-      { category: 'salaries', amountEgp: -4_000 },
     ]);
     const sep = await pnl(busy(), '2026-09-01', '2026-09-30');
     expect(sep.expensesByCategory).toContainEqual({
@@ -662,10 +664,10 @@ describe('profit and loss — the splits add up', () => {
     });
     const total = p.buckets.reduce((s, m) => s.add(m.netProfitEgp), D(0));
     expect(Number(total)).toBe(p.netProfitEgp);
-    // September alone lost money: 10,000 − 6,000 − 6,500.25 + 400.
+    // September alone: 10,000 − 6,000 − 2,500.25 + 400.
     const sep = await pnl(busy(), '2024-09-01', '2026-09-30');
     expect(sep.buckets.find((b) => b.key === '2026-09')?.netProfitEgp).toBe(
-      -2_100.25,
+      1_899.75,
     );
   });
 });
@@ -958,7 +960,7 @@ describe('profit and loss — the chart’s buckets', () => {
     expect(p.to).toBe('2026-10-18');
   });
 
-  it('the query count does not grow with the buckets: seventeen for a 31-day month, a week view or all time (fifteen sums — lines an order edit added, and their cost, 2026-10-25 — and cash paid out’s two, 2026-10-23)', async () => {
+  it('the query count does not grow with the buckets: eighteen for a 31-day month, a week view or all time (fifteen sums — lines an order edit added, and their cost, 2026-10-25 — the undone entries once, 2026-10-26, and cash paid out’s two)', async () => {
     const w = spread();
     const now = cairo('2026-10-18', 15);
     const count = async (from?: string, to?: string) => {
@@ -966,13 +968,13 @@ describe('profit and loss — the chart’s buckets', () => {
       await service(w).getProfitAndLoss(from, to, now);
       return calls.n;
     };
-    expect(await count('2026-08-01', '2026-08-31')).toBe(17);
-    expect(await count('2026-07-04', '2026-09-20')).toBe(17);
-    expect(await count(undefined, undefined)).toBe(17);
-    // And the dashboard's reading: fifteen sums.
+    expect(await count('2026-08-01', '2026-08-31')).toBe(18);
+    expect(await count('2026-07-04', '2026-09-20')).toBe(18);
+    expect(await count(undefined, undefined)).toBe(18);
+    // And the dashboard's reading: fifteen sums and the undone entries.
     calls.n = 0;
     await service(w).profitFigures();
-    expect(calls.n).toBe(15);
+    expect(calls.n).toBe(16);
   });
 });
 
@@ -1037,10 +1039,11 @@ describe('the dashboard’s This month — P&L’s This month, to the piastre (o
     // And the figures are the rows' own, so the equality is not two zeros:
     // October sold 8,000 + 3,000 + the 00:30 sale's 2,500, less the 1,000 return.
     expect(month.revenue).toBe(12_500);
-    // rent 1,500 + fuel 250.5 + salaries −4,000 (undone) + bank 35 + the 23:30 bank 65
-    expect(month.expenses).toBe(-2_149.5);
+    // rent 1,500 + fuel 250.5 + bank 35 + the 23:30 bank 65; the salary
+    // undone this month is in neither half (owner 2026-10-26)
+    expect(month.expenses).toBe(1_850.5);
     // cogs 5,000 + 2,000 + 1,000 − 600 reversed = 7,400; + 120 interest − 210 exchange
-    expect(month.netProfit).toBe(12_500 - 7_400 + 2_149.5 + 120 - 210);
+    expect(month.netProfit).toBe(12_500 - 7_400 - 1_850.5 + 120 - 210);
     expect(month.netProfit).not.toBe(0);
     // Collected: the 1st and the 31st; not September's, not the undone one.
     expect(month.collected).toBe(2_000.5);
@@ -1131,5 +1134,86 @@ describe('profit and loss — cash paid out, moved from the dashboard (owner 202
     );
     // Nothing in a quiet period, never NaN.
     expect((await pnl(w, '2026-08-01', '2026-08-31')).cashOutEgp).toBe(0);
+  });
+});
+
+describe('an entry undone and its undo leave every period (owner 2026-10-26)', () => {
+  /**
+   * Production's case: a 3,338.82 bank fee for CYC-2026-0001 dated 15 July,
+   * reversed on 26 October. The dashboard's This month read −3,338.82 — the
+   * month held only the undo — while July kept the fee.
+   */
+  const NOW_OCT26 = cairo('2026-10-26', 15);
+  const fee = () => [
+    tx('OUTFLOW', 'bank_fees', 3_338.82, '2026-07-15', { id: 'fee' }),
+    tx('INFLOW', 'bank_fees', 3_338.82, '2026-10-26', { reversalOfId: 'fee' }),
+  ];
+  const p = async (w: World, from?: string, to?: string) =>
+    (await service(w).getProfitAndLoss(from, to, NOW_OCT26)).data;
+
+  it('a July expense undone in October: July 0, October 0, all time 0 — and no category line', async () => {
+    const w = world({ tx: fee() });
+    for (const [from, to] of [
+      ['2026-07-01', '2026-07-31'],
+      ['2026-10-01', '2026-10-31'],
+      [undefined, undefined],
+    ]) {
+      const r = await p(w, from, to);
+      expect([from, r.expensesEgp, r.netProfitEgp]).toEqual([from, 0, 0]);
+      expect(r.expensesByCategory).toEqual([]);
+      for (const b of r.buckets) expect(b.expensesEgp).toBe(0);
+    }
+  });
+
+  it('the dashboard’s This month is 0, not −3,338.82, and equals P&L’s This month', async () => {
+    const w = world({
+      tx: [...fee(), tx('OUTFLOW', 'fuel', 120, '2026-10-20')],
+    });
+    const { month, totalExpenses } = (
+      await service(w).getDashboardKPIs(NOW_OCT26)
+    ).data;
+    const oct = await p(w, '2026-10-01', '2026-10-31');
+    expect(month.expenses).toBe(120);
+    expect(month.expenses).toBe(oct.expensesEgp);
+    expect(month.netProfit).toBe(oct.netProfitEgp);
+    // All time: the fuel alone, the pair netting to nothing as before.
+    expect(totalExpenses).toBe(120);
+  });
+
+  it('an expense and its undo in the same month: 0 that month', async () => {
+    const w = world({
+      tx: [
+        tx('OUTFLOW', 'rent', 900, '2026-10-02', { id: 'r' }),
+        tx('INFLOW', 'rent', 900, '2026-10-09', { reversalOfId: 'r' }),
+      ],
+    });
+    expect((await p(w, '2026-10-01', '2026-10-31')).expensesEgp).toBe(0);
+  });
+
+  it('an expense not undone counts once, in its own month only', async () => {
+    const w = world({ tx: [tx('OUTFLOW', 'rent', 900, '2026-07-02')] });
+    expect((await p(w, '2026-07-01', '2026-07-31')).expensesEgp).toBe(900);
+    expect((await p(w, '2026-10-01', '2026-10-31')).expensesEgp).toBe(0);
+    expect((await p(w)).expensesEgp).toBe(900);
+  });
+
+  it('income and a supplier refund undone across months leave both months too', async () => {
+    const w = world({
+      tx: [
+        tx('INFLOW', 'interest', 500, '2026-08-03', { id: 'i' }),
+        tx('OUTFLOW', 'interest', 500, '2026-10-03', { reversalOfId: 'i' }),
+        tx('INFLOW', 'supplier_refund', 700, '2026-08-04', { id: 's' }),
+        tx('OUTFLOW', 'supplier_refund', 700, '2026-10-04', {
+          reversalOfId: 's',
+        }),
+      ],
+    });
+    for (const [from, to] of [
+      ['2026-08-01', '2026-08-31'],
+      ['2026-10-01', '2026-10-31'],
+    ]) {
+      const r = await p(w, from, to);
+      expect([from, r.otherIncomeEgp, r.recoveredEgp]).toEqual([from, 0, 0]);
+    }
   });
 });

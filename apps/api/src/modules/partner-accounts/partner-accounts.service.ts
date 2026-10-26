@@ -17,16 +17,29 @@ import {
 } from '../../common/dates';
 import { parseCurrencyCode, parseRateToEgp } from '../../common/fx-rate';
 import { recordContributionChange } from '../../common/contribution-ledger';
+import { profitShareOf, profitSplitView } from '../settlements/settlement-math';
+import {
+  STANDING_FINANCING,
+  exchangeDifferenceEgp,
+  repaidOnCycleEgp,
+} from '../../common/lender-debt';
 import {
   STANDING_MOVEMENT,
-  accountBalance,
-  accountBalances,
-  assertCovers,
+  accountPots,
+  accountPotsOf,
+  assertCycleCovers,
+  assertUntiedCovers,
+  availableTo,
   balanceOf,
+  contributionShares,
   equalShares,
   inTargetCurrency,
   lockAccounts,
+  potsOf,
+  potsTotal,
+  putInSoFar,
   signedEgp,
+  untiedAvailable,
   type MovementKind,
 } from '../../common/partner-account';
 import type {
@@ -96,6 +109,7 @@ export class PartnerAccountsService {
           email: h.email,
           active: h.status === 'ACTIVE' && h.partner?.active !== false,
           ...this.totals(mine),
+          ...this.potsView(mine),
           movements: mine.map((m) => this.movementView(m)),
         };
       }),
@@ -121,6 +135,35 @@ export class PartnerAccountsService {
       leftInEgp: by('PAYOUT_LEFT_IN'),
       contributedEgp: by('CONTRIBUTION'),
       withdrawnEgp: by('WITHDRAWAL'),
+    };
+  }
+
+  /**
+   * His balance by pot (owner 2026-10-26, "each cycle has its own funding"):
+   * untied money any cycle can draw, and each cycle's undrawn advances, which
+   * only that cycle can.
+   */
+  private potsView(
+    movements: {
+      kind: string;
+      amountEgp: Prisma.Decimal;
+      cycleId: string | null;
+      reversedAt: Date | null;
+      cycle?: { id: string; code: string } | null;
+    }[],
+  ) {
+    const pots = potsOf(movements);
+    const codeOf = (id: string) =>
+      movements.find((m) => m.cycleId === id)?.cycle?.code ?? '';
+    return {
+      untiedEgp: m2(pots.untied),
+      byCycle: [...pots.byCycle.entries()]
+        .map(([cycleId, amount]) => ({
+          cycleId,
+          cycleCode: codeOf(cycleId),
+          amountEgp: m2(amount),
+        }))
+        .sort((a, b) => a.cycleCode.localeCompare(b.cycleCode)),
     };
   }
 
@@ -161,9 +204,11 @@ export class PartnerAccountsService {
   }
 
   /**
-   * A cycle's funding panel: its target, what each partner has paid so far
-   * (advances on this cycle), each core partner's account, and what is still
-   * to be contributed.
+   * A cycle's funding panel: its target, what each partner has put in so far
+   * (his contribution and his undrawn advances on this cycle, `putInSoFar`),
+   * what each paid as advances, each core partner's account, what is still to
+   * be contributed, and — on a cycle a friend paid — what the partners repaid
+   * him and the exchange difference on it (owner 2026-10-26).
    */
   async cycleFunding(cycleId: string) {
     if (!isUuid(cycleId)) throw notFound('cycle');
@@ -187,8 +232,16 @@ export class PartnerAccountsService {
             participantType: true,
             partnerUserId: true,
             contributionAmount: true,
+            customProfitPct: true,
+            investorFeePct: true,
             createdAt: true,
             partner: {
+              select: {
+                email: true,
+                partner: { select: { displayName: true } },
+              },
+            },
+            investor: {
               select: {
                 email: true,
                 partner: { select: { displayName: true } },
@@ -266,10 +319,13 @@ export class PartnerAccountsService {
     const core = cycle.participants.filter(
       (p) => p.participantType === 'CORE_PARTNER' && p.partnerUserId,
     );
-    const balances = await accountBalances(
-      this.prisma,
-      core.map((p) => p.partnerUserId!),
-    );
+    // What THIS cycle can draw from each account: its own advances not yet
+    // drawn, and untied money — never another cycle's advance (owner
+    // 2026-10-26, "each cycle has its own funding").
+    // Payers too: an advance may be recorded for someone not on the cycle.
+    const pots = await accountPots(this.prisma, [
+      ...new Set([...core.map((p) => p.partnerUserId!), ...payers.keys()]),
+    ]);
     const investorsEgp = cycle.participants
       .filter((p) => p.participantType !== 'CORE_PARTNER')
       .reduce((s, p) => s.add(p.contributionAmount), D(0));
@@ -277,8 +333,146 @@ export class PartnerAccountsService {
       (s, p) => s.add(p.contributionAmount),
       D(0),
     );
-    const { toFund } = await this.costing.fundingFor(cycleId);
+    const { toFund, financed } = await this.costing.fundingFor(cycleId);
+    // A friend who paid the supplier (§18): who, what the partners have
+    // repaid him in pounds, and the exchange difference on it — the same
+    // readers settlement and profit use (`common/lender-debt.ts`, rule 11).
+    const financings = await this.prisma.lenderFinancing.findMany({
+      where: { cycleId, ...STANDING_FINANCING },
+      select: { lender: { select: { name: true } } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const friendNames = [...new Set(financings.map((f) => f.lender.name))];
+    const repaidEgp =
+      financings.length > 0
+        ? await repaidOnCycleEgp(this.prisma, cycleId)
+        : D(0);
+    const exchangeEgp =
+      financings.length > 0
+        ? await exchangeDifferenceEgp(this.prisma, cycleId)
+        : D(0);
     const still = D(toFund).sub(investorsEgp).sub(partnersEgp);
+    const availableOf = (p: (typeof core)[number]) =>
+      availableTo(pots.get(p.partnerUserId!)!, cycleId);
+    // The Funding card's equal shares (owner 2026-10-26): of the target, or
+    // of the cost to fund when there is none or it is lower.
+    // On a cycle a friend paid, of what the partners repaid him once they
+    // have repaid anything (owner 2026-10-26).
+    const shares = contributionShares({
+      targetEgp: target ? target.amountEgp : null,
+      toFundEgp: toFund,
+      repaidEgp,
+      investorsEgp,
+      partners: core.map((p) => ({
+        availableEgp: availableOf(p),
+        contributionEgp: p.contributionAmount,
+      })),
+    });
+    const split = profitSplitView(
+      cycle.participants.map((p) => ({
+        type: p.participantType,
+        contribution: D(p.contributionAmount),
+        customProfitPct:
+          p.customProfitPct === null ? null : D(p.customProfitPct),
+      })),
+    );
+    const personName = (p: (typeof cycle.participants)[number]) =>
+      p.partner?.partner?.displayName ??
+      p.investor?.partner?.displayName ??
+      p.partner?.email ??
+      p.investor?.email ??
+      '';
+
+    // ── Put in so far, per partner (owner 2026-10-26) ──────────────────
+    const fromAccountOf = (partnerUserId: string) =>
+      fromAccounts
+        .filter((m) => m.partnerUserId === partnerUserId)
+        .reduce((s, m) => s.add(m.amountEgp), D(0));
+    const toTargetEgp = (egp: Prisma.Decimal) =>
+      target
+        ? target.currency === 'EGP'
+          ? egp
+          : egp
+              .div(D(target.fxRateToEgp))
+              .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+        : D(0);
+    const putInRow = (
+      partnerUserId: string,
+      name: string,
+      contributionEgp: Prisma.Decimal.Value,
+    ) => {
+      const paid = payers.get(partnerUserId);
+      const undrawn = pots.get(partnerUserId)?.byCycle.get(cycleId) ?? D(0);
+      const parts = putInSoFar({
+        contributionEgp,
+        fromAccountEgp: fromAccountOf(partnerUserId),
+        undrawnAdvancesEgp: undrawn,
+      });
+      // In the target's currency (GUESS 2026-10-26): his contribution at the
+      // target's rate, and his undrawn advances as the share of his advances'
+      // face value still undrawn — all of it when nothing is drawn, so an
+      // advance paid in the target's currency still counts at face.
+      const undrawnInTarget =
+        paid && paid.totalEgp.gt(0)
+          ? paid.inTarget
+              .mul(parts.undrawnAdvancesEgp)
+              .div(paid.totalEgp)
+              .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+          : D(0);
+      const inTarget = toTargetEgp(
+        parts.enteredEgp.add(parts.fromAccountEgp),
+      ).add(undrawnInTarget);
+      return {
+        partnerUserId,
+        name,
+        /** Everything he has put into this cycle: his contribution + his undrawn advances on it. */
+        totalEgp: m2(parts.totalEgp),
+        inTargetCurrency: target ? m2(inTarget) : null,
+        /** His contribution on this cycle (his capital in it). */
+        contributionEgp: m2(parts.enteredEgp.add(parts.fromAccountEgp)),
+        /** Of it, entered directly — on a cycle a friend paid, his share of repaying him. */
+        enteredEgp: m2(parts.enteredEgp),
+        /** Of it, drawn from his account. */
+        fromAccountEgp: m2(parts.fromAccountEgp),
+        /** His advances on this cycle not yet drawn into a contribution. */
+        undrawnAdvancesEgp: m2(parts.undrawnAdvancesEgp),
+        /** Every standing advance he made on this cycle, with its day. */
+        advances: paid?.advances ?? [],
+        _inTarget: inTarget,
+        _total: parts.totalEgp,
+      };
+    };
+    const putInRows = [
+      ...core.map((p) =>
+        putInRow(
+          p.partnerUserId!,
+          p.partner?.partner?.displayName ?? p.partner?.email ?? '',
+          p.contributionAmount,
+        ),
+      ),
+      // Someone not on the cycle may have paid for it: his advances only.
+      ...[...payers.entries()]
+        .filter(([id]) => !core.some((p) => p.partnerUserId === id))
+        .map(([id, p]) => putInRow(id, p.name, 0)),
+    ];
+
+    // ── The exchange difference on repaying friends (owner 2026-10-26) ──
+    // Each one's part: the profit split's (`profitShareOf`), since
+    // settlement takes it off the profit before splitting what is left.
+    const exchangeSplit = profitShareOf(
+      cycle.participants.map((p) => ({
+        id: p.id,
+        type:
+          p.participantType === 'TEMP_INVESTOR'
+            ? ('TEMP_INVESTOR' as const)
+            : ('CORE_PARTNER' as const),
+        contribution: D(p.contributionAmount),
+        customProfitPct:
+          p.customProfitPct === null ? null : D(p.customProfitPct),
+        investorFeePct: null,
+      })),
+      exchangeEgp,
+    );
 
     return {
       data: {
@@ -289,6 +483,35 @@ export class PartnerAccountsService {
         fundingLock: fundingLockOf(cycle.status, cycle.settlements),
         closed: CLOSED_FOR_ACCOUNTS.includes(cycle.status),
         target,
+        putIn: {
+          totalEgp: m2(putInRows.reduce((s, r) => s.add(r._total), D(0))),
+          inTargetCurrency: target
+            ? m2(putInRows.reduce((s, r) => s.add(r._inTarget), D(0)))
+            : null,
+          byPartner: putInRows.map(({ _inTarget, _total, ...r }) => r),
+        },
+        /** Friends who paid the supplier for this cycle (§18); null when none did. */
+        friends:
+          financings.length === 0
+            ? null
+            : {
+                names: friendNames,
+                /** What they paid, in pounds at their rates. */
+                financedEgp: m2(financed),
+                /** What the partners repaid them, in pounds actually paid. */
+                repaidEgp: m2(repaidEgp),
+                /** Pounds repaid − what that cleared at their rates (`exchangeDifferenceEgp`): + a cost, − a gain. */
+                exchangeDifferenceEgp: m2(exchangeEgp),
+                /** Each participant's part of it, by the profit split; null when settling could not split. */
+                exchangeSplit: exchangeSplit
+                  ? cycle.participants.map((p, i) => ({
+                      participantId: p.id,
+                      participantType: p.participantType,
+                      name: personName(p),
+                      amountEgp: m2(exchangeSplit[i]),
+                    }))
+                  : null,
+              },
         paidSoFar: {
           totalEgp: m2(paidEgp),
           inTargetCurrency: target ? m2(paidInTarget) : null,
@@ -297,27 +520,82 @@ export class PartnerAccountsService {
             name: p.name,
             totalEgp: m2(p.totalEgp),
             inTargetCurrency: target ? m2(p.inTarget) : null,
+            /** Of what he paid on this cycle, how much his contributions to it drew: into capital. */
+            intoCapitalEgp: m2(
+              pots.get(partnerUserId)?.intoCapital.get(cycleId) ?? 0,
+            ),
             advances: p.advances,
           })),
         },
         /** The cycle's core partners, in the order an equal split takes them (its last absorbs the residual). */
-        partners: core.map((p) => ({
-          partnerUserId: p.partnerUserId!,
-          participantId: p.id,
-          name: p.partner?.partner?.displayName ?? p.partner?.email ?? '',
-          balanceEgp: m2(balances.get(p.partnerUserId!) ?? 0),
-          contributionEgp: m2(p.contributionAmount),
-          fromAccountEgp: m2(
-            fromAccounts
-              .filter((m) => m.partnerUserId === p.partnerUserId)
-              .reduce((s, m) => s.add(m.amountEgp), D(0)),
-          ),
-        })),
+        partners: core.map((p, i) => {
+          const his = pots.get(p.partnerUserId!)!;
+          const available = availableOf(p);
+          const line = shares.lines[i];
+          return {
+            /** His equal share (`shares.basis` says of what). */
+            shareEgp: m2(line.share),
+            /** His share less what he has contributed, never below zero. */
+            stillToGiveEgp: m2(line.stillToGive),
+            /** What this cycle can draw for him less that: covered (≥ 0, left over) or short (< 0). */
+            coverEgp: m2(line.cover),
+            partnerUserId: p.partnerUserId!,
+            participantId: p.id,
+            name: p.partner?.partner?.displayName ?? p.partner?.email ?? '',
+            /** What this cycle can draw from his account: the figure Contribute shows and checks. */
+            availableEgp: m2(available),
+            /** Of that, his advances on this cycle not yet drawn into it. */
+            ownAdvancesEgp: m2(his.byCycle.get(cycleId) ?? 0),
+            /** Of that, money tied to no cycle (payouts left in). */
+            untiedEgp: m2(untiedAvailable(his)),
+            /** Advanced for other cycles: in his account, not this cycle's to draw. */
+            elsewhereEgp: m2(
+              [...his.byCycle.entries()]
+                .filter(([id]) => id !== cycleId)
+                .reduce((s, [, v]) => s.add(v), D(0)),
+            ),
+            /** His whole account. */
+            balanceEgp: m2(potsTotal(his)),
+            contributionEgp: m2(p.contributionAmount),
+            fromAccountEgp: m2(
+              fromAccounts
+                .filter((m) => m.partnerUserId === p.partnerUserId)
+                .reduce((s, m) => s.add(m.amountEgp), D(0)),
+            ),
+          };
+        }),
         toFundEgp: m2(toFund),
         investorsEgp: m2(investorsEgp),
         partnersContributedEgp: m2(partnersEgp),
         /** What the partners have still to contribute: the cost to fund less investors' money and theirs, never below zero. */
         stillToContributeEgp: m2(Prisma.Decimal.max(still, 0)),
+        /** What the equal shares are of: the target, the cost to fund, or what was repaid to friends. */
+        shares: {
+          basis: shares.basis,
+          ofEgp: m2(shares.ofEgp),
+          partnersEgp: m2(shares.partnersEgp),
+          /** What "Contribute equal thirds" draws by default: every partner's still to give. */
+          stillEgp: m2(
+            shares.lines.reduce((s, l) => s.add(l.stillToGive), D(0)),
+          ),
+        },
+        /** Everyone on the cycle, in order, with the profit split (`profitSplitView`). */
+        participants: cycle.participants.map((p, i) => ({
+          participantId: p.id,
+          participantType: p.participantType,
+          name: personName(p),
+          contributionEgp: m2(p.contributionAmount),
+          customProfitPct:
+            p.customProfitPct === null ? null : D(p.customProfitPct).toFixed(2),
+          investorFeePct:
+            p.investorFeePct === null ? null : D(p.investorFeePct).toFixed(2),
+          profitPct: split.pcts[i],
+        })),
+        profitSplit: {
+          basis: split.basis,
+          equal: split.equal,
+          problem: split.problem,
+        },
       },
     };
   }
@@ -381,8 +659,9 @@ export class PartnerAccountsService {
     const day = pastDay(dto.takenOn, 'ACCOUNT_WITHDRAWN');
     const created = await this.prisma.$transaction(async (tx) => {
       await lockAccounts(tx, [holder.id]);
-      assertCovers({
-        balance: await accountBalance(tx, holder.id),
+      // Only untied money comes out: an advance paid a cycle's supplier.
+      assertUntiedCovers({
+        pots: await accountPotsOf(tx, holder.id),
         amount,
         partner: holder.name,
       });
@@ -501,13 +780,18 @@ export class PartnerAccountsService {
         tx,
         lines.map((l) => l.participant.partnerUserId!),
       );
-      const balances = await accountBalances(
+      // Each share comes from this cycle's own advances and untied money,
+      // never another cycle's advance (owner 2026-10-26) — whatever the
+      // client sent: it names no pot, the server decides.
+      const pots = await accountPots(
         tx,
         lines.map((l) => l.participant.partnerUserId!),
       );
       for (const l of lines) {
-        assertCovers({
-          balance: balances.get(l.participant.partnerUserId!) ?? D(0),
+        assertCycleCovers({
+          pots: pots.get(l.participant.partnerUserId!)!,
+          cycleId,
+          cycleCode: cycle.code,
           amount: l.amount,
           partner: nameOf(l.participant),
         });
@@ -673,13 +957,26 @@ export class PartnerAccountsService {
           { cycle: m.cycle?.code ?? '' },
         );
       }
-      if (signedEgp(m).gt(0)) {
-        // Taking an advance back out must not leave the account below zero.
-        assertCovers({
-          balance: await accountBalance(tx, holder.id),
-          amount: m.amountEgp,
-          partner: holder.name,
-        });
+      if (m.kind === 'ADVANCE' && m.cycleId) {
+        // Taking an advance back out must not leave its cycle's pot below
+        // zero — what a contribution to that cycle drew from it comes out
+        // first. Other cycles' pots, and untied money, are not touched
+        // (owner 2026-10-26, "each cycle has its own funding").
+        const pot =
+          (await accountPotsOf(tx, holder.id)).byCycle.get(m.cycleId) ?? D(0);
+        if (m.amountEgp.gt(pot)) {
+          const drawn = m.amountEgp.sub(pot);
+          throw badRequest(
+            'ADVANCE_ALREADY_DRAWN',
+            `${formatMoney(drawn)} EGP of this payment was already drawn into ${m.cycle?.code ?? 'its cycle'}; reverse that contribution first.`,
+            {
+              partner: holder.name,
+              cycle: m.cycle?.code ?? '',
+              drawn: formatMoney(drawn),
+              amount: formatMoney(m.amountEgp),
+            },
+          );
+        }
       }
       if (m.kind === 'CONTRIBUTION') {
         if (!m.cycle || !m.participant) throw notFound('participant');

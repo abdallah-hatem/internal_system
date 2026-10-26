@@ -584,6 +584,31 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE p.contribution_amount < coalesce((SELECT sum(m.amount_egp) FROM partner_account_movements m
                                            WHERE m.participant_id = p.id AND m.kind = 'CONTRIBUTION'
                                              AND m.reversed_at IS NULL), 0)
+  -- Each cycle's funding is its own (owner 2026-10-26): a contribution draws
+  -- its cycle's advances, then untied money (payouts left in, less money
+  -- taken out) — never another cycle's advance. Untied money below zero means
+  -- one did; common/partner-account.ts's potsOf, in SQL.
+  UNION ALL SELECT 27.3, 'contribution drew on an advance paid for another cycle',
+         count(*) FROM (
+           SELECT partner_user_id,
+                  sum(CASE kind WHEN 'PAYOUT_LEFT_IN' THEN amount_egp
+                                WHEN 'WITHDRAWAL' THEN -amount_egp ELSE 0 END) AS untied
+             FROM partner_account_movements
+            WHERE reversed_at IS NULL
+            GROUP BY partner_user_id
+         ) u
+    LEFT JOIN (
+           SELECT partner_user_id, sum(greatest(drawn - advanced, 0)) AS beyond
+             FROM (SELECT partner_user_id, cycle_id,
+                          sum(CASE WHEN kind = 'ADVANCE' THEN amount_egp ELSE 0 END) AS advanced,
+                          sum(CASE WHEN kind = 'CONTRIBUTION' THEN amount_egp ELSE 0 END) AS drawn
+                     FROM partner_account_movements
+                    WHERE reversed_at IS NULL AND cycle_id IS NOT NULL
+                      AND kind IN ('ADVANCE', 'CONTRIBUTION')
+                    GROUP BY partner_user_id, cycle_id) per_cycle
+            GROUP BY partner_user_id
+         ) c USING (partner_user_id)
+   WHERE u.untied - coalesce(c.beyond, 0) < 0
 SQL
 )
 

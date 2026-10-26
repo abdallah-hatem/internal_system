@@ -11,10 +11,35 @@ history as their API only. The goal before it — the 2026-10-19 batch — is li
 notifications, the New Order samples hint and the partner running account (migration
 `20261025100000_partner_running_accounts` applied first), shipped at the owner's word ("push notifications, sample hint,
 and partner account now, leave the branches"). **Customers with branches stay on `dev` only** (migration
-`20261025120000_customer_branches` not applied to production). **On `dev`, not on master** (2026-10-26, `f86af64`): customers with branches, Edit order on a confirmed order, and server-side search/filters/sorting/pagination with the Sales customer and branch filters. Production needs, in order, the migrations `20261025120000_customer_branches` and `20261026100000_sale_order_edits` before they ship. Tests on that commit: API 2,537/2,537 (one suite at a time, 30 s limit — under `-w 2` the database suites share one database and move each other's dashboard figures), web 1,492/1,492, unit 127/127; e2e not run (owner, 2026-10-25). Master has the 26 Oct releases that dev does not (the Funding card and the rest); merging master into dev waits for the owner. Known, unfixed: return references (`RET-…`) are numbered without a lock, so two returns at once can collide — edits make returns too now. The owner's open answers: BUSINESS_LOGIC "Still open". The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
+`20261025120000_customer_branches` not applied to production). **Server-side lists + the Sales customer filter are live** (2026-10-26, `d3955e9`, ported from dev without branches; owner:
+"I need to ship the serverside lists now"). On `dev` only, for the owner to test locally first: customers with branches
+(and the Sales branch filter), Edit order. Production needs, in order, the migrations `20261025120000_customer_branches` and `20261026100000_sale_order_edits` before they ship. Tests on that commit: API 2,537/2,537 (one suite at a time, 30 s limit — under `-w 2` the database suites share one database and move each other's dashboard figures), web 1,492/1,492, unit 127/127; e2e not run (owner, 2026-10-25). Master merged into dev 2026-10-26 (owner: "push dev"), so dev also holds the 26 Oct releases. Known, unfixed: return references (`RET-…`) are numbered without a lock, so two returns at once can collide — edits make returns too now. The owner's open answers: BUSINESS_LOGIC "Still open". The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 **Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
+
+2026-10-26 — Live-pending: **server-side lists + Sales customer filter ported onto master without branches** (from
+dev `5c75bcb` + `e1d28f4`; the Sales branch filter stays on `dev` with customer branches). No migration. Verified by
+tsc, lint, API unit and web component tests and `next build`; no e2e (owner's rule).
+
+2026-10-26 — a **Units sold** tile on the product page (owner: "a card to display how many units were sold"; BUSINESS_LOGIC §3)
+is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not merged.
+
+2026-10-26 — the three production findings (each cycle's funding is its own; an undone entry and its undo leave every
+period; the funding panel's skeleton) are on branch `worktree-agent-ac6239d7503848e74`, awaiting the owner's look; not
+merged. No migration.
+
+2026-10-26 — the Funding card reads what each partner **put in** (owner, on CYC-2026-0001: "a bit confusing, seeing funding
+zero, while each one of us clearly paid 67,056.33 to ahmad"; BUSINESS_LOGIC §8 "Put in so far, shares of what was repaid,
+the exchange difference"): section 1 "Put in so far" (contribution + undrawn advances, "repaid Ahmad Eraiby"), shares of
+what was repaid to a friend once repaid, and the exchange difference as its own line. On branch
+`worktree-agent-a7c78ce1e909cbbd7`, awaiting the owner's look; not merged. No migration; display and
+`GET /cycles/:id/account-funding` only — nothing counted or settled changes.
+
+2026-10-26 — **one Funding card** on the cycle page (owner, from the sample: "build it like this"; BUSINESS_LOGIC §8
+"The cycle page's money-in is one Funding card") replaces the Participants card and the funding panel. On branch
+`worktree-agent-a27e6df3502ff980b` (built on the three findings above), awaiting the owner's look; not merged. No
+migration; `GET /cycles/:id/account-funding` gains shares, into capital, the participants and the profit split.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
@@ -154,6 +179,33 @@ in Vercel; without them it says it is not set up. State of the product and of pr
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-26 (late) — shipped, no migration: the Funding card reads **"Put in so far"** (contribution + undrawn advances
+  on the cycle, a friend-paid contribution labelled as repaying him), **shares of what was repaid** to a friend once
+  repayments exist, and **the exchange difference** as its own line split like profit (`42d2272`). Cycle 1: 67,056.33
+  put in and shared each, exchange difference 7,788.12 (2,596.04 each).
+- 2026-10-26 — production data: Abdallah's 65,000 EGP advance on CYC-2026-0001 (dated 15 Aug) reversed at his word ("just
+  remove the funding i added") — that repayment to Ahmad Eraiby is already inside his 67,056.33 contribution, so it
+  counted twice. Through `PartnerAccountsService.reverse`, reason recorded
+  (`apps/api/prisma/one-off/2026-10-26-reverse-cyc-0001-advance.ts`).
+- 2026-10-26 (evening) — shipped, no migration: **each cycle's funding is its own** — an advance funds only its own
+  cycle, untied money (a payout left in) any cycle, refusals `ACCOUNT_MONEY_FOR_OTHER_CYCLE` /
+  `ACCOUNT_MONEY_TIED_TO_CYCLES` / `ADVANCE_ALREADY_DRAWN`, check-data 27.3 (`b8ab447`); **an undone entry and its undo
+  leave every period** (`common/undone-entries.ts`, shared with cash on hand) — This month's Expenses no longer −3,338.82;
+  the funding skeleton; **one Funding card** replaces the Participants card and the funding panel — target and paid so
+  far, contributions in equal thirds with covered/short, the profit split with a new Change split, Add investor
+  (`105bd6b`). Picked from a rendered sample; looked at from the agents' screenshots.
+  Same evening: the Funding card moved below the Shipment card (owner: "funding should not be the first card").
+- 2026-10-26 (afternoon) — shipped, no migration: a **Units sold** tile on the product page (`d63070d`; §3 — confirmed,
+  partly paid and paid orders less returns, `common/units-sold.ts`, shared with Analytics' top products); on a touch
+  screen a picker's search box is read-only until tapped, so scrolling the list cannot raise the keyboard (`87eef88`,
+  office and storefront).
+- 2026-10-26 — production data corrected (no deploy needed for it): CYC-2026-0001's Alibaba card fee (241.07 AED =
+  3,338.82 EGP at 13.85) moved from a `bank_fees` expense into leg 1 (China → UAE), owner: "its a part of the shipping
+  fee at this part". The expense reversed (reason recorded), leg 1 FLAT 1,551.74 → 1,792.81 AED (24,830.42 EGP), the
+  cycle re-costed: every unit +13.46 EGP, sales' COGS 105,841.90 → 107,699.77, the cycle's total cost unchanged at
+  193,382.28. Script `apps/api/prisma/one-off/2026-10-26-cyc-0001-fee-into-leg1.ts` (services only, refuses a rerun);
+  rehearsed on a fresh production copy first (`.backups/prod-20261026-104138.sql`, taken before the change), where
+  check-data's 69 checks were all 0.
 - 2026-10-26 — shipped (migration `20261025100000_partner_running_accounts` first): the office chat (`e78e0ef`); a
   sale, payment, return, payment reversed or order cancelled notifies the other partners (`a0130f7`); New Order warns
   when the shop holds samples (`6228235`); a running account per partner — advances paid straight to suppliers,
@@ -355,6 +407,42 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Next (2026-10-26, owner: "add the fix to next up"): **A new temporary investor from the Funding card** — "+ Add
+  investor" picks only existing `TEMP_INVESTOR` accounts and no screen creates one (`POST /users` exists, nothing calls
+  it), so the first investor meets an empty list. Put a `+` beside the person picker (`FieldWithQuickCreate`, CLAUDE.md
+  §13) that creates an investor from a name alone — no office login (investors do not sign in), the email and password
+  made up and never used — refreshes the list and selects him. Server-side: role fixed to TEMP_INVESTOR, a coded
+  refusal for an empty name; tests for the second visit (cancel clears it) and that it never makes a partner.
+- Next (2026-10-26): **Change split saved and checked on the server in one go** — the Funding card's Change split
+  writes each participant's % through separate participant PUTs and only the dialog checks they add to 100 (the server
+  checks at settlement). Add one endpoint that saves the whole split (all or none, adding to 100, coded refusals
+  `PARTIAL_CUSTOM_SPLIT` / `SPLIT_NOT_100` at save time) and have the dialog use it (CLAUDE.md §3).
+- **Found by the owner 2026-10-26, in production — fix next (awaiting his go):**
+  1. **Built on branch `worktree-agent-ac6239d7503848e74`** (BUSINESS_LOGIC §8 "Each cycle's funding is its own").
+     A cycle's funding panel shows each partner's whole account balance, so CYC-2026-0001's Contribute form offers the
+     50,775 Abdallah advanced for CYC-2026-0002. Owner: "each cycle has its own funding". Rule to apply: an advance
+     funds only the cycle it was paid for; only money tied to no cycle (a payout left in) funds any cycle; the balance a
+     cycle shows is what that cycle can draw.
+  2. **Built on branch `worktree-agent-ac6239d7503848e74`** (BUSINESS_LOGIC §9, `common/undone-entries.ts`).
+     The dashboard's This month Expenses reads −3,338.82: the bank fee was dated 15 Jul and reversed 26 Oct, so the
+     month holds only the reversal. An entry undone and its undo leave every period's expense figures (as
+     `cashPosition` already does) — dashboard, P&L, settlement readers.
+  3. **Built on branch `worktree-agent-ac6239d7503848e74`** (skeleton in the panel's shape; an error state with Try
+     again; still hidden without `partnerAccount.read`). The funding panel has no skeleton (`account-funding-panel.tsx` renders nothing while loading).
+  4. **Built on branch `worktree-agent-a27e6df3502ff980b`** (BUSINESS_LOGIC §8 "one Funding card"; screenshots sent).
+     Approved 2026-10-26 from a rendered sample ("build it like this"):
+     one Funding card replaces the Participants card — (1) target and progress, "paid so far on this cycle" per
+     partner with day and how much went into capital, "Record what I paid"; (2) contributions, equal thirds of the
+     target by default, each drawn from that partner's advances on this cycle, each line "covered (N left over)" or
+     "N short", "Contribute equal thirds" and "Enter amounts"; (3) the profit split (equal thirds, "Change split" for a
+     custom one) and who is on the cycle with "+ Add investor". Split equally / Enter amounts move into (2).
+- Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or
+  one of the partners. E.g. fuel for a delivery paid from a partner's own pocket: still booked as the same expense
+  (charged to a cycle, or a running cost shared from payouts, as today), but no business cash leaves (cash on hand does
+  not move) and the partner's running account is credited with it (the business owes it back; he withdraws it or
+  leaves it in for a contribution). The Ledger form and the Fuel quick action get the choice (a picker, default the
+  business); reversing the expense reverses the credit; the partner account may not go negative. Tests: cash on hand
+  unchanged, profit and running-cost shares as before, the account credited and reversed, the wrong partner refused.
 - **BUILT 2026-10-25 (phases 1 and 2), branch `agent-partner-accounts`, migration
   `20261025100000_partner_running_accounts`** — rules and guesses in BUSINESS_LOGIC §8 "A running account per
   partner". The owner waived the sample ("go ahead no need for mockups now"); static mockups made before that are in

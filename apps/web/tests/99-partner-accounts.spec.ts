@@ -30,9 +30,10 @@ test.describe('Running accounts', () => {
     await login(page);
     await openNav(page, en.nav.importCycles);
     await page.getByText(cycle.code, { exact: true }).first().click();
-    const panel = page.getByTestId('account-funding');
+    // One Funding card since 2026-10-26: a row per partner under "paid so far on this cycle".
+    const panel = page.getByTestId('funding-card');
     await expect(panel.getByTestId('paid-so-far')).toContainText('900.00 EGP');
-    await expect(panel.getByTestId('paid-by')).toHaveCount(3);
+    await expect(panel.getByTestId('paid-row')).toHaveCount(3);
 
     // A further payment, through the dialog.
     await panel.getByTestId('record-advance').click();
@@ -44,11 +45,12 @@ test.describe('Running accounts', () => {
     await expect(panel.getByTestId('paid-so-far')).toContainText('1,050.00 EGP');
 
     // Contribute 900 equally: three equal shares, then the contributions are on the cycle.
-    const total = panel.locator('#contribute-total');
-    await total.fill('900');
-    await expect(panel.getByTestId('contribute-share')).toHaveText(['300.00 EGP', '300.00 EGP', '300.00 EGP']);
-    await panel.getByTestId('contribute-submit').click();
-    await expect(page.getByTestId('participants-card')).toContainText('300.00 EGP');
+    await panel.getByTestId('contribute-thirds').click();
+    const contribute = page.getByTestId('contribute-dialog');
+    await contribute.locator('#contribute-total').fill('900');
+    await expect(contribute.getByTestId('contribute-share')).toHaveText(['300.00 EGP', '300.00 EGP', '300.00 EGP']);
+    await contribute.getByRole('button', { name: new RegExp(`^${en.accounts.contribute}`) }).click();
+    await expect(panel.getByTestId('share-put-in')).toHaveText([/300\.00 EGP/, /300\.00 EGP/, /300\.00 EGP/]);
   });
 
   test('TC-ACC-02: an account that is short stops the contribution on screen, and the API refuses it too', async ({ page, request }) => {
@@ -57,10 +59,11 @@ test.describe('Running accounts', () => {
     await login(page);
     await openNav(page, en.nav.importCycles);
     await page.getByText(cycle.code, { exact: true }).first().click();
-    const panel = page.getByTestId('account-funding');
+    await page.getByTestId('funding-card').getByTestId('contribute-thirds').click();
+    const panel = page.getByTestId('contribute-dialog');
     await panel.locator('#contribute-total').fill('999999999');
     await expect(panel.getByTestId('contribute-short').first()).toBeVisible();
-    await expect(panel.getByTestId('contribute-submit')).toBeDisabled();
+    await expect(panel.getByRole('button', { name: new RegExp(`^${en.accounts.contribute}`) })).toBeDisabled();
     const res = await request.post(`${API}/cycles/${cycle.id}/account-contributions`, { headers, data: { totalEgp: 999999999 } });
     expect((await res.json()).error.code).toBe('ACCOUNT_BALANCE_TOO_LOW');
   });

@@ -130,6 +130,8 @@ function fakePrisma(w: World) {
         ),
     },
     inventoryReservation: { findMany: () => Promise.resolve([]) },
+    // The page's Units sold card (2026-10-26): nothing sold in this world.
+    saleItem: { findMany: () => Promise.resolve([]) },
   } as unknown as PrismaService;
 }
 

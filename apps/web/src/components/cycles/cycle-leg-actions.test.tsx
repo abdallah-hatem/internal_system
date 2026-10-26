@@ -224,6 +224,17 @@ describe('Leg header: who sees Record departure and Record delivery', () => {
 });
 
 describe('one place for the legs', () => {
+  it('the Funding card comes after the Shipment card, not first on the page (owner 2026-10-26)', async () => {
+    wrap();
+    const shipment = await screen.findByTestId('shipment-panel');
+    const funding = await waitFor(() => {
+      const el = document.querySelector('[data-testid^="funding-card"]');
+      if (!el) throw new Error('no funding card yet');
+      return el;
+    });
+    expect(shipment.compareDocumentPosition(funding) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('each leg is listed once and each action appears once per leg — no second Shipping card', async () => {
     wrap();
     await legBlock('leg-1');

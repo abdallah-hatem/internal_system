@@ -11,7 +11,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Package, DollarSign, TrendingUp, Boxes, ShoppingCart, Truck, Store, Loader2,
-  History, Check, PackageOpen,
+  History, Check, PackageOpen, ShoppingBag,
 } from '@/components/ui/icons';
 import { ProductSamplesCard, useProductSamples } from '@/components/products/product-samples';
 
@@ -45,6 +45,10 @@ interface Product {
   category?: { id: string; name: string; nameAr?: string | null };
   prices?: PriceEntry[];
   listPrices?: ListPrices | null;
+  /** Units on confirmed sales less units returned — the server's figure (common/units-sold.ts). */
+  unitsSold?: number;
+  /** The confirmed orders still holding some of them. */
+  unitsSoldOrders?: number;
 }
 
 interface PriceEntry {
@@ -94,9 +98,35 @@ const GRID = 'grid grid-cols-1 gap-6 xl:grid-cols-3 xl:items-start';
 const SIDE = 'space-y-6 xl:col-start-3 xl:row-start-1';
 const MAIN = 'space-y-6 xl:col-span-2 xl:col-start-1 xl:row-start-1';
 
-/** Icon above the figure where a tile is narrow — a phone's two columns, md–lg's four — beside it otherwise. */
+/**
+ * Icon above the figure where a tile is narrow — a phone's two columns, and
+ * from md up, where five tiles share the row — beside it only between sm and
+ * md. With five across at 1440 a tile is 214px, and the icon beside the
+ * figure pushed "157,449.46 EGP" into the tile's edge (2026-10-26).
+ */
 const STAT_LAYOUT =
-  'flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3 md:flex-col md:items-start md:gap-2 xl:flex-row xl:items-center xl:gap-3';
+  'flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3 md:flex-col md:items-start md:gap-2';
+/** The tile that takes a phone's whole row: room for the icon beside the figure there too. */
+const STAT_LAYOUT_WIDE = 'flex flex-row items-center gap-3 md:flex-col md:items-start md:gap-2';
+
+/**
+ * The five stat tiles (owner 2026-10-26 added Units sold), with no tile left
+ * alone in a row at any width:
+ *
+ *   phone       two across; the fifth takes the whole row
+ *   md–lg       six columns: three tiles of two, then two of three
+ *   xl (1280+)  one row of five
+ *
+ * The page and its skeleton both read this, so they cannot disagree.
+ */
+const STAT_GRID = 'grid grid-cols-2 gap-4 md:grid-cols-6 xl:grid-cols-5';
+const STAT_SPANS = [
+  'md:col-span-2 xl:col-span-1',
+  'md:col-span-2 xl:col-span-1',
+  'md:col-span-2 xl:col-span-1',
+  'md:col-span-3 xl:col-span-1',
+  'col-span-2 md:col-span-3 xl:col-span-1',
+] as const;
 
 /** `full`: the whole row at every width. `wide`: the whole row on a phone, one column from md. */
 type DetailSpan = 'full' | 'wide';
@@ -107,7 +137,7 @@ const DETAIL_SPAN: Record<DetailSpan, string> = {
 
 // ─── Skeletons ────────────────────────────────────────────────────────
 // Traced from the page below and its sub-components: the same header, the
-// same four stat cards, the same columns of cards. Change one, change the
+// same five stat cards, the same columns of cards. Change one, change the
 // other.
 
 /** A card of the page — `p-5`, a text-sm heading line with `mb-4` under it. */
@@ -121,10 +151,10 @@ function SectionCardSkeleton({ children, heading = 'w-32' }: { children: React.R
 }
 
 /** `StatCard`: a 40px icon square beside (on a phone, above) a text-xs label over the figure. */
-function StatCardSkeleton() {
+function StatCardSkeleton({ className = '', wide = false }: { className?: string; wide?: boolean }) {
   return (
-    <div data-testid="skeleton-row" className="bg-card rounded-xl border border-border p-4">
-      <div className={STAT_LAYOUT}>
+    <div data-testid="skeleton-row" className={`bg-card rounded-xl border border-border p-4 ${className}`}>
+      <div className={wide ? STAT_LAYOUT_WIDE : STAT_LAYOUT}>
         <Skeleton className="h-10 w-10 rounded-lg" />
         <div>
           <SkeletonText size="xs" className="w-16" />
@@ -191,8 +221,10 @@ function ProductDetailSkeleton() {
         <Skeleton className="h-11 w-32 rounded-lg sm:h-9" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {repeat(4, (i) => <StatCardSkeleton key={i} />)}
+      <div className={STAT_GRID}>
+        {STAT_SPANS.map((span, i) => (
+          <StatCardSkeleton key={i} className={span} wide={i === STAT_SPANS.length - 1} />
+        ))}
       </div>
 
       <div className={GRID}>
@@ -352,14 +384,16 @@ export default function ProductDetailPage() {
       </div>
 
       {/* ── Stat Cards ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div data-testid="product-stats" className={STAT_GRID}>
         <StatCard
+          className={STAT_SPANS[0]}
           icon={<Boxes className="h-5 w-5" />}
           label={t('totalStock')}
           value={formatNumber(stock?.totalStock ?? 0)}
           iconBg="bg-gray-100 text-gray-600"
         />
         <StatCard
+          className={STAT_SPANS[1]}
           icon={<TrendingUp className="h-5 w-5" />}
           label={t('available')}
           value={formatNumber(stock?.availableStock ?? 0)}
@@ -370,6 +404,7 @@ export default function ProductDetailPage() {
             nothing ever reserved stock. Same rule as the dashboard's
             Inventory Value (common/stock-value.ts). */}
         <StatCard
+          className={STAT_SPANS[2]}
           icon={<DollarSign className="h-5 w-5" />}
           label={t('stockValue')}
           value={
@@ -383,11 +418,37 @@ export default function ProductDetailPage() {
             the place the B2C price card had — the prices are in their own
             card below. */}
         <StatCard
+          className={STAT_SPANS[3]}
           icon={<PackageOpen className="h-5 w-5" />}
           label={t('samples.title')}
           value={<span data-testid="product-samples-stat">{formatNumber(samplesOut.units)}</span>}
           iconBg="bg-accent-100 text-accent-800"
           valueColor={samplesOut.units > 0 ? 'text-accent-800' : 'text-gray-900'}
+        />
+        {/* Units sold, net of returns (§3, owner 2026-10-26): the server's
+            figure — the analytics top products' own count — never summed
+            here. Samples still at a shop are the tile before; they join this
+            one when the shop buys them. */}
+        <StatCard
+          className={STAT_SPANS[4]}
+          icon={<ShoppingBag className="h-5 w-5" />}
+          label={t('unitsSold')}
+          value={
+            <bdi dir="ltr" data-testid="product-units-sold">
+              {formatNumber(productData.unitsSold ?? 0)}
+            </bdi>
+          }
+          note={
+            productData.unitsSoldOrders
+              ? t('unitsSoldOrders', {
+                  count: productData.unitsSoldOrders,
+                  n: formatNumber(productData.unitsSoldOrders),
+                })
+              : undefined
+          }
+          noteTestId="product-units-sold-orders"
+          wide
+          iconBg="bg-blue-100 text-blue-600"
         />
       </div>
 
@@ -545,16 +606,27 @@ function StatCard({
   value,
   iconBg,
   valueColor = 'text-gray-900',
+  note,
+  noteTestId,
+  className = '',
+  wide = false,
 }: {
   icon: React.ReactNode;
   label: string;
   value: React.ReactNode;
   iconBg: string;
   valueColor?: string;
+  /** A muted line under the figure. */
+  note?: string;
+  noteTestId?: string;
+  /** The tile's span in the stat grid (STAT_SPANS). */
+  className?: string;
+  /** Takes a phone's whole row (the last of STAT_SPANS). */
+  wide?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className={STAT_LAYOUT}>
+    <div className={`bg-white rounded-xl border border-gray-200 p-4 ${className}`}>
+      <div className={wide ? STAT_LAYOUT_WIDE : STAT_LAYOUT}>
         <div className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${iconBg}`}>
           {icon}
         </div>
@@ -562,6 +634,11 @@ function StatCard({
           <p className="text-xs text-gray-500">{label}</p>
           {/* One line, always: "2,034.40 EGP" broke in two on a phone. */}
           <p className={`whitespace-nowrap text-base font-bold tabular-nums xl:text-lg ${valueColor}`}>{value}</p>
+          {note && (
+            <p data-testid={noteTestId} className="text-xs text-gray-500">
+              {note}
+            </p>
+          )}
         </div>
       </div>
     </div>

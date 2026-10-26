@@ -160,6 +160,22 @@ function AccountCard({
         <Figure label={t('withdrawn')} value={a.withdrawnEgp} tone="text-accent-700" />
       </div>
 
+      {/* The balance by pot (owner 2026-10-26, "each cycle has its own
+          funding"): what any cycle can draw, and what only one cycle can. */}
+      {(a.byCycle ?? []).length > 0 && (
+        <p data-testid="account-pots" className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            {t('untiedPot')}: <span className="tabular-nums text-foreground"><Money value={a.untiedEgp} /></span>
+          </span>
+          {a.byCycle.map((c) => (
+            <span key={c.cycleId} data-testid="account-pot">
+              {t('cyclePot', { cycle: c.cycleCode })}:{' '}
+              <span className="tabular-nums text-foreground"><Money value={c.amountEgp} /></span>
+            </span>
+          ))}
+        </p>
+      )}
+
       {a.movements.length === 0 ? (
         <p className="border-t border-border pt-3 text-xs text-muted-foreground">{t('noMovements')}</p>
       ) : (

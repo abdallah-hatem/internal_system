@@ -18,6 +18,10 @@ import {
   transferNetEgp,
 } from '../../common/ledger-categories';
 import { cashPosition } from '../../common/cash-position';
+import {
+  standingEntriesWhere,
+  undoneEntryIds,
+} from '../../common/undone-entries';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import {
   cycleWriteOffsEgp,
@@ -51,15 +55,14 @@ import {
 } from '../../common/dates';
 import { badRequest } from '../../common/api-error';
 import { cyclesVisibleTo, type ScopeViewer } from '../../common/investor-scope';
-
-/**
- * Sale states whose revenue is realised: the goods have left the business, so
- * the sale counts whether or not the customer has finished paying.
- *
- * Draft and cancelled orders must never be counted — a draft is a quote that
- * has reserved nothing, and including them inflates every figure on the page.
- */
-const REALISED_SALE_STATUSES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID'] as const;
+// Realised sales and units sold are defined once, beside the product page's
+// Units sold card that reads them too (CLAUDE.md §11).
+import {
+  netUnitsSold,
+  REALISED_SALE_STATUSES,
+  SOLD_LINE_WHERE,
+  unitsFigure,
+} from '../../common/units-sold';
 
 /** A cycle still running: anything but closed or cancelled (CLOSED_CYCLE_STATUSES). */
 export const ACTIVE_CYCLE_WHERE = {
@@ -441,12 +444,21 @@ export class AnalyticsService {
     // The ledger, through the one signed reading per row that settlement
     // uses too (L6, rule 11). Summed, the database's total stands in for the
     // rows, carrying what the reading needs to know about them.
+    //
+    // An entry undone and its undo are left out of every line, whichever
+    // periods they fall in — the rule cash in and cash out already applied
+    // (`common/undone-entries.ts`, owner 2026-10-26). Netting them instead
+    // put a July fee undone in October at −3,338.82 in October's Expenses
+    // while July kept it. Over all time the pair nets to zero, so the
+    // dashboard's all-time figures read the same either way.
+    const standing = standingEntriesWhere(await undoneEntryIds(this.prisma));
     const ledger = async (
       line: ProfitLine,
-      where: Prisma.FinancialTransactionWhereInput,
+      within: Prisma.FinancialTransactionWhereInput,
       read: (t: LedgerRowLike) => Prisma.Decimal,
       summedAs: Omit<LedgerRowLike, 'amount'>,
     ) => {
+      const where = { ...within, ...standing };
       if (itemised) {
         for (const t of await this.prisma.financialTransaction.findMany({
           where,
@@ -983,7 +995,7 @@ export class AnalyticsService {
         saleItems: {
           // Without this filter every draft counts, including abandoned ones,
           // which is how a product showed three million units sold.
-          where: { saleOrder: { status: { in: [...REALISED_SALE_STATUSES] } } },
+          where: SOLD_LINE_WHERE,
           select: {
             quantity: true,
             lineTotal: true,
@@ -1001,14 +1013,7 @@ export class AnalyticsService {
       .map((p) => {
         // Sales less what came back: a product with heavy returns is not a
         // top seller, and counting the gross figure would say it was.
-        const units = p.saleItems.reduce(
-          (sum, i) =>
-            i.returnItems.reduce(
-              (s2, r) => s2.sub(D(r.qty)),
-              sum.add(D(i.quantity)),
-            ),
-          D(0),
-        );
+        const units = netUnitsSold(p.saleItems);
         // Less prices lowered after the sale (§4, 2026-10-22).
         const revenue = p.saleItems.reduce(
           (sum, i) =>
@@ -1036,7 +1041,7 @@ export class AnalyticsService {
           name: p.name,
           nameAr: p.nameAr,
           sku: p.sku,
-          totalQuantitySold: Number(units.toDecimalPlaces(3)),
+          totalQuantitySold: unitsFigure(units),
           revenueEgp: money(revenue),
           cogsEgp: money(cogs),
           profitEgp: money(profit),

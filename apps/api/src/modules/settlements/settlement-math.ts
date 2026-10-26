@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { badRequest } from '../../common/api-error';
@@ -147,6 +148,34 @@ export function distributeCycleProfit(
 }
 
 /**
+ * How `amount` of the cycle's profit lands on each participant: the same
+ * split `distributeCycleProfit` makes of the whole profit — by contribution,
+ * or the agreed percentages — each line's share before any investor's fee,
+ * to the piastre, re-summing to `amount`. The Funding card's exchange line
+ * reads each partner's part of the exchange difference here (owner
+ * 2026-10-26), because settlement takes it off the profit before splitting
+ * it, so this is what it costs each of them.
+ *
+ * Null when settling would refuse to split at all (`CYCLE_NOT_FUNDED`, a
+ * partial or off-100 custom split) — no basis, so no split is shown
+ * (CLAUDE.md §10).
+ */
+export function profitShareOf(
+  participants: ParticipantInput[],
+  amount: Prisma.Decimal,
+): Prisma.Decimal[] | null {
+  if (participants.length === 0) return null;
+  try {
+    return distributeCycleProfit(participants, amount).lines.map(
+      (l) => l.grossProfit,
+    );
+  } catch (e) {
+    if (e instanceof BadRequestException) return null;
+    throw e;
+  }
+}
+
+/**
  * What a cycle's profit would be split on (§8), or `NONE` when settlement
  * would refuse it as `CYCLE_NOT_FUNDED`. The one reading for the split itself
  * and for the cycle page's "Funding not entered yet" note (owner 2026-10-18),
@@ -176,6 +205,75 @@ export function profitBasisOf(
   const total = participants.reduce((s, p) => s.add(p.contribution), ZERO);
   if (total.gt(0)) return 'CONTRIBUTIONS';
   return 'NONE';
+}
+
+/**
+ * The profit split as the cycle page reads it (the Funding card, owner
+ * 2026-10-26): its basis and each participant's percentage, in the
+ * participants' order. A display of `resolveShares`' answer, not a second
+ * rule: a custom split shows the agreed percentages as stored (with the
+ * refusal settling would give, if any); a split by contribution shows each
+ * one's share of the contributions to two places, the last line taking the
+ * rounding so the line reads 100 (33.33 / 33.33 / 33.34) — as the money lines
+ * do at settlement. `NONE` has no percentages: nothing says how it splits.
+ */
+export function profitSplitView(
+  participants: Pick<
+    ParticipantInput,
+    'type' | 'contribution' | 'customProfitPct'
+  >[],
+): {
+  basis: ProfitBasis;
+  /** Every contribution the same (an equal split by construction). */
+  equal: boolean;
+  problem: 'PARTIAL_CUSTOM_SPLIT' | 'SPLIT_NOT_100' | null;
+  pcts: (string | null)[];
+} {
+  const basis = profitBasisOf(participants);
+  if (basis === 'CUSTOM_SPLIT') {
+    const set = participants.filter((p) => p.customProfitPct !== null);
+    const total = set.reduce((s, p) => s.add(p.customProfitPct!), ZERO);
+    return {
+      basis,
+      equal: false,
+      problem:
+        set.length !== participants.length
+          ? 'PARTIAL_CUSTOM_SPLIT'
+          : !total.equals(HUNDRED)
+            ? 'SPLIT_NOT_100'
+            : null,
+      pcts: participants.map((p) =>
+        p.customProfitPct === null ? null : p.customProfitPct.toFixed(2),
+      ),
+    };
+  }
+  if (basis === 'NONE') {
+    return {
+      basis,
+      equal: false,
+      problem: null,
+      pcts: participants.map(() => null),
+    };
+  }
+  const total = participants.reduce((s, p) => s.add(p.contribution), ZERO);
+  const rounded = participants.map((p) =>
+    p.contribution
+      .div(total)
+      .mul(HUNDRED)
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN),
+  );
+  const last = rounded.length - 1;
+  rounded[last] = HUNDRED.sub(
+    rounded.slice(0, last).reduce((s, v) => s.add(v), ZERO),
+  );
+  return {
+    basis,
+    equal: participants.every((p) =>
+      p.contribution.equals(participants[0].contribution),
+    ),
+    problem: null,
+    pcts: rounded.map((v) => v.toFixed(2)),
+  };
 }
 
 /** Fractional share (0-1) per participant, from an agreed split or capital. */

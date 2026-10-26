@@ -96,6 +96,16 @@ export function Select({
 
   const t = useTranslations('common');
   const [open, setOpen] = useState(false);
+  // On a touch screen the search box is read-only until it is tapped: a
+  // read-only box cannot raise the keyboard, so scrolling the list (or any
+  // focus cmdk moves around) no longer opens it over the options (owner
+  // 2026-10-26 — not focusing it on open was not enough). Re-armed on close.
+  const [searchArmed, setSearchArmed] = useState(false);
+  /** Open or close, and disarm the search box whenever it closes. */
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearchArmed(false);
+  };
   const [invalid, setInvalid] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const commandRef = useRef<HTMLDivElement>(null);
@@ -118,7 +128,7 @@ export function Select({
     if (!controlled) setInternal(v);
     onChange?.(v);
     setInvalid(false);
-    setOpen(false);
+    changeOpen(false);
   };
 
   return (
@@ -145,7 +155,7 @@ export function Select({
         />
       )}
 
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={changeOpen}>
         <PopoverTrigger asChild>
           <button
             id={id}
@@ -223,7 +233,14 @@ export function Select({
               return searchFinds(haystack, search) ? 1 : 0;
             }}
           >
-            {showSearch && <CommandInput placeholder={searchPlaceholder ?? t('searchList')} className="h-9" />}
+            {showSearch && (
+              <CommandInput
+                placeholder={searchPlaceholder ?? t('searchList')}
+                className="h-9"
+                readOnly={isTouchScreen() && !searchArmed}
+                onPointerDown={() => setSearchArmed(true)}
+              />
+            )}
             <CommandList>
               {/* Nothing to choose at all: say so, and why. It used to open
                   as a blank strip — the empty message lived only behind the

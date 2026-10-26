@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — guesses marked; §7: a walk-in sale looks up no branch). Before that 2026-10-25 (§7: a customer with branches; §8: a running account per partner; §4: New Order warns when the shop holds samples — guesses marked). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — guesses marked; §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -734,6 +734,22 @@ never that it is a default** — "landed + 20%" beside a price would hand any sh
 rule as the office.
 
 Open: whether the markup should differ by channel (retail above trade) — the owner said one figure for both.
+
+### Units sold on a product page  — DECIDED 2026-10-26 (owner), details GUESSED, built on branch `worktree-agent-a65382d705665b118` (awaiting the owner's look)
+
+The owner: "in product page we need a card to display how many units were sold".
+
+| Rule | What the code does | Status |
+|---|---|---|
+| The figure | **Units on realised sales — CONFIRMED, PARTIALLY_PAID, PAID — less units returned**, on a credit note or for cash. The same count as the Analytics top products' units: one definition, `netUnitsSold` / `SOLD_LINE_WHERE` / `REALISED_SALE_STATUSES` in `apps/api/src/common/units-sold.ts`, imported by both (CLAUDE.md §11). | **DECIDED** (owner, 2026-10-26) |
+| Not sold | Drafts, cancelled orders, and samples still at a shop (status SAMPLES). Samples count once "They're buying" turns the order into a sale, and only the units the shop kept. A fully returned order (RETURNED) nets to nothing. | **DECIDED** (follows "what counts as sold everywhere else") |
+| Price cuts | A price lowered after the sale changes what the units brought in, never how many there were. | **DECIDED** |
+| Second line | "across N orders" — the realised orders that still hold at least one unit of the product; an order handed back in full drops out. Hidden at zero. | **GUESS** |
+| Arabic label | "الوحدات المباعة", "في N طلب" with Arabic plural forms. | **GUESS** (wording) |
+| Who sees it | Sent on `GET /products/:id` as `unitsSold` / `unitsSoldOrders` to the office only, as the stock is; an investor's read of the catalogue does not carry it. | **GUESS** |
+
+The tile is the fifth beside Total Stock, Available, Stock value and Samples: two across on a phone with Units sold
+taking the whole row, three then two from 768px, one row of five from 1280px.
 
 ---
 
@@ -2036,7 +2052,7 @@ shops"). Units at shops count as unsold stock in every unsold figure.
 | When the note shows | Exactly when settling would refuse: `profitBasis` on the landed-cost totals is `NONE`. That is `profitBasisOf` (settlement-math.ts) — the function the settlement's split itself branches on — over the participants (until 2026-10-19 also `fundingFor`'s `fundedByLenders`, removed with the `LENDERS` basis). A custom split on every participant is a basis, so no note. Hidden too while funding is locked. | One definition (CLAUDE.md §11): the note and the refusal can never disagree. |
 | "Paid by a lender" with one order / several | One order: the form opens on it. Several: the order picker, nothing preselected. | The owner's rule. |
 | Its prefilled amount | What friends may still pay of the cycle, the API's own `availableEgp` (the cap it enforces). In pounds as is; in another currency divided by the rate shown, **rounded down** to the piastre, so it is never above the cap. It follows the currency and rate until he types an amount; a typed amount is never overwritten. | Reuse the server's figure; never a second formula for the cap. In a foreign currency the rounded-down amount can leave a few piastres unfunded, so the note may stay with the partial text — the partners split those, or the amount is typed. |
-| "Enter amounts" | There was no per-participant editing on the cycle page (only the wizard's Funding step had it), so it moved there: an **Edit amounts** button on the Participants card, the note's action opens it and scrolls to it. Save writes only what changed. | The smallest flow, on the screen where the person is. |
+| "Enter amounts" | There was no per-participant editing on the cycle page (only the wizard's Funding step had it), so it moved there: an **Edit amounts** button on the Participants card, the note's action opens it and scrolls to it. Save writes only what changed. *Since 2026-10-26: "Enter amounts" in the Funding card's Contributions, opening the same form in a dialog (below, "one Funding card").* | The smallest flow, on the screen where the person is. |
 | Adding an investor | On the cycle page's existing Add participant (the wizard's own add-investor box went with the step). | Already there. |
 | A closed cycle, adding a participant | Keeps its older refusal, `CYCLE_CLOSED_NO_PARTICIPANTS`; every other locked path says `FUNDING_LOCKED_AFTER_SETTLEMENT`. | Unchanged code for an unchanged case. |
 | A friend's payment on a cycle in Settlement or Closed | Still `CYCLE_CLOSED_FOR_FINANCING` (unchanged, checked first); the lock catches what that misses — an approved settlement on a cycle not marked Settlement. Removing one, which had no status check at all, is now refused from approval on. | Removing one after the payout changed the basis the profit was split on. |
@@ -2083,7 +2099,8 @@ run — owner said not for now):
 
 - **The balance** — one definition, `apps/api/src/common/partner-account.ts` (`accountBalances`, `balanceOf`): the
   standing movements of his account, + advances, + payouts left in, − contributions, − withdrawals. The Partners page,
-  the cycle's funding panel, every check below and a settlement's reversal read it there.
+  the cycle's funding panel, every check below and a settlement's reversal read it there. *Since 2026-10-26 it is
+  split into pots, and each check reads the pot it may draw — see "Each cycle's funding is its own" below.*
 - **An advance** (`POST /partner-accounts/:partnerUserId/advances`): a cycle, an amount above zero, the currency he
   paid in and that day's rate (required for any currency but EGP; the page's rate only prefills), the day he paid (not
   in the future), a note. Refused on a cycle in Settlement, Closed or Cancelled (`CYCLE_CLOSED_FOR_ACCOUNTS`) or once
@@ -2122,6 +2139,92 @@ run — owner said not for now):
 | Two writers at once | Each account is locked (its partner row) for the transaction, cycle first, then accounts in one order; two withdrawals of 600 against 700 cannot both pass. | Doubles are the second-time bug. |
 | A contribution lowered by hand, then its account entry reversed | Refused (`CONTRIBUTION_ALREADY_LOWERED`): the contribution would go below zero. | Never a negative contribution. |
 | Dates | Today in Cairo when left out; never later. | §7a. |
+
+### Each cycle's funding is its own — DECIDED 2026-10-26 (owner: "each cycle has its own funding"), details GUESSED, built on branch `worktree-agent-ac6239d7503848e74` (awaiting the owner's look)
+Found in production: CYC-2026-0001's own "paid so far" was empty, yet its Contribute form offered Abdallah 50,775 —
+the advance he paid for CYC-2026-0002. **Decided:** an advance funds **only the cycle it was recorded on**; money tied
+to no cycle (a payout left in) funds any cycle; the figure a cycle's form shows and checks is what **that cycle** can
+draw, never the whole account.
+
+Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — the balance is unchanged, only split):
+
+- **His account is split into pots.** *A cycle's pot*: his standing advances on that cycle less what his contributions
+  to that cycle drew from them. *Untied money*: payouts left in, less money taken out, less what contributions drew
+  beyond their own cycle's advances. The pots add up to the balance exactly.
+- **What a cycle can draw** (`GET /cycles/:id/account-funding` → `availableEgp` per partner): its own pot + untied
+  money. The panel's "For this cycle" column and its shortfalls read it; his advances for other cycles are shown under it
+  ("+ 50,775.00 EGP paid for other cycles"), never offered. The response also carries `ownAdvancesEgp`, `untiedEgp`,
+  `elsewhereEgp` and the whole `balanceEgp`.
+- **The server refuses** a contribution needing another cycle's advance, whatever the client sends (it names no pot;
+  the server decides): `ACCOUNT_MONEY_FOR_OTHER_CYCLE` (`partner`, `cycle`, `available`, `elsewhere`, `amount`,
+  `short`). With nothing held elsewhere it is the old `ACCOUNT_BALANCE_TOO_LOW`, its `balance` now what the cycle can
+  draw.
+- **The Partners page** still shows the whole balance, and under the figures the pots: "Tied to no cycle: … · For
+  CYC-2026-0002: …".
+- **Data check** 27.3 (`scripts/check-data.sh`): a partner whose untied money is below zero — a contribution that drew
+  another cycle's advance before this rule. **Production:** from the facts read on 2026-10-26 (Abdallah's 50,775 and
+  Shady's 10,000 on CYC-2026-0002, nothing contributed through an account on CYC-2026-0001) no contribution drew another
+  cycle's advance; run the check after deploying to confirm it reads 0.
+
+| Question | Guess built | Why |
+|---|---|---|
+| Which pot a contribution draws | **Its own cycle's advances first, untied money for the rest.** Read from the standing movements as they are now, not in time order: per cycle, min(advances, contributions) came from its pot, the excess from untied money. So an advance recorded *after* a contribution that took untied money counts as having funded it, and frees that untied money. No column records the pot. | The smallest consistent rule; one sum, no stored state to drift. |
+| A withdrawal | **Untied money only** (`ACCOUNT_MONEY_TIED_TO_CYCLES` with `available`, `tied`, `amount`). An advance paid a supplier for a cycle's goods; it is not cash to take out. | "Each cycle has its own funding." |
+| Reversing an advance | Only while **its cycle's pot** still holds it (`ADVANCE_ALREADY_DRAWN` with `drawn`, `cycle`): reverse the contribution it funded first. Other cycles and untied money are never touched. Was: refused only if the whole account would go negative. | Never negative, per pot. |
+| Reversing a settlement whose payout was left in | Takes the payout back from **untied money only** (`ACCOUNT_MONEY_TIED_TO_CYCLES`). | A payout left in is untied money. |
+| A payout left in that names its cycle | Its `cycle_id` is the settled cycle it came from; it is **untied** all the same. | Owner: "only money tied to no cycle (a payout left in) funds any cycle". |
+| Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 27.3 finds it. | Do not let old data move new money. |
+| OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today (CYC-2026-0001 has no advances). | Build for what exists. |
+
+### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, built on branch `worktree-agent-a27e6df3502ff980b` (awaiting the owner's look)
+One card replaces the Participants card and the separate funding panel (`components/cycles/funding-card.tsx`). A
+re-arrangement of controls that existed — no new money rule; every server rule and refusal stands. Top to bottom:
+
+1. **Target and paid so far.** "Target X" (set/changed where it was), "N paid so far · M to go" with the bar (no target:
+   "N paid so far", no bar). "Paid so far on this cycle": one row per core partner — what he paid here, the day (or "N
+   payments"), and **into capital**; a partner with nothing shows "—". "+ Record what I paid" (the advance dialog).
+2. **Contributions.** Each core partner's equal share, "from his advances" (what this cycle can draw for him — its own
+   pot and untied money, `availableEgp`), and a pill: "covered · N left over" or "N short". "Contribute equal thirds"
+   (the accounts' contribute, now in a dialog: equal shares of a total, the server's all-or-nothing check), "Enter
+   amounts" (`amounts-form.tsx`, in a dialog) and "Split equally" (by hand, unchanged). An investor keeps his own row.
+   The "share of repaying the friend" line (§18) sits under the rows.
+3. **Profit split and who is on the cycle.** "Equal thirds (33.33 / 33.33 / 33.34)", "By contribution (…)", "Agreed
+   split (…)" or "nothing put in yet, so settling is refused"; "Change split"; "On this cycle: …"; "+ Add investor" (the
+   old Add participant form, opening on the investor type; a core partner can still be chosen).
+
+The funding note is one line at the card's top (its "friend paid — repay him" wording and §18's rule unchanged), with
+"Paid by a lender" beside it; Split equally and Enter amounts are in section 2 just below. Locked (approved, paid,
+closed): every control off, the reason at the top and on each control. A cycle in Settlement, Closed or Cancelled but
+not locked: the accounts' controls (record, contribute, target) off with the accounts' reason; entering by hand stays.
+
+| Question | Guess built | Why |
+|---|---|---|
+| What the equal shares are of | The **target in pounds** when one is set and not below the cost to fund; otherwise the **cost to fund** (`fundingFor`, the figure Split equally divides). Investors' money off first. `equalShares`, the last partner taking the odd piastre; nothing to fund gives every share zero (no pill). One definition: `contributionShares` in `common/partner-account.ts`, read by `GET /cycles/:id/account-funding` (`shares`, each partner's `shareEgp`/`stillToGiveEgp`/`coverEgp`). | The owner's sample: thirds of the 120,000 target (40,000 each). A target below the cost would leave part of the cost unshared. |
+| Covered or short | What he **still has to give** (share less what he has already contributed, never below zero) against what this cycle can draw for him. Covered with the difference left over, or short by it. | So a partner who has already put in his share reads covered, not short. |
+| "Into capital" | Of what he paid **on this cycle**, how much his contributions **to this cycle** drew from it: min(advances, contributions from the account) — the pots' own split (`potsOf` → `intoCapital`). A contribution entered by hand (Split equally, Enter amounts) draws no advance, so counts nothing here. *Superseded later on 2026-10-26: section 1 is "Put in so far" and into capital is his whole contribution (below, "Put in so far, shares of what was repaid").* | One definition with the pots. |
+| "Contribute equal thirds" default | What the partners still have to give of their shares (`shares.stillEgp`), split equally by the server; a typed total is never overwritten. | The sample's button; the server's split is equal. |
+| The profit-split line | `profitSplitView` (settlement-math.ts, beside `profitBasisOf`): a split by contribution shown to two places, the last line taking the rounding so it reads 100; a custom split as stored, with the refusal settling would give (partial / not 100). Display only — the settlement's own maths is unchanged. | One reading with the settlement. |
+| "Change split" | Every participant's agreed %, adding up to 100, or none ("Split by contribution" clears them); Save waits for one of the two, since settling refuses anything else. Written through each participant's PUT. The server still checks only at settlement (unchanged). | There was no way to edit a custom % after adding a participant. |
+| Who sees the card | Core partners (`partnerAccount.read`), as the panel was; nobody else signs in to the office (LEARNINGS). | — |
+
+### Put in so far, shares of what was repaid, the exchange difference — DECIDED 2026-10-26 (owner), details GUESSED, built on branch `worktree-agent-a7c78ce1e909cbbd7` (awaiting the owner's look)
+The owner on production's CYC-2026-0001 (a friend, Ahmad Eraiby, paid it all; the partners repaid him 201,168.99 EGP in
+three thirds at 14 / 14.50 / 14.90 and each entered 67,056.33 as his contribution, no advances): "a bit confusing, seeing
+funding zero, while each one of us clearly paid 67,056.33 to ahmad"; "it shows we paid 64,460.76, while its 67,056.33 ??";
+"it should state as well, the exchange difference". Three changes to the Funding card, display and the
+`account-funding` endpoint only — nothing about how money is counted or settled changes.
+
+| Rule | Built | Status |
+|---|---|---|
+| Section 1 is "Put in so far" | Per partner: his contribution on the cycle + his advances on it **not yet drawn** into a contribution (the cycle's pot, `potsOf`) — a drawn advance is inside the contribution and is never counted twice. One definition, `putInSoFar` (`common/partner-account.ts`). Columns: put in, into capital (his contribution), how it came in. Total "N put in so far", or "· M to go" against a target. Cycle 1 reads 201,168.99, 67,056.33 each. | DECIDED |
+| How it came in | The contribution splits into drawn from his account (his CONTRIBUTION movements on the cycle: "from his account") and entered directly (the rest). Entered directly on a cycle a friend paid (any standing financing): "repaid Ahmad Eraiby"; otherwise "contributed". An undrawn advance: "paid {day}, not drawn yet", or "N payments, not drawn yet". The amount beside each part only when there is more than one. A contribution lowered by hand below what the account gave reads entered 0. | DECIDED (labels); the wording GUESS |
+| A target in another currency | Put in, in the target's currency: the contribution at the target's rate, plus the undrawn share of his advances' face value (all of it when nothing is drawn, so an advance in the target's currency still counts at face). | GUESS |
+| Shares on a cycle a friend paid | Once the partners have repaid him anything: equal shares of **what they repaid him in pounds** (`repaidOnCycleEgp` — the standing repayments `exchangeDifferenceEgp` reads), investors' money off first, instead of the cost to fund (`shares.basis` `REPAID`). Before any repayment: the cost to fund, as before. A target still wins when set and not below that figure. Covered/short measure against it. Cycle 1: 67,056.33 each, covered, nothing left over. | DECIDED; the target rule GUESS |
+| A cycle friends paid only in part | The repaid basis then leaves out the part of the cost no friend paid (on cycle 1 that is 1.41 EGP: cost 193,382.28, his payment 193,380.87). Not handled: the owner's figures for cycle 1 ask for thirds of exactly the repaid sum. | OPEN |
+| The exchange difference line | On a cycle with repayments and a difference that is not zero, under the shares: "Exchange difference on repaying Ahmad Eraiby: X EGP (Y each) — a cost to the cycle, taken from its profit; each partner still gets his full contribution back as capital." Negative: "Exchange gain on repaying …: X EGP (Y each) — the rate fell since he paid, so it adds to the cycle's profit; …", the figure shown without a minus. The figure is `exchangeDifferenceEgp` (`common/lender-debt.ts`) — the one settlement, cycle profit and the dashboard read. | DECIDED |
+| Each partner's part of it | **By the profit split**, not plain thirds: settlement takes the difference off the cycle's profit before splitting it, so each one's part is `profitShareOf` (settlement-math.ts) — `distributeCycleProfit`'s own split of that amount, by contribution or the agreed percentages, before investors' fees. Equal contributions give equal parts ("each"); otherwise each name and amount. No basis (`CYCLE_NOT_FUNDED`, a partial or off-100 split): the figure alone. An investor bears his part too and is listed. | GUESS (follows the settlement's arithmetic) |
+| Cycle 1's figure | Rebuilt from the figures above (AED 13,905.69 at 13.9066; dirham thirds of 4,635.23 repaid at 14 / 14.50 / 14.90) the reader gives **7,788.12** (201,168.99 repaid − his 193,380.87), 2,596.04 each. 7,786.71 is repaid − the cycle's cost (193,382.28), which is not how settlement counts it; production's stored repayments decide what the card shows there. Confirmed 2026-10-26: production's correction of 23 Oct recorded 7,788.12 (its rehearsal and run reports); 7,786.71 was a miscount in the chat. | DECIDED |
+| Arabic | The new strings are the agent's wording, for the owner to correct. | GUESS |
 
 ## 9. The ledger
 
@@ -2257,6 +2360,18 @@ one definition. Settlement and the cycle profitability were not affected: a
 return's rows carry no cycle.
 
 **FIXED 2026-10-12 (L7) — cash on hand counts only cash handed back.** The sale undone (`SALE_RETURN`) moves no money, so cash on hand, cash in and cash out leave it out (`NOT_CASH_TYPES`, through `common/cash-position.ts`); the cash refund (`REFUND_PAID`) is still cash out. A 300 cash refund lowers cash by 300, a credit-note return by nothing. By type, not category: `revenue` is also a customer's payment coming in, which is cash.
+
+**DECIDED 2026-10-26 (owner) — an entry undone and its undo leave every period's figures, not only cash.** Found in
+production: a 3,338.82 bank fee on CYC-2026-0001 dated 15 July, undone on 26 October, put **−3,338.82** into the
+dashboard's This month Expenses (the month held only the undo) while July kept the fee. Now Expenses, Other income
+and Recovered — the dashboard's all-time and This month figures and every Profit and loss period and bucket — leave
+out an entry that was undone **and** its undo, whichever periods they fall in: July 0, October 0, all time 0. One rule
+for cash and profit alike, `apps/api/src/common/undone-entries.ts` (`undoneEntryIds`, `standingEntriesWhere`), read by
+`cashPosition` and `AnalyticsService.profitParts` (rule 11). All-time figures are unchanged (the pair always netted to
+zero). A settlement's expenses, the cycle page's "expenses charged to it" and the cycle's cost still read the cycle's
+rows net of reversals (`operatingExpenseEgp`): over a cycle's whole life the pair nets to zero, so both read 0 for a
+reversed pair and count an unreversed one once (tested); neither counts one half. *Supersedes, for profit figures, the
+2026-10-18 line below that "a September expense undone in October lowers October".*
 
 **FIXED 2026-10-17 — an entry that was undone is not cash, and neither is its undo.** A lender's payment entered at 6,509.86 AED, undone and entered again at 8,302.60 AED put 90,161.56 into both cash in and cash paid out (cash on hand, where the pair cancels, was right). An undone entry and the row that undoes it record a mistake and its correction, not money moving, so cash in and cash out leave both out (`common/cash-position.ts`). Every undo mirrors its entry's full amount, so cash on hand is unchanged. Any later correction is covered by the same rule. Active cycles counts neither closed nor cancelled cycles (`CLOSED_CYCLE_STATUSES`); it read closed alone.
 
@@ -2574,6 +2689,9 @@ right-now figures with nothing saying which. Now two headed groups:
 - GUESS: **Cash paid out for a period** is the money-out rows whose ledger day (`occurredOn`, else the Cairo day
   entered) falls in it; an entry undone and its undo are left out together whatever periods they fall in, as
   the all-time figure does. Shown inside "How it adds up" (folded) rather than as a fifth tile.
+- DECIDED 2026-10-26 (owner): **This month's Expenses** (and net profit) leave out an entry undone and its undo
+  whatever months they fall in — a July fee undone in October is in neither — the same rule as cash
+  (`common/undone-entries.ts`, §9), so the block still equals Profit and loss's This month to the piastre.
 - GUESS: "a row of four then a row of three" applies once the group is at least 68rem wide (a 1440 screen with
   the sidebar); narrower — a 1280 laptop — four figures do not fit on one line beside their badges, so the
   groups stay two to a row (Active cycles spanning the last). From 68rem to 76rem the figures are a size
@@ -2651,8 +2769,9 @@ day, week or month buckets). `GET /analytics/profit-and-loss?from=&to=`
   - a return's refund and the cost it reversed: the day it came back (`returnedOn`) — as Revenue by month
     already does, so a reported month does not change;
   - a ledger row (expenses, recoveries, other income): the day the money moved (`occurred_on`), else the Cairo
-    day it was entered — as running costs read it (§8); an undo is dated the day it is undone, so a September
-    expense undone in October lowers October;
+    day it was entered — as running costs read it (§8); ~~an undo is dated the day it is undone, so a September
+    expense undone in October lowers October~~ **superseded 2026-10-26 (owner):** an entry undone and its undo are
+    left out of every period, both halves (§9, `common/undone-entries.ts`) — September and October both read 0;
   - goods lost on the way: the day they were marked lost (the record's only date);
   - an exchange difference: the day of the repayment (`paidOn`).
 - GUESSED: a `to` after today is today; a `from` after today is refused (`PERIOD_NOT_STARTED`) rather than

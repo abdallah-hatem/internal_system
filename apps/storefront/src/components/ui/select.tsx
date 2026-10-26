@@ -86,6 +86,13 @@ export function Select({
 
   const t = useTranslations('common');
   const [open, setOpen] = useState(false);
+  // On a touch screen the search box is read-only until tapped, so scrolling
+  // the list cannot raise the keyboard over it (owner 2026-10-26).
+  const [searchArmed, setSearchArmed] = useState(false);
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearchArmed(false);
+  };
   const [invalid, setInvalid] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const commandRef = useRef<HTMLDivElement>(null);
@@ -108,7 +115,7 @@ export function Select({
     if (!controlled) setInternal(v);
     onChange?.(v);
     setInvalid(false);
-    setOpen(false);
+    changeOpen(false);
   };
 
   return (
@@ -135,7 +142,7 @@ export function Select({
         />
       )}
 
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={changeOpen}>
         <PopoverTrigger asChild>
           <button
             id={id}
@@ -211,7 +218,14 @@ export function Select({
               return searchFinds(haystack, search) ? 1 : 0;
             }}
           >
-            {showSearch && <CommandInput placeholder={searchPlaceholder} className="h-9" />}
+            {showSearch && (
+              <CommandInput
+                placeholder={searchPlaceholder}
+                className="h-9"
+                readOnly={isTouchScreen() && !searchArmed}
+                onPointerDown={() => setSearchArmed(true)}
+              />
+            )}
             <CommandList>
               {showSearch && <CommandEmpty>{emptyText}</CommandEmpty>}
               <CommandGroup>
