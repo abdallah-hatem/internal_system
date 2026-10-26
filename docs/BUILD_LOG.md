@@ -316,6 +316,12 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Next (2026-10-26, owner: "add the fix to next up"): **A new temporary investor from the Funding card** — "+ Add
+  investor" picks only existing `TEMP_INVESTOR` accounts and no screen creates one (`POST /users` exists, nothing calls
+  it), so the first investor meets an empty list. Put a `+` beside the person picker (`FieldWithQuickCreate`, CLAUDE.md
+  §13) that creates an investor from a name alone — no office login (investors do not sign in), the email and password
+  made up and never used — refreshes the list and selects him. Server-side: role fixed to TEMP_INVESTOR, a coded
+  refusal for an empty name; tests for the second visit (cancel clears it) and that it never makes a partner.
 - Next (2026-10-26): **Change split saved and checked on the server in one go** — the Funding card's Change split
   writes each participant's % through separate participant PUTs and only the dialog checks they add to 100 (the server
   checks at settlement). Add one endpoint that saves the whole split (all or none, adding to 100, coded refusals
