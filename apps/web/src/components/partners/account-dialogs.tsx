@@ -259,6 +259,7 @@ export function ReverseMovementDialog({
 }) {
   const t = useTranslations('accounts');
   const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const apiError = useApiError();
   const { addToast } = useToast();
   const refresh = useRefreshAccounts();
