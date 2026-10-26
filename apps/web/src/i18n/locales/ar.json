@@ -2782,7 +2782,7 @@
     "howFromAccount": "من حسابه",
     "howPaidOn": "دفعه في {day}، لم يُسحب بعد",
     "howPayments": "{count, plural, one {دفعة واحدة} two {دفعتان} few {# دفعات} other {# دفعة}}، لم تُسحب بعد",
-    "colPartner": "الشريك",
+    "colName": "الاسم",
     "colIntoCapital": "دخل في رأس المال",
     "recordWhatIPaid": "تسجيل ما دفعته",
     "contributionsTarget": "المساهمات — {count, plural, =3 {أثلاث متساوية} other {حصص متساوية}} من الهدف، <amount></amount>",

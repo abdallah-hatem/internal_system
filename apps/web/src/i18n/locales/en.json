@@ -2782,7 +2782,7 @@
     "howFromAccount": "from his account",
     "howPaidOn": "paid {day}, not drawn yet",
     "howPayments": "{count, plural, one {# payment} other {# payments}}, not drawn yet",
-    "colPartner": "Partner",
+    "colName": "Name",
     "colIntoCapital": "Into capital",
     "recordWhatIPaid": "Record what I paid",
     "contributionsTarget": "Contributions — {count, plural, =3 {equal thirds} other {equal shares}} of the target, <amount></amount>",

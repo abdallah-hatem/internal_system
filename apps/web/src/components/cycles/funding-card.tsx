@@ -387,6 +387,10 @@ export function FundingCard({
   // ── 2. Contributions ──────────────────────────────────────────────────
   const count = data.partners.length;
   const nothingToShare = num(data.shares.partnersEgp) <= 0;
+  // Nothing for "Contribute equal thirds" to do (owner 2026-10-27): the shares are
+  // as agreed, or there is a share to give and every partner has already given it.
+  // With nothing to share yet it stays — advances can still be drawn in.
+  const contributeDone = !!data.shares.agreed || (!nothingToShare && num(data.shares.stillEgp) <= 0);
   const investors = data.participants.filter((p) => p.participantType !== 'CORE_PARTNER');
   const canSplit =
     partners.length > 0 &&
@@ -494,7 +498,7 @@ export function FundingCard({
 
         <SectionHeading>{t('putInHeading')}</SectionHeading>
         <div className="divide-y divide-border">
-          <ColumnHeads cols={[t('colPartner'), t('colPutIn'), t('colIntoCapital'), t('colHow')]} />
+          <ColumnHeads cols={[t('colName'), t('colPutIn'), t('colIntoCapital'), t('colHow')]} />
           {putInRows.length === 0 && <p className="py-2 text-sm text-muted-foreground">{ta('nothingPaid')}</p>}
           {putInRows.map((r) => {
             const parts = howParts(r);
@@ -569,7 +573,7 @@ export function FundingCard({
                 )}
         </SectionHeading>
         <div className="divide-y divide-border">
-          <ColumnHeads cols={[t('colPartner'), t('colShare'), t('colFromAdvances'), t('colStatus')]} />
+          <ColumnHeads cols={[t('colName'), t('colShare'), t('colFromAdvances'), t('colStatus')]} />
           {count === 0 && <p className="py-2 text-sm text-accent-700">{tcy('noParticipantsYet')}</p>}
           {data.partners.map((p) => {
             const cover = num(p.coverEgp);
@@ -664,7 +668,7 @@ export function FundingCard({
         <p className="mt-2 text-xs text-muted-foreground">{t('sharesHint')}</p>
         {(canContribute || canEdit) && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {canContribute && (
+            {canContribute && !contributeDone && (
               <button
                 type="button"
                 onClick={() => setContributing(true)}

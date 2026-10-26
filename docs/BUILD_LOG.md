@@ -21,7 +21,7 @@ in Vercel; without them it says it is not set up. State of the product and of pr
 right? … something looks off", BUSINESS_LOGIC §8 "Investors in the funding"): put in so far counts investors
 ("invested"; cycle 1 201,168.99); the partners' part on a repaid cycle is repaid or everything put in, whichever is more,
 less investors (no more double subtraction); shares as agreed when the partners' contributions make up their part; the
-share-of-the-cycle box lists everyone at the profit split's percentages, now by largest remainder. No migration.
+share-of-the-cycle box lists everyone at the profit split's percentages, now by largest remainder. "Contribute equal thirds" hidden when shares are as agreed or all given; both lists head "Name". No migration.
 Verified by api unit + Postgres partner-accounts tests, web component tests, lint, tsc, `next build`; no e2e.
 
 2026-10-27 — Live-pending: **CYC-2026-0001's real funding** (owner's facts, BUSINESS_LOGIC §18 "Part of a friend's

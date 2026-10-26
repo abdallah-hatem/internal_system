@@ -675,6 +675,66 @@ describe('production’s cycle 1 as corrected: investors in the funding (owner 2
   });
 });
 
+describe('“Contribute equal thirds” only when there is something for it to do (owner 2026-10-27)', () => {
+  it('as agreed: no Contribute button; Enter amounts and Split equally stay, as secondary buttons', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-contributions');
+    expect(screen.queryByTestId('contribute-thirds')).toBeNull();
+    for (const id of ['enter-amounts', 'split-equally']) {
+      const b = screen.getByTestId(id) as HTMLButtonElement;
+      expect(b.disabled).toBe(false);
+      expect(b.className).not.toContain('bg-primary-600');
+    }
+  });
+
+  it('not agreed, but every partner has already given his share: no Contribute button either', async () => {
+    asCycleOne();
+    state.funding.shares = { ...state.funding.shares, agreed: false, stillEgp: '0.00' };
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-contributions');
+    expect(screen.queryByTestId('contribute-thirds')).toBeNull();
+  });
+
+  it('still shown where it has work: shares still to give, and nothing to share yet (advances can be drawn in)', async () => {
+    // Cycle 2: 120,000 still to give.
+    wrap();
+    expect((await screen.findByTestId('contribute-thirds')).className).toContain('bg-primary-600');
+    cleanup();
+    state.funding.shares = { basis: 'COST_TO_FUND', ofEgp: '0.00', partnersEgp: '0.00', stillEgp: '0.00', agreed: false };
+    wrap();
+    expect(await screen.findByTestId('contribute-thirds')).toBeTruthy();
+  });
+
+  it('the second visit: contributions entered and agreed after the card loaded — the button goes once it refreshes', async () => {
+    asCycleOneCorrected();
+    state.funding.shares = { ...state.funding.shares, agreed: false, stillEgp: '7305.14' };
+    const { client } = wrap('en', { lenders: ['Ahmad Eraiby'] });
+    expect(await screen.findByTestId('contribute-thirds')).toBeTruthy();
+    state.funding = cycleOneCorrected();
+    await client.invalidateQueries({ queryKey: ['account-funding'] });
+    await waitFor(() => expect(screen.queryByTestId('contribute-thirds')).toBeNull());
+  });
+});
+
+describe('a neutral first column where investors are listed (owner 2026-10-27)', () => {
+  it('both lists head their first column “Name”, not “Partner”, in English and Arabic', async () => {
+    asCycleOneCorrected();
+    wrap('en', { lenders: ['Ahmad Eraiby'] });
+    const firstHeads = async () =>
+      ['funding-paid', 'funding-contributions'].map((id) => {
+        const heads = screen.getByTestId(id).querySelector('[aria-hidden="true"].hidden');
+        return text(heads?.firstElementChild);
+      });
+    await screen.findByTestId('funding-card');
+    expect(await firstHeads()).toEqual(['Name', 'Name']);
+    cleanup();
+    wrap('ar', { lenders: ['Ahmad Eraiby'] });
+    await screen.findByTestId('funding-card');
+    expect(await firstHeads()).toEqual(['الاسم', 'الاسم']);
+  });
+});
+
 describe('equal shares stay the suggestion (owner 2026-10-27)', () => {
   it('on a repaid cycle whose contributions are not all in: equal thirds of what was repaid', async () => {
     asCycleOne();
