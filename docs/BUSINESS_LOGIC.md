@@ -1850,7 +1850,7 @@ shops"). Units at shops count as unsold stock in every unsold figure.
 | When the note shows | Exactly when settling would refuse: `profitBasis` on the landed-cost totals is `NONE`. That is `profitBasisOf` (settlement-math.ts) — the function the settlement's split itself branches on — over the participants (until 2026-10-19 also `fundingFor`'s `fundedByLenders`, removed with the `LENDERS` basis). A custom split on every participant is a basis, so no note. Hidden too while funding is locked. | One definition (CLAUDE.md §11): the note and the refusal can never disagree. |
 | "Paid by a lender" with one order / several | One order: the form opens on it. Several: the order picker, nothing preselected. | The owner's rule. |
 | Its prefilled amount | What friends may still pay of the cycle, the API's own `availableEgp` (the cap it enforces). In pounds as is; in another currency divided by the rate shown, **rounded down** to the piastre, so it is never above the cap. It follows the currency and rate until he types an amount; a typed amount is never overwritten. | Reuse the server's figure; never a second formula for the cap. In a foreign currency the rounded-down amount can leave a few piastres unfunded, so the note may stay with the partial text — the partners split those, or the amount is typed. |
-| "Enter amounts" | There was no per-participant editing on the cycle page (only the wizard's Funding step had it), so it moved there: an **Edit amounts** button on the Participants card, the note's action opens it and scrolls to it. Save writes only what changed. | The smallest flow, on the screen where the person is. |
+| "Enter amounts" | There was no per-participant editing on the cycle page (only the wizard's Funding step had it), so it moved there: an **Edit amounts** button on the Participants card, the note's action opens it and scrolls to it. Save writes only what changed. *Since 2026-10-26: "Enter amounts" in the Funding card's Contributions, opening the same form in a dialog (below, "one Funding card").* | The smallest flow, on the screen where the person is. |
 | Adding an investor | On the cycle page's existing Add participant (the wizard's own add-investor box went with the step). | Already there. |
 | A closed cycle, adding a participant | Keeps its older refusal, `CYCLE_CLOSED_NO_PARTICIPANTS`; every other locked path says `FUNDING_LOCKED_AFTER_SETTLEMENT`. | Unchanged code for an unchanged case. |
 | A friend's payment on a cycle in Settlement or Closed | Still `CYCLE_CLOSED_FOR_FINANCING` (unchanged, checked first); the lock catches what that misses — an approved settlement on a cycle not marked Settlement. Removing one, which had no status check at all, is now refused from approval on. | Removing one after the payout changed the basis the profit was split on. |
@@ -1973,6 +1973,37 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
 | A payout left in that names its cycle | Its `cycle_id` is the settled cycle it came from; it is **untied** all the same. | Owner: "only money tied to no cycle (a payout left in) funds any cycle". |
 | Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 27.3 finds it. | Do not let old data move new money. |
 | OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today (CYC-2026-0001 has no advances). | Build for what exists. |
+
+### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, built on branch `worktree-agent-a27e6df3502ff980b` (awaiting the owner's look)
+One card replaces the Participants card and the separate funding panel (`components/cycles/funding-card.tsx`). A
+re-arrangement of controls that existed — no new money rule; every server rule and refusal stands. Top to bottom:
+
+1. **Target and paid so far.** "Target X" (set/changed where it was), "N paid so far · M to go" with the bar (no target:
+   "N paid so far", no bar). "Paid so far on this cycle": one row per core partner — what he paid here, the day (or "N
+   payments"), and **into capital**; a partner with nothing shows "—". "+ Record what I paid" (the advance dialog).
+2. **Contributions.** Each core partner's equal share, "from his advances" (what this cycle can draw for him — its own
+   pot and untied money, `availableEgp`), and a pill: "covered · N left over" or "N short". "Contribute equal thirds"
+   (the accounts' contribute, now in a dialog: equal shares of a total, the server's all-or-nothing check), "Enter
+   amounts" (`amounts-form.tsx`, in a dialog) and "Split equally" (by hand, unchanged). An investor keeps his own row.
+   The "share of repaying the friend" line (§18) sits under the rows.
+3. **Profit split and who is on the cycle.** "Equal thirds (33.33 / 33.33 / 33.34)", "By contribution (…)", "Agreed
+   split (…)" or "nothing put in yet, so settling is refused"; "Change split"; "On this cycle: …"; "+ Add investor" (the
+   old Add participant form, opening on the investor type; a core partner can still be chosen).
+
+The funding note is one line at the card's top (its "friend paid — repay him" wording and §18's rule unchanged), with
+"Paid by a lender" beside it; Split equally and Enter amounts are in section 2 just below. Locked (approved, paid,
+closed): every control off, the reason at the top and on each control. A cycle in Settlement, Closed or Cancelled but
+not locked: the accounts' controls (record, contribute, target) off with the accounts' reason; entering by hand stays.
+
+| Question | Guess built | Why |
+|---|---|---|
+| What the equal shares are of | The **target in pounds** when one is set and not below the cost to fund; otherwise the **cost to fund** (`fundingFor`, the figure Split equally divides). Investors' money off first. `equalShares`, the last partner taking the odd piastre; nothing to fund gives every share zero (no pill). One definition: `contributionShares` in `common/partner-account.ts`, read by `GET /cycles/:id/account-funding` (`shares`, each partner's `shareEgp`/`stillToGiveEgp`/`coverEgp`). | The owner's sample: thirds of the 120,000 target (40,000 each). A target below the cost would leave part of the cost unshared. |
+| Covered or short | What he **still has to give** (share less what he has already contributed, never below zero) against what this cycle can draw for him. Covered with the difference left over, or short by it. | So a partner who has already put in his share reads covered, not short. |
+| "Into capital" | Of what he paid **on this cycle**, how much his contributions **to this cycle** drew from it: min(advances, contributions from the account) — the pots' own split (`potsOf` → `intoCapital`). A contribution entered by hand (Split equally, Enter amounts) draws no advance, so counts nothing here. | One definition with the pots. |
+| "Contribute equal thirds" default | What the partners still have to give of their shares (`shares.stillEgp`), split equally by the server; a typed total is never overwritten. | The sample's button; the server's split is equal. |
+| The profit-split line | `profitSplitView` (settlement-math.ts, beside `profitBasisOf`): a split by contribution shown to two places, the last line taking the rounding so it reads 100; a custom split as stored, with the refusal settling would give (partial / not 100). Display only — the settlement's own maths is unchanged. | One reading with the settlement. |
+| "Change split" | Every participant's agreed %, adding up to 100, or none ("Split by contribution" clears them); Save waits for one of the two, since settling refuses anything else. Written through each participant's PUT. The server still checks only at settlement (unchanged). | There was no way to edit a custom % after adding a participant. |
+| Who sees the card | Core partners (`partnerAccount.read`), as the panel was; nobody else signs in to the office (LEARNINGS). | — |
 
 ## 9. The ledger
 

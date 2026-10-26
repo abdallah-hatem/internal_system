@@ -8,6 +8,7 @@ import ar from '@/i18n/locales/ar.json';
 import { ToastProvider } from '@/components/ui/toast';
 import CycleDetailsPage from '@/app/[locale]/cycles/[cycleId]/details/page';
 import { remainingIn } from '@/components/lenders/paid-by-friend';
+import { accountFundingFixture } from './funding-card.fixture';
 
 /**
  * "Funding not entered yet" on the cycle page, and funding locked once the
@@ -100,6 +101,17 @@ vi.mock('@/lib/api', () => {
             settlements: [],
             fundingLock: state.fundingLock,
           });
+        }
+        if (url === '/cycles/c-1/account-funding') {
+          return ok(
+            accountFundingFixture({
+              code: 'CYC-2026-0042',
+              status: state.status,
+              fundingLock: state.fundingLock,
+              participants: state.participants,
+              toFund: state.cycleCost,
+            }),
+          );
         }
         if (url === '/costing/cycles/c-1/landed-cost') {
           // A friend's payment is a loan the partners repay (2026-10-19): not taken off.
@@ -243,7 +255,7 @@ function wrap(locale: 'en' | 'ar' = 'en') {
 
 const note = () => screen.queryByTestId('funding-note');
 /** The page has loaded its cycle and costing: the participants are listed. */
-const loaded = () => screen.findByText('Partner 1');
+const loaded = () => screen.findByTestId('funding-card');
 const combobox = (name: string) =>
   document
     .querySelector<HTMLInputElement>(`input[type="hidden"][name="${name}"]`)!
@@ -262,18 +274,20 @@ const amount = () => document.querySelector<HTMLInputElement>('#financing-amount
 // ─── When it shows ─────────────────────────────────────────────────────────
 
 describe('the funding note shows while settling would be refused', () => {
-  it('zero contributions and no friend paid: the note, near the top, with its three actions', async () => {
+  it('zero contributions and no friend paid: one line at the top of the Funding card, the ways to enter it just below', async () => {
     wrap();
     const shown = await screen.findByTestId('funding-note');
     expect(shown.textContent).toContain(en.cycles.fundingNoteTitle);
-    expect(within(shown).getByTestId('funding-note-split').textContent).toContain(en.cycles.splitEqually);
-    expect(within(shown).getByTestId('funding-note-enter').textContent).toContain(en.cycles.fundingEnterAmounts);
     expect(within(shown).getByTestId('funding-note-lender').textContent).toContain(en.cycles.fundingPaidByLender);
-    // Above the cards: before the participants it asks about.
-    const participants = screen.getByTestId('participants-card');
-    expect(shown.compareDocumentPosition(participants) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Every button inside the page says what it is (CLAUDE.md §13).
-    for (const b of within(shown).getAllByRole('button')) expect(b.getAttribute('type')).toBe('button');
+    // Inside the card, above the contributions it asks about, whose section holds Split equally and Enter amounts.
+    const card = screen.getByTestId('funding-card');
+    expect(card.contains(shown)).toBe(true);
+    const contributions = within(card).getByTestId('funding-contributions');
+    expect(shown.compareDocumentPosition(contributions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(contributions).getByTestId('split-equally').textContent).toContain(en.cycles.splitEqually);
+    expect(within(contributions).getByTestId('enter-amounts').textContent).toContain(en.cycles.fundingEnterAmounts);
+    // Every button inside the card says what it is (CLAUDE.md §13).
+    for (const b of within(card).getAllByRole('button')) expect(b.getAttribute('type')).toBe('button');
   });
 
   it('the partners have put money in: no note', async () => {
@@ -294,10 +308,8 @@ describe('the funding note shows while settling would be refused', () => {
     expect(title.textContent?.replace(/\u00a0/g, ' ')).toBe(
       'Ahmad Eraiby paid 172,155.50 EGP for this cycle. Split who repays him between the partners.',
     );
-    const shown = note()!;
-    expect(shown.textContent).toContain(en.cycles.fundingNoteLenderHint);
-    expect(within(shown).getByTestId('funding-note-split').textContent).toContain(en.cycles.splitEqually);
-    expect(within(shown).getByTestId('funding-note-enter').textContent).toContain(en.cycles.fundingEnterAmounts);
+    expect(screen.getByTestId('split-equally').textContent).toContain(en.cycles.splitEqually);
+    expect(screen.getByTestId('enter-amounts').textContent).toContain(en.cycles.fundingEnterAmounts);
   });
 
   it('friends paid the whole cost: no way to add another friend, in the note or on his card (owner 2026-10-19)', async () => {
@@ -380,10 +392,10 @@ describe('the funding note shows while settling would be refused', () => {
 
 // ─── The three actions ─────────────────────────────────────────────────────
 
-describe('the funding note’s actions', () => {
+describe('the funding actions — the note’s friend’s payment, the card’s Split equally and Enter amounts', () => {
   it('Split equally writes each partner’s third of what is left to fund, and the note goes', async () => {
     wrap();
-    fireEvent.click(await screen.findByTestId('funding-note-split'));
+    fireEvent.click(await screen.findByTestId('split-equally'));
     await waitFor(() => expect(state.writes).toHaveLength(3));
     expect(state.writes.map((w) => [w.url, w.body.contributionAmount])).toEqual([
       ['/cycles/participants/part-1', 3333.33],
@@ -397,18 +409,18 @@ describe('the funding note’s actions', () => {
     state.financed = 10000;
     state.lenderNames = ['Mohammed'];
     wrap();
-    fireEvent.click(await screen.findByTestId('funding-note-split'));
+    fireEvent.click(await screen.findByTestId('split-equally'));
     await waitFor(() => expect(state.writes).toHaveLength(3));
     expect(state.writes.map((w) => w.body.contributionAmount)).toEqual([3333.33, 3333.33, 3333.34]);
     await waitFor(() => expect(note()).toBeNull());
-    // The participants card now says what those amounts are.
+    // The Funding card now says what those amounts are.
     expect((await screen.findByTestId('repay-shares')).textContent).toContain("Each partner's share of repaying Mohammed:");
   });
 
   it('Split equally on a cycle a friend paid only part of still divides the whole cost', async () => {
     state.financed = 4000;
     wrap();
-    fireEvent.click(await screen.findByTestId('funding-note-split'));
+    fireEvent.click(await screen.findByTestId('split-equally'));
     await waitFor(() => expect(state.writes).toHaveLength(3));
     expect(state.writes.map((w) => w.body.contributionAmount)).toEqual([3333.33, 3333.33, 3333.34]);
   });
@@ -418,7 +430,7 @@ describe('the funding note’s actions', () => {
     state.financed = 172155.5;
     state.lenderNames = ['Ahmad Eraiby'];
     wrap();
-    fireEvent.click(await screen.findByTestId('funding-note-enter'));
+    fireEvent.click(await screen.findByTestId('enter-amounts'));
     const form = await screen.findByTestId('amounts-form');
     const pct = (n: number) => form.querySelector<HTMLInputElement>(`input[data-field="pct-part-${n}"]`)!;
     const amountOf = (n: number) =>
@@ -444,7 +456,7 @@ describe('the funding note’s actions', () => {
 
   it('Enter amounts opens each participant’s contribution, recorded value first; Save writes only what changed and the note goes', async () => {
     wrap();
-    fireEvent.click(await screen.findByTestId('funding-note-enter'));
+    fireEvent.click(await screen.findByTestId('enter-amounts'));
     const form = await screen.findByTestId('amounts-form');
     const inputs = form.querySelectorAll<HTMLInputElement>('input[data-field^="contribution-"]');
     expect(inputs).toHaveLength(3);
@@ -466,14 +478,14 @@ describe('the funding note’s actions', () => {
     state.participants = [partner(1, '6000'), partner(2, '4000'), partner(3, '0')];
     wrap();
     await loaded();
-    fireEvent.click(screen.getByTestId('edit-amounts'));
+    fireEvent.click(screen.getByTestId('enter-amounts'));
     const inputs = (await screen.findByTestId('amounts-form')).querySelectorAll<HTMLInputElement>('input[data-field^="contribution-"]');
     expect([...inputs].map((i) => i.value.replace(/,/g, ''))).toEqual(['6000.00', '4000.00', '']);
   });
 
   it('Enter amounts, then Cancel: nothing written, the list is back', async () => {
     wrap();
-    fireEvent.click(await screen.findByTestId('funding-note-enter'));
+    fireEvent.click(await screen.findByTestId('enter-amounts'));
     const form = await screen.findByTestId('amounts-form');
     typeInto(form.querySelector<HTMLInputElement>('input[data-field^="contribution-"]')!, '999');
     fireEvent.click(within(form).getByRole('button', { name: en.common.cancel }));
@@ -581,10 +593,12 @@ describe('funding locked once the settlement is approved', () => {
       expect(note()).toBeNull();
       const reason = en.cycles.fundingLocked.replace('{reason}', en.codes.fundingLock[lock]);
       expect(screen.getByTestId('funding-locked').textContent).toBe(reason);
-      const add = screen.getByRole('button', { name: new RegExp(en.cycles.addParticipant, 'i') });
-      const edit = screen.getByTestId('edit-amounts');
+      const add = screen.getByRole('button', { name: en.fundingCard.addInvestor });
+      const edit = screen.getByTestId('enter-amounts');
       const split = screen.getByRole('button', { name: en.cycles.splitEqually });
-      for (const b of [add, edit, split]) {
+      // The Funding card's every control (owner 2026-10-26).
+      const rest = ['record-advance', 'edit-funding-target', 'contribute-thirds', 'change-split'].map((id) => screen.getByTestId(id));
+      for (const b of [add, edit, split, ...rest]) {
         expect((b as HTMLButtonElement).disabled).toBe(true);
         expect(b.getAttribute('title')).toBe(reason);
       }

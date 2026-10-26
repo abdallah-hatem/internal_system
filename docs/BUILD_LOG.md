@@ -23,6 +23,11 @@ is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not 
 period; the funding panel's skeleton) are on branch `worktree-agent-ac6239d7503848e74`, awaiting the owner's look; not
 merged. No migration.
 
+2026-10-26 — **one Funding card** on the cycle page (owner, from the sample: "build it like this"; BUSINESS_LOGIC §8
+"The cycle page's money-in is one Funding card") replaces the Participants card and the funding panel. On branch
+`worktree-agent-a27e6df3502ff980b` (built on the three findings above), awaiting the owner's look; not merged. No
+migration; `GET /cycles/:id/account-funding` gains shares, into capital, the participants and the profit split.
+
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
   — two routes (China: China → UAE → Egypt; UAE direct: UAE → Egypt), three currencies with today's rate — one shared
@@ -295,7 +300,8 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
      `cashPosition` already does) — dashboard, P&L, settlement readers.
   3. **Built on branch `worktree-agent-ac6239d7503848e74`** (skeleton in the panel's shape; an error state with Try
      again; still hidden without `partnerAccount.read`). The funding panel has no skeleton (`account-funding-panel.tsx` renders nothing while loading).
-  4. **Approved 2026-10-26 from a rendered sample ("build it like this"); starts once fixes 1–3 land (same card):**
+  4. **Built on branch `worktree-agent-a27e6df3502ff980b`** (BUSINESS_LOGIC §8 "one Funding card"; screenshots sent).
+     Approved 2026-10-26 from a rendered sample ("build it like this"):
      one Funding card replaces the Participants card — (1) target and progress, "paid so far on this cycle" per
      partner with day and how much went into capital, "Record what I paid"; (2) contributions, equal thirds of the
      target by default, each drawn from that partner's advances on this cycle, each line "covered (N left over)" or

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import {
   distributeCycleProfit,
+  profitSplitView,
   summarizeCyclePnl,
   ParticipantInput,
 } from './settlement-math';
@@ -433,5 +434,69 @@ describe('summarizeCyclePnl', () => {
     });
     expect(r.revenue.toFixed(2)).toBe('0.00');
     expect(r.grossProfit.toFixed(2)).toBe('0.00');
+  });
+});
+
+describe('profitSplitView — the Funding card’s split line (owner 2026-10-26)', () => {
+  it('equal contributions read as equal thirds, 33.33 / 33.33 / 33.34, adding up to 100', () => {
+    const v = profitSplitView([
+      partner('a', 40000),
+      partner('b', 40000),
+      partner('c', 40000),
+    ]);
+    expect(v).toEqual({
+      basis: 'CONTRIBUTIONS',
+      equal: true,
+      problem: null,
+      pcts: ['33.33', '33.33', '33.34'],
+    });
+  });
+
+  it('unequal contributions read as their shares, the last line absorbing so they read 100', () => {
+    const v = profitSplitView([
+      partner('a', 80000),
+      partner('b', 100000),
+      partner('c', 120000),
+    ]);
+    expect(v.equal).toBe(false);
+    expect(v.pcts).toEqual(['26.66', '33.33', '40.01']);
+  });
+
+  it('a custom split shows the agreed percentages, and names the refusal settling would give', () => {
+    expect(
+      profitSplitView([
+        partner('a', 0, { customProfitPct: D(30) }),
+        partner('b', 0, { customProfitPct: D(30) }),
+        partner('c', 0, { customProfitPct: D(40) }),
+      ]),
+    ).toEqual({
+      basis: 'CUSTOM_SPLIT',
+      equal: false,
+      problem: null,
+      pcts: ['30.00', '30.00', '40.00'],
+    });
+    expect(
+      profitSplitView([
+        partner('a', 0, { customProfitPct: D(50) }),
+        partner('b', 0),
+      ]).problem,
+    ).toBe('PARTIAL_CUSTOM_SPLIT');
+    expect(
+      profitSplitView([
+        partner('a', 0, { customProfitPct: D(33.33) }),
+        partner('b', 0, { customProfitPct: D(33.33) }),
+        partner('c', 0, { customProfitPct: D(33.33) }),
+      ]).problem,
+    ).toBe('SPLIT_NOT_100');
+  });
+
+  it('nothing contributed: no percentages at all — never 0 / 0 / 100 (CLAUDE.md §10)', () => {
+    const v = profitSplitView([
+      partner('a', 0),
+      partner('b', 0),
+      partner('c', 0),
+    ]);
+    expect(v.basis).toBe('NONE');
+    expect(v.pcts).toEqual([null, null, null]);
   });
 });
