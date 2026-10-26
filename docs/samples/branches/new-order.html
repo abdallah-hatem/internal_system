@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New Order — branches sample</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  // The office app's tokens (apps/web/src/app/globals.css).
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: {
+        sans: ['"IBM Plex Sans"', '"IBM Plex Sans Arabic"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+      },
+      colors: {
+        primary: { DEFAULT: '#2563eb', foreground: '#ffffff', 50: '#eff6ff', 100: '#dbeafe', 600: '#2563eb', 700: '#1d4ed8' },
+        foreground: '#111827', 'muted-foreground': '#6b7280', muted: '#f3f4f6',
+        border: '#e5e7eb', input: '#e5e7eb', card: '#ffffff', destructive: '#ef4444', success: '#16a34a',
+      },
+    } },
+  };
+</script>
+<style>
+  table, .tabular-nums { font-variant-numeric: tabular-nums; }
+  .new { position: relative; outline: 2px dashed #f59e0b; outline-offset: 3px; border-radius: .5rem; }
+  .new-tag { position: absolute; top: -10px; inset-inline-end: 12px; background: #f59e0b; color: #fff;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; }
+  body.plain .new { outline: none; } body.plain .new-tag { display: none; }
+</style>
+</head>
+<body class="min-h-screen bg-gray-50 font-sans text-gray-900 antialiased">
+
+<!-- The Sales page underneath, dimmed by the dialog's scrim -->
+<div class="flex h-16 items-center border-b border-gray-200 bg-white px-6 text-sm font-semibold">Sales Orders</div>
+<div class="fixed inset-0 top-0" style="background-color: rgb(0 0 0 / 0.5)"></div>
+
+<div class="relative z-10 mx-auto flex max-w-6xl flex-col items-start gap-6 p-4 pt-8 lg:flex-row">
+
+  <!-- The dialog: Dialog size="lg" (max-w-3xl), as SaleOrderForm renders it -->
+  <div role="dialog" class="flex w-full max-w-3xl flex-col rounded-2xl bg-card shadow-xl">
+    <div class="flex items-start justify-between gap-3 border-b border-border px-6 py-4">
+      <h2 class="text-lg font-semibold text-foreground">New Order</h2>
+      <button type="button" class="-m-1.5 flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">✕</button>
+    </div>
+
+    <div class="mx-1.5 space-y-4 px-[1.125rem] py-6">
+      <label class="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+        <input type="checkbox" checked onchange="document.body.classList.toggle('plain', !this.checked)">
+        Sample — mark what is new (dashed)
+      </label>
+
+      <!-- Samples switch (unchanged) -->
+      <div class="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-2.5">
+        <span class="relative mt-0.5 inline-flex h-4 w-7 shrink-0 items-center rounded-full bg-gray-300"><span class="inline-block size-3 translate-x-0.5 rounded-full bg-white shadow"></span></span>
+        <span><span class="block text-sm font-medium">Samples — no charge yet</span>
+          <span class="block text-xs text-muted-foreground">Units leave the shelf. No sale, nothing owed, until the shop decides.</span></span>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <div class="mb-1 flex h-5 items-center justify-between gap-2">
+            <label class="block text-sm font-medium">Customer <span class="text-destructive">*</span></label>
+            <span class="inline-flex items-center gap-2 text-xs font-medium"><span class="relative inline-flex h-4 w-7 items-center rounded-full bg-gray-300"><span class="inline-block size-3 translate-x-0.5 rounded-full bg-white shadow"></span></span>Walk-in</span>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" class="flex w-full items-center gap-2 rounded-lg border border-input bg-white px-3 py-2 text-start text-sm">
+              <bdi class="block min-w-0 flex-1 truncate">Ahmad Zogmar</bdi><span class="text-xs text-muted-foreground">B2B · 3 branches</span><span class="text-gray-400">▾</span>
+            </button>
+            <button type="button" class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-gray-500">+</button>
+          </div>
+        </div>
+
+        <!-- NEW: the branch picker. Shown only for a customer with more than one branch. -->
+        <div class="new">
+          <span class="new-tag">new</span>
+          <div class="mb-1 flex h-5 items-center"><label class="block text-sm font-medium">Branch <span class="text-xs font-normal text-muted-foreground">(optional)</span></label></div>
+          <button type="button" class="flex w-full items-center gap-2 rounded-lg border border-ring bg-white px-3 py-2 text-start text-sm ring-2 ring-blue-500/20">
+            <bdi class="block min-w-0 flex-1 truncate">Mokattam</bdi><span class="rounded-full bg-gray-100 px-1.5 text-[10px] font-medium text-gray-600">Default</span><span class="text-xs text-muted-foreground">owes 12,400.00 EGP</span><span class="text-gray-400">▾</span>
+          </button>
+          <p class="mt-1 text-[11px] text-muted-foreground">Picked for you: the owner's default branch. Change it if this order is for another branch. A customer with one branch picks none.</p>
+        </div>
+
+        <!-- NEW: who pays, and where the owner stands -->
+        <div class="new sm:col-span-2 rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm" data-testid="owner-account">
+          <span class="new-tag">new</span>
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <p><span class="text-muted-foreground">Paid for by</span> <b>Ahmad Zogmar</b> <span class="text-muted-foreground">(owner) · for branch</span> <b>Mokattam</b></p>
+          </div>
+          <dl class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+            <div><dt class="text-xs text-muted-foreground">Mokattam owes</dt><dd class="font-medium tabular-nums text-destructive">12,400.00 EGP</dd></div>
+            <div><dt class="text-xs text-muted-foreground">Owner owes (all branches)</dt><dd class="font-medium tabular-nums text-destructive">21,150.00 EGP</dd></div>
+            <div><dt class="text-xs text-muted-foreground">Credit limit (owner)</dt><dd class="font-medium tabular-nums">50,000.00 EGP</dd></div>
+            <div><dt class="text-xs text-muted-foreground">Left after this order</dt><dd class="font-medium tabular-nums text-success">25,250.00 EGP</dd></div>
+          </dl>
+          <div class="mt-2 h-1.5 rounded-full bg-white"><div class="h-1.5 rounded-full bg-primary-600" style="width:49.5%"></div></div>
+          <p class="mt-2 text-xs text-muted-foreground">The limit is the owner's, across Mokattam, Master and LS2. Over it: <span class="text-amber-700">warn or refuse? (open question — no limit exists today)</span></p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium">Sale date <span class="text-destructive">*</span></label>
+          <button type="button" class="flex w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm">25 Oct 2026 <span class="text-gray-400">📅</span></button>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">Channel</label>
+          <button type="button" class="flex w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm">B2B <span class="text-gray-400">▾</span></button>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">Currency</label>
+          <button type="button" class="flex w-full items-center justify-between rounded-lg border border-input bg-white px-3 py-2 text-sm">EGP <span class="text-gray-400">▾</span></button>
+        </div>
+      </div>
+
+      <!-- Items (unchanged) -->
+      <div>
+        <div class="mb-2 flex items-center justify-between">
+          <h3 class="text-sm font-semibold">Items</h3>
+          <button type="button" class="inline-flex items-center gap-1 text-xs font-medium text-primary">+ Add Item</button>
+        </div>
+        <ul class="space-y-3">
+          <li class="rounded-lg bg-muted p-3">
+            <div class="flex gap-2">
+              <div class="min-w-0 flex-1">
+                <label class="mb-1 block text-xs text-muted-foreground">Product</label>
+                <button type="button" class="flex w-full items-center gap-2 rounded-lg border border-input bg-white px-3 py-2 text-start text-sm"><span class="flex-1 truncate">Brake pads — front, 150cc</span><span class="text-xs text-muted-foreground">BP-150F · 84 in stock</span></button>
+              </div>
+              <button type="button" class="mt-5 flex size-9 shrink-0 items-center justify-center rounded-lg text-destructive">⊖</button>
+            </div>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              <div><label class="mb-1 block text-xs text-muted-foreground">Quantity</label><input class="w-full rounded-lg border border-border px-2 py-1.5 text-sm" value="20"></div>
+              <div><label class="mb-1 block text-xs text-muted-foreground">Unit Price</label><input class="w-full rounded-lg border border-border px-2 py-1.5 text-sm" value="180.00"></div>
+              <div><label class="mb-1 block text-xs text-muted-foreground">Discount</label><input class="w-full rounded-lg border border-border px-2 py-1.5 text-sm" value="0"></div>
+            </div>
+            <div class="mt-2 flex items-center justify-between text-sm"><span class="text-xs text-muted-foreground">Line Total</span><span class="font-medium">3,600.00 EGP</span></div>
+          </li>
+        </ul>
+        <div class="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <span class="text-sm font-semibold">Order total</span>
+          <span class="text-base font-bold">3,600.00 EGP</span>
+        </div>
+      </div>
+
+      <!-- NEW: how the invoice will read -->
+      <div class="new rounded-lg border border-border p-3 text-xs text-muted-foreground">
+        <span class="new-tag">new</span>
+        Invoice: billed to <b class="text-foreground">Ahmad Zogmar</b>, delivered to <b class="text-foreground">Mokattam branch</b>. Counts on Mokattam's balance and on the owner's total.</div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-end gap-3 border-t border-border px-6 py-4">
+      <button type="button" class="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+      <button type="button" class="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted">Save as draft</button>
+      <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">✓ Create &amp; confirm</button>
+    </div>
+  </div>
+
+  <!-- Side: the picker opened, and the invoice header -->
+  <div class="w-full space-y-6 lg:w-80">
+    <div class="rounded-xl bg-white p-4 shadow-xl">
+      <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">The branch picker, opened</p>
+      <div class="rounded-lg border border-border bg-white text-sm shadow-lg">
+        <div class="border-b border-border px-3 py-2 text-muted-foreground">Search branches…</div>
+        <div role="option" class="flex items-center justify-between bg-primary-50 px-3 py-2 font-medium text-primary-700"><span>Mokattam ✓ <span class="rounded-full bg-white px-1.5 text-[10px] font-medium text-gray-600">Default</span></span><span class="text-xs font-normal text-muted-foreground">owes 12,400.00 EGP</span></div>
+        <div role="option" class="flex items-center justify-between px-3 py-2"><span>Master</span><span class="text-xs text-muted-foreground">owes 8,750.00 EGP</span></div>
+        <div role="option" class="flex items-center justify-between px-3 py-2"><span>LS2</span><span class="text-xs text-muted-foreground">owes 0.00 EGP</span></div>
+      </div>
+      <p class="mt-2 text-xs text-muted-foreground">Choosing Ahmad Zogmar picks his default branch (Mokattam). The branch is not required: an order sent without one goes on the default branch. An owner with no default set: the order stays on him (open question).</p>
+    </div>
+
+    <div class="rounded-xl bg-white p-4 shadow-xl">
+      <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Invoice header for this order</p>
+      <div class="rounded-lg border border-border p-4">
+        <div class="flex items-start justify-between border-b border-border pb-3">
+          <div><p class="text-base font-bold">S&amp;F</p><p class="text-xs text-muted-foreground">Motorcycle parts</p></div>
+          <div class="text-end text-xs text-muted-foreground"><p class="text-sm font-semibold text-foreground">Invoice</p><p>Number: <bdi dir="ltr" class="font-mono font-semibold text-foreground">ORD-2026-00436</bdi></p><p>Date: 25 Oct 2026</p></div>
+        </div>
+        <div class="py-3 text-sm">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Bill to</p>
+          <p class="mt-1 text-base font-semibold">Ahmad Zogmar</p>
+          <p class="text-muted-foreground">Phone: <bdi dir="ltr">+20 100 000 0000</bdi></p>
+          <div class="new mt-3">
+            <span class="new-tag">new</span>
+            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Deliver to</p>
+            <p class="mt-1 font-medium">Mokattam branch</p>
+            <p class="text-muted-foreground">Phone: <bdi dir="ltr">+20 100 111 1111</bdi></p>
+          </div>
+        </div>
+        <div class="rounded-lg border border-border p-3 text-xs">
+          <p class="mb-1 font-medium uppercase tracking-wide text-muted-foreground">Account</p>
+          <div class="flex justify-between"><span class="text-muted-foreground">Balance before</span><span>21,150.00 EGP</span></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">This invoice</span><span>3,600.00 EGP</span></div>
+          <div class="flex justify-between font-semibold"><span>Balance after</span><span>24,750.00 EGP</span></div>
+          <p class="mt-1 text-amber-700">Owner's total shown. Or Mokattam's own (12,400.00 → 16,000.00)? Open question.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

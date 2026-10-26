@@ -54,6 +54,8 @@ interface Invoice {
   total: string;
   paid: string;
   credited: string;
+  /** The branch it was sold to (§7, 2026-10-25); null on the owner. Absent before then. */
+  branch?: { name: string; address: string | null; phone: string | null } | null;
   /** Prices lowered after the sale (§4, 2026-10-22); absent from an older API. */
   priceLowered?: string;
   returned: boolean;
@@ -314,6 +316,7 @@ function InvoiceDocument({ data, lang, sheet = false }: { data: Invoice; lang: D
 /** Inside DocumentLocale: every word, date and number here is in `lang`. */
 function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLanguage; sheet: boolean }) {
   const t = useTranslations('sales.invoice');
+  const tb = useTranslations('branches');
   const columns = useInvoiceColumns(data.currency);
   const { formatDate } = useDateFormat();
   const walkIn = data.customer.isWalkIn;
@@ -350,6 +353,21 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
         <p className="text-muted-foreground" data-testid="invoice-phone">
           {t('phone')}: <LatinText dir="ltr">{data.customer.phone}</LatinText>
         </p>
+      )}
+      {/* The header is the owner's; the branch is where it goes (owner, 2026-10-25). */}
+      {data.branch && (
+        <div className="mt-3" data-testid="invoice-deliver-to">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{tb('deliverTo')}</p>
+          <p className="mt-1 font-medium text-foreground">
+            <LatinText>{data.branch.name}</LatinText>
+          </p>
+          {data.branch.address && <p className="text-muted-foreground">{data.branch.address}</p>}
+          {data.branch.phone && (
+            <p className="text-muted-foreground">
+              {t('phone')}: <LatinText dir="ltr">{data.branch.phone}</LatinText>
+            </p>
+          )}
+        </div>
       )}
     </section>
 

@@ -57,14 +57,20 @@ export function notificationHref(
       return '/inventory';
 
     case 'SALE_CREATED':
-    case 'SALE_CONFIRMED':
       return '/sales';
+
+    // A partner's sale, return or cancel (§10): the order itself, opened on Sales.
+    case 'SALE_CONFIRMED':
+    case 'SALE_RETURNED':
+    case 'ORDER_CANCELLED':
+      return payload.orderId ? `/sales?order=${payload.orderId}` : '/sales';
 
     // Samples at a shop for 14 days (§4): the order itself, opened on Sales.
     case 'SAMPLES_REMINDER':
       return payload.orderId ? `/sales?order=${payload.orderId}` : '/sales';
 
     case 'PAYMENT_RECEIVED':
+    case 'PAYMENT_REVERSED':
       return '/payments';
 
     // PAYMENT_OVERDUE is what the API raises (per instalment since 2026-10-11);

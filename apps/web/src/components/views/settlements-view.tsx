@@ -31,6 +31,7 @@ import {
 import { PayoutBreakdownSkeleton, PayoutBreakdownView, type PayoutBreakdown } from '@/components/settlements/payout-breakdown';
 import { LenderDebtNotice } from '@/components/settlements/lender-debt-notice';
 import { UnsoldStockPrompt } from '@/components/settlements/unsold-stock-prompt';
+import { LeaveInDialog } from '@/components/settlements/leave-in-dialog';
 import { Dialog } from '@/components/ui/dialog';
 // ─── Types ────────────────────────────────────────────────────────────
 interface Settlement {
@@ -149,7 +150,11 @@ export default function SettlementsPage() {
     cycleId?: string;
     cycleCode?: string;
     attempt: number;
+    /** Partners leaving their payout in their account (§8, 2026-10-25), kept for the retry. */
+    leaveIn?: string[];
   } | null>(null);
+  // Mark paid with some payouts left in partners' accounts (§8, 2026-10-25).
+  const [leaveInFor, setLeaveInFor] = useState<string | null>(null);
 
   const actionMutation = useMutation({
     // Each endpoint takes its OWN body, and the API rejects anything else
@@ -168,11 +173,16 @@ export default function SettlementsPage() {
   });
 
   const payMutation = useMutation({
-    mutationFn: ({ id, acceptRemainingStock }: { id: string; acceptRemainingStock?: boolean }) =>
-      api.post(`/settlements/${id}/pay`, acceptRemainingStock ? { acceptRemainingStock } : {}),
+    mutationFn: ({ id, acceptRemainingStock, leaveIn }: { id: string; acceptRemainingStock?: boolean; leaveIn?: string[] }) =>
+      api.post(`/settlements/${id}/pay`, {
+        ...(acceptRemainingStock ? { acceptRemainingStock } : {}),
+        ...(leaveIn && leaveIn.length > 0 ? { leaveInPartnerUserIds: leaveIn } : {}),
+      }),
     onSuccess: () => {
       refresh();
+      void queryClient.invalidateQueries({ queryKey: ['partner-accounts'] });
       setStockPrompt(null);
+      setLeaveInFor(null);
       addToast(t('paid'), 'success');
     },
     onError: (e: any, variables) => {
@@ -196,7 +206,9 @@ export default function SettlementsPage() {
           cycleId: typeof params.cycleId === 'string' ? params.cycleId : settlement?.cycle?.id,
           cycleCode: typeof params.cycle === 'string' ? params.cycle : settlement?.cycle?.code,
           attempt: (prev?.attempt ?? 0) + 1,
+          leaveIn: variables.leaveIn,
         }));
+        setLeaveInFor(null);
         return;
       }
       onError(e);
@@ -205,6 +217,7 @@ export default function SettlementsPage() {
 
   const onAction = (id: string, action: string) => {
     if (action === 'pay') return payMutation.mutate({ id });
+    if (action === 'payLeaveIn') return setLeaveInFor(id);
     if (action === 'reverse') {
       setReverseReason('');
       setReversing(id);
@@ -345,6 +358,19 @@ export default function SettlementsPage() {
         </Dialog>
       )}
 
+      {leaveInFor && (() => {
+        const s = list.find((x) => x.id === leaveInFor);
+        return s ? (
+          <LeaveInDialog
+            cycleCode={s.cycle?.code ?? ''}
+            lines={s.lines}
+            paying={payMutation.isPending}
+            onPay={(leaveIn) => payMutation.mutate({ id: s.id, leaveIn })}
+            onClose={() => setLeaveInFor(null)}
+          />
+        ) : null;
+      })()}
+
       {/* Unsold stock keeps its cost with the cycle, so closing writes it off —
           or its leftovers move to another cycle at their cost (L5). */}
       {stockPrompt && (
@@ -355,7 +381,7 @@ export default function SettlementsPage() {
           cycleCode={stockPrompt.cycleCode}
           paying={payMutation.isPending}
           onPay={(accept) =>
-            payMutation.mutate({ id: stockPrompt.id, acceptRemainingStock: accept || undefined })
+            payMutation.mutate({ id: stockPrompt.id, acceptRemainingStock: accept || undefined, leaveIn: stockPrompt.leaveIn })
           }
           onClose={() => setStockPrompt(null)}
         />
@@ -464,6 +490,7 @@ function SettlementCard({
   t: (key: string, values?: Record<string, string | number | Date>) => string;
 }) {
   const codeLabel = useCodeLabel();
+  const tAccounts = useTranslations('accounts');
   const { formatNumber } = useNumberFormat();
   const profit = Number(s.grossProfitEgp ?? 0);
   const remaining = Number(s.unitsRemaining ?? 0);
@@ -493,6 +520,11 @@ function SettlementCard({
           {may.pay && s.status === 'APPROVED' && (
             <ActionButton onClick={() => onAction('pay')} busy={busy} icon={Wallet}>
               {t('markPaid')}
+            </ActionButton>
+          )}
+          {may.pay && s.status === 'APPROVED' && (
+            <ActionButton onClick={() => onAction('payLeaveIn')} busy={busy} icon={Wallet}>
+              {tAccounts('payLeaveIn')}
             </ActionButton>
           )}
           {may.reverse && s.status !== 'REVERSED' && (

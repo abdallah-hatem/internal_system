@@ -99,6 +99,56 @@ export const NOTIFICATION_MESSAGES = {
     },
   },
 
+  // ── What another partner did (owner 2026-10-25: a sale, a payment, a
+  // return, a payment reversed, an order cancelled reach the other partners;
+  // common/partner-news.ts) ──────────────────────────────────────────────
+  SALE_RECORDED: {
+    en: { title: '{by} sold to {shop} — {orderNo}, {total} EGP' },
+    ar: { title: '{by} باع لـ {shop} — {orderNo}، {total} جنيه' },
+  },
+  PAYMENT_RECORDED: {
+    en: {
+      title: '{by} recorded {amount} EGP from {shop} ({method})',
+      body: 'On {orders}',
+    },
+    ar: {
+      title: '{by} سجّل {amount} جنيه من {shop} ({method})',
+      body: 'على {orders}',
+    },
+  },
+  SALE_RETURNED_CREDIT: {
+    en: {
+      title:
+        '{by} recorded a return from {shop} on {orderNo} — {refund} EGP off what they owe',
+      body: '{reference}: {items}. {reason}',
+    },
+    ar: {
+      title:
+        '{by} سجّل مرتجعًا من {shop} على {orderNo} — خُصم {refund} جنيه من المستحق',
+      body: '{reference}: {items}. {reason}',
+    },
+  },
+  SALE_RETURNED_CASH: {
+    en: {
+      title:
+        '{by} recorded a return from {shop} on {orderNo} — {refund} EGP refunded in cash',
+      body: '{reference}: {items}. {reason}',
+    },
+    ar: {
+      title:
+        '{by} سجّل مرتجعًا من {shop} على {orderNo} — رُدّ {refund} جنيه نقدًا',
+      body: '{reference}: {items}. {reason}',
+    },
+  },
+  PAYMENT_REVERSED: {
+    en: { title: '{by} reversed {amount} EGP from {shop}: {reason}' },
+    ar: { title: '{by} عكس دفعة {amount} جنيه من {shop}: {reason}' },
+  },
+  ORDER_CANCELLED: {
+    en: { title: '{by} cancelled {orderNo} for {shop} ({total} EGP)' },
+    ar: { title: '{by} ألغى {orderNo} لـ {shop} ({total} جنيه)' },
+  },
+
   // ── What the office hears from the storefront ─────────────────────────
   ORDER_REQUEST_SUBMITTED: {
     en: {
@@ -194,6 +244,23 @@ export function isNotificationCode(code: string): code is NotificationCode {
  * A param the text names but the caller did not pass is left as `{name}` —
  * visible in a test and in a log, rather than silently becoming "undefined".
  */
+/**
+ * Params that are codes, said in the push's language — the office app says
+ * the same through `codes.paymentMethod` (`lib/notifications.ts`, CODE_PARAMS).
+ */
+const PARAM_WORDS: Record<
+  string,
+  Record<string, Record<NotificationLocale, string>>
+> = {
+  method: {
+    CASH: { en: 'Cash', ar: 'نقدي' },
+    BANK_TRANSFER: { en: 'Bank transfer', ar: 'تحويل بنكي' },
+    BANK: { en: 'Bank transfer', ar: 'تحويل بنكي' },
+    CHEQUE: { en: 'Cheque', ar: 'شيك' },
+    MOBILE_WALLET: { en: 'Mobile wallet', ar: 'محفظة إلكترونية' },
+  },
+};
+
 export function renderNotification(
   code: NotificationCode,
   params: NotificationParams,
@@ -204,7 +271,8 @@ export function renderNotification(
     text.replace(/\{(\w+)\}/g, (whole, name: string) =>
       params[name] === undefined || params[name] === null
         ? whole
-        : String(params[name]),
+        : (PARAM_WORDS[name]?.[String(params[name])]?.[locale] ??
+          String(params[name])),
     );
   return {
     title: fill(words.title),

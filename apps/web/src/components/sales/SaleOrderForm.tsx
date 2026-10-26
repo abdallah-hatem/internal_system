@@ -26,6 +26,12 @@ import { BelowCostLine, BelowCostTotal } from '@/components/sales/below-cost';
 import { Dialog } from '@/components/ui/dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 import { businessToday } from '@/lib/dates';
+import {
+  SamplesAtShopHint,
+  useSamplesAtShop,
+  type ShopSamplesOrder,
+} from '@/components/sales/samples-at-shop-hint';
+import { useCustomerBranches } from '@/lib/customer-branches';
 
 export interface SaleFormCustomer {
   id: string;
@@ -187,6 +193,11 @@ function newIdempotencyKey(): string {
  * One button, "Complete sale", sends the lines to `…/samples/convert`, where
  * the server keeps what went out, puts the rest back and draws anything more.
  *
+ * **The shop holds samples** (§4, owner 2026-10-25): picking a shop with
+ * samples out shows what it holds above the lines, with a link to that samples
+ * order's "They're buying" (`onOpenSamples`). A hint only — a separate
+ * purchase while a sample is on trial is valid, so nothing is blocked.
+ *
  * Required pickers are checked the way `ValidatedForm` checks them — the
  * constraint API, so each empty picker shows its own "Required" and the first
  * takes the focus — but the line naming them is worked out from the form's
@@ -203,7 +214,13 @@ export function SaleOrderForm({
   onSaved,
   title,
   fromSamples,
+  onOpenSamples,
 }: {
+  /**
+   * The samples hint's link (§4, owner 2026-10-25): leave this form for that
+   * samples order's "They're buying". Without it the hint has no link.
+   */
+  onOpenSamples?: (order: ShopSamplesOrder) => void;
   /** The dialog's title: the form renders in the shared dialog, its actions in the fixed footer. */
   title: string;
   customers: SaleFormCustomer[];
@@ -220,8 +237,9 @@ export function SaleOrderForm({
   const tph = useTranslations('placeholders');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
+  const tb = useTranslations('branches');
   const locale = useLocale();
-  const { formatNumber } = useNumberFormat();
+  const { formatNumber, formatAmount } = useNumberFormat();
   const apiError = useApiError();
 
   const channelOf = (id: string | undefined) => {
@@ -253,6 +271,22 @@ export function SaleOrderForm({
    * out and the server refuses them.
    */
   const [orderedOn, setOrderedOn] = useState(businessToday);
+  /**
+   * The branch it is for (§7, 2026-10-25). Not required: left alone it is the
+   * customer's default branch, which is also what the server does with an
+   * order that names none. A branch the person picked is kept with the
+   * customer it was picked for, and only a branch in the current customer's
+   * own list is ever sent — so switching customer can never carry the last
+   * one's branch along, even while the new one's branches are loading.
+   */
+  const [pickedBranch, setPickedBranch] = useState<{ customerId: string; branchId: string } | null>(null);
+  const branchesFor = !walkIn && !fromSamples && customerId ? customerId : undefined;
+  const { open: openBranches, defaultBranch } = useCustomerBranches(branchesFor);
+  const branchId =
+    pickedBranch && pickedBranch.customerId === customerId ? pickedBranch.branchId : (defaultBranch?.id ?? '');
+  const chosenBranch = openBranches.some((b) => b.id === branchId) ? branchId : undefined;
+  /** A customer with one branch picks none (§7): the server's default decides. */
+  const showBranchPicker = !!branchesFor && openBranches.length > 1;
   /** The channel before walk-in fixed it to B2C, put back when it is turned off. */
   const channelBeforeWalkIn = useRef<string | null>(null);
 
@@ -301,6 +335,9 @@ export function SaleOrderForm({
    * in `customers` yet, so its own record is read first.
    */
   const onCustomerChange = (id: string, record?: { type?: string }) => {
+    // The last customer's branch goes with them, now — not when the next
+    // customer's branches arrive.
+    if (id !== customerId) setPickedBranch(null);
     setCustomerId(id);
     const type = record?.type === 'B2B' || record?.type === 'B2C' ? record.type : channelOf(id);
     if (type) applyChannel(type);
@@ -343,6 +380,13 @@ export function SaleOrderForm({
     enabled: !samples && !fromSamples,
     orderedOn: orderedOn < businessToday() ? orderedOn : undefined,
   });
+
+  // What the shop already holds as samples (§4, owner 2026-10-25): a hint
+  // above the lines, read for the shop on screen — a walk-in has no shop, and
+  // completing samples is already that order. Keyed by the shop, so another
+  // shop's hint never stays behind. Neither button looks at it.
+  const samplesAtShop = useSamplesAtShop(customerId, !walkIn && !fromSamples);
+  const heldAtShop = !walkIn && !fromSamples ? samplesAtShop.data : undefined;
 
   // What is still empty, from state — never a snapshot taken at submit.
   const missing = [
@@ -408,6 +452,7 @@ export function SaleOrderForm({
           {
             samples: true,
             customerId,
+            ...(chosenBranch ? { branchId: chosenBranch } : {}),
             channel,
             currency,
             orderedOn,
@@ -421,7 +466,15 @@ export function SaleOrderForm({
         ? // No customer and never a draft: the server confirms and records the
           // payment of the full total with the order, or does none of it.
           { walkIn: true, channel: 'B2C', currency, orderedOn, confirm: true, payment: { method }, items }
-        : { customerId, channel, currency, orderedOn, confirm: mode.current === 'confirm', items },
+        : {
+            customerId,
+            ...(chosenBranch ? { branchId: chosenBranch } : {}),
+            channel,
+            currency,
+            orderedOn,
+            confirm: mode.current === 'confirm',
+            items,
+          },
     );
   };
 
@@ -568,6 +621,28 @@ export function SaleOrderForm({
             </FieldWithQuickCreate>
           )}
         </div>
+        {showBranchPicker && (
+          <div data-testid="sale-branch">
+            <label className="mb-1 block text-sm font-medium text-foreground">
+              {tb('column')}
+              <FieldMark optional />
+            </label>
+            <Select
+              name="branchId"
+              value={chosenBranch ?? ''}
+              onChange={(id) => setPickedBranch({ customerId, branchId: id })}
+              placeholder={tb('noBranch')}
+              options={openBranches.map((b) => ({
+                value: b.id,
+                label: b.isDefault ? `${b.name} · ${tb('defaultTag')}` : b.name,
+                hint: tb('owesAmount', { amount: formatAmount(b.owed) }),
+              }))}
+            />
+            <p data-testid="sale-branch-hint" className="mt-1 text-[11px] text-muted-foreground">
+              {defaultBranch ? (branchId === defaultBranch.id ? tb('pickedDefault') : null) : tb('noDefault')}
+            </p>
+          </div>
+        )}
         <div>
           <label htmlFor={`${formId}-ordered-on`} className="mb-1 block text-sm font-medium text-foreground">
             {samples ? t('samples.leftOn') : t('saleDate')}
@@ -619,6 +694,8 @@ export function SaleOrderForm({
           />
         </div>
       </div>
+
+      <SamplesAtShopHint orders={heldAtShop} onOpen={onOpenSamples} />
 
       <div>
         <div className="mb-2 flex items-center justify-between">

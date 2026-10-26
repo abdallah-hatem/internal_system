@@ -42,6 +42,8 @@ model User {
   runningCostCharges    RunningCostCharge[]
   /// His fixed share of each running cost of his time (§8, L7).
   runningCostShares     RunningCostShare[]
+  /// His running account (§8, 2026-10-25).
+  accountMovements      PartnerAccountMovement[] @relation("PartnerAccountMovements")
   saleOrders            SaleOrder[]            @relation("CreatedSaleOrderUser")
   payments              Payment[]              @relation("CreatedPaymentUser")
   productRequests       ProductRequest[]       @relation("CreatedProductRequestUser")
@@ -324,8 +326,70 @@ model ImportCycle {
   /// Leftover stock moved out of this cycle, and into it (§8, L5).
   transfersOut          StockTransfer[]        @relation("TransferFromCycle")
   transfersIn           StockTransfer[]        @relation("TransferToCycle")
+  /// Partners' advances and contributions from their accounts on this cycle (§8, 2026-10-25).
+  accountMovements      PartnerAccountMovement[]
+
+  /// An optional funding target ("1,600 of 2,000 funded so far"), in its own
+  /// currency at the rate typed (§8, 2026-10-25). All three set, or none.
+  fundingTargetAmount   Decimal? @map("funding_target_amount") @db.Decimal(18, 2)
+  fundingTargetCurrency String?  @map("funding_target_currency")
+  fundingTargetRate     Decimal? @map("funding_target_rate") @db.Decimal(18, 4)
 
   @@map("import_cycles")
+}
+
+/// What a running account movement is (§8, owner 2026-10-25).
+enum PartnerAccountMovementKind {
+  /// He paid a supplier for a cycle from his own pocket: + his account. Not cash.
+  ADVANCE
+  /// A settlement payout he left in: + his account (phase 2).
+  PAYOUT_LEFT_IN
+  /// Drawn from his account into a cycle's contribution: − his account.
+  CONTRIBUTION
+  /// Money he took out: − his account.
+  WITHDRAWAL
+}
+
+/// One movement on a core partner's running account (§8, owner 2026-10-25).
+/// The balance is the sum of the standing ones (`common/partner-account.ts`,
+/// the one definition) and never goes below zero. Reversed, never edited or
+/// deleted (§9); a standing one has no `reversedAt`. None of it is a ledger
+/// row: the account is the partner's money, not the business's cash.
+model PartnerAccountMovement {
+  id             String                     @id @default(uuid()) @db.Uuid
+  partnerUserId  String                     @map("partner_user_id") @db.Uuid
+  kind           PartnerAccountMovementKind
+  /// Always above zero; the kind gives the sign.
+  amountEgp      Decimal                    @map("amount_egp") @db.Decimal(18, 2)
+  /// What was paid, in the currency paid (an advance); EGP otherwise.
+  amount         Decimal                    @db.Decimal(18, 2)
+  currency       String                     @default("EGP")
+  /// That day's rate to EGP, as typed; 1 for EGP.
+  fxRateToEgp    Decimal                    @default(1) @map("fx_rate_to_egp") @db.Decimal(18, 4)
+  /// The Cairo day it happened.
+  occurredOn     DateTime                   @map("occurred_on") @db.Date
+  /// The cycle an advance paid towards, or a contribution went into.
+  cycleId        String?                    @map("cycle_id") @db.Uuid
+  /// The cycle line a contribution raised.
+  participantId  String?                    @map("participant_id") @db.Uuid
+  /// The settlement whose payout was left in.
+  settlementId   String?                    @map("settlement_id") @db.Uuid
+  note           String?
+  createdBy      String?                    @map("created_by") @db.Uuid
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz()
+  reversedAt     DateTime?                  @map("reversed_at") @db.Timestamptz()
+  reversedBy     String?                    @map("reversed_by") @db.Uuid
+  reversalReason String?                    @map("reversal_reason")
+
+  partner     User              @relation("PartnerAccountMovements", fields: [partnerUserId], references: [id])
+  cycle       ImportCycle?      @relation(fields: [cycleId], references: [id])
+  participant CycleParticipant? @relation(fields: [participantId], references: [id])
+  settlement  Settlement?       @relation(fields: [settlementId], references: [id])
+
+  @@index([partnerUserId])
+  @@index([cycleId])
+  @@index([settlementId])
+  @@map("partner_account_movements")
 }
 
 model CycleParticipant {
@@ -346,6 +410,7 @@ model CycleParticipant {
   investor           User?               @relation("CycleInvestorUser", fields: [investorUserId], references: [id])
   settlementLines    SettlementLine[]
   runningCostCharges RunningCostCharge[]
+  accountMovements   PartnerAccountMovement[]
 
   // A person joins a cycle once. Without this a double-add silently dilutes
   // every other participant's profit share.
@@ -961,7 +1026,36 @@ model Customer {
 
   paymentPlans PaymentPlan[]
 
+  /// The shop's branches (BUSINESS_LOGIC §7, "A customer with branches",
+  /// 2026-10-25). One owner pays for all of them; a branch is never a customer.
+  branches CustomerBranch[]
+
   @@map("customers")
+}
+
+/// A branch of a customer (owner, 2026-10-25): its own orders, balance and
+/// statement, and where to deliver. Credit, contracts, the storefront login and
+/// the invoice header stay the owner's. Names are unique per customer ignoring
+/// case, and at most one branch is the default: both are partial/expression
+/// unique indexes in the migration, which Prisma cannot express.
+model CustomerBranch {
+  id         String    @id @default(uuid()) @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  name       String
+  address    String?
+  phone      String?
+  /// The branch a sale order lands on when none is named.
+  isDefault  Boolean   @default(false) @map("is_default")
+  /// Archived: takes no new orders, keeps its history and balance.
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  saleOrders SaleOrder[]
+
+  @@index([customerId])
+  @@map("customer_branches")
 }
 
 model SaleOrder {
@@ -989,6 +1083,10 @@ model SaleOrder {
   samplesRemindedAt DateTime?   @map("samples_reminded_at") @db.Timestamptz()
 
   customer           Customer               @relation(fields: [customerId], references: [id])
+  /// The branch it was sold to (§7, 2026-10-25). Null for a customer with no
+  /// branches, or no default when it was sold: the order is on the owner.
+  branchId           String?                @map("branch_id") @db.Uuid
+  branch             CustomerBranch?        @relation(fields: [branchId], references: [id])
   creator            User?                  @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
   createdBy          String?                @map("created_by") @db.Uuid
   /// The create form's key, so a retried POST returns this order instead of a
@@ -1006,6 +1104,7 @@ model SaleOrder {
   paymentPlan  PaymentPlan?
 
   @@unique([createdBy, idempotencyKey])
+  @@index([branchId])
   @@map("sale_orders")
 }
 
@@ -1331,6 +1430,8 @@ model Settlement {
   lines              SettlementLine[]
   /// Running costs this settlement's payouts took (§8, L7).
   runningCostCharges RunningCostCharge[]
+  /// Payouts left in partners' accounts (§8, 2026-10-25).
+  accountMovements   PartnerAccountMovement[]
 
   @@map("settlements")
 }

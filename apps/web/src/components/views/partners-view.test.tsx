@@ -25,6 +25,11 @@ vi.mock('@/components/partners/running-costs-section', async () => {
   };
 });
 
+// The running accounts (§8, 2026-10-25) ask the API on their own; not under test here.
+vi.mock('@/components/partners/partner-accounts-section', () => ({
+  PartnerAccountsSection: () => null,
+}));
+
 const reply = vi.hoisted(() => ({ resolve: (_: unknown) => {} }));
 vi.mock('@/lib/api', () => ({
   api: {

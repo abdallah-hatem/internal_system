@@ -147,6 +147,11 @@ function fakePrisma(db: Store) {
     saleReturnItem: { findMany: async () => [] },
     salePriceAdjustmentItem: { findMany: async () => [] },
     inventoryBatch: { findMany: async () => [] },
+    // No payout here is left in a partner's account (§8, 2026-10-25).
+    partnerAccountMovement: {
+      findMany: async () => [],
+      create: async () => ({}),
+    },
     shipmentLoss: { aggregate: async () => ({ _sum: { costEgp: null } }) },
     lenderRepayment: {
       aggregate: async () => ({ _sum: { exchangeDiffEgp: null } }),

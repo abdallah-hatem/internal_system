@@ -14,6 +14,7 @@ import { readTool, writeTool, type AssistantUser } from '../tool-kit';
 import type { AiProvider, ChatMessage, ToolSpec } from './ai-provider';
 import { portableSchema } from './ai-provider';
 import { AssistantChatService, cleanTurns, trimHistory } from './chat.service';
+import { samplesAtShopNote, type ShopSamples } from '../tools/sales';
 
 /**
  * The office chat (owner 2026-10-20/25). A real tool server with one read and
@@ -68,6 +69,24 @@ const auditLog = jest.fn(() => {
 const audit = { log: auditLog } as unknown as AuditService;
 const confirmations = new ConfirmationService(jwt, prisma);
 
+/** A shop's samples, as record_sale's preview carries them (§4, 2026-10-25). */
+const HELD: ShopSamples = [
+  {
+    id: 'order-1',
+    orderNo: 'ORD-0012',
+    leftOn: '2026-10-20',
+    lines: [
+      {
+        productId: 'p-helmet',
+        name: 'Helmet',
+        nameAr: null,
+        sku: 'HLM',
+        units: '1',
+      },
+    ],
+  },
+];
+
 /** The assistant's server, with two tools built the way every real one is. */
 const assistant = {
   create(user: AssistantUser) {
@@ -100,8 +119,16 @@ const assistant = {
         inputSchema: { qty: z.number() },
       },
       {
+        // 7 is a sale to a shop holding samples: record_sale's own note.
         preview: (input) =>
-          Promise.resolve({ summary: `Will record ${input.qty}.` }),
+          Promise.resolve(
+            input.qty === 7
+              ? {
+                  summary: `Will record 7.\n\n${samplesAtShopNote('Shop A', HELD)}`,
+                  data: { samplesAtShop: HELD },
+                }
+              : { summary: `Will record ${input.qty}.` },
+          ),
         commit: (input) => {
           commits.push({ qty: input.qty });
           return Promise.resolve({ summary: `Recorded ${input.qty}.` });
@@ -254,6 +281,23 @@ describe('a change: the model previews, only the button confirms', () => {
     expect(toolMsg.content).not.toContain(data.pending[0].token);
     expect(toolMsg.content).toContain('Confirm');
     expect(commits).toEqual([]);
+  });
+
+  it('a sale to a shop holding samples: the card carries what it holds for the app to say, the model still reads the note, and nothing is saved', async () => {
+    script = [call('record_thing', { qty: 7 }), say('Press Confirm.')];
+    const { data } = await service.chat('p1', ask('Record 7'));
+    expect(data.pending[0].samplesAtShop).toEqual(HELD);
+    // Said once, in the reader's language, by the app — not twice in English.
+    expect(data.pending[0].summary).toBe('Will record 7.');
+    const toolMsg = seen[1].messages.find((m) => m.role === 'tool')!;
+    expect(toolMsg.content).toContain('Samples at this shop:');
+    expect(toolMsg.content).toContain('ORD-0012');
+    expect(commits).toEqual([]);
+
+    // Any other preview carries none: the second card has no stale hint.
+    script = [call('record_thing', { qty: 5 }), say('ok')];
+    const next = await service.chat('p1', ask('Record 5'));
+    expect(next.data.pending[0].samplesAtShop).toEqual([]);
   });
 
   it('a token the model sends is dropped: it gets a fresh preview, and nothing is saved', async () => {
