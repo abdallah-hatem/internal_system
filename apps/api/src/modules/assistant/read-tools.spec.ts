@@ -132,7 +132,36 @@ function fakePrisma(db: Db) {
       Promise.resolve(rows().find((r) => matches(r, args.where)) ?? null),
     );
 
+  // A list's search runs in SQL (`common/repositories/list-search.ts`): the
+  // search key against `arabic_search_key()` of the named columns of the
+  // named table. The same comparison over these rows, by the same rule.
+  const tables: Record<string, () => Row[]> = {
+    customers: () => db.customers,
+    suppliers: () => db.suppliers,
+    import_cycles: () => db.cycles,
+  };
+  const $queryRaw = jest.fn((query: { sql: string; values: unknown[] }) => {
+    const table = /FROM (\w+) t\b/.exec(query.sql)?.[1] ?? '';
+    const key = String(query.values[0]);
+    const columns = [
+      ...query.sql.matchAll(/arabic_search_key\(t\.(\w+)\)/g),
+    ].map((m) => m[1].replace(/_(\w)/g, (_, c: string) => c.toUpperCase()));
+    const rows = (tables[table] ?? (() => []))();
+    return Promise.resolve(
+      rows
+        .filter((r) =>
+          columns.some((c) =>
+            arabicSearchKey(String((r[c] as string | null) ?? '')).includes(
+              key,
+            ),
+          ),
+        )
+        .map((r) => ({ id: r.id })),
+    );
+  });
+
   return {
+    $queryRaw,
     importCycle: {
       findUnique: findUnique(() => db.cycles),
       findMany: findMany(() => db.cycles),

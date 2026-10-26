@@ -1,4 +1,3 @@
-import { pageSize, cursorPage } from '../../common/dto/pagination.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   paymentNews,
@@ -7,6 +6,14 @@ import {
   type PartnerNotifier,
 } from '../../common/partner-news';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
+import { assertUuid } from '../../common/uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   assertNotFuture,
@@ -22,6 +29,11 @@ import { assertVerified } from '../../common/verified-customer';
 import { OWED_STATUSES, owedBy } from '../../common/customer-balance';
 import { isSamplesStatus } from '../../common/samples';
 import type { Prisma } from '@prisma/client';
+
+/** The Payments list's orders; the first is the default. Each ends on `id`. */
+const PAYMENT_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<string, Prisma.PaymentOrderByWithRelationInput[]>;
 
 /** A payment's day: `receivedOn` is a date column, UTC midnight of the day. */
 const paymentDay = (receivedOn: Date) => receivedOn.toISOString().slice(0, 10);
@@ -58,38 +70,53 @@ export class PaymentsService {
     private notifications?: PartnerNotifier,
   ) {}
 
-  async findAll(pagination: {
-    cursor?: string;
-    limit?: number;
-    customerId?: string;
-    /** Calendar days, YYYY-MM-DD, both included, on the day it was received. */
-    from?: string;
-    to?: string;
-  }) {
-    const { cursor, limit: rawLimit = 20, customerId, from, to } = pagination;
-    const limit = pageSize(rawLimit);
+  /**
+   * The Payments list (server-side lists, owner 2026-10-25): searched,
+   * filtered, counted and paged here (`common/list-query.ts`).
+   *
+   *   customerId  one shop's payments
+   *   from / to   calendar days, YYYY-MM-DD, both included, on the day received
+   *   search      the shop's name, the reference or the amount
+   */
+  async findAll(
+    query: ListQuery & {
+      customerId?: string;
+      from?: string;
+      to?: string;
+    },
+  ) {
+    const { customerId, from, to } = query;
+    if (customerId) assertUuid(customerId, 'customerId');
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, PAYMENT_SORTS);
     const received = calendarRange(from, to);
-    const where: any = {
+    const where: Prisma.PaymentWhereInput = {
       ...(customerId ? { customerId } : {}),
       ...(received ? { receivedOn: received } : {}),
+      ...(search
+        ? {
+            id: {
+              in: await searchIds(
+                this.prisma,
+                `payments t JOIN customers c ON c.id = t.customer_id`,
+                [`c.display_name`, `t.reference`, `t.amount::text`],
+                search,
+              ),
+            },
+          }
+        : {}),
     };
-
-    const items = await this.prisma.payment.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: { customer: true, allocations: true },
+    const { rows, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.payment.findMany({
+          where,
+          orderBy,
+          include: { customer: true, allocations: true },
+          ...window,
+        }),
+      count: () => this.prisma.payment.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data: rows, meta };
   }
 
   async findById(id: string) {

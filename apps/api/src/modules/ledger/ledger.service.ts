@@ -1,19 +1,53 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { Prisma } from '@prisma/client';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  filterOf,
+  listRows,
+  type ListQuery,
+  shown,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 import { AuditService } from '../audit/audit.service';
 
 import { badRequest, notFound } from '../../common/api-error';
-import { isUuid } from '../../common/uuid';
+import { assertUuid, isUuid } from '../../common/uuid';
 import { businessToday } from '../../common/dates';
 import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import { CreateLedgerEntryDto } from './dto/ledger.dto';
 import { checkManualEntry } from './manual-entry';
 import { fixRunningCostShares } from '../../common/running-costs';
+
+/** The Ledger list's orders; the first is the default. Each ends on `id`. */
+const LEDGER_SORTS = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+} satisfies Record<
+  string,
+  Prisma.FinancialTransactionOrderByWithRelationInput[]
+>;
+
+/** A ledger type is a code: capitals and underscores. */
+const LEDGER_TYPE = /^[A-Z_]{1,60}$/;
+
+/**
+ * `type` as the list sends it: one code, or several joined by commas (the
+ * office shows some types under one name — "Purchase" is PURCHASE and
+ * PURCHASE_PAYMENT). Anything that is not a code is refused.
+ */
+function ledgerTypes(value: unknown): string[] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const types = typeof value === 'string' ? value.split(',') : [];
+  if (types.length === 0 || !types.every((t) => LEDGER_TYPE.test(t))) {
+    throw badRequest(
+      'LIST_FILTER_INVALID',
+      `type cannot be "${shown(value)}" (it is one or more codes, comma-separated).`,
+      { field: 'type', value: shown(value) },
+    );
+  }
+  return types;
+}
 
 @Injectable()
 export class LedgerService {
@@ -22,8 +56,18 @@ export class LedgerService {
     private audit: AuditService,
   ) {}
 
+  /**
+   * The Ledger list (server-side lists, owner 2026-10-25): searched,
+   * filtered, counted and paged here (`common/list-query.ts`).
+   *
+   *   direction  INFLOW | OUTFLOW
+   *   type       one type code, or several comma-separated
+   *   category   one category, exactly as stored
+   *   cycleId    one cycle's rows
+   *   search     type, category, reason or amount
+   */
   async findAll(
-    query: PaginationDto & {
+    query: ListQuery & {
       cycleId?: string;
       type?: string;
       category?: string;
@@ -32,55 +76,72 @@ export class LedgerService {
       to?: string;
     },
   ) {
-    const {
-      cursor,
-      limit: rawLimit = 20,
-      cycleId,
-      type,
-      category,
-      direction,
-      from,
-      to,
-    } = query;
-    const limit = pageSize(rawLimit);
+    const { cycleId, category, from, to } = query;
+    if (cycleId) assertUuid(cycleId, 'cycleId');
+    const types = ledgerTypes(query.type);
+    const direction = filterOf(query.direction, 'direction', [
+      'INFLOW',
+      'OUTFLOW',
+    ] as const);
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, LEDGER_SORTS);
 
-    const where: any = {};
+    const where: Prisma.FinancialTransactionWhereInput = {};
     if (cycleId) where.cycleId = cycleId;
-    if (type) where.type = type;
-    if (category) where.category = category;
+    if (types) where.type = { in: types };
+    if (typeof category === 'string' && category) where.category = category;
     if (direction) where.direction = direction;
     if (from || to) {
-      where.createdAt = {};
-      if (from) where.createdAt.gte = new Date(from);
-      if (to) where.createdAt.lte = new Date(to);
+      where.createdAt = {
+        ...(from ? { gte: new Date(from) } : {}),
+        ...(to ? { lte: new Date(to) } : {}),
+      };
+    }
+    if (search) {
+      where.id = {
+        in: await searchIds(
+          this.prisma,
+          `financial_transactions t`,
+          [`t.type`, `t.category`, `t.reason`, `t.amount::text`],
+          search,
+        ),
+      };
     }
 
-    const items = await this.prisma.financialTransaction.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: {
-        cycle: { select: { id: true, code: true } },
-        // Who recorded it (owner 2026-10-22: a column for the user).
-        actor: {
-          select: {
-            id: true,
-            email: true,
-            partner: { select: { displayName: true } },
+    const { rows, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.financialTransaction.findMany({
+          where,
+          orderBy,
+          include: {
+            cycle: { select: { id: true, code: true } },
+            // Who recorded it (owner 2026-10-22: a column for the user).
+            actor: {
+              select: {
+                id: true,
+                email: true,
+                partner: { select: { displayName: true } },
+              },
+            },
           },
-        },
-      },
+          ...window,
+        }),
+      count: () => this.prisma.financialTransaction.count({ where }),
     });
+    return { data: rows, meta };
+  }
 
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+  /**
+   * Every category the ledger holds, for the list's category filter — which
+   * used to offer only the categories of the rows the browser had loaded.
+   */
+  async categories() {
+    const rows = await this.prisma.financialTransaction.findMany({
+      distinct: ['category'],
+      select: { category: true },
+      orderBy: { category: 'asc' },
+    });
+    return { data: rows.map((r) => r.category).filter(Boolean) };
   }
 
   async findOne(id: string) {

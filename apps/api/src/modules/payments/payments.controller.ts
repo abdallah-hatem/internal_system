@@ -12,7 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto, AllocatePaymentDto } from './dto/payment.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { PAYMENT_REVERSE_ROLES, PAYMENT_ROLES } from './payment-roles';
@@ -34,7 +34,7 @@ export class PaymentsController {
   @ApiOperation({ summary: 'List payments with filtering and pagination' })
   findAll(
     @Query()
-    query: PaginationDto & {
+    query: ListQuery & {
       customerId?: string;
       from?: string;
       to?: string;

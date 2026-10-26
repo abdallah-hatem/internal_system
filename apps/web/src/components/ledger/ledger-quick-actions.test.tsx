@@ -20,6 +20,12 @@ vi.mock('@/i18n/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/ledger',
 }));
+// The list reads its page and filters from the URL (server-side lists, 2026-10-25).
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/en/ledger',
+}));
 
 const auth = vi.hoisted(() => ({ role: 'CORE_PARTNER' as string | undefined }));
 vi.mock('@/lib/auth-context', () => ({
@@ -43,7 +49,7 @@ beforeEach(() => {
   get.mockReset();
   post.mockReset();
   get.mockImplementation((url: string) => {
-    if (url === '/ledger') return Promise.resolve({ data: { data: [ROW] } });
+    if (url === '/ledger') return Promise.resolve({ data: { data: [ROW], meta: { total: 1, totalPages: 1 } } });
     if (url.startsWith('/cycles')) return Promise.resolve({ data: { data: [] } });
     if (url.startsWith('/currency-rates')) return Promise.resolve({ data: { data: {} } });
     return Promise.reject(new Error(`unexpected GET ${url}`));

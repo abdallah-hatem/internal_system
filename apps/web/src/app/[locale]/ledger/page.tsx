@@ -1,15 +1,16 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Money } from '../../../components/ui/money';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { useState } from 'react';
+import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
+import { useApiError } from '@/lib/api-error';
+import { fetchAll } from '@/lib/list-all';
 import {
   Plus, Eye, 
   RotateCcw, ArrowUpRight, ArrowDownRight,
@@ -126,6 +127,12 @@ function LedgerCardSkeleton() {
   );
 }
 
+/** Every type code the office shows under one name (`purchase` -> PURCHASE,PURCHASE_PAYMENT). */
+const typeCodesOf = (name: string) =>
+  Object.keys(TYPE_KEYS)
+    .filter((code) => TYPE_KEYS[code] === name)
+    .join(',') || name;
+
 // ─── Main Page ────────────────────────────────────────────────────────
 export default function LedgerPage() {
   const codeLabel = useCodeLabel();
@@ -144,23 +151,36 @@ export default function LedgerPage() {
     !category ? '—' : codeLabel('ledgerCategory', category);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const apiError = useApiError();
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [directionFilter, setDirectionFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const openCreate = () => setShowCreateModal(true);
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [viewingEntry, setViewingEntry] = useState<LedgerEntry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, directionFilter, typeFilter, categoryFilter]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { items: entries, capped, isLoading } = useAllRecords(['ledger'], '/ledger');
+  // One page, searched, filtered and paged by the API (owner 2026-10-25).
+  // The URL says the type by the name the office shows (`?type=purchase`);
+  // the API is sent every type code shown under that name.
+  const list = useServerList<LedgerEntry>({
+    queryKey: 'ledger',
+    path: '/ledger',
+    filters: {
+      direction: 'direction',
+      type: { param: 'type', toApi: typeCodesOf },
+      category: 'category',
+    },
+  });
+  const { rows: entries, isLoading, reloading } = list;
+  const directionFilter = list.get('direction');
+  const typeFilter = list.get('type');
+  const categoryFilter = list.get('category');
+  // Every category the ledger holds, not only those on the page showing.
+  const { data: categoriesInUse = [] } = useQuery({
+    queryKey: ['ledger', 'categories'],
+    queryFn: () => api.get('/ledger/categories').then((r) => (r.data.data ?? []) as string[]),
+  });
 
   const { data: entryDetail } = useQuery({
     queryKey: ['ledger-entry', viewingEntry?.id],
@@ -181,37 +201,18 @@ export default function LedgerPage() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const entryList: LedgerEntry[] = Array.isArray(entries) ? entries : [];
-
-  const filtered = entryList.filter((e) => {
-    if (directionFilter && e.direction !== directionFilter) return false;
-    if (typeFilter && TYPE_KEYS[e.type] !== typeFilter) return false;
-    if (categoryFilter && e.category !== categoryFilter) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      e.type?.toLowerCase().includes(q) ||
-      e.category?.toLowerCase().includes(q) ||
-      categoryLabel(e.category).toLowerCase().includes(q) ||
-      e.reason?.toLowerCase().includes(q) ||
-      e.amount?.toString().includes(q)
-    );
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    entryList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={{ label: t('create'), onClick: openCreate }}
       />
     ) : (
-      <NoMatch filtered={!!(directionFilter || typeFilter || categoryFilter)} onClear={() => { setSearch(''); setDirectionFilter(''); setTypeFilter(''); setCategoryFilter(''); }} />
+      <NoMatch filtered={!!(directionFilter || typeFilter || categoryFilter)} onClear={list.clear} />
     );
 
   const detail = (entryDetail as LedgerEntry) ?? viewingEntry;
@@ -310,8 +311,8 @@ export default function LedgerPage() {
             number so the spreadsheet can total it. */}
         <button
           type="button"
-          onClick={() =>
-            downloadCsv(datedFilename('ledger'), filtered, [
+          onClick={() => void fetchAll<LedgerEntry>('/ledger', list.exportParams, Infinity).then(({ items: matching }) =>
+            downloadCsv(datedFilename('ledger'), matching, [
               { header: tc('date'), value: (e) => entryDate(e)?.slice(0, 10) ?? '' },
               { header: t('direction'), value: (e) => e.direction },
               { header: t('category'), value: (e) => categoryLabel(e.category) },
@@ -320,9 +321,9 @@ export default function LedgerPage() {
               { header: t('cycle'), value: (e) => e.cycle?.code ?? '' },
               { header: t('by'), value: (e) => (e.actor ? actorName(e) : '') },
               { header: t('reason'), value: (e) => e.reason ?? '' },
-            ])
-          }
-          disabled={filtered.length === 0}
+            ]),
+          ).catch((e) => toast(apiError(e, tc('error')), 'error'))}
+          disabled={list.total === 0}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           <Download className="h-4 w-4" />
@@ -340,11 +341,11 @@ export default function LedgerPage() {
       </div>
 
       {/* Search + Filters */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
         <Select
           className="w-full sm:w-44"
           value={directionFilter}
-          onChange={setDirectionFilter}
+          onChange={(v) => list.set('direction', v || null)}
           clearable
           placeholder={t('allDirections')}
           options={[
@@ -355,7 +356,7 @@ export default function LedgerPage() {
         <Select
           className="w-full sm:w-52"
           value={typeFilter}
-          onChange={setTypeFilter}
+          onChange={(v) => list.set('type', v || null)}
           clearable
           placeholder={t('allTypes')}
           searchPlaceholder={tph('searchTypes')}
@@ -365,11 +366,11 @@ export default function LedgerPage() {
           }))}
         />
         {/* The one manual list (L6), in words, then any other category the
-            loaded rows carry — a flow's, or free text from before — as written. */}
+            ledger holds — a flow's, or free text from before — as written. */}
         <Select
           className="w-full sm:w-56"
           value={categoryFilter}
-          onChange={setCategoryFilter}
+          onChange={(v) => list.set('category', v || null)}
           clearable
           placeholder={t('allCategories')}
           searchPlaceholder={tph('searchCategories')}
@@ -379,7 +380,7 @@ export default function LedgerPage() {
               label: codeLabel('ledgerCategory', c),
               hint: manualKindOf(c) === 'EXPENSE' ? t('kindExpense') : t('kindIncome'),
             })),
-            ...[...new Set(entryList.map((e) => e.category).filter(Boolean))]
+            ...categoriesInUse
               .filter((c) => !manualKindOf(c))
               .sort()
               .map((c) => ({ value: c, label: categoryLabel(c) })),
@@ -387,7 +388,6 @@ export default function LedgerPage() {
         />
       </ListToolbar>
 
-      <ListCapNotice capped={capped} count={entries.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -399,9 +399,10 @@ export default function LedgerPage() {
         // default 14rem pushed the table past a 1440px page.
         autoMin="9rem"
         columns={columns}
-        rows={paginated}
+        rows={entries}
         rowKey={(e) => e.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
       />
 
@@ -413,10 +414,10 @@ export default function LedgerPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((entry) => (
+            entries.map((entry) => (
               <div
                 key={entry.id}
                 onClick={() => setViewingEntry(entry)}
@@ -454,8 +455,14 @@ export default function LedgerPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Record money in or out (L6) ───────────────────────────── */}

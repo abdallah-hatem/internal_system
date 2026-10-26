@@ -12,7 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CyclesService } from './cycles.service';
 import { AddParticipantDto } from './dto/participant.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
@@ -34,7 +34,7 @@ export class CyclesController {
       'List import cycles with pagination (an investor: their cycles only)',
   })
   findAll(
-    @Query() query: PaginationDto & { status?: string },
+    @Query() query: ListQuery & { status?: string },
     @CurrentUser() user: Viewer,
   ) {
     return this.cyclesService.findAll(query, user);

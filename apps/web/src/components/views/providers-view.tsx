@@ -3,11 +3,12 @@ import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
 
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '@/components/ui/pagination';
+import { useState } from 'react';
+import { Pagination, PAGE_SIZE } from '@/components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import { TextareaField } from '@/components/ui/textarea-field';
 import {
   Truck, Plus, Edit, Loader2, Phone, Mail, User, Trash2,
@@ -77,20 +78,15 @@ export default function ProvidersPage() {
   /** The icon buttons a row carries, for its skeleton. */
   const actionCount = (may.edit ? 1 : 0) + (may.delete ? 1 : 0);
 
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [deletingProvider, setDeletingProvider] = useState<Provider | null>(null);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: providers = [], isLoading } = useQuery({
-    queryKey: ['providers'],
-    queryFn: () => api.get('/providers').then((r) => r.data.data ?? r.data),
-  });
+  // One page, searched (name, contact, phone, email) and paged by the API
+  // (owner 2026-10-25).
+  const list = useServerList<Provider>({ queryKey: 'providers', path: '/providers' });
+  const { rows: providers, isLoading, reloading } = list;
 
   // ── Mutations ─────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -130,33 +126,18 @@ export default function ProvidersPage() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const providerList: Provider[] = Array.isArray(providers) ? providers : [];
-
-  const filtered = providerList.filter((p) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      p.name?.toLowerCase().includes(q) ||
-      p.contactPerson?.toLowerCase().includes(q) ||
-      p.phone?.toLowerCase().includes(q) ||
-      p.email?.toLowerCase().includes(q)
-    );
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    providerList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={may.create ? { label: t('create'), onClick: () => setShowCreateModal(true) } : undefined}
       />
     ) : (
-      <NoMatch onClear={() => setSearch('')} />
+      <NoMatch onClear={list.clear} />
     );
 
   // ── Handlers ──────────────────────────────────────────────────────
@@ -274,7 +255,7 @@ export default function ProvidersPage() {
       </div>
 
       {/* Search */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -283,9 +264,10 @@ export default function ProvidersPage() {
       <DataTable
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={providers}
         rowKey={(p) => p.id}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
       />
 
@@ -297,10 +279,10 @@ export default function ProvidersPage() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {providers.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((provider) => (
+            providers.map((provider) => (
               <div
                 key={provider.id}
                 className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
@@ -354,8 +336,14 @@ export default function ProvidersPage() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}

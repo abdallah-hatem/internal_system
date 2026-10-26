@@ -5,7 +5,6 @@ import {
   arabicSearchKey,
   localDescription,
   localName,
-  matchesName,
   otherName,
   searchFinds,
 } from './localized-name';
@@ -77,28 +76,6 @@ describe('otherName — the second line under a localized name', () => {
   });
 });
 
-describe('matchesName — a search in either language, and the SKU', () => {
-  const pads = { name: 'Brake pads', nameAr: 'تيل فرامل', sku: 'PRD-000012' };
-  const chain = { name: 'Chain kit', nameAr: null, sku: 'PRD-000013' };
-
-  it('"تيل" finds the brake pads by their Arabic name', () => {
-    expect(matchesName(pads, 'تيل')).toBe(true);
-    expect(matchesName(chain, 'تيل')).toBe(false);
-  });
-  it('the English name, ignoring case, and part of the SKU still match', () => {
-    expect(matchesName(pads, 'BRAKE')).toBe(true);
-    expect(matchesName(chain, '0013')).toBe(true);
-    expect(matchesName(chain, 'prd-00001')).toBe(true);
-  });
-  it('an empty or blank search matches everything', () => {
-    expect(matchesName(chain, '')).toBe(true);
-    expect(matchesName(chain, '   ')).toBe(true);
-  });
-  it('surrounding space in the search is ignored', () => {
-    expect(matchesName(pads, '  تيل ')).toBe(true);
-  });
-});
-
 /**
  * Arabic search forgives spelling (§3, owner 2026-10-15). This copy runs over
  * the API's own case table and against the API's own function, so the two
@@ -125,33 +102,5 @@ describe('arabicSearchKey — the office copy of the search rule', () => {
   it('nothing → empty', () => {
     expect(arabicSearchKey(null)).toBe('');
     expect(arabicSearchKey(undefined)).toBe('');
-  });
-});
-
-describe('matchesName — Arabic spelled another way still finds the record (2026-10-15)', () => {
-  const helmet = { name: 'Helmet', nameAr: 'خوذة هوندى', sku: 'PRD-000020' };
-  const tyre = { name: 'Tyre', nameAr: 'إطار أمامي', sku: 'PRD-000021' };
-  const pads = { name: 'Brake pads', nameAr: 'تَيْل فـرامل', sku: 'PRD-000022' };
-
-  it.each([
-    [helmet, 'خوذه'],
-    [helmet, 'هوندي'],
-    [tyre, 'اطار'],
-    [tyre, 'امامى'],
-    [pads, 'تيل'],
-    [pads, 'فرامل'],
-  ])('%o is found by "%s"', (record, search) => {
-    expect(matchesName(record, search)).toBe(true);
-  });
-
-  it('a different word is not: ه is not ح, ة is not ت', () => {
-    expect(matchesName(helmet, 'حوندي')).toBe(false);
-    expect(matchesName(helmet, 'خوذت')).toBe(false);
-    expect(matchesName(tyre, 'زيت')).toBe(false);
-  });
-
-  it('English is as before — case ignored, accents not', () => {
-    expect(matchesName(helmet, 'HELMET')).toBe(true);
-    expect(matchesName(helmet, 'hélmet')).toBe(false);
   });
 });

@@ -39,7 +39,11 @@ const data = vi.hoisted(() => ({
 vi.mock('@/lib/api', () => ({
   api: {
     get: (url: string) => {
-      const page = (rows: unknown[]) => Promise.resolve({ data: { data: rows, meta: { nextCursor: null } } });
+      // A list asks for a page and is told the total (server-side lists, 2026-10-25).
+      const page = (rows: unknown[]) =>
+        Promise.resolve({
+          data: { data: rows, meta: { nextCursor: null, page: 1, pageSize: 10, total: rows.length, totalPages: 1 } },
+        });
       if (url === '/sales/orders') return page(data.orders);
       const h = url.match(/^\/sales\/orders\/([^/]+)\/history$/);
       if (h) return Promise.resolve({ data: { data: data.history[h[1]] } });

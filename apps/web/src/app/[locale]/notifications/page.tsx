@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { Suspense } from 'react';
 import { useTranslations } from 'next-intl';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useDateFormat } from '../../../lib/dates';
 import {
@@ -10,7 +10,8 @@ import {
   AlertTriangle, Info, ShoppingCart, Package, Route, CreditCard, ShieldCheck,
 } from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import { Link } from '../../../i18n/navigation';
 import { notificationHref, useNotificationText, useNotifications } from '../../../lib/notifications';
 import { isolateCodes } from '@/components/layout/isolate-codes';
@@ -38,7 +39,16 @@ const EVENT_ICONS: Record<string, typeof Bell> = {
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────
+/** The page and its rows live in the URL (`?page=`), read in the browser only. */
 export default function NotificationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <NotificationsPageContent />
+    </Suspense>
+  );
+}
+
+function NotificationsPageContent() {
   const notificationText = useNotificationText();
   const { timeAgo } = useDateFormat();
   const t = useTranslations('notifications');
@@ -48,15 +58,14 @@ export default function NotificationsPage() {
   // key and disagreed about the shape, so whichever mounted first won and the
   // other read the wrong thing — which is why this page said "No notifications"
   // beside a bell showing nine.
-  const { data, isLoading } = useNotifications();
+  // The unread count is the bell's.
+  const { data } = useNotifications();
+  const unreadCount = data?.unreadCount ?? 0;
 
-  const [page, setPage] = useState(1);
-
-  const notificationList: Notification[] = data?.items ?? [];
-  const unreadCount = data?.unreadCount ?? notificationList.filter((n) => !n.readAt).length;
-
-  const totalPages = Math.ceil(notificationList.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(notificationList, page), [notificationList, page]);
+  // Every notification, a page at a time from the API (owner 2026-10-25) —
+  // it used to page the bell's 50 newest in the browser, and stop there.
+  const list = useServerList<Notification>({ queryKey: 'notifications', path: '/notifications' });
+  const { rows: notificationList, isLoading } = list;
 
   // ── Mutations ─────────────────────────────────────────────────────
   const markReadMutation = useMutation({
@@ -117,7 +126,7 @@ export default function NotificationsPage() {
             <EmptyState icon={Bell} title={t('noNotifications')} description={t('emptyHint')} />
           ) : (
             <div className="divide-y divide-gray-100">
-              {paginated.map((notification) => {
+              {notificationList.map((notification) => {
                 const Icon = EVENT_ICONS[notification.eventType] ?? Bell;
                 return (
                   <NotificationRow
@@ -156,8 +165,14 @@ export default function NotificationsPage() {
       )}
 
       {/* Pagination */}
-      {notificationList.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={notificationList.length} />
+      {list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
     </div>
   );

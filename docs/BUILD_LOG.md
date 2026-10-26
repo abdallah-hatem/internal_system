@@ -16,6 +16,10 @@ lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 
+2026-10-26 — Live-pending: **server-side lists + Sales customer filter ported onto master without branches** (from
+dev `5c75bcb` + `e1d28f4`; the Sales branch filter stays on `dev` with customer branches). No migration. Verified by
+tsc, lint, API unit and web component tests and `next build`; no e2e (owner's rule).
+
 2026-10-26 — a **Units sold** tile on the product page (owner: "a card to display how many units were sold"; BUSINESS_LOGIC §3)
 is on branch `worktree-agent-a65382d705665b118`, awaiting the owner's look; not merged.
 

@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { useLocale } from 'next-intl';
-import { searchFinds } from './localized-name';
 
 /**
  * A supplier's country (BUSINESS_LOGIC §21, 2026-10-16): stored as an ISO
@@ -63,18 +62,6 @@ export function countryLabel(value: string | null | undefined, locale: string): 
   if (!v) return '—';
   if (!isCountryCode(v)) return v;
   return namesIn(locale).of(v) ?? v;
-}
-
-/** What a search box matches a stored country against: both names and the code. */
-export function countrySearchText(value: string | null | undefined): string {
-  const v = (value ?? '').trim();
-  if (!isCountryCode(v)) return v;
-  return `${v} ${namesIn('en').of(v) ?? ''} ${namesIn('ar').of(v) ?? ''}`;
-}
-
-/** Does a search typed in either language (or a code) find this country? */
-export function countryMatches(value: string | null | undefined, search: string): boolean {
-  return searchFinds(countrySearchText(value), search);
 }
 
 /**

@@ -1,19 +1,18 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
 import { LatinText } from '@/components/ui/latin-text';
-import { useAllRecords } from '@/lib/list-all';
-import { ListCapNotice } from '@/components/ui/list-cap-notice';
 import { Money } from '../../../components/ui/money';
 import { CustomerLink } from '../../../components/ui/entity-link';
 import { Select } from '../../../components/ui/select';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../components/ui/toast';
-import { Suspense, useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Suspense, useState } from 'react';
+import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import { useDateFormat } from '../../../lib/dates';
 import {
   Users, Plus, Eye, Edit, Loader2,
@@ -24,7 +23,6 @@ import {
 import { useApiError } from '../../../lib/api-error';
 import { ENTITY_FORMS } from '../../../components/entities/entity-forms';
 import { InputField } from '../../../components/ui/fields';
-import { sortByBalance } from '../../../components/dashboard/list-params';
 import { useCodeLabel } from '@/lib/labels';
 import { ValidatedForm } from '@/components/ui/validated-form';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -116,34 +114,33 @@ function CustomersPageContent() {
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
   const ts = useTranslations('sales');
-  const searchParams = useSearchParams();
-  const byBalance = searchParams.get('sort') === 'balance';
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [search, setSearch] = useState('');
   // Shops that signed themselves up are UNVERIFIED, and the API hides those
   // from an unfiltered list — so without this control they were unreachable
   // from the panel entirely, and nothing could ever vet them.
-  const [verification, setVerification] = useState('');
   const [verifyingCustomer, setVerifyingCustomer] = useState<Customer | null>(null);
-  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, verification, byBalance]);
 
   // ── Queries ───────────────────────────────────────────────────────
   // Changing the verification filter is a new query: keep the rows on screen
   // (dimmed) until it answers rather than dropping back to skeletons.
-  const { items: customers, capped, isLoading, reloading } = useAllRecords(
-    ['customers', verification],
-    '/customers',
-    verification ? { verification } : {},
-    { keepPrevious: true },
-  );
+  //
+  // Searched, filtered, sorted and paged by the API (owner 2026-10-25): the
+  // URL's `?q=`, `?verification=`, `?sort=balance` (the dashboard's "who
+  // owes" tile) and `?page=` go to it as they are.
+  const list = useServerList<Customer>({
+    queryKey: 'customers',
+    path: '/customers',
+    filters: { verification: 'verification' },
+  });
+  const { rows: customers, isLoading, reloading } = list;
+  const verification = list.get('verification');
+  const byBalance = list.sort === 'balance';
 
   const { data: customerDetail } = useQuery({
     queryKey: ['customer', viewingCustomer?.id],
@@ -190,33 +187,18 @@ function CustomersPageContent() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const customerList: Customer[] = Array.isArray(customers) ? customers : [];
-
-  const matching = customerList.filter((c) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      c.displayName?.toLowerCase().includes(q) ||
-      c.phone?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q)
-    );
-  });
-  const filtered = byBalance ? sortByBalance(matching) : matching;
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    customerList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={{ label: t('create'), onClick: () => setShowCreateModal(true) }}
       />
     ) : (
-      <NoMatch filtered={!!verification} onClear={() => { setSearch(''); setVerification(''); }} />
+      <NoMatch filtered={!!verification} onClear={list.clear} />
     );
 
   const detail = (customerDetail as Customer) ?? viewingCustomer;
@@ -356,12 +338,12 @@ function CustomersPageContent() {
       <CustomersSummary />
 
       {/* Search + verification filter */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }}>
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }}>
         <Select
           id="verification-filter"
           className="w-full sm:w-52"
           value={verification}
-          onChange={setVerification}
+          onChange={(v) => list.set('verification', v || null)}
           clearable
           placeholder={t('verifiedOnly')}
           options={[
@@ -378,7 +360,7 @@ function CustomersPageContent() {
           </span>
           <button
             type="button"
-            onClick={() => router.replace(`/${locale}/customers`, { scroll: false })}
+            onClick={() => list.setSort(null)}
             className="min-h-11 cursor-pointer px-2 text-primary hover:underline sm:min-h-0"
           >
             {tc('clear')}
@@ -386,7 +368,6 @@ function CustomersPageContent() {
         </div>
       )}
 
-      <ListCapNotice capped={capped} count={customers.length} />
 
       {/* Loading: the table's own header over skeleton rows, skeleton cards on a phone. */}
       {isLoading && <LoadingStatus />}
@@ -395,7 +376,7 @@ function CustomersPageContent() {
       <DataTable
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={customers}
         rowKey={(c) => c.id}
         isLoading={isLoading}
         stale={reloading}
@@ -410,10 +391,10 @@ function CustomersPageContent() {
       )}
       {!isLoading && (
         <div className={`md:hidden space-y-3 transition-opacity ${reloading ? 'opacity-60' : ''}`}>
-          {filtered.length === 0 ? (
+          {customers.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((customer) => (
+            customers.map((customer) => (
               <div
                 key={customer.id}
 onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
@@ -453,8 +434,14 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
       {/* ─── Create Modal ──────────────────────────────────────────── */}
@@ -586,7 +573,7 @@ onClick={() => router.push(`/${locale}/customers/${customer.id}`)}
                   icon={ShoppingCart}
                   title={t('noOrders')}
                   description={t('noOrdersHint')}
-                  action={{ label: ts('create'), href: `/sales?customer=${detail.id}` }}
+                  action={{ label: ts('create'), href: `/sales?new=1&customer=${detail.id}` }}
                 />
               ) : (
                 <div className="space-y-2">

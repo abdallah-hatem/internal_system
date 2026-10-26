@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(search.value),
   useParams: () => ({ locale: 'en' }),
+  usePathname: () => '/en/inventory',
 }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -30,11 +31,20 @@ const data = vi.hoisted(() => ({
   inventory: [] as unknown[],
   cycles: [] as unknown[],
   shipments: {} as Record<string, unknown>,
+  /** What the inventory list last asked the API for. */
+  inventoryParams: {} as Record<string, unknown>,
 }));
 vi.mock('@/lib/api', () => ({
   api: {
-    get: (url: string) => {
-      if (url === '/inventory') return Promise.resolve({ data: { data: data.inventory } });
+    get: (url: string, config: { params?: Record<string, unknown> } = {}) => {
+      if (url === '/inventory') {
+        data.inventoryParams = config.params ?? {};
+        // The server narrows to low stock (server-side lists, 2026-10-25);
+        // this stand-in answers with what it is given.
+        return Promise.resolve({
+          data: { data: data.inventory, meta: { total: data.inventory.length, totalPages: 1 } },
+        });
+      }
       // The list helper sends its page size as params, not in the URL (L1).
       if (url === '/cycles' || url.startsWith('/cycles?')) return Promise.resolve({ data: { data: data.cycles } });
       const m = url.match(/^\/cycles\/([^/]+)\/shipment$/);
@@ -104,14 +114,13 @@ describe('Inventory low stock — the one rule (§3, 2026-10-10)', () => {
     });
   });
 
-  it('?stock=low (the dashboard tile) shows exactly the highlighted ones', async () => {
+  it('?stock=low (the dashboard tile) asks the API for low stock and shows what it answers, highlighted', async () => {
     search.value = 'stock=low';
-    data.inventory = [
-      stockRow('No minimum', 3, { minStock: null, status: 'ACTIVE' }),
-      stockRow('Under minimum', 40, { minStock: 50, status: 'ACTIVE' }),
-    ];
+    // The API's answer to stock=low: only the product under its minimum.
+    data.inventory = [stockRow('Under minimum', 40, { minStock: 50, status: 'ACTIVE' })];
     renderPage();
     const rows = await screen.findAllByTestId('inventory-row');
+    expect(data.inventoryParams).toMatchObject({ stock: 'low', page: 1 });
     expect(rows.map((r) => r.dataset.product)).toEqual(['Under minimum']);
     expect(rows[0].dataset.low).toBe('true');
   });

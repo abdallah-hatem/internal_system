@@ -130,7 +130,10 @@ describe('every list uses the shared toolbar', () => {
   const files = listSources().map((f) => ({ f, source: readFileSync(f, 'utf8') }));
 
   it('finds the lists it is meant to check', () => {
-    expect(files.filter(({ source }) => /const \[search, setSearch\]/.test(source)).length).toBeGreaterThanOrEqual(14);
+    // A list searches in its own state, or — since 2026-10-25 — on the server
+    // through `useServerList`.
+    const searching = /const \[search, setSearch\]|= useServerList[<(]/;
+    expect(files.filter(({ source }) => searching.test(source)).length).toBeGreaterThanOrEqual(14);
   });
 
   it('no file hand-draws a search input', () => {

@@ -1,18 +1,18 @@
 'use client';
 import { NoMatch } from '@/components/ui/no-match';
-import { localName, matchesName } from '@/lib/localized-name';
+import { localName } from '@/lib/localized-name';
 import { ProductLink } from '../../../components/ui/entity-link';
 import { BatchRef } from '../../../components/ui/batch-ref';
 import { Money } from '../../../components/ui/money';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { isBelowMinStock } from '@/lib/low-stock';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { ReceiveStockList } from '../../../components/shipment/ReceiveStockList';
-import { Suspense, useState, useMemo, useEffect } from 'react';
-import { Pagination, paginate, PAGE_SIZE } from '../../../components/ui/pagination';
+import { Suspense, useState } from 'react';
+import { Pagination, PAGE_SIZE } from '../../../components/ui/pagination';
+import { useServerList } from '@/lib/server-list';
 import {
   ChevronDown, AlertTriangle,
   ArrowUpDown, CheckCircle2, Clock, PackageCheck,
@@ -86,12 +86,7 @@ function InventoryPageContent() {
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
-  const router = useRouter();
   const locale = useLocale();
-  const lowOnly = useSearchParams().get('stock') === 'low';
-
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   // "Receive stock" replaced a dialog that asked for product IDs typed by hand
   // (UX #4): it now lists the deliveries waiting to be counted in.
@@ -101,14 +96,16 @@ function InventoryPageContent() {
   const canReceive = useCan('inventory.receive');
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, lowOnly]);
-
   // ── Queries ───────────────────────────────────────────────────────
-  const { data: inventory = [], isLoading } = useQuery({
-    queryKey: ['inventory'],
-    queryFn: () => api.get('/inventory').then((r) => r.data.data ?? r.data),
+  // One page of products, searched (either language, §3), filtered by
+  // `?stock=low` (the dashboard tile) and paged by the API (owner 2026-10-25).
+  const list = useServerList<InventorySummary>({
+    queryKey: 'inventory',
+    path: '/inventory',
+    filters: { stock: 'stock' },
   });
+  const { rows: inventory, isLoading, reloading } = list;
+  const lowOnly = list.get('stock') === 'low';
 
   const { data: movements = [], isLoading: loadingMovements } = useQuery({
     queryKey: ['inventoryMovements', selectedBatchId],
@@ -118,30 +115,20 @@ function InventoryPageContent() {
   });
 
   // ── Derived ───────────────────────────────────────────────────────
-  const inventoryList: InventorySummary[] = Array.isArray(inventory) ? inventory : [];
   const movementList: BatchMovement[] = Array.isArray(movements) ? movements : [];
 
-  const filtered = inventoryList.filter((item) => {
-    if (lowOnly && !isBelowMinStock(item)) return false;
-    if (!search) return true;
-    // Either language (§3, 2026-10-14).
-    return matchesName({ name: item.productName, nameAr: item.productNameAr }, search);
-  });
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = useMemo(() => paginate(filtered, page), [filtered, page]);
 
   // Nothing at all says what goes here and offers the first one; nothing for
   // this search or filter says only that (UX #12).
   const emptyList =
-    inventoryList.length === 0 ? (
+    list.total === 0 && !list.filtered ? (
       <EmptyState
         title={t('emptyTitle')}
         description={t('emptyHint')}
         action={{ label: t('emptyAction'), href: '/cycles' }}
       />
     ) : (
-      <NoMatch onClear={() => setSearch('')} />
+      <NoMatch filtered={lowOnly} onClear={list.clear} />
     );
 
   // ── Columns ───────────────────────────────────────────────────────
@@ -311,7 +298,7 @@ function InventoryPageContent() {
       {canReceive && showReceive && <ReceiveStockList />}
 
       {/* Search */}
-      <ListToolbar search={{ value: search, onChange: setSearch, placeholder: t('search') }} />
+      <ListToolbar search={{ value: list.search, onChange: list.setSearch, placeholder: t('search') }} />
 
       {lowOnly && (
         <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="low-stock-chip">
@@ -321,7 +308,7 @@ function InventoryPageContent() {
           </span>
           <button
             type="button"
-            onClick={() => router.replace(`/${locale}/inventory`, { scroll: false })}
+            onClick={() => list.set('stock', null)}
             className="min-h-11 cursor-pointer px-2 text-primary hover:underline sm:min-h-0"
           >
             {td('showAll')}
@@ -336,9 +323,10 @@ function InventoryPageContent() {
       <DataTable
         className="hidden md:block"
         columns={columns}
-        rows={paginated}
+        rows={inventory}
         rowKey={(item) => item.productId}
         isLoading={isLoading}
+        stale={reloading}
         empty={emptyList}
         onRowClick={(item) => setExpandedProduct(expandedProduct === item.productId ? null : item.productId)}
         rowClassName={(item) => (isBelowMinStock(item) ? 'bg-red-50/50' : undefined)}
@@ -358,10 +346,10 @@ function InventoryPageContent() {
       )}
       {!isLoading && (
         <div className="md:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {inventory.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200">{emptyList}</div>
           ) : (
-            paginated.map((item) => {
+            inventory.map((item) => {
               const isExpanded = expandedProduct === item.productId;
               const isLow = isBelowMinStock(item);
               return (
@@ -480,8 +468,14 @@ function InventoryPageContent() {
       )}
 
       {/* Pagination */}
-      {!isLoading && filtered.length > 0 && (
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} />
+      {!isLoading && list.total > 0 && (
+        <Pagination
+          page={list.page}
+          totalPages={list.totalPages}
+          onPageChange={list.setPage}
+          totalItems={list.total}
+          pageSize={list.pageSize}
+        />
       )}
 
     </div>

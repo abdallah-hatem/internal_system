@@ -1806,7 +1806,12 @@
     "ACCOUNT_PAYOUT_REVERSE_SETTLEMENT": "الأرباح المتروكة تُستعاد بإلغاء تسوية {cycle}.",
     "CONTRIBUTION_ALREADY_LOWERED": "مساهمته في {cycle} هي {contribution} جنيه، أقل من {amount} جنيه التي أدخلها هذا القيد؛ خُفّضت يدوياً.",
     "PAYOUT_LEFT_IN_TWICE": "يترك كل شريك أرباحه مرة واحدة.",
-    "PAYOUT_LEFT_IN_NOT_A_PARTNER": "فقط الشريك الأساسي في تسوية {cycle} يمكنه ترك أرباحه."
+    "PAYOUT_LEFT_IN_NOT_A_PARTNER": "فقط الشريك الأساسي في تسوية {cycle} يمكنه ترك أرباحه.",
+    "LIST_PAGE_INVALID": "رقم الصفحة غير صالح: {value}. أرقام الصفحات أعداد صحيحة من 1 إلى {max}.",
+    "LIST_PAGE_SIZE_INVALID": "يمكن أن تعرض الصفحة من 1 إلى {max} صفًا (المطلوب {value}).",
+    "LIST_SORT_UNKNOWN": "لا يمكن ترتيب هذه القائمة حسب \"{sort}\".",
+    "LIST_FILTER_INVALID": "لا يمكن أن يكون عامل التصفية {field} \"{value}\".",
+    "LIST_SEARCH_TOO_LONG": "يمكن أن يكون البحث {max} حرفًا على الأكثر (هذا البحث {length} حرفًا)."
   },
   "requests": {
     "tabs": {
@@ -2610,7 +2615,8 @@
     "searchLenders": "ابحث باسم المُقرض",
     "searchTypes": "ابحث بالنوع",
     "currencyCode": "GBP",
-    "instalmentCount": "3"
+    "instalmentCount": "3",
+    "allCustomers": "كل العملاء"
   },
   "fxRates": {
     "title": "أسعار الصرف",

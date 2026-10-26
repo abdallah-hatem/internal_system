@@ -24,7 +24,7 @@ import {
   CreateShippingLegDto,
   UpdateShippingLegDto,
 } from './dto/shipping-leg.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
@@ -46,7 +46,7 @@ export class ShippingController {
     summary: 'List shipping legs (an investor: their cycles only)',
   })
   findAll(
-    @Query() query: PaginationDto & { cycleId?: string },
+    @Query() query: ListQuery & { cycleId?: string },
     @CurrentUser() user: Viewer,
   ) {
     return this.shippingService.findAll(query, user);

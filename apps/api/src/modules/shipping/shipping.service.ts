@@ -21,10 +21,12 @@ import {
 } from './deliveries.service';
 import { AuditService } from '../audit/audit.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 import { CostingService } from '../costing/costing.service';
 import { planRecost, recost, refuseCostChange } from '../costing/leg-recost';
 import { Prisma, ShippingCostBasis } from '@prisma/client';
@@ -97,6 +99,21 @@ export interface NewLeg {
   amount?: number;
 }
 
+/**
+ * The Shipments list's orders; the first is the default. Newest cycle first,
+ * its legs in route order. Ordering by cycleId (a random uuid) put a new
+ * cycle's legs anywhere, so whichever legs fell past the page were arbitrary;
+ * now a full page drops the oldest.
+ */
+const LEG_SORTS = {
+  newest: [
+    { cycle: { createdAt: 'desc' } },
+    { cycleId: 'asc' },
+    { sequence: 'asc' },
+    { id: 'asc' },
+  ],
+} satisfies Record<string, Prisma.ShippingLegOrderByWithRelationInput[]>;
+
 @Injectable()
 export class ShippingService {
   constructor(
@@ -107,11 +124,13 @@ export class ShippingService {
   ) {}
 
   async findAll(
-    pagination: PaginationDto & { cycleId?: string },
+    query: ListQuery & { cycleId?: string },
     viewer: ScopeViewer = 'internal',
   ) {
-    const { cursor, limit: rawLimit = 20, cycleId } = pagination;
-    const limit = pageSize(rawLimit);
+    const { cycleId } = query;
+    if (cycleId) assertUuid(cycleId, 'cycleId');
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, LEG_SORTS);
     const where: Prisma.ShippingLegWhereInput = {};
     // An investor: only their cycles' legs (R1).
     const cycleFilter = cycleIdWhere(
@@ -119,31 +138,36 @@ export class ShippingService {
       cycleId,
     );
     if (cycleFilter) where.cycleId = cycleFilter;
+    // The cycle's code, the provider, the tracking number or either place
+    // (server-side lists, owner 2026-10-25).
+    if (search) {
+      where.id = {
+        in: await searchIds(
+          this.prisma,
+          `shipping_legs t JOIN import_cycles c ON c.id = t.cycle_id`,
+          [
+            `c.code`,
+            `t.provider`,
+            `t.tracking_ref`,
+            `t.origin`,
+            `t.destination`,
+          ],
+          search,
+        ),
+      };
+    }
 
-    const items = await this.prisma.shippingLeg.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      // Newest cycle first, its legs in route order. Ordering by cycleId (a
-      // random uuid) put a new cycle's legs anywhere, so whichever legs fell
-      // past the page were arbitrary; now a full page drops the oldest.
-      orderBy: [
-        { cycle: { createdAt: 'desc' } },
-        { cycleId: 'asc' },
-        { sequence: 'asc' },
-        { id: 'asc' },
-      ],
-      include: { cycle: true },
+    const { rows: data, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.shippingLeg.findMany({
+          where,
+          orderBy,
+          include: { cycle: true },
+          ...window,
+        }),
+      count: () => this.prisma.shippingLeg.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
-    return {
-      data,
-      meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
-      },
-    };
+    return { data, meta };
   }
 
   async findByCycle(cycleId: string, viewer: ScopeViewer = 'internal') {

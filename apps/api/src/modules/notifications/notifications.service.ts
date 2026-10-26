@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  PaginationDto,
-  pageSize,
-  cursorPage,
-} from '../../common/dto/pagination.dto';
+  listRows,
+  type ListQuery,
+  searchOf,
+  sortOf,
+} from '../../common/list-query';
+import { searchIds } from '../../common/repositories/list-search';
 
 import type { Prisma } from '@prisma/client';
 import { notFound } from '../../common/api-error';
@@ -39,27 +41,38 @@ export class NotificationsService {
 
   async findAll(
     userId: string,
-    pagination: PaginationDto & { unreadOnly?: boolean },
+    query: ListQuery & { unreadOnly?: boolean | string },
   ) {
-    const { cursor, limit: rawLimit = 20, unreadOnly } = pagination;
-    const limit = pageSize(rawLimit);
-    const where: any = { userId };
-    if (unreadOnly) where.readAt = null;
+    const { unreadOnly } = query;
+    const search = searchOf(query);
+    const { orderBy } = sortOf(query, {
+      newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+    } satisfies Record<string, Prisma.NotificationOrderByWithRelationInput[]>);
+    const where: Prisma.NotificationWhereInput = { userId };
+    if (unreadOnly === true || unreadOnly === 'true') where.readAt = null;
+    if (search) {
+      where.id = {
+        in: await searchIds(
+          this.prisma,
+          `notifications t`,
+          [`t.title`, `t.params::text`],
+          search,
+        ),
+      };
+    }
 
-    const items = await this.prisma.notification.findMany({
-      where,
-      ...cursorPage(cursor, limit),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    // The bell walks cursors; the Notifications page asks for a page
+    // (server-side lists, owner 2026-10-25).
+    const { rows: data, meta } = await listRows(query, {
+      rows: (window) =>
+        this.prisma.notification.findMany({ where, orderBy, ...window }),
+      count: () => this.prisma.notification.count({ where }),
     });
-
-    const hasMore = items.length > limit;
-    const data = hasMore ? items.slice(0, limit) : items;
 
     return {
       data,
       meta: {
-        nextCursor: hasMore ? data[data.length - 1].id : null,
-        limit,
+        ...meta,
         unreadCount: await this.prisma.notification.count({
           where: { userId, readAt: null },
         }),

@@ -12,7 +12,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SuppliersService } from './suppliers.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import type { Viewer } from '../../common/investor-scope';
@@ -27,10 +27,7 @@ export class SuppliersController {
   // An investor reads only the suppliers their cycles bought from (R1).
   @Get()
   @ApiOperation({ summary: 'List suppliers with pagination' })
-  findAll(
-    @Query() query: PaginationDto & { search?: string },
-    @CurrentUser() user: Viewer,
-  ) {
+  findAll(@Query() query: ListQuery, @CurrentUser() user: Viewer) {
     return this.suppliersService.findAll(query, user);
   }
 
