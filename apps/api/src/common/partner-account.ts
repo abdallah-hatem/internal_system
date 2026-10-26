@@ -403,7 +403,15 @@ export function equalShares(
  * What the shares are of (GUESS 2026-10-26): the funding target in pounds
  * when one is set and it is not below the cost to fund; otherwise the cost to
  * fund (`CostingService.fundingFor`, the figure Split equally divides). Less
- * investors' money either way — theirs is their own (§8). Split by
+ * investors' money either way — theirs is their own (§8).
+ *
+ * On a cycle a friend paid, once the partners have repaid him anything
+ * (DECIDED 2026-10-26, owner: "it shows we paid 64,460.76, while its
+ * 67,056.33"), the cost to fund is replaced by **what they repaid him in
+ * pounds** (`repaidEgp`, `repaidOnCycleEgp`): that, not the cost at his
+ * rate, is what they put in — the exchange difference included. Before any
+ * repayment the cost to fund stands. A target still wins when it is set and
+ * not below that figure (GUESS). Split by
  * `equalShares`, the last partner taking the odd piastre; nothing to split
  * gives every share zero rather than letting rounding pick (CLAUDE.md §10).
  *
@@ -412,16 +420,21 @@ export function equalShares(
  * less that — covered, with that much left over, at zero or more; short by
  * its size below zero.
  */
+/** What the Funding card's equal shares are of. */
+export type ShareBasis = 'TARGET' | 'COST_TO_FUND' | 'REPAID';
+
 export function contributionShares(args: {
   targetEgp: Prisma.Decimal.Value | null;
   toFundEgp: Prisma.Decimal.Value;
+  /** What the partners repaid friends on this cycle, in pounds; above zero replaces the cost to fund. */
+  repaidEgp?: Prisma.Decimal.Value;
   investorsEgp: Prisma.Decimal.Value;
   partners: {
     availableEgp: Prisma.Decimal.Value;
     contributionEgp: Prisma.Decimal.Value;
   }[];
 }): {
-  basis: 'TARGET' | 'COST_TO_FUND';
+  basis: ShareBasis;
   ofEgp: Prisma.Decimal;
   partnersEgp: Prisma.Decimal;
   lines: {
@@ -431,7 +444,9 @@ export function contributionShares(args: {
   }[];
 } {
   const zero = new Prisma.Decimal(0);
-  const toFund = new Prisma.Decimal(args.toFundEgp);
+  const repaid = new Prisma.Decimal(args.repaidEgp ?? 0);
+  const byRepaid = repaid.gt(0);
+  const toFund = byRepaid ? repaid : new Prisma.Decimal(args.toFundEgp);
   const target =
     args.targetEgp === null ? null : new Prisma.Decimal(args.targetEgp);
   const byTarget = target !== null && target.gt(0) && target.gte(toFund);
@@ -445,7 +460,7 @@ export function contributionShares(args: {
       ? equalShares(partnersEgp, args.partners.length)
       : args.partners.map(() => zero);
   return {
-    basis: byTarget ? 'TARGET' : 'COST_TO_FUND',
+    basis: byTarget ? 'TARGET' : byRepaid ? 'REPAID' : 'COST_TO_FUND',
     ofEgp,
     partnersEgp,
     lines: args.partners.map((p, i) => {
@@ -457,6 +472,46 @@ export function contributionShares(args: {
         cover: new Prisma.Decimal(p.availableEgp).sub(stillToGive),
       };
     }),
+  };
+}
+
+/**
+ * What one partner has put into a cycle so far (DECIDED 2026-10-26, owner:
+ * "a bit confusing, seeing funding zero, while each one of us clearly paid
+ * 67,056.33 to ahmad"): his contribution on it, plus his advances on it not
+ * yet drawn into a contribution. A drawn advance is inside the contribution
+ * already and is never counted twice — `undrawnAdvancesEgp` is the cycle's
+ * pot (`potsOf`), which is advances less what contributions drew.
+ *
+ * The contribution splits into what was drawn from his account
+ * (`fromAccountEgp`, his CONTRIBUTION movements on the cycle) and what was
+ * entered directly (`enteredEgp`: the rest — Enter amounts, Split equally;
+ * on a cycle a friend paid, his share of repaying the friend). A contribution
+ * lowered by hand below what the account gave reads entered 0, drawn the
+ * whole contribution — never a negative part.
+ */
+export function putInSoFar(args: {
+  contributionEgp: Prisma.Decimal.Value;
+  fromAccountEgp: Prisma.Decimal.Value;
+  undrawnAdvancesEgp: Prisma.Decimal.Value;
+}): {
+  totalEgp: Prisma.Decimal;
+  enteredEgp: Prisma.Decimal;
+  fromAccountEgp: Prisma.Decimal;
+  undrawnAdvancesEgp: Prisma.Decimal;
+} {
+  const zero = new Prisma.Decimal(0);
+  const contribution = Prisma.Decimal.max(args.contributionEgp, zero);
+  const fromAccount = Prisma.Decimal.min(
+    Prisma.Decimal.max(args.fromAccountEgp, zero),
+    contribution,
+  );
+  const undrawn = Prisma.Decimal.max(args.undrawnAdvancesEgp, zero);
+  return {
+    totalEgp: contribution.add(undrawn),
+    enteredEgp: contribution.sub(fromAccount),
+    fromAccountEgp: fromAccount,
+    undrawnAdvancesEgp: undrawn,
   };
 }
 

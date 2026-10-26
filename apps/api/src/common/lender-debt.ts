@@ -130,6 +130,24 @@ export async function exchangeDifferenceEgp(
 }
 
 /**
+ * What the partners have repaid friends on this cycle, in pounds actually
+ * paid (§18): the standing repayments `exchangeDifferenceEgp` reads, the same
+ * rows (`exchangeDifferenceWhere`). The Funding card's equal shares are of
+ * this once it is above zero, and its "repaid Ahmad Eraiby" line says it
+ * (§8, owner 2026-10-26).
+ */
+export async function repaidOnCycleEgp(
+  db: Pick<Db, 'lenderRepayment'>,
+  cycleId: string,
+): Promise<Prisma.Decimal> {
+  const { _sum } = await db.lenderRepayment.aggregate({
+    where: exchangeDifferenceWhere(cycleId),
+    _sum: { amountEgp: true },
+  });
+  return D(_sum.amountEgp);
+}
+
+/**
  * The repayments `exchangeDifferenceEgp` sums, as a filter: one definition
  * for the sum and for Analytics' profit and loss, which reads the same rows
  * one by one to put each on its day (2026-10-18).

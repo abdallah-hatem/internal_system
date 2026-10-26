@@ -13,6 +13,8 @@ import { PaymentsService } from '../payments/payments.service';
 import { SalesService } from '../sales/sales.service';
 import { SettlementsService } from '../settlements/settlements.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { LendersService } from '../lenders/lenders.service';
+import { exchangeDifferenceEgp } from '../../common/lender-debt';
 import { cashPosition } from '../../common/cash-position';
 import { businessToday } from '../../common/dates';
 import { PartnerAccountsService } from './partner-accounts.service';
@@ -47,6 +49,8 @@ suite('partner running accounts (Postgres)', () => {
   let sales: SalesService;
   let settlements: SettlementsService;
   let analytics: AnalyticsService;
+  let lenders: LendersService;
+  let cyclesService: CyclesService;
   let actor: string;
 
   beforeAll(async () => {
@@ -73,6 +77,8 @@ suite('partner running accounts (Postgres)', () => {
     settlements = new SettlementsService(db, audit, costing);
     analytics = new AnalyticsService(db);
     accounts = new PartnerAccountsService(db, audit, costing);
+    lenders = new LendersService(db, audit, notifications, costing);
+    cyclesService = cycles;
     actor = (await partner('Actor')).id;
   });
   afterAll(() => prisma.$disconnect());
@@ -763,6 +769,300 @@ suite('partner running accounts (Postgres)', () => {
       '33.33',
       '33.34',
     ]);
+  });
+
+  // ─── The Funding card on a cycle a friend paid (owner 2026-10-26) ────
+
+  /**
+   * Production's cycle 1, rebuilt the way it happened: an AED order of
+   * 13,905.69 at 13.9066 (193,380.87 EGP) and a 1.41 EGP leg — a cost to fund
+   * of 193,382.28 — that a friend paid in full at the order's rate. The
+   * partners then repay him in three dirham thirds (4,635.23) at 14, 14.50
+   * and 14.90 — 64,893.22 + 67,210.84 + 69,064.93 = 201,168.99 EGP — through
+   * the real repayment path (`lender-math`), the last one settling exactly.
+   */
+  async function friendPaidCycle(
+    opts: { rates?: [number, number, number]; repay?: boolean } = {},
+  ) {
+    const base = await cycleWithPartners('PURCHASING', 'AED');
+    const tag = randomUUID().slice(0, 8);
+    const supplier = await prisma.supplier.create({
+      data: { name: `Friend ${tag}`, country: 'AE' },
+    });
+    const product = await prisma.product.create({
+      data: { sku: `FRIEND-${tag}`, name: `Friend part ${tag}` },
+    });
+    const po = await prisma.purchaseOrder.create({
+      data: {
+        cycleId: base.cycle.id,
+        supplierId: supplier.id,
+        reference: `PO-${tag}`,
+        currency: 'AED',
+        fxRateToEgp: 13.9066,
+        orderedOn: new Date(`${daysAgo(40)}T00:00:00Z`),
+        status: 'CONFIRMED',
+        items: {
+          create: [
+            {
+              productId: product.id,
+              orderedQty: 1,
+              unitPrice: 13905.69,
+              lineTotal: 13905.69,
+            },
+          ],
+        },
+      },
+    });
+    await prisma.shippingLeg.create({
+      data: {
+        cycleId: base.cycle.id,
+        sequence: 1,
+        origin: 'Dubai, UAE',
+        destination: 'Cairo, Egypt',
+        status: 'PLANNED',
+        costBasis: 'FLAT',
+        amount: 1.41,
+        amountEgp: 1.41,
+      },
+    });
+    const friend = await prisma.lender.create({
+      data: { name: `Ahmad Eraiby ${tag}` },
+    });
+    const { data: financing } = await lenders.finance(
+      po.id,
+      { lenderId: friend.id, amount: 13905.69, paidOn: daysAgo(35) },
+      actor,
+    );
+    const f = financing as unknown as { id: string };
+    if (opts.repay !== false) {
+      const rates = opts.rates ?? [14, 14.5, 14.9];
+      const third = 4635.23;
+      // Half up to the piastre: 4,635.23 × 14.50 = 67,210.835 → 67,210.84.
+      const pounds = (rate: number) =>
+        Number(
+          (Math.round(Number((third * rate * 100).toFixed(4))) / 100).toFixed(
+            2,
+          ),
+        );
+      await lenders.repay(
+        f.id,
+        {
+          amountEgp: pounds(rates[0]),
+          rateToEgp: rates[0],
+          paidOn: daysAgo(20),
+        },
+        actor,
+      );
+      await lenders.repay(
+        f.id,
+        {
+          amountEgp: pounds(rates[1]),
+          rateToEgp: rates[1],
+          paidOn: daysAgo(10),
+        },
+        actor,
+      );
+      const { data: quote } = await lenders.quote(f.id, rates[2]);
+      await lenders.repay(
+        f.id,
+        {
+          amountEgp: Number(quote.settlingEgp),
+          rateToEgp: rates[2],
+          paidOn: daysAgo(2),
+        },
+        actor,
+      );
+    }
+    return { ...base, friend };
+  }
+
+  /** Each partner's share of repaying him, entered directly (Enter amounts). */
+  async function enterContributions(
+    participants: { id: string }[],
+    amounts: number[],
+  ) {
+    for (const [i, p] of participants.entries()) {
+      await cyclesService.updateParticipant(
+        p.id,
+        { contributionAmount: amounts[i] },
+        actor,
+      );
+    }
+  }
+
+  it('production’s cycle 1: 67,056.33 put in by each (201,168.99), shares of what was repaid, and the exchange difference settlement takes', async () => {
+    const { cycle, participants, friend } = await friendPaidCycle();
+    // Before the partners enter who repaid what: shares already follow the
+    // repayments, and nobody has put anything in yet.
+    let { data } = await accounts.cycleFunding(cycle.id);
+    expect(data.shares.basis).toBe('REPAID');
+    expect(data.putIn.totalEgp).toBe('0.00');
+
+    await enterContributions(participants, [67056.33, 67056.33, 67056.33]);
+    ({ data } = await accounts.cycleFunding(cycle.id));
+
+    // 1. Put in so far: his contribution, entered directly — repaying him.
+    expect(data.putIn.totalEgp).toBe('201168.99');
+    expect(
+      data.putIn.byPartner.map((p) => [
+        p.totalEgp,
+        p.enteredEgp,
+        p.fromAccountEgp,
+        p.undrawnAdvancesEgp,
+      ]),
+    ).toEqual([0, 1, 2].map(() => ['67056.33', '67056.33', '0.00', '0.00']));
+    // The advances-only figure the card used to show is still zero here.
+    expect(data.paidSoFar.totalEgp).toBe('0.00');
+
+    // 2. Shares: thirds of what was repaid him, not of the cost to fund.
+    expect(data.toFundEgp).toBe('193382.28');
+    expect(data.shares).toEqual(
+      expect.objectContaining({ basis: 'REPAID', ofEgp: '201168.99' }),
+    );
+    expect(data.partners.map((p) => [p.shareEgp, p.coverEgp])).toEqual(
+      [0, 1, 2].map(() => ['67056.33', '0.00']),
+    );
+
+    // 3. The exchange difference: the very figure settlement and profit use.
+    expect(data.friends).toEqual(
+      expect.objectContaining({
+        names: [friend.name],
+        financedEgp: '193380.87',
+        repaidEgp: '201168.99',
+      }),
+    );
+    const reader = await exchangeDifferenceEgp(prisma, cycle.id);
+    const projected = (await settlements.project(cycle.id))!;
+    expect(data.friends!.exchangeDifferenceEgp).toBe(reader.toFixed(2));
+    expect(data.friends!.exchangeDifferenceEgp).toBe(
+      projected.exchangeDifferenceEgp.toFixed(2),
+    );
+    // Repaid 201,168.99 − his 193,380.87 at his own rate.
+    expect(data.friends!.exchangeDifferenceEgp).toBe('7788.12');
+    // Each one's part is what settlement takes off his profit share for it:
+    // nothing sold yet, so the projected profit is exactly minus the difference.
+    expect(projected.pnl.grossProfit.toFixed(2)).toBe('-7788.12');
+    expect(data.friends!.exchangeSplit!.map((p) => p.amountEgp)).toEqual(
+      projected.distribution.lines.map((l) => l.grossProfit.neg().toFixed(2)),
+    );
+    expect(data.friends!.exchangeSplit!.map((p) => p.amountEgp)).toEqual([
+      '2596.04',
+      '2596.04',
+      '2596.04',
+    ]);
+  });
+
+  it('a friend-paid cycle before any repayment: shares of the cost to fund, nothing repaid, no exchange difference', async () => {
+    const { cycle } = await friendPaidCycle({ repay: false });
+    const { data } = await accounts.cycleFunding(cycle.id);
+    expect(data.shares).toEqual(
+      expect.objectContaining({ basis: 'COST_TO_FUND', ofEgp: '193382.28' }),
+    );
+    expect(data.partners.map((p) => p.shareEgp)).toEqual([
+      '64460.76',
+      '64460.76',
+      '64460.76',
+    ]);
+    expect(data.friends).toEqual(
+      expect.objectContaining({
+        repaidEgp: '0.00',
+        exchangeDifferenceEgp: '0.00',
+      }),
+    );
+  });
+
+  it('the dirham fell before he was repaid: the difference is a gain (negative), split as one', async () => {
+    const { cycle, participants } = await friendPaidCycle({
+      rates: [13.5, 13.4, 13.3],
+    });
+    const { data: before } = await accounts.cycleFunding(cycle.id);
+    const repaidCents = Math.round(Number(before.friends!.repaidEgp) * 100);
+    const third = Math.floor(repaidCents / 3);
+    await enterContributions(participants, [
+      third / 100,
+      third / 100,
+      (repaidCents - 2 * third) / 100,
+    ]);
+    const { data } = await accounts.cycleFunding(cycle.id);
+    const diff = Number(data.friends!.exchangeDifferenceEgp);
+    expect(diff).toBeLessThan(0);
+    expect(data.friends!.exchangeDifferenceEgp).toBe(
+      (await exchangeDifferenceEgp(prisma, cycle.id)).toFixed(2),
+    );
+    const parts = data.friends!.exchangeSplit!.map((p) =>
+      Math.round(Number(p.amountEgp) * 100),
+    );
+    expect(parts.reduce((a, b) => a + b, 0)).toBe(Math.round(diff * 100));
+    expect(parts.every((v) => v < 0)).toBe(true);
+    // Shares follow what was repaid — less than the cost to fund this time.
+    expect(data.shares.basis).toBe('REPAID');
+    expect(Number(data.shares.ofEgp)).toBeLessThan(Number(data.toFundEgp));
+    expect(data.partners.map((p) => p.coverEgp)).toEqual([
+      '0.00',
+      '0.00',
+      '0.00',
+    ]);
+  });
+
+  it('put in so far with advances partly drawn: contribution + undrawn advances, a drawn advance counted once', async () => {
+    const { cycle, people } = await cycleWithPartners();
+    await accounts.setTarget(
+      cycle.id,
+      { amount: 120000, currency: 'EGP' },
+      actor,
+    );
+    await advance(people[0].id, cycle.id, 50775);
+    await advance(people[1].id, cycle.id, 10000);
+    let { data } = await accounts.cycleFunding(cycle.id);
+    expect(data.friends).toBeNull();
+    expect(data.putIn.totalEgp).toBe('60775.00');
+    expect(data.putIn.inTargetCurrency).toBe('60775.00');
+    expect(data.putIn.byPartner.map((p) => p.totalEgp)).toEqual([
+      '50775.00',
+      '10000.00',
+      '0.00',
+    ]);
+
+    // 10,000 each drawn from the accounts; Fares pays his in first.
+    await advance(people[2].id, cycle.id, 10000);
+    await accounts.contribute(cycle.id, { totalEgp: 30000 }, actor);
+    ({ data } = await accounts.cycleFunding(cycle.id));
+    expect(
+      data.putIn.byPartner.map((p) => [
+        p.totalEgp,
+        p.contributionEgp,
+        p.fromAccountEgp,
+        p.enteredEgp,
+        p.undrawnAdvancesEgp,
+      ]),
+    ).toEqual([
+      ['50775.00', '10000.00', '10000.00', '0.00', '40775.00'],
+      ['10000.00', '10000.00', '10000.00', '0.00', '0.00'],
+      ['10000.00', '10000.00', '10000.00', '0.00', '0.00'],
+    ]);
+    // 70,775, not 100,775: the drawn 30,000 is inside the contributions.
+    expect(data.putIn.totalEgp).toBe('70775.00');
+    expect(data.putIn.inTargetCurrency).toBe('70775.00');
+    // The advances keep their day.
+    expect(data.putIn.byPartner[0].advances).toHaveLength(1);
+    // No friend: the target's thirds, as before.
+    expect(data.shares.basis).toBe('TARGET');
+  });
+
+  it('put in so far in a target of another currency: an undrawn advance in it at face, a contribution at the target’s rate', async () => {
+    const { cycle, people } = await cycleWithPartners('PURCHASING', 'USD');
+    await accounts.setTarget(
+      cycle.id,
+      { amount: 2000, currency: 'USD', fxRateToEgp: 50 },
+      actor,
+    );
+    await advance(people[0].id, cycle.id, 1000, {
+      currency: 'USD',
+      fxRateToEgp: 51,
+    });
+    const { data } = await accounts.cycleFunding(cycle.id);
+    expect(data.putIn.byPartner[0].inTargetCurrency).toBe('1000.00');
+    expect(data.putIn.byPartner[0].totalEgp).toBe('51000.00');
   });
 
   // ─── Phase 2: a payout left in ──────────────────────────────────────
