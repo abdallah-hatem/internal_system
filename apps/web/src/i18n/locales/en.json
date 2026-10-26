@@ -555,7 +555,9 @@
       "credited": "Returns credited",
       "priceLowered": "Price lowered",
       "returnedInFull": "Returned in full — nothing is owed on it.",
-      "page": "Page {n} of {total}"
+      "page": "Page {n} of {total}",
+      "edited": "Edited after it was confirmed: the lines are what the shop holds now, at their price now.",
+      "refundedCash": "Refunded in cash"
     },
     "inactiveTag": "Inactive",
     "saleDate": "Sale date",
@@ -685,7 +687,8 @@
         "REVERSAL": "Payment reversed",
         "RETURN": "Return",
         "PRICE_ADJUSTED": "Price lowered",
-        "CANCELLED": "Cancelled"
+        "CANCELLED": "Cancelled",
+        "EDITED": "Order edited"
       },
       "by": "by {name}",
       "units": "{qty} units",
@@ -700,13 +703,45 @@
       "empty": "Nothing recorded on this order yet",
       "emptyHint": "Its events appear here as they happen.",
       "error": "Could not load the order's history",
-      "retry": "Try again"
+      "retry": "Try again",
+      "change": {
+        "ADDED": "Added",
+        "GIVEN_BACK": "Given back",
+        "PRICE": "Price"
+      },
+      "addedOn": "added {date}"
     },
     "valueNow": {
       "soldAt": "sold at <amount></amount>",
       "was": "was <amount></amount>",
       "held": "{returned} returned · {held} held",
       "nowTitle": "Worth now, after returns and price cuts"
+    },
+    "editOrder": {
+      "open": "Edit order",
+      "title": "Edit order",
+      "intro": "Type the quantity or price a line should have now. Each change is recorded on the day below; nothing already confirmed is overwritten.",
+      "quantity": "Quantity",
+      "unitPrice": "Unit price",
+      "holdsNow": "The shop holds {qty} · now {price} a unit",
+      "newLine": "New on this order · {qty} in stock",
+      "removeAdded": "Remove this product",
+      "addProduct": "Add a product",
+      "addProductPlaceholder": "Choose a product",
+      "inStock": "{qty} in stock",
+      "day": "Day of the change",
+      "note": "Note (optional)",
+      "notePlaceholder": "Why the order changed",
+      "previewTitle": "What this does",
+      "previewEmpty": "Change a quantity or a price, or add a product, to see what it does.",
+      "stockTaken": "Taken from stock",
+      "stockBack": "Back to stock",
+      "profitChange": "Profit change",
+      "owes": "Shop owes",
+      "save": "Save the edit",
+      "saved": "{order} edited. It now owes {owes}.",
+      "failed": "Could not edit the order",
+      "previewFailed": "Could not work out the change"
     }
   },
   "customers": {
@@ -767,7 +802,8 @@
         "PAYMENT": "Payment",
         "RETURN": "Return {reference}",
         "REVERSAL": "Payment reversed",
-        "ADJUSTMENT": "Price lowered"
+        "ADJUSTMENT": "Price lowered",
+        "EDIT": "Order edited"
       },
       "onOrders": "on {orders}",
       "unapplied": "{amount} on no order",
@@ -1074,7 +1110,8 @@
     "SALE_RETURNED_CREDIT": "{by} recorded a return from {shop} on {orderNo} — {refund} EGP off what they owe",
     "SALE_RETURNED_CASH": "{by} recorded a return from {shop} on {orderNo} — {refund} EGP refunded in cash",
     "PAYMENT_REVERSED": "{by} reversed {amount} EGP from {shop}: {reason}",
-    "ORDER_CANCELLED": "{by} cancelled {orderNo} for {shop} ({total} EGP)"
+    "ORDER_CANCELLED": "{by} cancelled {orderNo} for {shop} ({total} EGP)",
+    "ORDER_EDITED": "{by} edited {orderNo} for {shop}: {change} EGP, now owes {owes} EGP"
   },
   "auditLogs": {
     "title": "Audit Logs",
@@ -1800,6 +1837,19 @@
     "LIST_SORT_UNKNOWN": "This list cannot be sorted by \"{sort}\".",
     "LIST_FILTER_INVALID": "The filter {field} cannot be \"{value}\".",
     "LIST_SEARCH_TOO_LONG": "A search can be at most {max} characters (this one has {length}).",
+    "EDIT_ORDER_SAMPLES": "{order} is samples left at a shop; it changes through its own steps, not an edit.",
+    "EDIT_ORDER_NOT_EDITABLE": "Only a confirmed sale can be edited. {order} is {status}.",
+    "EDIT_ORDER_WALK_IN": "{order} was a walk-in sale, paid on the spot; it cannot be edited. Record a return instead.",
+    "EDIT_ORDER_UNDER_CONTRACT": "{order} is sold on instalments ({plan}). Cancel the contract, edit the order, then draw a new one.",
+    "EDIT_ORDER_CYCLE_SETTLED": "Cycle {cycle} is being settled or is settled; {order} can no longer change.",
+    "EDIT_ORDER_BEFORE_SALE": "{order} was sold on {sold}; it cannot be edited on {day}.",
+    "EDIT_ORDER_PRICE_REQUIRED": "{product} is new on this order; it needs a price.",
+    "EDIT_ORDER_NO_CHANGES": "Nothing on the order would change.",
+    "EDIT_ORDER_EMPTY": "That would leave nothing on {order}. To undo the whole sale, record a return or cancel it.",
+    "EDIT_ORDER_BELOW_PAID": "This edit takes {amount} off {order}, which owes only {owed} — it would go below what was paid. To pay money back, record a return with a refund.",
+    "EDIT_ORDER_DUPLICATE_PRODUCT": "The same product is listed twice; give it one line with the quantity it should have.",
+    "EDIT_ORDER_BAD_QUANTITY": "The quantity must be a number, zero or more ({value} was given).",
+    "EDIT_ORDER_BAD_PRICE": "The price must be a number, zero or more, in pounds and piastres ({value} was given).",
     "BRANCH_NOT_THIS_CUSTOMER": "The branch {branch} belongs to another customer.",
     "BRANCH_ARCHIVED": "The branch {branch} is archived: it takes no new orders.",
     "BRANCH_NAME_TAKEN": "This customer already has a branch called {branch}.",
@@ -2071,7 +2121,8 @@
       "SAMPLES_RETURNED": "Samples returned",
       "SAMPLES_WRITTEN_OFF": "Samples written off",
       "PRICE_ADJUSTED": "Price lowered",
-      "ASSISTANT_CHAT": "Asked the assistant"
+      "ASSISTANT_CHAT": "Asked the assistant",
+      "ORDER_EDITED": "Order edited"
     },
     "entityType": {
       "Product": "Product",
@@ -2124,6 +2175,7 @@
       "SALE_MADE": "The date a sale was made",
       "STOCK_RECEIVED": "The date stock was received",
       "PRICE_ADJUSTED": "The date a price was lowered",
+      "ORDER_EDITED": "The date an order was edited",
       "ADVANCE_PAID": "The date a partner paid a supplier",
       "ACCOUNT_WITHDRAWN": "The date money was taken out of an account",
       "ACCOUNT_CONTRIBUTED": "The date of a contribution from an account"

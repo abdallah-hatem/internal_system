@@ -2582,6 +2582,54 @@ test.describe('A cancelled order owes nothing and counts in nothing (§4, fixed 
   });
 });
 
+test.describe('An edited order says one thing everywhere (§4, editing a confirmed order, 2026-10-25)', () => {
+  test('TC-INV-EDIT: below what was paid, beyond the shelf, or dated ahead is refused and moves nothing; an edit that adds units and raises the price moves owed, balance, statement, revenue, cost and the shelf by exactly the same amounts', async ({ request }) => {
+    const c = await shelfCycle(request, 'Inv Edit');
+    const order = await c.sell(4, 50);
+    await c.mk('payments', { customerId: c.customer.id, amount: 100, currency: 'EGP', method: 'CASH', orderId: order.id });
+    const read = async () => (await (await request.get(`${API}/sales/orders/${order.id}`, { headers: c.headers })).json()).data;
+    const balance = async () => Number((await (await request.get(`${API}/customers/${c.customer.id}`, { headers: c.headers })).json()).data.outstandingBalance);
+    const closing = async () => Number((await (await request.get(`${API}/customers/${c.customer.id}/statement`, { headers: c.headers })).json()).data.closingBalance);
+    const edit = async (lines: unknown[], extra: Record<string, unknown> = {}) =>
+      request.post(`${API}/sales/orders/${order.id}/edits`, {
+        headers: c.headers,
+        data: { version: (await read()).version, lines, ...extra },
+      });
+    expect(Number((await read()).outstanding)).toBe(100);
+
+    // 4 → 1 gives back 150 against 100 owed: below what was paid.
+    const below = await edit([{ productId: c.product.id, quantity: 1 }]);
+    expect(below.status()).toBe(400);
+    expect(await errCode(below)).toBe('EDIT_ORDER_BELOW_PAID');
+    // 6 left on the shelf: 11 needs 7.
+    const over = await edit([{ productId: c.product.id, quantity: 11 }]);
+    expect(await errCode(over)).toBe('NOT_ENOUGH_STOCK');
+    const ahead = await edit([{ productId: c.product.id, quantity: 5 }], { editedOn: dayFromNow(1) });
+    expect(await errCode(ahead)).toBe('DATE_IN_FUTURE');
+    expect(Number((await read()).outstanding)).toBe(100);
+    expect((await c.stock()).shelf).toBe(6);
+
+    const dashBefore = await dashOf(request, c.headers);
+    // 4 at 50 → 6 at 60: 2 × 60 added and 4 × 10 more = 160 owed more.
+    const done = await edit([{ productId: c.product.id, quantity: 6, unitPrice: 60 }]);
+    expect(done.ok(), await done.text()).toBeTruthy();
+    const after = await read();
+    expect(Number(after.outstanding)).toBe(260);
+    expect(Number(after.valueNowEgp)).toBe(360);
+    expect(Number(after.total)).toBe(200);
+    expect(await balance()).toBe(260);
+    expect(await closing()).toBe(260);
+    const dashAfter = await dashOf(request, c.headers);
+    expect(Math.round((dashAfter.totalRevenue - dashBefore.totalRevenue) * 100)).toBe(16000);
+    expect(Math.round((dashAfter.totalCogs - dashBefore.totalCogs) * 100)).toBe(2000);
+    expect((await c.stock()).shelf).toBe(4);
+    expect(c.sold()).toBe(6);
+    // The second identical save, at the version it read, is no change.
+    const again = await edit([{ productId: c.product.id, quantity: 6, unitPrice: 60 }]);
+    expect(await errCode(again)).toBe('EDIT_ORDER_NO_CHANGES');
+  });
+});
+
 test.describe('A partner’s running account (§8, owner 2026-10-25: "equal thirds, no negative, paid straight to supplier")', () => {
   /** A fresh cycle on the shelf, with Shady and Fares added beside Abdallah, and each person's account. */
   async function accountsWorld(request: APIRequestContext, label: string) {

@@ -24,6 +24,7 @@ export type HistoryKind =
   | 'REVERSAL'
   | 'RETURN'
   | 'PRICE_ADJUSTED'
+  | 'EDITED'
   | 'CANCELLED';
 
 export interface HistoryEvent {
@@ -50,6 +51,8 @@ export interface HistoryEvent {
     unitPrice?: string;
     previousUnitPrice?: string;
     lineTotal?: string;
+    /** On an edit's lines: units added, units given back, or a price changed. */
+    change?: 'ADDED' | 'GIVEN_BACK' | 'PRICE';
   }[];
 }
 
@@ -63,6 +66,7 @@ const RANK: Record<HistoryKind, number> = {
   REVERSAL: 5,
   RETURN: 6,
   PRICE_ADJUSTED: 7,
+  EDITED: 7.5,
   SAMPLES_RETURNED: 8,
   SAMPLES_WRITTEN_OFF: 9,
   CANCELLED: 10,
@@ -102,8 +106,10 @@ export class OrderHistoryService {
             priceAdjustments: {
               select: { newUnitPrice: true, createdAt: true },
             },
+            edit: { select: { editedOn: true } },
           },
         },
+        edits: { orderBy: { createdAt: 'asc' } },
         returns: {
           include: {
             items: {
@@ -151,6 +157,7 @@ export class OrderHistoryService {
         order.createdBy,
         ...order.returns.map((r) => r.createdBy),
         ...order.priceAdjustments.map((a) => a.createdBy),
+        ...order.edits.map((e) => e.createdBy),
         ...order.paymentAllocations.map((a) => a.payment.createdBy),
         ...audit.map((a) => a.actorUserId),
       ].filter((u): u is string => !!u),
@@ -184,13 +191,16 @@ export class OrderHistoryService {
     const push = (d: Omit<Draft, 'date'> & { date?: string }) =>
       drafts.push({ date: businessDay(new Date(d.atMs)), ...d });
 
-    const lineRows = order.items.map((i) => ({
-      product: i.product.name,
-      productAr: i.product.nameAr,
-      qty: D(i.quantity).toString(),
-      unitPrice: D(i.unitPrice).toFixed(2),
-      lineTotal: D(i.lineTotal).toFixed(2),
-    }));
+    // What it was confirmed with: a line an edit added is the edit's.
+    const lineRows = order.items
+      .filter((i) => !i.editId)
+      .map((i) => ({
+        product: i.product.name,
+        productAr: i.product.nameAr,
+        qty: D(i.quantity).toString(),
+        unitPrice: D(i.unitPrice).toFixed(2),
+        lineTotal: D(i.lineTotal).toFixed(2),
+      }));
 
     // How it began: samples left at the shop, or a sale entered as a draft.
     if (order.samplesLeftAt) {
@@ -301,7 +311,17 @@ export class OrderHistoryService {
     // Units back per line as returns are replayed, so the one that brings the
     // last unit home leaves nothing owed (a returned order owes nothing).
     const returnedSoFar = new Map<string, Prisma.Decimal>();
+    const replayReturned = (r: (typeof order.returns)[number]) => {
+      for (const it of r.items) {
+        returnedSoFar.set(
+          it.saleItemId,
+          (returnedSoFar.get(it.saleItemId) ?? D(0)).add(D(it.qty)),
+        );
+      }
+    };
     for (const r of order.returns) {
+      // Units an edit gave back are shown, and replayed, with the edit.
+      if (r.editId) continue;
       const refund = cents(r.refundEgp);
       push({
         kind: 'RETURN',
@@ -322,12 +342,7 @@ export class OrderHistoryService {
           })),
         ),
         apply: (o) => {
-          for (const it of r.items) {
-            returnedSoFar.set(
-              it.saleItemId,
-              (returnedSoFar.get(it.saleItemId) ?? D(0)).add(D(it.qty)),
-            );
-          }
+          replayReturned(r);
           const all = order.items.every((i) =>
             (returnedSoFar.get(i.id) ?? D(0)).gte(D(i.quantity)),
           );
@@ -338,6 +353,7 @@ export class OrderHistoryService {
     }
 
     for (const a of order.priceAdjustments) {
+      if (a.editId) continue;
       const amount = cents(a.amountEgp);
       push({
         kind: 'PRICE_ADJUSTED',
@@ -358,6 +374,57 @@ export class OrderHistoryService {
           },
         ],
         apply: (o) => o - amount,
+      });
+    }
+
+    // Each edit (§4, 2026-10-25): one event on its day, with what it added,
+    // gave back and repriced, and what it did to what is owed.
+    for (const e of order.edits) {
+      const amount = cents(e.amountEgp);
+      const added = order.items.filter((i) => i.editId === e.id);
+      const back = order.returns.filter((r) => r.editId === e.id);
+      const repriced = order.priceAdjustments.filter((a) => a.editId === e.id);
+      push({
+        kind: 'EDITED',
+        date: dayOf(e.editedOn),
+        at: e.createdAt.toISOString(),
+        atMs: e.createdAt.getTime(),
+        by: nameOf(e.createdBy),
+        reference: order.orderNo,
+        amount: money(Math.abs(amount)),
+        reason: e.reason,
+        lines: [
+          ...added.map((i) => ({
+            change: 'ADDED' as const,
+            product: i.product.name,
+            productAr: i.product.nameAr,
+            qty: D(i.quantity).toString(),
+            unitPrice: D(i.unitPrice).toFixed(2),
+            lineTotal: D(i.lineTotal).toFixed(2),
+          })),
+          ...mergeLines(
+            back.flatMap((r) =>
+              r.items.map((it) => ({
+                product: it.saleItem.product.name,
+                productAr: it.saleItem.product.nameAr,
+                qty: D(it.qty),
+                unitPrice: D(it.unitPrice),
+              })),
+            ),
+          ).map((l) => ({ change: 'GIVEN_BACK' as const, ...l })),
+          ...repriced.map((a) => ({
+            change: 'PRICE' as const,
+            product: a.saleItem.product.name,
+            productAr: a.saleItem.product.nameAr,
+            qty: D(a.qty).toString(),
+            previousUnitPrice: D(a.previousUnitPrice).toFixed(2),
+            unitPrice: D(a.newUnitPrice).toFixed(2),
+          })),
+        ],
+        apply: (o) => {
+          for (const r of back) replayReturned(r);
+          return o + amount;
+        },
       });
     }
 
@@ -424,6 +491,7 @@ export class OrderHistoryService {
         /** Per product: what the shop started with, sent back, holds, and at what price now. */
         products: order.items.map((i) => ({
           saleItemId: i.id,
+          productId: i.productId,
           product: i.product.name,
           productAr: i.product.nameAr,
           startedWith: D(i.quantity).toString(),
@@ -434,6 +502,8 @@ export class OrderHistoryService {
             : D(0)
           ).toFixed(2),
           priceNow: heldUnitPrice(i).toFixed(2),
+          /** The day an order edit added this line; null for a line it was confirmed with. */
+          addedOn: i.edit ? dayOf(i.edit.editedOn) : null,
         })),
         owes: money(owesNow),
         /** The replay's end; equal to `owes` unless the stored figures disagree. */

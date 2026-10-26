@@ -60,6 +60,15 @@ interface Invoice {
   priceLowered?: string;
   returned: boolean;
   owes: string;
+  /**
+   * Edited after it was confirmed (§4, 2026-10-25): the lines are what the
+   * shop holds now, at their price now, and the total its value now.
+   */
+  edited?: boolean;
+  /** What was sold when it was confirmed — shown under an edited total. */
+  soldTotal?: string;
+  /** Money handed back in cash on returns — owed is total − paid + this. */
+  refundedCash?: string;
   account: { balanceBefore: string; balanceAfter: string; balanceNow: string } | null;
 }
 
@@ -418,6 +427,11 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
           />
         )}
         <Figure testId="invoice-total" label={t('total')} value={<Money value={data.total} currency={data.currency} />} strong />
+        {data.edited && (
+          <p className="text-xs text-muted-foreground" data-testid="invoice-edited">
+            {t('edited')}
+          </p>
+        )}
         <Figure testId="invoice-paid" label={t('paid')} value={<Money value={data.paid} currency={data.currency} />} />
         {Number(data.priceLowered ?? 0) > 0 && (
           <Figure
@@ -431,6 +445,13 @@ function InvoiceSheet({ data, lang, sheet }: { data: Invoice; lang: DocumentLang
             testId="invoice-credited"
             label={t('credited')}
             value={<bdi dir="ltr">- <Money value={data.credited} currency={data.currency} /></bdi>}
+          />
+        )}
+        {Number(data.refundedCash ?? 0) > 0 && (
+          <Figure
+            testId="invoice-refunded-cash"
+            label={t('refundedCash')}
+            value={<bdi dir="ltr">+ <Money value={data.refundedCash!} currency={data.currency} /></bdi>}
           />
         )}
         {data.returned && <p className="text-xs text-muted-foreground" data-testid="invoice-returned">{t('returnedInFull')}</p>}

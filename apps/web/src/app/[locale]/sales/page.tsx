@@ -54,6 +54,7 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { ContractButton, ContractPlanDialog, type ContractSale } from '@/components/sales/contract-plan';
 import { AdjustPriceButton, AdjustPriceDialog } from '@/components/sales/adjust-price';
+import { EditOrderButton, EditOrderDialog } from '@/components/sales/edit-order';
 import { OrderHistory } from '@/components/sales/order-history';
 import { LineHeldNote, LineTotalNow, LineUnitPrice, OrderTotal } from '@/components/sales/value-now';
 import { TabBar } from '@/components/ui/tab-bar';
@@ -222,6 +223,7 @@ function SalesPageContent() {
   const [contractFor, setContractFor] = useState<SaleOrder | null>(null);
   // Lowering a price after the order is confirmed (§4, 2026-10-22).
   const [adjustingOrder, setAdjustingOrder] = useState<SaleOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<SaleOrder | null>(null);
   // The popup's two views: the order as it stands, and how it got there (§4).
   const [orderView, setOrderView] = useState<'orderDetails' | 'orderHistory'>('orderDetails');
   // Samples at a shop (§4): what the shop decided.
@@ -985,6 +987,9 @@ function SalesPageContent() {
               {orderDetail && (
                 <AdjustPriceButton sale={detail} onOpen={() => setAdjustingOrder(detail)} />
               )}
+              {orderDetail && (
+                <EditOrderButton sale={detail} onOpen={() => setEditingOrder(detail)} />
+              )}
               {canTakePayment(detail) && (
                 <button
                   type="button"
@@ -1192,6 +1197,15 @@ function SalesPageContent() {
 
       {adjustingOrder && (
         <AdjustPriceDialog sale={adjustingOrder} onClose={() => setAdjustingOrder(null)} />
+      )}
+
+      {editingOrder && (
+        <EditOrderDialog
+          sale={editingOrder}
+          products={productList}
+          stock={stockList}
+          onClose={() => setEditingOrder(null)}
+        />
       )}
 
       {completingSamples && (() => {

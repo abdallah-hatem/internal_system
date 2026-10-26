@@ -16,7 +16,6 @@ Server-side lists + the Sales customer and branch filters: finished 2026-10-26, 
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
 **Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
-Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)
 - 2026-10-24 (owner: "build both, then push dev"): the cycle wizard's step 1 picks origin and currency from **cards**
@@ -63,6 +62,38 @@ Held (owner, 2026-10-25: "hold all for now, i want only the partner running acco
   link, Clear), `sales-buyer-filter.test.tsx` (6: walk-in, a switched customer never keeps or shows the last
   one's branches, also while loading); each break-verified. e2e `104-server-lists` (TC-SL-01..08) written, not run —
   owner said not for now.
+- 2026-10-26 (owner 2026-10-25 queued it; resumed 2026-10-26): **Edit order on a confirmed order** — add a product,
+  change a quantity, change a price up or down, each a dated event (BUSINESS_LOGIC §4 "Editing a confirmed order").
+  API `POST /sales/orders/:id/edits` (+ `/preview`), table `sale_order_edits` (migration
+  `20261026100000_sale_order_edits`, renamed from the 25th's clash with partner accounts); office "Edit order" in the
+  order popup; History, statement (one EDIT row, Profit column; on the order's branch), invoice (current lines), value
+  now everywhere, check-data 12/13.1/13.2/13.3; the other partners are notified (`ORDER_EDITED`, GUESS); the assistant
+  and office chat offer `edit_order` (GUESS). GUESSes for the owner: the same product is one line (twice in one edit is
+  refused); lowering below what was paid is refused (`EDIT_ORDER_BELOW_PAID` — money back is a return with a refund).
+  Tests: `sales/order-edit.db.spec.ts` (26, real Postgres, stock through PO → leg → delivery → verified receipt via
+  `received-stock-fixture-spec.ts`; every reader asked after each case: popup, Sales list, History replay, balance,
+  statement and its profit = the cycles', the shelf, the stock page and the product page's stock value, check-data),
+  `assistant/tools/order-edit.db.spec.ts` (7), `order-edit.roles.spec.ts` (4), `edit-order.test.tsx` (7),
+  `push-landing.test.ts` (ORDER_EDITED). Each guard undone once and its test seen to fail (35 mutations, API and web; check-data 25.1 now reads an
+  edit's own day). E2e: 34
+  TC-INV-EDIT written, **not run** (owner: not for now). The BUILD_LOG's case list, each with its test:
+  limits — qty 0 "a quantity to 0", negative / not a number / too many decimals "limits on the quantity" (products
+  carry no whole-units flag: a fraction is allowed, GUESS), more than the shelf and samples at shops "more than is on
+  the shelf", lowering below sold = a negative quantity (same test), price 0 / negative / huge "limits on the price",
+  inactive product "a new line for a switched-off product", same product twice "GUESS — the same product is one
+  line"; money — "GUESS — lowering below what was paid", "raising after it was paid in full", "a payment spread over
+  two orders", statement closing = balance in every case (`agree`); stock and cost — "units taken come from the oldest
+  batches", "a quantity lowered" (back to its batch at its cost), "a batch emptied by another sale between preview and
+  save", "a cycle re-costed later" (the real leg correction), samples (shelf test); history — "an edit after a return
+  …, and a return after an edit", "an edit after a price cut, and a price cut after an edit", "two edits in a row,
+  then editing back to the original", History's replay = outstanding (`agree`); dates — "dates: not before the sale,
+  not in the future …", "revenue … on the edit's day" (happy path, P&L), "a back-dated sale edited today" (P&L and
+  the dashboard's This month); wrong context — "only the order named is touched" (another shop's order, unknown and
+  malformed ids), "an order on a cycle being settled …", "two partners editing at once", "not on a draft, a cancelled,
+  a fully returned, a samples or a walk-in order, nor under an instalment contract", "an order on one of the shop's
+  branches", every rule in the service (the suites call it directly, no office); the assistant — the 7 in
+  `tools/order-edit.db.spec.ts`. Also fixed: cancelling an unpaid order after an edit or credit-note return released
+  units twice ("cancelling an unpaid order after an edit…").
 - 2026-10-25 (owner: "make full branches again",
   then "not required because default to the default"): **a customer with branches** — one owner pays for all. Rules
   in BUSINESS_LOGIC §7 "A customer with branches". A `customer_branches` table (name, address, phone, default,

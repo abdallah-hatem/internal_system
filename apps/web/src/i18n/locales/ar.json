@@ -555,7 +555,9 @@
       "credited": "مرتجعات مخصومة",
       "priceLowered": "تخفيض السعر",
       "returnedInFull": "أُرجع بالكامل — لا شيء مستحق عليه.",
-      "page": "صفحة {n} من {total}"
+      "page": "صفحة {n} من {total}",
+      "edited": "عُدّل بعد تأكيده: البنود هي ما لدى المحل الآن، بسعرها الحالي.",
+      "refundedCash": "رُدّ نقدًا"
     },
     "inactiveTag": "غير نشط",
     "saleDate": "تاريخ البيع",
@@ -685,7 +687,8 @@
         "REVERSAL": "إلغاء دفعة",
         "RETURN": "مرتجع",
         "PRICE_ADJUSTED": "تخفيض السعر",
-        "CANCELLED": "إلغاء الطلب"
+        "CANCELLED": "إلغاء الطلب",
+        "EDITED": "تعديل الطلب"
       },
       "by": "بواسطة {name}",
       "units": "{qty} وحدة",
@@ -700,13 +703,45 @@
       "empty": "لم يُسجَّل شيء على هذا الطلب بعد",
       "emptyHint": "تظهر أحداثه هنا عند حدوثها.",
       "error": "تعذّر تحميل سجل الطلب",
-      "retry": "حاول مرة أخرى"
+      "retry": "حاول مرة أخرى",
+      "change": {
+        "ADDED": "إضافة",
+        "GIVEN_BACK": "إرجاع",
+        "PRICE": "السعر"
+      },
+      "addedOn": "أُضيف {date}"
     },
     "valueNow": {
       "soldAt": "بيع بـ <amount></amount>",
       "was": "كان <amount></amount>",
       "held": "{returned} مرتجع · {held} لدى المحل",
       "nowTitle": "القيمة الآن بعد المرتجعات وتخفيض الأسعار"
+    },
+    "editOrder": {
+      "open": "تعديل الطلب",
+      "title": "تعديل الطلب",
+      "intro": "اكتب الكمية أو السعر الذي يجب أن يكون عليه البند الآن. كل تغيير يُسجَّل في اليوم المحدد أدناه؛ ولا يُكتب فوق أي شيء تم تأكيده.",
+      "quantity": "الكمية",
+      "unitPrice": "سعر الوحدة",
+      "holdsNow": "لدى المحل {qty} · الآن {price} للوحدة",
+      "newLine": "جديد على هذا الطلب · {qty} في المخزون",
+      "removeAdded": "إزالة هذا المنتج",
+      "addProduct": "إضافة منتج",
+      "addProductPlaceholder": "اختر منتجًا",
+      "inStock": "{qty} في المخزون",
+      "day": "يوم التغيير",
+      "note": "ملاحظة (اختياري)",
+      "notePlaceholder": "سبب تغيير الطلب",
+      "previewTitle": "ماذا يفعل هذا",
+      "previewEmpty": "غيّر كمية أو سعرًا، أو أضف منتجًا، لترى ما يفعله.",
+      "stockTaken": "يُسحب من المخزون",
+      "stockBack": "يعود إلى المخزون",
+      "profitChange": "تغيّر الربح",
+      "owes": "المستحق على المحل",
+      "save": "حفظ التعديل",
+      "saved": "تم تعديل {order}. المستحق عليه الآن {owes}.",
+      "failed": "تعذّر تعديل الطلب",
+      "previewFailed": "تعذّر حساب التغيير"
     }
   },
   "customers": {
@@ -767,7 +802,8 @@
         "PAYMENT": "دفعة",
         "RETURN": "مرتجع {reference}",
         "REVERSAL": "عكس دفعة",
-        "ADJUSTMENT": "تخفيض السعر"
+        "ADJUSTMENT": "تخفيض السعر",
+        "EDIT": "تعديل الطلب"
       },
       "onOrders": "على {orders}",
       "unapplied": "{amount} غير مخصّص لأي طلب",
@@ -1074,7 +1110,8 @@
     "SALE_RETURNED_CREDIT": "{by} سجّل مرتجعًا من {shop} على {orderNo} — خُصم {refund} جنيه من المستحق",
     "SALE_RETURNED_CASH": "{by} سجّل مرتجعًا من {shop} على {orderNo} — رُدّ {refund} جنيه نقدًا",
     "PAYMENT_REVERSED": "{by} عكس دفعة {amount} جنيه من {shop}: {reason}",
-    "ORDER_CANCELLED": "{by} ألغى {orderNo} لـ {shop} ({total} جنيه)"
+    "ORDER_CANCELLED": "{by} ألغى {orderNo} لـ {shop} ({total} جنيه)",
+    "ORDER_EDITED": "{by} عدّل {orderNo} لـ {shop}: {change} جنيه، المستحق الآن {owes} جنيه"
   },
   "auditLogs": {
     "title": "سجلات التدقيق",
@@ -1800,6 +1837,19 @@
     "LIST_SORT_UNKNOWN": "لا يمكن ترتيب هذه القائمة حسب \"{sort}\".",
     "LIST_FILTER_INVALID": "لا يمكن أن يكون عامل التصفية {field} \"{value}\".",
     "LIST_SEARCH_TOO_LONG": "يمكن أن يكون البحث {max} حرفًا على الأكثر (هذا البحث {length} حرفًا).",
+    "EDIT_ORDER_SAMPLES": "{order} عينات متروكة عند محل؛ تتغير بخطواتها الخاصة، وليس بالتعديل.",
+    "EDIT_ORDER_NOT_EDITABLE": "لا يمكن تعديل إلا بيع مؤكد. حالة {order} هي {status}.",
+    "EDIT_ORDER_WALK_IN": "{order} بيع لعميل عابر دُفع في الحال؛ لا يمكن تعديله. سجّل مرتجعًا بدلًا من ذلك.",
+    "EDIT_ORDER_UNDER_CONTRACT": "{order} مباع بالتقسيط ({plan}). ألغِ العقد، ثم عدّل الطلب، ثم اعمل عقدًا جديدًا.",
+    "EDIT_ORDER_CYCLE_SETTLED": "الدورة {cycle} قيد التسوية أو تمت تسويتها؛ لم يعد ممكنًا تغيير {order}.",
+    "EDIT_ORDER_BEFORE_SALE": "تم بيع {order} يوم {sold}؛ لا يمكن تعديله بتاريخ {day}.",
+    "EDIT_ORDER_PRICE_REQUIRED": "{product} جديد على هذا الطلب؛ يحتاج إلى سعر.",
+    "EDIT_ORDER_NO_CHANGES": "لن يتغير شيء في الطلب.",
+    "EDIT_ORDER_EMPTY": "هذا سيترك {order} بلا شيء. لإلغاء البيع كله، سجّل مرتجعًا أو ألغِ الطلب.",
+    "EDIT_ORDER_BELOW_PAID": "هذا التعديل يخصم {amount} من {order}، والمستحق عليه {owed} فقط — سيصبح أقل مما دُفع. لرد مال، سجّل مرتجعًا مع استرداد.",
+    "EDIT_ORDER_DUPLICATE_PRODUCT": "نفس المنتج مذكور مرتين؛ اجعله سطرًا واحدًا بالكمية المطلوبة.",
+    "EDIT_ORDER_BAD_QUANTITY": "الكمية يجب أن تكون رقمًا، صفرًا أو أكثر (المُدخل {value}).",
+    "EDIT_ORDER_BAD_PRICE": "السعر يجب أن يكون رقمًا، صفرًا أو أكثر، بالجنيه والقروش (المُدخل {value}).",
     "BRANCH_NOT_THIS_CUSTOMER": "الفرع {branch} تابع لعميل آخر.",
     "BRANCH_ARCHIVED": "الفرع {branch} مؤرشف: لا يستقبل طلبات جديدة.",
     "BRANCH_NAME_TAKEN": "لدى هذا العميل فرع باسم {branch} بالفعل.",
@@ -2071,7 +2121,8 @@
       "SAMPLES_RETURNED": "رجعت العينات",
       "SAMPLES_WRITTEN_OFF": "شُطبت العينات",
       "PRICE_ADJUSTED": "تخفيض السعر",
-      "ASSISTANT_CHAT": "سؤال للمساعد"
+      "ASSISTANT_CHAT": "سؤال للمساعد",
+      "ORDER_EDITED": "تعديل طلب"
     },
     "entityType": {
       "Product": "منتج",
@@ -2124,6 +2175,7 @@
       "SALE_MADE": "تاريخ البيع",
       "STOCK_RECEIVED": "تاريخ استلام البضاعة",
       "PRICE_ADJUSTED": "تاريخ تخفيض السعر",
+      "ORDER_EDITED": "تاريخ تعديل الطلب",
       "ADVANCE_PAID": "تاريخ دفع الشريك للمورد",
       "ACCOUNT_WITHDRAWN": "تاريخ السحب من الحساب",
       "ACCOUNT_CONTRIBUTED": "تاريخ المساهمة من الحساب"

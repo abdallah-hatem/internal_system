@@ -1303,9 +1303,11 @@ async function toolsOf(server: McpServer): Promise<Tool[]> {
 /**
  * §16, 2026-10-11: the assistant can record a sale and, approved by the owner
  * the same day, a payment a shop made — those two tools, and no reversal,
- * allocation, return or settlement besides.
+ * allocation, return or settlement besides. An edit of a confirmed order
+ * (§4, GUESS 2026-10-26: offered here as the BUILD_LOG asked "if exposed
+ * there") is OrderEditsService's preview and save, nothing more.
  */
-const SALE_WRITES = new Set(['record_sale', 'record_payment']);
+const SALE_WRITES = new Set(['record_sale', 'record_payment', 'edit_order']);
 
 /**
  * §16 and §18, 2026-10-11 (L2): what a friend paid a supplier for us, and our

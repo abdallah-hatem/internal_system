@@ -63,6 +63,7 @@ export function notificationHref(
     case 'SALE_CONFIRMED':
     case 'SALE_RETURNED':
     case 'ORDER_CANCELLED':
+    case 'ORDER_EDITED':
       return payload.orderId ? `/sales?order=${payload.orderId}` : '/sales';
 
     // Samples at a shop for 14 days (§4): the order itself, opened on Sales.

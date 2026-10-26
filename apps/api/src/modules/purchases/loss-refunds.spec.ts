@@ -242,13 +242,20 @@ function teachDashboard() {
   prisma.salePriceAdjustment = {
     aggregate: answer({ _sum: { amountEgp: null } }),
   };
+  // Nor is any order edited (§4, 2026-10-25): no line was added by one.
+  prisma.saleItem = {
+    ...prisma.saleItem,
+    aggregate: answer({ _sum: { lineTotal: null } }),
+  };
   // COGS of what sold; nothing here is ever samples written off (§4), so
   // that question — the only other one asked of this aggregate — finds none.
   prisma.saleItemAllocation.aggregate = ({ where }: Row = {}) =>
     Promise.resolve({
       _sum: {
         cogsEgp:
-          where?.saleItem?.saleOrder?.status === 'SAMPLES_WRITTEN_OFF'
+          where?.saleItem?.saleOrder?.status === 'SAMPLES_WRITTEN_OFF' ||
+          // The cost of lines an order edit added: none here.
+          where?.saleItem?.editId?.not === null
             ? null
             : sum(db.allocations, 'cogsEgp'),
       },

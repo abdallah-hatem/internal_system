@@ -87,6 +87,8 @@ export const ACTION_ROLES = {
   'sale.samplesWriteOff': PARTNERS, //   POST /sales/orders/:id/samples/write-off
   // Lowering a confirmed sale's price (§4, 2026-10-22) — SalesController
   'sale.adjustPrice': PARTNERS, //       POST /sales/orders/:id/price-adjustments
+  // Editing a confirmed order (§4, 2026-10-25) — SalesController
+  'sale.editOrder': PARTNERS, //         POST /sales/orders/:id/edits
   // A customer's branches (§7, owner 2026-10-25) — CustomersController
   'customer.editBranches': PARTNERS, //  POST /customers/:id/branches (and PUT, archive, restore)
   // The office chat (owner 2026-10-25) — AssistantChatController

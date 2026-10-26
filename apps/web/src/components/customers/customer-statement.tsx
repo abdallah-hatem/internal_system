@@ -20,7 +20,7 @@ import { DataTable, DataTableSkeletonRow, PAPER_FIT, SCREEN_ONLY, cellPadding, t
 
 /** One row of `GET /customers/:id/statement` (api common/customer-statement.ts). */
 export interface StatementRow {
-  kind: 'SALE' | 'PAYMENT' | 'RETURN' | 'REVERSAL' | 'ADJUSTMENT';
+  kind: 'SALE' | 'PAYMENT' | 'RETURN' | 'REVERSAL' | 'ADJUSTMENT' | 'EDIT';
   date: string;
   reference: string | null;
   orders: string[];
@@ -163,6 +163,8 @@ export function CustomerStatement({
     }
     // A price lowered after the sale (§4, 2026-10-22): on the order it lowered.
     if (row.kind === 'ADJUSTMENT') parts.push(t('kind.ADJUSTMENT'));
+    // An order edited after it was confirmed (§4, 2026-10-25): one row for the edit.
+    if (row.kind === 'EDIT') parts.push(t('kind.EDIT'));
     if (row.kind === 'PAYMENT' || row.kind === 'REVERSAL') {
       parts.push(t(`kind.${row.kind}`));
       if (row.method) parts.push(codeLabel('paymentMethod', row.method));

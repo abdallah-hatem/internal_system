@@ -154,6 +154,48 @@ export function reversalNews(p: {
   };
 }
 
+/**
+ * An edit of a confirmed order (§4 "Editing a confirmed order"). GUESS
+ * (2026-10-26): told to the other partners as a sale is — it changes what the
+ * shop owes and what left the shelf just as a sale does.
+ */
+export function editNews(e: {
+  id: string;
+  orderId: string;
+  orderNo: string;
+  customerId: string;
+  shop: string;
+  changeEgp: unknown;
+  owedAfter: unknown;
+  lines: {
+    product: string;
+    qtyBefore: string;
+    qtyAfter: string;
+    priceBefore: string | null;
+    priceAfter: string;
+  }[];
+}): NotificationEvent {
+  const change = Number(e.changeEgp);
+  return {
+    eventType: 'ORDER_EDITED',
+    code: 'ORDER_EDITED',
+    params: {
+      shop: e.shop,
+      orderNo: e.orderNo,
+      change: `${change > 0 ? '+' : ''}${egp(change)}`,
+      owes: egp(e.owedAfter),
+      lines: e.lines
+        .map(
+          (l) =>
+            `${l.product} ${Number(l.qtyBefore)} → ${Number(l.qtyAfter)}` +
+            (l.priceBefore !== l.priceAfter ? ` at ${egp(l.priceAfter)}` : ''),
+        )
+        .join('; '),
+    },
+    payload: { orderId: e.orderId, customerId: e.customerId, editId: e.id },
+  };
+}
+
 export function cancelNews(order: {
   id: string;
   orderNo: string;

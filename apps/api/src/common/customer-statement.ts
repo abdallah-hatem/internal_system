@@ -35,7 +35,7 @@ import { SAMPLES_STATUSES } from './samples';
  */
 
 export type StatementKind =
-  'SALE' | 'PAYMENT' | 'RETURN' | 'REVERSAL' | 'ADJUSTMENT';
+  'SALE' | 'PAYMENT' | 'RETURN' | 'REVERSAL' | 'ADJUSTMENT' | 'EDIT';
 
 export interface StatementRow {
   kind: StatementKind;
@@ -102,6 +102,8 @@ export interface StatementSource {
       quantity: Prisma.Decimal | number | string;
       /** The landed cost of the units each line drew (its allocations' COGS). */
       allocations?: { cogsEgp: Prisma.Decimal | number | string }[];
+      /** Set on a line an order edit added (§4, 2026-10-25): the edit's row counts it. */
+      editId?: string | null;
     }[];
   }[];
   payments: {
@@ -130,6 +132,8 @@ export interface StatementSource {
     cogsReversedEgp?: Prisma.Decimal | number | string;
     createdAt: Date;
     items: { saleItemId: string; qty: Prisma.Decimal | number | string }[];
+    /** Units given back by an order edit: part of the edit's row, not a row of its own. */
+    editId?: string | null;
   }[];
   /** Prices lowered after the sale (§4, 2026-10-22): owed less, on that day. */
   adjustments?: {
@@ -138,6 +142,26 @@ export interface StatementSource {
     adjustedOn: Date;
     amountEgp: Prisma.Decimal | number | string;
     createdAt: Date;
+    /** A price changed by an order edit: part of the edit's row. */
+    editId?: string | null;
+  }[];
+  /**
+   * Orders edited after they were confirmed (§4, 2026-10-25): one row each, on
+   * its day, owing `amountEgp` more (negative: less). `costEgp` is what the
+   * edit did to the landed cost of what was sold — units added less units given
+   * back — and `returnedItems` the units it gave back.
+   */
+  edits?: {
+    id: string;
+    saleOrderId: string;
+    editedOn: Date;
+    amountEgp: Prisma.Decimal | number | string;
+    costEgp: Prisma.Decimal | number | string;
+    createdAt: Date;
+    returnedItems: {
+      saleItemId: string;
+      qty: Prisma.Decimal | number | string;
+    }[];
   }[];
 }
 
@@ -183,6 +207,7 @@ const RANK: Record<StatementKind, number> = {
   RETURN: 2,
   REVERSAL: 3,
   ADJUSTMENT: 4,
+  EDIT: 5,
 };
 
 /** What happens to one order's outstanding, and when. */
@@ -190,7 +215,8 @@ type Change =
   | { type: 'ALLOCATE'; at: number; cents: number; paymentId: string }
   | { type: 'RETURN'; at: number; returnId: string }
   | { type: 'REVERSE'; at: number; cents: number; paymentId: string }
-  | { type: 'ADJUST'; at: number; cents: number; adjustmentId: string };
+  | { type: 'ADJUST'; at: number; cents: number; adjustmentId: string }
+  | { type: 'EDIT'; at: number; cents: number; editId: string };
 
 /**
  * The statement, from what is stored. Pure: the rows are handed in.
@@ -207,16 +233,22 @@ export function buildStatement(
 
   const orders = source.orders.filter((o) => !NEVER_OWED.includes(o.status));
   const byOrder = new Map(orders.map((o) => [o.id, o]));
-  const returns = source.returns.filter((r) => byOrder.has(r.saleOrderId));
-  const adjustments = (source.adjustments ?? []).filter((a) =>
-    byOrder.has(a.saleOrderId),
+  // An edit's own return and price changes are read through the edit: one
+  // row, one effect (§4, 2026-10-25).
+  const returns = source.returns.filter(
+    (r) => byOrder.has(r.saleOrderId) && !r.editId,
   );
+  const adjustments = (source.adjustments ?? []).filter(
+    (a) => byOrder.has(a.saleOrderId) && !a.editId,
+  );
+  const edits = (source.edits ?? []).filter((e) => byOrder.has(e.saleOrderId));
 
   // ── Each order's own history, replayed in the order it happened ─────────
   const allocationEffect = new Map<string, number>(); // payment → effect
   const reversalEffect = new Map<string, number>(); // payment → effect
   const returnEffect = new Map<string, number>(); // return → effect
   const adjustmentEffect = new Map<string, number>(); // adjustment → effect
+  const editEffect = new Map<string, number>(); // edit → effect
 
   for (const order of orders) {
     const changes: Change[] = [];
@@ -256,6 +288,15 @@ export function buildStatement(
           adjustmentId: a.id,
         });
     }
+    for (const e of edits) {
+      if (e.saleOrderId === order.id)
+        changes.push({
+          type: 'EDIT',
+          at: e.createdAt.getTime(),
+          cents: cents(e.amountEgp),
+          editId: e.id,
+        });
+    }
     changes.sort((x, y) => x.at - y.at);
 
     let outstanding = cents(order.total);
@@ -271,6 +312,17 @@ export function buildStatement(
         returned = false;
       } else if (change.type === 'ADJUST') {
         outstanding -= change.cents;
+      } else if (change.type === 'EDIT') {
+        // Never below zero by its own rule; its units given back still count
+        // toward a later return bringing the last unit home.
+        outstanding += change.cents;
+        const e = edits.find((x) => x.id === change.editId)!;
+        for (const it of e.returnedItems) {
+          returnedQty.set(
+            it.saleItemId,
+            (returnedQty.get(it.saleItemId) ?? 0) + milli(it.qty),
+          );
+        }
       } else {
         const r = returns.find((x) => x.id === change.returnId)!;
         if (r.refundMethod === 'CREDIT_NOTE') {
@@ -298,13 +350,17 @@ export function buildStatement(
             ? reversalEffect
             : change.type === 'ADJUST'
               ? adjustmentEffect
-              : returnEffect;
+              : change.type === 'EDIT'
+                ? editEffect
+                : returnEffect;
       const id =
         change.type === 'RETURN'
           ? change.returnId
           : change.type === 'ADJUST'
             ? change.adjustmentId
-            : change.paymentId;
+            : change.type === 'EDIT'
+              ? change.editId
+              : change.paymentId;
       bucket.set(id, (bucket.get(id) ?? 0) + delta);
     }
   }
@@ -332,15 +388,18 @@ export function buildStatement(
       amount: cents(o.total),
       effect: cents(o.total),
       method: null,
-      // The sale's total less what its units cost (the cycle's own COGS).
+      // The sale's total less what its units cost (the cycle's own COGS);
+      // a line an edit added is the edit's.
       profit:
         cents(o.total) -
-        o.items.reduce(
-          (sum, it) =>
-            sum +
-            (it.allocations ?? []).reduce((c, a) => c + cents(a.cogsEgp), 0),
-          0,
-        ),
+        o.items
+          .filter((it) => !it.editId)
+          .reduce(
+            (sum, it) =>
+              sum +
+              (it.allocations ?? []).reduce((c, a) => c + cents(a.cogsEgp), 0),
+            0,
+          ),
       orderId: o.id,
     });
   }
@@ -422,6 +481,27 @@ export function buildStatement(
       // A lower price is profit given up, all of it (§4).
       profit: -cents(a.amountEgp),
       orderId: a.saleOrderId,
+    });
+  }
+
+  for (const e of edits) {
+    const orderNo = byOrder.get(e.saleOrderId)!.orderNo;
+    const amount = cents(e.amountEgp);
+    events.push({
+      kind: 'EDIT',
+      date: e.editedOn.toISOString().slice(0, 10),
+      at: e.createdAt.getTime(),
+      rank: RANK.EDIT,
+      key: e.id,
+      reference: orderNo,
+      orders: [orderNo],
+      branches: branchNames([e.saleOrderId]),
+      amount: Math.abs(amount),
+      effect: editEffect.get(e.id) ?? 0,
+      method: null,
+      // What it added to revenue less what it added to cost.
+      profit: amount - cents(e.costEgp),
+      orderId: e.saleOrderId,
     });
   }
 
@@ -513,12 +593,18 @@ export function narrowToBranch(
     adjustments: (source.adjustments ?? []).filter((a) =>
       ids.has(a.saleOrderId),
     ),
+    edits: (source.edits ?? []).filter((e) => ids.has(e.saleOrderId)),
   };
 }
 
 type Db = Pick<
   Prisma.TransactionClient,
-  'customer' | 'saleOrder' | 'payment' | 'saleReturn' | 'salePriceAdjustment'
+  | 'customer'
+  | 'saleOrder'
+  | 'payment'
+  | 'saleReturn'
+  | 'salePriceAdjustment'
+  | 'saleOrderEdit'
 >;
 
 /** Reads one shop's history for `buildStatement`. */
@@ -526,7 +612,7 @@ export async function loadStatementSource(
   db: Db,
   customerId: string,
 ): Promise<StatementSource> {
-  const [orders, payments, returns, adjustments] = await Promise.all([
+  const [orders, payments, returns, adjustments, edits] = await Promise.all([
     db.saleOrder.findMany({
       where: {
         customerId,
@@ -544,6 +630,7 @@ export async function loadStatementSource(
           select: {
             id: true,
             quantity: true,
+            editId: true,
             allocations: { select: { cogsEgp: true } },
           },
         },
@@ -576,6 +663,7 @@ export async function loadStatementSource(
         refundEgp: true,
         cogsReversedEgp: true,
         createdAt: true,
+        editId: true,
         items: { select: { saleItemId: true, qty: true } },
       },
     }),
@@ -587,8 +675,47 @@ export async function loadStatementSource(
         adjustedOn: true,
         amountEgp: true,
         createdAt: true,
+        editId: true,
+      },
+    }),
+    db.saleOrderEdit.findMany({
+      where: { saleOrder: { customerId } },
+      select: {
+        id: true,
+        saleOrderId: true,
+        editedOn: true,
+        amountEgp: true,
+        createdAt: true,
+        addedItems: { select: { allocations: { select: { cogsEgp: true } } } },
+        returns: {
+          select: {
+            cogsReversedEgp: true,
+            items: { select: { saleItemId: true, qty: true } },
+          },
+        },
       },
     }),
   ]);
-  return { orders, payments, returns, adjustments };
+  return {
+    orders,
+    payments,
+    returns,
+    adjustments,
+    edits: edits.map((e) => ({
+      id: e.id,
+      saleOrderId: e.saleOrderId,
+      editedOn: e.editedOn,
+      amountEgp: e.amountEgp,
+      createdAt: e.createdAt,
+      // Cents, summed exactly: what the added units cost less what came back.
+      costEgp: (
+        (e.addedItems
+          .flatMap((i) => i.allocations)
+          .reduce((s, a) => s + cents(a.cogsEgp), 0) -
+          e.returns.reduce((s, r) => s + cents(r.cogsReversedEgp), 0)) /
+        100
+      ).toFixed(2),
+      returnedItems: e.returns.flatMap((r) => r.items),
+    })),
+  };
 }

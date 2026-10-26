@@ -31,9 +31,13 @@ import {
   instantRange,
 } from '../../common/dates';
 import { assertUuid, isUuid } from '../../common/uuid';
+import { heldByBatch } from '../../common/held-price';
 import {
+  lineValueNow,
+  orderValueNow,
   VALUE_NOW_ITEM_INCLUDE,
   withValueNow,
+  type ValueNowLine,
 } from '../../common/order-value-now';
 import { OWED_STATUSES } from '../../common/customer-balance';
 import {
@@ -239,7 +243,7 @@ function notEnoughOnDay(
 }
 
 /** Not enough on the shelf for a sale: on its own day when back-dated, else now. */
-function notEnoughStock(
+export function notEnoughStock(
   product: string,
   available: Prisma.Decimal,
   wanted: Prisma.Decimal,
@@ -338,6 +342,97 @@ const ORDER_STATUSES = Object.values(OrderStatus);
 const SALE_SORTS = {
   newest: [{ createdAt: 'desc' }, { id: 'desc' }],
 } satisfies Record<string, Prisma.SaleOrderOrderByWithRelationInput[]>;
+
+/**
+ * The invoice of an order edited after it was confirmed (§4, 2026-10-25):
+ * its current lines — what the shop holds of each product, at its price now —
+ * and what it is worth now (`order-value-now.ts`, the one definition). Paid,
+ * owed and any cash handed back add up: total − paid + refunded in cash = owes.
+ */
+function editedInvoice(
+  order: {
+    id: string;
+    orderNo: string;
+    status: string;
+    channel: string;
+    currency: string;
+    orderedAt: Date;
+    total: Prisma.Decimal;
+    customer: {
+      id: string;
+      displayName: string;
+      phone: string | null;
+      isWalkIn: boolean;
+    };
+    items: (ValueNowLine & {
+      id: string;
+      productId: string;
+      product: { name: string; nameAr: string | null; sku: string };
+    })[];
+  },
+  paid: Prisma.Decimal,
+  owes: Prisma.Decimal,
+) {
+  const lines = new Map<
+    string,
+    {
+      id: string;
+      productId: string;
+      product: string;
+      productAr: string | null;
+      sku: string;
+      quantity: Prisma.Decimal;
+      unitPrice: string;
+      lineTotal: Prisma.Decimal;
+    }
+  >();
+  for (const it of order.items) {
+    const now = lineValueNow(it);
+    if (Number(now.heldQty) <= 0) continue;
+    const key = `${it.productId}|${now.unitPriceNow}`;
+    const seen = lines.get(key);
+    lines.set(key, {
+      id: seen?.id ?? it.id,
+      productId: it.productId,
+      product: it.product.name,
+      productAr: it.product.nameAr,
+      sku: it.product.sku,
+      quantity: (seen?.quantity ?? new Prisma.Decimal(0)).add(now.heldQty),
+      unitPrice: now.unitPriceNow,
+      lineTotal: (seen?.lineTotal ?? new Prisma.Decimal(0)).add(
+        now.lineValueNow,
+      ),
+    });
+  }
+  const total = new Prisma.Decimal(orderValueNow(order));
+  return {
+    id: order.id,
+    orderNo: order.orderNo,
+    status: order.status,
+    channel: order.channel,
+    currency: order.currency,
+    date: businessDay(order.orderedAt),
+    customer: order.customer,
+    lines: [...lines.values()].map((l) => ({
+      ...l,
+      quantity: l.quantity.toString(),
+      discount: '0.00',
+      lineTotal: l.lineTotal.toFixed(2),
+    })),
+    subtotal: total.toFixed(2),
+    discount: '0.00',
+    total: total.toFixed(2),
+    paid: paid.toFixed(2),
+    priceLowered: '0.00',
+    credited: Prisma.Decimal.max(total.sub(paid).sub(owes), 0).toFixed(2),
+    refundedCash: Prisma.Decimal.max(owes.sub(total.sub(paid)), 0).toFixed(2),
+    returned: order.status === 'RETURNED',
+    owes: owes.toFixed(2),
+    edited: true,
+    /** What was sold when it was confirmed, before every change. */
+    soldTotal: new Prisma.Decimal(order.total).toFixed(2),
+  };
+}
 
 /** The order is not samples at a shop, or no longer is. */
 function notOpenSamples(order: {
@@ -599,12 +694,14 @@ export class SalesService {
           orderBy: { createdAt: 'asc' },
           include: {
             product: { select: { name: true, nameAr: true, sku: true } },
+            ...VALUE_NOW_ITEM_INCLUDE,
           },
         },
         paymentAllocations: {
           select: { amount: true, payment: { select: { status: true } } },
         },
         priceAdjustments: { select: { amountEgp: true } },
+        _count: { select: { edits: true } },
       },
     });
     if (!order) throw notFound('saleOrder');
@@ -672,6 +769,18 @@ export class SalesService {
           balanceNow: statement.closingBalance,
         };
       }
+    }
+
+    // An edited order (§4, 2026-10-25) re-prints as it stands now: the
+    // units the shop holds, at their price now — one line per product and
+    // price — and its value now as the total.
+    if (order._count.edits > 0) {
+      return {
+        data: {
+          ...editedInvoice(order, paid, owes),
+          account,
+        },
+      };
     }
 
     const subtotal = order.items.reduce(
@@ -1509,7 +1618,7 @@ export class SalesService {
    * same way and their cost is known the same way, so when the shop buys,
    * the sale's COGS is the cost of the very units that went out.
    */
-  private async drawFifo(
+  async drawFifo(
     tx: Db,
     order: {
       id: string;
@@ -2210,7 +2319,9 @@ export class SalesService {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const order = await tx.saleOrder.findUnique({
         where: { id },
-        include: { items: { include: { allocations: true } } },
+        include: {
+          items: { include: { allocations: true, returnItems: true } },
+        },
       });
       if (!order) throw notFound('order');
       if (order.status === 'CANCELLED' || order.status === 'RETURNED') {
@@ -2250,9 +2361,11 @@ export class SalesService {
         );
       }
 
-      // Release any reservations/allocations
+      // Release what the shop still holds, per batch: units already given
+      // back — by a return, or by an order edit (§4, 2026-10-25) — are on
+      // their batch already, and releasing them again would count them twice.
       for (const item of order.items) {
-        for (const alloc of item.allocations) {
+        for (const alloc of heldByBatch(item)) {
           // Restore batch quantities
           await tx.inventoryBatch.update({
             where: { id: alloc.inventoryBatchId },

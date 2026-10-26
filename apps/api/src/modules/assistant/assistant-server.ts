@@ -15,6 +15,7 @@ import { registerSamplesTools } from './tools/samples';
 import { registerPaymentTools } from './tools/payments';
 import { registerLenderTools } from './tools/lenders';
 import { registerCategoryTools } from './tools/categories';
+import { registerOrderEditTools } from './tools/order-edit';
 
 export const ASSISTANT_SERVER_NAME = 'motoparts';
 
@@ -49,6 +50,7 @@ export class AssistantServer {
     registerPaymentTools(server, ctx);
     registerLenderTools(server, ctx);
     registerCategoryTools(server, ctx);
+    registerOrderEditTools(server, ctx);
     return server;
   }
 
