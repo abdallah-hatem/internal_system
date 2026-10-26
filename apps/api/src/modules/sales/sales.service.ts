@@ -999,10 +999,6 @@ export class SalesService {
       throw notFound('customer');
     }
     assertVerified(customer);
-    // Which branch (§7, 2026-10-25): the one named, or the default. One rule
-    // for every way an order is made — draft, sale, samples, walk-in, the
-    // assistant — because they all come through here.
-    const branchId = await resolveSaleBranch(db, customer.id, data.branchId);
     if (samples && customer.isWalkIn) {
       throw badRequest(
         'SAMPLES_NEED_SHOP',
@@ -1018,6 +1014,15 @@ export class SalesService {
         'The walk-in record is kept by the system; sell to it with walkIn: true.',
       );
     }
+    // Which branch (§7, 2026-10-25): the one named, or the default. One rule
+    // for every way an order is made — draft, sale, samples, the assistant —
+    // because they all come through here. Asked only once the customer may be
+    // sold to at all; a walk-in has no branches, so none is looked up for one
+    // (a branch named for it is still checked, and is never the walk-in's).
+    const branchId =
+      customer.isWalkIn && !data.branchId
+        ? null
+        : await resolveSaleBranch(db, customer.id, data.branchId);
 
     // Validate items array
     if (!data.items || data.items.length === 0) {

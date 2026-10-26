@@ -316,6 +316,27 @@ suite('customer branches against Postgres', () => {
     expect(await branchOf(order.data.id)).toBeNull();
   });
 
+  it('a walk-in sale with no branch is sold and paid as before, on no branch', async () => {
+    // Found 2026-10-26: the walk-in path answered INTERNAL_SERVER_ERROR once
+    // branches came in; a walk-in has none, so none is looked up for it.
+    const made = (await sales.create(
+      {
+        walkIn: true,
+        currency: 'EGP',
+        items: [{ productId: product.id, quantity: 1, unitPrice: 450 }],
+      } as CreateSaleOrderInput,
+      actor,
+    )) as { data: { id: string } };
+    const order = await prisma.saleOrder.findUniqueOrThrow({
+      where: { id: made.data.id },
+    });
+    expect([order.status, Number(order.outstanding), order.branchId]).toEqual([
+      'PAID',
+      0,
+      null,
+    ]);
+  });
+
   it("refuses another customer's branch and an archived branch, and saves nothing", async () => {
     const a = await owner();
     const other = await shop();

@@ -15,11 +15,7 @@ and partner account now, leave the branches"). **Customers with branches stay on
 lists + the Sales customer filter, Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
-**Before branches can ship (found 2026-10-26):** on `dev`, 31 API tests fail with branches merged —
-`src/modules/sales/walk-in.spec.ts` and `src/modules/assistant/tools/sales.spec.ts`: a sale's default-branch lookup is
-missing from their fakes (or from the walk-in path), so a walk-in or assistant sale answers INTERNAL_SERVER_ERROR. The
-26 Oct release left branches out and passes (2,224 API, 1,467 web). Fix these with the branches work, and check the
-real walk-in sale against a branch-less customer, not only the fakes.
+**Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
 Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): unfinished, as local commits on this machine's branches, not on dev and not pushed: **server-side lists + the Sales customer filter** (`agent-lists`, `5c75bcb`) and **Edit order on a confirmed order** (`agent-edit-order`, `158327c`, untested; its migration `20261025100000_sale_order_edits` shares a timestamp with partner accounts', rename it on resume). E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
 
 ## On `dev`, not on master yet (the owner said build it and push dev, 2026-10-23/24)

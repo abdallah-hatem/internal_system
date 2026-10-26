@@ -40,6 +40,7 @@ const TABLES = [
   'product',
   'productPrice',
   'customer',
+  'customerBranch',
   'inventoryBatch',
   'inventoryReservation',
   'saleOrder',
@@ -975,6 +976,8 @@ describe('record_sale — what the assistant offers', () => {
     const sale = tools.find((t) => t.name === 'record_sale')!;
     expect(sale.annotations?.readOnlyHint).toBe(false);
     expect(Object.keys(sale.inputSchema.properties ?? {}).sort()).toEqual([
+      // A customer's branch, by name (§7, 2026-10-25); none means the default.
+      'branch',
       'confirmationToken',
       'customer',
       'lines',
