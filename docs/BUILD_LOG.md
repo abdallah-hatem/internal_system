@@ -288,8 +288,12 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
      month holds only the reversal. An entry undone and its undo leave every period's expense figures (as
      `cashPosition` already does) — dashboard, P&L, settlement readers.
   3. The funding panel has no skeleton (`account-funding-panel.tsx` renders nothing while loading).
-  4. To discuss: merge the cycle page's Participants card into one Funding card (target, advances on this cycle,
-     contributions in equal thirds drawn from them, capital, the profit split, who is on the cycle) — sample first.
+  4. **Approved 2026-10-26 from a rendered sample ("build it like this"); starts once fixes 1–3 land (same card):**
+     one Funding card replaces the Participants card — (1) target and progress, "paid so far on this cycle" per
+     partner with day and how much went into capital, "Record what I paid"; (2) contributions, equal thirds of the
+     target by default, each drawn from that partner's advances on this cycle, each line "covered (N left over)" or
+     "N short", "Contribute equal thirds" and "Enter amounts"; (3) the profit split (equal thirds, "Change split" for a
+     custom one) and who is on the cycle with "+ Add investor". Split equally / Enter amounts move into (2).
 - Later (owner, 2026-10-26; queued only, not to be built until he says): **"Paid by" on an expense** — the business or
   one of the partners. E.g. fuel for a delivery paid from a partner's own pocket: still booked as the same expense
   (charged to a cycle, or a running cost shared from payouts, as today), but no business cash leaves (cash on hand does
