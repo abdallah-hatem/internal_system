@@ -48,6 +48,8 @@ vi.mock('@/lib/api', () => ({
         });
       if (url === '/sales/orders') return page(data.orders);
       if (/^\/sales\/orders\/[^/]+\/history$/.test(url)) return Promise.resolve({ data: { data: null } });
+      // No shop here holds samples (it would otherwise read as an order with id "samples-at-shop").
+      if (url.startsWith('/sales/orders/samples-at-shop')) return Promise.resolve({ data: { data: [] } });
       const m = url.match(/^\/sales\/orders\/([^/]+)$/);
       if (m) return Promise.resolve({ data: { data: data.detail[m[1]] } });
       return page([]);
