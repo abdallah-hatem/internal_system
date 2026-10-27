@@ -88,6 +88,8 @@ export interface SavedOrder {
   order: { id: string; orderNo: string; status: string };
   confirmed: boolean;
   walkIn: boolean;
+  /** Confirm & paid (§4, owner 2026-10-27): confirmed and paid in full in the same step. */
+  paid: boolean;
   /** Samples left at the shop (§4, samples at shops): off the shelf, no sale. */
   samples: boolean;
   /** A samples order completed as a sale ("They're buying", §4 round 2). */
@@ -329,7 +331,7 @@ export function SaleOrderForm({
   // Set synchronously on submit. `isPending` only disables the buttons after
   // React re-renders, and two clicks inside one frame both get through that.
   const submitting = useRef(false);
-  const mode = useRef<'draft' | 'confirm'>('draft');
+  const mode = useRef<'draft' | 'confirm' | 'paid'>('draft');
 
   /**
    * Units of a product available to sell right now: the shelf, plus — when
@@ -514,6 +516,7 @@ export function SaleOrderForm({
         order,
         confirmed: body.confirm === true || !!fromSamples,
         walkIn: body.walkIn === true,
+        paid: body.paid === true,
         samples: body.samples === true,
         fromSamples: !!fromSamples,
       });
@@ -588,7 +591,11 @@ export function SaleOrderForm({
             channel,
             currency,
             orderedOn,
-            confirm: mode.current === 'confirm',
+            confirm: mode.current !== 'draft',
+            // Confirm & paid (§4, owner 2026-10-27): the server creates,
+            // confirms and records a payment of the full total — cash, Record
+            // payment's default — in one transaction, or none of it.
+            ...(mode.current === 'paid' ? { paid: true } : {}),
             items,
           },
     );
@@ -596,8 +603,11 @@ export function SaleOrderForm({
 
   const pending = mutation.isPending;
   const formId = useId();
+  /** Confirm & paid is the one in flight. */
+  const paying = mutation.variables?.paid === true;
   const confirming =
-    mutation.variables?.confirm === true || mutation.variables?.samples === true || !!fromSamples;
+    !paying &&
+    (mutation.variables?.confirm === true || mutation.variables?.samples === true || !!fromSamples);
   /** One button only: walk-in, samples, and completing samples have no draft. */
   const single = walkIn || samples || !!fromSamples;
   const fieldClass =
@@ -636,7 +646,7 @@ export function SaleOrderForm({
                   disabled={pending}
                   className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
                 >
-                  {pending && !confirming && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pending && !confirming && !paying && <Loader2 className="h-4 w-4 animate-spin" />}
                   {t('saveDraft')}
                 </button>
               )}
@@ -646,7 +656,7 @@ export function SaleOrderForm({
                 onClick={() => (mode.current = 'confirm')}
                 disabled={pending}
                 data-testid="sale-submit"
-                className={`order-first col-span-2 inline-flex min-h-11 cursor-pointer sm:order-none items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 ${
+                className={`order-first ${single ? 'col-span-2' : ''} inline-flex min-h-11 cursor-pointer sm:order-none items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 ${
                   samples
                     ? 'bg-accent-600 text-primary-foreground hover:bg-accent-700'
                     : 'bg-primary text-primary-foreground hover:bg-primary/90'
@@ -671,6 +681,24 @@ export function SaleOrderForm({
                   ? t('sellAndTakePayment')
                   : t('createAndConfirm')}
               </button>
+              {/* Confirm & paid (§4, owner 2026-10-27): beside Create & confirm,
+                  and like it never the first submit. Not on a walk-in sale,
+                  which is already paid on confirm, nor on samples, which are
+                  not charged. */}
+              {!single && (
+                <button
+                  type="submit"
+                  form={formId}
+                  onClick={() => (mode.current = 'paid')}
+                  disabled={pending}
+                  title={t('confirmAndPaidHint')}
+                  data-testid="sale-submit-paid"
+                  className="order-first inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:order-none sm:min-h-0"
+                >
+                  {pending && paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                  {t('confirmAndPaid')}
+                </button>
+              )}
             </div>
       }
     >

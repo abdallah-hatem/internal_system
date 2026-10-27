@@ -288,8 +288,11 @@ export class PaymentsService {
     return { data: outcome.payment };
   }
 
-  /** A payment recorded, told to the other partners, read back after the commit. */
-  private async announcePayment(paymentId: string, actorId: string) {
+  /**
+   * A payment recorded, told to the other partners, read back after the
+   * commit. Public for Confirm & paid (§4), whose payment is news of its own.
+   */
+  async announcePayment(paymentId: string, actorId: string) {
     await tellOtherPartners(
       this.prisma,
       this.notifications,
