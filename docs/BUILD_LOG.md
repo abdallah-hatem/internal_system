@@ -51,7 +51,7 @@ State of the product and of production's data: `docs/where-things-stand.md`.
   - Totals at the commit: API `jest --runInBand` 130 suites / 2,601 tests passed (database suites included); web
     `vitest` 116 files / 1,537 tests passed; `node --test unit` 128/128.
 
-## Built on `feature/preparing-status` — not on `dev`, waiting for the owner
+## Built on `feature/preparing-status`, merged into `dev` 2026-10-27 (owner: "each one in its own branch then merge each one to dev") — not on master; production needs migration `20261028100000_cycle_status_preparing` first
 - 2026-10-27 — **a Preparing cycle status** between Purchasing and In transit (owner 2026-10-27: "it now should be in
   preparation (a new status its where the website or factory prepares your order, then next its in transit to uae)";
   BUSINESS_LOGIC §1 "a Preparing status", §15). Migration `20261028100000_cycle_status_preparing` (one enum value,
