@@ -525,7 +525,7 @@ SELECT 1::numeric AS ord, 'ledger points at a payment that does not exist' AS ch
    WHERE status IN ('SAMPLES', 'SAMPLES_RETURNED', 'SAMPLES_WRITTEN_OFF', 'SAMPLES_BOUGHT')
      AND samples_left_at IS NULL
   -- Samples into the current order (section 4, owner 2026-10-27): a sale line
-  -- bought from samples takes them from the same shop's samples order, and a
+  -- bought from samples takes them from a samples order of the same shop, and a
   -- samples order closed as bought has nothing left at the shop.
   UNION ALL SELECT 26.3, 'samples order closed as bought that still holds lines',
          count(*) FROM sale_orders o
