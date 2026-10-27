@@ -386,6 +386,12 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- Next (2026-10-28, owner: "in Sales Orders tab, make the default filter confirmed and partially paid (pre selected or
+  whatever)"): **Sales opens on Confirmed + Partially paid** — the orders still being paid for. Opening Sales with no
+  status in the URL selects both (shown as chosen in the status filter, so it is clear and one click clears it); the
+  status filter takes several statuses at once if it does not already (server-side, `?status=CONFIRMED,PARTIALLY_PAID`);
+  choosing All, another status, or clearing it is kept in the URL and respected on the second visit (back, refresh).
+  The cards above follow the same filter. Tests: the default on first open, clearing it, a link with its own status.
 - Next (2026-10-28, owner: "in products tab above the table we need cards that responds to filter, so when filter by
   category, it shows number of products in that category, and total number of units as well"): **the Products tab's
   cards follow its filters** — the same search, category and status the table sends: how many products match and how many
