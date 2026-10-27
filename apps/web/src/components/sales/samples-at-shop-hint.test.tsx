@@ -120,7 +120,10 @@ describe('New Order — the shop holds samples', () => {
     expect(hint()).toBeNull();
     pickShop('Nile Motors');
     await waitFor(() => expect(hint()).not.toBeNull());
-    expect(hint()!.textContent).toContain('This shop holds 1 Helmet as a sample (ORD-0012, left');
+    // A heading per samples order and one row per product — not a sentence repeating the rows (owner, "tidy").
+    expect(screen.getByTestId('samples-at-shop-heading').textContent).toMatch(/^ORD-0012 · left /);
+    expect(hint()!.textContent).toContain('1 × Helmet');
+    expect(hint()!.textContent).not.toContain('This shop holds');
     expect(hint()!.textContent).toContain(en.sales.samples.holdsAddHint);
     // Above the lines: the hint comes before the first line in the document.
     const firstLine = screen.getAllByTestId('sale-line')[0];
@@ -132,8 +135,11 @@ describe('New Order — the shop holds samples', () => {
     renderForm({ initial: NILE.id });
     await waitFor(() => expect(screen.getAllByTestId('samples-at-shop-order')).toHaveLength(2));
     const [first, second] = screen.getAllByTestId('samples-at-shop-order');
-    expect(first.textContent).toContain('1 Helmet as a sample (ORD-0012');
-    expect(second.textContent).toContain('2 Gloves and 3 Helmet as samples (ORD-0015');
+    expect(first.textContent).toContain('ORD-0012 · left');
+    expect(first.textContent).toContain('1 × Helmet');
+    expect(second.textContent).toContain('ORD-0015 · left');
+    expect(second.textContent).toContain('2 × Gloves');
+    expect(second.textContent).toContain('3 × Helmet');
   });
 
   it('a shop with no samples shows nothing', async () => {
@@ -223,10 +229,10 @@ describe('New Order — the shop holds samples', () => {
     expect(get).not.toHaveBeenCalledWith('/sales/orders/samples-at-shop', expect.anything());
   });
 
-  it('in Arabic: the Arabic product name and sentence', async () => {
+  it('in Arabic: the Arabic product name and heading', async () => {
     renderForm({ locale: 'ar', initial: NILE.id });
     await waitFor(() => expect(hint()).not.toBeNull());
-    expect(hint()!.textContent).toContain('هذا المحل لديه');
+    expect(screen.getByTestId('samples-at-shop-heading').textContent).toContain('تُركت');
     expect(hint()!.textContent).toContain('خوذة');
     expect(hint()!.textContent).toContain(ar.sales.samples.holdsAddHint);
   });

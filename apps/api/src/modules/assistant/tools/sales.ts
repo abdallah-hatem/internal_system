@@ -441,7 +441,12 @@ export function samplesAtShopNote(shop: string, orders: ShopSamples): string {
     `${SAMPLES_AT_SHOP_NOTE} ${shop} already holds samples —`,
     ...orders.map(
       (o) =>
-        `- ${o.orderNo}${o.leftOn ? ` (left ${o.leftOn})` : ''}: ` +
+        `- ${o.orderNo}${o.leftOn ? ` (left ${o.leftOn})` : ''}` +
+        // The branch they were left at (§7, owner 2026-10-27); none: the owner's.
+        (o.branch
+          ? ` at the ${o.branch.name} branch${o.branch.archived ? ' (archived)' : ''}`
+          : '') +
+        ': ' +
         o.lines
           .map((l) => `${formatQty(l.units)} × ${l.name} (${l.sku})`)
           .join(', '),

@@ -18,6 +18,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { PaymentsService } from '../../payments/payments.service';
 import { SalesService } from '../../sales/sales.service';
+import { samplesAtShopNote } from './sales';
 import { AssistantServer } from '../assistant-server';
 import { ConfirmationService } from '../confirmation.service';
 import type { AssistantUser } from '../tool-kit';
@@ -1212,5 +1213,53 @@ describe('record_sale — a sale made on an earlier day (§4, §16, 2026-10-16)'
       tool.inputSchema.properties as Record<string, { description?: string }>
     ).orderedOn;
     expect(field.description).toMatch(/ONLY when the partner says/);
+  });
+});
+
+/**
+ * The record_sale preview's samples note names where each samples order was
+ * left (§7, "Samples by branch", owner 2026-10-27), so the partner can tell
+ * Claude which ones the shop is buying. The owner's read as before.
+ */
+describe('samplesAtShopNote — the branch of each samples order', () => {
+  const line = {
+    productId: 'p-helmet',
+    name: 'Helmet',
+    nameAr: null,
+    sku: 'HLM',
+    units: '1',
+  };
+  const note = samplesAtShopNote('Zogmar', [
+    {
+      id: 'o-1',
+      orderNo: 'ORD-0401',
+      leftOn: '2026-10-20',
+      branch: { id: 'b-ls2', name: 'LS2', archived: false },
+      lines: [line],
+    },
+    {
+      id: 'o-2',
+      orderNo: 'ORD-0402',
+      leftOn: '2026-10-21',
+      branch: { id: 'b-old', name: 'Master', archived: true },
+      lines: [line],
+    },
+    {
+      id: 'o-3',
+      orderNo: 'ORD-0403',
+      leftOn: null,
+      branch: null,
+      lines: [line],
+    },
+  ]);
+
+  it("names the branch, says when it is archived, and leaves the owner's as they were", () => {
+    expect(note).toContain(
+      '- ORD-0401 (left 2026-10-20) at the LS2 branch: 1 × Helmet (HLM)',
+    );
+    expect(note).toContain(
+      '- ORD-0402 (left 2026-10-21) at the Master branch (archived): 1 × Helmet (HLM)',
+    );
+    expect(note).toContain('- ORD-0403: 1 × Helmet (HLM)');
   });
 });

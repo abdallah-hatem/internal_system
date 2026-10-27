@@ -10,7 +10,10 @@ temporary investor from the Funding card, Change split saved on the server in on
 (migration `20261027120000_samples_into_order` applied first) and the known-bugs batch — on top of customer branches
 (`d87b68b`) and the other 2026-10-26/27 releases under "Live in production". Production's migrations end at
 `20261027120000_samples_into_order`; nothing is merged and waiting. **Live too:** Confirm &
-paid in one step (no migration). **Building:** samples shown per branch in New Order, on `feature/samples-by-branch`.
+paid in one step, and **samples by branch** (BUSINESS_LOGIC §4 "Samples by branch", §7; owner 2026-10-27 "build it",
+then "tidy and push dev and merge"): New Order shows the order's branch's samples first, the rest under a collapsed
+"At other branches", tags a sample taken from another branch, regroups when the branch changes; Add all = the order's
+branch only (GUESS); one short heading per samples order instead of a sentence repeating its rows. No migration.
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.

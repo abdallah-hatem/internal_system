@@ -75,6 +75,7 @@ const HELD: ShopSamples = [
     id: 'order-1',
     orderNo: 'ORD-0012',
     leftOn: '2026-10-20',
+    branch: null,
     lines: [
       {
         productId: 'p-helmet',

@@ -1249,6 +1249,69 @@ suite('samples at shops against Postgres', () => {
     ]);
   });
 
+  it('samples by branch (§7, owner 2026-10-27): each order names the branch it was left at — two branches, the owner, an archived one — and every branch is in the list', async () => {
+    const { product } = await stocked([{ qty: 20, cost: 100, daysAgo: 3 }]);
+    const s = await shop();
+    const branch = (name: string) =>
+      prisma.customerBranch.create({ data: { customerId: s.id, name } });
+    const [ls2, master, mokattam] = await Promise.all([
+      branch('LS2'),
+      branch('Master'),
+      branch('Mokattam'),
+    ]);
+    const one = [{ productId: product.id, quantity: 1 } as never];
+    // No default yet: left with no branch named, it is on the owner (§7).
+    const owners = await leave(s.id, one);
+    const atLs2 = await leave(s.id, one, { branchId: ls2.id });
+    const atMaster = await leave(s.id, one, { branchId: master.id });
+    const atMokattam = await leave(s.id, one, { branchId: mokattam.id });
+    // Archived after the samples went: they are still there, and say so.
+    await prisma.customerBranch.update({
+      where: { id: mokattam.id },
+      data: { archivedAt: new Date() },
+    });
+
+    const byOrder = new Map(
+      (await sales.samplesAtShop(s.id)).data.map((o) => [o.id, o.branch]),
+    );
+    expect(byOrder.size).toBe(4);
+    expect(byOrder.get(owners.data.id)).toBeNull();
+    expect(byOrder.get(atLs2.data.id)).toEqual({
+      id: ls2.id,
+      name: 'LS2',
+      archived: false,
+    });
+    expect(byOrder.get(atMaster.data.id)).toEqual({
+      id: master.id,
+      name: 'Master',
+      archived: false,
+    });
+    expect(byOrder.get(atMokattam.data.id)).toEqual({
+      id: mokattam.id,
+      name: 'Mokattam',
+      archived: true,
+    });
+
+    // With a default, an unnamed leave goes on it — and the list says so.
+    await prisma.customerBranch.update({
+      where: { id: master.id },
+      data: { isDefault: true },
+    });
+    const toDefault = await leave(s.id, one);
+    expect(
+      (await sales.samplesAtShop(s.id)).data.find(
+        (o) => o.id === toDefault.data.id,
+      )?.branch,
+    ).toEqual({ id: master.id, name: 'Master', archived: false });
+
+    // A shop with no branches: every order on the owner, as before.
+    const plain = await shop();
+    await leave(plain.id, one);
+    expect(
+      (await sales.samplesAtShop(plain.id)).data.map((o) => o.branch),
+    ).toEqual([null]);
+  });
+
   it('the hint never blocks: a new order to a shop holding samples is created and confirmed, and the samples stay out', async () => {
     const { product } = await stocked([{ qty: 10, cost: 100, daysAgo: 3 }]);
     const s = await shop();
