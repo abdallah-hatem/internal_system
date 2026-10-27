@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-27 (state lines only, to match production at `d87b68b`: the sections for the 2026-10-22 order screens, the 2026-10-26 releases — units sold, each cycle's funding, the Funding card, put in so far, partner accounts, notifications, samples hint, office chat, server-side lists, the statement's Profit column — and the 2026-10-27 releases — customer branches and the Sales branch filter, investors in the funding, cycle 1's funding correction — now say live; Edit order stays not shipped). Before that 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -650,7 +650,8 @@ and category names, in the office and the storefront, compares Arabic as people 
 | Customer, supplier and other names | ~~Not folded in their own lists or the API.~~ **Folded since 2026-10-25**, when every list's search moved to the server (below). | Built 2026-10-25 |
 
 **Every office list searches, filters, sorts and pages on the server — 2026-10-25 (owner: "this is the purpose of
-pagination, how can you do it client from the first place"), details GUESSED.** The fourteen lists that loaded every
+pagination, how can you do it client from the first place"), details GUESSED; live 2026-10-26 (`d3955e9`), the Sales
+branch filter live 2026-10-27 (`d87b68b`).** The fourteen lists that loaded every
 row and worked in the browser — Sales, Payments, Customers, Ledger, Inventory, Notifications, Suppliers, Providers,
 Cycles, Purchases, Shipments, Categories, Products, Audit log — now send what their URL says (`page`, `pageSize`,
 `q` as `search`, `sort`, and their filters) to their endpoint, which filters, counts and pages in the query. One
@@ -735,7 +736,7 @@ rule as the office.
 
 Open: whether the markup should differ by channel (retail above trade) — the owner said one figure for both.
 
-### Units sold on a product page  — DECIDED 2026-10-26 (owner), details GUESSED, built on branch `worktree-agent-a65382d705665b118` (awaiting the owner's look)
+### Units sold on a product page  — DECIDED 2026-10-26 (owner), details GUESSED, live 2026-10-26 (`d63070d`)
 
 The owner: "in product page we need a card to display how many units were sold".
 
@@ -1097,7 +1098,7 @@ orders in all, and per order the shop, the units, how long ago they were left, l
 Samples total — the prices card below it still shows and sets both B2B and B2C prices (only the card was removed;
 B2C pricing is unchanged everywhere else).
 
-**New Order warns when the shop holds samples** (owner 2026-10-25; built 2026-10-25). Why: a new order for 5 helmets
+**New Order warns when the shop holds samples** (owner 2026-10-25; built 2026-10-25, live 2026-10-26). Why: a new order for 5 helmets
 when 1 is the sample the shop already has draws 5 more from the shelf while the sample still counts as out — stock
 reads one low and the cycle cannot settle until the samples order is closed.
 - Picking a shop in New Order shows, **above the lines**, an amber hint per open samples order: "This shop holds 1
@@ -1155,7 +1156,7 @@ a balance or money on it; an open one whose batches do not hold its lines; one w
 
 ---
 
-### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API built 2026-10-22, office screen built 2026-10-22 (branch `worktree-agent-a22fde29e831a71c8`, waiting for the owner's local test); the order's total as its value now DECIDED 2026-10-22 (Option A, branch `worktree-agent-a8504ef748f4d4272`)
+### Lowering a price after the order is confirmed  — DECIDED 2026-10-22 (owner), details GUESSED, API live 2026-10-22, office screen live 2026-10-22 (`e286f9c`); the order's total as its value now DECIDED 2026-10-22 (Option A, live 2026-10-22, `50454df`)
 
 **What happens in the business.** A shop's price is lowered after its order was confirmed — Koshary
 (ORD-2026-00002) was given 100 EGP off per product on 2026-10-22, after two returns and a 5,000 cash payment.
@@ -1224,8 +1225,8 @@ screen's own choices, each a GUESS until the owner says otherwise:
 - ~~The order's Items table still shows the price each line was sold at; the price now is in its History.~~
   Superseded 2026-10-22 (owner, Option A) — below.
 
-**What the order is worth now — DECIDED 2026-10-22 (owner, Option A); built 2026-10-22 on branch
-`worktree-agent-a8504ef748f4d4272`, waiting for the owner's local test.**
+**What the order is worth now — DECIDED 2026-10-22 (owner, Option A); built and live
+2026-10-22 (`50454df`).**
 
 - **An order's Total is what it is worth now**: what was sold, less what came back at the price it was refunded at,
   less every price cut. The sold total is under it in small muted text, "sold at 30,300.00 EGP", only when the two
@@ -1254,7 +1255,7 @@ screen's own choices, each a GUESS until the owner says otherwise:
 Koshary's 100 off is not applied yet: once the Adjust price button is in production, or through the API when the owner
 says so.
 
-### An order's full history  — DECIDED 2026-10-22 (owner), API built 2026-10-22, office screen built 2026-10-22 (branch `worktree-agent-a22fde29e831a71c8`, waiting for the owner's local test)
+### An order's full history  — DECIDED 2026-10-22 (owner), API live 2026-10-22, office screen live 2026-10-22 (`e286f9c`)
 
 `GET /sales/orders/:id/history` (`modules/sales/order-history.service.ts`): one timeline, oldest first, each event
 with its day and who recorded it — created and confirmed with its lines and prices, samples left / bought /
@@ -1619,7 +1620,7 @@ payment, and there is only one payment to undo.
 
 ---
 
-### The statement's Profit column — DECIDED 2026-10-23 (owner, picked from a rendered sample), built 2026-10-23, details GUESSED
+### The statement's Profit column — DECIDED 2026-10-23 (owner, picked from a rendered sample), built 2026-10-23, live 2026-10-26, details GUESSED
 
 A **Profit** column beside the balance, green for profit and red for a loss, with the shop's profit for the dates
 on the closing row. From the server (`common/customer-statement.ts`, `profit` on each row and on the statement),
@@ -1697,7 +1698,7 @@ allocated to a sale made after it was received.
 ---
 
 
-### A customer with branches — DECIDED 2026-10-25 (owner), built 2026-10-25, details GUESSED
+### A customer with branches — DECIDED 2026-10-25 (owner), built 2026-10-25, live 2026-10-27 (`d87b68b`, migration `20261025120000_customer_branches`), details GUESSED
 Some shops now have several branches, each buying separately, with **one owner who pays for all**. Decided: one
 customer with branches under it (option 2 of two offered; separate customers per branch was the other). Each branch
 keeps its own orders, balance and statement; the customer shows the combined total; an owner's payment can go to one
@@ -1976,7 +1977,7 @@ after the other: an Approve that waited finds its draft gone (`notFound('settlem
 (`ONLY_DRAFT_APPROVABLE`); a Calculate that waited for an Approve is refused `SETTLEMENT_LOCKED`. TC-SET-17.
 
 
-### A running account per partner — DECIDED 2026-10-25 (owner: "a great idea an account"), built 2026-10-25 (phases 1 and 2), details GUESSED
+### A running account per partner — DECIDED 2026-10-25 (owner: "a great idea an account"), built 2026-10-25 (phases 1 and 2), live 2026-10-26 (migration `20261025100000_partner_running_accounts`), details GUESSED
 Funding a cycle starts before anyone has contributed: partners pay suppliers from their own pockets, in different
 amounts, and sometimes want to fund from profit instead of cash. Decided: each partner has a running account — his
 advances ("paid so far") and payouts left in add to it, contributions and withdrawals take from it — and cycle
@@ -2036,7 +2037,7 @@ run — owner said not for now):
 | A contribution lowered by hand, then its account entry reversed | Refused (`CONTRIBUTION_ALREADY_LOWERED`): the contribution would go below zero. | Never a negative contribution. |
 | Dates | Today in Cairo when left out; never later. | §7a. |
 
-### Each cycle's funding is its own — DECIDED 2026-10-26 (owner: "each cycle has its own funding"), details GUESSED, built on branch `worktree-agent-ac6239d7503848e74` (awaiting the owner's look)
+### Each cycle's funding is its own — DECIDED 2026-10-26 (owner: "each cycle has its own funding"), details GUESSED, live 2026-10-26 (`b8ab447`)
 Found in production: CYC-2026-0001's own "paid so far" was empty, yet its Contribute form offered Abdallah 50,775 —
 the advance he paid for CYC-2026-0002. **Decided:** an advance funds **only the cycle it was recorded on**; money tied
 to no cycle (a payout left in) funds any cycle; the figure a cycle's form shows and checks is what **that cycle** can
@@ -2072,7 +2073,7 @@ Built (one definition, `apps/api/src/common/partner-account.ts`, `potsOf` — th
 | Untied money below zero (records from before the rule) | Offers nothing; no cycle's pot is reduced to cover it. Check 27.3 finds it. | Do not let old data move new money. |
 | OPEN: an advance left undrawn on a cycle that is settled, closed or cancelled | **Stays that cycle's** — stranded: no other cycle can draw it and it cannot be taken out. Shown on the Partners page as that cycle's pot. Whether it should then become untied is for the owner. Not in production today (CYC-2026-0001 has no advances). | Build for what exists. |
 
-### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, built on branch `worktree-agent-a27e6df3502ff980b` (awaiting the owner's look)
+### The cycle page's money-in is one Funding card — DECIDED 2026-10-26 (owner, from a rendered sample: "build it like this"), details GUESSED, live 2026-10-26 (`105bd6b`; below the Shipment card since `8d0447a`)
 One card replaces the Participants card and the separate funding panel (`components/cycles/funding-card.tsx`). A
 re-arrangement of controls that existed — no new money rule; every server rule and refusal stands. Top to bottom:
 
@@ -2103,7 +2104,7 @@ not locked: the accounts' controls (record, contribute, target) off with the acc
 | "Change split" | Every participant's agreed %, adding up to 100, or none ("Split by contribution" clears them); Save waits for one of the two, since settling refuses anything else. Written through each participant's PUT. The server still checks only at settlement (unchanged). | There was no way to edit a custom % after adding a participant. |
 | Who sees the card | Core partners (`partnerAccount.read`), as the panel was; nobody else signs in to the office (LEARNINGS). | — |
 
-### Put in so far, shares of what was repaid, the exchange difference — DECIDED 2026-10-26 (owner), details GUESSED, built on branch `worktree-agent-a7c78ce1e909cbbd7` (awaiting the owner's look)
+### Put in so far, shares of what was repaid, the exchange difference — DECIDED 2026-10-26 (owner), details GUESSED, live 2026-10-26 (`42d2272`)
 The owner on production's CYC-2026-0001 (a friend, Ahmad Eraiby, paid it all; the partners repaid him 201,168.99 EGP in
 three thirds at 14 / 14.50 / 14.90 and each entered 67,056.33 as his contribution, no advances): "a bit confusing, seeing
 funding zero, while each one of us clearly paid 67,056.33 to ahmad"; "it shows we paid 64,460.76, while its 67,056.33 ??";
@@ -2122,7 +2123,7 @@ funding zero, while each one of us clearly paid 67,056.33 to ahmad"; "it shows w
 | Cycle 1's figure | Rebuilt from the figures above (AED 13,905.69 at 13.9066; dirham thirds of 4,635.23 repaid at 14 / 14.50 / 14.90) the reader gives **7,788.12** (201,168.99 repaid − his 193,380.87), 2,596.04 each. 7,786.71 is repaid − the cycle's cost (193,382.28), which is not how settlement counts it; production's stored repayments decide what the card shows there. Confirmed 2026-10-26: production's correction of 23 Oct recorded 7,788.12 (its rehearsal and run reports); 7,786.71 was a miscount in the chat. | DECIDED |
 | Arabic | The new strings are the agent's wording, for the owner to correct. | GUESS |
 
-### Investors in the funding, the partners' part, shares as agreed, every percentage — DECIDED 2026-10-27 (owner), details GUESSED
+### Investors in the funding, the partners' part, shares as agreed, every percentage — DECIDED 2026-10-27 (owner), details GUESSED, live 2026-10-27 (`962ab07`)
 The owner on CYC-2026-0001 after its funding was corrected (Abdallah 55,000, Shady 33,084.50, Fares 33,084.49; Ahmad
 Eraiby 60,000 and Mohammed Setta 20,000 as temporary investors; repaid 141,168.92): "they should be added to funding as
 well right? also this: Each partner's share of the cycle? something looks off" → "fix it". The card read 121,168.99 put
@@ -2338,7 +2339,7 @@ instalment falling behind (checked daily since 2026-10-11 — §7), and samples
 still at a shop 14 days after they were left (daily, once per order, since
 2026-10-18 — §4 "Samples at shops").
 
-**What one partner did reaches the others — DECIDED 2026-10-25 (owner), built 2026-10-25.** "a sale and payment
+**What one partner did reaches the others — DECIDED 2026-10-25 (owner), built 2026-10-25, live 2026-10-26.** "a sale and payment
 should trigger notifications as well", then "yes i want them add" for returns, reversals and cancellations. Found when
 Fares recorded a sale and the owner was not told.
 
@@ -3256,7 +3257,7 @@ service asks first.
 
 ---
 
-### The office chat — DECIDED 2026-10-20 / 2026-10-25 (owner), built 2026-10-25, details GUESSED
+### The office chat — DECIDED 2026-10-20 / 2026-10-25 (owner), built 2026-10-25, live 2026-10-26 (Groq set on Vercel by the owner), details GUESSED
 
 A chat inside the office app, on every page (a round button at the bottom corner), on **the assistant's own tools**:
 the same services, the same roles, the same preview before every change. `apps/api/src/modules/assistant/chat/`
@@ -3448,7 +3449,7 @@ replace their funding. This replaces the 2026-10-11 equal split, the "Partners' 
 | CYC-2026-0001 (production) | Its partners' contributions are each partner's share of repaying both friends; the owner gives the split. Nothing is changed in production by this change. | Given by the owner 2026-10-27 — below |
 
 **Part of a friend's loan staying in the cycle as his investment — GUESS (2026-10-27), from the owner's facts on
-CYC-2026-0001.** The owner: the cycle's 201,168.99 EGP was funded by "Abdallah 55,000; Ahmad Eraiby as a temporary
+CYC-2026-0001; applied to production 2026-10-27 (`apps/api/prisma/one-off/2026-10-27-cyc-0001-funding.ts`).** The owner: the cycle's 201,168.99 EGP was funded by "Abdallah 55,000; Ahmad Eraiby as a temporary
 investor 60,000; Mohammed Setta (temporary investor) 20,000; Shady and Fares the rest equally" (33,084.50 and
 33,084.49, Fares last, absorbing the piastre). Eraiby's 60,000 "is part of his loan that stayed in the cycle as his
 investment": he was repaid 141,168.99 EGP, not 201,168.99; Abdallah's and Setta's money went into repaying him.

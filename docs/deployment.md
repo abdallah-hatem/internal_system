@@ -89,7 +89,7 @@ Set on the **API** project:
 | `BLOB_READ_WRITE_TOKEN` | the Blob store sets this | uploads go to a disk that is wiped |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generate a pair (`npx web-push generate-vapid-keys`); set in production 2026-10-16 | no phone alerts at all — push is off with a warning in the log; the bell still works |
 | `VAPID_SUBJECT` | a `mailto:` for the push services | a placeholder mailto is used |
-| `AI_API_KEY` (+ `AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `AI_DAILY_LIMIT`) | the office chat's model — a key from the provider (Gemini by default; any OpenAI-compatible one; `apps/api/.env.example`) | the chat says it is not set up; nothing else changes |
+| `AI_API_KEY` (+ `AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `AI_DAILY_LIMIT`) | the office chat's model — a key from the provider (Gemini by default; any OpenAI-compatible one; `apps/api/.env.example`); set in production 2026-10-26 by the owner, provider Groq | the chat says it is not set up; nothing else changes |
 | `PUBLIC_BASE_URL` | the API's public address; `scripts/ship-prod.sh env` sets it if absent | the assistant's OAuth and MCP addresses are read from forwarded headers, which a caller can choose |
 
 Set on **both frontends**:
@@ -185,6 +185,7 @@ scripts/ship-prod.sh smoke       # read-only checks against the live API and off
 - **Phone alerts** need `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the API project (present in production since
   2026-10-16). Without them the API boots, logs a warning, and only the bell works.
 - Auto mode blocks production steps: switch the session to manual, let the owner approve each step, switch back.
-- **Next release** (merged locally 2026-10-18/19, waiting on the owner's test and the full e2e run): one migration,
-  `20261018200000_samples_at_shops` — additive (new enum values and three nullable dates), and the code reads the
-  new statuses, so it must be applied before the push. See `docs/BUILD_LOG.md`.
+- **Last release** (2026-10-27, `d87b68b`): customer branches, migration `20261025120000_customer_branches` applied
+  first. Production's migrations end there; nothing is merged and waiting. `20261026100000_sale_order_edits` lives
+  only on `feature/edit-order` (Edit order, not shipped) — never apply it to production until that branch ships.
+  See `docs/BUILD_LOG.md`.
