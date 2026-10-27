@@ -54,6 +54,7 @@ function openSampleDraws(
               orderNo: true,
               samplesLeftAt: true,
               customer: { select: { displayName: true } },
+              branch: { select: { id: true, name: true, archivedAt: true } },
             },
           },
         },
@@ -72,12 +73,26 @@ export interface ShopSampleLine {
   units: string;
 }
 
+/**
+ * The branch a samples order was left at (§7, "Samples by branch", owner
+ * 2026-10-27), or null when it is on the owner — no branches, no default, or
+ * left before the branches existed. Archived says the branch takes no new
+ * orders; its samples are still there.
+ */
+export interface ShopSamplesBranch {
+  id: string;
+  name: string;
+  archived: boolean;
+}
+
 /** One open samples order at a shop, and what is on it. */
 export interface ShopSamplesOrder {
   id: string;
   orderNo: string;
   /** When the samples were left; null only for a record that predates the field. */
   leftAt: Date | null;
+  /** Where they were left: a branch, or null for the owner. */
+  branch: ShopSamplesBranch | null;
   lines: ShopSampleLine[];
 }
 
@@ -88,6 +103,10 @@ export interface ShopSamplesOrder {
  * Inventory's "At shops" and the settlement gate, so the hint, the stock and
  * the gate cannot disagree. Returned, written-off and bought samples are no
  * longer SAMPLES and are not here; another shop's are not here either.
+ *
+ * Each order names its branch (owner 2026-10-27, "Samples by branch"): New
+ * Order groups by it and the assistant's note says it. Every branch's samples
+ * are here — one owner pays for all, so which to buy is the partner's call.
  */
 export async function samplesAtShop(
   db: Db,
@@ -106,6 +125,13 @@ export async function samplesAtShop(
         id: o.id,
         orderNo: o.orderNo,
         leftAt: o.samplesLeftAt,
+        branch: o.branch
+          ? {
+              id: o.branch.id,
+              name: o.branch.name,
+              archived: o.branch.archivedAt !== null,
+            }
+          : null,
         lines: [],
         units: new Map(),
       };

@@ -11,6 +11,11 @@ temporary investor from the Funding card, Change split saved on the server in on
 (`d87b68b`) and the other 2026-10-26/27 releases under "Live in production". Production's migrations end at
 `20261027120000_samples_into_order`; nothing is merged and waiting. **Building now:** Confirm & paid in one step, on
 its own branch (owner 2026-10-27: "start build the confirm and pay").
+- **Samples by branch** (BUSINESS_LOGIC §4 "Samples by branch", §7; owner 2026-10-27 "build it"): built on
+  `feature/samples-by-branch`, no migration, **awaiting the owner's look** (not merged into `dev`). New Order shows the
+  order's branch's samples first, the rest under a collapsed "At other branches", tags a sample taken from another
+  branch, regroups when the branch changes; Add all = the order's branch only (GUESS). Untouched: New Order's footer
+  (`feature/confirm-and-paid` changes it).
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.

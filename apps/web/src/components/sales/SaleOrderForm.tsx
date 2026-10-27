@@ -28,8 +28,11 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { businessToday } from '@/lib/dates';
 import {
   SamplesAtShopHint,
+  sampleBranchId,
+  splitByBranch,
   useSamplesAtShop,
   type ShopSampleLine,
+  type ShopSamplesBranch,
   type ShopSamplesOrder,
 } from '@/components/sales/samples-at-shop-hint';
 import { useCustomerBranches } from '@/lib/customer-branches';
@@ -76,8 +79,10 @@ interface Line {
    * owner 2026-10-27): the samples order and how many of the product it
    * holds. Sent as `fromSamplesOrderId`; on confirm the server moves those
    * units into this line. Gone when the product is changed or the shop is.
+   * `branch` is where they were left (null: the owner), so the line can say
+   * when they are another branch's (§7, owner 2026-10-27).
    */
-  fromSamples?: { orderId: string; orderNo: string; units: number };
+  fromSamples?: { orderId: string; orderNo: string; units: number; branch?: ShopSamplesBranch | null };
 }
 
 /**
@@ -317,7 +322,7 @@ export function SaleOrderForm({
    */
   const [pickedBranch, setPickedBranch] = useState<{ customerId: string; branchId: string } | null>(null);
   const branchesFor = !walkIn && !fromSamples && customerId ? customerId : undefined;
-  const { open: openBranches, defaultBranch } = useCustomerBranches(branchesFor);
+  const { branches: allBranches, open: openBranches, defaultBranch } = useCustomerBranches(branchesFor);
   const branchId =
     pickedBranch && pickedBranch.customerId === customerId ? pickedBranch.branchId : (defaultBranch?.id ?? '');
   const chosenBranch = openBranches.some((b) => b.id === branchId) ? branchId : undefined;
@@ -460,6 +465,20 @@ export function SaleOrderForm({
   const samplesAtShop = useSamplesAtShop(customerId, !walkIn && !fromSamples);
   const heldAtShop = !walkIn && !fromSamples ? samplesAtShop.data : undefined;
 
+  /**
+   * Samples by branch (§7, owner 2026-10-27): with branches, the hint shows the
+   * order's own branch's samples first and the rest under "At other branches";
+   * a sample added from another branch says whose it is. The order's branch is
+   * the one it will be saved on — picked, else the default, else the owner —
+   * so changing the picker regroups at once. A customer with no branches (and
+   * no samples on one) sees the list as before.
+   */
+  const branchAware = allBranches.length > 0 || !!heldAtShop?.some((o) => o.branch);
+  const orderBranchId = chosenBranch ?? null;
+  const orderBranch = branchAware
+    ? { id: orderBranchId, name: openBranches.find((b) => b.id === orderBranchId)?.name ?? null }
+    : undefined;
+
   /** This sample is on the order already. */
   const isAdded = (orderId: string, productId: string) =>
     lines.some((l) => l.fromSamples?.orderId === orderId && l.productId === productId);
@@ -478,14 +497,17 @@ export function SaleOrderForm({
         productId: held.productId,
         quantity: units,
         unitPrice: priceFor(held.productId, channel) ?? 0,
-        fromSamples: { orderId: order.id, orderNo: order.orderNo, units },
+        fromSamples: { orderId: order.id, orderNo: order.orderNo, units, branch: order.branch ?? null },
       };
       return [...prev.filter((l) => l.productId || l.fromSamples), line];
     });
     setRefusal(null);
   };
+  /** Add all: the order's own branch's samples only (GUESS, §7) — another branch's are added one by one. */
   const addAllSamples = () => {
-    for (const order of heldAtShop ?? []) for (const held of order.lines) addFromSample(order, held);
+    const held = heldAtShop ?? [];
+    const mine = branchAware ? splitByBranch(held, orderBranchId).here : held;
+    for (const order of mine) for (const line of order.lines) addFromSample(order, line);
   };
 
   /** "They're buying": the units not on the sale, product by product. */
@@ -818,6 +840,7 @@ export function SaleOrderForm({
         onAdd={samples ? undefined : addFromSample}
         onAddAll={samples ? undefined : addAllSamples}
         isAdded={isAdded}
+        orderBranch={orderBranch}
       />
 
       <div>
@@ -898,20 +921,31 @@ export function SaleOrderForm({
                         };
                       })}
                     />
-                    {line.fromSamples && (
-                      <p
-                        data-testid="sale-line-from-sample"
-                        className="mt-1 flex items-center gap-1 text-[11px] font-medium text-accent-900"
-                      >
-                        <PackageOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        <span className="min-w-0">
-                          {t('samples.fromSample', {
-                            orderNo: line.fromSamples.orderNo,
-                            units: formatNumber(line.fromSamples.units),
-                          })}
-                        </span>
-                      </p>
-                    )}
+                    {line.fromSamples &&
+                      (() => {
+                        const sample = line.fromSamples;
+                        const tag = { orderNo: sample.orderNo, units: formatNumber(sample.units) };
+                        // Another branch's samples (or the owner's, on a branch's
+                        // order) say whose they are, so taking them is deliberate.
+                        const otherBranch =
+                          branchAware && sampleBranchId({ branch: sample.branch }) !== orderBranchId;
+                        return (
+                          <p
+                            data-testid="sale-line-from-sample"
+                            data-other-branch={otherBranch ? 'true' : undefined}
+                            className="mt-1 flex items-center gap-1 text-[11px] font-medium text-accent-900"
+                          >
+                            <PackageOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="min-w-0">
+                              {!otherBranch
+                                ? t('samples.fromSample', tag)
+                                : sample.branch
+                                  ? t('samples.fromOtherBranch', { ...tag, branch: sample.branch.name })
+                                  : t('samples.fromOwnerSamples', tag)}
+                            </span>
+                          </p>
+                        );
+                      })()}
                   </div>
                   <RowAction labelClassName="mb-1 block text-xs">
                     <button

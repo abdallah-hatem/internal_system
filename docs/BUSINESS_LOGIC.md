@@ -1183,6 +1183,32 @@ status `SAMPLES_BOUGHT`; nullable `sale_items.from_samples_order_id`, indexed, a
   line).
 - GUESS: no below-cost warning on a sample line — its units cost what they left at, not the shelf's FIFO cost the check
   reads (as in "They're buying").
+
+**Samples by branch** (owner 2026-10-27: "what happens when having samples for 2 branches, then we start an order on
+the third branch, or even one of the 2?" — the proposal below, then "build it"). Built 2026-10-27 on
+`feature/samples-by-branch`, no migration; not merged, awaiting the owner's look.
+- **The list says where each sample is.** `samplesAtShop` (`common/samples-out.ts`, the one reading) returns each samples
+  order's branch — `{ id, name, archived }`, or null when it is on the owner — and `GET /sales/orders/samples-at-shop`
+  passes it on (backwards compatible: a field added). In New Order each sample row reads **"Helmet × 1 · LS2 ·
+  ORD-0412"**; a sample on no branch reads **"On the owner"** (the branches wording); an archived branch reads
+  "Old Street · Archived".
+- **The order's branch first.** The samples of the branch the order is going on (picked, else the default, else the
+  owner — exactly what the server will save) are listed first; every other branch's are under a collapsed
+  **"At other branches (N samples)"** heading (N = sample rows). An order on a branch holding none says
+  **"No samples at Mokattam."** above it. A customer with no branches (and no samples on one) sees the list as before.
+- **Taking another branch's sample is allowed** — one owner pays for all — but the line says so: **"From LS2's samples
+  ORD-0412 · 1 at the shop"** (the owner's: "From the owner's samples …"); a sample of the order's own branch keeps
+  "From sample ORD-…".
+- **Changing the order's branch** regroups the list at once; lines already added stay, and their tag follows (own
+  branch / another branch).
+- The assistant's `record_sale` samples note names the branch: "- ORD-0412 (left 2026-10-20) at the LS2 branch: 1 ×
+  Helmet (HLM)" ("(archived)" when it is); the office chat's hint shows the branch above each order.
+- GUESS: **"Add all" adds only the order's own branch's samples**; another branch's (or the owner's, on a branch's
+  order) are added one by one, so taking them is deliberate.
+- GUESS: **no server refusal for a sample from another branch of the same customer** — `SAMPLES_OTHER_SHOP` still
+  checks the customer only. The sale line's branch is the order's; the samples order keeps its own.
+- GUESS: **samples on the owner (no branch) count as "another branch" for an order that is on a branch**, and as the
+  order's own for an order on the owner (a customer with branches but no default).
 - GUESS: in "They're buying" the choice is asked for a **lowered** line too, not only a removed one ("fewer leaves the
   rest as a sample", as in New Order). With nothing kept it converts in place as before. Without `keepAsSample` (an older
   client, the assistant's `complete_samples_sale`) nothing is kept — the API's default is the old behaviour; the popup's
@@ -1799,6 +1825,10 @@ select the default branch" and "not required because default to the default".
   - GUESS: New Order offers a picker only when the customer has **two or more** open branches ("a customer with one
     branch picks none"); with one, the default rule decides.
   - GUESS: a sale completed from samples keeps the branch the samples were left at.
+  - **Samples by branch** (owner 2026-10-27, "build it"; details in §4 "Samples by branch"): New Order lists the
+    order's own branch's samples first and the others under "At other branches"; a sample taken from another branch is
+    allowed and tagged with its branch. GUESS: Add all takes the order's branch only; no server refusal across
+    branches of one customer.
 - **Balances**: a branch owes what its confirmed orders still owe (the `owedBy` rule, narrowed). The owner owes all of
   it — every branch plus the orders on no branch; the branch figures always add up to it (they are the same orders
   split one way). Nothing is stored twice.
