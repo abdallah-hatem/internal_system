@@ -104,6 +104,8 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-28 — production data: CYC-2026-0002's friend repaid **100 USD at 56.07 = 5,607 EGP** (367.25 AED at 3.6725,
+  rate 15.2675), exchange difference +24.80; **2,092.15 AED still owed** (the remaining 581 USD).
 - 2026-10-28 — production data: **1 Y30 Headset back from Ahmad Zogmar's samples** (ORD-2026-00006 held 2; owner: "just
   return one in prod"). Partial returns are not built yet (Next up), so a one-off did it with the samples code "They're
   buying" uses — `takeFromSamples`, `sampleBack` (SAMPLE_BACK to the batch it left), `settleSamplesLeft`
