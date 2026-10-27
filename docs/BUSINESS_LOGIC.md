@@ -8,7 +8,7 @@ the BRD left a choice open, and every such decision is marked **DECIDED** with
 the date. Anything still open is marked **OPEN** and the code's current guess is
 stated plainly, so nobody mistakes a guess for a decision.
 
-Last updated 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
+Last updated 2026-10-26 (§3: every office list searches, filters, sorts and pages on the server; the Sales list filters by customer and by branch — guesses marked; §4: editing a confirmed order — not shipped, saved on `feature/edit-order` (2026-10-27); §7: a walk-in sale looks up no branch).. Before that 2026-10-26 (§8: each cycle's funding is its own — an advance funds only its cycle; §9/§12: an entry undone and its undo leave every period's profit figures — owner decisions, guesses marked, on branch `worktree-agent-ac6239d7503848e74`). Before that 2026-10-25 (§10: a sale, payment, return, reversal or cancel notifies the other partners — built, a guess marked). Before that 2026-10-25 (§16: the office chat — guesses marked). Before that 2026-10-23 (§7b: the statement's Profit column — guesses marked). Before that 2026-10-22 (§12: the tabs' cards reshaped — products and units in stock on Products and Inventory, customers and who paid the most, the largest payment, an icon on every card; the ledger's By column — guesses marked). Before that 2026-10-21 (§8: the Partners page asks only the cycles that can have earned; §3: a default price is a "Default" tag in the Products list; §4: the invoice wears the contract's header and has no signature lines). Before that 2026-10-20 (§4/§16: the assistant's samples tools — guesses marked; §12: summary cards on Cycles, Products and Sales — guesses marked; §12: an investor cannot sign in to the office — built, guesses marked; Profit and loss opens on This month; §8: the Settlement button carries its cycle, Calculate and Approve no longer race; §3: the product page lost its Suppliers and Compatibility cards). Before that 2026-10-19 (§18 and §8: the partners repay a friend who paid for a cycle — his payment is a loan to them, no longer taken off what they fund; the equal split for a cycle a friend paid for entirely is gone; any split, 30/30/40, on the cycle page — owner decision, details GUESSED). Before that 2026-10-19 (docs brought up to date with the code at `299fba9`: §4 a cancelled order owes nothing; §10 the push tag and VAPID keys; §12 the audit log made readable, only the partners use the office app, the P&L's v1 lines marked superseded by Option A and This year's buckets corrected; §18 editing and deleting a lender; "Not yet safe" items superseded). Before that 2026-10-18 (§8 the wizard ends at the shipping, a funding note on the cycle page, funding locked once the settlement is approved — guesses marked). Before that 2026-10-17 (§16 the assistant's `update_leg_cost`; §2 a leg's cost is refused negative or at a zero rate by the service). Before that 2026-10-16 (§21 a supplier's country is an ISO code, chosen from a list — guesses marked). Before that 2026-10-14 (money accounts removed by the owner — §9, §18, Still open). Before that 2026-10-12 (L8: goods can leave in parts — built, guesses OPEN; the wizard stops when the goods leave; Add next leg and a leg's cost on the cycle page). Before that 2026-10-11 (§8 leftover stock moved to another cycle at its cost — L5, guesses OPEN; L3: a cycle's status follows its shipment; §18: a friend's repayment asks no money account (accounts removed altogether 2026-10-14); §18 purchases paid by a friend, repaid in pounds — guesses OPEN; walk-in, assistant sales; where a cycle opens and where its status is changed; I1: daily overdue alerts, low stock after a sale, who owes what; I3: departures and deliveries from the cycle page, where the goods are).
 
 ---
 
@@ -684,8 +684,13 @@ definition, `apps/api/src/common/list-query.ts`.
   that reads as "no orders". A shop's **New Order** button now opens `/sales?new=1&customer=<id>` (`?customer=`
   alone used to mean "open the form"): the form opens on that shop, and the list underneath shows that shop's
   orders (GUESS).
-- **No branch filter on master** (2026-10-26): the Sales list's branch filter belongs with customer branches, which
-  are on `dev` only and not yet in production; it ships with them.
+- **…and, for a customer with branches, by branch** (2026-10-26, §7): once such a customer is picked, a second
+  picker lists its branches (an archived one marked, its orders still its) and **On the owner** for its orders on no
+  branch; `?branch=<id>` (`none` for the owner) in the URL, sent as `branchId`. Picking another customer, or
+  clearing it, drops the branch in the same change. The API takes `branchId` only beside a shop's `customerId`
+  (`LIST_FILTER_INVALID` alone or with Walk-in), refuses another customer's branch (`BRANCH_NOT_THIS_CUSTOMER`, as
+  the sale does) and one that does not exist (404). GUESS: "On the owner" is always offered, even when the owner has
+  no such orders (it then lists none).
 - **A list is read again on every visit** (2026-10-26): the page last seen shows at once and is replaced by the
   server's answer, rather than trusted for the office's usual minute — a change made on another screen (a payment
   reversed moves a sale's status) or by another partner shows on the second visit.
@@ -1269,6 +1274,15 @@ owed after it — and under it both "history ends at" and "the order owes now", 
 summed in the browser. GUESS: when the two differ the tab says so in red and points at the data check, rather than
 showing one of them. GUESS: on a phone the per-product table is one card per product (five columns do not fit).
 
+### Editing a confirmed order — DECIDED 2026-10-25 (owner), NOT SHIPPED: saved on branch `feature/edit-order`
+
+Built 2026-10-25/26 and held back from the 2026-10-27 release at the owner's word ("I would like to ship customer
+branches, but not the edit order, lets just save it in a feature branch"). The code, its migration
+`20261026100000_sale_order_edits`, its tests, this section's full rules and its Still-open guesses (the same product
+added twice, an edit below what was paid, whether an edit notifies the partners and the assistant may edit) live on
+`feature/edit-order` and are not in production. Until it ships there is no edit path for a confirmed order: a price
+cut is a price adjustment (above), fewer units a return (§5).
+
 ## 5. Returns
 
 **DECIDED 2026-08-21.**
@@ -1683,12 +1697,52 @@ allocated to a sale made after it was received.
 ---
 
 
-### A customer with branches — DECIDED 2026-10-25 (owner), not built yet
+### A customer with branches — DECIDED 2026-10-25 (owner), built 2026-10-25, details GUESSED
 Some shops now have several branches, each buying separately, with **one owner who pays for all**. Decided: one
 customer with branches under it (option 2 of two offered; separate customers per branch was the other). Each branch
 keeps its own orders, balance and statement; the customer shows the combined total; an owner's payment can go to one
 branch or across several. Also decided (owner, 2026-10-25): credit and contract limits, the storefront login and the
-invoice header are all the **owner's**, not each branch's. Details in BUILD_LOG Next up.
+invoice header are all the **owner's**, not each branch's. The owner picked the design from a rendered sample
+(`docs/samples/branches/`), then (2026-10-25) "the branch shouldnt be required, in a sale order, it should auto
+select the default branch" and "not required because default to the default".
+
+- **A branch is not a customer.** It is a row under the customer (`customer_branches`): a name, an address, a phone,
+  whether it is the default, whether it is archived. An order names its branch (`sale_orders.branch_id`); an order
+  with none is on the owner. Payments, contracts, the storefront login and the invoice header stay on the customer.
+- **Names**: once per customer, ignoring case and extra spaces ("LS2" and "ls2" are one branch;
+  `BRANCH_NAME_TAKEN`). Required, at most 80 characters. Another customer may use the same name.
+- **The default branch**: at most one per customer, held by the server and a unique index. Making one the default
+  takes it off the other. An archived branch cannot be the default; archiving the default leaves none.
+- **A sale order's branch** (one rule, `resolveSaleBranch`, for the office form, drafts, samples, walk-in, the
+  assistant's `record_sale` and the office chat): a branch named must be this customer's (`BRANCH_NOT_THIS_CUSTOMER`)
+  and not archived (`BRANCH_ARCHIVED`); none named means the customer's default branch.
+  - GUESS (open): a customer with branches but **no default** — the order stays on the owner, with no branch. Ahmad
+    Zogmar gets his branches with no default until the owner picks one.
+  - GUESS: New Order offers a picker only when the customer has **two or more** open branches ("a customer with one
+    branch picks none"); with one, the default rule decides.
+  - GUESS: a sale completed from samples keeps the branch the samples were left at.
+- **Balances**: a branch owes what its confirmed orders still owe (the `owedBy` rule, narrowed). The owner owes all of
+  it — every branch plus the orders on no branch; the branch figures always add up to it (they are the same orders
+  split one way). Nothing is stored twice.
+- **Payments** (recorded once, for the owner): to **all branches**, oldest first across every order, never more than
+  the combined owed (`PAYMENT_EXCEEDS_OWED`, as before); to **one branch**, oldest first on that branch's orders only,
+  never more than it owes (`PAYMENT_EXCEEDS_BRANCH_OWED`, `BRANCH_OWES_NOTHING`); on a chosen order, as before. A
+  branch and an order together are refused (the order already says its branch).
+  - GUESS: an **archived** branch can still be paid — it keeps its balance until settled.
+- **Statements**: the owner's is every row with its branch named (a payment spread over two branches names both). One
+  branch's statement is the same history narrowed to its orders, with each payment shown as the part that went there;
+  it closes at that branch's balance, and the branches' closing balances (plus the orders on no branch) add up to the
+  owner's. The Profit column works the same way.
+- **Contracts, samples, returns and price cuts** stay on their order, so on its branch.
+- **The invoice**: billed to the owner; "Deliver to" the branch, with its address and phone. GUESS: the invoice's
+  Account box (balance before and after) is the **owner's** combined balance, not the branch's.
+- **Who**: core partners add, edit, make default, archive and restore branches (as they edit customers); the office
+  roles read them.
+- **Not built**: credit and contract **limits** — the app has none today (overdue does not block a sale, above), so
+  there is nothing per branch to move. The storefront shows nothing new (the owner's login sees his orders as before).
+- Open, for the owner: which of Mokattam, Master and LS2 is Ahmad Zogmar's default, and the names' spelling; an
+  owner with no default (above). A return's credit note lowers what its own order owes (§5), so it stays on that
+  order's branch.
 
 ## 8. Cycle profit and settlement
 
@@ -2721,6 +2775,10 @@ mistakes it for an agreement.
 | Whether stock is held for an order request | §3 says reservations are not in use and reserved quantity is zero; §12 says an order request holds its stock for 48 hours. The two predate 2026-10-10 and disagree. Raised by the 2026-10-10 release review. |
 | Blocking sales to a shop that is behind | Not blocked. Deliberate — see §7. |
 | Whether a shop that is behind on payment may hold stock | It may. A request checks verification and stock, not the balance. Raised 2026-08-30 with the storefront; not decided. |
+| A customer with branches and no default branch (§7) | A new order stays on the owner, with no branch. GUESS; Ahmad Zogmar has no default until the owner picks Mokattam, Master or LS2. |
+| "On the owner" in the Sales list's branch filter; the highest page (§3) | Always offered; pages run 1 to 1,000,000. GUESS. |
+| A partner's payout left in his account, in cash on hand (§8) | Counted as paid out to him, though it sits in his account. OPEN. |
+| Whether every contribution must come from a partner's account (§8) | No: contributions entered by hand still work and touch no account. OPEN. |
 
 ---
 

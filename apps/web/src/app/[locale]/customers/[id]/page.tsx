@@ -41,6 +41,8 @@ import { BackLink } from '../../../../components/ui/back-link';
 import { CustomerStatement } from '../../../../components/customers/customer-statement';
 import { ContractsList } from '@/components/payments/contracts-list';
 import { OrderTotal } from '@/components/sales/value-now';
+import { useCustomerBranches } from '@/lib/customer-branches';
+import { BranchesCard, NO_BRANCH, type BranchFilter } from '@/components/customers/customer-branches';
 interface SaleOrder {
   id: string;
   orderNo: string;
@@ -53,6 +55,9 @@ interface SaleOrder {
   createdAt: string;
   /** The day it was sold (§4). */
   orderedAt?: string;
+  /** The branch it was sold to (§7, 2026-10-25); null on the owner. */
+  branchId?: string | null;
+  branch?: { id: string; name: string } | null;
 }
 
 interface PaymentRecord {
@@ -74,12 +79,18 @@ export default function CustomerPage() {
   const ts = useTranslations('sales');
   const tk = useTranslations('contracts');
   const tc = useTranslations('common');
+  const tb = useTranslations('branches');
   const codeLabel = useCodeLabel();
   const { formatDate } = useDateFormat();
   const { id, locale } = useParams<{ id: string; locale: string }>();
   const router = useRouter();
 
   const [showPay, setShowPay] = useState(false);
+  /** The orders and statement narrowed to one branch, or the owner's whole (§7). */
+  const [branchFilter, setBranchFilter] = useState<BranchFilter>(null);
+  const branchData = useCustomerBranches(id);
+  const hasBranches = branchData.branches.length > 0;
+  const filteredBranch = branchData.branches.find((b) => b.id === branchFilter);
 
   const { data: customer, isLoading } = useQuery<any>({
     queryKey: ['customer', id],
@@ -102,13 +113,19 @@ export default function CustomerPage() {
     customerId: id,
   });
 
-  const orderList = Array.isArray(orders) ? orders : [];
+  const allOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
+  // One branch's orders when one is picked; the owner's page shows them all.
+  const orderList =
+    branchFilter === null
+      ? allOrders
+      : allOrders.filter((o) => (o.branchId ?? NO_BRANCH) === branchFilter);
   const paymentList = Array.isArray(payments) ? payments : [];
   const plan = (Array.isArray(plans) ? plans : []).find((p) => p.status === 'ACTIVE');
 
   // Confirmed orders only, the rule the dialog applies money by. A draft is
   // not a sale yet — it reserves nothing and counts for nothing (§4).
-  const openOrders = useMemo(() => oldestFirst(orderList), [orderList]);
+  // The balance is the owner's, every branch together, whatever is filtered.
+  const openOrders = useMemo(() => oldestFirst(allOrders), [allOrders]);
   const owed = openOrders.reduce((s, o) => s + num(o.outstanding), 0);
   const paid = paymentList
     .filter((p) => p.status === 'RECORDED')
@@ -143,6 +160,16 @@ export default function CustomerPage() {
       key: 'date', header: ts('date'), width: '8rem', kind: 'value', className: 'text-xs text-muted-foreground',
       cell: (o) => formatDate(o.orderedAt ?? o.createdAt),
     },
+    ...(hasBranches
+      ? [
+          {
+            key: 'branch', header: tb('column'), width: '8rem', kind: 'label',
+            cellProps: () => ({ 'data-testid': 'order-branch' }),
+            cell: (o: SaleOrder) =>
+              o.branch ? <LatinText>{o.branch.name}</LatinText> : <span className="text-muted-foreground">{tb('noBranch')}</span>,
+          } satisfies Column<SaleOrder>,
+        ]
+      : []),
     { key: 'status', header: tc('status'), width: 'auto', kind: 'label', cell: (o) => codeLabel('orderStatus', o.status) },
     {
       // Room for "sold at -123,456.00 EGP" under the value now (§4, 2026-10-22).
@@ -211,6 +238,11 @@ export default function CustomerPage() {
                 <LatinText dir="ltr">{customer.phone}</LatinText>
               </>
             )}
+            {hasBranches && (
+              <span data-testid="owner-tag" className="ms-2 inline-block rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+                {tb('ownerTag', { count: branchData.branches.length })}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -247,14 +279,35 @@ export default function CustomerPage() {
         {ordersLoading ? (
           <TileSkeleton label={t('balance')} />
         ) : (
-          <Tile testId="customer-balance" label={t('balance')} value={<Money value={owed} />} tone={owed > 0 ? 'red' : 'green'} />
+          <Tile
+            testId="customer-balance"
+            label={t('balance')}
+            value={<Money value={owed} />}
+            tone={owed > 0 ? 'red' : 'green'}
+            hint={hasBranches ? tb('acrossBranches', { count: branchData.branches.length }) : undefined}
+          />
         )}
         {paymentsLoading ? <TileSkeleton label={tp('title')} /> : <Tile label={tp('title')} value={<Money value={paid} />} />}
-        {ordersLoading ? <TileSkeleton label={ts('title')} /> : <Tile label={ts('title')} value={String(orderList.length)} />}
+        {ordersLoading ? <TileSkeleton label={ts('title')} /> : <Tile label={ts('title')} value={String(allOrders.length)} />}
       </div>
 
+      {/* Its branches (§7, 2026-10-25): what each owes, and the total. */}
+      {customer && !customer.isWalkIn && (
+        <BranchesCard customerId={id} data={branchData} selected={branchFilter} onSelect={setBranchFilter} />
+      )}
+
       <Card title={ts('title')} icon={<ShoppingCart className="h-4 w-4 text-gray-400" />}>
-        <ListCapNotice capped={ordersCapped} count={orderList.length} />
+        {hasBranches && (
+          <BranchChips
+            branches={branchData.branches.map((b) => ({ id: b.id, name: b.name }))}
+            withNone={allOrders.some((o) => !o.branchId)}
+            selected={branchFilter}
+            onSelect={setBranchFilter}
+            allLabel={tb('allBranches')}
+            noneLabel={tb('noBranch')}
+          />
+        )}
+        <ListCapNotice capped={ordersCapped} count={allOrders.length} />
         {!ordersLoading && orderList.length === 0 ? (
           <EmptyState
             title={t('noOrders')}
@@ -286,7 +339,17 @@ export default function CustomerPage() {
                       testId="customer-order-card"
                       topStart={<bdi dir="ltr" className="font-mono text-xs text-muted-foreground">{o.orderNo}</bdi>}
                       topEnd={<span className="text-sm text-foreground">{codeLabel('orderStatus', o.status)}</span>}
-                      midStart={<span className="text-xs text-muted-foreground">{formatDate(o.orderedAt ?? o.createdAt)}</span>}
+                      midStart={
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(o.orderedAt ?? o.createdAt)}
+                          {o.branch && (
+                            <>
+                              {' · '}
+                              <LatinText>{o.branch.name}</LatinText>
+                            </>
+                          )}
+                        </span>
+                      }
                       midEnd={<span className="text-sm font-medium text-foreground"><OrderTotal total={o.total} valueNow={o.valueNowEgp} currency={o.currency} /></span>}
                       bottomLabel={ts('outstanding')}
                       bottom={outstandingOf(o)}
@@ -349,13 +412,20 @@ export default function CustomerPage() {
 
       {/* Fetches its own figures, so it starts alongside the customer rather
           than after it, and shows its own skeleton meanwhile. */}
-      <CustomerStatement customerId={id} customerName={customer?.displayName ?? ''} />
+      <CustomerStatement
+        customerId={id}
+        customerName={customer?.displayName ?? ''}
+        branch={branchFilter}
+        branchName={branchFilter === NO_BRANCH ? tb('noBranch') : filteredBranch?.name}
+        showBranches={hasBranches && branchFilter === null}
+      />
 
       {customer && (
         <RecordPaymentDialog
           open={showPay}
           onClose={() => setShowPay(false)}
           customer={{ id, displayName: customer.displayName, currency: customer.currency }}
+          branches={hasBranches ? branchData.branches : undefined}
         />
       )}
     </div>
@@ -397,13 +467,66 @@ function TileSkeleton({ label }: { label: string }) {
 /** Rows a section shows while its list loads. */
 const SECTION_SKELETON_ROWS = 3;
 
-function Tile({ label, value, tone, testId }: { label: string; value: React.ReactNode; tone?: 'red' | 'green'; testId?: string }) {
+function Tile({
+  label,
+  value,
+  tone,
+  testId,
+  hint,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: 'red' | 'green';
+  testId?: string;
+  /** A line under the figure, e.g. "across 3 branches". */
+  hint?: string;
+}) {
   return (
     <div data-testid={testId} className="rounded-xl border border-gray-200 bg-white p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className={`mt-1 text-xl font-bold ${tone === 'red' ? 'text-red-600' : tone === 'green' ? 'text-green-600' : 'text-gray-900'}`}>
         {value}
       </p>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+/** All · each branch · on the owner: narrows the orders and the statement to one. */
+function BranchChips({
+  branches,
+  withNone,
+  selected,
+  onSelect,
+  allLabel,
+  noneLabel,
+}: {
+  branches: { id: string; name: string }[];
+  withNone: boolean;
+  selected: BranchFilter;
+  onSelect: (filter: BranchFilter) => void;
+  allLabel: string;
+  noneLabel: string;
+}) {
+  const chip = (value: BranchFilter, label: string) => (
+    <button
+      key={value ?? 'all'}
+      type="button"
+      aria-pressed={selected === value}
+      data-testid="branch-chip"
+      onClick={() => onSelect(value)}
+      className={`min-h-11 cursor-pointer rounded-full px-2.5 py-1 text-xs sm:min-h-0 ${
+        selected === value ? 'bg-primary-50 font-medium text-primary-700' : 'text-muted-foreground hover:bg-muted'
+      }`}
+    >
+      <LatinText>{label}</LatinText>
+    </button>
+  );
+  return (
+    <div className="mb-3 flex flex-wrap gap-1 print:hidden">
+      {chip(null, allLabel)}
+      {branches.map((b) => chip(b.id, b.name))}
+      {withNone && chip(NO_BRANCH, noneLabel)}
     </div>
   );
 }

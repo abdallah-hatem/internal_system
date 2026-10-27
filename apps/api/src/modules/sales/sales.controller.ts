@@ -48,12 +48,13 @@ export class SalesController {
   @Get()
   @ApiOperation({
     summary:
-      'List sale orders: page/pageSize/search/sort, customerId (or walk-in), status, from/to',
+      'List sale orders: page/pageSize/search/sort, customerId (or walk-in), branchId (or none, with a customerId), status, from/to',
   })
   findAll(
     @Query()
     query: ListQuery & {
       customerId?: string;
+      branchId?: string;
       status?: string;
       channel?: string;
       from?: string;

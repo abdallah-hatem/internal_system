@@ -10,7 +10,7 @@
  */
 export const AUDIT_ENTITY_TYPES = [
   // Selling
-  'SaleOrder', 'SaleReturn', 'Payment', 'PaymentPlan', 'Customer',
+  'SaleOrder', 'SaleReturn', 'Payment', 'PaymentPlan', 'Customer', 'CustomerBranch',
   // Buying and shipping
   'ImportCycle', 'CycleParticipant', 'PurchaseOrder', 'PurchaseOrderItem', 'SupplierRefund',
   'ShippingLeg', 'ShipmentDeparture', 'ShipmentDelivery', 'ShipmentLoss',

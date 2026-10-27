@@ -186,7 +186,7 @@ export function RecordAdvanceDialog({
           <DatePicker name="paidOn" required disableFuture defaultValue={businessToday()} />
         </FieldLabel>
         <FieldLabel label={t('note')}>
-          <input name="note" maxLength={500} className={inputClass} />
+          <input name="note" maxLength={500} placeholder={tph('accountNote')} className={inputClass} />
         </FieldLabel>
       </ValidatedForm>
     </Dialog>
@@ -244,7 +244,7 @@ export function WithdrawDialog({ account, onClose }: { account: PartnerAccount; 
           <DatePicker name="takenOn" required disableFuture defaultValue={businessToday()} />
         </FieldLabel>
         <FieldLabel label={t('note')}>
-          <input name="note" maxLength={500} className={inputClass} />
+          <input name="note" maxLength={500} placeholder={tph('accountNote')} className={inputClass} />
         </FieldLabel>
       </ValidatedForm>
     </Dialog>
@@ -263,6 +263,7 @@ export function ReverseMovementDialog({
 }) {
   const t = useTranslations('accounts');
   const tc = useTranslations('common');
+  const tph = useTranslations('placeholders');
   const apiError = useApiError();
   const { addToast } = useToast();
   const refresh = useRefreshAccounts();
@@ -293,7 +294,7 @@ export function ReverseMovementDialog({
         }}
       >
         <FieldLabel label={t('reason')} required>
-          <input name="reason" required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} />
+          <input name="reason" required maxLength={500} placeholder={tph('reverseReason')} value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} />
         </FieldLabel>
       </ValidatedForm>
     </Dialog>

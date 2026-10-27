@@ -11,7 +11,8 @@ import { SalesService } from './sales.service';
 /**
  * The Sales list on the server (owner 2026-10-25, "server-side search,
  * filters, sorting and pagination everywhere"; and "the Sales list filters by
- * customer") — against a real Postgres, through `SalesService.findAll`, the endpoint's own code.
+ * customer", with a branch filter for a customer with branches) — against a
+ * real Postgres, through `SalesService.findAll`, the endpoint's own code.
  *
  * The fixture is a shop with more orders than one page (23, at 10 a page), so
  * a list that paged, counted or filtered only the rows it had loaded would
@@ -32,6 +33,7 @@ type Row = {
   orderNo: string;
   status: string;
   customerId: string;
+  branchId: string | null;
   createdAt: Date;
 };
 type Meta = {
@@ -54,10 +56,13 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
   let shopA: { id: string };
   let productId: string;
   let shopB: { id: string };
-  /** Shop A's confirmed orders, in the three runs they were sold in. */
-  const firstSold: string[] = [];
-  const midSold: string[] = [];
-  const lastSold: string[] = [];
+  let mokattam: { id: string };
+  let master: { id: string };
+  let otherBranch: { id: string };
+  /** Shop A's orders by where they went. */
+  const onOwner: string[] = [];
+  const onMokattam: string[] = [];
+  const onMaster: string[] = [];
   const drafts: string[] = [];
 
   const list = (q: Record<string, unknown>) =>
@@ -146,7 +151,7 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
 
     const sell = async (
       customerId: string,
-      extra: { confirm?: boolean } = {},
+      extra: { branchId?: string; confirm?: boolean } = {},
     ) => {
       const made = (await sales.create(
         {
@@ -155,25 +160,39 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
           currency: 'EGP',
           items: [{ productId: product.id, quantity: 1, unitPrice: 50 }],
           confirm: extra.confirm ?? true,
+          ...(extra.branchId ? { branchId: extra.branchId } : {}),
         },
         actor,
       )) as { data?: { id: string }; id?: string };
       return made.data?.id ?? (made as { id: string }).id;
     };
 
-    for (let i = 0; i < 5; i++) firstSold.push(await sell(shopA.id));
+    // Before shop A had branches: its orders are on the owner.
+    for (let i = 0; i < 5; i++) onOwner.push(await sell(shopA.id));
     for (let i = 0; i < 3; i++) {
       drafts.push(await sell(shopA.id, { confirm: false }));
     }
-    for (let i = 0; i < 8; i++) midSold.push(await sell(shopA.id));
-    for (let i = 0; i < 7; i++) lastSold.push(await sell(shopA.id));
+    mokattam = await prisma.customerBranch.create({
+      data: { customerId: shopA.id, name: `Mokattam ${tag}` },
+    });
+    master = await prisma.customerBranch.create({
+      data: { customerId: shopA.id, name: `Master ${tag}` },
+    });
+    otherBranch = await prisma.customerBranch.create({
+      data: { customerId: shopB.id, name: `Elsewhere ${tag}` },
+    });
+    for (let i = 0; i < 8; i++) {
+      onMokattam.push(await sell(shopA.id, { branchId: mokattam.id }));
+    }
+    for (let i = 0; i < 7; i++) {
+      onMaster.push(await sell(shopA.id, { branchId: master.id }));
+    }
     for (let i = 0; i < 3; i++) await sell(shopB.id);
   }, 300_000);
   afterAll(() => prisma.$disconnect());
 
-  // 5 + 3 drafts + 8 + 7 = 23: more than a page.
+  // 5 on the owner + 3 drafts + 8 + 7 on branches = 23: more than a page.
   const SHOP_A_ORDERS = 23;
-  const confirmed = () => [...firstSold, ...midSold, ...lastSold];
 
   describe('pages', () => {
     it('page 1 is 10 of 23, newest first, and the count is every match', async () => {
@@ -185,8 +204,8 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
         totalPages: 3,
       });
       expect(data).toHaveLength(10);
-      // The newest order of all is the last one sold.
-      expect(data[0].id).toBe(lastSold[lastSold.length - 1]);
+      // The newest order of all is the last one Master was sold.
+      expect(data[0].id).toBe(onMaster[onMaster.length - 1]);
       expect(data.every((o) => o.customerId === shopA.id)).toBe(true);
     });
 
@@ -198,7 +217,7 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
       expect(totalPages).toBe(4);
       expect(rows).toHaveLength(total!);
       expect(new Set(rows.map((r) => r.id)).size).toBe(SHOP_A_ORDERS);
-      const all = [...confirmed(), ...drafts];
+      const all = [...onOwner, ...drafts, ...onMokattam, ...onMaster];
       expect(new Set(rows.map((r) => r.id))).toEqual(new Set(all));
       // Newest first across the pages, not only within one.
       const times = rows.map((r) => new Date(r.createdAt).getTime());
@@ -305,7 +324,7 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
 
     it('an order number finds that order alone', async () => {
       const order = await prisma.saleOrder.findUniqueOrThrow({
-        where: { id: midSold[2] },
+        where: { id: onMokattam[2] },
       });
       const { data, meta } = await list({
         customerId: shopA.id,
@@ -384,18 +403,87 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
       ).toBe('LIST_FILTER_INVALID');
     });
 
+    it("one branch's orders, and the orders on the owner", async () => {
+      const m = await everyPage(
+        { customerId: shopA.id, branchId: mokattam.id },
+        3,
+      );
+      expect(m.total).toBe(8);
+      expect(new Set(m.rows.map((r) => r.id))).toEqual(new Set(onMokattam));
+      const owner = await everyPage(
+        { customerId: shopA.id, branchId: 'none' },
+        3,
+      );
+      // The drafts were made before the branches too: on the owner.
+      expect(new Set(owner.rows.map((r) => r.id))).toEqual(
+        new Set([...onOwner, ...drafts]),
+      );
+      expect(owner.total).toBe(8);
+    });
+
+    it('an archived branch still lists its orders', async () => {
+      await prisma.customerBranch.update({
+        where: { id: master.id },
+        data: { archivedAt: new Date() },
+      });
+      try {
+        const { meta } = await list({
+          customerId: shopA.id,
+          branchId: master.id,
+          page: '1',
+        });
+        expect(meta.total).toBe(7);
+      } finally {
+        await prisma.customerBranch.update({
+          where: { id: master.id },
+          data: { archivedAt: null },
+        });
+      }
+    });
+
+    it('another customer\'s branch is refused, not answered with "no orders"', async () => {
+      expect(
+        await refusal(
+          list({ customerId: shopA.id, branchId: otherBranch.id, page: '1' }),
+        ),
+      ).toBe('BRANCH_NOT_THIS_CUSTOMER');
+    });
+
+    it('a branch that does not exist, or cannot be an id, is refused', async () => {
+      for (const branchId of [randomUUID(), 'mokattam', "' OR 1=1 --"]) {
+        expect(
+          await refusal(list({ customerId: shopA.id, branchId, page: '1' })),
+        ).toBe('NOT_FOUND');
+      }
+    });
+
+    it('a branch with no customer, or with the walk-in buyer, is refused', async () => {
+      expect(await refusal(list({ branchId: mokattam.id, page: '1' }))).toBe(
+        'LIST_FILTER_INVALID',
+      );
+      expect(await refusal(list({ branchId: 'none', page: '1' }))).toBe(
+        'LIST_FILTER_INVALID',
+      );
+      expect(
+        await refusal(
+          list({ customerId: 'walk-in', branchId: 'none', page: '1' }),
+        ),
+      ).toBe('LIST_FILTER_INVALID');
+    });
+
     it('a filter, a search and a sort together: each narrows, the count matches the rows', async () => {
       const q = {
         customerId: shopA.id,
+        branchId: 'none',
         status: 'CONFIRMED',
         search: 'أحمد',
         sort: 'newest',
       };
-      const { rows, total } = await everyPage(q, 7);
-      expect(total).toBe(confirmed().length);
-      expect(new Set(rows.map((r) => r.id))).toEqual(new Set(confirmed()));
+      const { rows, total } = await everyPage(q, 2);
+      expect(total).toBe(onOwner.length);
+      expect(new Set(rows.map((r) => r.id))).toEqual(new Set(onOwner));
       expect(rows.every((r) => r.status === 'CONFIRMED')).toBe(true);
-      // The drafts are left out by the status, not by the page.
+      // The drafts on the owner are left out by the status, not by the page.
       const draftsOnly = await list({ ...q, status: 'DRAFT', page: '1' });
       expect(new Set(draftsOnly.data.map((r) => r.id))).toEqual(
         new Set(drafts),
@@ -440,7 +528,7 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
       do {
         const answer: { data: Row[]; meta: Meta } = await list({
           customerId: shopA.id,
-          status: 'CONFIRMED',
+          branchId: mokattam.id,
           limit: '3',
           ...(cursor ? { cursor } : {}),
         });
@@ -448,8 +536,8 @@ suite('the Sales list, searched, filtered and paged by Postgres', () => {
         seen.push(...answer.data.map((r) => r.id));
         cursor = answer.meta.nextCursor;
       } while (cursor);
-      expect(seen).toHaveLength(confirmed().length);
-      expect(new Set(seen)).toEqual(new Set(confirmed()));
+      expect(seen).toHaveLength(8);
+      expect(new Set(seen)).toEqual(new Set(onMokattam));
     });
   });
 

@@ -111,7 +111,10 @@ Corrections recorded so they don't have to be repeated. Loaded at session start.
   leaves the VM and a dozen helper processes running for nothing. Check nothing is
   mid-flight first — no `node.*playwright` — because the servers may belong to another
   session. — 2026-09-02
-- `npm run dev` is for the owner: it opens a visible Terminal window per server. When the stack is only for my own
+- No Terminal windows, even when the owner tests himself (2026-10-27: I ran `npm run dev` for his local test and he
+  said "no terminals"). Start the API, web and storefront as background tasks (or `scripts/agent-servers.sh`), and stop
+  them and Docker when he says he's done. The rest of this entry is history.
+- (Superseded 2026-10-27) `npm run dev` is for the owner: it opens a visible Terminal window per server. When the stack is only for my own
   check (headless screenshots, a PDF), start the servers in the background with no windows (`scripts/agent-servers.sh`,
   or each app's dev command as a background task) and stop them and Docker when the check ends. On 2026-10-17 I opened
   the windows to check the invoice PDF and he asked "why did you open the terminals i did not tell you that i will test

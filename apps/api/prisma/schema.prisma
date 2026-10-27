@@ -1026,7 +1026,36 @@ model Customer {
 
   paymentPlans PaymentPlan[]
 
+  /// The shop's branches (BUSINESS_LOGIC §7, "A customer with branches",
+  /// 2026-10-25). One owner pays for all of them; a branch is never a customer.
+  branches CustomerBranch[]
+
   @@map("customers")
+}
+
+/// A branch of a customer (owner, 2026-10-25): its own orders, balance and
+/// statement, and where to deliver. Credit, contracts, the storefront login and
+/// the invoice header stay the owner's. Names are unique per customer ignoring
+/// case, and at most one branch is the default: both are partial/expression
+/// unique indexes in the migration, which Prisma cannot express.
+model CustomerBranch {
+  id         String    @id @default(uuid()) @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  name       String
+  address    String?
+  phone      String?
+  /// The branch a sale order lands on when none is named.
+  isDefault  Boolean   @default(false) @map("is_default")
+  /// Archived: takes no new orders, keeps its history and balance.
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  saleOrders SaleOrder[]
+
+  @@index([customerId])
+  @@map("customer_branches")
 }
 
 model SaleOrder {
@@ -1054,6 +1083,12 @@ model SaleOrder {
   samplesRemindedAt DateTime?   @map("samples_reminded_at") @db.Timestamptz()
 
   customer           Customer               @relation(fields: [customerId], references: [id])
+  /// The branch it was sold to (§7, 2026-10-25). Null for a customer with no
+  /// branches, or no default when it was sold: the order is on the owner.
+  /// Restrict, as the migration made it: a branch is archived, never deleted,
+  /// and deleting one must not quietly move its orders onto the owner.
+  branchId           String?                @map("branch_id") @db.Uuid
+  branch             CustomerBranch?        @relation(fields: [branchId], references: [id], onDelete: Restrict)
   creator            User?                  @relation("CreatedSaleOrderUser", fields: [createdBy], references: [id])
   createdBy          String?                @map("created_by") @db.Uuid
   /// The create form's key, so a retried POST returns this order instead of a
@@ -1071,6 +1106,7 @@ model SaleOrder {
   paymentPlan  PaymentPlan?
 
   @@unique([createdBy, idempotencyKey])
+  @@index([branchId])
   @@map("sale_orders")
 }
 

@@ -12,10 +12,23 @@ notifications, the New Order samples hint and the partner running account (migra
 `20261025100000_partner_running_accounts` applied first), shipped at the owner's word ("push notifications, sample hint,
 and partner account now, leave the branches"). **Customers with branches stay on `dev` only** (migration
 `20261025120000_customer_branches` not applied to production). **Server-side lists + the Sales customer filter are live** (2026-10-26, `d3955e9`, ported from dev without branches; owner:
-"I need to ship the serverside lists now"). On `dev` only, for the owner to test locally first: customers with branches
-(and the Sales branch filter), Edit order. The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
+"I need to ship the serverside lists now"). Customers with branches and the Sales branch filter are on the release branch
+`release/customer-branches` (2026-10-27, below); Edit order is saved on `feature/edit-order` and not shipped (its
+migration `20261026100000_sale_order_edits` must not be applied to production until it is). Tests on that commit: API 2,537/2,537 (one suite at a time, 30 s limit — under `-w 2` the database suites share one database and move each other's dashboard figures), web 1,492/1,492, unit 127/127; e2e not run (owner, 2026-10-25). Master merged into dev 2026-10-26 (owner: "push dev"), so dev also holds the 26 Oct releases. Known, unfixed: return references (`RET-…`) are numbered without a lock, so two returns at once can collide. The owner's open answers: BUSINESS_LOGIC "Still open". The office chat needs `AI_API_KEY` (and `AI_PROVIDER`) on the API project
 in Vercel; without them it says it is not set up. State of the product and of production's data:
 `docs/where-things-stand.md`.
+**Branches' 31 broken dev tests — fixed 2026-10-26:** New Order looked for the shop's default branch before the walk-in and samples checks, so a walk-in (which has no branches) made a lookup the fakes did not answer and a refusal came after it. The lookup now comes after those checks and is skipped for a walk-in (a branch named for one is still refused); the assistant spec's in-memory database has the branches table and expects `record_sale`'s new `branch` field. A real-Postgres test now sells to the walk-in with no branch (PAID, owes 0, no branch). Full run after the fix: API 2,392 passed; the 15 that failed in the parallel run were two workers on one database moving each other's totals, `references.db` appending `?connection_limit` to a URL that already has `?schema=public`, and 5-second timeouts on whole-database dashboard figures — each passes alone (37/37 with a 30 s limit). Web 1,474 passed; `pnl-weeks` times out as before.
+Held (owner, 2026-10-25: "hold all for now, i want only the partner running account", "we will do the rest later"): since finished on dev and then, 2026-10-27, kept out of the release: **Edit order on a confirmed order** is saved on `feature/edit-order` (= dev `4bdbf1e`), migration renamed `20261026100000_sale_order_edits`. E2e is not run for now (owner, 2026-10-25); unit and DB tests are.
+
+2026-10-27 — Live-pending: **customer branches + Sales branch filter, Edit order kept on feature/edit-order** (owner: "I
+would like to ship customer branches, but not the edit order, lets just save it in a feature branch"). Branch
+`release/customer-branches` = master plus everything on dev except Edit order: customers with branches (BUSINESS_LOGIC
+§7, migration `20261025120000_customer_branches` — the only new migration), the Sales list's branch filter (§3; dropped
+from the lists port `939f002`, restored with its db-spec cases), a walk-in looks up no branch (`b62af5f`), the partner
+accounts' role list in its own file and dialog placeholders (`8ad247c`, `ebb915c`). Edit order (code, migration
+`20261026100000_sale_order_edits`, `ORDER_EDITED`, the assistant's `edit_order`, the `EDIT_ORDER_*` codes, P&L's edit
+sums) is not in it — P&L's query count is master's 16 / dashboard 14. History carries no Edit order commit, so
+`feature/edit-order` can still be merged later. §4 marks Edit order not shipped. No e2e (owner rule).
 
 2026-10-27 — Live-pending: **the Funding card with investors** (owner: "they should be added to funding as well
 right? … something looks off", BUSINESS_LOGIC §8 "Investors in the funding"): put in so far counts investors
@@ -70,6 +83,64 @@ migration; `GET /cycles/:id/account-funding` gains shares, into capital, the par
   each break-checked.
 
 ## On `dev`, not on master yet (the owner: "lets do this", then "push dev", 2026-10-25)
+- 2026-10-26 (owner's queue of 2026-10-25, resumed from the held `agent-lists` WIP `5c75bcb`; merged into dev): **search, filters, sorting and pagination on the
+  server, everywhere** and **the Sales list filters by customer — and by branch**. Rules in BUSINESS_LOGIC §3 "Every
+  office list searches, filters, sorts and pages on the server". The 14 lists that paged in the browser through
+  `paginate()` (customers, payments, ledger, sales, inventory, notifications, suppliers, cycles, categories,
+  shipments, providers, audit log, products, purchases) send `page`, `pageSize`, `q`→`search`, `sort` and their
+  filters from the URL to the API, which filters, counts and pages in the query (`common/list-query.ts`; office
+  `lib/server-list.ts`, the cache keyed by entity + endpoint + params, read again on every visit). The
+  Arabic-forgiving search is in SQL (`arabic_search_key()`, `common/repositories/list-search.ts`), so it now reaches
+  customer, supplier and buyer names too. `paginate()`, `matchesName`, `countryMatches` and `sortByBalance` are gone;
+  `useAllRecords` stays only for pickers and for screens that sum what they show (a shop's own orders/payments,
+  Contracts, Settlements); CSV exports walk `fetchAll` with the list's filters. Sales: a searchable customer picker
+  (Walk-in its own choice, `?customer=<id>|walk-in` → `customerId`) and, for a customer with branches, a branch
+  picker with "On the owner" (`?branch=<id>|none` → `branchId`, refused alone, with Walk-in, or for another
+  customer's branch); a new customer drops the branch. A shop's New Order opens `/sales?new=1&customer=<id>` (GUESS).
+  Found and fixed while testing: a page of 10^20 was a 500 (Prisma cannot skip that far) — pages are 1 to 1,000,000
+  now; a page size over 200 was not refused; Clear left the filters on; the audit log's Clear put the search back
+  (two address writes racing); the second visit within a minute showed the cached page. Page tests that still fed
+  the lists unpaged answers were brought up to date (samples-pages, order-value-now, order-popup-history,
+  ledger-quick-actions, inventory-receive, audit-logs-view, list-toolbar and no-match sweeps). Known, not edited here
+  (being fixed on dev with the branches tests): `sales/walk-in.spec.ts` "The customers list … real customers only"
+  fails because its fake Prisma has no `$queryRaw`, which the customers search now uses — the rule itself is pinned
+  against Postgres in `sales-list.db.spec.ts`. Tests: `sales/sales-list.db.spec.ts` (52, real Postgres, 23 orders at 10 a page: past the end, page
+  0/negative/huge, page sizes 0–10^20, unknown sorts, SQL-ish and LIKE-wildcard searches, six Arabic spellings,
+  filter + search + sort with counts that match the rows walked, branches, cursors, the walk-in never listed), `list-query.spec`,
+  `list-search.spec`, `server-list.test.tsx` (21: the second visit with a minute-fresh cache, page 0/negative in a
+  link, Clear), `sales-buyer-filter.test.tsx` (6: walk-in, a switched customer never keeps or shows the last
+  one's branches, also while loading); each break-verified. e2e `104-server-lists` (TC-SL-01..08) written, not run —
+  owner said not for now.
+- 2026-10-25 (owner: "make full branches again",
+  then "not required because default to the default"): **a customer with branches** — one owner pays for all. Rules
+  in BUSINESS_LOGIC §7 "A customer with branches". A `customer_branches` table (name, address, phone, default,
+  archived) under the customer and an optional `sale_orders.branch_id`; a branch is never a customer. Names once per
+  customer ignoring case, at most one default — both also unique indexes. A sale order with no branch goes on the
+  customer's default branch: one rule in `resolveSaleBranch`, for the office form, drafts, samples, walk-in, the
+  assistant's `record_sale` (which also takes a branch by name) and the office chat. Another customer's branch and an
+  archived branch are refused (`BRANCH_NOT_THIS_CUSTOMER`, `BRANCH_ARCHIVED`). The customer page: an "Owner · 3
+  branches" tag, the balance tile "across 3 branches", a Branches card (each branch's orders and what it owes, the
+  orders on the owner, the total = Owes us; add, edit, make default, archive, restore — core partners), a Branch
+  column and filter on the orders, and the statement with a Branch column, narrowed to one branch on a click (it
+  then closes at that branch's balance). Record payment: "Pay to" all branches (oldest first, as before) or one branch
+  (oldest first on its orders, never more than it owes — `PAYMENT_EXCEEDS_BRANCH_OWED`, `BRANCH_OWES_NOTHING`). New
+  Order: a Branch picker for a customer with two or more open branches, starting on the default; switching customer
+  drops the old branch at once. The invoice: billed to the owner, "Deliver to" the branch with its address and phone.
+  The Sales list and the order popup name the branch. Not changed: credit and contract limits (there are none in
+  the app today), contracts, samples, returns and price cuts stay per order; the storefront login is the owner's and
+  shows nothing new yet. The Sales list's branch filter came with the server-side lists (2026-10-26, above).
+  Tests: `customer-branches.db.spec.ts` (20, real Postgres: names, defaults, the default fallback on every
+  path incl. `record_sale`, another customer's and archived branches, per-branch caps, balances and statements that
+  add up), `SaleOrderForm.branches.test.tsx` (8: the default, a picked branch, a switched customer — also while its
+  branches load), `src/one-off/ahmad-zogmar-branches.spec.ts`; e2e `104-customer-branches` written, not run — owner
+  said not for now (2026-10-25). Each guard was undone
+  once and its test seen to fail. `check-data` 27.1–27.3: an order on another customer's branch, two defaults, an
+  archived default.
+  **Ahmad Zogmar** (production `ceadced7-457a-4803-9241-3520b6bda1ac`): `prisma/one-off/2026-10-25-ahmad-zogmar-branches.ts`
+  adds Mokattam, Master and LS2 with **no default**; it refuses any database not on this machine, and has not been
+  run against production. Waiting on the owner: which branch is his default; the names' spelling; whether an order
+  for a customer with branches and no default should stay on the owner (what it does now, GUESS). His existing
+  orders stay on him. The design sample is `docs/samples/branches/`.
 - 2026-10-25 (owner: "pull dev, start working on the todos"): **a sale, a payment, a return, a payment reversed and a
   confirmed order cancelled notify the other partners** (§10), in the bell and pushed. `common/partner-news.ts`
   (who hears it, who did it, the words), raised after the commit from the sales, payments and returns services; six
@@ -329,6 +400,17 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Next (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
+  order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
+  that includes buying 2 of them while one still remains as a sample"): **Samples into the current order** —
+  New Order's samples hint becomes a list per product with **Add to order** (and **Add all**); the line is tagged
+  "from sample ORD-…" and edits like any line. On confirm, in one server transaction, the sample's units (and their
+  allocations at their original batch cost) move from the samples order into the sale — no second shelf draw; more than
+  the sample takes the rest from the shelf (FIFO); fewer leaves the rest as a sample. Lines not added stay samples on the
+  same order (left date and reminder kept); a samples order with nothing left closes as bought. The "They're buying"
+  popup gets the same per-line choice for a removed line: **Keep as sample** (default) or **Returned**. Tests: more /
+  less / all / none of a sample, two samples orders at once, another shop's sample (refused), a returned or written-off
+  sample (refused), doing it twice, stock and the settlement gate correct after. Build on its own branch.
 - Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):
   **Confirm and paid in one step** — on a draft sale order (the order popup and New Order), a "Confirm & paid" button that
   confirms the order and records a payment for its full total (today, the order's customer) in one server call, all or
@@ -397,12 +479,7 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
   payment, whose inflow is matched by the purchase it paid). Rules into BUSINESS_LOGIC §8 when decided; sample the
   cycle's funding panel and the Partners page before building (he judges by looking). Settlement changes (capital back
   from the account, payouts into it) need the full set of break-it tests (CLAUDE.md §0, §1, §10).
-- Later (owner, 2026-10-25; queued only, not to be built until he says): the Sales list filters **by customer** — a
-  searchable customer picker (shared `components/ui/select.tsx`, walk-in included as its own choice) in the list's
-  toolbar beside status and dates; the choice in the URL (`?customer=<id>`), sent to the API, which already accepts
-  `customerId` on `GET /sales/orders`; clearable with the other filters. Build with the server-side lists item (search,
-  filters, sorting, pagination on the server) so the filter is not applied in the browser.
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **Edit order** on a confirmed order — add a
+- Later (owner, 2026-10-25; built on dev 2026-10-26, NOT shipped — saved on `feature/edit-order`, owner 2026-10-27): **Edit order** on a confirmed order — add a
   product, change a quantity, change a price (up or down). It feels like editing; underneath, each change is a dated,
   recorded event (never an overwrite of what was confirmed): more units drawn FIFO that day, fewer units back to their
   own batches (as a return does), a price change up or down (supersedes the "lower only" GUESS of the price
@@ -436,34 +513,6 @@ Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production
     and statement, the cycle's profit, the dashboard, Analytics, inventory and the product page's stock value,
     check-data (all zero).
   - Through the assistant/office chat too, if exposed there (same service, preview/confirm).
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **a customer with branches** — "now a customer
-  can have multiple branches, and a different sale per branch … one owner pays for all". One customer (the owner, e.g.
-  Koshary) with branches under it (e.g. Dokki, Nasr City). Each branch: its own orders, balance, statement (with the
-  Profit column) and address/phone. The customer's page: every branch's balance and the combined total owed, all
-  branches' orders, and one statement across them (branch named on each row). New Order: when a customer has more than
-  one branch, pick the branch (a picker, never free text; a customer with one branch picks none). A payment from the
-  owner: to one branch, or spread across branches' orders (oldest first unless chosen), never more than the combined
-  owed. Contracts, samples, returns and price adjustments stay per order, so per branch. Existing customers become a
-  customer with no branches (no data change for them); a branch is never a separate customer record. Decided (owner,
-  2026-10-25: "owner, owner, owner"): credit and contract limits are the **owner's**, across all branches; the
-  storefront login is the **owner's** (one login for all branches; he picks the branch when ordering); the invoice
-  header names the **owner** (the branch can appear as the delivery line — Claude's suggestion, confirm when the
-  sample is shown).
-  First use once built (owner, 2026-10-25): **Ahmad Zogmar** (production customer `ceadced7-457a-4803-9241-3520b6bda1ac`,
-  B2B, owes 0 today, no open orders) gets three branches — **Mokattam**, **Master** and **LS2** (names as the owner gave
-  them; spelling to confirm when entering). His existing record becomes the owner; any orders he already has stay on
-  him until a branch is picked for them (ask the owner which branch each belongs to). Render a sample of the customer page and New Order
-  before building (he judges by looking). Rules into BUSINESS_LOGIC §7 when built.
-- Later (owner, 2026-10-25; queued only, not to be built until he says): **search, filters, sorting and pagination on the
-  server, everywhere** (sorting and filters made explicit by the owner 2026-10-25) — "this is the purpose of pagination, how can you do it client from the first place". Today 14 lists
-  load everything and page it in the browser through `paginate()` (`components/ui/pagination.tsx`): customers,
-  payments, ledger, sales, inventory, notifications, suppliers, cycles, categories, shipments, providers, audit log,
-  products, purchases; and products, categories, inventory and lenders search in the browser (`matchesName`). About 20 screens load lists through `useAllRecords` (`lib/list-all.ts`: every page, 200 at a time, up to `LIST_CAP` 2,000, then a cap notice) and filter (status, customer…), search and sort what they loaded — e.g. Sales sends only the date range; its status filter, search and pages run in the browser; the one column sort (Customers by balance) too. Each
-  list: `page`, `pageSize`, search, filters and `sort` in the URL, sent to the API, which filters, counts and pages in the
-  query (the Arabic-forgiving search moves into the API — one definition); totals from the server; the cache keyed by
-  endpoint + params (LEARNINGS). Tests per endpoint: params sent, mapping, empty / 422 / 502, and a fixture with more
-  rows than a page so a client-side shortcut would give a different answer. Remove `paginate()` and `useAllRecords` (keep it only for a real export-everything need, e.g. CSV) when the last
-  caller is gone.
 - Owner to confirm the guesses still open from the 2026-10-11/12 batches (details in the History entries below):
   §18 lender guesses (rounding down, ledger rows, one friend per order, plans); §16 lender-tool guesses (today's rate
   when unsaid, ask which order, currency checked not converted) and the §8 residual guess (residual to the last

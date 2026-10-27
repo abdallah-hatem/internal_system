@@ -1,16 +1,17 @@
 import {
-  cancelNews,
-  saleNews,
-  tellOtherPartners,
-} from '../../common/partner-news';
-import {
   filterOf,
   listRows,
   type ListQuery,
   searchOf,
+  shown,
   sortOf,
 } from '../../common/list-query';
 import { searchIds } from '../../common/repositories/list-search';
+import {
+  cancelNews,
+  saleNews,
+  tellOtherPartners,
+} from '../../common/partner-news';
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextReferenceNumber, pad } from '../../common/references';
@@ -52,6 +53,7 @@ import {
   type LowStockNotifier,
 } from '../notifications/notifications.service';
 import { crossedIntoLowStock, findLowStock } from '../../common/low-stock';
+import { NO_BRANCH, resolveSaleBranch } from '../../common/customer-branches';
 import {
   centsToDecimalString,
   saleOrderTotals,
@@ -116,6 +118,12 @@ export interface CreateSaleOrderInput {
    * given is only noted, for the decision to start from.
    */
   samples?: boolean;
+  /**
+   * The customer's branch it is sold to (BUSINESS_LOGIC §7, owner 2026-10-25).
+   * Left out, the customer's default branch; with no default, the owner.
+   * Must be this customer's own, open branch.
+   */
+  branchId?: string | null;
 }
 
 /**
@@ -372,12 +380,15 @@ export class SalesService {
    *
    *   customerId  one shop's orders; `walk-in` for the walk-in buyer's
    *   status      one of the order statuses
+   *   branchId    with a customerId: one of its branches' orders, or `none`
+   *               for those on the owner (§7)
    *   from / to   calendar days, YYYY-MM-DD, both included, on the day ordered
    *   search      the order number or the buyer's name, Arabic-forgiving
    */
   async findAll(
     query: ListQuery & {
       customerId?: string;
+      branchId?: string;
       status?: string;
       channel?: string;
       from?: string;
@@ -393,8 +404,10 @@ export class SalesService {
       customerId !== undefined && customerId !== ''
         ? await this.buyerFilter(customerId)
         : undefined;
+    const branch = await this.branchFilter(buyer, customerId, query.branchId);
     const where: Prisma.SaleOrderWhereInput = {
       ...(buyer !== undefined ? { customerId: buyer } : {}),
+      ...(branch !== undefined ? { branchId: branch } : {}),
       ...(status ? { status } : {}),
       ...(channel ? { channel } : {}),
       ...(ordered ? { orderedAt: ordered } : {}),
@@ -420,6 +433,8 @@ export class SalesService {
           orderBy,
           include: {
             customer: true,
+            // The branch it was sold to (§7, 2026-10-25), named on each row.
+            branch: { select: { id: true, name: true } },
             // What each order is worth now (§4, 2026-10-22) comes with the page:
             // Prisma loads the returns and the cuts once for every row on it.
             items: { include: { product: true, ...VALUE_NOW_ITEM_INCLUDE } },
@@ -461,11 +476,53 @@ export class SalesService {
     return customerId;
   }
 
+  /**
+   * The branch a Sales list is narrowed to (§7, owner 2026-10-25): one branch
+   * of the customer the list is already narrowed to, or `none` for that
+   * customer's orders on the owner. Only beside a shop's `customerId` — a
+   * branch alone, or with the walk-in buyer, is refused — and another
+   * customer's branch is refused as the sale itself refuses it, rather than
+   * answered with an empty list that reads as "no orders". An archived
+   * branch still lists: its orders are still its.
+   */
+  private async branchFilter(
+    buyer: string | undefined,
+    customerId: string | undefined,
+    branchId: unknown,
+  ): Promise<string | null | undefined> {
+    if (branchId === undefined || branchId === null || branchId === '') {
+      return undefined;
+    }
+    if (buyer === undefined || customerId === WALK_IN_FILTER) {
+      throw badRequest(
+        'LIST_FILTER_INVALID',
+        `branchId narrows one customer's orders; name the customer too (got "${shown(branchId)}").`,
+        { field: 'branchId', value: shown(branchId) },
+      );
+    }
+    if (branchId === NO_BRANCH) return null;
+    if (!isUuid(branchId)) throw notFound('customerBranch');
+    const found = await this.prisma.customerBranch.findUnique({
+      where: { id: branchId },
+      select: { customerId: true, name: true },
+    });
+    if (!found) throw notFound('customerBranch');
+    if (found.customerId !== buyer) {
+      throw badRequest(
+        'BRANCH_NOT_THIS_CUSTOMER',
+        `The branch ${found.name} belongs to another customer.`,
+        { branch: found.name },
+      );
+    }
+    return branchId;
+  }
+
   async findById(id: string) {
     const order = await this.prisma.saleOrder.findUnique({
       where: { id },
       include: {
         customer: true,
+        branch: { select: { id: true, name: true, archivedAt: true } },
         items: {
           include: {
             product: true,
@@ -536,6 +593,8 @@ export class SalesService {
         customer: {
           select: { id: true, displayName: true, phone: true, isWalkIn: true },
         },
+        // The delivery line under the owner's header (§7, 2026-10-25).
+        branch: { select: { name: true, address: true, phone: true } },
         items: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -638,6 +697,8 @@ export class SalesService {
           phone: order.customer.phone,
           isWalkIn: order.customer.isWalkIn,
         },
+        // Billed to the owner, delivered to the branch (owner, 2026-10-25).
+        branch: order.branch,
         lines: order.items.map((it) => ({
           id: it.id,
           productId: it.productId,
@@ -1056,6 +1117,15 @@ export class SalesService {
         'The walk-in record is kept by the system; sell to it with walkIn: true.',
       );
     }
+    // Which branch (§7, 2026-10-25): the one named, or the default. One rule
+    // for every way an order is made — draft, sale, samples, the assistant —
+    // because they all come through here. Asked only once the customer may be
+    // sold to at all; a walk-in has no branches, so none is looked up for one
+    // (a branch named for it is still checked, and is never the walk-in's).
+    const branchId =
+      customer.isWalkIn && !data.branchId
+        ? null
+        : await resolveSaleBranch(db, customer.id, data.branchId);
 
     // Validate items array
     if (!data.items || data.items.length === 0) {
@@ -1132,6 +1202,7 @@ export class SalesService {
     return {
       orderNo,
       customerId: customer.id,
+      branchId,
       channel: data.channel,
       currency: data.currency,
       status: 'DRAFT' as const,

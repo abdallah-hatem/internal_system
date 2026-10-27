@@ -45,6 +45,11 @@ export interface StatementRow {
   reference: string | null;
   /** The orders it touched, by number. */
   orders: string[];
+  /**
+   * The branches of the orders it touched, by name (§7, 2026-10-25): one for a
+   * sale, several for a payment spread across branches, none on no branch.
+   */
+  branches: string[];
   /** The document's own figure: the sale total, the payment, the refund. */
   amount: string;
   /** What it did to the balance: positive owes more, negative owes less. */
@@ -89,6 +94,9 @@ export interface StatementSource {
     status: string;
     total: Prisma.Decimal | number | string;
     orderedAt: Date;
+    /** The branch it was sold to; null or absent on the owner (§7). */
+    branchId?: string | null;
+    branch?: { name: string } | null;
     items: {
       id: string;
       quantity: Prisma.Decimal | number | string;
@@ -158,6 +166,7 @@ interface Event {
   key: string;
   reference: string | null;
   orders: string[];
+  branches: string[];
   amount: number;
   effect: number;
   method: string | null;
@@ -301,6 +310,14 @@ export function buildStatement(
   }
 
   // ── The rows a person reads ──────────────────────────────────────────────
+  /** The branches of these orders, by name, once each (§7, 2026-10-25). */
+  const branchNames = (ids: string[]) => [
+    ...new Set(
+      ids
+        .map((id) => byOrder.get(id)?.branch?.name)
+        .filter((n): n is string => !!n),
+    ),
+  ];
   const events: Event[] = [];
   for (const o of orders) {
     events.push({
@@ -311,6 +328,7 @@ export function buildStatement(
       key: o.id,
       reference: o.orderNo,
       orders: [o.orderNo],
+      branches: branchNames([o.id]),
       amount: cents(o.total),
       effect: cents(o.total),
       method: null,
@@ -341,6 +359,7 @@ export function buildStatement(
       key: p.id,
       reference: p.reference,
       orders: orderNos(mine.map((a) => a.saleOrderId)),
+      branches: branchNames(mine.map((a) => a.saleOrderId)),
       amount: cents(p.amount),
       effect: allocationEffect.get(p.id) ?? 0,
       method: p.method,
@@ -357,6 +376,7 @@ export function buildStatement(
         key: `${p.id}:reversed`,
         reference: p.reference,
         orders: orderNos(mine.map((a) => a.saleOrderId)),
+        branches: branchNames(mine.map((a) => a.saleOrderId)),
         amount: applied,
         effect: reversalEffect.get(p.id) ?? 0,
         method: p.method,
@@ -374,6 +394,7 @@ export function buildStatement(
       key: r.id,
       reference: r.reference,
       orders: orderNos([r.saleOrderId]),
+      branches: branchNames([r.saleOrderId]),
       amount: cents(r.refundEgp),
       effect: returnEffect.get(r.id) ?? 0,
       method: r.refundMethod,
@@ -394,6 +415,7 @@ export function buildStatement(
       key: a.id,
       reference: orderNo,
       orders: [orderNo],
+      branches: branchNames([a.saleOrderId]),
       amount: cents(a.amountEgp),
       effect: adjustmentEffect.get(a.id) ?? 0,
       method: null,
@@ -435,6 +457,7 @@ export function buildStatement(
       date: e.date,
       reference: e.reference,
       orders: e.orders,
+      branches: e.branches,
       amount: money(e.amount),
       effect: money(e.effect),
       balance: money(running),
@@ -456,6 +479,40 @@ export function buildStatement(
     credits: money(credits),
     closingBalance: money(running),
     profit: money(profit),
+  };
+}
+
+/**
+ * One branch's share of a customer's history (§7, 2026-10-25): its own orders,
+ * and of each payment only the part that went on them. `branchId` null is the
+ * orders on no branch. Built from the owner's history rather than read
+ * separately, so a branch's statement is the owner's rows split one way, and
+ * the branches' closing balances add up to the owner's.
+ *
+ * A payment that put nothing on these orders is not theirs and is left out; a
+ * payment spread over two branches shows on each as what it paid there. Money
+ * on no order (possible only before 2026-10-11) belongs to no branch.
+ */
+export function narrowToBranch(
+  source: StatementSource,
+  branchId: string | null,
+): StatementSource {
+  const orders = source.orders.filter((o) => (o.branchId ?? null) === branchId);
+  const ids = new Set(orders.map((o) => o.id));
+  const payments = source.payments
+    .map((p) => {
+      const allocations = p.allocations.filter((a) => ids.has(a.saleOrderId));
+      const applied = allocations.reduce((c, a) => c + cents(a.amount), 0);
+      return { ...p, allocations, amount: money(applied) };
+    })
+    .filter((p) => p.allocations.length > 0);
+  return {
+    orders,
+    payments,
+    returns: source.returns.filter((r) => ids.has(r.saleOrderId)),
+    adjustments: (source.adjustments ?? []).filter((a) =>
+      ids.has(a.saleOrderId),
+    ),
   };
 }
 
@@ -481,6 +538,8 @@ export async function loadStatementSource(
         status: true,
         total: true,
         orderedAt: true,
+        branchId: true,
+        branch: { select: { name: true } },
         items: {
           select: {
             id: true,

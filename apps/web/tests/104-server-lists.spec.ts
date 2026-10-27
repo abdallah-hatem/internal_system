@@ -262,6 +262,67 @@ test.describe('Sales: filter by customer (owner 2026-10-25)', () => {
   });
 });
 
+test.describe('Sales: filter by branch, for a customer with branches (§7, owner 2026-10-25)', () => {
+  test("TC-SL-08 API and UI: a branch's orders, the owner's own, another customer's branch refused; a new customer drops the branch", async ({ page, request }) => {
+    const { headers, mk } = await apiCtx(request);
+    const tag = `SLB${Date.now()}`;
+    const { product } = await stockedProduct(request, headers, mk, tag, 100);
+    const shop = await mk('customers', { displayName: `${tag} Owner`, type: 'B2B' });
+    const plain = await mk('customers', { displayName: `${tag} Plain`, type: 'B2B' });
+    // Two orders before the branches: on the owner.
+    for (let i = 0; i < 2; i++) await owedOrder(mk, shop.id, product.id, 200 + i);
+    const mokattam = await mk(`customers/${shop.id}/branches`, { name: 'Mokattam' });
+    const master = await mk(`customers/${shop.id}/branches`, { name: 'Master' });
+    const sell = (branchId: string, price: number) =>
+      mk('sales/orders', {
+        customerId: shop.id,
+        branchId,
+        channel: 'B2B',
+        currency: 'EGP',
+        confirm: true,
+        items: [{ productId: product.id, quantity: 1, unitPrice: price, discount: 0 }],
+      });
+    for (let i = 0; i < 11; i++) await sell(master.id, 300 + i);
+    await sell(mokattam.id, 400);
+
+    // The API: Master's 11 over two pages, the owner's 2, refusals with codes.
+    const m1 = await get(request, headers, 'sales/orders', { page: 1, customerId: shop.id, branchId: master.id });
+    expect(m1.body.meta?.total).toBe(11);
+    expect(rowsOf(m1.body).every((o) => o.branch?.id === master.id)).toBe(true);
+    const none = await get(request, headers, 'sales/orders', { page: 1, customerId: shop.id, branchId: 'none' });
+    expect(none.body.meta?.total).toBe(2);
+    const wrong = await get(request, headers, 'sales/orders', { page: 1, customerId: plain.id, branchId: master.id });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error?.code).toBe('BRANCH_NOT_THIS_CUSTOMER');
+    const alone = await get(request, headers, 'sales/orders', { page: 1, branchId: master.id });
+    expect(alone.body.error?.code).toBe('LIST_FILTER_INVALID');
+
+    // The screen: the branch picker appears for this owner only.
+    await login(page);
+    await openNav(page, en.nav.sales);
+    await expect(page.getByTestId('sales-branch-filter')).toHaveCount(0);
+    await pickCustomer(page, shop.displayName);
+    await page.getByTestId('sales-branch-filter').getByRole('combobox').click();
+    await page.getByRole('option', { name: 'Master' }).click();
+    await expect(page).toHaveURL(new RegExp(`[?&]branch=${master.id}(&|$)`));
+    const table = page.getByTestId('sales-table');
+    await expect(table.getByTestId('sale-row')).toHaveCount(10);
+    await expect(page.getByText(/Showing 1 – 10 of 11/)).toBeVisible();
+    await expect(table.getByTestId('sale-branch-cell').filter({ hasText: 'Mokattam' })).toHaveCount(0);
+
+    // "On the owner": the two from before the branches.
+    await page.getByTestId('sales-branch-filter').getByRole('combobox').click();
+    await page.getByRole('option', { name: en.branches.noBranch }).click();
+    await expect(table.getByTestId('sale-row')).toHaveCount(2);
+
+    // Another customer: the branch goes with the old one, and no refusal shows.
+    await pickCustomer(page, plain.displayName);
+    await expect(page).not.toHaveURL(/[?&]branch=/);
+    await expect(page.getByTestId('sales-branch-filter')).toHaveCount(0);
+    await expect(page.getByTestId('sales-range-error')).toHaveCount(0);
+  });
+});
+
 /** Open the Sales list's customer picker, type the name, choose it. */
 async function pickCustomer(page: Page, name: string) {
   await page.getByTestId('sales-customer-filter').getByRole('combobox').click();

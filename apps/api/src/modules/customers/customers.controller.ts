@@ -12,6 +12,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
 import type { ListQuery } from '../../common/list-query';
+import {
+  CustomerBranchesService,
+  type BranchInput,
+} from './customer-branches.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 
@@ -20,7 +24,10 @@ import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 @UseGuards(AuthGuard('jwt'))
 @Controller('customers')
 export class CustomersController {
-  constructor(private customersService: CustomersService) {}
+  constructor(
+    private customersService: CustomersService,
+    private branches: CustomerBranchesService,
+  ) {}
 
   // Customer data — every shop, its balance, what it owes and returned — is
   // the office's. A temporary investor sees only their own cycles (BUSINESS_LOGIC
@@ -66,9 +73,73 @@ export class CustomersController {
   })
   statement(
     @Param('id') id: string,
-    @Query() query: { from?: string; to?: string },
+    @Query() query: { from?: string; to?: string; branch?: string },
   ) {
     return this.customersService.statement(id, query);
+  }
+
+  // A customer's branches (§7, owner 2026-10-25). Read by the sales roles,
+  // which pick a branch on New Order; changed by core partners, as the
+  // customer itself is.
+  @Get(':id/branches')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER', 'ADMIN_SUPPORT')
+  @ApiOperation({
+    summary: "A customer's branches, what each owes, and the total",
+  })
+  listBranches(@Param('id') id: string) {
+    return this.branches.list(id);
+  }
+
+  @Post(':id/branches')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Add a branch (CORE_PARTNER only)' })
+  createBranch(
+    @Param('id') id: string,
+    @Body() body: BranchInput,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.branches.create(id, body ?? {}, user.id);
+  }
+
+  @Put(':id/branches/:branchId')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({
+    summary: 'Rename a branch, change its address or phone, or set the default',
+  })
+  updateBranch(
+    @Param('id') id: string,
+    @Param('branchId') branchId: string,
+    @Body() body: BranchInput,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.branches.update(id, branchId, body ?? {}, user.id);
+  }
+
+  @Post(':id/branches/:branchId/archive')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Archive a branch: no new orders, history kept' })
+  archiveBranch(
+    @Param('id') id: string,
+    @Param('branchId') branchId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.branches.archive(id, branchId, user.id);
+  }
+
+  @Post(':id/branches/:branchId/restore')
+  @UseGuards(RolesGuard)
+  @Roles('CORE_PARTNER')
+  @ApiOperation({ summary: 'Put an archived branch back in use' })
+  restoreBranch(
+    @Param('id') id: string,
+    @Param('branchId') branchId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.branches.restore(id, branchId, user.id);
   }
 
   @Get(':id')
