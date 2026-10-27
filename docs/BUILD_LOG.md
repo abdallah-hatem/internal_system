@@ -332,6 +332,11 @@ _(none)_
 
 ## Next up
 In priority order. Everything the earlier lists asked for and the owner shipped is under "Live in production".
+- Next (2026-10-27, owner: "it now should be in preparation (a new status its where the website or factory prepares your
+  order, then next its in transit to uae)"): **a Preparing cycle status** between Purchasing and In transit — set by
+  itself when the cycle's order is confirmed and nothing has departed (the status already follows the shipment, L3),
+  and by hand from the cycle page; the first departure moves it on to In transit as today. Migration (one enum value);
+  every place statuses show (filters, badges, cycles list, the office chat) in en + ar.
 - Next (2026-10-27, owner: "product names we just want it simple … maybe with category showing beside it in sale order
   product dropdown"): **New Order's product picker shows each product's category** beside its name (and the search
   matches the category too), so short names like "Y20 headset" stay clear.
