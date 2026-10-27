@@ -50,6 +50,10 @@ State of the product and of production's data: `docs/where-things-stand.md`.
 
 ## Live in production (newest first, last two weeks)
 Older history: "History" at the foot of this file, and `git log`.
+- 2026-10-27 — production data: Ahmad Zogmar's samples order **ORD-2026-00006** (5 units, left 18 Oct, before branches
+  existed) moved from the owner to his **Mokattam** branch, at the owner's word
+  (`apps/api/prisma/one-off/2026-10-27-ord-00006-to-mokattam.ts`: starting facts checked, audit row written). His branches
+  on production, entered by hand: Master (default), Mokattam, LS-2.
 - 2026-10-27 (evening) — shipped (migration `20261027120000_samples_into_order` applied first; owner "ship current"):
   **a new temporary investor from the Funding card's `+`** and **Change split saved on the server in one go** (§8;
   section "Shipped 2026-10-27 (evening)" above), **samples into the current order** (§4: Add to order / Add all, the
