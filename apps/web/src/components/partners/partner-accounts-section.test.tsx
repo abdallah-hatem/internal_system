@@ -140,6 +140,24 @@ describe('running accounts on the Partners page', () => {
     expect(within(entries[2]).getByTestId('reverse-movement')).toBeTruthy();
   });
 
+  it('an expense he paid (§9 "Paid by") shows as his, with its total, and is reversed from the Ledger, not here', async () => {
+    state.accounts[0].movements.unshift(movement('m4', 'EXPENSE_PAID', '300.00', { cycleId: null, cycleCode: null, note: 'fuel' }));
+    state.accounts[0].expensesPaidEgp = '300.00';
+    wrap();
+    const entries = await screen.findAllByTestId('account-movement');
+    expect(entries[0].getAttribute('data-kind')).toBe('EXPENSE_PAID');
+    expect(entries[0].textContent).toContain(en.accounts.kind.EXPENSE_PAID);
+    expect(entries[0].textContent).toContain('300.00 EGP');
+    expect(within(entries[0]).queryByTestId('reverse-movement')).toBeNull();
+    expect(screen.getByTestId('partner-account').textContent).toContain(en.accounts.expensesPaid);
+  });
+
+  it('no expense paid: no such figure', async () => {
+    wrap();
+    await screen.findByTestId('partner-account');
+    expect(screen.getByTestId('partner-account').textContent).not.toContain(en.accounts.expensesPaid);
+  });
+
   it('a refusal to take out more than the account holds is said, coded, in Arabic', async () => {
     state.refuse = {
       code: 'ACCOUNT_BALANCE_TOO_LOW',

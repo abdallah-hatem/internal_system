@@ -2160,6 +2160,9 @@ run — owner said not for now):
   into his account (`PAYOUT_LEFT_IN`). Reversing the settlement takes it back out — refused while that would leave
   his account below zero.
 - **Who**: core partners only, every endpoint (`PARTNER_ACCOUNT_ROLES`).
+- **An expense he paid** (2026-10-27, branch `feature/expense-paid-by`, not shipped): a business expense paid from his
+  own pocket credits his account (`EXPENSE_PAID`, + his balance, untied money); it comes out only by reversing the
+  expense in the ledger. See §9 "Paid by" on an expense.
 - **Who owes whom between us**: does not fall out of the balances. With no negative account, nobody owes another
   partner through the accounts; a positive balance is the partners' money the business holds for him. Settling
   between partners stays outside the system.
@@ -2503,6 +2506,60 @@ gone (a 404), the ledger shows no Account column or line, and a body that names
 an account — a repayment's included — is refused as an unknown field
 (`VALIDATION_FAILED`). No seed creates one. Spec 34 TC-INV-38, 99-ledger-entry
 TC-L6-08.
+
+### "Paid by" on an expense — DECIDED 2026-10-26 (owner), built 2026-10-27 on `feature/expense-paid-by` (migration `20261027180000_expense_paid_by`), NOT shipped, details GUESSED
+The owner (2026-10-26, "build it" 2026-10-27): an expense can be paid by the business or by one of the partners — fuel
+for a delivery paid from a partner's own pocket. It is still booked as the same expense (charged to a cycle, or a
+running cost shared from payouts, as today), but no business cash leaves and the partner's running account (§8) is
+credited with it: the business owes it back; he withdraws it or leaves it in for a contribution. The Ledger form and
+the Fuel quick action get a **Paid by** picker, defaulting to the business. Reversing the expense reverses the credit;
+the account may not go negative.
+
+Built (API, office screens, Postgres and unit tests; e2e written, not run — owner: not for now):
+
+- **The expense is the same row.** `POST /ledger` takes an optional `paidByUserId`. The ledger row is written exactly
+  as any manual expense — category, cycle, day, pounds — and names the payer in a new column, `paid_by_user_id`. Every
+  profit reader (operating expenses, the P&L, the dashboard's Expenses and net profit, a cycle's profit and settlement,
+  running-cost shares and their charge from payouts) reads it as before, because none of them asks who paid (tested
+  against a business-paid twin: every figure but cash moves identically).
+- **Not cash.** Which ledger rows are cash has one definition, `CASH_ROWS_WHERE` in `common/cash-position.ts` (CLAUDE.md
+  §11): it now leaves out a row a partner paid, alongside `NOT_CASH_CATEGORIES` and `NOT_CASH_TYPES`. So cash in, cash
+  out, cash on hand and the P&L's Cash paid out do not move (tested).
+- **The credit.** A new account movement kind, `EXPENSE_PAID` (+ his balance), one per ledger row
+  (`partner_account_movements.expense_entry_id`, unique), written in the same transaction as the row. The balance and
+  its pots stay one definition (`common/partner-account.ts`: `MOVEMENT_SIGN`, `potsOf`); the Partners page shows it as
+  "Expense he paid" and a total "Expenses he paid".
+- **Reversing** the expense (`POST /ledger/:id/reverse`) marks the credit reversed in the same transaction, under his
+  account's lock; the undo row names the same payer, so it is not cash either. The credit cannot be reversed from his
+  account on its own (`ACCOUNT_EXPENSE_REVERSE_ON_LEDGER`): the ledger would keep an expense nobody owes him for.
+- **Refusals** (coded, en + ar): `LEDGER_PAYER_NOT_PARTNER` (an investor, the office's ADMIN_SUPPORT login, an id that
+  is nobody, not an id), `LEDGER_PAYER_INACTIVE` (`partner`: a partner who has left), `LEDGER_PAID_BY_ONLY_EXPENSE`
+  (income with a payer), `EXPENSE_CREDIT_ALREADY_TAKEN` (`partner`, `amount`, `available`) and every refusal a manual
+  entry already had (zero or negative, a future day, a closed or cancelled cycle). Nothing is written on a refusal.
+- **Who records it**: core partners, as for every manual entry (`POST /ledger` is `CORE_PARTNER` only, CLAUDE.md §12).
+- **The screens**: the entry form (Add entry and the Fuel quick action are the same form) shows Paid by for an expense
+  only, opening on "The business"; choosing a partner says "No business cash leaves: {partner}'s account is credited
+  with it…". The form is mounted fresh on every open, so a partner chosen and cancelled is never the next entry's payer
+  (tested). The ledger row says "Paid by {partner}", and its detail too.
+- **Data check** (`scripts/check-data.sh`): 28 and 27.3 count `EXPENSE_PAID` as money in / untied money; new 28.3 (an
+  `EXPENSE_PAID` credit no standing expense matches — missing row, an undo, not money out, another payer, other pounds,
+  or standing while its expense is undone / undone while its expense stands), 28.4 (an expense paid by a partner with no
+  credit), 28.5 (an undo naming another payer than its expense).
+
+| Question | Guess built | Why |
+|---|---|---|
+| What the credit is | A new movement kind `EXPENSE_PAID` linked to its ledger row (`expense_entry_id`), not a ledger category and not an advance. The ledger row stays the expense; the movement is only "the business owes him this". | CLAUDE.md §11: what it is NOT — not cash, not a contribution, not income. An advance paid a supplier for a cycle's goods; this is a cost the business had. |
+| Which pot it is in | **Untied money**, whatever the expense was charged to: he may take it out or leave it in to fund any cycle. Written with no cycle. | "He withdraws it or leaves it in for a contribution." |
+| How a reversal shows | The movement stays, marked reversed with the expense's reversal reason (as every account reversal), and the ledger keeps the expense and its undo, both naming him. | §9: history is never rewritten. |
+| Reversing after he took the money out (or drew it into a contribution) | **Refused**, `EXPENSE_CREDIT_ALREADY_TAKEN`, naming what was credited and what his account still holds untied. Undo the withdrawal or the contribution first, then the expense. Nothing is written. | An account never goes negative (owner 2026-10-25). |
+| Who can be the payer | **Active core partners only.** An investor never: he is not one of "the partners", and his money is his investment in one cycle, not a running account (§8: "who an account is"). A partner who has left: refused (GUESS). | Owner: "one of the partners". |
+| Recording for another partner | Any core partner may record an expense paid by any other; the named partner is credited, never the one typing it. | As for advances (§8: one person keeps the books). |
+| A cycle in Settlement, or Closed | As for any manual expense: a cycle in **Settlement** still takes the late cost, and his credit is written (it is untied, so the funding lock does not apply); **Closed or Cancelled** refuses it (`LEDGER_CYCLE_NOT_OPEN`), and reversing an expense on a cycle that has since closed is refused — his credit then stands. | §9 L6: only cancelled and closed are shut. |
+| A running cost paid by him | The same shares as if the business paid it (fixed over the partners of its day), taken from payouts as always. He is credited the whole amount and owes his own share through his payout, like the others. | "A running cost shared from payouts, as today." |
+| Doing it twice | Two expenses are two credits. Reversing twice, or twice at once, undoes the credit once: the second is `ENTRY_ALREADY_REVERSED` (re-read under the account lock). | The second-time bug. |
+| The currency | The credit is the expense's pounds (`amount_egp`); what he paid, if not pounds, is kept beside it as on the ledger row. | One figure for the balance. |
+| Arabic | The new strings ("دفعه", "النشاط", the hint and the refusals) are the agent's wording, for the owner to correct. | — |
+| OPEN | `AnalyticsService.getCycleProfitability`'s `investment` (what a cycle "consumed in cash") sums a cycle's money-out rows without netting an undone pair — for a business-paid expense too (found while testing this; not changed here). | Out of this feature's scope. |
 
 ## 10. Notifications
 

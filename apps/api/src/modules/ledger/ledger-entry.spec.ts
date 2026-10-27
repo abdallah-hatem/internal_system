@@ -101,6 +101,10 @@ function setup() {
       createMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     runningCostCharge: { findMany: jest.fn().mockResolvedValue([]) },
+    // The row and a partner's credit are written together (§9 "Paid by").
+    $transaction: jest.fn((fn: (tx: unknown) => unknown): unknown =>
+      fn(prisma as unknown),
+    ),
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const ledger = new LedgerService(prisma as never, audit as never);
@@ -628,5 +632,38 @@ describe('the second time: reversing a manual entry', () => {
     const { ledger, created } = runningCost([]);
     await ledger.reverse(TX_RENT, 'wrong month', 'u-1');
     expect(created).toHaveLength(1);
+  });
+});
+
+describe('"Paid by" — the business unless a partner is named (§9, 2026-10-27)', () => {
+  it('left out, or null, the business paid: no payer on the row and no account touched', async () => {
+    for (const paidBy of [undefined, null]) {
+      const { ledger, created } = setup();
+      // The mock has no partner accounts: touching one would throw.
+      await ledger.create(expense({ paidByUserId: paidBy }), 'u-1');
+      expect(created[0]).toMatchObject({ paidByUserId: null });
+    }
+  });
+
+  it('income with a payer, or a payer that is not an id, is refused before anything is read or written', async () => {
+    const { ledger, created, prisma } = setup();
+    expect(
+      (
+        await refusal(
+          ledger.create(
+            income({ paidByUserId: '11111111-1111-4111-8111-111111111111' }),
+            'u-1',
+          ),
+        )
+      ).code,
+    ).toBe('LEDGER_PAID_BY_ONLY_EXPENSE');
+    for (const paidBy of ['', 'Shady', 42, {}]) {
+      expect(
+        (await refusal(ledger.create(expense({ paidByUserId: paidBy }), 'u-1')))
+          .code,
+      ).toBe('LEDGER_PAYER_NOT_PARTNER');
+    }
+    expect(created).toHaveLength(0);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

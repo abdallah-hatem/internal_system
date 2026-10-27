@@ -4,11 +4,27 @@ import { NOT_CASH_CATEGORIES, NOT_CASH_TYPES } from './ledger-categories';
 import { standingEntriesWhere, undoneEntryIds } from './undone-entries';
 
 /**
- * Money actually in hand: everything in, less everything out — leaving out the
- * ledger rows that record no money moving: `NOT_CASH_CATEGORIES` (a transfer
- * of leftover stock between cycles, §8 L5; a partner's share of running costs
- * taken from his payout, §8 L7), `NOT_CASH_TYPES` (a return's sale undone —
- * only the cash actually handed back is cash out, L7), and every entry that was
+ * Which ledger rows are business cash, apart from undone pairs (below) — the
+ * one definition (CLAUDE.md §11). Left out:
+ *
+ * - `NOT_CASH_CATEGORIES` — a transfer of leftover stock between cycles (§8
+ *   L5); a partner's share of running costs taken from his payout (§8 L7);
+ * - `NOT_CASH_TYPES` — a return's sale undone; only the cash actually handed
+ *   back is cash out (L7);
+ * - an expense a partner paid from his own pocket (`paidByUserId`, §9 "Paid
+ *   by", 2026-10-27), and its undo: no business cash left. It is still an
+ *   expense — every profit figure reads it as one — and his account holds
+ *   the credit (`EXPENSE_PAID`).
+ */
+export const CASH_ROWS_WHERE = {
+  category: { notIn: [...NOT_CASH_CATEGORIES] },
+  type: { notIn: [...NOT_CASH_TYPES] },
+  paidByUserId: null,
+} satisfies Prisma.FinancialTransactionWhereInput;
+
+/**
+ * Money actually in hand: everything in, less everything out — over the rows
+ * that are cash (`CASH_ROWS_WHERE`), and leaving out every entry that was
  * undone together with its undo (2026-10-17).
  *
  * One reading, so the dashboard's cash in, cash out and cash on hand cannot
@@ -46,8 +62,7 @@ export async function cashPosition(
     by: ['direction'],
     where: {
       ...within,
-      category: { notIn: [...NOT_CASH_CATEGORIES] },
-      type: { notIn: [...NOT_CASH_TYPES] },
+      ...CASH_ROWS_WHERE,
       ...standingEntriesWhere(undone),
     },
     _sum: { amount: true },

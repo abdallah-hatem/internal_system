@@ -37,6 +37,7 @@ const KIND_STYLE: Record<AccountMovement['kind'], string> = {
   CONTRIBUTION: 'bg-primary-100 text-primary-700',
   WITHDRAWAL: 'bg-accent-100 text-accent-800',
   PAYOUT_LEFT_IN: 'bg-secondary text-secondary-foreground',
+  EXPENSE_PAID: 'bg-success/10 text-success',
 };
 
 export function PartnerAccountsSection() {
@@ -158,6 +159,9 @@ function AccountCard({
         <Figure label={t('leftIn')} value={a.leftInEgp} tone="text-primary-700" />
         <Figure label={t('contributedTotal')} value={a.contributedEgp} tone="text-primary-600" />
         <Figure label={t('withdrawn')} value={a.withdrawnEgp} tone="text-accent-700" />
+        {Number(a.expensesPaidEgp ?? 0) > 0 && (
+          <Figure label={t('expensesPaid')} value={a.expensesPaidEgp!} tone="text-foreground" />
+        )}
       </div>
 
       {/* The balance by pot (owner 2026-10-26, "each cycle has its own
@@ -211,7 +215,7 @@ function AccountCard({
                   <span className={`tabular-nums ${reversed ? 'text-muted-foreground line-through' : signed > 0 ? 'text-success' : 'text-foreground'}`}>
                     <Money value={m.signedEgp} />
                   </span>
-                  {canReverse && !reversed && m.kind !== 'PAYOUT_LEFT_IN' && (
+                  {canReverse && !reversed && m.kind !== 'PAYOUT_LEFT_IN' && m.kind !== 'EXPENSE_PAID' && (
                     <button
                       type="button"
                       onClick={() => onReverse(m.id)}

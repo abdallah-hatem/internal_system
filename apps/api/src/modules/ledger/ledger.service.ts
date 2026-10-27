@@ -19,6 +19,16 @@ import { CLOSED_CYCLE_STATUSES } from '../../common/manual-ledger-categories';
 import { CreateLedgerEntryDto } from './dto/ledger.dto';
 import { checkManualEntry } from './manual-entry';
 import { fixRunningCostShares } from '../../common/running-costs';
+import {
+  creditExpensePaid,
+  expensePayer,
+  undoExpenseCredit,
+} from '../../common/expense-paid-by';
+
+/** Who paid an expense from his own pocket, when a partner did (§9 "Paid by"). */
+const PAID_BY = {
+  select: { id: true, partner: { select: { displayName: true } } },
+} as const;
 
 /** The Ledger list's orders; the first is the default. Each ends on `id`. */
 const LEDGER_SORTS = {
@@ -123,6 +133,7 @@ export class LedgerService {
                 partner: { select: { displayName: true } },
               },
             },
+            paidBy: PAID_BY,
           },
           ...window,
         }),
@@ -152,6 +163,7 @@ export class LedgerService {
       where: { id },
       include: {
         cycle: { select: { id: true, code: true } },
+        paidBy: PAID_BY,
       },
     });
     if (!transaction) throw notFound('financialTransaction');
@@ -191,25 +203,38 @@ export class LedgerService {
       cycleId = cycle.id;
     }
 
-    const transaction = await this.prisma.financialTransaction.create({
-      data: {
-        type: entry.type,
-        category: entry.category,
-        direction: entry.direction,
-        // Pounds: the settlement and the dashboard sum `amount` as EGP.
-        amount: entry.amountEgp,
-        currency: 'EGP',
-        fxRateToEgp: entry.rate,
-        originalAmount: entry.original?.amount ?? null,
-        originalCurrency: entry.original?.currency ?? null,
-        occurredOn: new Date(`${entry.occurredOn}T00:00:00Z`),
-        cycleId,
-        reason: entry.note,
-        createdBy: userId,
-      },
-      include: {
-        cycle: { select: { id: true, code: true } },
-      },
+    // Paid by a partner from his own pocket (§9 "Paid by", 2026-10-27): the
+    // same expense, no business cash, and his account credited — the row and
+    // the credit written together or not at all.
+    const payer = entry.paidByUserId
+      ? await expensePayer(this.prisma, entry.paidByUserId)
+      : null;
+
+    const transaction = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.financialTransaction.create({
+        data: {
+          type: entry.type,
+          category: entry.category,
+          direction: entry.direction,
+          // Pounds: the settlement and the dashboard sum `amount` as EGP.
+          amount: entry.amountEgp,
+          currency: 'EGP',
+          fxRateToEgp: entry.rate,
+          originalAmount: entry.original?.amount ?? null,
+          originalCurrency: entry.original?.currency ?? null,
+          occurredOn: new Date(`${entry.occurredOn}T00:00:00Z`),
+          cycleId,
+          reason: entry.note,
+          createdBy: userId,
+          paidByUserId: payer?.id ?? null,
+        },
+        include: {
+          cycle: { select: { id: true, code: true } },
+          paidBy: PAID_BY,
+        },
+      });
+      if (payer) await creditExpensePaid(tx, row, payer.id, userId);
+      return row;
     });
 
     // A running cost (an expense with no cycle, §8 L7): its shares are fixed
@@ -232,6 +257,7 @@ export class LedgerService {
         amountEgp: entry.amountEgp.toFixed(2),
         occurredOn: entry.occurredOn,
         cycleId,
+        paidByUserId: payer?.id ?? null,
       },
     });
 
@@ -344,29 +370,40 @@ export class LedgerService {
       }
     }
 
-    const reversal = await this.prisma.financialTransaction.create({
-      data: {
-        type: original.type,
-        category: original.category,
-        // Mirror the original so the pair nets to zero.
-        direction: original.direction === 'INFLOW' ? 'OUTFLOW' : 'INFLOW',
-        amount: original.amount,
-        currency: original.currency,
-        fxRateToEgp: original.fxRateToEgp,
-        cycleId: original.cycleId,
-        relatedType: original.relatedType,
-        relatedId: original.relatedId,
-        reversalOfId: id,
-        // Undone today, in Cairo; what was paid travels with it (L6).
-        occurredOn: new Date(`${businessToday()}T00:00:00Z`),
-        originalAmount: original.originalAmount,
-        originalCurrency: original.originalCurrency,
-        reason,
-        createdBy: userId,
-      },
-      include: {
-        cycle: { select: { id: true, code: true } },
-      },
+    // An expense a partner paid (§9 "Paid by"): its credit in his account
+    // comes out with it, in the same transaction — refused while his account
+    // no longer holds it. The undo names him too, so it is not cash either.
+    const reversal = await this.prisma.$transaction(async (tx) => {
+      const uncredited = original.paidByUserId
+        ? await undoExpenseCredit(tx, id, reason, userId)
+        : null;
+      const row = await tx.financialTransaction.create({
+        data: {
+          type: original.type,
+          category: original.category,
+          // Mirror the original so the pair nets to zero.
+          direction: original.direction === 'INFLOW' ? 'OUTFLOW' : 'INFLOW',
+          amount: original.amount,
+          currency: original.currency,
+          fxRateToEgp: original.fxRateToEgp,
+          cycleId: original.cycleId,
+          relatedType: original.relatedType,
+          relatedId: original.relatedId,
+          reversalOfId: id,
+          // Undone today, in Cairo; what was paid travels with it (L6).
+          occurredOn: new Date(`${businessToday()}T00:00:00Z`),
+          originalAmount: original.originalAmount,
+          originalCurrency: original.originalCurrency,
+          paidByUserId: original.paidByUserId,
+          reason,
+          createdBy: userId,
+        },
+        include: {
+          cycle: { select: { id: true, code: true } },
+          paidBy: PAID_BY,
+        },
+      });
+      return { ...row, uncredited };
     });
 
     await this.audit.log({
@@ -379,9 +416,21 @@ export class LedgerService {
         amount: original.amount.toFixed(2),
         category: original.category,
       },
-      afterJson: { reversalId: reversal.id, reason },
+      afterJson: {
+        reversalId: reversal.id,
+        reason,
+        ...(reversal.uncredited
+          ? {
+              uncredited: {
+                partnerUserId: reversal.uncredited.partnerUserId,
+                amountEgp: reversal.uncredited.amountEgp.toFixed(2),
+              },
+            }
+          : {}),
+      },
     });
 
-    return { data: reversal };
+    const { uncredited: _uncredited, ...row } = reversal;
+    return { data: row };
   }
 }
