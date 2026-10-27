@@ -43,7 +43,7 @@ describe('ENTRY_OWNED_ELSEWHERE (ledger reverse)', () => {
     const prisma = {
       financialTransaction: {
         findUnique: jest.fn().mockResolvedValue({
-          id: 'tx-1',
+          id: '33333333-3333-4333-8333-333333333333',
           reversalOfId: null,
           relatedType,
           relatedId: 'r-1',
@@ -64,7 +64,13 @@ describe('ENTRY_OWNED_ELSEWHERE (ledger reverse)', () => {
     'an entry owned by a %s names its owner by code, not in English',
     async (relatedType) => {
       const { ledger, prisma } = ledgerOver(relatedType);
-      const body = await bodyOfAsync(ledger.reverse('tx-1', 'a reason', 'u-1'));
+      const body = await bodyOfAsync(
+        ledger.reverse(
+          '33333333-3333-4333-8333-333333333333',
+          'a reason',
+          'u-1',
+        ),
+      );
       expect(body.code).toBe('ENTRY_OWNED_ELSEWHERE');
       expect(body.params).toEqual({ owner: relatedType });
       expect(String(body.params?.owner)).not.toMatch(ENGLISH);
