@@ -9,8 +9,8 @@ Goal (current, 2026-10-27): the "Next up" list below, top first.
 temporary investor from the Funding card, Change split saved on the server in one go, samples into the current order
 (migration `20261027120000_samples_into_order` applied first) and the known-bugs batch — on top of customer branches
 (`d87b68b`) and the other 2026-10-26/27 releases under "Live in production". Production's migrations end at
-`20261027120000_samples_into_order`; nothing is merged and waiting. **Built, awaiting the owner's test:** Confirm &
-paid in one step, on `feature/confirm-and-paid` (owner 2026-10-27: "start build the confirm and pay"; no migration).
+`20261027120000_samples_into_order`; nothing is merged and waiting. **Live too:** Confirm &
+paid in one step (no migration). **Building:** samples shown per branch in New Order, on `feature/samples-by-branch`.
 - **Edit order** (on a confirmed order) is not shipped: saved on `feature/edit-order` (`4bdbf1e`) with its migration
   `20261026100000_sale_order_edits`, which must not be applied to production until that branch ships. Master's
   history holds no Edit order commit, so the branch can still be merged later.
@@ -327,7 +327,7 @@ In priority order. Everything the earlier lists asked for and the owner shipped 
   sample (refused), doing it twice, stock and the settlement gate correct after. Build on its own branch.
 - (4) **Known bugs — fixed, live 2026-10-27 (evening):** the order popup's Allocations name a batch by its cycle and check-in day ("CYC-2026-0001 · checked in 9 Sep 2026", as the product page does) instead of `#` and eight characters of its id; `POST /ledger/<not-a-uuid>/reverse` is a coded 404 (`NOT_FOUND`), not a 500; return references take a lock on their series, so two returns at once never share a number; `apps/web/package-lock.json` carries the optional Tailwind WebAssembly entries `npm ci` wanted (no version moved); CI hands the e2e setup the Postgres service's container id (`DB_CONTAINER`) — **not yet seen running on GitHub**: CI runs on a push to master or a pull request. Tests: `ledger-entry.spec` (the not-a-uuid reverse), `references.db.spec` (six returns at once), `order-popup-history.test.tsx` (the batch named, never `#…`); each fails with its fix undone.
 Later — queued, not to be built until the owner says:
-- **Built 2026-10-27 on `feature/confirm-and-paid`, awaiting the owner's test** (owner: "start build the confirm and pay"; first asked "in sales order we need a confirm and paid button for easier access, add to do later"):
+- **Live 2026-10-27 (owner: "of course merge"; merged into `dev` and shipped, no migration)** (owner: "start build the confirm and pay"; first asked "in sales order we need a confirm and paid button for easier access, add to do later"):
   **Confirm and paid in one step** (BUSINESS_LOGIC §4 "Confirm & paid in one step") — on a draft sale order (the order
   popup and New Order), a "Confirm & paid" button that confirms the order and records a cash payment of its full total on
   it, dated the order's day, in one server call (`POST /sales/orders/:id/confirm-and-pay`; New Order sends `paid: true`),

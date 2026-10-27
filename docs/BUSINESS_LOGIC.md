@@ -1359,7 +1359,7 @@ added twice, an edit below what was paid, whether an edit notifies the partners 
 `feature/edit-order` and are not in production. Until it ships there is no edit path for a confirmed order: a price
 cut is a price adjustment (above), fewer units a return (§5).
 
-### Confirm & paid in one step — DECIDED 2026-10-27 (owner), built on `feature/confirm-and-paid`, NOT SHIPPED, details GUESSED
+### Confirm & paid in one step — DECIDED 2026-10-27 (owner), live 2026-10-27, details GUESSED
 
 The owner: "in sales order we need a confirm and paid button for easier access", then "start build the confirm and
 pay". A shop that pays on the spot took two steps — Confirm, then Record payment — for one event.
