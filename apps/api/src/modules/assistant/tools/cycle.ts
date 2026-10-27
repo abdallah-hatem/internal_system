@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { badRequest, forbidden, notFound } from '../../../common/api-error';
 import { CYCLE_ROUTES, expectedLegs } from '../../../common/cycle-routes';
+import { CYCLE_STATUSES } from '../../../common/cycle-statuses';
 import { formatMoney, formatQty } from '../../../common/money';
 import { loadShipment } from '../../../common/shipment-load';
 import { isUuid } from '../../../common/uuid';
@@ -35,30 +36,16 @@ import { writeTool, type AssistantContext } from '../tool-kit';
  * rolled back (`dry-run.ts`), which comes to the same thing.
  */
 
-const ALL_STATUSES = [
-  'PLANNING',
-  'FUNDING',
-  'PURCHASING',
-  'IN_TRANSIT',
-  'ARRIVED_UAE',
-  'IN_TRANSIT_TO_EGYPT',
-  'ARRIVED_EGYPT',
-  'VERIFICATION',
-  'SELLING',
-  'SETTLEMENT',
-  'CLOSED',
-  'CANCELLED',
-] as const satisfies readonly CycleStatus[];
-
 /**
  * Where the assistant may move a cycle. §16 gives it the intake path — from
  * receipt to sellable stock — so SELLING is as far as it goes; SETTLEMENT and
  * CLOSED belong to settlements, which stay in the office app.
  */
-const ASSISTANT_TARGETS = [
+export const ASSISTANT_TARGETS = [
   'PLANNING',
   'FUNDING',
   'PURCHASING',
+  'PREPARING',
   'IN_TRANSIT',
   'ARRIVED_UAE',
   'IN_TRANSIT_TO_EGYPT',
@@ -922,11 +909,11 @@ export function registerCycleTools(
     {
       title: 'Move a cycle to its next status',
       description:
-        'Advance a cycle (or cancel it). Leaving PURCHASING confirms and locks its draft purchase orders. Cancelling is final.',
+        'Advance a cycle (or cancel it). Leaving PURCHASING (to PREPARING: the order is confirmed and the supplier is preparing it) confirms and locks its draft purchase orders. Cancelling is final.',
       inputSchema: {
         cycleId,
         fromStatus: z
-          .enum(ALL_STATUSES)
+          .enum(CYCLE_STATUSES)
           .describe(
             'The status the cycle is in now, as the partner saw it. If it has moved since, nothing is changed.',
           ),

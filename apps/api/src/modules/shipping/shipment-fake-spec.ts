@@ -356,6 +356,17 @@ export function fakePrisma(db: Store) {
         ),
     },
     purchaseOrderItem: {
+      // Only the read moving into Preparing makes (§1): the cycle's lines.
+      count: ({ where }: Row) =>
+        after(
+          db.items.filter((i) =>
+            db.orders.some(
+              (o) =>
+                o.id === i.purchaseOrderId &&
+                o.cycleId === where.purchaseOrder.cycleId,
+            ),
+          ).length,
+        ),
       findUnique: ({ where }: Row) =>
         after(db.items.find((i) => i.id === where.id) ?? null),
       update: ({ where, data }: Row) => {
@@ -954,6 +965,15 @@ export function fakePrisma(db: Store) {
       },
       findMany: ({ where }: Row) =>
         after(departuresOf(where.legId).map((d) => ({ id: d.id }))),
+      // Only the read going back from Preparing makes (§1): the cycle's departures.
+      count: ({ where }: Row) =>
+        after(
+          db.departures.filter(
+            (d) =>
+              db.legs.find((l) => l.id === d.legId)?.cycleId ===
+              where.leg.cycleId,
+          ).length,
+        ),
       update: ({ where, data }: Row) => {
         const d = db.departures.find((x) => x.id === where.id)!;
         for (const [k, v] of Object.entries(data))

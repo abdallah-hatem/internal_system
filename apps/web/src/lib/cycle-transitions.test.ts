@@ -15,7 +15,9 @@ describe('cycle transitions', () => {
 
   it('offers what the table says for a known status', () => {
     expect(nextStatuses('SELLING')).toEqual(['SETTLEMENT']);
-    expect(nextStatuses('PURCHASING')).toEqual(['IN_TRANSIT', 'ARRIVED_UAE', 'CANCELLED']);
+    // Preparing sits between Purchasing and the shipment (2026-10-27).
+    expect(nextStatuses('PURCHASING')).toEqual(['PREPARING', 'CANCELLED']);
+    expect(nextStatuses('PREPARING')).toEqual(['IN_TRANSIT', 'ARRIVED_UAE', 'PURCHASING', 'CANCELLED']);
   });
 
   it('offers nothing from a final, cancelled, unknown or missing status', () => {

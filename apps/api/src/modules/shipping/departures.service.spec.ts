@@ -413,20 +413,30 @@ describe('DELETE /shipping/departures/:id', () => {
     expect(r.params).toEqual({ why: 'used' });
   });
 
-  it('the only departure of a leg the cycle’s status depends on → DEPARTURE_IN_USE (status); after moving the cycle back → undone', async () => {
+  it('the shipment’s last departure → undone, and the cycle back to Preparing (§1, 2026-10-27)', async () => {
     const { cycle, item, leg } = waiting('PURCHASING');
     const { data } = await depart(leg, [[item, 20]]);
     expect(statusOf(cycle)).toBe('IN_TRANSIT_TO_EGYPT');
-    const r = await refusal(deliveries.deleteDeparture(data.id, ACTOR));
-    expect(r.code).toBe('DEPARTURE_IN_USE');
-    expect(r.params).toEqual({ why: 'status' });
-
-    db.cycles.find((c) => c.id === cycle.id)!.status = 'ARRIVED_UAE';
-    await deliveries.deleteDeparture(data.id, ACTOR);
+    const r = await deliveries.deleteDeparture(data.id, ACTOR);
     expect(legRow(leg.id).status).toBe('PENDING');
     expect(legRow(leg.id).departedOn).toBeNull();
-    // Never moved back by itself.
+    expect(statusOf(cycle)).toBe('PREPARING');
+    expect(r.cycleStatus).toMatchObject({
+      from: 'IN_TRANSIT_TO_EGYPT',
+      to: 'PREPARING',
+      moved: true,
+    });
+  });
+
+  it('a cycle kept at a status no departure set is left there when its departure is undone', async () => {
+    const { cycle, item, leg } = waiting('PURCHASING');
+    const { data } = await depart(leg, [[item, 20]]);
+    db.cycles.find((c) => c.id === cycle.id)!.status = 'ARRIVED_UAE';
+    const r = await deliveries.deleteDeparture(data.id, ACTOR);
+    expect(legRow(leg.id).status).toBe('PENDING');
+    // A UAE-direct cycle at Arrived UAE asks nothing of its leg: not moved.
     expect(statusOf(cycle)).toBe('ARRIVED_UAE');
+    expect(r.cycleStatus).toBeNull();
   });
 
   it('on a cycle being settled → CYCLE_SETTLING', async () => {

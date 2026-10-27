@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useDateFormat } from '@/lib/dates';
 import { useCodeLabel } from '@/lib/labels';
+import { CYCLE_STATUSES } from '@/lib/cycle-statuses';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ContinueSetupLink } from '@/components/cycles/continue-setup';
 import { useRouter } from 'next/navigation';
@@ -36,10 +37,8 @@ interface Cycle {
   inventoryBatches?: any[];
 }
 
-const STATUS_ORDER = [
-  'PLANNING', 'FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE',
-  'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED',
-];
+/** The filter chips, in the order a cycle passes through them (cancelled last). */
+export const STATUS_ORDER: readonly string[] = CYCLE_STATUSES;
 
 /**
  * One cycle's line from the Analytics page's profitability figure.
@@ -55,10 +54,11 @@ interface CycleProfit {
   roiPct: number | null;
 }
 
-const STATUS_COLORS: Record<string, string> = {
+export const STATUS_COLORS: Record<string, string> = {
   PLANNING: 'bg-gray-100 text-gray-600',
   FUNDING: 'bg-blue-100 text-blue-700',
   PURCHASING: 'bg-indigo-100 text-indigo-700',
+  PREPARING: 'bg-violet-100 text-violet-700',
   IN_TRANSIT: 'bg-yellow-100 text-yellow-700',
   ARRIVED_UAE: 'bg-amber-100 text-amber-700',
   IN_TRANSIT_TO_EGYPT: 'bg-orange-100 text-orange-700',

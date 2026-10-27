@@ -265,7 +265,7 @@ test.describe('The wizard stops when the goods leave (owner, 2026-10-12)', () =>
     const { planning } = await cycles(request);
     // A UAE-direct cycle arrives in the UAE with nothing asked of its leg:
     // the shortest honest way past Purchasing.
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE']) {
       await mk(`cycles/${planning.id}/transition`, { status });
     }
     expect(await statusOf(request, headers, planning.id)).toBe('ARRIVED_UAE');

@@ -64,6 +64,8 @@ export interface ShipmentDeparture {
   /** The server's answer to "can this be undone?" — the panel offers Undo only when true. */
   undoable?: boolean;
   undoBlockedBy?: 'used' | 'status' | null;
+  /** The shipment's last departure: undoing it takes the cycle back to Preparing (§1, 2026-10-27). */
+  undoReturnsTo?: 'PREPARING' | null;
 }
 
 export interface ShipmentLegLine {

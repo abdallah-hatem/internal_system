@@ -34,6 +34,7 @@ import { lossesWithRefunds } from '../../common/loss-refunds';
 import {
   deliveryDeleteBlock,
   departureUndoBlock,
+  undoReturnsToPreparing,
 } from '../shipping/departure-rules';
 import { CostingService } from '../costing/costing.service';
 import { planRecost } from '../costing/leg-recost';
@@ -293,6 +294,12 @@ export class CyclesService {
                 ...d,
                 undoable: !block,
                 undoBlockedBy: block?.why ?? null,
+                // The shipment's last departure: undoing it takes the cycle
+                // back to Preparing (§1, 2026-10-27), which the panel says.
+                undoReturnsTo:
+                  !block && undoReturnsToPreparing(cycle, position, d.id)
+                    ? 'PREPARING'
+                    : null,
               };
             }),
             // Whether each delivery can be deleted, and why not (owner,
@@ -617,6 +624,47 @@ export class CyclesService {
   }
 
   /**
+   * Preparing (§1, owner 2026-10-27): the order is confirmed and the supplier
+   * is preparing it, before anything leaves.
+   *
+   * - Into Preparing needs an order to prepare: at least one purchase order
+   *   line on the cycle. Leaving Purchasing is what confirms the drafts (§15),
+   *   so a cycle with nothing ordered has nothing to confirm (GUESS).
+   * - Back to Purchasing only while nothing has departed: once goods have left
+   *   a supplier the order is not being put together any more (GUESS).
+   */
+  private async assertPreparingRules(
+    db: Pick<Db, 'purchaseOrderItem' | 'shipmentDeparture'>,
+    cycle: { id: string; code: string; status: string },
+    targetStatus: string,
+  ) {
+    if (targetStatus === 'PREPARING') {
+      const lines = await db.purchaseOrderItem.count({
+        where: { purchaseOrder: { cycleId: cycle.id } },
+      });
+      if (lines === 0) {
+        throw badRequest(
+          'CYCLE_HAS_NO_ORDER',
+          `Cycle ${cycle.code} has no purchase order with anything on it, so there is no order to prepare. Record what was ordered first.`,
+          { cycle: cycle.code },
+        );
+      }
+    }
+    if (cycle.status === 'PREPARING' && targetStatus === 'PURCHASING') {
+      const departed = await db.shipmentDeparture.count({
+        where: { leg: { cycleId: cycle.id } },
+      });
+      if (departed > 0) {
+        throw badRequest(
+          'CYCLE_HAS_DEPARTED',
+          `Goods of cycle ${cycle.code} have already left, so it cannot go back to purchasing.`,
+          { cycle: cycle.code },
+        );
+      }
+    }
+  }
+
+  /**
    * Every check `transition` makes, and what it will do, with nothing written.
    *
    * The assistant previews a status change from this and `transition` acts on
@@ -680,6 +728,7 @@ export class CyclesService {
     }
 
     await this.assertShippingReached(db, id, cycle.originType, targetStatus);
+    await this.assertPreparingRules(db, cycle, targetStatus);
 
     // Every unit ordered received or marked lost before the cycle settles
     // (§8, amendment 5) — the same helper settlement `approve` calls.
@@ -740,8 +789,11 @@ export class CyclesService {
      * which is the exact shape of the money bugs this repo's rules were
      * written after.
      *
-     * PURCHASING -> IN_TRANSIT or ARRIVED_UAE both mean the goods are moving,
-     * so the order exists in the world and can no longer gain lines.
+     * PURCHASING -> PREPARING (the only way forward since 2026-10-27) means the
+     * order was placed and the supplier is preparing it, so the order exists
+     * in the world and can no longer gain lines. A cycle sent back from
+     * PREPARING keeps its confirmed orders; leaving again confirms only the
+     * drafts added since.
      * CANCELLED does not confirm anything: an abandoned cycle never ordered.
      */
     const leavingPurchasing =
@@ -946,6 +998,35 @@ export class CyclesService {
         ordersConfirmed: walked.flatMap((p) =>
           p.ordersToConfirm.map((o) => o.reference),
         ),
+      },
+    };
+  }
+
+  /**
+   * The shipment's last departure was undone (§1, Preparing, GUESS
+   * 2026-10-27): nothing has left any more and the order is still confirmed,
+   * so the cycle goes back to Preparing. Not a move Change status offers —
+   * only undoing that departure makes it (`undoReturnsToPreparing` decides).
+   * In the caller's transaction, under the cycle's lock; the caller announces
+   * `plan` after commit.
+   */
+  async returnToPreparingIn(tx: Db, cycleId: string) {
+    const cycle = await tx.importCycle.findUnique({ where: { id: cycleId } });
+    if (!cycle) throw notFound('cycle');
+    await tx.importCycle.update({
+      where: { id: cycleId },
+      data: { status: 'PREPARING' },
+    });
+    return {
+      plan: { cycle, to: 'PREPARING' },
+      cycleStatus: {
+        cycleId,
+        from: cycle.status,
+        to: 'PREPARING',
+        moved: true,
+        steps: ['PREPARING'],
+        stoppedAt: null,
+        ordersConfirmed: [] as string[],
       },
     };
   }

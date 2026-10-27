@@ -114,6 +114,7 @@ test.describe('When stock arrived', () => {
     for (const status of [
       'FUNDING',
       'PURCHASING',
+      'PREPARING',
       'ARRIVED_UAE',
       'IN_TRANSIT_TO_EGYPT',
       'ARRIVED_EGYPT',

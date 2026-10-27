@@ -99,7 +99,9 @@ Guesses made while building L8, open until confirmed (autonomous run, 2026-10-12
 - **Undo** is refused (`DEPARTURE_IN_USE`) once goods from the departure were delivered or marked lost —
   deliveries and losses are matched to departures in the order they left (first in, first out), so the latest
   departures are the ones free to undo — or when it is the leg's only departure and the cycle's status says the
-  leg has left (the L3 rule deleting a delivery follows). Undoing never moves the cycle back. Deleting a leg-1
+  leg has left (the L3 rule deleting a delivery follows). Undoing never moves the cycle back
+  — *except, since 2026-10-27, the shipment's last departure, which returns the cycle to
+  Preparing (below, "a Preparing status")*. Deleting a leg-1
   delivery whose goods leg 2 already sent on is refused like one leg 2 delivered (`DELIVERY_IN_USE`, carried).
 - **Delete delivery is offered only where it would work** (owner 2026-10-20, built 2026-10-22). The shipment marks
   each delivery `deletable` with the reason it is not (`deleteBlockedBy`: received / carried / status) from
@@ -195,7 +197,8 @@ the other way round:
   saves.** The response names the step and the refusal; the office app shows it
   as a warning beside the success.
 - **A cycle still in Planning or Funding** when a departure or delivery is
-  recorded is walked through Funding and Purchasing too, each through its own
+  recorded is walked through Funding and Purchasing too (and, since 2026-10-27,
+  Preparing, where its orders are confirmed), each through its own
   checks (recommended option, chosen in the autonomous run 2026-10-11): the
   goods have left, so the money and the order already happened in the world.
 - **A China cycle whose second leg is not recorded** is proved no further than
@@ -326,6 +329,72 @@ Guesses, open until confirmed (autonomous run, 2026-10-11):
   which nets every return; the cards need every unit in exactly one place.
 - A unit marked lost after reaching Egypt (never found at the count) is in Lost,
   not in Egypt.
+
+**DECIDED 2026-10-27 (owner) — a Preparing status between Purchasing and In
+transit.** *Built 2026-10-27 on `feature/preparing-status` (migration
+`20261028100000_cycle_status_preparing`), not yet on `dev`.* The owner: "it now
+should be in preparation (a new status its where the website or factory
+prepares your order, then next its in transit to uae)". The statuses run
+Planning → Funding → Purchasing → **Preparing** → In transit (China) or Arrived
+UAE (UAE direct) → … The statuses before shipping are written down once,
+`BEFORE_SHIPPING` in `apps/api/src/common/cycle-statuses.ts` (Planning, Funding,
+Purchasing, Preparing), with the full ordered list beside it; the office app's
+copy and the stranded-drafts scripts are pinned to it by tests.
+- **Purchasing → Preparing is the only way on from Purchasing** (besides
+  Cancel). It is the move that confirms the cycle's draft orders (§15) — the
+  order is placed, so it gains no more lines. Change status on the cycle page
+  offers it; the assistant's `transition_cycle` makes it.
+- **Set by itself.** A departure recorded on a cycle still in Purchasing (or
+  earlier) walks it through Preparing on its way (L3): Purchasing → Preparing →
+  In transit, or → Preparing → Arrived UAE → In transit to Egypt on a UAE-direct
+  cycle, each step through its own checks; the orders are confirmed at the
+  Preparing step, once. **The first departure moves the cycle on to In transit,
+  as before**; later departures (L8) move nothing.
+- Guesses, open until confirmed (2026-10-27):
+  - **GUESS — "the cycle's order is confirmed" means the cycle has left
+    Purchasing (§15).** There is no other moment in this code at which a
+    purchase order stops being a draft, and no confirm button on an order: the
+    cycle's orders are confirmed together when it leaves Purchasing, and that
+    move now always lands in Preparing. So Preparing is set by itself only
+    when a departure walks the cycle through it or a departure is undone (below);
+    otherwise a partner moves Purchasing → Preparing by hand when the supplier
+    has the order. Finishing the wizard with no departure still leaves the
+    cycle in Purchasing with its order a draft — finishing is not placing the
+    order — and the wizard is not reopened on a Preparing cycle (its order can
+    gain no lines).
+  - **GUESS — a cycle with no purchase order cannot be Preparing**
+    (`CYCLE_HAS_NO_ORDER`): at least one order line on the cycle. An order with
+    no lines still refuses as before (`PO_HAS_NO_ITEMS`). Two orders, one
+    already confirmed and one a draft (a cycle sent back to Purchasing and given
+    a forgotten order): Preparing confirms the draft and names only it.
+  - **GUESS — back from Preparing to Purchasing is allowed while nothing has
+    departed** (`CYCLE_HAS_DEPARTED` once any departure is recorded on any of
+    its legs), for a status set by mistake or an order forgotten. The orders
+    already confirmed stay confirmed — an order is never a draft again — and
+    leaving Purchasing again confirms only the drafts added since. Continue
+    setup returns, as for any cycle in Purchasing.
+  - **GUESS — undoing the shipment's last departure returns the cycle to
+    Preparing**, never to Purchasing: nothing has left any more and the order
+    is still confirmed. This applies only when it is the only departure the
+    whole shipment has, nothing it carried was delivered or marked lost, and
+    the cycle stands where only a departure could have put it (In transit; In
+    transit to Egypt on a UAE-direct cycle). It replaces, for that one case, the
+    L8 refusal "Move the cycle back first" — a move Change status could never
+    make. Every other undo keeps the L8 rules: a later part of a leg that left in
+    parts is undone without moving the cycle, and a second leg's only departure
+    on a cycle in transit to Egypt is still refused (`DEPARTURE_IN_USE`, status).
+    The cycle page says it before the click ("the cycle goes back to
+    Preparing") and the toast after; the server's `undoReturnsTo` on each
+    departure decides both.
+  - **GUESS — a Preparing cycle can be cancelled**, under the same checks as
+    cancelling from Purchasing (nothing moved in from another cycle, no friend's
+    payment standing): the factory or website can fail to deliver before
+    anything ships. Its orders stay confirmed on the cancelled cycle. Nothing
+    moves a cancelled cycle and nothing is recorded on its shipment.
+  - A Preparing cycle is not open for new purchase orders (as Purchasing is) —
+    the stranded-drafts check (`scripts/confirm-stranded-orders.sh`,
+    `ship-prod.sh stranded`) counts a draft on a Preparing cycle as stranded.
+  - Badge violet; "Preparing" / «قيد التجهيز».
 
 ---
 
@@ -3085,6 +3154,10 @@ can show two dates. Still the last leg, never the first.
 
 `PURCHASING -> IN_TRANSIT` and `PURCHASING -> ARRIVED_UAE` both mean the goods
 are moving, so the order was placed in the world and can no longer gain lines.
+*Since 2026-10-27 (§1, Preparing) the way on from PURCHASING is `PURCHASING ->
+PREPARING`: the order is placed and being prepared. A cycle sent back from
+PREPARING keeps its orders confirmed; leaving again confirms only drafts added
+since.*
 `PURCHASING -> CANCELLED` confirms nothing: a cycle that was abandoned never
 ordered anything.
 

@@ -146,10 +146,11 @@ describe('statusProvenByShipment / stepsToward', () => {
   it('steps go forward only, and never from off the way to Egypt', () => {
     expect(
       stepsToward('UAE_DIRECT', 'PURCHASING', 'IN_TRANSIT_TO_EGYPT'),
-    ).toEqual(['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']);
+    ).toEqual(['PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']);
     expect(stepsToward('CHINA', 'PLANNING', 'IN_TRANSIT')).toEqual([
       'FUNDING',
       'PURCHASING',
+      'PREPARING',
       'IN_TRANSIT',
     ]);
     expect(stepsToward('CHINA', 'ARRIVED_EGYPT', 'IN_TRANSIT')).toEqual([]);
@@ -182,7 +183,7 @@ describe('China: every record moves the cycle one step on', () => {
       from: 'PURCHASING',
       to: 'IN_TRANSIT',
       moved: true,
-      steps: ['IN_TRANSIT'],
+      steps: ['PREPARING', 'IN_TRANSIT'],
       stoppedAt: null,
       ordersConfirmed: [po.reference],
     });
@@ -210,8 +211,8 @@ describe('China: every record moves the cycle one step on', () => {
       to: 'ARRIVED_EGYPT',
     });
     // One audit row and one notice per step, after each commit.
-    expect(transitionsLogged()).toBe(4);
-    expect(statusNotices()).toBe(4);
+    expect(transitionsLogged()).toBe(5);
+    expect(statusNotices()).toBe(5);
   });
 
   it('leg 1 delivered with no second leg recorded stops at Arrived UAE', async () => {
@@ -231,7 +232,7 @@ describe('UAE direct', () => {
     expect(r1.cycleStatus).toMatchObject({
       from: 'PURCHASING',
       to: 'IN_TRANSIT_TO_EGYPT',
-      steps: ['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT'],
+      steps: ['PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT'],
       ordersConfirmed: [po.reference],
     });
     expect(po.status).toBe('CONFIRMED');
@@ -259,7 +260,12 @@ describe('UAE direct', () => {
     );
     expect(statusOf(c)).toBe('ARRIVED_EGYPT');
     expect(r.cycleStatus).toMatchObject({
-      steps: ['ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT'],
+      steps: [
+        'PREPARING',
+        'ARRIVED_UAE',
+        'IN_TRANSIT_TO_EGYPT',
+        'ARRIVED_EGYPT',
+      ],
     });
   });
 });
@@ -383,18 +389,18 @@ describe('never backward, never a finished cycle', () => {
 });
 
 describe('a cycle still being set up', () => {
-  it('PLANNING + a departure walks Funding → Purchasing → In transit, confirming the draft once', async () => {
+  it('PLANNING + a departure walks Funding → Purchasing → Preparing → In transit, confirming the draft once', async () => {
     const { cycle: c, po } = cycle('PLANNING', 'CHINA');
     const leg1 = addLeg(db, c, 1, { departedOn: null });
     const r = await depart(leg1);
     expect(statusOf(c)).toBe('IN_TRANSIT');
     expect(r.cycleStatus).toMatchObject({
       from: 'PLANNING',
-      steps: ['FUNDING', 'PURCHASING', 'IN_TRANSIT'],
+      steps: ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT'],
       ordersConfirmed: [po.reference],
     });
     expect(po.status).toBe('CONFIRMED');
-    expect(transitionsLogged()).toBe(3);
+    expect(transitionsLogged()).toBe(4);
   });
 
   it('a step whose own check refuses stops the walk there, and the departure still saves', async () => {
@@ -415,7 +421,7 @@ describe('a cycle still being set up', () => {
       from: 'PLANNING',
       to: 'PURCHASING',
       steps: ['FUNDING', 'PURCHASING'],
-      stoppedAt: { status: 'ARRIVED_UAE', code: 'PO_HAS_NO_ITEMS' },
+      stoppedAt: { status: 'PREPARING', code: 'PO_HAS_NO_ITEMS' },
       ordersConfirmed: [],
     });
     expect(db.legs.find((l) => l.id === leg.id)!.departedOn).toEqual(

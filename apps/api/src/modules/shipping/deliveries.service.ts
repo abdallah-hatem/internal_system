@@ -20,6 +20,7 @@ import {
   departureLines,
   deliveryDeleteBlock,
   departureUndoBlock,
+  undoReturnsToPreparing,
 } from './departure-rules';
 
 /**
@@ -347,7 +348,9 @@ export class DeliveriesService {
    * DELETE /shipping/departures/:id — a departure recorded by mistake. Refused
    * with DEPARTURE_IN_USE while anything depends on it (`departureUndoBlock`):
    * goods from it were delivered or marked lost, or the cycle's status says
-   * the leg has left and this is its only departure. Never moves the cycle.
+   * the leg has left and this is its only departure. Moves the cycle only when
+   * it is the shipment's last departure: back to Preparing (§1, 2026-10-27,
+   * `undoReturnsToPreparing`), said in `cycleStatus` like a forward move.
    */
   async deleteDeparture(id: string, actorId: string) {
     if (!isUuid(id)) throw notFound('shipmentDeparture');
@@ -358,7 +361,7 @@ export class DeliveriesService {
     if (!found) throw notFound('shipmentDeparture');
     const cycleId = found.leg.cycleId;
 
-    const changed = await this.prisma.$transaction(async (tx) => {
+    const { changed, back } = await this.prisma.$transaction(async (tx) => {
       await lockCycle(tx, cycleId);
       const loaded = await loadShipment(tx, cycleId);
       if (!loaded) throw notFound('cycle');
@@ -377,9 +380,13 @@ export class DeliveriesService {
           why: block.why,
         });
       }
+      const toPreparing = undoReturnsToPreparing(cycle, position, id);
 
       await tx.shipmentDeparture.delete({ where: { id } });
       const changed = await syncLegStatuses(tx, cycleId);
+      const back = toPreparing
+        ? await this.cycles.returnToPreparingIn(tx, cycleId)
+        : null;
       await this.audit.log(
         {
           actorUserId: actorId,
@@ -390,11 +397,15 @@ export class DeliveriesService {
         },
         tx,
       );
-      return changed;
+      return { changed, back };
     });
 
+    if (back) await this.cycles.announceTransition(back.plan, actorId);
     await this.notifyArrivals(cycleId, changed);
-    return { data: { id, deleted: true } };
+    return {
+      data: { id, deleted: true },
+      cycleStatus: back?.cycleStatus ?? null,
+    };
   }
 
   // ─── Deliveries ────────────────────────────────────────────────────────

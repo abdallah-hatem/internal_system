@@ -59,7 +59,7 @@ test.describe('Cycle details', () => {
   test('TC-CYC-D2: a closed cycle is still readable', async ({ page, request }) => {
     // The point of the complaint. History is exactly what you want to reread.
     const { mk, cycle } = await aCycle(request);
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
 
@@ -137,7 +137,7 @@ test.describe('Cycle details', () => {
   }) => {
     // The button is hidden, which is not the same as the rule existing.
     const { headers, mk, cycle, users } = await aCycle(request);
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION', 'SELLING', 'SETTLEMENT', 'CLOSED']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
 

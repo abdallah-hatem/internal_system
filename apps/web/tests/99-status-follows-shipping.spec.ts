@@ -181,7 +181,7 @@ test.describe('L3 — the API: what each record proves, and what it never does',
     expect((await cycleNow(request, headers, cycle.id)).status).toBe('PLANNING');
     const r = await depart(request, headers, legs[0].id, daysAgo(10));
     expect((await r.json()).cycleStatus).toMatchObject({
-      from: 'PLANNING', to: 'IN_TRANSIT', steps: ['FUNDING', 'PURCHASING', 'IN_TRANSIT'],
+      from: 'PLANNING', to: 'IN_TRANSIT', steps: ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT'],
     });
     const now = await cycleNow(request, headers, cycle.id);
     expect(now.status).toBe('IN_TRANSIT');

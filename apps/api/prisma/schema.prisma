@@ -293,6 +293,9 @@ enum CycleStatus {
   PLANNING
   FUNDING
   PURCHASING
+  /// The order is confirmed and the supplier or website is preparing it;
+  /// nothing has left yet (BUSINESS_LOGIC §1, owner 2026-10-27).
+  PREPARING
   IN_TRANSIT
   ARRIVED_UAE
   IN_TRANSIT_TO_EGYPT

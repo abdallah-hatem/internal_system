@@ -297,7 +297,7 @@ test.describe('Deleting a delivery', () => {
   test('TC-DL-31: Deleting the only last-leg delivery of a cycle in ARRIVED_EGYPT → DELIVERY_IN_USE', async ({ request }) => {
     const { headers, mk, cycle, leg, item } = await departedCycle(request);
     const d = await deliver(request, headers, leg.id, item, 10);
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     const res = await request.delete(`${API}/shipping/deliveries/${d.body.data.id}`, { headers });
@@ -360,7 +360,7 @@ test.describe('The old leg form and the cycle gates', () => {
   test('TC-DL-LATE-FREIGHT: After receipt, correcting the leg re-costs the batch (§2, 2026-10-17); a late charge recorded as a cycle expense instead is counted once and changes no batch cost', async ({ request }) => {
     const { headers, mk, cycle, leg, item, product } = await departedCycle(request);
     await deliver(request, headers, leg.id, item, 40);
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     await mk('receipts/verify', {
@@ -397,7 +397,7 @@ test.describe('The old leg form and the cycle gates', () => {
 
   test('TC-DL-50: Cycle → ARRIVED_UAE after leg 1\'s first delivery of 15/40 → allowed; with no delivery → LEG_NOT_ARRIVED', async ({ request }) => {
     const { headers, mk, cycle, legs, item } = await departedCycle(request, 'CHINA');
-    for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     // Arrived UAE needs a leg-1 delivery, and the gate says so.
@@ -414,7 +414,7 @@ test.describe('The old leg form and the cycle gates', () => {
     const { headers, mk, cycle, legs, item } = await departedCycle(request, 'CHINA');
     await deliver(request, headers, legs[0].id, item, 30, daysAgo(15));
     await departLeg2(request, headers, legs[1]);
-    for (const status of ['FUNDING', 'PURCHASING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'IN_TRANSIT', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
     // The last leg partly arrived (12 of 30) passes the Arrived Egypt gate by itself (L3).

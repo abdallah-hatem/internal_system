@@ -114,7 +114,7 @@ test.describe('Stock through the deployed app', () => {
     // The route a UAE-direct cycle actually takes. Guessed at first, and the
     // API refused: from PURCHASING the goods reach the UAE before they are in
     // transit to Egypt. The stages exist because the business works that way.
-    for (const status of ['FUNDING', 'PURCHASING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
+    for (const status of ['FUNDING', 'PURCHASING', 'PREPARING', 'ARRIVED_UAE', 'IN_TRANSIT_TO_EGYPT', 'ARRIVED_EGYPT', 'VERIFICATION']) {
       await mk(`cycles/${cycle.id}/transition`, { status });
     }
 
