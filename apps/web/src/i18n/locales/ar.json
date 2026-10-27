@@ -639,6 +639,7 @@
       "holdsHint": "إذا كانت هي ما سيشترونه، فأكمل طلب العينات بدلاً من ذلك: الطلب الجديد يسحب وحدات أخرى من الرف بينما تبقى العينات محسوبة خارجه. الشراء المنفصل مقبول.",
       "holdsOpen": "سيشترون — افتح {orderNo}",
       "holdsLine": "{units} × {product}",
+      "holdsHeading": "{orderNo} · تُركت {date}",
       "holdsLineAt": "{product} × {units} · {branch} · {orderNo}",
       "addToOrder": "أضف إلى الطلب",
       "added": "تمت الإضافة",

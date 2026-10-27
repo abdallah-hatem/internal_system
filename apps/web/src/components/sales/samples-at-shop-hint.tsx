@@ -148,14 +148,22 @@ export function SamplesAtShopHint({
             {branchLabel(order)}
           </p>
         )}
-        <p>
-          {t('holds', {
-            items,
-            units,
-            orderNo: order.orderNo,
-            date: formatDate(order.leftOn),
-          })}
-        </p>
+        {/* With rows (New Order), the rows already say what and where: a short heading, not the
+            sentence that repeats them (owner 2026-10-27, "tidy"). The chat keeps the sentence. */}
+        {onAdd ? (
+          <p data-testid="samples-at-shop-heading" className="text-xs font-semibold">
+            {t('holdsHeading', { orderNo: order.orderNo, date: formatDate(order.leftOn) })}
+          </p>
+        ) : (
+          <p>
+            {t('holds', {
+              items,
+              units,
+              orderNo: order.orderNo,
+              date: formatDate(order.leftOn),
+            })}
+          </p>
+        )}
         {onAdd && (
           <ul className="mt-1.5 space-y-1.5">
             {order.lines.map((l) => {
