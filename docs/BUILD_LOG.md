@@ -420,6 +420,17 @@ _(none)_
 
 ## Next up
 Shipped 2026-10-21: everything the 2026-10-19 list asked for (Live in production). Left below, each with why:
+- Next (2026-10-27, owner: "need the sample to not be just a hint … a button to click to add this sample to the current
+  order, and auto handle the rest … a shop can also have 3 samples of 3 different products, but he decides to make an order
+  that includes buying 2 of them while one still remains as a sample"): **Samples into the current order** —
+  New Order's samples hint becomes a list per product with **Add to order** (and **Add all**); the line is tagged
+  "from sample ORD-…" and edits like any line. On confirm, in one server transaction, the sample's units (and their
+  allocations at their original batch cost) move from the samples order into the sale — no second shelf draw; more than
+  the sample takes the rest from the shelf (FIFO); fewer leaves the rest as a sample. Lines not added stay samples on the
+  same order (left date and reminder kept); a samples order with nothing left closes as bought. The "They're buying"
+  popup gets the same per-line choice for a removed line: **Keep as sample** (default) or **Returned**. Tests: more /
+  less / all / none of a sample, two samples orders at once, another shop's sample (refused), a returned or written-off
+  sample (refused), doing it twice, stock and the settlement gate correct after. Build on its own branch.
 - Later (2026-10-27, owner: "in sales order we need a confirm and paid button for easier access, add to do later"):
   **Confirm and paid in one step** — on a draft sale order (the order popup and New Order), a "Confirm & paid" button that
   confirms the order and records a payment for its full total (today, the order's customer) in one server call, all or
