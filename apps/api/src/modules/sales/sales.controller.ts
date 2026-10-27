@@ -21,7 +21,11 @@ import type { ListQuery } from '../../common/list-query';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard, Roles } from '../../common/guards/roles.guard';
 import { badRequest } from '../../common/api-error';
-import { SALES_PARTNER_ROLES, SALES_ROLES } from './sales-roles';
+import {
+  CONFIRM_AND_PAY_ROLES,
+  SALES_PARTNER_ROLES,
+  SALES_ROLES,
+} from './sales-roles';
 import { OrderHistoryService } from './order-history.service';
 import {
   PriceAdjustmentsService,
@@ -121,6 +125,34 @@ export class SalesController {
       );
     }
     return this.salesService.confirmOrder(id, user.id, body.version);
+  }
+
+  @Post(':id/confirm-and-pay')
+  @Roles(...CONFIRM_AND_PAY_ROLES)
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Confirm & paid (§4, owner 2026-10-27): confirm a draft and record a payment of its full total on it, dated the sale’s day, in one transaction — refused for anything Confirm refuses, samples and the walk-in record. `payment.method` defaults to cash.',
+  })
+  confirmAndPay(
+    @Param('id') id: string,
+    @Body()
+    body: { version?: number; payment?: { method?: string } } | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    // The same rule as Confirm: the version it was read at, or nothing.
+    if (body?.version === undefined) {
+      throw badRequest(
+        'VERSION_REQUIRED',
+        'Confirming an order requires the version it was read at.',
+      );
+    }
+    return this.salesService.confirmAndPay(
+      id,
+      user.id,
+      body.version,
+      body.payment,
+    );
   }
 
   @Get(':id/history')

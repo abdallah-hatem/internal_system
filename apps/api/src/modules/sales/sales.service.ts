@@ -115,7 +115,17 @@ export interface CreateSaleOrderInput {
    * confirmed and paid in full in one step, on the shared walk-in record.
    */
   walkIn?: boolean;
-  /** How a walk-in sale was paid. Only with `walkIn`; cash when unsaid. */
+  /**
+   * Confirm & paid in one step (BUSINESS_LOGIC §4, owner 2026-10-27): create,
+   * confirm and record a payment of the full total on this order, in one
+   * transaction, or none of it. Implies `confirm`. A walk-in sale is paid
+   * this way already, so on one it changes nothing.
+   */
+  paid?: boolean;
+  /**
+   * How the money came in: with `walkIn` or `paid`, cash when unsaid. Refused
+   * on any other sale, where it would be silently ignored.
+   */
   payment?: { method?: string };
   /**
    * The Cairo day the sale was made, YYYY-MM-DD (BUSINESS_LOGIC §4,
@@ -435,6 +445,29 @@ function sampleDrawsOf(order: {
         a.receivedAt - b.receivedAt || a.batchId.localeCompare(b.batchId),
     )
     .map(({ receivedAt: _receivedAt, ...d }) => d);
+}
+
+/**
+ * How the money came in, from a body's `payment` — cash when unsaid, as the
+ * Record payment dialog defaults to. One reading for the walk-in sale and
+ * Confirm & paid (§4), so they cannot accept different methods.
+ */
+function paymentMethodOf(payment: unknown): PaymentMethod {
+  if (
+    payment !== undefined &&
+    (payment === null || typeof payment !== 'object')
+  ) {
+    throw refuseShape('payment', 'payment must be { method }.');
+  }
+  const method =
+    (payment as { method?: unknown } | undefined)?.method ?? 'CASH';
+  if (!(PAYMENT_METHODS as readonly string[]).includes(method as string)) {
+    throw refuseShape(
+      'payment.method',
+      `payment.method must be one of ${PAYMENT_METHODS.join(', ')}.`,
+    );
+  }
+  return method as PaymentMethod;
 }
 
 /** What an audit row is written from. */
@@ -912,7 +945,16 @@ export class SalesService {
     if (data?.samples !== undefined && typeof data.samples !== 'boolean') {
       throw refuseShape('samples', 'samples must be true or false.');
     }
+    if (data?.paid !== undefined && typeof data.paid !== 'boolean') {
+      throw refuseShape('paid', 'paid must be true or false.');
+    }
     if (data?.samples === true) {
+      if (data.paid === true) {
+        throw refuseShape(
+          'paid',
+          'Samples are not charged, so they cannot be paid for.',
+        );
+      }
       // Samples go to a shop that can decide later; a walk-in buyer has no
       // account to come back to, and a samples order is never a draft.
       if (data.walkIn === true) {
@@ -938,6 +980,21 @@ export class SalesService {
     const walkIn = this.walkInRequest(data);
     if (walkIn) {
       return this.createWalkIn(data, walkIn.method, actorId, idempotencyKey);
+    }
+
+    if (data?.paid === true) {
+      if (data.confirm === false) {
+        throw refuseShape(
+          'paid',
+          'A draft owes nothing, so it cannot be paid; confirm it to pay it.',
+        );
+      }
+      return this.createPaid(
+        data,
+        paymentMethodOf(data.payment),
+        actorId,
+        idempotencyKey,
+      );
     }
 
     if (data?.confirm !== true) {
@@ -1015,10 +1072,10 @@ export class SalesService {
       throw refuseShape('walkIn', 'walkIn must be true or false.');
     }
     if (data?.walkIn !== true) {
-      if (data?.payment !== undefined) {
+      if (data?.payment !== undefined && data?.paid !== true) {
         throw refuseShape(
           'payment',
-          'A payment is taken with the sale only on a walk-in sale.',
+          'A payment is taken with the sale only on a walk-in sale or with paid: true.',
         );
       }
       return null;
@@ -1038,20 +1095,7 @@ export class SalesService {
     if (data.channel !== undefined && data.channel !== 'B2C') {
       throw refuseShape('channel', 'A walk-in sale is always at B2C prices.');
     }
-    if (
-      data.payment !== undefined &&
-      (data.payment === null || typeof data.payment !== 'object')
-    ) {
-      throw refuseShape('payment', 'payment must be { method }.');
-    }
-    const method = data.payment?.method ?? 'CASH';
-    if (!(PAYMENT_METHODS as readonly string[]).includes(method)) {
-      throw refuseShape(
-        'payment.method',
-        `payment.method must be one of ${PAYMENT_METHODS.join(', ')}.`,
-      );
-    }
-    return { method: method as PaymentMethod };
+    return { method: paymentMethodOf(data.payment) };
   }
 
   /**
@@ -1102,22 +1146,7 @@ export class SalesService {
         actorId,
         order.version,
       );
-      const paid = new Prisma.Decimal(order.total).gt(0)
-        ? await this.payments.recordWithin(
-            tx,
-            {
-              customerId: walkIn.id,
-              amount: Number(order.total),
-              currency: order.currency,
-              // Paid on the spot: the day of the sale (§4).
-              receivedOn: new Date(businessDay(order.orderedAt)),
-              method,
-              reference: order.orderNo,
-              orderId: order.id,
-            },
-            actorId,
-          )
-        : null;
+      const paid = await this.payInFullWithin(tx, order.id, method, actorId);
       const settled = await tx.saleOrder.findUniqueOrThrow({
         where: { id: order.id },
         include: { items: true, customer: true },
@@ -1143,6 +1172,193 @@ export class SalesService {
     // The sale is the news; its payment is part of it, not a second one.
     await this.announceSale(outcome.order.id, actorId);
 
+    return {
+      data: {
+        ...outcome.settled,
+        allocations: outcome.confirmed.data.allocations,
+        totalCogs: outcome.confirmed.data.totalCogs,
+        payment: outcome.paid?.payment ?? null,
+      },
+    };
+  }
+
+  /**
+   * Receive the whole of what a just-confirmed order owes, on that order,
+   * inside the caller's transaction — the one definition of "paid in full
+   * with the sale", for the walk-in sale and Confirm & paid (§4) alike.
+   *
+   * The money goes through `PaymentsService.recordWithin`, which allocates
+   * through `allocateWithin`: the same payment, ledger INFLOW and allocation
+   * Record payment writes, with every cap and ownership check it applies.
+   *
+   * Dated the sale's own day in Cairo (§7a): a sale entered later for an
+   * earlier day was paid that earlier day, and a payment is never dated before
+   * its order nor after today. An order worth nothing owes nothing and takes no
+   * payment — a zero payment would say money moved when none did.
+   */
+  private async payInFullWithin(
+    tx: Db,
+    orderId: string,
+    method: PaymentMethod,
+    actorId: string,
+  ) {
+    const order = await tx.saleOrder.findUniqueOrThrow({
+      where: { id: orderId },
+      select: {
+        id: true,
+        orderNo: true,
+        customerId: true,
+        currency: true,
+        orderedAt: true,
+        outstanding: true,
+      },
+    });
+    if (!new Prisma.Decimal(order.outstanding).gt(0)) return null;
+    return this.payments.recordWithin(
+      tx,
+      {
+        customerId: order.customerId,
+        amount: Number(order.outstanding),
+        currency: order.currency,
+        receivedOn: new Date(businessDay(order.orderedAt)),
+        method,
+        reference: order.orderNo,
+        orderId: order.id,
+      },
+      actorId,
+    );
+  }
+
+  /**
+   * Create, confirm and pay in full (BUSINESS_LOGIC §4, "Confirm & paid in
+   * one step", owner 2026-10-27) — New Order's third button. One transaction:
+   * a refusal from any step (stock, dates, a discount larger than its line)
+   * leaves no order, no stock moved and no payment.
+   */
+  private async createPaid(
+    data: CreateSaleOrderInput,
+    method: PaymentMethod,
+    actorId: string,
+    idempotencyKey?: string,
+  ): Promise<{ data: unknown }> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const draft = await this.prepareDraft(tx, data, actorId, idempotencyKey);
+      const order = await tx.saleOrder.create({
+        data: draft,
+        include: { items: true, customer: true },
+      });
+      const confirmed = await this.confirmWithin(
+        tx,
+        order.id,
+        actorId,
+        order.version,
+      );
+      const paid = await this.payInFullWithin(tx, order.id, method, actorId);
+      const settled = await tx.saleOrder.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { items: true, customer: true },
+      });
+      return { order, confirmed, paid, settled };
+    });
+
+    await this.audit.log({
+      actorUserId: actorId,
+      action: 'CREATE',
+      entityType: 'SaleOrder',
+      entityId: outcome.order.id,
+      afterJson: outcome.order,
+    });
+    return this.afterConfirmedAndPaid(outcome, actorId);
+  }
+
+  /**
+   * Confirm & paid on a draft (BUSINESS_LOGIC §4, owner 2026-10-27): confirm
+   * it — the same `confirmWithin` the Confirm button runs, so it is refused
+   * for everything Confirm is — and record a payment of its full total on it,
+   * in ONE transaction, or none of it.
+   *
+   * The order row is locked first, so a double click or two partners at once
+   * queue here: the second reads the order the first left (no longer a draft)
+   * and is refused, and the order is confirmed and paid exactly once.
+   */
+  async confirmAndPay(
+    id: string,
+    actorId: string,
+    version: number,
+    payment?: unknown,
+  ) {
+    const method = paymentMethodOf(payment);
+    if (!isUuid(id)) throw notFound('saleOrder');
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM sale_orders WHERE id = ${id}::uuid FOR UPDATE`;
+      const order = await tx.saleOrder.findUnique({
+        where: { id },
+        select: {
+          orderNo: true,
+          status: true,
+          customer: {
+            select: {
+              displayName: true,
+              verificationStatus: true,
+              isWalkIn: true,
+            },
+          },
+        },
+      });
+      if (!order) throw notFound('saleOrder');
+      // Samples are not a sale until the shop decides (§4).
+      if (isSamplesStatus(order.status)) {
+        throw badRequest(
+          'SAMPLES_NOT_PAYABLE',
+          `Order ${order.orderNo} is samples left at a shop, not a sale, so nothing can be paid on it. Record what the shop decided first.`,
+          { order: order.orderNo },
+        );
+      }
+      // Unreachable from the office — a walk-in sale is never a draft — and
+      // refused all the same: the walk-in record is sold to only as a walk-in.
+      if (order.customer.isWalkIn) {
+        throw badRequest(
+          'WALK_IN_RESERVED',
+          'The walk-in record is kept by the system; sell to it with walkIn: true.',
+        );
+      }
+      // Record payment refuses money from an unverified customer; so does this.
+      assertVerified(order.customer);
+      const confirmed = await this.confirmWithin(tx, id, actorId, version);
+      const paid = await this.payInFullWithin(tx, id, method, actorId);
+      const settled = await tx.saleOrder.findUniqueOrThrow({
+        where: { id },
+        include: { items: true, customer: true },
+      });
+      return { confirmed, paid, settled };
+    });
+    return this.afterConfirmedAndPaid(outcome, actorId);
+  }
+
+  /**
+   * Everything after the commit of a confirm-and-pay, for the reason given in
+   * `confirmOrder`: the audit rows, the low-stock alert, and the sale and the
+   * payment told to the other partners — each once.
+   */
+  private async afterConfirmedAndPaid<T extends { id: string }>(
+    outcome: {
+      confirmed: Awaited<ReturnType<SalesService['confirmWithin']>>;
+      paid: Awaited<ReturnType<PaymentsService['recordWithin']>> | null;
+      settled: T;
+    },
+    actorId: string,
+  ) {
+    await this.logConfirmed(outcome.confirmed);
+    if (outcome.paid) await this.payments.logRecorded(outcome.paid, actorId);
+    await notifyLowStock(
+      this.prisma,
+      this.notifications,
+      outcome.confirmed.lowStock,
+    );
+    await this.announceSale(outcome.settled.id, actorId);
+    if (outcome.paid) {
+      await this.payments.announcePayment(outcome.paid.payment.id, actorId);
+    }
     return {
       data: {
         ...outcome.settled,
@@ -1966,7 +2182,9 @@ export class SalesService {
         throw samplesSaleBeforeLeft(order.orderNo, leftOn, ctx.day);
       }
       for (const productId of new Set(
-        items.filter((i) => i.fromSamplesOrderId === id).map((i) => i.productId),
+        items
+          .filter((i) => i.fromSamplesOrderId === id)
+          .map((i) => i.productId),
       )) {
         const out = order.items
           .filter((i) => i.productId === productId)
@@ -2006,7 +2224,11 @@ export class SalesService {
     sale: {
       id: string;
       orderNo: string;
-      items: { id: string; productId: string; fromSamplesOrderId: string | null }[];
+      items: {
+        id: string;
+        productId: string;
+        fromSamplesOrderId: string | null;
+      }[];
     },
     from: NonNullable<Awaited<ReturnType<SalesService['sampleSources']>>>,
     actorId: string,
@@ -2017,7 +2239,13 @@ export class SalesService {
     for (const [i, item] of sale.items.entries()) {
       for (const k of from.plan.lines[i].fromSamples) {
         const source = from.sources.get(item.fromSamplesOrderId!)!;
-        await this.takeFromSamples(tx, source, item.productId, k.batchId, k.qty);
+        await this.takeFromSamples(
+          tx,
+          source,
+          item.productId,
+          k.batchId,
+          k.qty,
+        );
         allocations.push(
           await tx.saleItemAllocation.create({
             data: {
@@ -2326,7 +2554,9 @@ export class SalesService {
       // Kept as samples (owner 2026-10-27): the order stays samples, and the
       // sale is a new order made from it.
       const keep = new Set(body.keepAsSample ?? []);
-      if (plan.products.some((p) => keep.has(p.productId) && p.out.gt(p.kept))) {
+      if (
+        plan.products.some((p) => keep.has(p.productId) && p.out.gt(p.kept))
+      ) {
         return {
           kind: 'split' as const,
           ...(await this.buyPartOfSamples(

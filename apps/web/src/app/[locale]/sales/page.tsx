@@ -324,7 +324,7 @@ function SalesPageContent() {
   });
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const onOrderSaved = ({ confirmed, walkIn, samples }: SavedOrder) => {
+  const onOrderSaved = ({ confirmed, walkIn, samples, paid }: SavedOrder) => {
     void queryClient.invalidateQueries({ queryKey: ['sales'] });
     if (samples) {
       // The units left the shelf; nothing is owed.
@@ -338,13 +338,22 @@ function SalesPageContent() {
       void queryClient.invalidateQueries({ queryKey: ['inventory'] });
       void queryClient.invalidateQueries({ queryKey: ['customers'] });
     }
-    if (walkIn) {
-      // A walk-in sale also recorded the money that came in with it.
+    if (walkIn || paid) {
+      // A walk-in sale, or Confirm & paid, also recorded the money that came in with it.
       void queryClient.invalidateQueries({ queryKey: ['payments'] });
       void queryClient.invalidateQueries({ queryKey: ['analytics'] });
     }
     setCreateFor(null);
-    addToast(walkIn ? t('walkInSold') : confirmed ? t('orderCreatedConfirmed') : t('draftSaved'), 'success');
+    addToast(
+      walkIn
+        ? t('walkInSold')
+        : paid
+        ? t('orderCreatedPaid')
+        : confirmed
+        ? t('orderCreatedConfirmed')
+        : t('draftSaved'),
+      'success',
+    );
   };
 
   const confirmMutation = useMutation({
@@ -361,6 +370,30 @@ function SalesPageContent() {
       addToast(apiError(error, tc('error')), 'error');
     },
   });
+
+  // Confirm & paid (§4, owner 2026-10-27): confirm the draft and record a
+  // payment of its full total on it, in one server call — all or nothing. The
+  // method is cash, Record payment's own default; any other method is Confirm,
+  // then Record payment.
+  const confirmPaidMutation = useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      api.post(`/sales/orders/${id}/confirm-and-pay`, { version }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      void queryClient.invalidateQueries({ queryKey: ['sale'] });
+      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      void queryClient.invalidateQueries({ queryKey: ['customers'] });
+      void queryClient.invalidateQueries({ queryKey: ['payments'] });
+      void queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      setViewingOrder(null);
+      addToast(t('orderConfirmedPaid'), 'success');
+    },
+    onError: (error: unknown) => {
+      addToast(apiError(error, tc('error')), 'error');
+    },
+  });
+  /** Either confirm in flight: both buttons wait, so one click cannot follow the other. */
+  const confirmingDraft = confirmMutation.isPending || confirmPaidMutation.isPending;
 
   // Returns are recorded against a confirmed sale, per line.
   const [returningOrder, setReturningOrder] = useState<any | null>(null);
@@ -1020,11 +1053,31 @@ function SalesPageContent() {
                   </button>
                   <button
                     onClick={() => confirmMutation.mutate({ id: detail.id, version: detail.version ?? 1 })}
-                    disabled={confirmMutation.isPending}
+                    disabled={confirmingDraft}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
                   >
-                    <CheckCircle className="h-4 w-4" />
+                    {confirmMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
                     {t('confirm')}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="order-confirm-paid"
+                    title={t('confirmAndPaidHint')}
+                    onClick={() => confirmPaidMutation.mutate({ id: detail.id, version: detail.version ?? 1 })}
+                    disabled={confirmingDraft}
+                    aria-busy={confirmPaidMutation.isPending || undefined}
+                    className="max-sm:order-first max-sm:col-span-2 inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {confirmPaidMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                    {t('confirmAndPaid')}
                   </button>
                 </>
               )}

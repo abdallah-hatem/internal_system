@@ -1359,6 +1359,42 @@ added twice, an edit below what was paid, whether an edit notifies the partners 
 `feature/edit-order` and are not in production. Until it ships there is no edit path for a confirmed order: a price
 cut is a price adjustment (above), fewer units a return (§5).
 
+### Confirm & paid in one step — DECIDED 2026-10-27 (owner), built on `feature/confirm-and-paid`, NOT SHIPPED, details GUESSED
+
+The owner: "in sales order we need a confirm and paid button for easier access", then "start build the confirm and
+pay". A shop that pays on the spot took two steps — Confirm, then Record payment — for one event.
+
+- **What it does (DECIDED).** On a draft sale order — the order popup on Sales, and New Order — a **Confirm & paid**
+  button confirms the order and records a payment of its full total on it, in ONE server call and one transaction:
+  both or neither. `POST /sales/orders/:id/confirm-and-pay` `{ version, payment?: { method } }` for a draft; New
+  Order sends its order with `paid: true` to `POST /sales/orders` (create, confirm and pay in one transaction).
+- **Refused for everything Confirm refuses** — not enough stock, a stale version, an order that is not a draft
+  (confirmed, paid, cancelled: `ONLY_DRAFT_CONFIRMABLE`) — because it runs the same `confirmWithin`; and for samples at
+  a shop (`SAMPLES_NOT_PAYABLE`) and an unverified customer (`CUSTOMER_NOT_VERIFIED`, as Record payment refuses).
+  The payment goes through the same `recordWithin`/`allocateWithin` as Record payment (ledger INFLOW, allocation,
+  every cap). A refusal at any step leaves the draft as it was: no stock drawn, no payment, no ledger row.
+- **Twice (DECIDED by the rule above).** The order row is locked first, so a double click or two partners at once
+  confirm and pay once; the second is refused `ONLY_DRAFT_CONFIRMABLE`. New Order's send carries its idempotency key,
+  so a retry answers with the same order and one payment.
+- **Who.** The roles allowed both to sell and to record a payment (core partner, admin support), worked out from the
+  two lists so narrowing either narrows this.
+- **Notifications.** The sale and the payment are each told to the other partners once, after the commit.
+- GUESS: **the method is cash**, Record payment's own default, and the buttons ask nothing — the point is one click.
+  The API takes `payment.method` (the four Record payment offers); a payment by another method is Confirm, then
+  Record payment. Reference: the order number (as the walk-in sale's payment).
+- GUESS: **the payment is dated the order's own day**, not today — a back-dated draft was paid when it was sold, and
+  a payment is never before its order nor in the future (§7a). The owner's first words said "today"; for a draft
+  made and paid the same day the two are the same. A draft from an earlier day paid today would want Confirm, then
+  Record payment dated today.
+- GUESS: **walk-in.** A walk-in sale is never a draft and is already paid on confirm (§4), so New Order does not
+  offer the button with Walk-in on (nor with Samples on — not charged). `paid: true` on a walk-in body is the
+  walk-in sale it already was; the walk-in record is refused on the draft endpoint (`WALK_IN_RESERVED`, unreachable
+  from the office).
+- GUESS: **an order worth nothing** is confirmed and takes no payment of 0 (as the walk-in sale): it stays CONFIRMED
+  owing 0.
+- GUESS: in the popup it sits beside Confirm Order (both disabled while either runs); in New Order it is the last
+  button, after Create & confirm, so Enter in a field still saves a draft.
+
 ## 5. Returns
 
 **DECIDED 2026-08-21.**
